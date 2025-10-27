@@ -14,6 +14,9 @@ build/
 *.tgz
 *.tar.gz
 
+# Frontend build (mas manter # public (comentado para incluir frontend/public/index.html)/index.html)
+frontend/build/
+
 # Environment variables
 .env
 .env.local
@@ -95,7 +98,7 @@ dist
 
 # Gatsby files
 .cache/
-public
+# public (comentado para incluir frontend/public/index.html)
 
 # Storybook build outputs
 .out
@@ -136,7 +139,7 @@ backups/
 
 # Upload directories
 uploads/
-public/assets/uploads/
+# public (comentado para incluir frontend/public/index.html)/assets/uploads/
 
 # Docker volumes (if mounted locally)
 postgres_data/
