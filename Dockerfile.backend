@@ -1,0 +1,239 @@
+# Smart Signage Pro v2.0 - Dockerfile Backend
+# Container especializado apenas para o backend
+
+FROM node:18-alpine AS builder
+
+# Instalar dependências do sistema
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    curl \
+    bash \
+    openssl \
+    openssl-dev
+
+# Definir diretório de trabalho
+WORKDIR /app/backend
+
+# Copiar arquivos de dependências e configuração (explicitamente)
+COPY backend/package.json ./package.json
+COPY backend/tsconfig.json ./tsconfig.json
+
+# Instalar dependências do backend (incluindo dev para build)
+RUN npm install --include=dev
+
+# Copiar código fonte do backend
+COPY backend/src ./src
+
+# Criar schema.prisma completo para geração do cliente
+RUN mkdir -p ./prisma && \
+    cat > ./prisma/schema.prisma << 'EOF'
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("user")
+  is_active Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+}
+
+model Client {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  is_active Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+}
+
+model Totem {
+  id            Int      @id @default(autoincrement())
+  name          String
+  location      String?
+  client_id     Int?
+  is_active     Boolean  @default(true)
+  last_heartbeat DateTime?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now())
+}
+
+model Media {
+  id           Int      @id @default(autoincrement())
+  filename     String
+  original_name String
+  file_path    String
+  file_type    String
+  file_size    Int
+  duration     Int?
+  client_id    Int?
+  created_at   DateTime @default(now())
+}
+
+model Playlist {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  client_id   Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now())
+}
+
+model PlaylistItem {
+  id          Int      @id @default(autoincrement())
+  playlist_id Int?
+  media_id    Int?
+  order_index Int
+  duration    Int      @default(10000)
+  created_at  DateTime @default(now())
+}
+
+model Campaign {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  client_id   Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now())
+}
+
+model QRCode {
+  id          Int      @id @default(autoincrement())
+  content     String
+  campaign_id Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+}
+
+model Analytics {
+  id          Int      @id @default(autoincrement())
+  totem_id    Int?
+  event_type  String
+  data        String?
+  created_at  DateTime @default(now())
+}
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  user_id     Int?
+  action      String
+  entity      String
+  entity_id   Int?
+  metadata    String?
+  created_at  DateTime @default(now())
+}
+
+model SystemLog {
+  id          Int      @id @default(autoincrement())
+  event_type String
+  description String?
+  created_at  DateTime @default(now())
+}
+
+model Notification {
+  id          Int      @id @default(autoincrement())
+  title       String
+  message     String
+  user_id     Int?
+  is_read     Boolean  @default(false)
+  created_at  DateTime @default(now())
+}
+
+model Settings {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now())
+}
+
+model Report {
+  id          Int      @id @default(autoincrement())
+  name        String
+  type        String
+  data        String?
+  created_at  DateTime @default(now())
+}
+
+model Billing {
+  id          Int      @id @default(autoincrement())
+  client_id   Int?
+  amount      Float
+  status      String
+  created_at  DateTime @default(now())
+}
+EOF
+
+# Gerar cliente Prisma com arquitetura específica
+RUN npx prisma generate --generator client
+
+# Compilar TypeScript
+RUN npm run build
+
+# Estágio de produção
+FROM node:18-alpine AS production
+
+# Instalar dependências do sistema
+RUN apk add --no-cache \
+    curl \
+    bash \
+    tzdata \
+    openssl
+
+# Definir timezone
+ENV TZ=America/Sao_Paulo
+ENV NODE_ENV=production
+
+# Criar usuário não-root
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S smartsignage -u 1001
+
+# Definir diretório de trabalho
+WORKDIR /app
+
+# Copiar dependências compiladas do backend
+COPY --from=builder /app/backend/dist ./backend/dist
+COPY --from=builder /app/backend/package*.json ./backend/
+
+# Instalar apenas dependências de produção
+WORKDIR /app/backend
+RUN npm install --omit=dev
+
+# Copiar cliente Prisma após instalação das dependências
+COPY --from=builder /app/backend/node_modules/.prisma ./node_modules/.prisma
+WORKDIR /app
+
+# Criar diretórios necessários
+RUN mkdir -p /app/data /app/uploads /app/logs /app/backups && \
+    chown -R smartsignage:nodejs /app
+
+# Expor porta
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/health || exit 1
+
+# Comando de inicialização - usar o caminho correto
+WORKDIR /app/backend
+
+# Mudar para usuário não-root ANTES do CMD
+USER smartsignage
+
+CMD ["node", "dist/index.js"]

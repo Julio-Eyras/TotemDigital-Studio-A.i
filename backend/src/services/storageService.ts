@@ -1,0 +1,478 @@
+/**
+ * Storage Service - Smart Signage v2.0
+ * Serviço de gerenciamento de arquivos
+ */
+
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+
+export interface FileInfo {
+  buffer: Buffer;
+  originalname: string;
+  mimetype: string;
+  size: number;
+}
+
+export class StorageService {
+  private basePath: string;
+  private uploadsPath: string;
+
+  constructor() {
+    this.basePath = process.env.UPLOAD_PATH || '/opt/smart-signage/public/assets';
+    this.uploadsPath = path.join(this.basePath, 'uploads');
+  }
+
+  /**
+   * Salva arquivo de mídia
+   */
+  async saveMediaFile(file: FileInfo, clientId: number, mediaName: string): Promise<string> {
+    try {
+      // Criar diretório do cliente
+      const clientDir = path.join(this.uploadsPath, `client-${clientId}`, 'medias');
+      await this.ensureDirectoryExists(clientDir);
+
+      // Gerar nome único para o arquivo
+      const fileExtension = path.extname(file.originalname);
+      const fileName = this.sanitizeFileName(mediaName) + fileExtension;
+      const filePath = path.join(clientDir, fileName);
+
+      // Verificar se arquivo já existe
+      if (fs.existsSync(filePath)) {
+        // Adicionar timestamp para evitar conflitos
+        const timestamp = Date.now();
+        const baseName = path.basename(fileName, fileExtension);
+        const newFileName = `${baseName}_${timestamp}${fileExtension}`;
+        const newFilePath = path.join(clientDir, newFileName);
+        
+        fs.writeFileSync(newFilePath, file.buffer);
+        return newFilePath;
+      }
+
+      // Salvar arquivo
+      fs.writeFileSync(filePath, file.buffer);
+
+      // Definir permissões
+      fs.chmodSync(filePath, 0o644);
+
+      return filePath;
+
+    } catch (error: any) {
+      console.error('❌ Erro ao salvar arquivo de mídia:', error.message);
+      throw new Error('Erro ao salvar arquivo');
+    }
+  }
+
+  /**
+   * Salva arquivo de backup
+   */
+  async saveBackupFile(data: Buffer, fileName: string): Promise<string> {
+    try {
+      const backupDir = path.join(this.basePath, 'backups');
+      await this.ensureDirectoryExists(backupDir);
+
+      const filePath = path.join(backupDir, fileName);
+      fs.writeFileSync(filePath, data);
+      fs.chmodSync(filePath, 0o644);
+
+      return filePath;
+
+    } catch (error: any) {
+      console.error('❌ Erro ao salvar arquivo de backup:', error.message);
+      throw new Error('Erro ao salvar backup');
+    }
+  }
+
+  /**
+   * Salva arquivo de log
+   */
+  async saveLogFile(data: string, fileName: string): Promise<string> {
+    try {
+      const logsDir = path.join(this.basePath, 'logs');
+      await this.ensureDirectoryExists(logsDir);
+
+      const filePath = path.join(logsDir, fileName);
+      fs.appendFileSync(filePath, data);
+      fs.chmodSync(filePath, 0o644);
+
+      return filePath;
+
+    } catch (error: any) {
+      console.error('❌ Erro ao salvar arquivo de log:', error.message);
+      throw new Error('Erro ao salvar log');
+    }
+  }
+
+  /**
+   * Remove arquivo de mídia
+   */
+  async deleteMediaFile(filePath: string): Promise<void> {
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`✅ Arquivo removido: ${filePath}`);
+      }
+
+      // Remover thumbnail se existir
+      const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+      if (fs.existsSync(thumbnailPath)) {
+        fs.unlinkSync(thumbnailPath);
+        console.log(`✅ Thumbnail removido: ${thumbnailPath}`);
+      }
+
+    } catch (error: any) {
+      console.error('❌ Erro ao remover arquivo:', error.message);
+      throw new Error('Erro ao remover arquivo');
+    }
+  }
+
+  /**
+   * Remove arquivo
+   */
+  async deleteFile(filePath: string): Promise<void> {
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`✅ Arquivo removido: ${filePath}`);
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao remover arquivo:', error.message);
+      throw new Error('Erro ao remover arquivo');
+    }
+  }
+
+  /**
+   * Move arquivo
+   */
+  async moveFile(sourcePath: string, destinationPath: string): Promise<void> {
+    try {
+      // Criar diretório de destino se não existir
+      const destDir = path.dirname(destinationPath);
+      await this.ensureDirectoryExists(destDir);
+
+      // Mover arquivo
+      fs.renameSync(sourcePath, destinationPath);
+      console.log(`✅ Arquivo movido: ${sourcePath} → ${destinationPath}`);
+
+    } catch (error: any) {
+      console.error('❌ Erro ao mover arquivo:', error.message);
+      throw new Error('Erro ao mover arquivo');
+    }
+  }
+
+  /**
+   * Copia arquivo
+   */
+  async copyFile(sourcePath: string, destinationPath: string): Promise<void> {
+    try {
+      // Criar diretório de destino se não existir
+      const destDir = path.dirname(destinationPath);
+      await this.ensureDirectoryExists(destDir);
+
+      // Copiar arquivo
+      fs.copyFileSync(sourcePath, destinationPath);
+      console.log(`✅ Arquivo copiado: ${sourcePath} → ${destinationPath}`);
+
+    } catch (error: any) {
+      console.error('❌ Erro ao copiar arquivo:', error.message);
+      throw new Error('Erro ao copiar arquivo');
+    }
+  }
+
+  /**
+   * Verifica se arquivo existe
+   */
+  async fileExists(filePath: string): Promise<boolean> {
+    try {
+      return fs.existsSync(filePath);
+    } catch (error: any) {
+      console.error('❌ Erro ao verificar existência do arquivo:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Obtém informações do arquivo
+   */
+  async getFileInfo(filePath: string): Promise<{
+    size: number;
+    created: Date;
+    modified: Date;
+    isFile: boolean;
+    isDirectory: boolean;
+  } | null> {
+    try {
+      if (!fs.existsSync(filePath)) {
+        return null;
+      }
+
+      const stats = fs.statSync(filePath);
+
+      return {
+        size: stats.size,
+        created: stats.birthtime,
+        modified: stats.mtime,
+        isFile: stats.isFile(),
+        isDirectory: stats.isDirectory()
+      };
+
+    } catch (error: any) {
+      console.error('❌ Erro ao obter informações do arquivo:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Lista arquivos em diretório
+   */
+  async listFiles(directoryPath: string, recursive: boolean = false): Promise<string[]> {
+    try {
+      if (!fs.existsSync(directoryPath)) {
+        return [];
+      }
+
+      const files: string[] = [];
+      const items = fs.readdirSync(directoryPath);
+
+      for (const item of items) {
+        const itemPath = path.join(directoryPath, item);
+        const stats = fs.statSync(itemPath);
+
+        if (stats.isFile()) {
+          files.push(itemPath);
+        } else if (stats.isDirectory() && recursive) {
+          const subFiles = await this.listFiles(itemPath, recursive);
+          files.push(...subFiles);
+        }
+      }
+
+      return files;
+
+    } catch (error: any) {
+      console.error('❌ Erro ao listar arquivos:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Cria diretório se não existir
+   */
+  async ensureDirectoryExists(directoryPath: string): Promise<void> {
+    try {
+      if (!fs.existsSync(directoryPath)) {
+        fs.mkdirSync(directoryPath, { recursive: true });
+        fs.chmodSync(directoryPath, 0o755);
+        console.log(`✅ Diretório criado: ${directoryPath}`);
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao criar diretório:', error.message);
+      throw new Error('Erro ao criar diretório');
+    }
+  }
+
+  /**
+   * Remove diretório
+   */
+  async removeDirectory(directoryPath: string): Promise<void> {
+    try {
+      if (fs.existsSync(directoryPath)) {
+        fs.rmSync(directoryPath, { recursive: true, force: true });
+        console.log(`✅ Diretório removido: ${directoryPath}`);
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao remover diretório:', error.message);
+      throw new Error('Erro ao remover diretório');
+    }
+  }
+
+  /**
+   * Calcula tamanho do diretório
+   */
+  async getDirectorySize(directoryPath: string): Promise<number> {
+    try {
+      if (!fs.existsSync(directoryPath)) {
+        return 0;
+      }
+
+      let totalSize = 0;
+      const files = await this.listFiles(directoryPath, true);
+
+      for (const file of files) {
+        const stats = fs.statSync(file);
+        totalSize += stats.size;
+      }
+
+      return totalSize;
+
+    } catch (error: any) {
+      console.error('❌ Erro ao calcular tamanho do diretório:', error.message);
+      return 0;
+    }
+  }
+
+  /**
+   * Limpa arquivos antigos
+   */
+  async cleanupOldFiles(directoryPath: string, maxAgeDays: number): Promise<number> {
+    try {
+      if (!fs.existsSync(directoryPath)) {
+        return 0;
+      }
+
+      const maxAge = maxAgeDays * 24 * 60 * 60 * 1000; // Converter para milissegundos
+      const cutoffTime = Date.now() - maxAge;
+      let removedCount = 0;
+
+      const files = await this.listFiles(directoryPath, true);
+
+      for (const file of files) {
+        const stats = fs.statSync(file);
+        
+        if (stats.mtime.getTime() < cutoffTime) {
+          fs.unlinkSync(file);
+          removedCount++;
+          console.log(`✅ Arquivo antigo removido: ${file}`);
+        }
+      }
+
+      return removedCount;
+
+    } catch (error: any) {
+      console.error('❌ Erro ao limpar arquivos antigos:', error.message);
+      return 0;
+    }
+  }
+
+  /**
+   * Gera hash MD5 do arquivo
+   */
+  async getFileHash(filePath: string): Promise<string> {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error('Arquivo não encontrado');
+      }
+
+      const buffer = fs.readFileSync(filePath);
+      return crypto.createHash('md5').update(buffer).digest('hex');
+
+    } catch (error: any) {
+      console.error('❌ Erro ao gerar hash do arquivo:', error.message);
+      throw new Error('Erro ao gerar hash');
+    }
+  }
+
+  /**
+   * Valida tipo de arquivo
+   */
+  validateFileType(mimetype: string, allowedTypes: string[]): boolean {
+    return allowedTypes.includes(mimetype);
+  }
+
+  /**
+   * Valida tamanho do arquivo
+   */
+  validateFileSize(size: number, maxSize: number): boolean {
+    return size <= maxSize;
+  }
+
+  /**
+   * Sanitiza nome do arquivo
+   */
+  private sanitizeFileName(fileName: string): string {
+    // Remover caracteres especiais e espaços
+    return fileName
+      .replace(/[^a-zA-Z0-9.-]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+  }
+
+  /**
+   * Obtém extensão do arquivo
+   */
+  getFileExtension(fileName: string): string {
+    return path.extname(fileName).toLowerCase();
+  }
+
+  /**
+   * Obtém nome do arquivo sem extensão
+   */
+  getFileNameWithoutExtension(fileName: string): string {
+    return path.basename(fileName, path.extname(fileName));
+  }
+
+  /**
+   * Gera nome único para arquivo
+   */
+  generateUniqueFileName(originalName: string): string {
+    const extension = this.getFileExtension(originalName);
+    const baseName = this.getFileNameWithoutExtension(originalName);
+    const sanitizedName = this.sanitizeFileName(baseName);
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 8);
+    
+    return `${sanitizedName}_${timestamp}_${random}${extension}`;
+  }
+
+  /**
+   * Verifica espaço disponível
+   */
+  async getAvailableSpace(): Promise<number> {
+    try {
+      // Implementar verificação de espaço disponível
+      // Por enquanto, retorna um valor alto
+      return 1024 * 1024 * 1024; // 1GB
+    } catch (error: any) {
+      console.error('❌ Erro ao verificar espaço disponível:', error.message);
+      return 0;
+    }
+  }
+
+  /**
+   * Obtém estatísticas de uso
+   */
+  async getStorageStats(): Promise<{
+    totalSize: number;
+    fileCount: number;
+    directoryCount: number;
+    availableSpace: number;
+  }> {
+    try {
+      const totalSize = await this.getDirectorySize(this.basePath);
+      const files = await this.listFiles(this.basePath, true);
+      const availableSpace = await this.getAvailableSpace();
+
+      // Contar diretórios
+      let directoryCount = 0;
+      const countDirectories = (dir: string) => {
+        if (fs.existsSync(dir)) {
+          const items = fs.readdirSync(dir);
+          for (const item of items) {
+            const itemPath = path.join(dir, item);
+            if (fs.statSync(itemPath).isDirectory()) {
+              directoryCount++;
+              countDirectories(itemPath);
+            }
+          }
+        }
+      };
+
+      countDirectories(this.basePath);
+
+      return {
+        totalSize,
+        fileCount: files.length,
+        directoryCount,
+        availableSpace
+      };
+
+    } catch (error: any) {
+      console.error('❌ Erro ao obter estatísticas de armazenamento:', error.message);
+      return {
+        totalSize: 0,
+        fileCount: 0,
+        directoryCount: 0,
+        availableSpace: 0
+      };
+    }
+  }
+}
