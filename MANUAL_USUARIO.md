@@ -25,9 +25,9 @@ O Smart Signage Pro v2.0 é um sistema completo de sinalização digital profiss
 ### **Instalação Automática**
 ```bash
 # 1. Baixar e extrair o projeto
-wget https://github.com/seu-repo/smartsignage-pro/releases/latest/download/smartsignage-pro-v2.0.zip
-unzip smartsignage-pro-v2.0.zip
-cd SmartSignage-Pro
+wget https://github.com/Julio-Eyras/smartsignage-pro/archive/main.zip
+unzip main.zip
+cd smartsignage-pro-main
 
 # 2. Executar instalação
 chmod +x install-smartsignage.sh
