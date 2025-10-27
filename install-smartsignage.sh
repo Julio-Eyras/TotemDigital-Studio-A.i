@@ -33,6 +33,21 @@ log_error() {
     echo -e "${RED}[ERRO $(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
 }
 
+# Função de log de progresso
+log_progress() {
+    echo -e "${CYAN}[PROGRESSO $(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
+}
+
+# Função de log de status
+log_status() {
+    echo -e "${PURPLE}[STATUS $(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
+}
+
+# Função para log de container
+log_container() {
+    echo -e "${YELLOW}[CONTAINER $(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
+}
+
 warn() {
     echo -e "${YELLOW}[AVISO]${NC} $1"
 }
@@ -1052,6 +1067,40 @@ start_services_in_order() {
         wait_for_nginx
         
         log "Iniciando Prometheus..."
+        log_detailed "Verificando arquivos de configuração do Prometheus..."
+        if [[ ! -f "monitoring/prometheus/prometheus.yml" ]]; then
+            log_error "Arquivo prometheus.yml não encontrado!"
+            log_progress "Criando arquivo de configuração padrão..."
+            mkdir -p monitoring/prometheus
+            cat > monitoring/prometheus/prometheus.yml << 'EOF'
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+  
+  - job_name: 'smart-signage-backend'
+    static_configs:
+      - targets: ['backend:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+  
+  - job_name: 'smart-signage-frontend'
+    static_configs:
+      - targets: ['frontend:80']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+EOF
+            log_status "✅ Arquivo prometheus.yml criado"
+        else
+            log_status "✅ Arquivo prometheus.yml encontrado"
+        fi
+        
         $COMPOSE_CMD up -d prometheus
         wait_for_prometheus
         
@@ -1521,15 +1570,21 @@ apply_general_backend_fixes() {
 }
 
 wait_for_frontend() {
-    log "Aguardando Frontend..."
+    log_progress "Aguardando Frontend..."
     for i in {1..20}; do
-        if curl -s http://localhost:80 > /dev/null 2>&1; then
-            log "✅ Frontend: Pronto"
+        log_detailed "Tentativa $i/20 - Testando conectividade do frontend..."
+        if curl -s -f http://localhost:3001 > /dev/null 2>&1; then
+            log_status "✅ Frontend: Pronto (porta 3001)"
             return 0
         fi
+        
+        # Verificar status do container
+        CONTAINER_STATUS=$(docker ps --filter "name=smartsignage-frontend" --format "table {{.Status}}" | tail -1)
+        log_detailed "Status do container: $CONTAINER_STATUS"
+        
         sleep 2
     done
-    warning "❌ Frontend: Timeout"
+    log_error "❌ Frontend: Timeout após 40 segundos"
     
     # Diagnóstico automático do frontend
     diagnose_and_fix_frontend
@@ -1537,46 +1592,72 @@ wait_for_frontend() {
 
 # Função de diagnóstico e correção automática do frontend
 diagnose_and_fix_frontend() {
-    log "🔍 DIAGNÓSTICO AUTOMÁTICO DO FRONTEND"
+    log_error "🔍 DIAGNÓSTICO AUTOMÁTICO DO FRONTEND"
     
     # Verificar se o container está rodando
+    log_container "Verificando status do container frontend..."
     if ! docker ps | grep -q "smartsignage-frontend"; then
-        log "❌ Container frontend não está rodando"
-        log "🔄 Tentando reiniciar container..."
+        log_error "❌ Container frontend não está rodando"
+        log_progress "🔄 Tentando reiniciar container..."
         docker compose up -d frontend
         sleep 10
         return
     fi
     
     # Verificar logs do frontend
-    log "📋 Analisando logs do frontend..."
-    FRONTEND_LOGS=$(docker logs smartsignage-frontend --tail 30 2>&1)
+    log_detailed "📋 Analisando logs do frontend..."
+    FRONTEND_LOGS=$(docker logs smartsignage-frontend --tail 50 2>&1)
+    log_detailed "Logs do frontend:"
+    echo "$FRONTEND_LOGS" | head -20
+    
+    # Verificar se o container está saudável
+    log_status "Verificando health check do frontend..."
+    FRONTEND_HEALTH=$(docker inspect smartsignage-frontend --format='{{.State.Health.Status}}' 2>/dev/null || echo "no-health-check")
+    log_status "Status de saúde: $FRONTEND_HEALTH"
+    
+    # Verificar se a porta está respondendo
+    log_progress "Testando conectividade do frontend..."
+    if curl -s -f http://localhost:3001 >/dev/null 2>&1; then
+        log_status "✅ Frontend respondendo na porta 3001"
+        return
+    else
+        log_error "❌ Frontend não responde na porta 3001"
+    fi
     
     # Detectar problemas comuns
     if echo "$FRONTEND_LOGS" | grep -q "Cannot find module"; then
-        log "🔧 PROBLEMA DETECTADO: Módulos não encontrados"
-        log "🔄 Reconstruindo container frontend..."
+        log_error "🔧 PROBLEMA DETECTADO: Módulos não encontrados"
+        log_progress "🔄 Reconstruindo container frontend..."
         docker compose down frontend
         docker compose build --no-cache frontend
         docker compose up -d frontend
         sleep 15
+    elif echo "$FRONTEND_LOGS" | grep -q "nginx"; then
+        log_error "🔧 PROBLEMA DETECTADO: Erro no Nginx interno"
+        log_progress "🔄 Verificando configuração do Nginx..."
+        docker exec smartsignage-frontend nginx -t 2>&1 | head -10
+    elif echo "$FRONTEND_LOGS" | grep -q "502\|Bad Gateway"; then
+        log_error "🔧 PROBLEMA DETECTADO: Erro 502 Bad Gateway"
+        log_progress "🔄 Verificando conectividade interna..."
+        docker exec smartsignage-frontend curl -s http://localhost:80 || echo "Erro interno"
     elif echo "$FRONTEND_LOGS" | grep -q "Permission denied"; then
-        log "🔧 PROBLEMA DETECTADO: Permissões incorretas"
-        log "🔄 Corrigindo permissões..."
+        log_error "🔧 PROBLEMA DETECTADO: Permissões incorretas"
+        log_progress "🔄 Corrigindo permissões..."
         docker exec smartsignage-frontend chown -R nginx:nginx /usr/share/nginx/html 2>/dev/null || true
         docker compose restart frontend
         sleep 10
     else
-        log "🔧 PROBLEMA NÃO IDENTIFICADO - Aplicando correções gerais..."
+        log_error "🔧 PROBLEMA NÃO IDENTIFICADO - Aplicando correções gerais..."
+        log_progress "🔄 Reiniciando container frontend..."
         docker compose restart frontend
-        sleep 10
+        sleep 15
     fi
     
     # Tentar novamente após correções
-    log "🔄 Testando frontend após correções..."
+    log_progress "🔄 Testando frontend após correções..."
     for i in {1..15}; do
-        if curl -s http://localhost:80 > /dev/null 2>&1; then
-            log "✅ Frontend: Corrigido e funcionando!"
+        if curl -s -f http://localhost:3001 > /dev/null 2>&1; then
+            log_status "✅ Frontend: Corrigido e funcionando!"
             return 0
         fi
         sleep 2
@@ -1588,27 +1669,66 @@ diagnose_and_fix_frontend() {
 }
 
 wait_for_nginx() {
-    log "Aguardando Nginx..."
-    for i in {1..10}; do
-        if systemctl is-active --quiet nginx; then
-            log "✅ Nginx: Pronto"
-            return 0
+    log_progress "Aguardando Nginx..."
+    for i in {1..15}; do
+        log_detailed "Tentativa $i/15 - Testando conectividade do Nginx..."
+        
+        # Verificar se o container está rodando (modo Docker)
+        if [[ "$INSTALL_MODE" == "docker" ]]; then
+            if curl -s -f http://localhost:80 > /dev/null 2>&1; then
+                log_status "✅ Nginx: Pronto (porta 80)"
+                return 0
+            fi
+            
+            # Verificar status do container
+            CONTAINER_STATUS=$(docker ps --filter "name=smartsignage-nginx" --format "table {{.Status}}" | tail -1)
+            log_detailed "Status do container Nginx: $CONTAINER_STATUS"
+        else
+            # Verificar se o serviço está ativo (modo single-server/development)
+            if systemctl is-active --quiet nginx; then
+                log_status "✅ Nginx: Pronto (serviço ativo)"
+                return 0
+            fi
+            
+            # Verificar status do serviço
+            SERVICE_STATUS=$(systemctl is-active nginx 2>/dev/null || echo "inactive")
+            log_detailed "Status do serviço Nginx: $SERVICE_STATUS"
         fi
-        sleep 1
+        
+        sleep 2
     done
-    warning "❌ Nginx: Timeout"
+    log_error "❌ Nginx: Timeout após 30 segundos"
+    
+    # Diagnóstico do Nginx
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        log_detailed "Logs do container Nginx:"
+        docker logs smartsignage-nginx --tail 20 2>/dev/null || echo "Não foi possível obter logs"
+    else
+        log_detailed "Status do serviço Nginx:"
+        systemctl status nginx --no-pager -l 2>/dev/null || echo "Não foi possível obter status"
+    fi
 }
 
 wait_for_prometheus() {
-    log "Aguardando Prometheus..."
+    log_progress "Aguardando Prometheus..."
     for i in {1..15}; do
-        if curl -s http://localhost:9090/-/healthy > /dev/null 2>&1; then
-            log "✅ Prometheus: Pronto"
+        log_detailed "Tentativa $i/15 - Testando conectividade do Prometheus..."
+        if curl -s -f http://localhost:9090/-/healthy > /dev/null 2>&1; then
+            log_status "✅ Prometheus: Pronto (porta 9090)"
             return 0
         fi
+        
+        # Verificar status do container
+        CONTAINER_STATUS=$(docker ps --filter "name=smartsignage-prometheus" --format "table {{.Status}}" | tail -1)
+        log_detailed "Status do container Prometheus: $CONTAINER_STATUS"
+        
         sleep 2
     done
-    warning "❌ Prometheus: Timeout"
+    log_error "❌ Prometheus: Timeout após 30 segundos"
+    
+    # Diagnóstico do Prometheus
+    log_detailed "Logs do container Prometheus:"
+    docker logs smartsignage-prometheus --tail 20 2>/dev/null || echo "Não foi possível obter logs"
 }
 
 wait_for_grafana() {
