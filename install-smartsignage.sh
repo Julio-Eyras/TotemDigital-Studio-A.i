@@ -2530,8 +2530,18 @@ setup_management_scripts() {
     
     # Criar link simbólico para o script principal
     if [ ! -L /usr/local/bin/smartsignage ]; then
-        ln -sf "$INSTALL_DIR/manage-system.sh" /usr/local/bin/smartsignage
-        log "Criado comando global 'smartsignage'"
+        # Tentar criar link sem sudo primeiro
+        if ln -sf "$INSTALL_DIR/manage-system.sh" /usr/local/bin/smartsignage 2>/dev/null; then
+            log "✅ Criado comando global 'smartsignage'"
+        else
+            # Se falhar, tentar com sudo
+            if sudo ln -sf "$INSTALL_DIR/manage-system.sh" /usr/local/bin/smartsignage 2>/dev/null; then
+                log "✅ Criado comando global 'smartsignage' (com sudo)"
+            else
+                log "⚠️ Não foi possível criar link simbólico global"
+                log "Você pode usar: $INSTALL_DIR/manage-system.sh"
+            fi
+        fi
     fi
     
     # Configurar backup automático no crontab
