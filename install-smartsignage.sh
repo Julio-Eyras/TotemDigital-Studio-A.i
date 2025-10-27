@@ -267,14 +267,85 @@ setup_project() {
         # Copiar backend
         cp -r "$SOURCE_DIR/backend" $INSTALL_DIR/
         
-        # Copiar frontend com verificação
+        # Copiar frontend com verificação robusta
+        log "Copiando frontend..."
         cp -r "$SOURCE_DIR/frontend" $INSTALL_DIR/
         
         # Verificar se arquivos essenciais do frontend foram copiados
+        log "Verificando arquivos do frontend..."
+        
+        # Verificar se o diretório public existe
+        if [[ ! -d "$INSTALL_DIR/frontend/public" ]]; then
+            log_error "Diretório frontend/public não encontrado!"
+            log "Criando diretório e copiando arquivos..."
+            mkdir -p "$INSTALL_DIR/frontend/public"
+            cp -r "$SOURCE_DIR/frontend/public/"* "$INSTALL_DIR/frontend/public/" 2>/dev/null || true
+        fi
+        
+        # Verificar se index.html existe
         if [[ ! -f "$INSTALL_DIR/frontend/public/index.html" ]]; then
             log_error "Arquivo index.html não encontrado após cópia!"
             log "Tentando copiar novamente..."
-            cp -r "$SOURCE_DIR/frontend/public" "$INSTALL_DIR/frontend/"
+            
+            # Tentar copiar novamente
+            if [[ -f "$SOURCE_DIR/frontend/public/index.html" ]]; then
+                cp "$SOURCE_DIR/frontend/public/index.html" "$INSTALL_DIR/frontend/public/"
+                log "✅ index.html copiado com sucesso"
+            else
+                log_error "Arquivo index.html não encontrado no diretório origem!"
+                log "Criando arquivo index.html básico..."
+                cat > "$INSTALL_DIR/frontend/public/index.html" << 'EOF'
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="Smart Signage Pro - Sistema de Sinalização Digital Profissional"
+    />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title>Smart Signage Pro</title>
+  </head>
+  <body>
+    <noscript>Você precisa habilitar o JavaScript para executar este aplicativo.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
+EOF
+                log "✅ Arquivo index.html criado"
+            fi
+        else
+            log "✅ Arquivo index.html encontrado"
+        fi
+        
+        # Verificar se manifest.json existe
+        if [[ ! -f "$INSTALL_DIR/frontend/public/manifest.json" ]]; then
+            log_error "Arquivo manifest.json não encontrado!"
+            log "Criando arquivo manifest.json..."
+            cat > "$INSTALL_DIR/frontend/public/manifest.json" << 'EOF'
+{
+  "short_name": "Smart Signage Pro",
+  "name": "Smart Signage Pro - Sistema de Sinalização Digital",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
+EOF
+            log "✅ Arquivo manifest.json criado"
+        else
+            log "✅ Arquivo manifest.json encontrado"
         fi
         
         # Verificar se package.json do frontend foi copiado
@@ -351,10 +422,73 @@ install_project_dependencies() {
     # Frontend (se necessário)
     if [[ "$INSTALL_MODE" != "single-server" ]]; then
         cd $INSTALL_DIR/frontend
+        
+        # Verificar se os arquivos essenciais estão presentes antes da compilação
+        log "Verificando arquivos do frontend antes da compilação..."
+        
+        if [[ ! -f "public/index.html" ]]; then
+            log_error "index.html não encontrado em frontend/public/"
+            log "Criando arquivo index.html..."
+            cat > "public/index.html" << 'EOF'
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="Smart Signage Pro - Sistema de Sinalização Digital Profissional"
+    />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title>Smart Signage Pro</title>
+  </head>
+  <body>
+    <noscript>Você precisa habilitar o JavaScript para executar este aplicativo.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
+EOF
+        fi
+        
+        if [[ ! -f "public/manifest.json" ]]; then
+            log_error "manifest.json não encontrado em frontend/public/"
+            log "Criando arquivo manifest.json..."
+            cat > "public/manifest.json" << 'EOF'
+{
+  "short_name": "Smart Signage Pro",
+  "name": "Smart Signage Pro - Sistema de Sinalização Digital",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
+EOF
+        fi
+        
         log "Instalando dependências do frontend..."
         npm install
+        
         log "Compilando frontend..."
         npm run build
+        
+        # Verificar se o build foi bem-sucedido
+        if [[ -d "build" && -f "build/index.html" ]]; then
+            log "✅ Frontend compilado com sucesso!"
+        else
+            log_error "❌ Falha na compilação do frontend!"
+            log "Verificando logs de erro..."
+            exit 1
+        fi
     fi
     
     log "Dependências do projeto instaladas!"
