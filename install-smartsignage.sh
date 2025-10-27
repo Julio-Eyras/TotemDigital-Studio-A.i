@@ -1070,6 +1070,14 @@ start_services_in_order() {
         log_detailed "Verificando arquivos de configuração do Prometheus..."
         if [[ ! -f "monitoring/prometheus/prometheus.yml" ]]; then
             log_error "Arquivo prometheus.yml não encontrado!"
+            
+            # Verificar se existe um diretório com esse nome
+            if [[ -d "monitoring/prometheus/prometheus.yml" ]]; then
+                log_error "Existe um diretório com o nome prometheus.yml!"
+                log_progress "Removendo diretório incorreto..."
+                rm -rf "monitoring/prometheus/prometheus.yml"
+            fi
+            
             log_progress "Criando arquivo de configuração padrão..."
             mkdir -p monitoring/prometheus
             cat > monitoring/prometheus/prometheus.yml << 'EOF'
