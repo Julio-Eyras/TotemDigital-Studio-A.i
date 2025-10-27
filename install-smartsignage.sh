@@ -263,8 +263,25 @@ setup_project() {
     # Copiar arquivos do projeto
     if [[ -d "$SOURCE_DIR/backend" && -d "$SOURCE_DIR/frontend" ]]; then
         log "Copiando arquivos do projeto de $SOURCE_DIR..."
+        
+        # Copiar backend
         cp -r "$SOURCE_DIR/backend" $INSTALL_DIR/
+        
+        # Copiar frontend com verificação
         cp -r "$SOURCE_DIR/frontend" $INSTALL_DIR/
+        
+        # Verificar se arquivos essenciais do frontend foram copiados
+        if [[ ! -f "$INSTALL_DIR/frontend/public/index.html" ]]; then
+            log_error "Arquivo index.html não encontrado após cópia!"
+            log "Tentando copiar novamente..."
+            cp -r "$SOURCE_DIR/frontend/public" "$INSTALL_DIR/frontend/"
+        fi
+        
+        # Verificar se package.json do frontend foi copiado
+        if [[ ! -f "$INSTALL_DIR/frontend/package.json" ]]; then
+            log_error "package.json do frontend não encontrado!"
+            exit 1
+        fi
         
         # Copiar arquivos opcionais se existirem
         [[ -d "$SOURCE_DIR/player" ]] && cp -r "$SOURCE_DIR/player" $INSTALL_DIR/
