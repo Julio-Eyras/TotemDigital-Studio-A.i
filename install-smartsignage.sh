@@ -1075,12 +1075,24 @@ start_services_in_order() {
             if [[ -d "monitoring/prometheus/prometheus.yml" ]]; then
                 log_error "Existe um diretório com o nome prometheus.yml!"
                 log_progress "Removendo diretório incorreto..."
-                rm -rf "monitoring/prometheus/prometheus.yml"
+                sudo rm -rf "monitoring/prometheus/prometheus.yml" 2>/dev/null || {
+                    log_error "Não foi possível remover o diretório com sudo"
+                    log_progress "Tentando com permissões diferentes..."
+                    chmod -R 755 "monitoring/prometheus/prometheus.yml" 2>/dev/null || true
+                    rm -rf "monitoring/prometheus/prometheus.yml" 2>/dev/null || {
+                        log_error "Ainda não foi possível remover. Continuando com nome alternativo..."
+                        PROMETHEUS_CONFIG_FILE="monitoring/prometheus/prometheus-config.yml"
+                    }
+                }
             fi
             
             log_progress "Criando arquivo de configuração padrão..."
             mkdir -p monitoring/prometheus
-            cat > monitoring/prometheus/prometheus.yml << 'EOF'
+            
+            # Usar nome alternativo se necessário
+            PROMETHEUS_CONFIG_FILE=${PROMETHEUS_CONFIG_FILE:-"monitoring/prometheus/prometheus.yml"}
+            
+            cat > "$PROMETHEUS_CONFIG_FILE" << 'EOF'
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -1105,6 +1117,12 @@ scrape_configs:
     scrape_interval: 30s
 EOF
             log_status "✅ Arquivo prometheus.yml criado"
+            
+            # Se usou nome alternativo, atualizar docker-compose.yml
+            if [[ "$PROMETHEUS_CONFIG_FILE" != "monitoring/prometheus/prometheus.yml" ]]; then
+                log_progress "Atualizando docker-compose.yml para usar arquivo alternativo..."
+                sed -i "s|monitoring/prometheus/prometheus.yml|$PROMETHEUS_CONFIG_FILE|g" docker-compose.yml
+            fi
         else
             log_status "✅ Arquivo prometheus.yml encontrado"
         fi
