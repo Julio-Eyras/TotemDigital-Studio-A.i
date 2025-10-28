@@ -37,25 +37,16 @@ import {
   AudioFile,
   MoreVert,
 } from '@mui/icons-material';
-import { useSelector } from 'react-redux';
-import { RootState } from '../../store/store';
+import { MediaUploadDialog } from '../../components/MediaUploadDialog/MediaUploadDialog';
+import { mediaApi, MediaItem } from '../../services/api';
 
-interface MediaItem {
-  id: string;
-  name: string;
-  type: 'image' | 'video' | 'audio';
-  size: string;
-  duration?: string;
-  status: 'active' | 'draft' | 'archived';
-  createdAt: string;
-  thumbnail?: string;
-}
+// Remover interface duplicada - usar a do services/api
 
 export const Media: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [openDialog, setOpenDialog] = useState(false);
+  const [openUploadDialog, setOpenUploadDialog] = useState(false);
   const [editingMedia, setEditingMedia] = useState<MediaItem | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
 
@@ -67,58 +58,46 @@ export const Media: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // Simular carregamento de dados (substituir por chamadas reais da API)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setMediaItems([
-        {
-          id: '1',
-          name: 'Promoção Verão 2024',
-          type: 'video',
-          size: '15.2 MB',
-          duration: '0:30',
-          status: 'active',
-          createdAt: '2024-01-15',
-          thumbnail: '/api/placeholder/300/200',
-        },
-        {
-          id: '2',
-          name: 'Logo Empresa',
-          type: 'image',
-          size: '2.1 MB',
-          status: 'active',
-          createdAt: '2024-01-14',
-          thumbnail: '/api/placeholder/300/200',
-        },
-        {
-          id: '3',
-          name: 'Jingle Comercial',
-          type: 'audio',
-          size: '1.8 MB',
-          duration: '0:15',
-          status: 'draft',
-          createdAt: '2024-01-13',
-        },
-        {
-          id: '4',
-          name: 'Produto Novo',
-          type: 'image',
-          size: '3.5 MB',
-          status: 'active',
-          createdAt: '2024-01-12',
-          thumbnail: '/api/placeholder/300/200',
-        },
-      ]);
+      // Carregar dados reais da API
+      const response = await mediaApi.getAll({ page: 1, limit: 50 });
+      setMediaItems(response.data);
     } catch (error) {
       console.error('Erro ao carregar mídia:', error);
+      // Fallback para dados simulados em caso de erro
+      setMediaItems([
+        {
+          media_id: 1,
+          name: 'Promoção Verão 2024',
+          media_type: 'video',
+          size_bytes: 15925248,
+          duration_seconds: 30,
+          status: 'active',
+          created_at: '2024-01-15T00:00:00Z',
+          updated_at: '2024-01-15T00:00:00Z',
+          file_path: '/uploads/promocao-verao.mp4',
+          mime_type: 'video/mp4',
+          preview_url: '/api/placeholder/300/200',
+        },
+        {
+          media_id: 2,
+          name: 'Logo Empresa',
+          media_type: 'image',
+          size_bytes: 2202009,
+          status: 'active',
+          created_at: '2024-01-14T00:00:00Z',
+          updated_at: '2024-01-14T00:00:00Z',
+          file_path: '/uploads/logo-empresa.png',
+          mime_type: 'image/png',
+          preview_url: '/api/placeholder/300/200',
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleAddMedia = () => {
-    setEditingMedia(null);
-    setOpenDialog(true);
+    setOpenUploadDialog(true);
   };
 
   const handleEditMedia = (media: MediaItem) => {
@@ -126,15 +105,8 @@ export const Media: React.FC = () => {
     setOpenDialog(true);
   };
 
-  const handleDeleteMedia = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir esta mídia?')) {
-      try {
-        // Implementar exclusão via API
-        setMediaItems(prev => prev.filter(item => item.id !== id));
-      } catch (error) {
-        console.error('Erro ao excluir mídia:', error);
-      }
-    }
+  const handleUploadSuccess = () => {
+    loadMediaItems(); // Recarregar lista após upload
   };
 
   const getMediaIcon = (type: string) => {

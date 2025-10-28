@@ -18,7 +18,7 @@ import { authMiddleware } from './middleware/auth.middleware';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import clientRoutes from './routes/clients';
-import totemRoutes from './routes/totems';
+import playerRoutes from './routes/players';
 import mediaRoutes from './routes/media';
 import playlistRoutes from './routes/playlists';
 import campaignRoutes from './routes/campaigns';
@@ -164,7 +164,7 @@ app.get('/api/health', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/clients', authMiddleware, clientRoutes);
-app.use('/api/totems', authMiddleware, totemRoutes);
+app.use('/api/players', authMiddleware, playerRoutes);
 app.use('/api/media', authMiddleware, mediaRoutes);
 app.use('/api/playlists', authMiddleware, playlistRoutes);
 app.use('/api/campaigns', authMiddleware, campaignRoutes);

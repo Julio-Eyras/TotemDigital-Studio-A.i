@@ -10,7 +10,7 @@ import { Login } from './pages/Login/Login';
 import { Dashboard } from './pages/Dashboard/Dashboard';
 import { Users } from './pages/Users/Users';
 import { Clients } from './pages/Clients/Clients';
-import { Totems } from './pages/Totems/Totems';
+import { Players } from './pages/Players/Players';
 import { Media } from './pages/Media/Media';
 import { Playlists } from './pages/Playlists/Playlists';
 import { Campaigns } from './pages/Campaigns/Campaigns';
@@ -63,7 +63,7 @@ function App() {
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/users" element={<Users />} />
                     <Route path="/clients" element={<Clients />} />
-                    <Route path="/totems" element={<Totems />} />
+                    <Route path="/players" element={<Players />} />
                     <Route path="/media" element={<Media />} />
                     <Route path="/playlists" element={<Playlists />} />
                     <Route path="/campaigns" element={<Campaigns />} />

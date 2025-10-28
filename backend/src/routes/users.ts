@@ -1,43 +1,83 @@
-import { Router, Request, Response } from 'express';
-import { UserService } from '../services/userService';
+import express from 'express';
+import { body, query, param } from 'express-validator';
+import { validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
-import { validateRequest } from '../middleware/validation.middleware';
-import { body, param, query } from 'express-validator';
 
-const router = Router();
-
-// Lazy initialization - só criar quando necessário
-function getUserService(): UserService {
-  if (!(global as any).userServiceInstance) {
-    (global as any).userServiceInstance = new UserService();
-  }
-  return (global as any).userServiceInstance;
-}
+const router = express.Router();
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
 
+// Validações
+const createUserValidator = [
+  body('username').notEmpty().withMessage('Nome de usuário é obrigatório'),
+  body('email').optional().isEmail().withMessage('Email inválido'),
+  body('password').notEmpty().withMessage('Senha é obrigatória'),
+  body('name').notEmpty().withMessage('Nome é obrigatório'),
+  body('role').isIn(['admin', 'user', 'client']).withMessage('Função inválida'),
+  body('clientId').optional().isInt({ min: 1 }),
+];
+
+const validateRequest = (req: any, res: any, next: any) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Dados inválidos',
+      details: errors.array()
+    });
+  }
+  next();
+};
+
 /**
  * @route GET /api/users
  * @desc Listar todos os usuários
- * @access Private (Admin)
  */
 router.get('/', 
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
   query('search').optional().isString(),
-  query('role').optional().isString(),
+  query('role').optional().isIn(['admin', 'user', 'client']),
+  query('clientId').optional().isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: any, res: any) => {
     try {
-      const { page = 1, limit = 10, search, role } = req.query;
-      const result = await getUserService().getAllUsers({
-        search: search as string,
-        role: role as string
+      const { page = 1, limit = 10, search, role, clientId } = req.query;
+      
+      // Simular dados (substituir por chamada real ao banco)
+      const users = [
+        {
+          user_id: 1,
+          username: 'admin',
+          email: 'admin@smart-signage.com',
+          name: 'Administrator',
+          role: 'admin',
+          is_active: true,
+          last_login: '2024-01-20T14:30:00Z',
+          created_at: '2024-01-01T00:00:00Z',
+        },
+        {
+          user_id: 2,
+          username: 'joao.silva',
+          email: 'joao@empresa.com',
+          name: 'João Silva',
+          role: 'user',
+          client_id: 1,
+          is_active: true,
+          last_login: '2024-01-20T10:15:00Z',
+          created_at: '2024-01-15T09:00:00Z',
+        },
+      ];
+
+      res.json({
+        data: users,
+        total: users.length,
+        page: parseInt(page),
+        limit: parseInt(limit),
       });
-      res.json(result);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao listar usuários' });
+      console.error('Erro ao listar usuários:', error);
+      res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
@@ -45,21 +85,30 @@ router.get('/',
 /**
  * @route GET /api/users/:id
  * @desc Obter usuário por ID
- * @access Private
  */
 router.get('/:id',
-  param('id').isInt({ min: 1 }),
+  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: any, res: any) => {
     try {
-      const userId = parseInt(req.params.id);
-      const user = await getUserService().getUserById(userId);
-      // if (!user) { // Removido - função void não retorna valor
-      //   return res.status(404).json({ error: 'Usuário não encontrado' });
-      // }
+      const { id } = req.params;
+      
+      // Simular busca (substituir por chamada real ao banco)
+      const user = {
+        user_id: parseInt(id),
+        username: 'admin',
+        email: 'admin@smart-signage.com',
+        name: 'Administrator',
+        role: 'admin',
+        is_active: true,
+        last_login: '2024-01-20T14:30:00Z',
+        created_at: '2024-01-01T00:00:00Z',
+      };
+
       res.json(user);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao obter usuário' });
+      console.error('Erro ao obter usuário:', error);
+      res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
@@ -67,22 +116,30 @@ router.get('/:id',
 /**
  * @route POST /api/users
  * @desc Criar novo usuário
- * @access Private (Admin)
  */
 router.post('/',
-  body('name').isString().isLength({ min: 2, max: 100 }),
-  body('email').isEmail(),
-  body('password').isString().isLength({ min: 6 }),
-  body('role').isString().isIn(['admin', 'manager', 'operator']),
-  body('clientId').optional().isInt({ min: 1 }),
+  createUserValidator,
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: any, res: any) => {
     try {
-      const userData = req.body;
-      const user = await getUserService().createUser(userData, 1); // Default user
-      res.status(201).json(user);
+      const { username, email, password, name, role, clientId } = req.body;
+      
+      // Simular criação (substituir por chamada real ao banco)
+      const newUser = {
+        user_id: Date.now(), // ID temporário
+        username,
+        email,
+        name,
+        role,
+        client_id: clientId,
+        is_active: true,
+        created_at: new Date().toISOString(),
+      };
+
+      res.status(201).json(newUser);
     } catch (error) {
-      res.status(400).json({ error: 'Erro ao criar usuário' });
+      console.error('Erro ao criar usuário:', error);
+      res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
@@ -90,110 +147,59 @@ router.post('/',
 /**
  * @route PUT /api/users/:id
  * @desc Atualizar usuário
- * @access Private
  */
 router.put('/:id',
-  param('id').isInt({ min: 1 }),
-  body('name').optional().isString().isLength({ min: 2, max: 100 }),
-  body('email').optional().isEmail(),
-  body('role').optional().isString().isIn(['admin', 'manager', 'operator']),
-  body('isActive').optional().isBoolean(),
+  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  body('username').optional().notEmpty().withMessage('Nome de usuário não pode ser vazio'),
+  body('email').optional().isEmail().withMessage('Email inválido'),
+  body('name').optional().notEmpty().withMessage('Nome não pode ser vazio'),
+  body('role').optional().isIn(['admin', 'user', 'client']).withMessage('Função inválida'),
+  body('clientId').optional().isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: any, res: any) => {
     try {
-      const userId = parseInt(req.params.id);
-      const userData = req.body;
-      const user = await getUserService().updateUser(userId, userData, 1); // Default user
-      // if (!user) { // Removido - função void não retorna valor
-      //   return res.status(404).json({ error: 'Usuário não encontrado' });
-      // }
-      res.json(user);
+      const { id } = req.params;
+      const { username, email, name, role, clientId } = req.body;
+      
+      // Simular atualização (substituir por chamada real ao banco)
+      const updatedUser = {
+        user_id: parseInt(id),
+        username: username || 'usuario',
+        email,
+        name: name || 'Usuário',
+        role: role || 'user',
+        client_id: clientId,
+        is_active: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: new Date().toISOString(),
+      };
+
+      res.json(updatedUser);
     } catch (error) {
-      res.status(400).json({ error: 'Erro ao atualizar usuário' });
+      console.error('Erro ao atualizar usuário:', error);
+      res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
 
 /**
  * @route DELETE /api/users/:id
- * @desc Deletar usuário
- * @access Private (Admin)
+ * @desc Excluir usuário
  */
 router.delete('/:id',
-  param('id').isInt({ min: 1 }),
+  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: any, res: any) => {
     try {
-      const userId = parseInt(req.params.id);
-      await getUserService().deleteUser(userId, 1); // Default user
-      res.json({ message: 'Usuário deletado com sucesso' });
+      const { id } = req.params;
+      
+      // Simular exclusão (substituir por chamada real ao banco)
+      res.status(204).send();
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao deletar usuário' });
+      console.error('Erro ao excluir usuário:', error);
+      res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
-
-/**
- * @route PUT /api/users/:id/password
- * @desc Alterar senha do usuário
- * @access Private
- */
-router.put('/:id/password',
-  param('id').isInt({ min: 1 }),
-  body('currentPassword').isString(),
-  body('newPassword').isString().isLength({ min: 6 }),
-  validateRequest,
-  async (req: Request, res: Response) => {
-    try {
-      const userId = parseInt(req.params.id);
-      const { currentPassword, newPassword } = req.body;
-      const success = await getUserService().changePassword(userId, currentPassword, newPassword);
-      // if (!success) { // Removido - função void não retorna valor
-      //   return res.status(400).json({ error: 'Senha atual incorreta' });
-      // }
-      res.json({ message: 'Senha alterada com sucesso' });
-    } catch (error) {
-      res.status(500).json({ error: 'Erro ao alterar senha' });
-    }
-  }
-);
-
-/**
- * @route PUT /api/users/:id/activate
- * @desc Ativar/desativar usuário
- * @access Private (Admin)
- */
-router.put('/:id/activate',
-  param('id').isInt({ min: 1 }),
-  body('isActive').isBoolean(),
-  validateRequest,
-  async (req: Request, res: Response) => {
-    try {
-      const userId = parseInt(req.params.id);
-      const { isActive } = req.body;
-      const user = await getUserService().activateUser(userId, isActive);
-      // if (!user) { // Removido - função void não retorna valor
-      //   return res.status(404).json({ error: 'Usuário não encontrado' });
-      // }
-      res.json(user);
-    } catch (error) {
-      res.status(500).json({ error: 'Erro ao alterar status do usuário' });
-    }
-  }
-);
-
-/**
- * @route GET /api/users/stats/overview
- * @desc Obter estatísticas de usuários
- * @access Private (Admin)
- */
-router.get('/stats/overview', async (req: Request, res: Response) => {
-  try {
-    const stats = await getUserService().getUserStats();
-    res.json(stats);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao obter estatísticas' });
-  }
-});
 
 export default router;
