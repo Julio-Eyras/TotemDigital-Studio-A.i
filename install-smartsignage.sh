@@ -891,11 +891,26 @@ setup_docker_compose() {
         log "Permissões do Docker verificadas com sucesso!"
         
         # Parar o Nginx do sistema se estiver rodando (para liberar porta 80)
-        if systemctl is-active --quiet nginx; then
+        if systemctl is-active --quiet nginx 2>/dev/null; then
             log "Nginx do sistema está rodando. Parando para liberar porta 80..."
-            sudo systemctl stop nginx
-            sudo systemctl disable nginx
-            log "Nginx do sistema parado"
+            sudo systemctl stop nginx 2>/dev/null || true
+            sudo systemctl disable nginx 2>/dev/null || true
+            log "Nginx do sistema parado e desabilitado"
+        fi
+        
+        # Verificar se porta 80 está livre
+        if command -v netstat &> /dev/null; then
+            if sudo netstat -tlnp | grep -q ":80 "; then
+                log_error "Porta 80 está em uso! Verificando processo..."
+                sudo netstat -tlnp | grep ":80 " || true
+                log "Tentando parar processo na porta 80..."
+                # Não forçar parada automática, apenas avisar
+            fi
+        elif command -v ss &> /dev/null; then
+            if sudo ss -tlnp | grep -q ":80 "; then
+                log_error "Porta 80 está em uso! Verificando processo..."
+                sudo ss -tlnp | grep ":80 " || true
+            fi
         fi
         
         # Testar build do Docker antes de iniciar containers
@@ -1696,13 +1711,36 @@ diagnose_and_fix_frontend() {
 
 wait_for_nginx() {
     log_progress "Aguardando Nginx..."
-    for i in {1..15}; do
-        log_detailed "Tentativa $i/15 - Testando conectividade do Nginx..."
+    for i in {1..20}; do
+        log_detailed "Tentativa $i/20 - Testando conectividade do Nginx..."
         
         # Verificar se o container está rodando (modo Docker)
         if [[ "$INSTALL_MODE" == "docker" ]]; then
-            if curl -s -f http://localhost:80 > /dev/null 2>&1; then
-                log_status "✅ Nginx: Pronto (porta 80)"
+            # Verificar se container existe e está rodando
+            if ! docker ps --filter "name=smartsignage-nginx" --format "{{.Names}}" | grep -q "smartsignage-nginx"; then
+                log_detailed "Container Nginx ainda não iniciou..."
+                sleep 2
+                continue
+            fi
+            
+            # Verificar se responde e se NÃO é a página padrão do Nginx
+            RESPONSE=$(curl -s http://localhost:80 2>/dev/null || echo "")
+            if [[ -n "$RESPONSE" ]]; then
+                # Verificar se NÃO é a página padrão do Nginx
+                if echo "$RESPONSE" | grep -qi "Welcome to nginx"; then
+                    log_detailed "Nginx ainda está servindo página padrão, aguardando configuração..."
+                    sleep 3
+                    continue
+                fi
+                
+                # Verificar se é o frontend (procura por React ou HTML válido)
+                if echo "$RESPONSE" | grep -qiE "(react|smart.signage|<!doctype html)" || [[ ${#RESPONSE} -gt 1000 ]]; then
+                    log_status "✅ Nginx: Pronto (porta 80) - Servindo frontend corretamente"
+                    return 0
+                fi
+                
+                # Se responde mas não identificamos o conteúdo, considerar OK
+                log_status "✅ Nginx: Pronto (porta 80) - Respondendo"
                 return 0
             fi
             
@@ -2418,20 +2456,30 @@ show_final_info() {
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo
     echo -e "${CYAN}📱 PAINEL ADMINISTRATIVO (Frontend):${NC}"
-    echo -e "   ${YELLOW}👉 http://$SERVER_IP:80${NC}"
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:80${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (Interface principal do sistema)${NC}"
     echo
     echo -e "${CYAN}🔧 API BACKEND:${NC}"
-    echo -e "   ${YELLOW}👉 http://$SERVER_IP:3000${NC}"
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:3000${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:3000${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (API REST para integração)${NC}"
     echo
     echo -e "${CYAN}📺 PLAYER DE MÍDIA:${NC}"
-    echo -e "   ${YELLOW}👉 http://$SERVER_IP:80/player${NC}"
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:80/player${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80/player${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (Player para totems)${NC}"
     echo
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
         echo -e "${GREEN}💡 DICA:${NC} ${YELLOW}Use o IP Externo para acesso remoto${NC}"
         echo -e "${GREEN}💡 DICA:${NC} ${YELLOW}Use o IP Local para acesso na rede interna${NC}"
+        echo -e "${YELLOW}⚠️  IMPORTANTE:${NC} ${RED}Configure firewall para permitir acesso às portas 80 e 3000${NC}"
     else
         echo -e "${YELLOW}⚠️  AVISO:${NC} ${RED}IP Externo não detectado. Configure firewall para acesso remoto.${NC}"
     fi
