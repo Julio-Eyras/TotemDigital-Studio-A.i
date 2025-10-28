@@ -99,21 +99,16 @@ router.post('/',
     try {
       const { name, description, clientId } = req.body;
       
-      // Simular criação (substituir por chamada real ao banco)
-      const newPlaylist: PlaylistItem = {
-        playlist_id: Date.now(), // ID temporário
+      const newPlaylist = await getPlaylistService().createPlaylist({
         name,
         description,
-        client_id: clientId,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+        clientId,
+      });
 
       res.status(201).json(newPlaylist);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao criar playlist:', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -128,23 +123,19 @@ router.put('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const { name, description, clientId } = req.body;
+      const { name, description, clientId, isActive } = req.body;
       
-      // Simular atualização (substituir por chamada real ao banco)
-      const updatedPlaylist: PlaylistItem = {
-        playlist_id: parseInt(id),
-        name: name || 'Playlist Atualizada',
+      const updatedPlaylist = await getPlaylistService().updatePlaylist(parseInt(id), {
+        name,
         description,
-        client_id: clientId,
-        is_active: true,
-        created_at: '2024-01-15T00:00:00Z',
-        updated_at: new Date().toISOString(),
-      };
+        clientId,
+        isActive,
+      });
 
       res.json(updatedPlaylist);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao atualizar playlist:', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -160,11 +151,12 @@ router.delete('/:id',
     try {
       const { id } = req.params;
       
-      // Simular exclusão (substituir por chamada real ao banco)
+      await getPlaylistService().deletePlaylist(parseInt(id));
+      
       res.status(204).send();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao excluir playlist:', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -180,23 +172,7 @@ router.get('/:id/media',
     try {
       const { id } = req.params;
       
-      // Simular mídia da playlist
-      const playlistMedia = [
-        {
-          item_id: 1,
-          playlist_id: parseInt(id),
-          media_id: 1,
-          order_index: 1,
-          duration: 5000,
-          media: {
-            media_id: 1,
-            name: 'Logo Empresa',
-            media_type: 'image',
-            file_path: '/uploads/logo.png',
-            mime_type: 'image/png',
-          }
-        }
-      ];
+      const playlistMedia = await getPlaylistService().getPlaylistMedia(parseInt(id));
 
       res.json(playlistMedia);
     } catch (error) {
@@ -221,13 +197,14 @@ router.post('/:id/media',
       const { id } = req.params;
       const { mediaId, orderIndex, duration } = req.body;
       
-      // Simular adição de mídia
+      await getPlaylistService().addMediaToPlaylist(parseInt(id), mediaId, orderIndex, duration);
+      
       res.status(201).json({
         message: 'Mídia adicionada à playlist com sucesso'
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao adicionar mídia à playlist:', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -244,11 +221,12 @@ router.delete('/:id/media/:itemId',
     try {
       const { id, itemId } = req.params;
       
-      // Simular remoção de mídia
+      await getPlaylistService().removeMediaFromPlaylist(parseInt(id), parseInt(itemId));
+      
       res.status(204).send();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao remover mídia da playlist:', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
 );
