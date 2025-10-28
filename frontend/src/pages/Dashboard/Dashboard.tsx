@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Grid,
@@ -11,252 +11,292 @@ import {
   ListItemText,
   ListItemIcon,
   Chip,
-  Avatar,
+  IconButton,
+  Button,
 } from '@mui/material';
 import {
+  PlayArrow,
+  Pause,
+  Stop,
+  Upload,
   People,
-  Business,
   Devices,
-  VideoLibrary,
   TrendingUp,
-  TrendingDown,
-  CheckCircle,
-  Error,
+  Schedule,
   Warning,
+  CheckCircle,
 } from '@mui/icons-material';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store/store';
+
+interface DashboardStats {
+  totalMedia: number;
+  totalPlaylists: number;
+  totalPlayers: number;
+  totalUsers: number;
+  activePlayers: number;
+  offlinePlayers: number;
+}
+
+interface RecentActivity {
+  id: string;
+  type: 'upload' | 'playlist' | 'player' | 'user';
+  message: string;
+  timestamp: string;
+  status: 'success' | 'warning' | 'error';
+}
 
 export const Dashboard: React.FC = () => {
-  // Mock data - em produção, isso viria da API
-  const stats = [
-    {
-      title: 'Total de Usuários',
-      value: '24',
-      change: '+12%',
-      trend: 'up',
-      icon: <People />,
-      color: '#1976d2',
-    },
-    {
-      title: 'Clientes Ativos',
-      value: '8',
-      change: '+5%',
-      trend: 'up',
-      icon: <Business />,
-      color: '#388e3c',
-    },
-    {
-      title: 'Totems Online',
-      value: '15',
-      change: '-2%',
-      trend: 'down',
-      icon: <Devices />,
-      color: '#f57c00',
-    },
-    {
-      title: 'Arquivos de Mídia',
-      value: '1,247',
-      change: '+23%',
-      trend: 'up',
-      icon: <VideoLibrary />,
-      color: '#7b1fa2',
-    },
-  ];
+  const { user } = useSelector((state: RootState) => state.auth);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalMedia: 0,
+    totalPlaylists: 0,
+    totalPlayers: 0,
+    totalUsers: 0,
+    activePlayers: 0,
+    offlinePlayers: 0,
+  });
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const recentActivities = [
-    {
-      id: 1,
-      type: 'success',
-      message: 'Novo usuário criado: João Silva',
-      time: '2 minutos atrás',
-    },
-    {
-      id: 2,
-      type: 'info',
-      message: 'Campanha "Black Friday" ativada',
-      time: '15 minutos atrás',
-    },
-    {
-      id: 3,
-      type: 'warning',
-      message: 'Totem #003 está offline há 2 horas',
-      time: '1 hora atrás',
-    },
-    {
-      id: 4,
-      type: 'success',
-      message: 'Upload de 5 arquivos de mídia concluído',
-      time: '2 horas atrás',
-    },
-    {
-      id: 5,
-      type: 'error',
-      message: 'Falha na sincronização do Totem #007',
-      time: '3 horas atrás',
-    },
-  ];
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Simular carregamento de dados (substituir por chamadas reais da API)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setStats({
+        totalMedia: 24,
+        totalPlaylists: 8,
+        totalPlayers: 12,
+        totalUsers: 5,
+        activePlayers: 10,
+        offlinePlayers: 2,
+      });
+
+      setRecentActivity([
+        {
+          id: '1',
+          type: 'upload',
+          message: 'Novo vídeo "Promoção Verão" enviado',
+          timestamp: '2 minutos atrás',
+          status: 'success',
+        },
+        {
+          id: '2',
+          type: 'player',
+          message: 'Player "Loja Centro" ficou offline',
+          timestamp: '15 minutos atrás',
+          status: 'warning',
+        },
+        {
+          id: '3',
+          type: 'playlist',
+          message: 'Playlist "Horário Comercial" atualizada',
+          timestamp: '1 hora atrás',
+          status: 'success',
+        },
+        {
+          id: '4',
+          type: 'user',
+          message: 'Novo usuário "João Silva" cadastrado',
+          timestamp: '2 horas atrás',
+          status: 'success',
+        },
+      ]);
+    } catch (error) {
+      console.error('Erro ao carregar dados do dashboard:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const getActivityIcon = (type: string) => {
     switch (type) {
-      case 'success':
-        return <CheckCircle color="success" />;
-      case 'error':
-        return <Error color="error" />;
-      case 'warning':
-        return <Warning color="warning" />;
-      default:
-        return <TrendingUp color="info" />;
+      case 'upload': return <Upload />;
+      case 'playlist': return <Schedule />;
+      case 'player': return <Devices />;
+      case 'user': return <People />;
+      default: return <CheckCircle />;
     }
   };
 
-  const getActivityColor = (type: string) => {
-    switch (type) {
-      case 'success':
-        return 'success';
-      case 'error':
-        return 'error';
-      case 'warning':
-        return 'warning';
-      default:
-        return 'info';
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'success': return 'success';
+      case 'warning': return 'warning';
+      case 'error': return 'error';
+      default: return 'default';
     }
   };
+
+  if (isLoading) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" gutterBottom>
+          Carregando Dashboard...
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: 4 }}>
-        Dashboard
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom>
+        Dashboard - Smart Signage Pro
+      </Typography>
+      
+      <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
+        Bem-vindo, {user?.name || 'Usuário'}!
       </Typography>
 
-      {/* Stats Cards */}
+      {/* Estatísticas */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        {stats.map((stat, index) => (
-          <Grid item xs={12} sm={6} md={3} key={index}>
-            <Card
-              sx={{
-                height: '100%',
-                background: `linear-gradient(135deg, ${stat.color}15 0%, ${stat.color}05 100%)`,
-                border: `1px solid ${stat.color}30`,
-              }}
-            >
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Avatar
-                    sx={{
-                      backgroundColor: stat.color,
-                      mr: 2,
-                    }}
-                  >
-                    {stat.icon}
-                  </Avatar>
-                  <Box sx={{ flexGrow: 1 }}>
-                    <Typography variant="h4" component="div" sx={{ fontWeight: 600 }}>
-                      {stat.value}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {stat.title}
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  {stat.trend === 'up' ? (
-                    <TrendingUp color="success" sx={{ mr: 1 }} />
-                  ) : (
-                    <TrendingDown color="error" sx={{ mr: 1 }} />
-                  )}
-                  <Typography
-                    variant="body2"
-                    color={stat.trend === 'up' ? 'success.main' : 'error.main'}
-                    sx={{ fontWeight: 500 }}
-                  >
-                    {stat.change}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Upload color="primary" sx={{ mr: 1 }} />
+                <Typography variant="h6">Mídia</Typography>
+              </Box>
+              <Typography variant="h4" color="primary">
+                {stats.totalMedia}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Arquivos cadastrados
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Schedule color="secondary" sx={{ mr: 1 }} />
+                <Typography variant="h6">Playlists</Typography>
+              </Box>
+              <Typography variant="h4" color="secondary">
+                {stats.totalPlaylists}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Listas de reprodução
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Devices color="success" sx={{ mr: 1 }} />
+                <Typography variant="h6">Players</Typography>
+              </Box>
+              <Typography variant="h4" color="success.main">
+                {stats.activePlayers}/{stats.totalPlayers}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Online/Total
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <People color="info" sx={{ mr: 1 }} />
+                <Typography variant="h6">Usuários</Typography>
+              </Box>
+              <Typography variant="h4" color="info.main">
+                {stats.totalUsers}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Usuários cadastrados
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
 
-      <Grid container spacing={3}>
-        {/* Recent Activities */}
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-              Atividades Recentes
+      {/* Status dos Players */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Status dos Players
             </Typography>
-            <List>
-              {recentActivities.map((activity) => (
-                <ListItem key={activity.id} sx={{ px: 0 }}>
-                  <ListItemIcon>
-                    {getActivityIcon(activity.type)}
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={activity.message}
-                    secondary={activity.time}
-                  />
-                  <Chip
-                    label={activity.type}
-                    size="small"
-                    color={getActivityColor(activity.type) as any}
-                    variant="outlined"
-                  />
-                </ListItem>
-              ))}
-            </List>
+            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+              <Chip
+                icon={<CheckCircle />}
+                label={`${stats.activePlayers} Online`}
+                color="success"
+                variant="outlined"
+              />
+              <Chip
+                icon={<Warning />}
+                label={`${stats.offlinePlayers} Offline`}
+                color="warning"
+                variant="outlined"
+              />
+            </Box>
+            <Button variant="outlined" size="small">
+              Ver Detalhes
+            </Button>
           </Paper>
         </Grid>
 
-        {/* System Status */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-              Status do Sistema
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Ações Rápidas
             </Typography>
-            <List>
-              <ListItem sx={{ px: 0 }}>
-                <ListItemIcon>
-                  <CheckCircle color="success" />
-                </ListItemIcon>
-                <ListItemText
-                  primary="API Backend"
-                  secondary="Online"
-                />
-                <Chip label="OK" color="success" size="small" />
-              </ListItem>
-              <ListItem sx={{ px: 0 }}>
-                <ListItemIcon>
-                  <CheckCircle color="success" />
-                </ListItemIcon>
-                <ListItemText
-                  primary="Banco de Dados"
-                  secondary="Conectado"
-                />
-                <Chip label="OK" color="success" size="small" />
-              </ListItem>
-              <ListItem sx={{ px: 0 }}>
-                <ListItemIcon>
-                  <CheckCircle color="success" />
-                </ListItemIcon>
-                <ListItemText
-                  primary="Serviços de IA"
-                  secondary="Ativo"
-                />
-                <Chip label="OK" color="success" size="small" />
-              </ListItem>
-              <ListItem sx={{ px: 0 }}>
-                <ListItemIcon>
-                  <Warning color="warning" />
-                </ListItemIcon>
-                <ListItemText
-                  primary="Armazenamento"
-                  secondary="85% usado"
-                />
-                <Chip label="ALERTA" color="warning" size="small" />
-              </ListItem>
-            </List>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <Button variant="contained" startIcon={<Upload />} size="small">
+                Upload Mídia
+              </Button>
+              <Button variant="outlined" startIcon={<Schedule />} size="small">
+                Nova Playlist
+              </Button>
+              <Button variant="outlined" startIcon={<Devices />} size="small">
+                Gerenciar Players
+              </Button>
+            </Box>
           </Paper>
         </Grid>
       </Grid>
+
+      {/* Atividades Recentes */}
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          Atividades Recentes
+        </Typography>
+        <List>
+          {recentActivity.map((activity) => (
+            <ListItem key={activity.id} divider>
+              <ListItemIcon>
+                {getActivityIcon(activity.type)}
+              </ListItemIcon>
+              <ListItemText
+                primary={activity.message}
+                secondary={activity.timestamp}
+              />
+              <Chip
+                label={activity.status}
+                color={getStatusColor(activity.status) as any}
+                size="small"
+              />
+            </ListItem>
+          ))}
+        </List>
+      </Paper>
     </Box>
   );
 };

@@ -129,12 +129,15 @@ async function runMigrations(): Promise<void> {
       // Create basic tables
       await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS users (
-          id SERIAL PRIMARY KEY,
-          email VARCHAR(255) UNIQUE NOT NULL,
-          password VARCHAR(255) NOT NULL,
+          user_id SERIAL PRIMARY KEY,
+          username VARCHAR(255) UNIQUE NOT NULL,
+          email VARCHAR(255) UNIQUE,
+          password_hash VARCHAR(255) NOT NULL,
           name VARCHAR(255) NOT NULL,
           role VARCHAR(50) DEFAULT 'user',
+          client_id INTEGER REFERENCES clients(client_id),
           is_active BOOLEAN DEFAULT true,
+          last_login TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -142,7 +145,7 @@ async function runMigrations(): Promise<void> {
 
       await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS clients (
-          id SERIAL PRIMARY KEY,
+          client_id SERIAL PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
           email VARCHAR(255),
           phone VARCHAR(50),
@@ -155,10 +158,10 @@ async function runMigrations(): Promise<void> {
 
       await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS totems (
-          id SERIAL PRIMARY KEY,
+          totem_id SERIAL PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
           location VARCHAR(255),
-          client_id INTEGER REFERENCES clients(id),
+          client_id INTEGER REFERENCES clients(client_id),
           is_active BOOLEAN DEFAULT true,
           last_heartbeat TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -167,25 +170,36 @@ async function runMigrations(): Promise<void> {
       `;
 
       await prisma.$executeRaw`
-        CREATE TABLE IF NOT EXISTS media (
-          id SERIAL PRIMARY KEY,
-          filename VARCHAR(255) NOT NULL,
-          original_name VARCHAR(255) NOT NULL,
+        CREATE TABLE IF NOT EXISTS medias (
+          media_id SERIAL PRIMARY KEY,
+          client_id INTEGER REFERENCES clients(client_id),
+          name VARCHAR(255) NOT NULL,
+          title VARCHAR(255),
+          description TEXT,
+          tags JSONB,
+          version INTEGER DEFAULT 1,
+          checksum VARCHAR(255),
+          preview_url VARCHAR(500),
+          status VARCHAR(50) DEFAULT 'draft',
+          created_by INTEGER REFERENCES users(user_id),
           file_path VARCHAR(500) NOT NULL,
-          file_type VARCHAR(100) NOT NULL,
-          file_size INTEGER NOT NULL,
-          duration INTEGER,
-          client_id INTEGER REFERENCES clients(id),
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          media_type VARCHAR(50) NOT NULL,
+          duration_seconds INTEGER,
+          size_bytes INTEGER NOT NULL,
+          mime_type VARCHAR(100) NOT NULL,
+          width INTEGER,
+          height INTEGER,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `;
 
       await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS playlists (
-          id SERIAL PRIMARY KEY,
+          playlist_id SERIAL PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
           description TEXT,
-          client_id INTEGER REFERENCES clients(id),
+          client_id INTEGER REFERENCES clients(client_id),
           is_active BOOLEAN DEFAULT true,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -194,9 +208,9 @@ async function runMigrations(): Promise<void> {
 
       await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS playlist_items (
-          id SERIAL PRIMARY KEY,
-          playlist_id INTEGER REFERENCES playlists(id) ON DELETE CASCADE,
-          media_id INTEGER REFERENCES media(id) ON DELETE CASCADE,
+          item_id SERIAL PRIMARY KEY,
+          playlist_id INTEGER REFERENCES playlists(playlist_id) ON DELETE CASCADE,
+          media_id INTEGER REFERENCES medias(media_id) ON DELETE CASCADE,
           order_index INTEGER NOT NULL,
           duration INTEGER DEFAULT 10000,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -208,9 +222,9 @@ async function runMigrations(): Promise<void> {
       const hashedPassword = await bcrypt.hash('admin', 12);
       
       await prisma.$executeRaw`
-        INSERT INTO users (email, password, name, role) 
-        VALUES ('admin@smart-signage.com', $1, 'Administrator', 'admin')
-        ON CONFLICT (email) DO NOTHING
+        INSERT INTO users (username, email, password_hash, name, role) 
+        VALUES ('admin', 'admin@smart-signage.com', $1, 'Administrator', 'admin')
+        ON CONFLICT (username) DO NOTHING
       `, [hashedPassword];
 
       console.log('✅ Initial migrations completed');
