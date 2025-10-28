@@ -102,6 +102,31 @@ app.use('/uploads', express.static('/opt/smart-signage/public/assets/uploads'));
 // ROUTES
 // =============================================
 
+// Root route - API information
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Smart Signage Pro v2.0',
+    version: '2.0.0',
+    type: 'REST API',
+    description: 'API Backend do Sistema de Sinalização Digital',
+    endpoints: {
+      health: '/health',
+      api: '/api',
+      authentication: '/api/auth',
+      dashboard: '/api/dashboard',
+      users: '/api/users',
+      clients: '/api/clients',
+      players: '/api/players',
+      media: '/api/media',
+      playlists: '/api/playlists',
+      player: '/player',
+      admin: '/admin'
+    },
+    documentation: process.env.NODE_ENV !== 'production' ? '/api-docs' : 'Not available in production',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check
 app.get('/health', async (req, res) => {
   try {
