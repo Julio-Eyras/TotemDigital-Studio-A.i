@@ -18,6 +18,7 @@ import { authMiddleware } from './middleware/auth.middleware';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import clientRoutes from './routes/clients';
+import dashboardRoutes from './routes/dashboard';
 import playerRoutes from './routes/players';
 import mediaRoutes from './routes/media';
 import playlistRoutes from './routes/playlists';

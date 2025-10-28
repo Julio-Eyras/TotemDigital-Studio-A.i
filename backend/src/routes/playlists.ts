@@ -2,7 +2,7 @@ import express from 'express';
 import { body, query, param } from 'express-validator';
 import { validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
-import { playlistApi, PlaylistItem, CreatePlaylistRequest } from '../services/api';
+import { getPlaylistService } from '../services/playlistService';
 
 const router = express.Router();
 
@@ -48,32 +48,14 @@ router.get('/',
     try {
       const { page = 1, limit = 10, search, clientId } = req.query;
       
-      // Simular dados (substituir por chamada real ao banco)
-      const playlists: PlaylistItem[] = [
-        {
-          playlist_id: 1,
-          name: 'Horário Comercial',
-          description: 'Playlist para horário comercial da loja',
-          is_active: true,
-          created_at: '2024-01-15T00:00:00Z',
-          updated_at: '2024-01-20T14:30:00Z',
-        },
-        {
-          playlist_id: 2,
-          name: 'Promoções',
-          description: 'Conteúdo promocional e ofertas',
-          is_active: true,
-          created_at: '2024-01-14T00:00:00Z',
-          updated_at: '2024-01-19T16:45:00Z',
-        },
-      ];
-
-      res.json({
-        data: playlists,
-        total: playlists.length,
-        page: parseInt(page),
-        limit: parseInt(limit),
+      const result = await getPlaylistService().getAllPlaylists({
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        search: search as string,
+        clientId: clientId ? parseInt(clientId as string) : undefined,
       });
+      
+      res.json(result);
     } catch (error) {
       console.error('Erro ao listar playlists:', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
@@ -92,15 +74,11 @@ router.get('/:id',
     try {
       const { id } = req.params;
       
-      // Simular busca (substituir por chamada real ao banco)
-      const playlist: PlaylistItem = {
-        playlist_id: parseInt(id),
-        name: 'Horário Comercial',
-        description: 'Playlist para horário comercial da loja',
-        is_active: true,
-        created_at: '2024-01-15T00:00:00Z',
-        updated_at: '2024-01-20T14:30:00Z',
-      };
+      const playlist = await getPlaylistService().getPlaylistById(parseInt(id));
+      
+      if (!playlist) {
+        return res.status(404).json({ error: 'Playlist não encontrada' });
+      }
 
       res.json(playlist);
     } catch (error) {
