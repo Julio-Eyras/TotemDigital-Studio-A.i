@@ -1,93 +1,208 @@
-import React, { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { Box, CssBaseline } from '@mui/material';
-import { useDispatch, useSelector } from 'react-redux';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { CssBaseline, Box } from '@mui/material';
 
-import { AppDispatch, RootState } from './store/store';
-import { checkAuthStatus } from './store/slices/authSlice';
-import { Layout } from './components/Layout/Layout';
-import { Login } from './pages/Login/Login';
-import { Dashboard } from './pages/Dashboard/Dashboard';
-import { Users } from './pages/Users/Users';
-import { Clients } from './pages/Clients/Clients';
-import { Players } from './pages/Players/Players';
-import { Media } from './pages/Media/Media';
-import { Playlists } from './pages/Playlists/Playlists';
-import { Campaigns } from './pages/Campaigns/Campaigns';
-import { QRCodes } from './pages/QRCodes/QRCodes';
-import { Analytics } from './pages/Analytics/Analytics';
-import { Billing } from './pages/Billing/Billing';
-import { Settings } from './pages/Settings/Settings';
-import { Reports } from './pages/Reports/Reports';
-import { AI } from './pages/AI/AI';
-import { SmartPlaylist } from './pages/SmartPlaylist/SmartPlaylist';
-import { LoadingScreen } from './components/LoadingScreen/LoadingScreen';
-import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
+// Pages
+import LoginPage from './pages/Auth/LoginPage';
+import Dashboard from './pages/Dashboard/Dashboard';
+import Media from './pages/Media/Media';
+import Playlists from './pages/Playlists/Playlists';
+import Players from './pages/Players/Players';
+import Users from './pages/Users/Users';
+import Clients from './pages/Clients/Clients';
 
-function App() {
-  const dispatch = useDispatch<AppDispatch>();
-  const { isAuthenticated, isLoading, user } = useSelector((state: RootState) => state.auth);
+// Components
+import Layout from './components/Layout/Layout';
+
+// Create theme
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#1976d2',
+      dark: '#1565c0',
+      light: '#42a5f5',
+    },
+    secondary: {
+      main: '#dc004e',
+    },
+    background: {
+      default: '#f5f5f5',
+    },
+  },
+  typography: {
+    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    h4: {
+      fontWeight: 600,
+    },
+    h6: {
+      fontWeight: 600,
+    },
+  },
+  shape: {
+    borderRadius: 8,
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 600,
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          '&:hover': {
+            boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+          },
+        },
+      },
+    },
+  },
+});
+
+const App: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Verificar status de autenticação ao carregar a aplicação
-    dispatch(checkAuthStatus());
-  }, [dispatch]);
+    // Check if user is authenticated
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+    
+    if (token && user) {
+      setIsAuthenticated(true);
+    }
+    
+    setLoading(false);
+  }, []);
 
-  // Mostrar tela de loading enquanto verifica autenticação
-  if (isLoading) {
-    return <LoadingScreen />;
+  const handleLoginSuccess = (token: string, user: any) => {
+    setIsAuthenticated(true);
+  };
+
+  const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    if (loading) {
+      return (
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '100vh',
+          }}
+        >
+          Carregando...
+        </Box>
+      );
+    }
+
+    return isAuthenticated ? <Layout>{children}</Layout> : <Navigate to="/login" />;
+  };
+
+  if (loading) {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '100vh',
+          }}
+        >
+          Carregando aplicação...
+        </Box>
+      </ThemeProvider>
+    );
   }
 
   return (
-    <ErrorBoundary>
-      <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-        <CssBaseline />
-        
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Router>
         <Routes>
-          {/* Rota de login */}
-          <Route 
-            path="/login" 
-            element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />
-            } 
-          />
-          
-          {/* Rotas protegidas */}
+          {/* Public Routes */}
           <Route
-            path="/*"
+            path="/login"
             element={
               isAuthenticated ? (
-                <Layout>
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/users" element={<Users />} />
-                    <Route path="/clients" element={<Clients />} />
-                    <Route path="/players" element={<Players />} />
-                    <Route path="/media" element={<Media />} />
-                    <Route path="/playlists" element={<Playlists />} />
-                    <Route path="/campaigns" element={<Campaigns />} />
-                    <Route path="/qrcodes" element={<QRCodes />} />
-                    <Route path="/analytics" element={<Analytics />} />
-                    <Route path="/billing" element={<Billing />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="/reports" element={<Reports />} />
-                    <Route path="/ai" element={<AI />} />
-                    <Route path="/smart-playlist" element={<SmartPlaylist />} />
-                    
-                    {/* Rota 404 */}
-                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                  </Routes>
-                </Layout>
+                <Navigate to="/dashboard" />
               ) : (
-                <Navigate to="/login" replace />
+                <LoginPage onLoginSuccess={handleLoginSuccess} />
               )
             }
           />
+
+          {/* Protected Routes */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/media"
+            element={
+              <ProtectedRoute>
+                <Media />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/playlists"
+            element={
+              <ProtectedRoute>
+                <Playlists />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/players"
+            element={
+              <ProtectedRoute>
+                <Players />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <ProtectedRoute>
+                <Users />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/clients"
+            element={
+              <ProtectedRoute>
+                <Clients />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Default redirect */}
+          <Route
+            path="/"
+            element={<Navigate to="/dashboard" />}
+          />
+          
+          {/* Catch all route */}
+          <Route
+            path="*"
+            element={<Navigate to="/dashboard" />}
+          />
         </Routes>
-      </Box>
-    </ErrorBoundary>
+      </Router>
+    </ThemeProvider>
   );
-}
+};
 
 export default App;

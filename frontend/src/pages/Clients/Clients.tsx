@@ -1,8 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
+  Card,
+  CardContent,
   Typography,
+  Grid,
   Button,
+  IconButton,
+  Chip,
+  Avatar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Tooltip,
+  useTheme,
+  alpha,
+  LinearProgress,
+  Alert,
   Table,
   TableBody,
   TableCell,
@@ -10,20 +26,11 @@ import {
   TableHead,
   TableRow,
   Paper,
-  IconButton,
-  Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Grid,
-  Card,
-  CardContent,
-  Fab,
-  Tooltip,
-  Switch,
-  FormControlLabel,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Divider,
 } from '@mui/material';
 import {
   Add,
@@ -33,19 +40,35 @@ import {
   Email,
   Phone,
   LocationOn,
+  Refresh,
   MoreVert,
+  CheckCircle,
+  Warning,
+  Error,
+  People,
+  Computer,
+  QueueMusic,
+  VideoLibrary,
 } from '@mui/icons-material';
-import { useSelector } from 'react-redux';
-import { RootState } from '../../store/store';
-import { clientApi, Client, CreateClientRequest } from '../../services/api';
+import { clientApi, Client, CreateClientRequest, userApi, User, playerApi, Player, playlistApi, PlaylistItem, mediaApi, MediaItem } from '../../services/api';
 
-export const Clients: React.FC = () => {
-  const { user } = useSelector((state: RootState) => state.auth);
+const Clients: React.FC = () => {
+  const theme = useTheme();
   const [clients, setClients] = useState<Client[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [formData, setFormData] = useState<CreateClientRequest>({
+  const [loading, setLoading] = useState(true);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [clientStats, setClientStats] = useState<{
+    users: User[];
+    players: Player[];
+    playlists: PlaylistItem[];
+    media: MediaItem[];
+  } | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [newClient, setNewClient] = useState<CreateClientRequest>({
     name: '',
     email: '',
     phone: '',
@@ -58,320 +81,520 @@ export const Clients: React.FC = () => {
 
   const loadClients = async () => {
     try {
-      setIsLoading(true);
-      
-      // Simular carregamento de dados (substituir por chamadas reais da API)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setClients([
-        {
-          client_id: 1,
-          name: 'Empresa ABC Ltda',
-          email: 'contato@empresaabc.com',
-          phone: '(11) 99999-9999',
-          address: 'Rua das Flores, 123 - São Paulo/SP',
-          is_active: true,
-          created_at: '2024-01-01 00:00:00',
-          updated_at: '2024-01-20 14:30:00',
-        },
-        {
-          client_id: 2,
-          name: 'Comércio XYZ',
-          email: 'vendas@comercioxyz.com',
-          phone: '(21) 88888-8888',
-          address: 'Av. Principal, 456 - Rio de Janeiro/RJ',
-          is_active: true,
-          created_at: '2024-01-05 09:00:00',
-          updated_at: '2024-01-19 16:45:00',
-        },
-        {
-          client_id: 3,
-          name: 'Loja Central',
-          email: 'loja@central.com',
-          phone: '(31) 77777-7777',
-          address: 'Praça Central, 789 - Belo Horizonte/MG',
-          is_active: false,
-          created_at: '2024-01-10 14:30:00',
-          updated_at: '2024-01-15 11:20:00',
-        },
-        {
-          client_id: 4,
-          name: 'Supermercado Moderno',
-          email: 'admin@supermoderno.com',
-          phone: '(41) 66666-6666',
-          address: 'Rua Comercial, 321 - Curitiba/PR',
-          is_active: true,
-          created_at: '2024-01-12 08:15:00',
-          updated_at: '2024-01-18 10:30:00',
-        },
-      ]);
+      setLoading(true);
+      setError(null);
+      const response = await clientApi.getAll({
+        search: searchTerm || undefined,
+      });
+      setClients(response.data);
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
+      setError('Erro ao carregar lista de clientes');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleAddClient = () => {
-    setEditingClient(null);
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-    });
-    setOpenDialog(true);
+  const loadClientStats = async (clientId: number) => {
+    try {
+      const [usersResponse, playersResponse, playlistsResponse, mediaResponse] = await Promise.all([
+        userApi.getAll({ clientId }),
+        playerApi.getAll({ clientId }),
+        playlistApi.getAll({ clientId }),
+        mediaApi.getAll({ clientId }),
+      ]);
+
+      setClientStats({
+        users: usersResponse.data,
+        players: playersResponse.data,
+        playlists: playlistsResponse.data,
+        media: mediaResponse.data,
+      });
+    } catch (error) {
+      console.error('Erro ao carregar estatísticas do cliente:', error);
+    }
   };
 
-  const handleEditClient = (client: Client) => {
-    setEditingClient(client);
-    setFormData({
-      name: client.name,
-      email: client.email || '',
-      phone: client.phone || '',
-      address: client.address || '',
-    });
-    setOpenDialog(true);
+  const handleCreateClient = async () => {
+    try {
+      await clientApi.create(newClient);
+      setCreateDialogOpen(false);
+      setNewClient({ name: '', email: '', phone: '', address: '' });
+      loadClients();
+    } catch (error) {
+      console.error('Erro ao criar cliente:', error);
+      setError('Erro ao criar cliente');
+    }
+  };
+
+  const handleEditClient = async () => {
+    if (!selectedClient) return;
+    
+    try {
+      await clientApi.update(selectedClient.client_id, {
+        name: selectedClient.name,
+        email: selectedClient.email,
+        phone: selectedClient.phone,
+        address: selectedClient.address,
+        isActive: selectedClient.is_active,
+      });
+      setEditDialogOpen(false);
+      setSelectedClient(null);
+      loadClients();
+    } catch (error) {
+      console.error('Erro ao atualizar cliente:', error);
+      setError('Erro ao atualizar cliente');
+    }
   };
 
   const handleDeleteClient = async (id: number) => {
     if (window.confirm('Tem certeza que deseja excluir este cliente?')) {
       try {
-        // Implementar exclusão via API
-        setClients(prev => prev.filter(item => item.client_id !== id));
+        await clientApi.delete(id);
+        loadClients();
       } catch (error) {
         console.error('Erro ao excluir cliente:', error);
+        setError('Erro ao excluir cliente');
       }
     }
   };
 
-  const handleSaveClient = async () => {
-    try {
-      if (editingClient) {
-        // Atualizar cliente existente
-        const updatedClient = await clientApi.update(editingClient.client_id, formData);
-        setClients(prev => prev.map(item => 
-          item.client_id === editingClient.client_id ? updatedClient : item
-        ));
-      } else {
-        // Criar novo cliente
-        const newClient = await clientApi.create(formData);
-        setClients(prev => [...prev, newClient]);
-      }
-      setOpenDialog(false);
-    } catch (error) {
-      console.error('Erro ao salvar cliente:', error);
-    }
+  const handleViewDetails = async (client: Client) => {
+    setSelectedClient(client);
+    await loadClientStats(client.client_id);
+    setDetailsDialogOpen(true);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-    }));
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
-  const handleStatusChange = async (id: number, isActive: boolean) => {
-    try {
-      // Implementar mudança de status via API
-      setClients(prev => prev.map(item => 
-        item.client_id === id ? { ...item, is_active: isActive } : item
-      ));
-    } catch (error) {
-      console.error('Erro ao alterar status do cliente:', error);
-    }
-  };
-
-  if (isLoading) {
+  if (loading) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom>
-          Carregando Clientes...
+        <LinearProgress />
+        <Typography variant="h6" sx={{ mt: 2, textAlign: 'center' }}>
+          Carregando clientes...
         </Typography>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">
-          Gerenciamento de Clientes
-        </Typography>
+    <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
+      {/* Header */}
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
+            Clientes
+          </Typography>
+          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
+            Gerencie seus clientes e suas informações
+          </Typography>
+        </Box>
         <Button
           variant="contained"
           startIcon={<Add />}
-          onClick={handleAddClient}
+          onClick={() => setCreateDialogOpen(true)}
+          sx={{ 
+            backgroundColor: theme.palette.primary.main,
+            '&:hover': { backgroundColor: theme.palette.primary.dark }
+          }}
         >
-          Novo Cliente
+          Adicionar Cliente
         </Button>
       </Box>
 
+      {/* Filters */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={8}>
+              <TextField
+                fullWidth
+                placeholder="Buscar clientes..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: <Business sx={{ mr: 1, color: theme.palette.text.secondary }} />,
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<Refresh />}
+                onClick={loadClients}
+              >
+                Atualizar
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Clients Grid */}
       <Grid container spacing={3}>
         {clients.map((client) => (
-          <Grid item xs={12} md={6} lg={4} key={client.client_id}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Business sx={{ mr: 1, color: 'primary.main' }} />
-                    <Typography variant="h6">
-                      {client.name}
+          <Grid item xs={12} sm={6} md={4} lg={3} key={client.client_id}>
+            <Card sx={{ 
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: theme.shadows[8],
+              }
+            }}>
+              <Box sx={{ position: 'relative', height: 120, backgroundColor: theme.palette.grey[100] }}>
+                <Avatar
+                  sx={{
+                    position: 'absolute',
+                    top: 16,
+                    left: 16,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                    color: theme.palette.primary.main,
+                  }}
+                >
+                  <Business />
+                </Avatar>
+                
+                <Chip
+                  label={client.is_active ? 'Ativo' : 'Inativo'}
+                  size="small"
+                  sx={{
+                    position: 'absolute',
+                    top: 16,
+                    right: 16,
+                    backgroundColor: alpha(client.is_active ? theme.palette.success.main : theme.palette.error.main, 0.1),
+                    color: client.is_active ? theme.palette.success.main : theme.palette.error.main,
+                    fontWeight: 'bold',
+                  }}
+                />
+
+                <Box sx={{ 
+                  position: 'absolute', 
+                  bottom: 16, 
+                  left: 16, 
+                  right: 16,
+                }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Criado em {formatDate(client.created_at)}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
+                  {client.name}
+                </Typography>
+                
+                {client.email && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                    <Email fontSize="small" color="action" />
+                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
+                      {client.email}
                     </Typography>
                   </Box>
-                  <IconButton size="small">
-                    <MoreVert />
-                  </IconButton>
-                </Box>
+                )}
 
-                <Box sx={{ mb: 2 }}>
-                  {client.email && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <Email sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="body2" color="text.secondary">
-                        {client.email}
-                      </Typography>
-                    </Box>
-                  )}
-                  
-                  {client.phone && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <Phone sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="body2" color="text.secondary">
-                        {client.phone}
-                      </Typography>
-                    </Box>
-                  )}
-                  
-                  {client.address && (
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
-                      <LocationOn sx={{ mr: 1, fontSize: 16, color: 'text.secondary', mt: 0.2 }} />
-                      <Typography variant="body2" color="text.secondary">
-                        {client.address}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
+                {client.phone && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                    <Phone fontSize="small" color="action" />
+                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
+                      {client.phone}
+                    </Typography>
+                  </Box>
+                )}
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Chip
-                    label={client.is_active ? 'Ativo' : 'Inativo'}
-                    color={client.is_active ? 'success' : 'default'}
-                    size="small"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={client.is_active}
-                        onChange={(e) => handleStatusChange(client.client_id, e.target.checked)}
-                        size="small"
-                      />
-                    }
-                    label=""
-                  />
-                </Box>
+                {client.address && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                    <LocationOn fontSize="small" color="action" />
+                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
+                      {client.address}
+                    </Typography>
+                  </Box>
+                )}
 
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Button
                     size="small"
                     variant="outlined"
-                    onClick={() => handleEditClient(client)}
+                    onClick={() => handleViewDetails(client)}
+                    sx={{ fontSize: '0.75rem' }}
                   >
-                    <Edit sx={{ mr: 0.5 }} />
-                    Editar
+                    Detalhes
                   </Button>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => handleDeleteClient(client.client_id)}
-                    color="error"
-                  >
-                    <Delete sx={{ mr: 0.5 }} />
-                    Excluir
-                  </Button>
+                  
+                  <Box>
+                    <Tooltip title="Editar">
+                      <IconButton size="small" onClick={() => {
+                        setSelectedClient(client);
+                        setEditDialogOpen(true);
+                      }}>
+                        <Edit />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Excluir">
+                      <IconButton size="small" onClick={() => handleDeleteClient(client.client_id)}>
+                        <Delete />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                 </Box>
-
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                  Criado em: {new Date(client.created_at).toLocaleDateString('pt-BR')}
-                </Typography>
               </CardContent>
             </Card>
           </Grid>
         ))}
       </Grid>
 
-      {/* Dialog para adicionar/editar cliente */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          {editingClient ? 'Editar Cliente' : 'Novo Cliente'}
-        </DialogTitle>
+      {/* Empty State */}
+      {clients.length === 0 && !loading && (
+        <Card sx={{ textAlign: 'center', py: 8 }}>
+          <CardContent>
+            <Business sx={{ fontSize: 64, color: theme.palette.text.secondary, mb: 2 }} />
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Nenhum cliente encontrado
+            </Typography>
+            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
+              Comece adicionando seus primeiros clientes
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => setCreateDialogOpen(true)}
+            >
+              Adicionar Primeiro Cliente
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Create Dialog */}
+      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Adicionar Cliente</DialogTitle>
         <DialogContent>
-          <Box sx={{ pt: 2 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Nome da Empresa"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Telefone"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Endereço"
-                  name="address"
-                  multiline
-                  rows={3}
-                  value={formData.address}
-                  onChange={handleInputChange}
-                />
-              </Grid>
-            </Grid>
-          </Box>
+          <TextField
+            fullWidth
+            label="Nome da Empresa"
+            value={newClient.name}
+            onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
+            margin="normal"
+            required
+          />
+          <TextField
+            fullWidth
+            label="Email"
+            type="email"
+            value={newClient.email}
+            onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            label="Telefone"
+            value={newClient.phone}
+            onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            label="Endereço"
+            value={newClient.address}
+            onChange={(e) => setNewClient({ ...newClient, address: e.target.value })}
+            margin="normal"
+            multiline
+            rows={3}
+          />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>
-            Cancelar
-          </Button>
-          <Button variant="contained" onClick={handleSaveClient}>
-            {editingClient ? 'Salvar' : 'Criar'}
-          </Button>
+          <Button onClick={() => setCreateDialogOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleCreateClient}>Criar</Button>
         </DialogActions>
       </Dialog>
 
-      {/* FAB para adicionar cliente */}
-      <Tooltip title="Adicionar Cliente">
-        <Fab
-          color="primary"
-          sx={{ position: 'fixed', bottom: 16, right: 16 }}
-          onClick={handleAddClient}
-        >
-          <Add />
-        </Fab>
-      </Tooltip>
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Editar Cliente</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Nome da Empresa"
+            value={selectedClient?.name || ''}
+            onChange={(e) => setSelectedClient({ ...selectedClient!, name: e.target.value })}
+            margin="normal"
+            required
+          />
+          <TextField
+            fullWidth
+            label="Email"
+            type="email"
+            value={selectedClient?.email || ''}
+            onChange={(e) => setSelectedClient({ ...selectedClient!, email: e.target.value })}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            label="Telefone"
+            value={selectedClient?.phone || ''}
+            onChange={(e) => setSelectedClient({ ...selectedClient!, phone: e.target.value })}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            label="Endereço"
+            value={selectedClient?.address || ''}
+            onChange={(e) => setSelectedClient({ ...selectedClient!, address: e.target.value })}
+            margin="normal"
+            multiline
+            rows={3}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleEditClient}>Salvar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Details Dialog */}
+      <Dialog open={detailsDialogOpen} onClose={() => setDetailsDialogOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle>
+          Detalhes do Cliente - {selectedClient?.name}
+        </DialogTitle>
+        <DialogContent>
+          {clientStats && (
+            <Grid container spacing={3}>
+              {/* Stats Cards */}
+              <Grid item xs={12} sm={6} md={3}>
+                <Card sx={{ textAlign: 'center', py: 2 }}>
+                  <CardContent>
+                    <People sx={{ fontSize: 40, color: theme.palette.primary.main, mb: 1 }} />
+                    <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                      {clientStats.users.length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Usuários
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card sx={{ textAlign: 'center', py: 2 }}>
+                  <CardContent>
+                    <Computer sx={{ fontSize: 40, color: theme.palette.success.main, mb: 1 }} />
+                    <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                      {clientStats.players.length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Players
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card sx={{ textAlign: 'center', py: 2 }}>
+                  <CardContent>
+                    <QueueMusic sx={{ fontSize: 40, color: theme.palette.warning.main, mb: 1 }} />
+                    <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                      {clientStats.playlists.length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Playlists
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card sx={{ textAlign: 'center', py: 2 }}>
+                  <CardContent>
+                    <VideoLibrary sx={{ fontSize: 40, color: theme.palette.error.main, mb: 1 }} />
+                    <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                      {clientStats.media.length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Mídia
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Users List */}
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      Usuários ({clientStats.users.length})
+                    </Typography>
+                    <List sx={{ maxHeight: 200, overflow: 'auto' }}>
+                      {clientStats.users.map((user) => (
+                        <ListItem key={user.user_id}>
+                          <ListItemIcon>
+                            <Avatar sx={{ width: 32, height: 32 }}>
+                              <People />
+                            </Avatar>
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={user.name}
+                            secondary={`@${user.username} - ${user.role}`}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Players List */}
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      Players ({clientStats.players.length})
+                    </Typography>
+                    <List sx={{ maxHeight: 200, overflow: 'auto' }}>
+                      {clientStats.players.map((player) => (
+                        <ListItem key={player.totem_id}>
+                          <ListItemIcon>
+                            <Avatar sx={{ 
+                              width: 32, 
+                              height: 32,
+                              backgroundColor: alpha(
+                                player.status === 'online' ? theme.palette.success.main : theme.palette.error.main, 
+                                0.1
+                              ),
+                              color: player.status === 'online' ? theme.palette.success.main : theme.palette.error.main
+                            }}>
+                              <Computer />
+                            </Avatar>
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={player.name}
+                            secondary={`${player.location || 'Sem localização'} - ${player.status}`}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailsDialogOpen(false)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
+
+export default Clients;

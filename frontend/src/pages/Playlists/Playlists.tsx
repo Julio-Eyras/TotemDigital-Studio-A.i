@@ -1,416 +1,552 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
+  Card,
+  CardContent,
   Typography,
+  Grid,
   Button,
+  IconButton,
+  Chip,
+  Avatar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Tooltip,
+  useTheme,
+  alpha,
+  LinearProgress,
+  Alert,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Divider,
+  Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  IconButton,
-  Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Grid,
-  Card,
-  CardContent,
-  Fab,
-  Tooltip,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  Switch,
 } from '@mui/material';
 import {
   Add,
   Edit,
   Delete,
+  QueueMusic,
   PlayArrow,
-  Pause,
-  Stop,
-  Schedule,
-  MoreVert,
   DragIndicator,
+  Refresh,
+  MoreVert,
+  AccessTime,
+  VideoLibrary,
+  Image,
+  AudioFile,
 } from '@mui/icons-material';
-import { useSelector } from 'react-redux';
-import { RootState } from '../../store/store';
+import { playlistApi, PlaylistItem, CreatePlaylistRequest, PlaylistMediaItem, mediaApi, MediaItem } from '../../services/api';
 
-interface PlaylistItem {
-  id: string;
-  name: string;
-  description: string;
-  mediaCount: number;
-  duration: string;
-  status: 'active' | 'draft' | 'paused';
-  createdAt: string;
-  lastPlayed?: string;
-}
-
-interface MediaItem {
-  id: string;
-  name: string;
-  type: 'image' | 'video' | 'audio';
-  duration: number;
-  order: number;
-}
-
-export const Playlists: React.FC = () => {
-  const { user } = useSelector((state: RootState) => state.auth);
+const Playlists: React.FC = () => {
+  const theme = useTheme();
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [editingPlaylist, setEditingPlaylist] = useState<PlaylistItem | null>(null);
-  const [openMediaDialog, setOpenMediaDialog] = useState(false);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<PlaylistItem | null>(null);
-  const [playlistMedia, setPlaylistMedia] = useState<MediaItem[]>([]);
+  const [playlistMedia, setPlaylistMedia] = useState<PlaylistMediaItem[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [newPlaylist, setNewPlaylist] = useState<CreatePlaylistRequest>({
+    name: '',
+    description: '',
+    clientId: undefined,
+  });
 
   useEffect(() => {
     loadPlaylists();
+    loadMediaItems();
   }, []);
 
   const loadPlaylists = async () => {
     try {
-      setIsLoading(true);
-      
-      // Simular carregamento de dados (substituir por chamadas reais da API)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setPlaylists([
-        {
-          id: '1',
-          name: 'Horário Comercial',
-          description: 'Playlist para horário comercial da loja',
-          mediaCount: 8,
-          duration: '15:30',
-          status: 'active',
-          createdAt: '2024-01-15',
-          lastPlayed: '2024-01-20 14:30',
-        },
-        {
-          id: '2',
-          name: 'Promoções',
-          description: 'Conteúdo promocional e ofertas',
-          mediaCount: 5,
-          duration: '8:45',
-          status: 'active',
-          createdAt: '2024-01-14',
-          lastPlayed: '2024-01-20 12:15',
-        },
-        {
-          id: '3',
-          name: 'Informativos',
-          description: 'Informações gerais e institucionais',
-          mediaCount: 3,
-          duration: '5:20',
-          status: 'draft',
-          createdAt: '2024-01-13',
-        },
-        {
-          id: '4',
-          name: 'Eventos Especiais',
-          description: 'Conteúdo para eventos e datas comemorativas',
-          mediaCount: 12,
-          duration: '22:15',
-          status: 'paused',
-          createdAt: '2024-01-12',
-        },
-      ]);
+      setLoading(true);
+      setError(null);
+      const response = await playlistApi.getAll({
+        search: searchTerm || undefined,
+      });
+      setPlaylists(response.data);
     } catch (error) {
       console.error('Erro ao carregar playlists:', error);
+      setError('Erro ao carregar lista de playlists');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const loadPlaylistMedia = async (playlistId: string) => {
+  const loadMediaItems = async () => {
     try {
-      // Simular carregamento de mídia da playlist
-      setPlaylistMedia([
-        {
-          id: '1',
-          name: 'Logo Empresa',
-          type: 'image',
-          duration: 5000,
-          order: 1,
-        },
-        {
-          id: '2',
-          name: 'Promoção Verão',
-          type: 'video',
-          duration: 30000,
-          order: 2,
-        },
-        {
-          id: '3',
-          name: 'Produto Novo',
-          type: 'image',
-          duration: 8000,
-          order: 3,
-        },
-      ]);
+      const response = await mediaApi.getAll();
+      setMediaItems(response.data);
+    } catch (error) {
+      console.error('Erro ao carregar mídia:', error);
+    }
+  };
+
+  const loadPlaylistMedia = async (playlistId: number) => {
+    try {
+      const media = await playlistApi.getMedia(playlistId);
+      setPlaylistMedia(media);
     } catch (error) {
       console.error('Erro ao carregar mídia da playlist:', error);
     }
   };
 
-  const handleAddPlaylist = () => {
-    setEditingPlaylist(null);
-    setOpenDialog(true);
+  const handleCreatePlaylist = async () => {
+    try {
+      await playlistApi.create(newPlaylist);
+      setCreateDialogOpen(false);
+      setNewPlaylist({ name: '', description: '', clientId: undefined });
+      loadPlaylists();
+    } catch (error) {
+      console.error('Erro ao criar playlist:', error);
+      setError('Erro ao criar playlist');
+    }
   };
 
-  const handleEditPlaylist = (playlist: PlaylistItem) => {
-    setEditingPlaylist(playlist);
-    setOpenDialog(true);
+  const handleEditPlaylist = async () => {
+    if (!selectedPlaylist) return;
+    
+    try {
+      await playlistApi.update(selectedPlaylist.playlist_id, {
+        name: selectedPlaylist.name,
+        description: selectedPlaylist.description,
+        clientId: selectedPlaylist.client_id,
+        isActive: selectedPlaylist.is_active,
+      });
+      setEditDialogOpen(false);
+      setSelectedPlaylist(null);
+      loadPlaylists();
+    } catch (error) {
+      console.error('Erro ao atualizar playlist:', error);
+      setError('Erro ao atualizar playlist');
+    }
   };
 
-  const handleDeletePlaylist = async (id: string) => {
+  const handleDeletePlaylist = async (id: number) => {
     if (window.confirm('Tem certeza que deseja excluir esta playlist?')) {
       try {
-        // Implementar exclusão via API
-        setPlaylists(prev => prev.filter(item => item.id !== id));
+        await playlistApi.delete(id);
+        loadPlaylists();
       } catch (error) {
         console.error('Erro ao excluir playlist:', error);
+        setError('Erro ao excluir playlist');
       }
     }
   };
 
-  const handleManageMedia = (playlist: PlaylistItem) => {
-    setSelectedPlaylist(playlist);
-    loadPlaylistMedia(playlist.id);
-    setOpenMediaDialog(true);
-  };
-
-  const handlePlaylistStatusChange = async (id: string, status: string) => {
+  const handleAddMediaToPlaylist = async (mediaId: number) => {
+    if (!selectedPlaylist) return;
+    
     try {
-      // Implementar mudança de status via API
-      setPlaylists(prev => prev.map(item => 
-        item.id === id ? { ...item, status: status as any } : item
-      ));
+      await playlistApi.addMedia(selectedPlaylist.playlist_id, mediaId);
+      loadPlaylistMedia(selectedPlaylist.playlist_id);
     } catch (error) {
-      console.error('Erro ao alterar status da playlist:', error);
+      console.error('Erro ao adicionar mídia:', error);
+      setError('Erro ao adicionar mídia à playlist');
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'success';
-      case 'draft': return 'warning';
-      case 'paused': return 'default';
-      default: return 'default';
+  const handleRemoveMediaFromPlaylist = async (itemId: number) => {
+    if (!selectedPlaylist) return;
+    
+    try {
+      await playlistApi.removeMedia(selectedPlaylist.playlist_id, itemId);
+      loadPlaylistMedia(selectedPlaylist.playlist_id);
+    } catch (error) {
+      console.error('Erro ao remover mídia:', error);
+      setError('Erro ao remover mídia da playlist');
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'active': return 'Ativa';
-      case 'draft': return 'Rascunho';
-      case 'paused': return 'Pausada';
-      default: return status;
+  const getMediaIcon = (mediaType: string) => {
+    switch (mediaType.toLowerCase()) {
+      case 'video':
+        return <VideoLibrary />;
+      case 'image':
+        return <Image />;
+      case 'audio':
+        return <AudioFile />;
+      default:
+        return <VideoLibrary />;
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'active': return <PlayArrow />;
-      case 'draft': return <Edit />;
-      case 'paused': return <Pause />;
-      default: return <Stop />;
-    }
+  const formatDuration = (duration: number) => {
+    const seconds = Math.floor(duration / 1000);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (isLoading) {
+  const formatTotalDuration = (totalDuration?: number) => {
+    if (!totalDuration) return '0:00';
+    return formatDuration(totalDuration);
+  };
+
+  if (loading) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom>
-          Carregando Playlists...
+        <LinearProgress />
+        <Typography variant="h6" sx={{ mt: 2, textAlign: 'center' }}>
+          Carregando playlists...
         </Typography>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">
-          Gerenciamento de Playlists
-        </Typography>
+    <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
+      {/* Header */}
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
+            Playlists
+          </Typography>
+          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
+            Gerencie suas playlists de mídia
+          </Typography>
+        </Box>
         <Button
           variant="contained"
           startIcon={<Add />}
-          onClick={handleAddPlaylist}
+          onClick={() => setCreateDialogOpen(true)}
+          sx={{ 
+            backgroundColor: theme.palette.primary.main,
+            '&:hover': { backgroundColor: theme.palette.primary.dark }
+          }}
         >
-          Nova Playlist
+          Criar Playlist
         </Button>
       </Box>
 
+      {/* Filters */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={8}>
+              <TextField
+                fullWidth
+                placeholder="Buscar playlists..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: <QueueMusic sx={{ mr: 1, color: theme.palette.text.secondary }} />,
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<Refresh />}
+                onClick={loadPlaylists}
+              >
+                Atualizar
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Playlists Grid */}
       <Grid container spacing={3}>
         {playlists.map((playlist) => (
-          <Grid item xs={12} md={6} lg={4} key={playlist.id}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Box>
-                    <Typography variant="h6" gutterBottom>
-                      {playlist.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      {playlist.description}
+          <Grid item xs={12} sm={6} md={4} lg={3} key={playlist.playlist_id}>
+            <Card sx={{ 
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: theme.shadows[8],
+              }
+            }}>
+              <Box sx={{ position: 'relative', height: 120, backgroundColor: theme.palette.grey[100] }}>
+                <Avatar
+                  sx={{
+                    position: 'absolute',
+                    top: 16,
+                    left: 16,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                    color: theme.palette.primary.main,
+                  }}
+                >
+                  <QueueMusic />
+                </Avatar>
+                
+                <Chip
+                  label={`${playlist.media_count || 0} itens`}
+                  size="small"
+                  sx={{
+                    position: 'absolute',
+                    top: 16,
+                    right: 16,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                    color: theme.palette.primary.main,
+                    fontWeight: 'bold',
+                  }}
+                />
+
+                <Box sx={{ 
+                  position: 'absolute', 
+                  bottom: 16, 
+                  left: 16, 
+                  right: 16,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <AccessTime fontSize="small" color="action" />
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                      {formatTotalDuration(playlist.total_duration)}
                     </Typography>
                   </Box>
-                  <IconButton size="small">
-                    <MoreVert />
-                  </IconButton>
                 </Box>
+              </Box>
 
-                <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                  <Chip
-                    icon={getStatusIcon(playlist.status)}
-                    label={getStatusLabel(playlist.status)}
-                    color={getStatusColor(playlist.status) as any}
-                    size="small"
-                  />
-                </Box>
-
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    {playlist.mediaCount} itens
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {playlist.duration}
-                  </Typography>
-                </Box>
-
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => handleEditPlaylist(playlist)}
-                  >
-                    <Edit sx={{ mr: 0.5 }} />
-                    Editar
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => handleManageMedia(playlist)}
-                  >
-                    <Schedule sx={{ mr: 0.5 }} />
-                    Mídia
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => handleDeletePlaylist(playlist.id)}
-                    color="error"
-                  >
-                    <Delete sx={{ mr: 0.5 }} />
-                    Excluir
-                  </Button>
-                </Box>
-
-                {playlist.lastPlayed && (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    Última reprodução: {playlist.lastPlayed}
+              <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
+                  {playlist.name}
+                </Typography>
+                
+                {playlist.description && (
+                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1 }} noWrap>
+                    {playlist.description}
                   </Typography>
                 )}
+
+                <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Chip
+                    label={playlist.is_active ? 'Ativa' : 'Inativa'}
+                    size="small"
+                    color={playlist.is_active ? 'success' : 'default'}
+                    variant="outlined"
+                  />
+                  
+                  <Box>
+                    <Tooltip title="Gerenciar Mídia">
+                      <IconButton size="small" onClick={() => {
+                        setSelectedPlaylist(playlist);
+                        loadPlaylistMedia(playlist.playlist_id);
+                        setMediaDialogOpen(true);
+                      }}>
+                        <PlayArrow />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Editar">
+                      <IconButton size="small" onClick={() => {
+                        setSelectedPlaylist(playlist);
+                        setEditDialogOpen(true);
+                      }}>
+                        <Edit />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Excluir">
+                      <IconButton size="small" onClick={() => handleDeletePlaylist(playlist.playlist_id)}>
+                        <Delete />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Box>
               </CardContent>
             </Card>
           </Grid>
         ))}
       </Grid>
 
-      {/* Dialog para adicionar/editar playlist */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          {editingPlaylist ? 'Editar Playlist' : 'Nova Playlist'}
-        </DialogTitle>
+      {/* Empty State */}
+      {playlists.length === 0 && !loading && (
+        <Card sx={{ textAlign: 'center', py: 8 }}>
+          <CardContent>
+            <QueueMusic sx={{ fontSize: 64, color: theme.palette.text.secondary, mb: 2 }} />
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Nenhuma playlist encontrada
+            </Typography>
+            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
+              Comece criando suas primeiras playlists
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => setCreateDialogOpen(true)}
+            >
+              Criar Primeira Playlist
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Create Dialog */}
+      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Criar Playlist</DialogTitle>
         <DialogContent>
-          <Box sx={{ pt: 2 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Nome da Playlist"
-                  defaultValue={editingPlaylist?.name || ''}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Descrição"
-                  multiline
-                  rows={3}
-                  defaultValue={editingPlaylist?.description || ''}
-                />
-              </Grid>
-            </Grid>
-          </Box>
+          <TextField
+            fullWidth
+            label="Nome da Playlist"
+            value={newPlaylist.name}
+            onChange={(e) => setNewPlaylist({ ...newPlaylist, name: e.target.value })}
+            margin="normal"
+            required
+          />
+          <TextField
+            fullWidth
+            label="Descrição"
+            value={newPlaylist.description}
+            onChange={(e) => setNewPlaylist({ ...newPlaylist, description: e.target.value })}
+            margin="normal"
+            multiline
+            rows={3}
+          />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>
-            Cancelar
-          </Button>
-          <Button variant="contained" onClick={() => setOpenDialog(false)}>
-            {editingPlaylist ? 'Salvar' : 'Criar'}
-          </Button>
+          <Button onClick={() => setCreateDialogOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleCreatePlaylist}>Criar</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Dialog para gerenciar mídia da playlist */}
-      <Dialog open={openMediaDialog} onClose={() => setOpenMediaDialog(false)} maxWidth="lg" fullWidth>
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Editar Playlist</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Nome da Playlist"
+            value={selectedPlaylist?.name || ''}
+            onChange={(e) => setSelectedPlaylist({ ...selectedPlaylist!, name: e.target.value })}
+            margin="normal"
+            required
+          />
+          <TextField
+            fullWidth
+            label="Descrição"
+            value={selectedPlaylist?.description || ''}
+            onChange={(e) => setSelectedPlaylist({ ...selectedPlaylist!, description: e.target.value })}
+            margin="normal"
+            multiline
+            rows={3}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleEditPlaylist}>Salvar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Media Management Dialog */}
+      <Dialog open={mediaDialogOpen} onClose={() => setMediaDialogOpen(false)} maxWidth="lg" fullWidth>
         <DialogTitle>
           Gerenciar Mídia - {selectedPlaylist?.name}
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ pt: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
-                Itens da Playlist ({playlistMedia.length})
+          <Grid container spacing={2}>
+            {/* Available Media */}
+            <Grid item xs={12} md={6}>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Mídia Disponível
               </Typography>
-              <Button variant="outlined" startIcon={<Add />}>
-                Adicionar Mídia
-              </Button>
-            </Box>
+              <List sx={{ maxHeight: 400, overflow: 'auto' }}>
+                {mediaItems.map((media) => (
+                  <ListItem
+                    key={media.media_id}
+                    button
+                    onClick={() => handleAddMediaToPlaylist(media.media_id)}
+                  >
+                    <Avatar sx={{ mr: 2, backgroundColor: alpha(theme.palette.primary.main, 0.1) }}>
+                      {getMediaIcon(media.media_type)}
+                    </Avatar>
+                    <ListItemText
+                      primary={media.name}
+                      secondary={media.media_type}
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton edge="end">
+                        <Add />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
+            </Grid>
 
-            <List>
-              {playlistMedia.map((item, index) => (
-                <ListItem key={item.id} divider>
-                  <DragIndicator sx={{ mr: 1, color: 'text.secondary' }} />
-                  <ListItemText
-                    primary={item.name}
-                    secondary={`${item.type} • ${Math.floor(item.duration / 1000)}s`}
-                  />
-                  <ListItemSecondaryAction>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <IconButton size="small">
-                        <Edit />
-                      </IconButton>
-                      <IconButton size="small" color="error">
-                        <Delete />
-                      </IconButton>
-                    </Box>
-                  </ListItemSecondaryAction>
-                </ListItem>
-              ))}
-            </List>
-          </Box>
+            {/* Playlist Media */}
+            <Grid item xs={12} md={6}>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Mídia na Playlist
+              </Typography>
+              <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Ordem</TableCell>
+                      <TableCell>Mídia</TableCell>
+                      <TableCell>Duração</TableCell>
+                      <TableCell>Ações</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {playlistMedia.map((item) => (
+                      <TableRow key={item.item_id}>
+                        <TableCell>{item.order_index}</TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Avatar sx={{ width: 24, height: 24 }}>
+                              {getMediaIcon(item.media.media_type)}
+                            </Avatar>
+                            <Typography variant="body2" noWrap>
+                              {item.media.name}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>{formatDuration(item.duration)}</TableCell>
+                        <TableCell>
+                          <IconButton 
+                            size="small" 
+                            onClick={() => handleRemoveMediaFromPlaylist(item.item_id)}
+                          >
+                            <Delete />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Grid>
+          </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenMediaDialog(false)}>
-            Fechar
-          </Button>
-          <Button variant="contained" onClick={() => setOpenMediaDialog(false)}>
-            Salvar Alterações
-          </Button>
+          <Button onClick={() => setMediaDialogOpen(false)}>Fechar</Button>
         </DialogActions>
       </Dialog>
     </Box>
   );
 };
+
+export default Playlists;
