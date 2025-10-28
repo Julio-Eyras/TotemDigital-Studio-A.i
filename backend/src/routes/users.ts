@@ -2,6 +2,7 @@ import express from 'express';
 import { body, query, param } from 'express-validator';
 import { validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
+import { getUserService } from '../services/userService';
 
 const router = express.Router();
 
@@ -44,37 +45,15 @@ router.get('/',
     try {
       const { page = 1, limit = 10, search, role, clientId } = req.query;
       
-      // Simular dados (substituir por chamada real ao banco)
-      const users = [
-        {
-          user_id: 1,
-          username: 'admin',
-          email: 'admin@smart-signage.com',
-          name: 'Administrator',
-          role: 'admin',
-          is_active: true,
-          last_login: '2024-01-20T14:30:00Z',
-          created_at: '2024-01-01T00:00:00Z',
-        },
-        {
-          user_id: 2,
-          username: 'joao.silva',
-          email: 'joao@empresa.com',
-          name: 'João Silva',
-          role: 'user',
-          client_id: 1,
-          is_active: true,
-          last_login: '2024-01-20T10:15:00Z',
-          created_at: '2024-01-15T09:00:00Z',
-        },
-      ];
-
-      res.json({
-        data: users,
-        total: users.length,
-        page: parseInt(page),
-        limit: parseInt(limit),
+      const result = await getUserService().getAllUsers({
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        search: search as string,
+        role: role as string,
+        clientId: clientId ? parseInt(clientId as string) : undefined,
       });
+      
+      res.json(result);
     } catch (error) {
       console.error('Erro ao listar usuários:', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
@@ -93,17 +72,11 @@ router.get('/:id',
     try {
       const { id } = req.params;
       
-      // Simular busca (substituir por chamada real ao banco)
-      const user = {
-        user_id: parseInt(id),
-        username: 'admin',
-        email: 'admin@smart-signage.com',
-        name: 'Administrator',
-        role: 'admin',
-        is_active: true,
-        last_login: '2024-01-20T14:30:00Z',
-        created_at: '2024-01-01T00:00:00Z',
-      };
+      const user = await getUserService().getUserById(parseInt(id));
+      
+      if (!user) {
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+      }
 
       res.json(user);
     } catch (error) {
@@ -124,17 +97,14 @@ router.post('/',
     try {
       const { username, email, password, name, role, clientId } = req.body;
       
-      // Simular criação (substituir por chamada real ao banco)
-      const newUser = {
-        user_id: Date.now(), // ID temporário
+      const newUser = await getUserService().createUser({
         username,
         email,
+        password,
         name,
         role,
-        client_id: clientId,
-        is_active: true,
-        created_at: new Date().toISOString(),
-      };
+        clientId,
+      });
 
       res.status(201).json(newUser);
     } catch (error) {
