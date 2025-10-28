@@ -150,20 +150,26 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
     networks:
       - smartsignage-network
-    # Garantir que nosso default.conf seja usado
-    # O volume já sobrescreve o default.conf, mas garantimos que não há conflitos
+    # Garantir que nosso default.conf seja usado e validar antes de iniciar
     entrypoint: ["/bin/sh", "-c"]
     command: >
       "
+      echo '🔍 Verificando configuração do Nginx...'
       # Verificar se nosso default.conf está presente
       if [ ! -f /etc/nginx/conf.d/default.conf ]; then
-        echo 'ERRO: default.conf não encontrado!'
+        echo '❌ ERRO: default.conf não encontrado!'
         exit 1
       fi
+      echo '✅ default.conf encontrado'
       # Testar configuração
-      nginx -t
-      # Iniciar Nginx
-      nginx -g 'daemon off;'
+      if nginx -t; then
+        echo '✅ Configuração do Nginx válida'
+        echo '🚀 Iniciando Nginx...'
+        exec nginx -g 'daemon off;'
+      else
+        echo '❌ ERRO: Configuração do Nginx inválida!'
+        exit 1
+      fi
       "
 
   # Monitoring (Prometheus)

@@ -1079,7 +1079,34 @@ start_services_in_order() {
         wait_for_frontend
         
         log "Iniciando Nginx..."
-        $COMPOSE_CMD up -d nginx
+        # Verificar se imagem nginx:alpine já existe localmente
+        if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^nginx:alpine$"; then
+            log "Imagem nginx:alpine encontrada localmente, iniciando sem pull..."
+            # Usar imagem local (compose pode tentar pull mesmo assim, mas teremos fallback)
+            $COMPOSE_CMD up -d nginx || {
+                log_error "Erro ao iniciar Nginx mesmo com imagem local"
+                return 1
+            }
+        else
+            log "Imagem nginx:alpine não encontrada localmente, tentando baixar..."
+            # Tentar fazer pull com timeout
+            if timeout 60 docker pull nginx:alpine 2>&1; then
+                log "Imagem nginx:alpine baixada com sucesso"
+                $COMPOSE_CMD up -d nginx || {
+                    log_error "Erro ao iniciar Nginx após download"
+                    return 1
+                }
+            else
+                log_error "Timeout ao baixar imagem nginx:alpine (rede pode estar lenta)"
+                log_progress "Tentando continuar sem pull (pode usar imagem parcial)..."
+                # Tentar iniciar mesmo assim - Docker pode usar imagem parcial/cache
+                $COMPOSE_CMD up -d nginx 2>&1 || {
+                    log_error "Não foi possível iniciar Nginx"
+                    log "Solução: Execute manualmente: docker pull nginx:alpine"
+                    return 1
+                }
+            fi
+        fi
         wait_for_nginx
         
         log "Iniciando Prometheus..."
