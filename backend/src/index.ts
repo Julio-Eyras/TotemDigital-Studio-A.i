@@ -63,8 +63,24 @@ app.use(helmet({
 }));
 
 // CORS
+const corsOrigins = process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:80', 'http://nginx:80'];
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000', 'http://localhost:3001'],
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Permite requisições sem origem (como mobile apps ou requisições diretas)
+    if (!origin) return callback(null, true);
+    
+    // Verifica se a origem está na lista permitida
+    if (corsOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      // Em produção, aceitar também requisições do Nginx
+      if (process.env.NODE_ENV === 'production') {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200
 };
