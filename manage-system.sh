@@ -11,31 +11,159 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Função para mostrar ajuda
+# Função para obter IPs do servidor
+get_server_ips() {
+    LOCAL_IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "Não detectado")
+    EXTERNAL_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || curl -s --max-time 5 ipinfo.io/ip 2>/dev/null || echo "Não detectado")
+    
+    if [[ -z "$LOCAL_IP" || "$LOCAL_IP" == "" ]]; then
+        LOCAL_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7; exit}' || echo "Não detectado")
+    fi
+    
+    if [[ -z "$LOCAL_IP" || "$LOCAL_IP" == "" ]]; then
+        LOCAL_IP="127.0.0.1"
+    fi
+}
+
+# Função para mostrar ajuda completa
 show_help() {
-    echo -e "${BLUE}Smart Signage Pro v2.0 - Gerenciador do Sistema${NC}"
-    echo ""
-    echo "Uso: $0 [COMANDO]"
-    echo ""
-    echo "Comandos disponíveis:"
-    echo "  start       - Iniciar todos os serviços"
-    echo "  stop        - Parar todos os serviços"
-    echo "  restart     - Reiniciar todos os serviços"
-    echo "  status      - Mostrar status dos serviços"
-    echo "  logs        - Mostrar logs dos serviços"
-    echo "  backup      - Fazer backup do sistema"
-    echo "  restore     - Restaurar backup"
-    echo "  update      - Atualizar sistema"
-    echo "  rebuild     - Rebuild completo"
-    echo "  clean       - Limpar containers e volumes"
-    echo "  health      - Verificar saúde do sistema"
-    echo "  reset       - Reset completo (CUIDADO!)"
-    echo ""
-    echo "Exemplos:"
-    echo "  $0 start"
-    echo "  $0 status"
-    echo "  $0 logs backend"
-    echo "  $0 backup"
+    # Obter IPs
+    get_server_ips
+    
+    # Cores adicionais
+    PURPLE='\033[0;35m'
+    CYAN='\033[0;36m'
+    
+    echo -e "${PURPLE}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${PURPLE}║         Smart Signage Pro v2.0 - Gerenciador do Sistema      ║${NC}"
+    echo -e "${PURPLE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}                    📋 COMANDOS DISPONÍVEIS                    ${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo
+    echo -e "${GREEN}  start${NC}          Iniciar todos os serviços"
+    echo -e "${GREEN}  stop${NC}           Parar todos os serviços"
+    echo -e "${GREEN}  restart${NC}        Reiniciar todos os serviços"
+    echo -e "${GREEN}  status${NC}         Mostrar status dos serviços"
+    echo -e "${GREEN}  logs${NC}           Mostrar logs dos serviços"
+    echo -e "${GREEN}  logs <servico>${NC} Mostrar logs de um serviço específico"
+    echo -e "${GREEN}  backup${NC}         Fazer backup do sistema"
+    echo -e "${GREEN}  restore${NC}        Restaurar backup"
+    echo -e "${GREEN}  update${NC}         Atualizar sistema"
+    echo -e "${GREEN}  rebuild${NC}        Rebuild completo"
+    echo -e "${GREEN}  clean${NC}          Limpar containers e volumes não utilizados"
+    echo -e "${GREEN}  health${NC}         Verificar saúde do sistema"
+    echo -e "${GREEN}  reset${NC}          Reset completo (CUIDADO! Apaga tudo)"
+    echo -e "${GREEN}  help${NC}            Mostrar esta mensagem de ajuda"
+    echo
+    echo -e "${YELLOW}Exemplos:${NC}"
+    echo -e "  $0 start"
+    echo -e "  $0 status"
+    echo -e "  $0 logs backend"
+    echo -e "  $0 logs frontend"
+    echo -e "  $0 backup"
+    echo
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}                  🌐 INFORMAÇÕES DO SERVIDOR                   ${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo
+    echo -e "${CYAN}📍 Endereços do Servidor:${NC}"
+    echo -e "   ${GREEN}IP Externo:${NC} ${YELLOW}$EXTERNAL_IP${NC}"
+    echo -e "   ${GREEN}IP Local:${NC}   ${YELLOW}$LOCAL_IP${NC}"
+    echo
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}                    🌐 LINKS DE ACESSO                        ${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo
+    echo -e "${CYAN}📱 PAINEL ADMINISTRATIVO (Frontend):${NC}"
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:80${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${BLUE}   (Interface principal do sistema)${NC}"
+    echo
+    echo -e "${CYAN}🔧 API BACKEND:${NC}"
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:3000${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:3000${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${BLUE}   (API REST para integração)${NC}"
+    echo
+    echo -e "${CYAN}📺 PLAYER DE MÍDIA:${NC}"
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:80/player${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80/player${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${BLUE}   (Player para totems)${NC}"
+    echo
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "${GREEN}💡 DICA:${NC} ${YELLOW}Use o IP Externo para acesso remoto${NC}"
+        echo -e "${GREEN}💡 DICA:${NC} ${YELLOW}Use o IP Local para acesso na rede interna${NC}"
+        echo -e "${YELLOW}⚠️  IMPORTANTE:${NC} ${RED}Configure firewall para permitir acesso às portas 80 e 3000${NC}"
+    else
+        echo -e "${YELLOW}⚠️  AVISO:${NC} ${RED}IP Externo não detectado. Configure firewall para acesso remoto.${NC}"
+    fi
+    echo
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}                  🔐 CREDENCIAIS DE ACESSO                    ${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo
+    echo -e "${RED}👤 USUÁRIO:${NC} ${YELLOW}admin${NC}"
+    echo -e "${RED}🔑 SENHA:${NC}  ${YELLOW}admin${NC}"
+    echo
+    echo -e "${RED}⚠️  ATENÇÃO:${NC} ${YELLOW}ALTERE A SENHA APÓS O PRIMEIRO LOGIN!${NC}"
+    echo
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}                  📋 INFORMAÇÕES TÉCNICAS                     ${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo
+    INSTALL_DIR="${INSTALL_DIR:-/opt/smart-signage}"
+    echo -e "${CYAN}📁 Diretório de Instalação:${NC}"
+    echo -e "   $INSTALL_DIR"
+    echo
+    echo -e "${CYAN}🔧 Scripts de Gerenciamento:${NC}"
+    echo -e "   $0 {start|stop|restart|status|logs|update|backup|help}"
+    echo -e "   $INSTALL_DIR/scripts/backup-system.sh"
+    echo -e "   $INSTALL_DIR/scripts/monitor-system.sh"
+    if command -v smartsignage &> /dev/null; then
+        echo -e "   Comando global: smartsignage {comando}"
+    fi
+    echo
+    echo -e "${CYAN}📊 Monitoramento:${NC}"
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   Prometheus: http://$EXTERNAL_IP:9090 ${GREEN}(Acesso remoto)${NC}"
+        echo -e "              http://$LOCAL_IP:9090 ${BLUE}(Rede interna)${NC}"
+        echo -e "   Grafana:    http://$EXTERNAL_IP:3002 (admin/admin) ${GREEN}(Acesso remoto)${NC}"
+        echo -e "              http://$LOCAL_IP:3002 (admin/admin) ${BLUE}(Rede interna)${NC}"
+    else
+        echo -e "   Prometheus: http://$LOCAL_IP:9090"
+        echo -e "   Grafana:    http://$LOCAL_IP:3002 (admin/admin)"
+    fi
+    echo -e "   Logs:       $0 logs [servico]"
+    echo -e "   Status:     $0 status"
+    echo
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}                    🚀 PRÓXIMOS PASSOS                       ${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo
+    echo -e "${YELLOW}1.${NC} ${CYAN}Acesse o sistema:${NC}"
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}http://$EXTERNAL_IP:80${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}http://$LOCAL_IP:80${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "${YELLOW}2.${NC} ${CYAN}Faça login com:${NC} ${YELLOW}admin/admin${NC}"
+    echo -e "${YELLOW}3.${NC} ${CYAN}Altere a senha do administrador${NC}"
+    echo -e "${YELLOW}4.${NC} ${CYAN}Configure seus clientes e totems${NC}"
+    echo -e "${YELLOW}5.${NC} ${CYAN}Configure SSL/HTTPS para produção${NC}"
+    echo
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo
+    echo -e "${GREEN}💡 Para mais informações, execute:${NC}"
+    echo -e "   ${YELLOW}$0 status${NC}  - Ver status dos serviços"
+    echo -e "   ${YELLOW}$0 logs${NC}    - Ver logs em tempo real"
+    echo -e "   ${YELLOW}$0 health${NC}  - Verificar saúde do sistema"
+    echo
 }
 
 # Função para verificar se Docker está rodando
@@ -64,11 +192,43 @@ start_services() {
     
     echo -e "${GREEN}✅ Serviços iniciados com sucesso!${NC}"
     echo ""
-    echo "Acesse:"
-    echo "  Frontend: http://localhost:3001"
-    echo "  Backend:  http://localhost:3000"
-    echo "  Grafana:  http://localhost:3002"
-    echo "  Prometheus: http://localhost:9090"
+    
+    # Obter IPs para mostrar links corretos
+    get_server_ips
+    
+    # Cores adicionais
+    PURPLE='\033[0;35m'
+    CYAN='\033[0;36m'
+    
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}                    🌐 LINKS DE ACESSO                        ${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo
+    echo -e "${CYAN}📱 PAINEL ADMINISTRATIVO (Frontend):${NC}"
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:80${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80${NC} ${BLUE}(Rede interna)${NC}"
+    echo
+    echo -e "${CYAN}🔧 API BACKEND:${NC}"
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:3000${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:3000${NC} ${BLUE}(Rede interna)${NC}"
+    echo
+    echo -e "${CYAN}📊 MONITORAMENTO:${NC}"
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}👉 Prometheus: http://$EXTERNAL_IP:9090${NC} ${GREEN}(Acesso remoto)${NC}"
+        echo -e "   ${YELLOW}   Prometheus: http://$LOCAL_IP:9090${NC} ${BLUE}(Rede interna)${NC}"
+        echo -e "   ${YELLOW}👉 Grafana:    http://$EXTERNAL_IP:3002${NC} ${GREEN}(Acesso remoto)${NC}"
+        echo -e "   ${YELLOW}   Grafana:    http://$LOCAL_IP:3002${NC} ${BLUE}(Rede interna)${NC}"
+    else
+        echo -e "   ${YELLOW}👉 Prometheus: http://$LOCAL_IP:9090${NC}"
+        echo -e "   ${YELLOW}👉 Grafana:    http://$LOCAL_IP:3002${NC}"
+    fi
+    echo
+    echo -e "${GREEN}💡 Execute '$0 help' para ver todas as informações e comandos disponíveis${NC}"
+    echo
     
     # Aguardar inicialização
     echo -e "${BLUE}⏳ Aguardando inicialização...${NC}"
@@ -104,33 +264,72 @@ restart_services() {
 
 # Função para mostrar status
 show_status() {
-    echo -e "${BLUE}📊 Status dos Serviços${NC}"
-    echo ""
+    # Obter IPs
+    get_server_ips
+    
+    # Cores adicionais
+    PURPLE='\033[0;35m'
+    CYAN='\033[0;36m'
+    
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}                  📊 STATUS DOS SERVIÇOS                     ${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo
     check_docker
     
     docker compose ps
     
     echo ""
-    echo -e "${BLUE}🔍 Verificando conectividade...${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}                  🌐 INFORMAÇÕES DO SERVIDOR                  ${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo
+    echo -e "${CYAN}📍 Endereços do Servidor:${NC}"
+    echo -e "   ${GREEN}IP Externo:${NC} ${YELLOW}$EXTERNAL_IP${NC}"
+    echo -e "   ${GREEN}IP Local:${NC}   ${YELLOW}$LOCAL_IP${NC}"
+    echo
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}                  🔍 VERIFICAÇÃO DE CONECTIVIDADE             ${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo
     
     # Testar endpoints
     if curl -s http://localhost:3000/health > /dev/null 2>&1; then
         echo -e "${GREEN}✅ Backend API: Funcionando${NC}"
+        echo -e "   ${YELLOW}http://$LOCAL_IP:3000/health${NC}"
     else
         echo -e "${RED}❌ Backend API: Indisponível${NC}"
     fi
     
-    if curl -s http://localhost:3001 > /dev/null 2>&1; then
-        echo -e "${GREEN}✅ Frontend: Funcionando${NC}"
+    if curl -s http://localhost:80 > /dev/null 2>&1; then
+        RESPONSE=$(curl -s http://localhost:80)
+        if echo "$RESPONSE" | grep -qi "Welcome to nginx"; then
+            echo -e "${YELLOW}⚠️  Frontend: Nginx está servindo página padrão${NC}"
+        else
+            echo -e "${GREEN}✅ Frontend: Funcionando${NC}"
+            echo -e "   ${YELLOW}http://$LOCAL_IP:80${NC}"
+        fi
     else
         echo -e "${RED}❌ Frontend: Indisponível${NC}"
     fi
     
     if curl -s http://localhost:3002 > /dev/null 2>&1; then
         echo -e "${GREEN}✅ Grafana: Funcionando${NC}"
+        echo -e "   ${YELLOW}http://$LOCAL_IP:3002${NC}"
     else
         echo -e "${RED}❌ Grafana: Indisponível${NC}"
     fi
+    
+    if curl -s http://localhost:9090 > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ Prometheus: Funcionando${NC}"
+        echo -e "   ${YELLOW}http://$LOCAL_IP:9090${NC}"
+    else
+        echo -e "${RED}❌ Prometheus: Indisponível${NC}"
+    fi
+    
+    echo
+    echo -e "${GREEN}💡 Execute '$0 help' para ver todas as informações e links de acesso${NC}"
+    echo
 }
 
 # Função para mostrar logs

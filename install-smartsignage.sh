@@ -382,6 +382,7 @@ EOF
         [[ -f "$SOURCE_DIR/Dockerfile.frontend" ]] && cp "$SOURCE_DIR/Dockerfile.frontend" $INSTALL_DIR/
         [[ -f "$SOURCE_DIR/env.example" ]] && cp "$SOURCE_DIR/env.example" $INSTALL_DIR/.env
         [[ -f "$SOURCE_DIR/package.json" ]] && cp "$SOURCE_DIR/package.json" $INSTALL_DIR/
+        [[ -f "$SOURCE_DIR/manage-system.sh" ]] && cp "$SOURCE_DIR/manage-system.sh" $INSTALL_DIR/
         
         # Copiar arquivo nginx se existir
         if [[ -d "$SOURCE_DIR/nginx" ]]; then
