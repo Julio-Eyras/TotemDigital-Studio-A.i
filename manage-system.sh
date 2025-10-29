@@ -257,8 +257,15 @@ restart_services() {
     
     echo -e "${GREEN}✅ Serviços reiniciados com sucesso!${NC}"
     
-    # Aguardar inicialização
-    sleep 10
+    # Aguardar inicialização (serviços precisam de tempo para iniciar)
+    echo -e "${BLUE}⏳ Aguardando serviços iniciarem (15 segundos)...${NC}"
+    sleep 15
+    
+    # Verificar status dos containers
+    echo -e "${BLUE}📊 Status dos containers:${NC}"
+    docker compose ps
+    
+    echo ""
     health_check
 }
 
@@ -474,16 +481,34 @@ clean_system() {
 # Função para verificar saúde
 health_check() {
     echo -e "${BLUE}🏥 Verificando saúde do sistema...${NC}"
+    echo ""
     
     local all_healthy=true
     
-    # Verificar containers
-    if ! docker compose ps | grep -q "healthy"; then
-        echo -e "${RED}❌ Alguns containers não estão saudáveis${NC}"
+    # Verificar status dos containers primeiro
+    echo -e "${CYAN}📦 Verificando containers...${NC}"
+    local container_status=$(docker compose ps --format json 2>/dev/null || docker compose ps)
+    
+    # Verificar se há containers rodando
+    local running_count=$(docker compose ps --services --filter "status=running" 2>/dev/null | wc -l || echo "0")
+    if [ "$running_count" -gt 0 ]; then
+        echo -e "${GREEN}✅ $running_count container(s) rodando${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Nenhum container rodando ainda (aguardando inicialização)${NC}"
         all_healthy=false
     fi
     
-    # Verificar endpoints
+    # Verificar containers healthy
+    local healthy_count=$(docker compose ps --services --filter "health=healthy" 2>/dev/null | wc -l || echo "0")
+    if [ "$healthy_count" -gt 0 ]; then
+        echo -e "${GREEN}✅ $healthy_count container(s) saudável(is)${NC}"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}🌐 Verificando endpoints (aguardando 5 segundos para estabilização)...${NC}"
+    sleep 5
+    
+    # Verificar endpoints com retry
     local endpoints=(
         "http://localhost:3000/health:Backend API"
         "http://localhost:3000/api/health:API Health"
@@ -497,19 +522,31 @@ health_check() {
         local url=$(echo "$endpoint" | cut -d: -f1-2)
         local name=$(echo "$endpoint" | cut -d: -f3)
         
-        if curl -s "$url" > /dev/null 2>&1; then
-            echo -e "${GREEN}✅ $name: OK${NC}"
-        else
-            echo -e "${RED}❌ $name: FALHA${NC}"
+        # Tentar até 3 vezes com delay
+        local success=false
+        for i in {1..3}; do
+            if curl -s --max-time 5 "$url" > /dev/null 2>&1; then
+                echo -e "${GREEN}✅ $name: OK${NC}"
+                success=true
+                break
+            fi
+            sleep 2
+        done
+        
+        if [ "$success" = false ]; then
+            echo -e "${YELLOW}⚠️  $name: Não respondeu ainda (pode estar iniciando)${NC}"
             all_healthy=false
         fi
     done
     
+    echo ""
     if [ "$all_healthy" = true ]; then
         echo -e "${GREEN}🎉 Sistema totalmente saudável!${NC}"
     else
-        echo -e "${YELLOW}⚠️  Sistema com problemas detectados${NC}"
-        echo "Execute '$0 logs' para mais detalhes."
+        echo -e "${YELLOW}⚠️  Alguns serviços ainda estão iniciando ou com problemas${NC}"
+        echo -e "${CYAN}💡 Dica: Execute '$0 status' para ver status detalhado${NC}"
+        echo -e "${CYAN}💡 Dica: Execute '$0 logs [servico]' para ver logs${NC}"
+        echo -e "${CYAN}💡 Aguarde alguns segundos e execute '$0 status' novamente${NC}"
     fi
 }
 
