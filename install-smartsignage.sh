@@ -1127,27 +1127,18 @@ start_services_in_order() {
         $COMPOSE_CMD up -d backend
         wait_for_backend
         
-        log "Iniciando Frontend..."
-        $COMPOSE_CMD up -d frontend
-        wait_for_frontend
-        
-        log "Iniciando Nginx..."
+        log "Iniciando Frontend (com Nginx integrado)..."
         # Verificar se arquivos de configuração do Nginx existem
         log_detailed "Verificando arquivos de configuração do Nginx..."
-        if [[ ! -f "nginx/frontend.conf" ]]; then
-            log_error "Arquivo nginx/frontend.conf não encontrado!"
+        if [[ ! -f "nginx/nginx-complete.conf" ]]; then
+            log_error "Arquivo nginx/nginx-complete.conf não encontrado!"
             log_error "Caminho atual: $(pwd)"
             log_error "Conteúdo do diretório nginx:"
             ls -la nginx/ 2>/dev/null || echo "Diretório nginx não existe"
             return 1
         fi
-        if [[ ! -f "nginx/nginx.conf" ]]; then
-            log_error "Arquivo nginx/nginx.conf não encontrado!"
-            return 1
-        fi
-        log_detailed "✅ Arquivos de configuração do Nginx encontrados"
-        log_detailed "nginx/frontend.conf: $(ls -lh nginx/frontend.conf 2>/dev/null | awk '{print $5}')"
-        log_detailed "nginx/nginx.conf: $(ls -lh nginx/nginx.conf 2>/dev/null | awk '{print $5}')"
+        log_detailed "✅ Arquivo de configuração do Nginx encontrado"
+        log_detailed "nginx/nginx-complete.conf: $(ls -lh nginx/nginx-complete.conf 2>/dev/null | awk '{print $5}')"
         
         # Verificar se imagem nginx:alpine já existe localmente
         if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^nginx:alpine$"; then
