@@ -157,35 +157,41 @@ services:
       - |
         echo '[NGINX] Iniciando verificacao...'
         sleep 4
-        if [ -f /etc/nginx/nginx.conf ]; then
-          echo '[NGINX] nginx.conf encontrado'
-        else
+        echo '[NGINX] Verificando nginx.conf...'
+        if [ ! -f /etc/nginx/nginx.conf ]; then
           echo '[NGINX] ERRO: nginx.conf nao encontrado'
           exit 1
         fi
-        ls -la /etc/nginx/conf.d/ || true
-        echo '[NGINX] Verificando default.conf...'
+        echo '[NGINX] nginx.conf OK'
+        echo '[NGINX] Removendo configuracoes padrao do Alpine...'
+        rm -f /etc/nginx/conf.d/default.conf.bak /usr/share/nginx/html/index.html /usr/share/nginx/html/50x.html 2>/dev/null || true
+        echo '[NGINX] Verificando nosso default.conf...'
         COUNT=0
         while [ $COUNT -lt 10 ]; do
           if [ -f /etc/nginx/conf.d/default.conf ]; then
             echo '[NGINX] default.conf encontrado'
+            head -5 /etc/nginx/conf.d/default.conf
             break
           fi
           COUNT=$((COUNT + 1))
-          echo "[NGINX] Aguardando... ($COUNT/10)"
+          echo "[NGINX] Aguardando default.conf... ($COUNT/10)"
           sleep 1
         done
         if [ ! -f /etc/nginx/conf.d/default.conf ]; then
-          echo '[NGINX] AVISO: default.conf nao encontrado apos espera'
+          echo '[NGINX] ERRO: default.conf nao encontrado apos espera'
           ls -la /etc/nginx/conf.d/ || true
+          exit 1
         fi
         echo '[NGINX] Testando configuracao...'
         if nginx -t 2>&1; then
           echo '[NGINX] Configuracao valida'
+          echo '[NGINX] Verificando que nao ha outros server blocks...'
+          ls -la /etc/nginx/conf.d/
           echo '[NGINX] Iniciando Nginx...'
           exec nginx -g 'daemon off;'
         else
           echo '[NGINX] ERRO: Configuracao invalida'
+          nginx -t 2>&1
           exit 1
         fi
 
