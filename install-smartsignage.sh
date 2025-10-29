@@ -5,9 +5,32 @@
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta 3 modos: Single-Server, Docker, Desenvolvimento
+#
+# Uso: ./install-smartsignage.sh [OPÇÕES]
+#
+# OPÇÕES:
+#   --fresh              Instalação COMPLETA do zero (apaga TUDO, incluindo volumes)
+#   --rebuild            Rebuild containers preservando dados (volumes mantidos)
+#   --rebuild-cache      Rebuild SEM cache do Docker (mais lento, mais garantido)
+#   --rebuild-only       Apenas rebuild, não inicia serviços
+#   --force              Força rebuild mesmo se não detectar mudanças
+#   --check-only         Apenas verifica se rebuild é necessário (não executa)
+#   --skip-menu          Pula menu interativo (usa modo Docker por padrão)
 # =============================================================================
 
 set -e  # Parar em caso de erro
+
+# =============================================================================
+# VARIÁVEIS GLOBAIS E FLAGS
+# =============================================================================
+FRESH_MODE=false
+REBUILD_MODE=false
+REBUILD_CACHE=false
+REBUILD_ONLY=false
+FORCE_REBUILD=false
+CHECK_ONLY=false
+SKIP_MENU=false
+INSTALL_MODE=""
 
 # Cores para output
 RED='\033[0;31m'
@@ -74,6 +97,72 @@ show_banner() {
     echo "║                    Auto-Instalação Ubuntu                   ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
+}
+
+# =============================================================================
+# PARSE DE ARGUMENTOS
+# =============================================================================
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --fresh)
+                FRESH_MODE=true
+                REBUILD_MODE=true
+                FORCE_REBUILD=true
+                SKIP_MENU=true
+                INSTALL_MODE="docker"
+                shift
+                ;;
+            --rebuild)
+                REBUILD_MODE=true
+                shift
+                ;;
+            --rebuild-cache)
+                REBUILD_MODE=true
+                REBUILD_CACHE=true
+                shift
+                ;;
+            --rebuild-only)
+                REBUILD_MODE=true
+                REBUILD_ONLY=true
+                shift
+                ;;
+            --force)
+                FORCE_REBUILD=true
+                shift
+                ;;
+            --check-only)
+                CHECK_ONLY=true
+                shift
+                ;;
+            --skip-menu)
+                SKIP_MENU=true
+                INSTALL_MODE="docker"
+                shift
+                ;;
+            --help|-h)
+                echo "Smart Signage Pro v2.0 - Script de Instalação"
+                echo ""
+                echo "Uso: $0 [OPÇÕES]"
+                echo ""
+                echo "OPÇÕES:"
+                echo "  --fresh              Instalação COMPLETA do zero (apaga TUDO)"
+                echo "  --rebuild            Rebuild preservando dados"
+                echo "  --rebuild-cache      Rebuild sem cache Docker"
+                echo "  --rebuild-only       Apenas rebuild, não inicia"
+                echo "  --force              Força rebuild sempre"
+                echo "  --check-only         Apenas verifica se precisa rebuild"
+                echo "  --skip-menu          Pula menu (usa Docker)"
+                echo "  --help               Mostra esta ajuda"
+                exit 0
+                ;;
+            *)
+                error "Opção desconhecida: $1"
+                error "Use --help para ver opções disponíveis"
+                exit 1
+                ;;
+        esac
+    done
 }
 
 # Verificar se é root
@@ -2561,8 +2650,208 @@ show_final_info() {
     echo
 }
 
+# =============================================================================
+# FUNÇÕES DE DETECÇÃO E REBUILD
+# =============================================================================
+
+# Calcular checksum de arquivos críticos
+calculate_checksums() {
+    local BUILD_INFO_FILE="$INSTALL_DIR/.build-info.json"
+    
+    if [[ ! -d "$INSTALL_DIR" ]]; then
+        echo "{}"
+        return
+    fi
+    
+    cd "$INSTALL_DIR" 2>/dev/null || { echo "{}"; return; }
+    
+    # Calcular checksums dos arquivos críticos
+    local BACKEND_DF=$(md5sum Dockerfile.backend 2>/dev/null | awk '{print $1}' || echo "missing")
+    local FRONTEND_DF=$(md5sum Dockerfile.frontend 2>/dev/null | awk '{print $1}' || echo "missing")
+    local DOCKER_COMPOSE=$(md5sum docker-compose.yml 2>/dev/null | awk '{print $1}' || echo "missing")
+    local NGINX_CONF=$(md5sum nginx/nginx-complete.conf 2>/dev/null | awk '{print $1}' || echo "missing")
+    local ENTRYPOINT=$(md5sum docker/nginx-entrypoint.sh 2>/dev/null | awk '{print $1}' || echo "missing")
+    
+    cat << EOF
+{
+  "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "version": "2.0.0",
+  "checksums": {
+    "Dockerfile.backend": "$BACKEND_DF",
+    "Dockerfile.frontend": "$FRONTEND_DF",
+    "docker-compose.yml": "$DOCKER_COMPOSE",
+    "nginx/nginx-complete.conf": "$NGINX_CONF",
+    "docker/nginx-entrypoint.sh": "$ENTRYPOINT"
+  }
+}
+EOF
+}
+
+# Salvar informações da build
+save_build_info() {
+    local BUILD_INFO_FILE="$INSTALL_DIR/.build-info.json"
+    if [[ -d "$INSTALL_DIR" ]]; then
+        calculate_checksums > "$BUILD_INFO_FILE"
+        log_detailed "Informações de build salvas em: $BUILD_INFO_FILE"
+    fi
+}
+
+# Carregar informações da build anterior
+load_build_info() {
+    local BUILD_INFO_FILE="$INSTALL_DIR/.build-info.json"
+    if [[ -f "$BUILD_INFO_FILE" ]]; then
+        cat "$BUILD_INFO_FILE"
+    else
+        echo "{}"
+    fi
+}
+
+# Verificar se rebuild é necessário
+check_rebuild_needed() {
+    if [[ "$FORCE_REBUILD" == "true" ]]; then
+        log_status "Rebuild forçado via --force"
+        return 0
+    fi
+    
+    if [[ ! -d "$INSTALL_DIR" ]] || [[ ! -f "$INSTALL_DIR/.build-info.json" ]]; then
+        log_status "Primeira instalação ou build-info não encontrado - rebuild necessário"
+        return 0
+    fi
+    
+    local CURRENT_CHECKSUMS=$(calculate_checksums)
+    local PREVIOUS_CHECKSUMS=$(load_build_info)
+    
+    # Comparar checksums
+    local BACKEND_CURRENT=$(echo "$CURRENT_CHECKSUMS" | grep -o '"Dockerfile.backend": "[^"]*"' | cut -d'"' -f4)
+    local BACKEND_PREVIOUS=$(echo "$PREVIOUS_CHECKSUMS" | grep -o '"Dockerfile.backend": "[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+    
+    local FRONTEND_CURRENT=$(echo "$CURRENT_CHECKSUMS" | grep -o '"Dockerfile.frontend": "[^"]*"' | cut -d'"' -f4)
+    local FRONTEND_PREVIOUS=$(echo "$PREVIOUS_CHECKSUMS" | grep -o '"Dockerfile.frontend": "[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+    
+    local COMPOSE_CURRENT=$(echo "$CURRENT_CHECKSUMS" | grep -o '"docker-compose.yml": "[^"]*"' | cut -d'"' -f4)
+    local COMPOSE_PREVIOUS=$(echo "$PREVIOUS_CHECKSUMS" | grep -o '"docker-compose.yml": "[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+    
+    local NGINX_CURRENT=$(echo "$CURRENT_CHECKSUMS" | grep -o '"nginx/nginx-complete.conf": "[^"]*"' | cut -d'"' -f4)
+    local NGINX_PREVIOUS=$(echo "$PREVIOUS_CHECKSUMS" | grep -o '"nginx/nginx-complete.conf": "[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+    
+    if [[ "$BACKEND_CURRENT" != "$BACKEND_PREVIOUS" ]] || \
+       [[ "$FRONTEND_CURRENT" != "$FRONTEND_PREVIOUS" ]] || \
+       [[ "$COMPOSE_CURRENT" != "$COMPOSE_PREVIOUS" ]] || \
+       [[ "$NGINX_CURRENT" != "$NGINX_PREVIOUS" ]]; then
+        log_status "Mudanças detectadas em Dockerfiles/configurações - rebuild necessário"
+        log_detailed "Backend: $([ "$BACKEND_CURRENT" != "$BACKEND_PREVIOUS" ] && echo "MUDOU" || echo "OK")"
+        log_detailed "Frontend: $([ "$FRONTEND_CURRENT" != "$FRONTEND_PREVIOUS" ] && echo "MUDOU" || echo "OK")"
+        log_detailed "Docker Compose: $([ "$COMPOSE_CURRENT" != "$COMPOSE_PREVIOUS" ] && echo "MUDOU" || echo "OK")"
+        log_detailed "Nginx Config: $([ "$NGINX_CURRENT" != "$NGINX_PREVIOUS" ] && echo "MUDOU" || echo "OK")"
+        return 0
+    fi
+    
+    log_status "Nenhuma mudança detectada - rebuild não necessário"
+    return 1
+}
+
+# Rebuild preservando dados
+rebuild_preserve_data() {
+    log "🔄 Iniciando rebuild preservando dados..."
+    
+    cd "$INSTALL_DIR" || { error "Diretório $INSTALL_DIR não encontrado!"; exit 1; }
+    
+    # Parar containers
+    log_progress "Parando containers..."
+    $COMPOSE_CMD down 2>/dev/null || true
+    
+    # Rebuild imagens
+    if [[ "$REBUILD_CACHE" == "true" ]]; then
+        log_progress "Rebuild SEM cache (pode demorar mais)..."
+        $COMPOSE_CMD build --no-cache backend frontend
+    else
+        log_progress "Rebuild com cache..."
+        $COMPOSE_CMD build backend frontend
+    fi
+    
+    if [[ $? -eq 0 ]]; then
+        log "✅ Rebuild concluído com sucesso!"
+        save_build_info
+    else
+        error "❌ Falha no rebuild!"
+        exit 1
+    fi
+    
+    if [[ "$REBUILD_ONLY" == "true" ]]; then
+        log "✅ Rebuild concluído. Use '$0 start' para iniciar."
+        exit 0
+    fi
+}
+
+# Rebuild do zero (apaga tudo)
+rebuild_fresh() {
+    log "⚠️  INICIANDO INSTALAÇÃO DO ZERO - TODOS OS DADOS SERÃO PERDIDOS!"
+    
+    # Confirmação adicional
+    echo
+    echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${RED}                    ⚠️  ATENÇÃO CRÍTICA ⚠️                    ${NC}"
+    echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
+    echo
+    echo -e "${YELLOW}Esta operação irá APAGAR:${NC}"
+    echo "  ❌ Todos os containers"
+    echo "  ❌ Todas as imagens Docker"
+    echo "  ❌ Todos os volumes (banco de dados, uploads, backups)"
+    echo "  ❌ Todos os logs"
+    echo
+    echo -e "${RED}⚠️  ESTA AÇÃO É IRREVERSÍVEL!${NC}"
+    echo
+    read -p "Digite 'APAGAR TUDO' para confirmar: " confirm
+    
+    if [[ "$confirm" != "APAGAR TUDO" ]]; then
+        log "Operação cancelada pelo usuário."
+        exit 0
+    fi
+    
+    cd "$INSTALL_DIR" || { error "Diretório $INSTALL_DIR não encontrado!"; exit 1; }
+    
+    # Parar e remover TUDO
+    log_progress "Parando e removendo containers..."
+    $COMPOSE_CMD down -v --rmi all --remove-orphans 2>/dev/null || true
+    
+    log_progress "Limpando volumes órfãos..."
+    docker volume prune -af 2>/dev/null || true
+    
+    log_progress "Limpando sistema Docker..."
+    docker system prune -af --volumes 2>/dev/null || true
+    
+    # Rebuild do zero
+    log_progress "Instalando do zero (sem cache)..."
+    $COMPOSE_CMD build --no-cache
+    
+    if [[ $? -eq 0 ]]; then
+        log "✅ Build do zero concluído!"
+        save_build_info
+    else
+        error "❌ Falha no build!"
+        exit 1
+    fi
+    
+    if [[ "$REBUILD_ONLY" == "true" ]]; then
+        log "✅ Instalação do zero concluída. Use '$0 start' para iniciar."
+        exit 0
+    fi
+}
+
 # Menu principal
 show_menu() {
+    # Se SKIP_MENU está ativo, usar modo padrão
+    if [[ "$SKIP_MENU" == "true" && -n "$INSTALL_MODE" ]]; then
+        log "Modo selecionado: $INSTALL_MODE (via argumento)"
+        case "$INSTALL_MODE" in
+            docker)
+                DB_DRIVER="postgresql"
+                DATABASE_URL="postgresql://smartsignage:smartsignage123@postgres:5432/smartsignage"
+                ;;
+        esac
+        return
+    fi
+    
     echo
     echo -e "${CYAN}Selecione o modo de instalação:${NC}"
     echo -e "${GREEN}1)${NC} Single-Server (Appliance dedicado - SQLite)"
@@ -2638,9 +2927,62 @@ setup_management_scripts() {
 
 # Função principal
 main() {
+    # Parse de argumentos PRIMEIRO
+    parse_arguments "$@"
+    
     show_banner
+    
+    # Mostrar modo selecionado se aplicável
+    if [[ "$FRESH_MODE" == "true" ]]; then
+        echo -e "${RED}⚠️  MODO FRESH ATIVADO - Instalação completa do zero${NC}"
+        echo
+    elif [[ "$REBUILD_MODE" == "true" ]]; then
+        echo -e "${YELLOW}🔄 MODO REBUILD ATIVADO - Rebuild preservando dados${NC}"
+        echo
+    fi
+    
     check_root
     check_os
+    
+    # Verificar modo check-only
+    if [[ "$CHECK_ONLY" == "true" ]]; then
+        log "Modo check-only: Verificando se rebuild é necessário..."
+        if check_rebuild_needed; then
+            echo "✅ Rebuild necessário"
+            exit 0
+        else
+            echo "✅ Rebuild não necessário"
+            exit 1
+        fi
+    fi
+    
+    # Setup projeto primeiro (necessário para checksums)
+    setup_project
+    
+    # Verificar se é modo rebuild antes do menu
+    if [[ "$REBUILD_MODE" == "true" ]] && [[ -d "$INSTALL_DIR" ]]; then
+        cd "$INSTALL_DIR" 2>/dev/null || true
+        
+        if [[ "$FRESH_MODE" == "true" ]]; then
+            rebuild_fresh
+            # Após rebuild fresh, continuar instalação normalmente
+        elif check_rebuild_needed || [[ "$FORCE_REBUILD" == "true" ]]; then
+            rebuild_preserve_data
+            # Após rebuild, pode pular para start_services se rebuild_only não estiver ativo
+            if [[ "$REBUILD_ONLY" != "true" ]]; then
+                log "Iniciando serviços após rebuild..."
+                setup_docker_compose
+                start_services_in_order
+                check_startup_order
+                test_endpoints
+                show_final_info
+                exit 0
+            fi
+        else
+            log "Rebuild não necessário (use --force para forçar)"
+        fi
+    fi
+    
     show_menu
     
     log "Iniciando instalação do Smart Signage Pro v2.0..."
@@ -2650,18 +2992,33 @@ main() {
     install_nodejs
     install_docker
     configure_firewall
-    setup_project
+    # setup_project já foi chamado antes (para checksums)
     install_project_dependencies
     setup_database
     setup_environment
     setup_nginx
     create_systemd_service
-    setup_docker_compose
+    
+    # Se modo Docker, verificar se precisa rebuild antes de iniciar
+    if [[ "$INSTALL_MODE" == "docker" ]] && [[ "$REBUILD_MODE" != "true" ]]; then
+        if check_rebuild_needed; then
+            log_progress "Mudanças detectadas - fazendo rebuild automático..."
+            REBUILD_MODE=true
+            rebuild_preserve_data
+        fi
+    fi
+    
     check_startup_order
     test_endpoints
     setup_first_boot
     create_management_script
     setup_management_scripts
+    
+    # Salvar informações da build após instalação bem-sucedida
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        save_build_info
+    fi
+    
     show_final_info
 }
 
