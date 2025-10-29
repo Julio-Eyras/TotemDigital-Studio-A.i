@@ -926,15 +926,35 @@ setup_docker_compose() {
         if [[ "$INSTALL_MODE" == "docker" ]]; then
             log "Construindo imagens Docker..."
             
-            # Verificar se já existem containers rodando
-            if $COMPOSE_CMD ps | grep -q "Up"; then
-                log "Parando containers existentes..."
-                $COMPOSE_CMD down
+            # Parar e remover containers existentes (incluindo órfãos)
+            log "Parando containers existentes..."
+            $COMPOSE_CMD down --remove-orphans 2>/dev/null || true
+            
+            # Parar qualquer container órfão que esteja usando porta 80
+            log "Verificando e parando containers órfãos na porta 80..."
+            ORPHAN_CONTAINERS=$(docker ps -a --filter "name=smartsignage-nginx" --format "{{.Names}}" 2>/dev/null || true)
+            if [[ -n "$ORPHAN_CONTAINERS" ]]; then
+                log "Removendo containers órfãos: $ORPHAN_CONTAINERS"
+                docker stop $ORPHAN_CONTAINERS 2>/dev/null || true
+                docker rm -f $ORPHAN_CONTAINERS 2>/dev/null || true
+            fi
+            
+            # Verificar e parar qualquer processo usando porta 80
+            if command -v ss &> /dev/null; then
+                PORT80_PID=$(sudo ss -tlnp | grep ":80 " | grep -oP 'pid=\K\d+' | head -1 || true)
+                if [[ -n "$PORT80_PID" ]]; then
+                    PORT80_CONTAINER=$(docker ps --filter "publish=80" --format "{{.Names}}" | head -1 || true)
+                    if [[ -n "$PORT80_CONTAINER" ]]; then
+                        log "Parando container usando porta 80: $PORT80_CONTAINER"
+                        docker stop $PORT80_CONTAINER 2>/dev/null || true
+                        docker rm -f $PORT80_CONTAINER 2>/dev/null || true
+                    fi
+                fi
             fi
             
             # Limpar imagens antigas se necessário
             log "Limpando imagens antigas..."
-            $COMPOSE_CMD down --rmi all 2>/dev/null || true
+            $COMPOSE_CMD down --remove-orphans --rmi all 2>/dev/null || true
             
             # Reconstruir imagens
             log "Construindo imagens Docker (backend e frontend)..."
@@ -1058,6 +1078,36 @@ start_services_in_order() {
         if [[ ! -f "docker-compose.yml" ]]; then
             error "docker-compose.yml não encontrado em $INSTALL_DIR"
             exit 1
+        fi
+        
+        # Parar containers órfãos antes de iniciar
+        log "Removendo containers órfãos antes de iniciar..."
+        $COMPOSE_CMD down --remove-orphans 2>/dev/null || true
+        
+        # Parar qualquer container órfão smartsignage-nginx
+        docker stop smartsignage-nginx 2>/dev/null || true
+        docker rm -f smartsignage-nginx 2>/dev/null || true
+        
+        # Verificar e garantir que porta 80 está livre
+        log "Verificando se porta 80 está livre..."
+        sleep 2
+        if command -v ss &> /dev/null; then
+            if sudo ss -tlnp | grep -q ":80 "; then
+                log_error "Porta 80 ainda está em uso após limpeza!"
+                log "Processos usando porta 80:"
+                sudo ss -tlnp | grep ":80 " || true
+                
+                # Tentar parar containers Docker usando porta 80
+                PORT80_CONTAINERS=$(docker ps --filter "publish=80" --format "{{.Names}}" || true)
+                if [[ -n "$PORT80_CONTAINERS" ]]; then
+                    log "Parando containers Docker usando porta 80: $PORT80_CONTAINERS"
+                    docker stop $PORT80_CONTAINERS 2>/dev/null || true
+                    docker rm -f $PORT80_CONTAINERS 2>/dev/null || true
+                    sleep 2
+                fi
+            else
+                log "✅ Porta 80 está livre"
+            fi
         fi
         
         # Ordem para Docker - iniciar em sequência
