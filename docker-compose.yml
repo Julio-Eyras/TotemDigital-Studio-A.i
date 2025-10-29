@@ -86,6 +86,12 @@ services:
       backend:
         condition: service_started
     restart: unless-stopped
+    # IMPORTANTE: Nginx workers rodam como usuário 'nginx' (não-privilegiado)
+    # O processo master precisa ser root apenas para bind na porta 80
+    # Isso é padrão e seguro - workers não têm privilégios
+    read_only: false  # Nginx precisa escrever logs e cache
+    security_opt:
+      - no-new-privileges:true  # Previne escalação de privilégios
     volumes:
       - frontend_assets:/usr/share/nginx/html/assets
     healthcheck:
