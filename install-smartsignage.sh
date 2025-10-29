@@ -316,16 +316,17 @@ configure_firewall() {
     
     # Portas padrão
     sudo ufw allow 22/tcp    # SSH
-    sudo ufw allow 80/tcp    # HTTP
+    sudo ufw allow 80/tcp    # HTTP (legado/opcional)
+    sudo ufw allow 8080/tcp  # Frontend HTTP (padrão novo)
     sudo ufw allow 443/tcp   # HTTPS
-    sudo ufw allow 3000/tcp  # Backend
-    sudo ufw allow 3001/tcp  # Frontend
+    sudo ufw allow 3000/tcp  # Backend e Grafana
+    sudo ufw allow 3001/tcp  # Frontend alternativo
     
     if [[ "$INSTALL_MODE" == "docker" ]]; then
         sudo ufw allow 5432/tcp  # PostgreSQL
         sudo ufw allow 6379/tcp  # Redis
         sudo ufw allow 9090/tcp  # Prometheus
-        sudo ufw allow 3002/tcp  # Grafana
+        sudo ufw allow 11434/tcp # Ollama
     fi
     
     sudo ufw --force enable

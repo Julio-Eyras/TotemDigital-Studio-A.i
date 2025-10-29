@@ -28,6 +28,17 @@ info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
 
+# Carregar .env e padrões de porta
+if [ -f "$INSTALL_DIR/.env" ]; then
+    # shellcheck disable=SC1090
+    . "$INSTALL_DIR/.env"
+fi
+FRONTEND_PORT=${FRONTEND_PORT:-8080}
+FRONTEND_ALT_PORT=${FRONTEND_ALT_PORT:-3001}
+BACKEND_PORT=${BACKEND_PORT:-3000}
+PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
+GRAFANA_PORT=${GRAFANA_PORT:-3000}
+
 # Banner
 echo -e "${BLUE}"
 echo "╔══════════════════════════════════════════════════════════════╗"
@@ -108,23 +119,23 @@ log "Testando endpoints..."
 echo ""
 
 # Testar Frontend
-test_endpoint "Frontend (Nginx)" "http://$SERVER_IP:80"
-test_endpoint "Frontend Direto" "http://$SERVER_IP:3001"
+test_endpoint "Frontend (Nginx)" "http://$SERVER_IP:$FRONTEND_PORT"
+test_endpoint "Frontend Direto" "http://$SERVER_IP:$FRONTEND_ALT_PORT"
 
 # Testar Backend Health
-test_endpoint "Backend Health" "http://$SERVER_IP:3000/health"
+test_endpoint "Backend Health" "http://$SERVER_IP:$BACKEND_PORT/health"
 
 # Testar Backend API
-test_endpoint "Backend API" "http://$SERVER_IP:3000/api/health"
+test_endpoint "Backend API" "http://$SERVER_IP:$BACKEND_PORT/api/health"
 
 # Testar Player
-test_endpoint "Player" "http://$SERVER_IP:80/player"
+test_endpoint "Player" "http://$SERVER_IP:$FRONTEND_PORT/player"
 
 # Testar Prometheus
-test_endpoint "Prometheus" "http://$SERVER_IP:9090"
+test_endpoint "Prometheus" "http://$SERVER_IP:$PROMETHEUS_PORT"
 
 # Testar Grafana
-test_endpoint "Grafana" "http://$SERVER_IP:3002"
+test_endpoint "Grafana" "http://$SERVER_IP:$GRAFANA_PORT"
 
 # Verificar recursos do sistema
 echo ""

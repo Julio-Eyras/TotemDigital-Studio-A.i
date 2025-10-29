@@ -16,6 +16,18 @@ NC='\033[0m'
 REFRESH_INTERVAL=5
 LOG_FILE="monitor.log"
 
+# Carregar .env de instalação e definir portas padrão
+INSTALL_DIR="/opt/smart-signage"
+if [ -f "$INSTALL_DIR/.env" ]; then
+    # shellcheck disable=SC1090
+    . "$INSTALL_DIR/.env"
+fi
+FRONTEND_PORT=${FRONTEND_PORT:-8080}
+FRONTEND_ALT_PORT=${FRONTEND_ALT_PORT:-3001}
+BACKEND_PORT=${BACKEND_PORT:-3000}
+PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
+GRAFANA_PORT=${GRAFANA_PORT:-3000}
+
 # Função para limpar tela
 clear_screen() {
     clear
@@ -57,11 +69,12 @@ show_endpoint_status() {
     echo "┌─────────────────────────────────────────────────────────────────┐"
     
     local endpoints=(
-        "http://localhost:3000/health:Backend API"
-        "http://localhost:3000/api/health:API Health"
-        "http://localhost:3001:Frontend"
-        "http://localhost:3002:Grafana"
-        "http://localhost:9090:Prometheus"
+        "http://localhost:${BACKEND_PORT}/health:Backend API"
+        "http://localhost:${BACKEND_PORT}/api/health:API Health"
+        "http://localhost:${FRONTEND_PORT}:Frontend"
+        "http://localhost:${FRONTEND_ALT_PORT}:Frontend Direto"
+        "http://localhost:${GRAFANA_PORT}:Grafana"
+        "http://localhost:${PROMETHEUS_PORT}:Prometheus"
         "http://localhost:11434/api/tags:Ollama IA"
     )
     
@@ -144,12 +157,12 @@ show_network_stats() {
     echo "┌─────────────────────────────────────────────────────────────────┐"
     
     # Conexões ativas
-    local connections=$(netstat -an 2>/dev/null | grep -E ":(3000|3001|3002|9090|11434)" | grep LISTEN | wc -l)
+    local connections=$(netstat -an 2>/dev/null | grep -E ":(${FRONTEND_PORT}|${FRONTEND_ALT_PORT}|${BACKEND_PORT}|${GRAFANA_PORT}|${PROMETHEUS_PORT}|11434)" | grep LISTEN | wc -l)
     echo -e "│ ${BLUE}🔗 Conexões ativas: $connections${NC}"
     
     # Portas abertas
     echo -e "│ ${BLUE}🚪 Portas abertas:${NC}"
-    netstat -tlnp 2>/dev/null | grep -E ":(80|3000|3001|3002|9090|11434)" | while read line; do
+    netstat -tlnp 2>/dev/null | grep -E ":(${FRONTEND_PORT}|${FRONTEND_ALT_PORT}|${BACKEND_PORT}|${GRAFANA_PORT}|${PROMETHEUS_PORT}|11434)" | while read line; do
         local port=$(echo "$line" | awk '{print $4}' | cut -d: -f2)
         local status=$(echo "$line" | awk '{print $6}')
         if [ "$status" = "LISTEN" ]; then
@@ -176,7 +189,7 @@ show_alerts() {
     fi
     
     # Verificar endpoints com falha
-    if ! curl -s --max-time 3 http://localhost:3000/health > /dev/null 2>&1; then
+    if ! curl -s --max-time 3 http://localhost:${BACKEND_PORT}/health > /dev/null 2>&1; then
         alerts+=("Backend API indisponível")
     fi
     

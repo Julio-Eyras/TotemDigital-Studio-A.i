@@ -53,11 +53,17 @@ fi
 
 echo "✅ [Nginx Entrypoint] index.html correto verificado"
 
-# 4. Testar configuração do Nginx
+# 4. Gerar configuração com portas parametrizadas
+NGINX_PORT=${NGINX_PORT:-8080}
+BACKEND_INTERNAL_PORT=${BACKEND_INTERNAL_PORT:-3000}
+echo "⚙️  [Nginx Entrypoint] Aplicando NGINX_PORT=${NGINX_PORT} e BACKEND_INTERNAL_PORT=${BACKEND_INTERNAL_PORT}"
+envsubst '${NGINX_PORT} ${BACKEND_INTERNAL_PORT}' < /etc/nginx/nginx.conf > /etc/nginx/nginx.conf.runtime
+
+# 5. Testar configuração do Nginx
 echo "🧪 [Nginx Entrypoint] Testando configuração do Nginx..."
-nginx -t || {
+nginx -t -c /etc/nginx/nginx.conf.runtime || {
     echo "❌ [Nginx Entrypoint] ERRO: Configuração do Nginx inválida!"
-    nginx -t
+    nginx -t -c /etc/nginx/nginx.conf.runtime || true
     exit 1
 }
 
@@ -84,7 +90,7 @@ else
     echo "   - Index: ❌ NÃO ENCONTRADO!"
 fi
 
-# 6. Iniciar Nginx
-echo "🚀 [Nginx Entrypoint] Iniciando Nginx..."
-exec nginx -g "daemon off;"
+# 7. Iniciar Nginx com config gerada
+echo "🚀 [Nginx Entrypoint] Iniciando Nginx (porta ${NGINX_PORT})..."
+exec nginx -c /etc/nginx/nginx.conf.runtime -g "daemon off;"
 
