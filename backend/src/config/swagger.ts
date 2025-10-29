@@ -388,7 +388,7 @@ export const openApiSpec = {
       UpdatePlayer: { type: 'object', properties: { name: { type: 'string' }, location: { type: 'string' }, clientId: { type: 'integer' }, isActive: { type: 'boolean' } } }
     }
   },
-  security: [{ bearerAuth: [] }],
+  security: [{ bearerAuth: [] }]
 };
 
 
