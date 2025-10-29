@@ -2451,11 +2451,21 @@ case "$1" in
         
         echo ""
         echo "📊 ENDPOINTS DISPONÍVEIS:"
-        echo "Frontend: http://$SERVER_IP:80"
-        echo "Backend API: http://$SERVER_IP:3000"
-        echo "Player: http://$SERVER_IP:80/player"
-        echo "Prometheus: http://$SERVER_IP:9090"
-        echo "Grafana: http://$SERVER_IP:3002"
+        # Carregar .env e definir padrões de portas
+        if [ -f "$INSTALL_DIR/.env" ]; then
+            . "$INSTALL_DIR/.env"
+        fi
+        FRONTEND_PORT=${FRONTEND_PORT:-8080}
+        FRONTEND_ALT_PORT=${FRONTEND_ALT_PORT:-3001}
+        BACKEND_PORT=${BACKEND_PORT:-3000}
+        PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
+        GRAFANA_PORT=${GRAFANA_PORT:-3002}
+        echo "Frontend: http://$SERVER_IP:$FRONTEND_PORT"
+        echo "Frontend Direto: http://$SERVER_IP:$FRONTEND_ALT_PORT"
+        echo "Backend API: http://$SERVER_IP:$BACKEND_PORT"
+        echo "Player: http://$SERVER_IP:$FRONTEND_PORT/player"
+        echo "Prometheus: http://$SERVER_IP:$PROMETHEUS_PORT"
+        echo "Grafana: http://$SERVER_IP:$GRAFANA_PORT"
         ;;
     logs)
         log "Logs do Smart Signage Pro:"
@@ -2543,6 +2553,15 @@ EOF
 
 # Mostrar informações finais
 show_final_info() {
+    # Carregar .env e padrões de portas
+    if [ -f "$INSTALL_DIR/.env" ]; then
+        . "$INSTALL_DIR/.env"
+    fi
+    FRONTEND_PORT=${FRONTEND_PORT:-8080}
+    FRONTEND_ALT_PORT=${FRONTEND_ALT_PORT:-3001}
+    BACKEND_PORT=${BACKEND_PORT:-3000}
+    PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
+    GRAFANA_PORT=${GRAFANA_PORT:-3002}
     # Obter IPs do servidor
     LOCAL_IP=$(hostname -I | awk '{print $1}')
     EXTERNAL_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s ipinfo.io/ip 2>/dev/null || echo "Não detectado")
@@ -2577,9 +2596,9 @@ show_final_info() {
     echo
     echo -e "${CYAN}📱 PAINEL ADMINISTRATIVO (Frontend):${NC}"
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:80${NC} ${GREEN}(Acesso remoto)${NC}"
+    echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:$FRONTEND_PORT${NC} ${GREEN}(Acesso remoto)${NC}"
     fi
-    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:$FRONTEND_PORT${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (Interface principal do sistema)${NC}"
     echo
     echo -e "${CYAN}🔧 API BACKEND:${NC}"
@@ -2591,9 +2610,9 @@ show_final_info() {
     echo
     echo -e "${CYAN}📺 PLAYER DE MÍDIA:${NC}"
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:80/player${NC} ${GREEN}(Acesso remoto)${NC}"
+    echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:$FRONTEND_PORT/player${NC} ${GREEN}(Acesso remoto)${NC}"
     fi
-    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80/player${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:$FRONTEND_PORT/player${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (Player para totems)${NC}"
     echo
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
@@ -2628,8 +2647,8 @@ show_final_info() {
     echo
     echo -e "${BLUE}📊 Monitoramento:${NC}"
     if [[ "$INSTALL_MODE" == "docker" ]]; then
-        echo -e "   Prometheus: http://$SERVER_IP:9090"
-        echo -e "   Grafana:    http://$SERVER_IP:3002 (admin/admin)"
+        echo -e "   Prometheus: http://$SERVER_IP:$PROMETHEUS_PORT"
+        echo -e "   Grafana:    http://$SERVER_IP:$GRAFANA_PORT (admin/admin)"
     fi
     echo -e "   Logs:       sudo journalctl -u smart-signage -f"
     echo
@@ -2637,7 +2656,7 @@ show_final_info() {
     echo -e "${GREEN}║                    🚀 PRÓXIMOS PASSOS                       ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo
-    echo -e "${YELLOW}1.${NC} ${CYAN}Acesse o sistema:${NC} ${YELLOW}http://$SERVER_IP:80${NC}"
+    echo -e "${YELLOW}1.${NC} ${CYAN}Acesse o sistema:${NC} ${YELLOW}http://$SERVER_IP:$FRONTEND_PORT${NC}"
     echo -e "${YELLOW}2.${NC} ${CYAN}Faça login com:${NC} admin/admin"
     echo -e "${YELLOW}3.${NC} ${CYAN}Altere a senha} do administrador"
     echo -e "${YELLOW}4.${NC} ${CYAN}Configure seus clientes e totems"
@@ -2648,7 +2667,7 @@ show_final_info() {
     echo -e "${PURPLE}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo
     echo -e "${GREEN}🎯 Sistema instalado e funcionando perfeitamente!${NC}"
-    echo -e "${GREEN}🌐 Acesse agora: ${YELLOW}http://$SERVER_IP:80${NC}"
+    echo -e "${GREEN}🌐 Acesse agora: ${YELLOW}http://$SERVER_IP:$FRONTEND_PORT${NC}"
     echo
 }
 
