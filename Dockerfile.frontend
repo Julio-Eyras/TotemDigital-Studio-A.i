@@ -53,9 +53,7 @@ RUN rm -rf /etc/nginx/conf.d/*.conf \
     && echo "✅ Arquivos padrão do Nginx removidos COMPLETAMENTE"
 
 # ETAPA 2: Criar diretório limpo para nosso frontend
-RUN mkdir -p /usr/share/nginx/html/assets \
-    && chown -R nginx:nginx /usr/share/nginx/html \
-    && chmod -R 755 /usr/share/nginx/html
+RUN mkdir -p /usr/share/nginx/html/assets
 
 # ETAPA 3: Copiar build do frontend (AGORA o diretório está limpo)
 COPY --from=builder /app/frontend/build /usr/share/nginx/html
@@ -69,24 +67,24 @@ RUN rm -f /usr/share/nginx/html/50x.html \
     && find /usr/share/nginx/html -name "index.*.html" ! -name "index.html" -delete 2>/dev/null || true \
     && echo "✅ Limpeza final concluída"
 
-# Copiar entrypoint customizado
+# ETAPA 6: Copiar entrypoint customizado
 COPY docker/nginx-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-# Criar diretórios necessários e garantir permissões corretas
+# ETAPA 7: Garantir permissões corretas após copiar arquivos
 # IMPORTANTE: Nginx roda workers como usuário 'nginx' (não-privilegiado)
 # O processo master inicia como root (necessário para porta 80), mas workers são nginx
-RUN mkdir -p /usr/share/nginx/html/assets && \
-    chown -R nginx:nginx /usr/share/nginx/html && \
+RUN chown -R nginx:nginx /usr/share/nginx/html && \
     chown -R nginx:nginx /var/cache/nginx && \
     chown -R nginx:nginx /var/log/nginx && \
     chmod -R 755 /usr/share/nginx/html && \
     chmod -R 755 /var/cache/nginx && \
     chmod -R 755 /var/log/nginx && \
     touch /var/run/nginx.pid && \
-    chown -R nginx:nginx /var/run/nginx.pid
+    chown -R nginx:nginx /var/run/nginx.pid \
+    && echo "✅ Permissões configuradas"
 
-# ETAPA 7: Verificar que index.html existe e é nosso frontend (não página padrão)
+# ETAPA 8: Verificar que index.html existe e é nosso frontend (não página padrão)
 RUN echo "🔍 Verificando index.html..." \
     && ls -la /usr/share/nginx/html/index.html || (echo "❌ ERRO: index.html não encontrado!" && exit 1) \
     && echo "   Arquivo existe: $(stat -c%s /usr/share/nginx/html/index.html 2>/dev/null || echo 'N/A') bytes" \
