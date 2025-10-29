@@ -510,17 +510,17 @@ health_check() {
     
     # Verificar endpoints com retry
     local endpoints=(
-        "http://localhost:3000/health:Backend API"
-        "http://localhost:3000/api/health:API Health"
-        "http://localhost:3001:Frontend"
-        "http://localhost:3002:Grafana"
-        "http://localhost:9090:Prometheus"
-        "http://localhost:11434/api/tags:Ollama IA"
+        "http://localhost:3000/health|Backend API"
+        "http://localhost:3000/api/health|API Health"
+        "http://localhost:3001|Frontend"
+        "http://localhost:3002|Grafana"
+        "http://localhost:9090|Prometheus"
+        "http://localhost:11434/api/tags|Ollama IA"
     )
     
     for endpoint in "${endpoints[@]}"; do
-        local url=$(echo "$endpoint" | cut -d: -f1-2)
-        local name=$(echo "$endpoint" | cut -d: -f3)
+        local url=$(echo "$endpoint" | cut -d'|' -f1)
+        local name=$(echo "$endpoint" | cut -d'|' -f2)
         
         # Tentar até 3 vezes com delay
         local success=false
