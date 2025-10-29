@@ -11,6 +11,15 @@ import Playlists from './pages/Playlists/Playlists';
 import Players from './pages/Players/Players';
 import Users from './pages/Users/Users';
 import Clients from './pages/Clients/Clients';
+import Campaigns from './pages/Campaigns/Campaigns';
+import Reports from './pages/Reports/Reports';
+import Analytics from './pages/Analytics/Analytics';
+import Settings from './pages/Settings/Settings';
+import AI from './pages/AI/AI';
+import SmartPlaylist from './pages/SmartPlaylist/SmartPlaylist';
+import Totems from './pages/Totems/Totems';
+import Billing from './pages/Billing/Billing';
+import QRCodes from './pages/QRCodes/QRCodes';
 
 // Components
 import Layout from './components/Layout/Layout';
@@ -184,6 +193,78 @@ const App: React.FC = () => {
             element={
               <ProtectedRoute>
                 <Clients />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/campaigns"
+            element={
+              <ProtectedRoute>
+                <Campaigns />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <ProtectedRoute>
+                <Reports />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <ProtectedRoute>
+                <Analytics />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ai"
+            element={
+              <ProtectedRoute>
+                <AI />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/smart-playlist"
+            element={
+              <ProtectedRoute>
+                <SmartPlaylist />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/totems"
+            element={
+              <ProtectedRoute>
+                <Totems />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/billing"
+            element={
+              <ProtectedRoute>
+                <Billing />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/qr-codes"
+            element={
+              <ProtectedRoute>
+                <QRCodes />
               </ProtectedRoute>
             }
           />

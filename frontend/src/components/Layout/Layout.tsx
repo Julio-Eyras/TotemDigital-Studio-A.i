@@ -32,6 +32,13 @@ import {
   AccountCircle,
   Settings,
   Notifications,
+  Campaign,
+  Assessment,
+  Analytics,
+  SmartToy,
+  QrCode,
+  Payment,
+  Tv,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authApi } from '../../services/api';
@@ -71,9 +78,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
     { text: 'Mídia', icon: <VideoLibrary />, path: '/media' },
     { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
+    { text: 'Smart Playlist', icon: <SmartToy />, path: '/smart-playlist' },
+    { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
     { text: 'Players', icon: <Computer />, path: '/players' },
+    { text: 'Totems', icon: <Tv />, path: '/totems' },
     { text: 'Usuários', icon: <People />, path: '/users' },
     { text: 'Clientes', icon: <Business />, path: '/clients' },
+    { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
+    { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
+    { text: 'QR Codes', icon: <QrCode />, path: '/qr-codes' },
+    { text: 'Faturamento', icon: <Payment />, path: '/billing' },
+    { text: 'IA', icon: <SmartToy />, path: '/ai' },
+    { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 
   const handleDrawerToggle = () => {
@@ -270,7 +286,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </ListItemIcon>
               <ListItemText>Perfil</ListItemText>
             </MenuItem>
-            <MenuItem onClick={handleMenuClose}>
+            <MenuItem onClick={() => {
+              handleMenuClose();
+              navigate('/settings');
+            }}>
               <ListItemIcon>
                 <Settings fontSize="small" />
               </ListItemIcon>

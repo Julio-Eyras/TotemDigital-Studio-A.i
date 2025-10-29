@@ -500,4 +500,403 @@ export const authApi = {
   },
 };
 
+// =============================================
+// CAMPAIGNS API
+// =============================================
+
+export interface Campaign {
+  campaign_id: number;
+  title: string;
+  description?: string;
+  campaign_type: string;
+  status: string;
+  client_id?: number;
+  start_date?: string;
+  end_date?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  playlist_count?: number;
+  totem_count?: number;
+}
+
+export interface CreateCampaignRequest {
+  title: string;
+  description?: string;
+  campaign_type: string;
+  status?: string;
+  clientId?: number;
+  start_date?: string;
+  end_date?: string;
+  playlistIds?: number[];
+  totemIds?: number[];
+}
+
+export interface UpdateCampaignRequest {
+  title?: string;
+  description?: string;
+  campaign_type?: string;
+  status?: string;
+  clientId?: number;
+  start_date?: string;
+  end_date?: string;
+  isActive?: boolean;
+}
+
+export interface CampaignListResponse {
+  data: Campaign[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export const campaignApi = {
+  getAll: async (params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    clientId?: number;
+    status?: string;
+    campaignType?: string;
+    isActive?: boolean;
+  } = {}): Promise<CampaignListResponse> => {
+    const response = await api.get('/campaigns', { params });
+    return response.data.data;
+  },
+
+  getById: async (id: number): Promise<Campaign> => {
+    const response = await api.get(`/campaigns/${id}`);
+    return response.data.data;
+  },
+
+  create: async (data: CreateCampaignRequest): Promise<Campaign> => {
+    const response = await api.post('/campaigns', data);
+    return response.data.data;
+  },
+
+  update: async (id: number, data: UpdateCampaignRequest): Promise<Campaign> => {
+    const response = await api.put(`/campaigns/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/campaigns/${id}`);
+  },
+
+  getStats: async () => {
+    const response = await api.get('/campaigns/stats');
+    return response.data.data;
+  },
+};
+
+// =============================================
+// REPORTS API
+// =============================================
+
+export interface ReportRequest {
+  type: string;
+  format?: 'pdf' | 'xlsx' | 'csv';
+  filters?: any;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface ReportType {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  fields: string[];
+}
+
+export const reportApi = {
+  generate: async (data: ReportRequest) => {
+    const response = await api.post('/reports/generate', data);
+    return response.data;
+  },
+
+  getTypes: async (): Promise<ReportType[]> => {
+    const response = await api.get('/reports/types');
+    return response.data.data;
+  },
+
+  getFormats: async () => {
+    const response = await api.get('/reports/formats');
+    return response.data.data;
+  },
+};
+
+// =============================================
+// ANALYTICS API
+// =============================================
+
+export interface AnalyticsData {
+  totalViews: number;
+  totalDuration: number;
+  averageViewDuration: number;
+  uniqueViewers: number;
+  viewsByDate: Array<{ date: string; views: number }>;
+  viewsByMedia: Array<{ mediaId: number; mediaName: string; views: number }>;
+}
+
+export const analyticsApi = {
+  getOverview: async (params?: {
+    startDate?: string;
+    endDate?: string;
+    clientId?: number;
+  }): Promise<AnalyticsData> => {
+    const response = await api.get('/analytics/overview', { params });
+    return response.data.data;
+  },
+
+  getMediaAnalytics: async (mediaId: number) => {
+    const response = await api.get(`/analytics/media/${mediaId}`);
+    return response.data.data;
+  },
+
+  getCampaignAnalytics: async (campaignId: number) => {
+    const response = await api.get(`/analytics/campaign/${campaignId}`);
+    return response.data.data;
+  },
+};
+
+// =============================================
+// SETTINGS API
+// =============================================
+
+export interface SystemSetting {
+  key: string;
+  value: any;
+  type: string;
+  description?: string;
+}
+
+export const settingsApi = {
+  getAll: async (): Promise<SystemSetting[]> => {
+    const response = await api.get('/settings');
+    return response.data.data;
+  },
+
+  getPublic: async (): Promise<SystemSetting[]> => {
+    const response = await api.get('/settings/public');
+    return response.data.data;
+  },
+
+  update: async (key: string, value: any): Promise<SystemSetting> => {
+    const response = await api.put(`/settings/${key}`, { value });
+    return response.data.data;
+  },
+
+  updateMultiple: async (settings: Array<{ key: string; value: any }>) => {
+    const response = await api.put('/settings', { settings });
+    return response.data.data;
+  },
+};
+
+// =============================================
+// AI API
+// =============================================
+
+export interface AIModel {
+  provider: string;
+  models: string[];
+}
+
+export interface AIGenerateRequest {
+  prompt: string;
+  model?: string;
+  provider?: 'ollama' | 'openai' | 'anthropic';
+  temperature?: number;
+  maxTokens?: number;
+}
+
+export const aiApi = {
+  generate: async (data: AIGenerateRequest) => {
+    const response = await api.post('/ai/generate', data);
+    return response.data.data;
+  },
+
+  getModels: async (): Promise<AIModel[]> => {
+    const response = await api.get('/ai/models');
+    return response.data.data;
+  },
+
+  testConnection: async (provider: string) => {
+    const response = await api.post('/ai/test', { provider });
+    return response.data.data;
+  },
+};
+
+// =============================================
+// SMART PLAYLIST API
+// =============================================
+
+export interface SmartPlaylistRequest {
+  name: string;
+  description?: string;
+  rules: Array<{
+    field: string;
+    operator: string;
+    value: any;
+  }>;
+  clientId?: number;
+}
+
+export interface SmartPlaylist {
+  smart_playlist_id: number;
+  name: string;
+  description?: string;
+  rules: any;
+  client_id?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const smartPlaylistApi = {
+  create: async (data: SmartPlaylistRequest): Promise<SmartPlaylist> => {
+    const response = await api.post('/smart-playlist', data);
+    return response.data.data;
+  },
+
+  generate: async (data: SmartPlaylistRequest): Promise<PlaylistItem> => {
+    const response = await api.post('/smart-playlist/generate', data);
+    return response.data.data;
+  },
+
+  getAll: async (): Promise<SmartPlaylist[]> => {
+    const response = await api.get('/smart-playlist');
+    return response.data.data;
+  },
+
+  getById: async (id: number): Promise<SmartPlaylist> => {
+    const response = await api.get(`/smart-playlist/${id}`);
+    return response.data.data;
+  },
+
+  update: async (id: number, data: Partial<SmartPlaylistRequest>): Promise<SmartPlaylist> => {
+    const response = await api.put(`/smart-playlist/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/smart-playlist/${id}`);
+  },
+};
+
+// =============================================
+// TOTEMS API (alias for Players)
+// =============================================
+
+export const totemApi = {
+  getAll: async (params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    clientId?: number;
+    status?: string;
+  } = {}): Promise<PlayerListResponse> => {
+    const response = await api.get('/totems', { params });
+    return response.data;
+  },
+
+  getById: async (id: number): Promise<Player> => {
+    const response = await api.get(`/totems/${id}`);
+    return response.data;
+  },
+
+  create: async (data: CreatePlayerRequest): Promise<Player> => {
+    const response = await api.post('/totems', data);
+    return response.data;
+  },
+
+  update: async (id: number, data: UpdatePlayerRequest): Promise<Player> => {
+    const response = await api.put(`/totems/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/totems/${id}`);
+  },
+};
+
+// =============================================
+// BILLING API
+// =============================================
+
+export interface BillingItem {
+  billing_id: number;
+  billing_type: string;
+  amount: number;
+  status: string;
+  client_id?: number;
+  due_date?: string;
+  paid_at?: string;
+  created_at: string;
+}
+
+export interface CreateBillingRequest {
+  billing_type: string;
+  amount: number;
+  clientId?: number;
+  due_date?: string;
+}
+
+export const billingApi = {
+  getAll: async (params?: {
+    clientId?: number;
+    status?: string;
+  }): Promise<BillingItem[]> => {
+    const response = await api.get('/billing', { params });
+    return response.data.data || [];
+  },
+
+  create: async (data: CreateBillingRequest): Promise<BillingItem> => {
+    const response = await api.post('/billing', data);
+    return response.data.data;
+  },
+
+  markAsPaid: async (id: number): Promise<BillingItem> => {
+    const response = await api.put(`/billing/${id}/pay`);
+    return response.data.data;
+  },
+};
+
+// =============================================
+// QR CODES API
+// =============================================
+
+export interface QRCode {
+  qr_code_id: number;
+  name: string;
+  url: string;
+  qr_code_data: string;
+  created_at: string;
+}
+
+export interface CreateQRCodeRequest {
+  name: string;
+  url: string;
+}
+
+export const qrCodeApi = {
+  getAll: async (): Promise<QRCode[]> => {
+    const response = await api.get('/qr-codes');
+    return response.data.data || [];
+  },
+
+  create: async (data: CreateQRCodeRequest): Promise<QRCode> => {
+    const response = await api.post('/qr-codes', data);
+    return response.data.data;
+  },
+
+  getById: async (id: number): Promise<QRCode> => {
+    const response = await api.get(`/qr-codes/${id}`);
+    return response.data.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/qr-codes/${id}`);
+  },
+};
+
 export default api;
