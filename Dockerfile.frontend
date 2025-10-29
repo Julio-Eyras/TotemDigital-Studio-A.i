@@ -45,13 +45,17 @@ ENV TZ=America/Sao_Paulo
 
 # ETAPA 1: Remover TODOS os arquivos padrão do Nginx ANTES de copiar nossos arquivos
 # Isso garante que a página padrão "Welcome to nginx!" seja completamente removida
+# ORDEM CRÍTICA: Fazer isso PRIMEIRO, antes de qualquer COPY
 RUN rm -rf /etc/nginx/conf.d/*.conf \
     && rm -rf /usr/share/nginx/html/* \
     && rm -rf /usr/share/nginx/html/.* 2>/dev/null || true \
-    && echo "✅ Arquivos padrão do Nginx removidos"
+    && ls -la /usr/share/nginx/html/ || echo "Diretório vazio (correto)" \
+    && echo "✅ Arquivos padrão do Nginx removidos COMPLETAMENTE"
 
 # ETAPA 2: Criar diretório limpo para nosso frontend
-RUN mkdir -p /usr/share/nginx/html/assets
+RUN mkdir -p /usr/share/nginx/html/assets \
+    && chown -R nginx:nginx /usr/share/nginx/html \
+    && chmod -R 755 /usr/share/nginx/html
 
 # ETAPA 3: Copiar build do frontend (AGORA o diretório está limpo)
 COPY --from=builder /app/frontend/build /usr/share/nginx/html
@@ -82,13 +86,22 @@ RUN mkdir -p /usr/share/nginx/html/assets && \
     touch /var/run/nginx.pid && \
     chown -R nginx:nginx /var/run/nginx.pid
 
-# Verificar que index.html existe após copiar o build E que não há página padrão do Nginx
-RUN ls -la /usr/share/nginx/html/index.html || (echo "ERRO: index.html não encontrado!" && exit 1) \
-    && if grep -q "Welcome to nginx" /usr/share/nginx/html/index.html 2>/dev/null; then \
-        echo "ERRO: index.html ainda é a página padrão do Nginx!"; \
+# ETAPA 7: Verificar que index.html existe e é nosso frontend (não página padrão)
+RUN echo "🔍 Verificando index.html..." \
+    && ls -la /usr/share/nginx/html/index.html || (echo "❌ ERRO: index.html não encontrado!" && exit 1) \
+    && echo "   Arquivo existe: $(stat -c%s /usr/share/nginx/html/index.html 2>/dev/null || echo 'N/A') bytes" \
+    && echo "   Primeira linha: $(head -1 /usr/share/nginx/html/index.html | cut -c1-60)..." \
+    && if grep -qiE "(Welcome to nginx|nginx web server|nginx.org|nginx.com)" /usr/share/nginx/html/index.html 2>/dev/null; then \
+        echo "❌ ERRO CRÍTICO: index.html ainda é a página padrão do Nginx!"; \
+        echo "   Isso não deveria acontecer - arquivos padrão foram removidos primeiro"; \
         exit 1; \
     fi \
-    && echo "✅ index.html correto verificado"
+    && if ! grep -qiE "(<!doctype|<html|<div.*root|react)" /usr/share/nginx/html/index.html 2>/dev/null | head -1; then \
+        echo "⚠️  AVISO: index.html não parece ser um arquivo React válido"; \
+        echo "   Verificando conteúdo..."; \
+        head -5 /usr/share/nginx/html/index.html; \
+    fi \
+    && echo "✅ index.html correto - é nosso frontend React"
 
 # Expor porta
 EXPOSE 80
