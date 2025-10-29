@@ -2810,6 +2810,16 @@ rebuild_fresh() {
     
     cd "$INSTALL_DIR" || { error "Diretório $INSTALL_DIR não encontrado!"; exit 1; }
     
+    # Determinar comando compose
+    if command -v docker &> /dev/null && docker compose version &> /dev/null; then
+        COMPOSE_CMD="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        COMPOSE_CMD="docker-compose"
+    else
+        error "Docker Compose não encontrado!"
+        exit 1
+    fi
+    
     # Parar e remover TUDO
     log_progress "Parando e removendo containers..."
     $COMPOSE_CMD down -v --rmi all --remove-orphans 2>/dev/null || true
@@ -2998,6 +3008,7 @@ main() {
     setup_environment
     setup_nginx
     create_systemd_service
+    setup_docker_compose
     
     # Se modo Docker, verificar se precisa rebuild antes de iniciar
     if [[ "$INSTALL_MODE" == "docker" ]] && [[ "$REBUILD_MODE" != "true" ]]; then
