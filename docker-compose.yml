@@ -154,7 +154,6 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        set -e
         echo '[NGINX] 🔍 Iniciando verificação de configuração...'
         sleep 4
         echo '[NGINX] 📂 Verificando nginx.conf...'
