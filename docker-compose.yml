@@ -152,55 +152,42 @@ services:
       - smartsignage-network
     # Garantir que nosso default.conf seja usado e validar antes de iniciar
     entrypoint: ["/bin/sh", "-c"]
-    command: >
-      "
-      echo '🔍 Verificando configuração do Nginx...'
-      # Aguardar mount de volume (pode demorar alguns segundos)
-      sleep 2
-      # Listar arquivos para diagnóstico
-      echo '📂 Arquivos em /etc/nginx/conf.d/:'
-      ls -la /etc/nginx/conf.d/ 2>&1 || echo 'Diretório conf.d não acessível'
-      # Verificar nginx.conf
-      echo '📂 Verificando nginx.conf...'
-      if [ -f /etc/nginx/nginx.conf ]; then
-        echo '✅ nginx.conf encontrado'
-      else
-        echo '❌ nginx.conf não encontrado'
-        exit 1
-      fi
-      # Verificar se nosso default.conf está presente - usar teste mais robusto
-      MAX_WAIT=10
-      WAIT_COUNT=0
-      while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-        # Testar existência do arquivo de forma mais robusta
-        if test -r /etc/nginx/conf.d/default.conf || ls /etc/nginx/conf.d/default.conf >/dev/null 2>&1; then
-          echo '✅ default.conf encontrado'
-          break
+    command:
+      - |
+        echo '🔍 Verificando configuração do Nginx...'
+        # Aguardar mount de volume
+        sleep 3
+        # Verificar nginx.conf
+        if [ ! -f /etc/nginx/nginx.conf ]; then
+          echo '❌ ERRO: nginx.conf não encontrado!'
+          exit 1
         fi
-        WAIT_COUNT=$((WAIT_COUNT + 1))
-        echo \"Aguardando default.conf... ($WAIT_COUNT/$MAX_WAIT)\"
-        sleep 1
-      done
-      # Verificação final
-      if ! test -r /etc/nginx/conf.d/default.conf; then
-        echo '❌ ERRO: default.conf não acessível após aguardar'
-        echo '📋 Tentando continuar mesmo assim...'
-        ls -la /etc/nginx/conf.d/ 2>&1
-      fi
-      # Mostrar primeiras linhas do arquivo
-      echo '📋 Primeiras linhas do default.conf:'
-      head -5 /etc/nginx/conf.d/default.conf 2>&1 || echo 'Não foi possível ler default.conf'
-      # Testar configuração
-      echo '📋 Testando configuração do Nginx...'
-      if nginx -t 2>&1; then
-        echo '✅ Configuração do Nginx válida'
-        echo '🚀 Iniciando Nginx...'
-        exec nginx -g 'daemon off;'
-      else
-        echo '❌ ERRO: Configuração do Nginx inválida!'
-        exit 1
-      fi
-      "
+        echo '✅ nginx.conf encontrado'
+        # Aguardar e verificar default.conf
+        echo '📂 Verificando default.conf...'
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+          if test -r /etc/nginx/conf.d/default.conf 2>/dev/null; then
+            echo '✅ default.conf encontrado e acessível'
+            break
+          fi
+          if [ $i -eq 10 ]; then
+            echo '⚠️  default.conf ainda não encontrado após 10 tentativas'
+            ls -la /etc/nginx/conf.d/ 2>&1
+          else
+            echo "Aguardando default.conf... ($i/10)"
+            sleep 1
+          fi
+        done
+        # Testar configuração
+        echo '📋 Testando configuração do Nginx...'
+        if nginx -t 2>&1; then
+          echo '✅ Configuração válida'
+          echo '🚀 Iniciando Nginx...'
+          exec nginx -g 'daemon off;'
+        else
+          echo '❌ ERRO: Configuração inválida!'
+          exit 1
+        fi
 
   # Monitoring (Prometheus)
   prometheus:
