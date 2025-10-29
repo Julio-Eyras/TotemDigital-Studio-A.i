@@ -1773,66 +1773,33 @@ diagnose_and_fix_frontend() {
 }
 
 wait_for_nginx() {
-    log_progress "Aguardando Nginx..."
-    for i in {1..20}; do
-        log_detailed "Tentativa $i/20 - Testando conectividade do Nginx..."
-        
-        # Verificar se o container está rodando (modo Docker)
-        if [[ "$INSTALL_MODE" == "docker" ]]; then
-            # Verificar se container existe e está rodando
-            if ! docker ps --filter "name=smartsignage-nginx" --format "{{.Names}}" | grep -q "smartsignage-nginx"; then
-                log_detailed "Container Nginx ainda não iniciou..."
-                sleep 2
-                continue
-            fi
+    # Nginx agora está integrado no container frontend
+    # Esta função verifica o frontend que contém o Nginx
+    log_progress "Aguardando Frontend (com Nginx integrado)..."
+    
+    # No modo Docker, Nginx está no frontend - usar wait_for_frontend
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        wait_for_frontend
+        return $?
+    else
+        # Modo single-server ou development: verificar serviço Nginx do sistema
+        for i in {1..20}; do
+            log_detailed "Tentativa $i/20 - Testando conectividade do Nginx..."
             
-            # Verificar se responde e se NÃO é a página padrão do Nginx
-            RESPONSE=$(curl -s http://localhost:80 2>/dev/null || echo "")
-            if [[ -n "$RESPONSE" ]]; then
-                # Verificar se NÃO é a página padrão do Nginx
-                if echo "$RESPONSE" | grep -qi "Welcome to nginx"; then
-                    log_detailed "Nginx ainda está servindo página padrão, aguardando configuração..."
-                    sleep 3
-                    continue
-                fi
-                
-                # Verificar se é o frontend (procura por React ou HTML válido)
-                if echo "$RESPONSE" | grep -qiE "(react|smart.signage|<!doctype html)" || [[ ${#RESPONSE} -gt 1000 ]]; then
-                    log_status "✅ Nginx: Pronto (porta 80) - Servindo frontend corretamente"
+            if systemctl is-active --quiet nginx 2>/dev/null; then
+                # Verificar se responde na porta 80
+                if curl -s -f http://localhost:80 > /dev/null 2>&1; then
+                    log_status "✅ Nginx: Pronto (serviço ativo na porta 80)"
                     return 0
                 fi
-                
-                # Se responde mas não identificamos o conteúdo, considerar OK
-                log_status "✅ Nginx: Pronto (porta 80) - Respondendo"
-                return 0
             fi
             
-            # Verificar status do container
-            CONTAINER_STATUS=$(docker ps --filter "name=smartsignage-nginx" --format "table {{.Status}}" | tail -1)
-            log_detailed "Status do container Nginx: $CONTAINER_STATUS"
-        else
-            # Verificar se o serviço está ativo (modo single-server/development)
-            if systemctl is-active --quiet nginx; then
-                log_status "✅ Nginx: Pronto (serviço ativo)"
-                return 0
-            fi
-            
-            # Verificar status do serviço
-            SERVICE_STATUS=$(systemctl is-active nginx 2>/dev/null || echo "inactive")
-            log_detailed "Status do serviço Nginx: $SERVICE_STATUS"
-        fi
+            sleep 2
+        done
         
-        sleep 2
-    done
-    log_error "❌ Nginx: Timeout após 30 segundos"
-    
-    # Diagnóstico do Nginx
-    if [[ "$INSTALL_MODE" == "docker" ]]; then
-        log_detailed "Logs do container Nginx:"
-        docker logs smartsignage-nginx --tail 20 2>/dev/null || echo "Não foi possível obter logs"
-    else
-        log_detailed "Status do serviço Nginx:"
+        log_error "❌ Nginx: Timeout após 30 segundos"
         systemctl status nginx --no-pager -l 2>/dev/null || echo "Não foi possível obter status"
+        return 1
     fi
 }
 
