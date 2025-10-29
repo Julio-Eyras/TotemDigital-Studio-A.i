@@ -1,5 +1,5 @@
-# Smart Signage Pro v2.0 - Dockerfile Frontend
-# Container especializado apenas para o frontend
+# Smart Signage Pro v2.0 - Dockerfile Frontend Completo
+# Container que serve frontend estático + proxy para backend
 
 FROM node:18-alpine AS builder
 
@@ -27,7 +27,7 @@ COPY frontend/src ./src
 # Build do Frontend
 RUN npm run build
 
-# Estágio de produção com Nginx
+# Estágio de produção com Nginx Completo
 FROM nginx:alpine AS production
 
 # Instalar dependências do sistema
@@ -42,8 +42,11 @@ ENV TZ=America/Sao_Paulo
 # Copiar build do frontend
 COPY --from=builder /app/frontend/build /usr/share/nginx/html
 
-# Copiar configuração do Nginx (arquivo específico para servir apenas estáticos)
-COPY nginx/frontend-static.conf /etc/nginx/conf.d/default.conf
+# Copiar configuração completa do Nginx (frontend + proxy)
+COPY nginx/nginx-complete.conf /etc/nginx/nginx.conf
+
+# Remover configuração padrão do Alpine
+RUN rm -f /etc/nginx/conf.d/default.conf /usr/share/nginx/html/index.html /usr/share/nginx/html/50x.html
 
 # Criar diretórios necessários
 RUN mkdir -p /usr/share/nginx/html/assets && \
