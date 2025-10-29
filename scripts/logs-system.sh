@@ -67,12 +67,12 @@ echo "3. Logs apenas do Frontend"
 echo "4. Logs apenas do PostgreSQL"
 echo "5. Logs apenas do Redis"
 echo "6. Logs apenas do Ollama"
-echo "7. Logs apenas do Nginx"
+echo "7. Logs apenas do Frontend (inclui Nginx integrado)"
 echo "8. Logs apenas do Prometheus"
 echo "9. Logs apenas do Grafana"
 echo ""
 
-read -p "Digite sua escolha (1-9): " choice
+read -p "Digite sua escolha (1-8): " choice
 
 case $choice in
     1)
@@ -106,16 +106,11 @@ case $choice in
         $COMPOSE_CMD logs -f ollama
         ;;
     7)
-        log "Exibindo logs do Nginx..."
-        log "Pressione Ctrl+C para sair"
-        $COMPOSE_CMD logs -f nginx
-        ;;
-    8)
         log "Exibindo logs do Prometheus..."
         log "Pressione Ctrl+C para sair"
         $COMPOSE_CMD logs -f prometheus
         ;;
-    9)
+    8)
         log "Exibindo logs do Grafana..."
         log "Pressione Ctrl+C para sair"
         $COMPOSE_CMD logs -f grafana

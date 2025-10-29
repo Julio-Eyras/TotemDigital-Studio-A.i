@@ -47,7 +47,7 @@ services:
       - MEDIA_QUOTA_PER_CLIENT=5GB
       - LOG_LEVEL=info
       - LOG_FILE=/app/logs/app.log
-      - CORS_ORIGIN=http://frontend:80,http://nginx:80
+      - CORS_ORIGIN=http://frontend:80
       - RATE_LIMIT_WINDOW_MS=900000
       - RATE_LIMIT_MAX_REQUESTS=100
     ports:

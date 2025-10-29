@@ -45,8 +45,5 @@ scrape_configs:
       - targets: ['ollama:11434']
     scrape_interval: 30s
 
-  # Nginx Reverse Proxy
-  - job_name: 'nginx'
-    static_configs:
-      - targets: ['nginx:80']
-    scrape_interval: 30s
+  # Nginx está integrado no frontend - monitorado via job 'smart-signage-frontend' acima
+  # Nginx metrics são expostas através do frontend:80/metrics

@@ -74,8 +74,8 @@ if [[ ! -f "Dockerfile.frontend" ]]; then
     exit 1
 fi
 
-if [[ ! -f "nginx/frontend.conf" ]]; then
-    error "nginx/frontend.conf não encontrado!"
+if [[ ! -f "nginx/nginx-complete.conf" ]]; then
+    error "nginx/nginx-complete.conf não encontrado!"
     exit 1
 fi
 
@@ -171,9 +171,7 @@ for i in {1..30}; do
     sleep 2
 done
 
-# Iniciar Nginx
-log "Iniciando Nginx..."
-$COMPOSE_CMD up -d nginx
+# Nginx está integrado no frontend - não precisa iniciar separadamente
 
 # Iniciar Monitoramento
 log "Iniciando Monitoramento..."
@@ -189,7 +187,7 @@ SERVER_IP=$(hostname -I | awk '{print $1}')
 
 echo ""
 echo "📊 ENDPOINTS DISPONÍVEIS:"
-echo "Frontend: http://$SERVER_IP:80 (via Nginx)"
+echo "Frontend: http://$SERVER_IP:80 (Nginx integrado)"
 echo "Frontend Direto: http://$SERVER_IP:3001"
 echo "Backend API: http://$SERVER_IP:3000"
 echo "Player: http://$SERVER_IP:80/player"
@@ -211,7 +209,7 @@ test_endpoint() {
     fi
 }
 
-test_endpoint "Frontend (Nginx)" "http://$SERVER_IP:80"
+test_endpoint "Frontend" "http://$SERVER_IP:80"
 test_endpoint "Frontend Direto" "http://$SERVER_IP:3001"
 test_endpoint "Backend Health" "http://$SERVER_IP:3000/health"
 test_endpoint "Backend API" "http://$SERVER_IP:3000/api/health"
