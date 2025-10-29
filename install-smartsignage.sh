@@ -2713,9 +2713,10 @@ check_rebuild_needed() {
         return 0
     fi
     
+    # Se não existe instalação anterior, não precisa rebuild (é primeira instalação)
     if [[ ! -d "$INSTALL_DIR" ]] || [[ ! -f "$INSTALL_DIR/.build-info.json" ]]; then
-        log_status "Primeira instalação ou build-info não encontrado - rebuild necessário"
-        return 0
+        log_status "Primeira instalação detectada - rebuild não necessário (será feito build inicial)"
+        return 1
     fi
     
     local CURRENT_CHECKSUMS=$(calculate_checksums)
@@ -2772,6 +2773,13 @@ rebuild_preserve_data() {
     if [[ $? -eq 0 ]]; then
         log "✅ Rebuild concluído com sucesso!"
         save_build_info
+        
+        # Reiniciar containers após rebuild
+        if [[ "$REBUILD_ONLY" != "true" ]]; then
+            log_progress "Reiniciando containers após rebuild..."
+            $COMPOSE_CMD up -d
+            log "✅ Containers reiniciados!"
+        fi
     else
         error "❌ Falha no rebuild!"
         exit 1
@@ -2837,6 +2845,13 @@ rebuild_fresh() {
     if [[ $? -eq 0 ]]; then
         log "✅ Build do zero concluído!"
         save_build_info
+        
+        # Reiniciar containers após rebuild fresh
+        if [[ "$REBUILD_ONLY" != "true" ]]; then
+            log_progress "Iniciando containers após build do zero..."
+            $COMPOSE_CMD up -d
+            log "✅ Containers iniciados!"
+        fi
     else
         error "❌ Falha no build!"
         exit 1
@@ -2978,11 +2993,10 @@ main() {
             # Após rebuild fresh, continuar instalação normalmente
         elif check_rebuild_needed || [[ "$FORCE_REBUILD" == "true" ]]; then
             rebuild_preserve_data
-            # Após rebuild, pode pular para start_services se rebuild_only não estiver ativo
+            # rebuild_preserve_data já reinicia containers se REBUILD_ONLY não estiver ativo
             if [[ "$REBUILD_ONLY" != "true" ]]; then
-                log "Iniciando serviços após rebuild..."
-                setup_docker_compose
-                start_services_in_order
+                log "Aguardando serviços iniciarem após rebuild..."
+                sleep 20  # Dar tempo para containers iniciarem
                 check_startup_order
                 test_endpoints
                 show_final_info
@@ -3010,12 +3024,20 @@ main() {
     create_systemd_service
     setup_docker_compose
     
-    # Se modo Docker, verificar se precisa rebuild antes de iniciar
-    if [[ "$INSTALL_MODE" == "docker" ]] && [[ "$REBUILD_MODE" != "true" ]]; then
+    # Se modo Docker, verificar se precisa rebuild apenas SE já existe instalação anterior
+    # Não fazer rebuild automático durante instalação nova (já foi feito build em setup_docker_compose)
+    if [[ "$INSTALL_MODE" == "docker" ]] && [[ "$REBUILD_MODE" != "true" ]] && [[ -f "$INSTALL_DIR/.build-info.json" ]]; then
         if check_rebuild_needed; then
             log_progress "Mudanças detectadas - fazendo rebuild automático..."
             REBUILD_MODE=true
             rebuild_preserve_data
+            # rebuild_preserve_data já reinicia os containers
+            log "Aguardando serviços iniciarem após rebuild..."
+            sleep 20  # Dar tempo suficiente para containers iniciarem
+            check_startup_order
+            test_endpoints
+            show_final_info
+            exit 0
         fi
     fi
     
