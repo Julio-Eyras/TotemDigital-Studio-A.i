@@ -184,11 +184,12 @@ router.put('/:id/activate',
     try {
       const totemId = parseInt(req.params.id);
       const { isActive } = req.body;
-      const totem = await getTotemService().activateTotem(totemId, isActive);
-      // if (!totem) { // Removido - função void não retorna valor
-      //   return res.status(404).json({ error: 'Totem não encontrado' });
-      // }
-      res.json(totem);
+      if (isActive) {
+        await getTotemService().activateTotem(totemId, 1);
+      } else {
+        await getTotemService().deactivateTotem(totemId, 1);
+      }
+      res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Erro ao alterar status do totem' });
     }

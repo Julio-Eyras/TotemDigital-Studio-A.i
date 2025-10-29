@@ -5,6 +5,7 @@ import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 
 const router = Router();
 
@@ -129,10 +130,21 @@ router.post('/upload',
         path: req.file.path
       };
 
+      const buffer = fs.readFileSync(req.file.path);
+
       const media = await getMediaService().createMedia({
-        ...mediaData,
-        file: req.file,
-        createdBy: 1 // Default user
+        name: mediaData.name,
+        title: mediaData.name,
+        description: mediaData.description,
+        tags: mediaData.tags ? String(mediaData.tags).split(',').map(t => t.trim()).filter(Boolean) : [],
+        clientId: mediaData.clientId || 1,
+        createdBy: 1,
+        file: {
+          buffer,
+          originalname: mediaData.originalName,
+          mimetype: mediaData.mimetype,
+          size: mediaData.size,
+        },
       });
       res.status(201).json(media);
     } catch (error) {
@@ -158,17 +170,25 @@ router.post('/upload-multiple',
       }
 
       const clientId = req.body.clientId ? parseInt(req.body.clientId) : undefined;
-      const mediaFiles = files.map(file => ({
-        name: file.originalname,
-        clientId,
-        filename: file.filename,
-        originalName: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        path: file.path
-      }));
-
-      const media = await getMediaService().createMultipleMedia(mediaFiles);
+      const created: any[] = [];
+      for (const file of files) {
+        const buffer = fs.readFileSync(file.path);
+        const media = await getMediaService().createMedia({
+          name: file.originalname,
+          title: file.originalname,
+          description: '',
+          tags: [],
+          clientId: clientId || 1,
+          createdBy: 1,
+          file: {
+            buffer,
+            originalname: file.originalname,
+            mimetype: file.mimetype,
+            size: file.size,
+          },
+        });
+        created.push(media);
+      }
       res.status(201).json(media);
     } catch (error) {
       res.status(400).json({ error: 'Erro ao fazer upload dos arquivos' });

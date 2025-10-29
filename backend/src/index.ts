@@ -30,6 +30,7 @@ import settingsRoutes from './routes/settings';
 import reportsRoutes from './routes/reports';
 import aiRoutes from './routes/ai';
 import smartPlaylistRoutes from './routes/smart-playlist';
+import { openApiSpec } from './config/swagger';
 
 // Services
 import { SystemService } from './services/systemService';
@@ -218,6 +219,11 @@ app.use('/api/reports', authMiddleware, reportsRoutes);
 app.use('/api/ai', authMiddleware, aiRoutes);
 app.use('/api/smart-playlist', authMiddleware, smartPlaylistRoutes);
 
+// Docs JSON (Swagger OpenAPI)
+app.get('/api/docs.json', (req, res) => {
+  res.json(openApiSpec);
+});
+
 // Player routes (sem autenticação)
 app.get('/player', (req, res) => {
   res.sendFile('/opt/smart-signage/player/index.html');
@@ -241,9 +247,7 @@ app.get('/admin', (req, res) => {
 // API Documentation
 if (process.env.NODE_ENV !== 'production') {
   const swaggerUi = require('swagger-ui-express');
-  const swaggerSpec = require('./config/swagger');
-  
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
 }
 
 // 404 handler

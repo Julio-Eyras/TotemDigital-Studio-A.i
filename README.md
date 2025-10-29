@@ -103,15 +103,49 @@ chmod +x install-smartsignage.sh
 #    - Criação de usuário admin padrão
 ```
 
+### **Instalação Single-Server (com HTTPS opcional)**
+
+```bash
+# 1) Executar instalador com perguntas interativas
+chmod +x install-smartsignage.sh
+./install-smartsignage.sh
+
+# Durante a instalação, escolha o modo:
+#   1) Single-Server (SQLite)
+#   2) Docker (PostgreSQL)
+#   3) Desenvolvimento (SQLite)
+
+# HTTPS (pergunta interativa):
+#   1) Sem HTTPS (HTTP 80)
+#   2) HTTPS autoassinado (teste)
+#   3) HTTPS Let's Encrypt (produção, requer domínio)
+
+# 2) Para forçar HTTPS autoassinado sem perguntar:
+./install-smartsignage.sh --https-self-signed --skip-menu
+```
+
+### **Let's Encrypt (produção, com domínio público)**
+
+- O instalador pergunta e, se escolhido, realiza:
+  - Verificação de DNS do domínio
+  - Emissão automática via Certbot (porta 80 aberta)
+  - Configuração do Nginx com redireção 80→443
+  - Renovação automática diária (cron)
+- Se falhar ou não houver domínio: a instalação segue sem HTTPS (ou com autoassinado, se escolhido).
+
 ### **Após a Instalação**
 
 O sistema estará disponível em:
 
 - **Frontend/Interface**: `http://seu-servidor-ip` ou `http://localhost`
 - **API Backend**: `http://seu-servidor-ip/api` ou `http://localhost/api`
+- **Documentação da API (Swagger UI)**: `http://seu-servidor-ip/api-docs`
+- **OpenAPI JSON**: `http://seu-servidor-ip/api/docs.json`
 - **Player**: `http://seu-servidor-ip/player` ou `http://localhost/player`
 - **Grafana**: `http://seu-servidor-ip:3002` (admin/admin)
 - **Prometheus**: `http://seu-servidor-ip:9090`
+
+Se HTTPS estiver ativo (autoassinado ou Let's Encrypt), use `https://`.
 
 ### **Credenciais Padrão**
 - **Usuário**: `admin`
@@ -152,6 +186,19 @@ cd /opt/smart-signage
 ./manage-system.sh help
 ```
 
+### **Systemd (Single-Server)**
+
+```bash
+# Serviço do backend
+sudo systemctl status smart-signage
+sudo systemctl start smart-signage
+sudo systemctl stop smart-signage
+sudo systemctl restart smart-signage
+
+# Teste rápido da API
+curl -s http://localhost:3000/health | jq .
+```
+
 ### **Comandos Docker Compose Diretos**
 
 ```bash
@@ -171,6 +218,66 @@ docker compose restart backend
 # Rebuild após atualizações
 docker compose build --no-cache
 docker compose up -d
+```
+
+### **Nginx (Single-Server)**
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+sudo systemctl status nginx --no-pager
+```
+
+### **Exemplos rápidos (cURL)**
+
+```bash
+# 1) Login (obter token JWT)
+TOKEN=$(curl -s -X POST http://SEU_HOST:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin"}' | jq -r '.accessToken')
+
+# 2) Upload de mídia (multipart/form-data)
+curl -s -X POST http://SEU_HOST:3000/api/media/upload \
+  -H "Authorization: Bearer $TOKEN" \
+  -F file=@./banner.jpg \
+  -F name=banner_loja \
+  -F description="Banner promocional" \
+  -F tags="promo,blackfriday" \
+  -F clientId=1 | jq .
+
+# 3) Criar campanha
+curl -s -X POST http://SEU_HOST:3000/api/campaigns \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+    "clientId": 1,
+    "title": "Campanha Verão",
+    "description": "Promoções de verão",
+    "campaignType": "general",
+    "startDate": "2025-12-01",
+    "endDate": "2026-01-15",
+    "isActive": true
+  }' | jq .
+
+# 4) Atribuir playlist a um player
+curl -s -X POST http://SEU_HOST:3000/api/players/1001/playlist \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"playlistId":55}' | jq .
+
+# 5) Enviar heartbeat de totem
+curl -s -X POST http://SEU_HOST:3000/api/totems/2001/heartbeat \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"status":"online","uptime":3600,"memoryUsage":42.5}' | jq .
+
+# 6) Health e OpenAPI
+curl -s http://SEU_HOST:3000/health | jq .
+curl -s http://SEU_HOST:3000/api/docs.json | jq '.info,.paths | keys | length'
+```
+
+### **Reexecutar checklist pós-instalação**
+
+```bash
+# Substitua HOST_OVERRIDE pelo IP ou domínio público
+HOST_OVERRIDE=SEU_HOST bash scripts/post-install-check.sh
 ```
 
 ---
@@ -361,6 +468,36 @@ OLLAMA_BASE_URL=http://ollama:11434
 
 O player está configurado para se conectar automaticamente ao backend. Para configuração personalizada, edite `player/index.html`.
 
+### **Arquivo de exemplo de ambiente**
+
+- Caminho: `backend/env.example`
+- Como usar: copie para `backend/.env` (em produção o instalador já cria na raiz de instalação `.env`).
+- Variáveis principais:
+  - `DATABASE_URL`: URL de conexão (PostgreSQL em Docker; SQLite em single-server/desenvolvimento)
+  - `JWT_SECRET`: chave secreta para assinar JWT (gerada automaticamente no install)
+  - `PORT`/`HOST`: porta e host do backend (padrão 3000/0.0.0.0)
+  - `UPLOAD_PATH`, `UPLOAD_MAX_SIZE`: diretórios e limites de upload
+  - `CORS_ORIGIN`: origens permitidas
+  - `AI_PROVIDER`, `AI_MODEL`, `OLLAMA_BASE_URL`: provedor/modelo de IA
+
+Consulte o arquivo `backend/env.example` para a lista completa e descrições comentadas.
+
+### **Saúde e Diagnóstico Rápido**
+
+```bash
+# Saúde do backend
+curl -s http://localhost:3000/health | jq .
+
+# Saúde do Nginx (Docker)
+docker compose logs --tail 50 nginx
+
+# Saúde do Nginx (Single-Server)
+sudo tail -n 50 /var/log/nginx/error.log
+
+# OpenAPI JSON
+curl -s http://localhost:3000/api/docs.json | jq '.info,.paths | keys | length'
+```
+
 ---
 
 ## 📈 **MONITORAMENTO**
@@ -375,6 +512,13 @@ O player está configurado para se conectar automaticamente ao backend. Para con
 - Usuário: `admin`
 - Senha: `admin`
 - Dashboards pré-configurados disponíveis
+- Importar dashboard de operação:
+  - Em Grafana: Dashboards → Import → Upload JSON
+  - Arquivo: `monitoring/grafana/dashboards/smartsignage-operations.json`
+- Configurar alertas (Grafana Alerting):
+  - Em Grafana: Alerting → Alert rules → Import/Provision
+  - Arquivo: `monitoring/grafana/alerts/smartsignage-alerts.yaml`
+  - Alternativamente, copie o YAML para a pasta de provisionamento do Grafana (ex.: `/etc/grafana/provisioning/alerting/`) e reinicie o Grafana.
 
 ### **Health Checks**
 

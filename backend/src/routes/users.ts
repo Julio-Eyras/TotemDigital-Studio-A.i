@@ -129,20 +129,17 @@ router.put('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const { username, email, name, role, clientId } = req.body;
-      
-      // Simular atualização (substituir por chamada real ao banco)
-      const updatedUser = {
-        user_id: parseInt(id),
-        username: username || 'usuario',
+      const { username, email, password, name, role, clientId, isActive } = req.body;
+
+      const updatedUser = await getUserService().updateUser(parseInt(id), {
+        username,
         email,
-        name: name || 'Usuário',
-        role: role || 'user',
-        client_id: clientId,
-        is_active: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: new Date().toISOString(),
-      };
+        password,
+        name,
+        role,
+        clientId,
+        isActive,
+      });
 
       res.json(updatedUser);
     } catch (error) {
@@ -162,8 +159,7 @@ router.delete('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
-      // Simular exclusão (substituir por chamada real ao banco)
+      await getUserService().deleteUser(parseInt(id));
       res.status(204).send();
     } catch (error) {
       console.error('Erro ao excluir usuário:', error);

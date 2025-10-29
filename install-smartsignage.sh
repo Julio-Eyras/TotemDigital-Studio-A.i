@@ -16,6 +16,7 @@
 #   --force              Força rebuild mesmo se não detectar mudanças
 #   --check-only         Apenas verifica se rebuild é necessário (não executa)
 #   --skip-menu          Pula menu interativo (usa modo Docker por padrão)
+#   --https-self-signed  Habilita HTTPS com certificado autoassinado (single-server)
 # =============================================================================
 
 set -e  # Parar em caso de erro
@@ -31,6 +32,10 @@ FORCE_REBUILD=false
 CHECK_ONLY=false
 SKIP_MENU=false
 INSTALL_MODE=""
+ENABLE_HTTPS_SELF_SIGNED=false
+ENABLE_HTTPS_LETSENCRYPT=false
+DOMAIN_NAME=""
+SSL_EMAIL=""
 
 # Cores para output
 RED='\033[0;31m'
@@ -140,6 +145,10 @@ parse_arguments() {
                 INSTALL_MODE="docker"
                 shift
                 ;;
+            --https-self-signed)
+                ENABLE_HTTPS_SELF_SIGNED=true
+                shift
+                ;;
             --help|-h)
                 echo "Smart Signage Pro v2.0 - Script de Instalação"
                 echo ""
@@ -153,6 +162,7 @@ parse_arguments() {
                 echo "  --force              Força rebuild sempre"
                 echo "  --check-only         Apenas verifica se precisa rebuild"
                 echo "  --skip-menu          Pula menu (usa Docker)"
+                echo "  --https-self-signed  Habilita HTTPS autoassinado (single-server)"
                 echo "  --help               Mostra esta ajuda"
                 exit 0
                 ;;
@@ -684,6 +694,265 @@ EOF
     log "Variáveis de ambiente configuradas em $ENV_FILE"
 }
 
+# Perguntar sobre configuração HTTPS
+ask_https_configuration() {
+    # Pular se for modo Docker (gerenciado pelo compose)
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        return 0
+    fi
+    
+    # Pular se já foi configurado via flag
+    if [[ "$ENABLE_HTTPS_SELF_SIGNED" == "true" ]]; then
+        return 0
+    fi
+    
+    echo
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}                    Configuração de HTTPS (SSL/TLS)${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo
+    echo -e "${YELLOW}Escolha como deseja configurar HTTPS:${NC}"
+    echo -e "${GREEN}1)${NC} Sem HTTPS (apenas HTTP - porta 80)"
+    echo -e "${GREEN}2)${NC} HTTPS com certificado autoassinado (testes/desenvolvimento)"
+    echo -e "${GREEN}3)${NC} HTTPS com Let's Encrypt (produção - requer domínio público)"
+    echo
+    read -p "Digite sua escolha (1-3) [padrão: 1]: " https_choice
+    
+    https_choice=${https_choice:-1}
+    
+    case $https_choice in
+        1)
+            log "HTTPS não será configurado (apenas HTTP)"
+            ENABLE_HTTPS_SELF_SIGNED=false
+            ENABLE_HTTPS_LETSENCRYPT=false
+            ;;
+        2)
+            log "HTTPS autoassinado será configurado"
+            ENABLE_HTTPS_SELF_SIGNED=true
+            ENABLE_HTTPS_LETSENCRYPT=false
+            ;;
+        3)
+            log "Iniciando configuração Let's Encrypt..."
+            ask_letsencrypt_details
+            ;;
+        *)
+            log "Opção inválida, usando padrão (sem HTTPS)"
+            ENABLE_HTTPS_SELF_SIGNED=false
+            ENABLE_HTTPS_LETSENCRYPT=false
+            ;;
+    esac
+}
+
+# Perguntar detalhes do Let's Encrypt
+ask_letsencrypt_details() {
+    echo
+    echo -e "${YELLOW}Para usar Let's Encrypt, você precisa ter:${NC}"
+    echo "  ✓ Domínio público (ex: smartsignage.com.br)"
+    echo "  ✓ DNS apontando para o IP deste servidor"
+    echo "  ✓ Porta 80 acessível (para validação)"
+    echo
+    read -p "Digite seu domínio (ex: smartsignage.com.br): " domain_input
+    
+    if [[ -z "$domain_input" ]]; then
+        warning "Domínio não informado. Usando HTTP sem HTTPS."
+        ENABLE_HTTPS_LETSENCRYPT=false
+        return 0
+    fi
+    
+    DOMAIN_NAME="$domain_input"
+    
+    echo
+    read -p "Digite seu email para notificações do Let's Encrypt (opcional): " email_input
+    SSL_EMAIL="${email_input:-admin@${DOMAIN_NAME}}"
+    
+    # Verificar se o domínio está configurado no DNS
+    log "Verificando se o domínio $DOMAIN_NAME aponta para este servidor..."
+    
+    SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "")
+    
+    # Tentar usar dig se disponível, senão usar getent ou ping
+    if command -v dig &> /dev/null; then
+        DOMAIN_IP=$(dig +short "$DOMAIN_NAME" A 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || echo "")
+    elif command -v host &> /dev/null; then
+        DOMAIN_IP=$(host -t A "$DOMAIN_NAME" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "")
+    else
+        DOMAIN_IP=""
+    fi
+    
+    if [[ -z "$DOMAIN_IP" ]]; then
+        warning "⚠️  Não foi possível verificar o DNS do domínio $DOMAIN_NAME"
+        warning "Certifique-se de que o DNS A/AAAA aponta para este servidor antes de continuar"
+        echo
+        read -p "Deseja continuar mesmo assim? (s/N): " continue_anyway
+        if [[ ! "$continue_anyway" =~ ^[Ss]$ ]]; then
+            log "Let's Encrypt cancelado. Usando HTTP sem HTTPS."
+            ENABLE_HTTPS_LETSENCRYPT=false
+            return 0
+        fi
+    elif [[ -n "$SERVER_IP" && "$DOMAIN_IP" != "$SERVER_IP" ]]; then
+        warning "⚠️  O domínio $DOMAIN_NAME aponta para $DOMAIN_IP, mas este servidor é $SERVER_IP"
+        warning "O certificado pode falhar se o DNS não estiver correto"
+        echo
+        read -p "Deseja continuar mesmo assim? (s/N): " continue_anyway
+        if [[ ! "$continue_anyway" =~ ^[Ss]$ ]]; then
+            log "Let's Encrypt cancelado. Usando HTTP sem HTTPS."
+            ENABLE_HTTPS_LETSENCRYPT=false
+            return 0
+        fi
+    else
+        log "✓ Domínio $DOMAIN_NAME verificado corretamente"
+    fi
+    
+    ENABLE_HTTPS_LETSENCRYPT=true
+    ENABLE_HTTPS_SELF_SIGNED=false
+}
+
+# Configurar Let's Encrypt
+setup_letsencrypt() {
+    if [[ "$ENABLE_HTTPS_LETSENCRYPT" != "true" ]] || [[ -z "$DOMAIN_NAME" ]]; then
+        return 0
+    fi
+    
+    log "Configurando Let's Encrypt para $DOMAIN_NAME..."
+    
+    # Instalar certbot se não estiver instalado
+    if ! command -v certbot &> /dev/null; then
+        log "Instalando Certbot..."
+        sudo apt install -y certbot python3-certbot-nginx || {
+            error "Falha ao instalar Certbot"
+            warning "Continuando sem HTTPS"
+            ENABLE_HTTPS_LETSENCRYPT=false
+            return 0
+        }
+    fi
+    
+    # Criar configuração Nginx temporária (HTTP) para validação
+    NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
+    
+    # Configurar primeiro com HTTP apenas
+    sudo tee $NGINX_CONFIG > /dev/null << EOF
+server {
+    listen 80;
+    server_name $DOMAIN_NAME www.$DOMAIN_NAME;
+    
+    # Frontend
+    location / {
+        root $INSTALL_DIR/frontend/build;
+        try_files \$uri \$uri/ /index.html;
+    }
+    
+    # Backend API
+    location /api/ {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
+    
+    # Player
+    location /player/ {
+        alias $INSTALL_DIR/player/;
+        try_files \$uri \$uri/ /player/index.html;
+    }
+    
+    # Assets
+    location /assets/ {
+        alias $INSTALL_DIR/public/assets/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
+    
+    sudo ln -sf $NGINX_CONFIG /etc/nginx/sites-enabled/
+    sudo rm -f /etc/nginx/sites-enabled/default
+    
+    # Recarregar Nginx
+    if sudo nginx -t && sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload; then
+        log "Nginx configurado com HTTP temporariamente"
+    else
+        error "Erro ao configurar Nginx"
+        warning "Continuando sem HTTPS"
+        ENABLE_HTTPS_LETSENCRYPT=false
+        return 0
+    fi
+    
+    # Tentar obter certificado
+    log "Obtendo certificado SSL do Let's Encrypt..."
+    log "Isso pode levar alguns minutos..."
+    
+    if sudo certbot --nginx -d "$DOMAIN_NAME" -d "www.$DOMAIN_NAME" --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect; then
+        log "✅ Certificado Let's Encrypt obtido com sucesso!"
+        
+        # Configurar renovação automática
+        if ! sudo crontab -l 2>/dev/null | grep -q "certbot renew"; then
+            (sudo crontab -l 2>/dev/null; echo "0 0 * * * /usr/bin/certbot renew --quiet --nginx && systemctl reload nginx") | sudo crontab -
+            log "✓ Renovação automática configurada no cron"
+        fi
+    else
+        error "❌ Falha ao obter certificado Let's Encrypt"
+        warning "Verifique se:"
+        warning "  - O domínio $DOMAIN_NAME aponta para este servidor"
+        warning "  - A porta 80 está acessível"
+        warning "  - O firewall permite conexões HTTP"
+        warning "Continuando sem HTTPS. Você pode tentar novamente depois com:"
+        warning "  sudo certbot --nginx -d $DOMAIN_NAME"
+        ENABLE_HTTPS_LETSENCRYPT=false
+        
+        # Recriar configuração sem SSL
+        setup_nginx_http_only
+    fi
+}
+
+# Configurar Nginx apenas HTTP (sem SSL)
+setup_nginx_http_only() {
+    NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
+    
+    sudo tee $NGINX_CONFIG > /dev/null << EOF
+server {
+    listen 80;
+    server_name ${DOMAIN_NAME:-_};
+    
+    # Frontend
+    location / {
+        root $INSTALL_DIR/frontend/build;
+        try_files \$uri \$uri/ /index.html;
+    }
+    
+    # Backend API
+    location /api/ {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
+    
+    # Player
+    location /player/ {
+        alias $INSTALL_DIR/player/;
+        try_files \$uri \$uri/ /player/index.html;
+    }
+    
+    # Assets
+    location /assets/ {
+        alias $INSTALL_DIR/public/assets/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
+}
+
 # Configurar Nginx
 setup_nginx() {
     log "Configurando Nginx..."
@@ -696,7 +965,64 @@ setup_nginx() {
     
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
     
-    sudo tee $NGINX_CONFIG > /dev/null << EOF
+    if [[ "$ENABLE_HTTPS_SELF_SIGNED" == "true" ]] && [[ "$INSTALL_MODE" == "single-server" ]]; then
+        SSL_DIR="$INSTALL_DIR/nginx/ssl"
+        sudo mkdir -p "$SSL_DIR"
+        if [[ ! -f "$SSL_DIR/selfsigned.key" || ! -f "$SSL_DIR/selfsigned.crt" ]]; then
+            sudo openssl req -x509 -nodes -days 825 -newkey rsa:2048 \
+                -keyout "$SSL_DIR/selfsigned.key" \
+                -out "$SSL_DIR/selfsigned.crt" \
+                -subj "/C=BR/ST=NA/L=NA/O=SmartSignage/OU=IT/CN=localhost"
+        fi
+        sudo tee $NGINX_CONFIG > /dev/null << EOF
+server {
+    listen 80;
+    server_name _;
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name _;
+
+    ssl_certificate     $SSL_DIR/selfsigned.crt;
+    ssl_certificate_key $SSL_DIR/selfsigned.key;
+
+    # Frontend
+    location / {
+        root $INSTALL_DIR/frontend/build;
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    # Backend API
+    location /api/ {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
+
+    # Player
+    location /player/ {
+        alias $INSTALL_DIR/player/;
+        try_files \$uri \$uri/ /player/index.html;
+    }
+
+    # Assets
+    location /assets/ {
+        alias $INSTALL_DIR/public/assets/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
+    else
+        sudo tee $NGINX_CONFIG > /dev/null << EOF
 server {
     listen 80;
     server_name _;
@@ -734,9 +1060,16 @@ server {
     }
 }
 EOF
+    fi
 
     sudo ln -sf $NGINX_CONFIG /etc/nginx/sites-enabled/
     sudo rm -f /etc/nginx/sites-enabled/default
+    
+    # Se Let's Encrypt está ativo, não configurar aqui (será feito em setup_letsencrypt)
+    if [[ "$ENABLE_HTTPS_LETSENCRYPT" == "true" ]]; then
+        log "Nginx será configurado pelo Let's Encrypt"
+        return 0
+    fi
     
     # Apenas testar configuração, não recarregar
     if sudo nginx -t; then
@@ -3030,6 +3363,9 @@ main() {
     
     show_menu
     
+    # Perguntar sobre HTTPS (após menu, antes da instalação)
+    ask_https_configuration
+    
     log "Iniciando instalação do Smart Signage Pro v2.0..."
     
     update_system
@@ -3042,6 +3378,7 @@ main() {
     setup_database
     setup_environment
     setup_nginx
+    setup_letsencrypt  # Configurar Let's Encrypt se escolhido
     create_systemd_service
     setup_docker_compose
     
@@ -3067,6 +3404,12 @@ main() {
     setup_first_boot
     create_management_script
     setup_management_scripts
+    
+    # Executar checklist pós-instalação (não bloqueante)
+    if [[ -f "$INSTALL_DIR/scripts/post-install-check.sh" ]]; then
+        chmod +x "$INSTALL_DIR/scripts/post-install-check.sh" 2>/dev/null || true
+        (HOST_OVERRIDE="${PUBLIC_DOMAIN:-localhost}" bash "$INSTALL_DIR/scripts/post-install-check.sh") || true
+    fi
     
     # Salvar informações da build após instalação bem-sucedida
     if [[ "$INSTALL_MODE" == "docker" ]]; then

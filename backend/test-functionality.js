@@ -161,17 +161,42 @@ configTests.forEach(([testName, command]) => {
   }
 });
 
-// 5. Resumo dos Testes
-console.log('\n📊 RESUMO DOS TESTES\n');
-console.log(`Total de Testes: ${totalTests}`);
-console.log(`Testes Aprovados: ${passedTests}`);
-console.log(`Testes Falharam: ${totalTests - passedTests}`);
-console.log(`Taxa de Sucesso: ${((passedTests / totalTests) * 100).toFixed(1)}%`);
+// 5. Testes HTTP básicos (opcional)
+console.log('\n🌐 TESTES HTTP BÁSICOS (opcional)\n');
 
-if (passedTests === totalTests) {
-  console.log('\n🎉 TODOS OS TESTES PASSARAM! O SmartSignage-Pro está pronto para produção!');
-  process.exit(0);
-} else {
-  console.log('\n⚠️ Alguns testes falharam. Verifique os erros acima.');
-  process.exit(1);
+async function tryHttpTest(name, url, expectJson = true) {
+  totalTests++;
+  try {
+    const res = await fetch(url, { method: 'GET' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (expectJson) {
+      await res.json();
+    } else {
+      await res.text();
+    }
+    console.log(`✅ ${name} - SUCESSO`);
+    passedTests++;
+  } catch (e) {
+    console.log(`⚠️ ${name} - Não validado (${e.message}). Continue se o servidor não estiver rodando.`);
+  }
 }
+
+(async () => {
+  await tryHttpTest('Health check', 'http://localhost:3000/health', true);
+  await tryHttpTest('Docs JSON', 'http://localhost:3000/api/docs.json', true);
+
+  // 6. Resumo dos Testes
+  console.log('\n📊 RESUMO DOS TESTES\n');
+  console.log(`Total de Testes: ${totalTests}`);
+  console.log(`Testes Aprovados: ${passedTests}`);
+  console.log(`Testes Falharam: ${totalTests - passedTests}`);
+  console.log(`Taxa de Sucesso: ${((passedTests / totalTests) * 100).toFixed(1)}%`);
+
+  if (passedTests === totalTests) {
+    console.log('\n🎉 TODOS OS TESTES PASSARAM! O SmartSignage-Pro está pronto para produção!');
+    process.exit(0);
+  } else {
+    console.log('\n⚠️ Alguns testes falharam. Verifique os erros acima.');
+    process.exit(1);
+  }
+})();
