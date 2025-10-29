@@ -1254,7 +1254,8 @@ check_startup_order() {
     
     if [[ "$INSTALL_MODE" == "docker" ]]; then
         # Ordem para Docker
-        SERVICES=("postgres" "redis" "ollama" "backend" "frontend" "nginx" "prometheus" "grafana")
+        # Nginx está integrado no frontend - não precisa verificar separadamente
+        SERVICES=("postgres" "redis" "ollama" "backend" "frontend" "prometheus" "grafana")
         
         for service in "${SERVICES[@]}"; do
             log "Verificando $service..."
@@ -1274,10 +1275,7 @@ check_startup_order() {
                     wait_for_backend
                     ;;
                 "frontend")
-                    wait_for_frontend
-                    ;;
-                "nginx")
-                    wait_for_nginx
+                    wait_for_frontend  # Este já inclui verificação do Nginx integrado
                     ;;
                 "prometheus")
                     wait_for_prometheus
