@@ -45,8 +45,16 @@ COPY --from=builder /app/frontend/build /usr/share/nginx/html
 # Copiar configuração completa do Nginx (frontend + proxy)
 COPY nginx/nginx-complete.conf /etc/nginx/nginx.conf
 
-# Remover apenas arquivos padrão do Alpine (NÃO remover nosso index.html!)
-RUN rm -f /etc/nginx/conf.d/default.conf /usr/share/nginx/html/50x.html
+# Remover TODOS os arquivos padrão do Alpine que podem interferir
+# CRÍTICO: Remover default.conf e páginas padrão que mostram "Welcome to nginx!"
+RUN rm -rf /etc/nginx/conf.d/*.conf \
+    && rm -f /usr/share/nginx/html/50x.html \
+    && rm -f /usr/share/nginx/html/index.html.orig \
+    && find /usr/share/nginx/html -name "index.*.html" ! -name "index.html" -delete 2>/dev/null || true
+
+# Copiar entrypoint customizado
+COPY docker/nginx-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Criar diretórios necessários e garantir permissões corretas
 # IMPORTANTE: Nginx roda workers como usuário 'nginx' (não-privilegiado)
@@ -61,8 +69,13 @@ RUN mkdir -p /usr/share/nginx/html/assets && \
     touch /var/run/nginx.pid && \
     chown -R nginx:nginx /var/run/nginx.pid
 
-# Verificar que index.html existe após copiar o build
-RUN ls -la /usr/share/nginx/html/index.html || (echo "ERRO: index.html não encontrado!" && exit 1)
+# Verificar que index.html existe após copiar o build E que não há página padrão do Nginx
+RUN ls -la /usr/share/nginx/html/index.html || (echo "ERRO: index.html não encontrado!" && exit 1) \
+    && if grep -q "Welcome to nginx" /usr/share/nginx/html/index.html 2>/dev/null; then \
+        echo "ERRO: index.html ainda é a página padrão do Nginx!"; \
+        exit 1; \
+    fi \
+    && echo "✅ index.html correto verificado"
 
 # Expor porta
 EXPOSE 80
@@ -71,5 +84,5 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:80 || exit 1
 
-# Comando de inicialização
-CMD ["nginx", "-g", "daemon off;"]
+# Comando de inicialização (usa entrypoint customizado)
+ENTRYPOINT ["/docker-entrypoint.sh"]
