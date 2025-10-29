@@ -151,42 +151,43 @@ services:
     networks:
       - smartsignage-network
     # Garantir que nosso default.conf seja usado e validar antes de iniciar
-    entrypoint: ["/bin/sh", "-c"]
+    entrypoint: ["/bin/sh"]
     command:
+      - -c
       - |
-        echo '[NGINX] 🔍 Iniciando verificação de configuração...'
+        echo '[NGINX] Iniciando verificacao...'
         sleep 4
-        echo '[NGINX] 📂 Verificando nginx.conf...'
         if [ -f /etc/nginx/nginx.conf ]; then
-          echo '[NGINX] ✅ nginx.conf encontrado'
+          echo '[NGINX] nginx.conf encontrado'
         else
-          echo '[NGINX] ❌ nginx.conf NÃO encontrado!'
+          echo '[NGINX] ERRO: nginx.conf nao encontrado'
           exit 1
         fi
-        echo '[NGINX] 📂 Verificando /etc/nginx/conf.d/...'
-        ls -la /etc/nginx/conf.d/ || echo '[NGINX] ⚠️  Erro ao listar conf.d'
-        echo '[NGINX] 📂 Verificando default.conf...'
-        if [ -f /etc/nginx/conf.d/default.conf ]; then
-          echo '[NGINX] ✅ default.conf encontrado!'
-          echo '[NGINX] 📋 Tamanho:'
-          ls -lh /etc/nginx/conf.d/default.conf
-        else
-          echo '[NGINX] ⚠️  default.conf não encontrado, aguardando...'
-          sleep 5
+        ls -la /etc/nginx/conf.d/ || true
+        echo '[NGINX] Verificando default.conf...'
+        COUNT=0
+        while [ $COUNT -lt 10 ]; do
           if [ -f /etc/nginx/conf.d/default.conf ]; then
-            echo '[NGINX] ✅ default.conf encontrado após espera!'
-          else
-            echo '[NGINX] ❌ default.conf ainda não encontrado!'
-            echo '[NGINX] 📋 Conteúdo de /etc/nginx/conf.d/:'
-            ls -la /etc/nginx/conf.d/ 2>&1 || true
-            echo '[NGINX] ⚠️  Continuando mesmo assim...'
+            echo '[NGINX] default.conf encontrado'
+            break
           fi
+          COUNT=$((COUNT + 1))
+          echo "[NGINX] Aguardando... ($COUNT/10)"
+          sleep 1
+        done
+        if [ ! -f /etc/nginx/conf.d/default.conf ]; then
+          echo '[NGINX] AVISO: default.conf nao encontrado apos espera'
+          ls -la /etc/nginx/conf.d/ || true
         fi
-        echo '[NGINX] 📋 Testando configuração...'
-        nginx -t
-        echo '[NGINX] ✅ Configuração válida!'
-        echo '[NGINX] 🚀 Iniciando Nginx...'
-        exec nginx -g 'daemon off;'
+        echo '[NGINX] Testando configuracao...'
+        if nginx -t 2>&1; then
+          echo '[NGINX] Configuracao valida'
+          echo '[NGINX] Iniciando Nginx...'
+          exec nginx -g 'daemon off;'
+        else
+          echo '[NGINX] ERRO: Configuracao invalida'
+          exit 1
+        fi
 
   # Monitoring (Prometheus)
   prometheus:
