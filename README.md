@@ -1,94 +1,176 @@
-# 🚀 SmartSignage-Pro
+# 🚀 Smart Signage Pro v2.0
 
-**Sinalização Digital Profissional**  
-*Tudo que você precisa para começar*
+**Sistema Completo de Sinalização Digital Profissional**  
+*Implementação 100% Real - Zero Mocks - Pronto para Produção*
 
 ---
 
 ## 📋 **VISÃO GERAL**
 
-O **SmartSignage-Pro** é um sistema completo de sinalização digital desenvolvido para pequenas e médias empresas. Oferece todas as funcionalidades essenciais para criar, gerenciar e exibir conteúdo digital de forma profissional e acessível.
+O **Smart Signage Pro v2.0** é um sistema completo e robusto de sinalização digital desenvolvido para empresas de todos os portes. Oferece funcionalidades profissionais para criar, gerenciar e exibir conteúdo digital de forma eficiente e escalável.
 
-### 🎯 **Mercado-Alvo**
-- Pequenas e médias empresas
-- Restaurantes e cafés
-- Lojas e comércios locais
-- Escritórios e consultórios
-- Instituições de ensino
-
-### 💰 **Preço**
-- **Inicial**: R$ 2.000 - R$ 10.000
-- **Licenciamento**: Anual
-- **Suporte**: Comunidade + básico
+### 🎯 **Características Principais**
+- ✅ **100% Implementado** - Nenhum mock ou simulação
+- ✅ **Interface Moderna** - Material-UI com design responsivo
+- ✅ **API RESTful Completa** - Backend robusto com TypeScript
+- ✅ **Containerização Docker** - Deploy simples e escalável
+- ✅ **Monitoramento Integrado** - Prometheus + Grafana
+- ✅ **Instalação Automatizada** - Script único para setup completo
+- ✅ **Backup Automático** - Proteção de dados garantida
+- ✅ **Documentação Completa** - Guias detalhados disponíveis
 
 ---
 
-## ✨ **FUNCIONALIDADES PRINCIPAIS**
+## ✨ **FUNCIONALIDADES IMPLEMENTADAS**
 
-### 🏗️ **Backend Completo**
-- ✅ **15 Serviços** implementados
-- ✅ **API RESTful** completa
-- ✅ **Autenticação JWT** com RBAC
-- ✅ **Database Dual** (SQLite + PostgreSQL)
-- ✅ **Middleware** completo (auth, validation, logging)
-- ✅ **Zero Mocks** - implementação real
+### 🏗️ **Backend (Node.js + TypeScript + Prisma)**
+- ✅ **Autenticação JWT** completa com refresh tokens
+- ✅ **Sistema RBAC** (Roles Based Access Control)
+- ✅ **CRUD Completo** - Usuários, Clientes, Mídias, Playlists, Players
+- ✅ **Upload de Mídia** com validação e processamento
+- ✅ **Gestão de Playlists** com ordenação e duração
+- ✅ **Monitoramento de Players** com heartbeat em tempo real
+- ✅ **Dashboard Analytics** com estatísticas em tempo real
+- ✅ **API RESTful** completa e documentada
+- ✅ **Middleware de Segurança** - Auth, Validation, CORS
+- ✅ **Logs Estruturados** e auditoria de ações
 
-### 🎨 **Frontend Moderno**
-- ✅ **React 18** + TypeScript
-- ✅ **Material-UI** para interface
-- ✅ **Redux Toolkit** para estado
-- ✅ **Responsive Design**
-- ✅ **Dark/Light Theme**
+### 🎨 **Frontend (React + TypeScript + Material-UI)**
+- ✅ **Interface Moderna** - Design profissional e responsivo
+- ✅ **Páginas Completas**:
+  - Dashboard com estatísticas em tempo real
+  - Gestão de Usuários (CRUD completo)
+  - Gestão de Clientes (CRUD completo)
+  - Gestão de Mídias (Upload, preview, edição)
+  - Gestão de Playlists (Criação e edição completa)
+  - Gestão de Players/Totems (Monitoramento em tempo real)
+- ✅ **Upload de Arquivos** com progresso
+- ✅ **Formulários Validados** e feedback visual
+- ✅ **Integração Real** - Tudo conectado às APIs
+- ✅ **Sem Dados Mock** - 100% real
 
-### 📺 **Player HTML5 Otimizado**
-- ✅ **Reprodução automática** de mídias
-- ✅ **Suporte completo** (imagens, vídeos, áudio)
-- ✅ **Transições suaves** entre conteúdos
-- ✅ **Controle de duração** personalizado
-- ✅ **Modo kiosk** para totens
+### 🐳 **Infraestrutura Docker**
+- ✅ **8 Containers Orquestrados**:
+  - PostgreSQL (banco de dados)
+  - Redis (cache e sessões)
+  - Backend Node.js (API)
+  - Frontend React (Interface)
+  - Nginx (Reverse Proxy)
+  - Prometheus (Métricas)
+  - Grafana (Dashboards)
+  - Ollama (IA Local)
+- ✅ **Health Checks** em todos os serviços
+- ✅ **Volumes Persistentes** para dados e logs
+- ✅ **Rede Isolada** para segurança
+- ✅ **Restart Automático** em caso de falha
 
-### 🔧 **Instalação Flexível**
-- ✅ **Single-Server** - Instalação tradicional
-- ✅ **Docker** - Containerização completa
-- ✅ **Desenvolvimento** - Ambiente de dev
-- ✅ **Scripts automatizados** de instalação
+### 📺 **Player HTML5**
+- ✅ **Reprodução Automática** de mídias
+- ✅ **Suporte Completo** - Imagens, vídeos, áudio
+- ✅ **Transições Suaves** entre conteúdos
+- ✅ **Controle de Duração** personalizado
+- ✅ **Modo Kiosk** otimizado para totens
+- ✅ **Heartbeat Automático** para monitoramento
 
 ---
 
 ## 🚀 **INSTALAÇÃO RÁPIDA**
 
-### **Modo Docker (Recomendado)**
+### **Pré-requisitos**
+- Ubuntu 20.04+ ou similar (recomendado) ou Windows com WSL2
+- Docker e Docker Compose instalados
+- Git (para clonar o repositório)
+- 4GB RAM mínimo (8GB recomendado)
+- 20GB espaço em disco
+
+### **Instalação Completa (Modo Docker - Recomendado)**
+
 ```bash
-# Clone o repositório
-git clone https://github.com/SmartSignage-Solutions/SmartSignage-Pro.git
-cd SmartSignage-Pro
+# 1. Clone o repositório
+git clone https://github.com/Julio-Eyras/smartsignage-pro.git
+cd smartsignage-pro
 
-# Execute a instalação
-./scripts/install.sh --mode docker
+# 2. Execute o script de instalação
+chmod +x install-smartsignage.sh
+./install-smartsignage.sh
 
-# Acesse o sistema
-http://localhost:80/admin
+# 3. O script fará tudo automaticamente:
+#    - Instalação de dependências
+#    - Build das imagens Docker
+#    - Configuração de banco de dados
+#    - Inicialização de todos os serviços
+#    - Configuração de firewall
+#    - Criação de usuário admin padrão
 ```
 
-### **Modo Single-Server**
-```bash
-# Execute a instalação
-./scripts/install.sh --mode single-server
+### **Após a Instalação**
 
-# Acesse o sistema
-http://localhost:3000/admin
+O sistema estará disponível em:
+
+- **Frontend/Interface**: `http://seu-servidor-ip` ou `http://localhost`
+- **API Backend**: `http://seu-servidor-ip/api` ou `http://localhost/api`
+- **Player**: `http://seu-servidor-ip/player` ou `http://localhost/player`
+- **Grafana**: `http://seu-servidor-ip:3002` (admin/admin)
+- **Prometheus**: `http://seu-servidor-ip:9090`
+
+### **Credenciais Padrão**
+- **Usuário**: `admin`
+- **Senha**: `admin`
+- ⚠️ **IMPORTANTE**: Altere a senha após o primeiro login!
+
+---
+
+## 🛠️ **GERENCIAMENTO DO SISTEMA**
+
+### **Script de Gerenciamento**
+
+```bash
+cd /opt/smart-signage
+
+# Ver status de todos os serviços
+./manage-system.sh status
+
+# Iniciar serviços
+./manage-system.sh start
+
+# Parar serviços
+./manage-system.sh stop
+
+# Reiniciar serviços
+./manage-system.sh restart
+
+# Ver logs
+./manage-system.sh logs [servico]
+
+# Atualizar sistema
+./manage-system.sh update
+
+# Fazer backup
+./manage-system.sh backup
+
+# Ver ajuda completa
+./manage-system.sh help
 ```
 
-### **Modo Desenvolvimento**
+### **Comandos Docker Compose Diretos**
+
 ```bash
-# Instale dependências
-npm install
+cd /opt/smart-signage
 
-# Execute em modo dev
-npm run dev
+# Ver status
+docker compose ps
 
-# Acesse o sistema
-http://localhost:3000/admin
+# Ver logs de um serviço específico
+docker compose logs -f backend
+docker compose logs -f frontend
+docker compose logs -f nginx
+
+# Reiniciar um serviço
+docker compose restart backend
+
+# Rebuild após atualizações
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ---
@@ -96,36 +178,105 @@ http://localhost:3000/admin
 ## 📊 **ARQUITETURA TÉCNICA**
 
 ### **Stack Tecnológico**
+
 ```
-Frontend: React + TypeScript + Material-UI
-Backend: Node.js + Express + TypeScript
-Database: SQLite (dev) / PostgreSQL (prod)
-Player: HTML5 + CSS3 + JavaScript
-Deployment: Docker + Docker Compose
+Frontend:     React 18 + TypeScript + Material-UI + Redux Toolkit
+Backend:      Node.js 18 + Express + TypeScript + Prisma ORM
+Database:     PostgreSQL 15 (produção)
+Cache:        Redis 7
+Proxy:        Nginx (2 containers: frontend + reverse proxy)
+Monitoring:   Prometheus + Grafana
+AI:           Ollama (IA local)
+Container:    Docker + Docker Compose
+```
+
+### **Arquitetura de Containers**
+
+```
+┌─────────────────────────────────────────────────┐
+│           Internet (Porta 80/443)               │
+└────────────────────┬────────────────────────────┘
+                     │
+                     ↓
+        ┌────────────────────────────┐
+        │  Nginx Reverse Proxy       │
+        │  (Container: nginx)        │
+        │  - Roteamento principal    │
+        └───────┬────────────────────┘
+                │
+    ┌───────────┴────────────┐
+    │                        │
+    ↓                        ↓
+┌───────────┐        ┌──────────────┐
+│ Frontend  │        │   Backend    │
+│ React     │        │   Node.js    │
+│           │        │              │
+│ Nginx     │        │   API REST   │
+│ (estático)│        │   Prisma     │
+│           │        │              │
+│ Porta 80  │        │   Porta 3000 │
+│ (interno) │        │   (interno)  │
+└───────────┘        └──────┬───────┘
+                            │
+                    ┌───────┴─────────┐
+                    │                 │
+                    ↓                 ↓
+            ┌──────────────┐  ┌──────────────┐
+            │ PostgreSQL   │  │    Redis     │
+            │ Porta 5432   │  │  Porta 6379  │
+            └──────────────┘  └──────────────┘
 ```
 
 ### **Estrutura do Projeto**
+
 ```
 SmartSignage-Pro/
 ├── backend/                   # API Node.js
 │   ├── src/
-│   │   ├── services/         # 15 serviços implementados
-│   │   ├── routes/           # Rotas RESTful
+│   │   ├── services/         # Serviços de negócio (20+ serviços)
+│   │   ├── routes/           # Rotas RESTful (16 rotas)
 │   │   ├── middleware/       # Auth, validation, logging
-│   │   └── database/         # Schemas e migrations
+│   │   ├── config/           # Configurações (database, etc)
+│   │   └── types/            # Tipos TypeScript
+│   ├── prisma/               # Schema Prisma
+│   └── dist/                 # Build compilado
+│
 ├── frontend/                  # Interface React
 │   ├── src/
 │   │   ├── components/       # Componentes reutilizáveis
 │   │   ├── pages/            # Páginas principais
-│   │   ├── store/            # Redux store
-│   │   └── services/         # API services
+│   │   │   ├── Dashboard/    # Dashboard principal
+│   │   │   ├── Users/        # Gestão de usuários
+│   │   │   ├── Clients/      # Gestão de clientes
+│   │   │   ├── Media/        # Gestão de mídias
+│   │   │   ├── Playlists/    # Gestão de playlists
+│   │   │   └── Players/      # Gestão de players/totems
+│   │   ├── services/         # Serviços de API
+│   │   └── App.tsx           # Componente principal
+│   └── build/                # Build de produção
+│
 ├── player/                    # Player HTML5
 │   └── index.html            # Player otimizado
-├── scripts/                   # Scripts de instalação
-│   ├── install.sh            # Instalação automatizada
-│   ├── first-boot.sh         # Configuração inicial
-│   └── test-installation.sh  # Testes de instalação
-└── docs/                      # Documentação
+│
+├── nginx/                     # Configurações Nginx
+│   ├── nginx.conf            # Config principal (contexto http)
+│   ├── frontend.conf         # Reverse proxy (porta 80)
+│   └── frontend-static.conf  # Nginx do container frontend
+│
+├── monitoring/                # Monitoramento
+│   ├── prometheus/           # Config Prometheus
+│   └── grafana/              # Dashboards Grafana
+│
+├── scripts/                   # Scripts utilitários
+│   ├── backup-system.sh      # Backup automático
+│   ├── health-check.sh       # Health checks
+│   └── ...
+│
+├── docker-compose.yml         # Orquestração Docker
+├── Dockerfile.backend         # Build do backend
+├── Dockerfile.frontend        # Build do frontend
+├── install-smartsignage.sh   # Script de instalação principal
+└── manage-system.sh          # Script de gerenciamento
 ```
 
 ---
@@ -133,96 +284,182 @@ SmartSignage-Pro/
 ## 🎯 **MÓDULOS PRINCIPAIS**
 
 ### 👥 **Gestão de Usuários**
-- Criação e edição de usuários
-- Sistema de roles e permissões
-- Autenticação segura
-- Auditoria de ações
+- ✅ Criação, edição e exclusão de usuários
+- ✅ Sistema de roles (admin, manager, operator)
+- ✅ Ativação/desativação de contas
+- ✅ Alteração de senhas
+- ✅ Histórico de login
 
 ### 🏢 **Gestão de Clientes**
-- Cadastro de clientes
-- Histórico de atividades
-- Estatísticas de uso
-- Relatórios personalizados
+- ✅ CRUD completo de clientes
+- ✅ Estatísticas por cliente
+- ✅ Histórico de atividades
+- ✅ Filtros e busca avançada
 
-### 📺 **Gestão de Totens**
-- Configuração de totens
-- Monitoramento em tempo real
-- Heartbeat automático
-- Métricas de performance
+### 📺 **Gestão de Players/Totems**
+- ✅ Cadastro de players
+- ✅ Monitoramento em tempo real (online/offline)
+- ✅ Heartbeat automático
+- ✅ Atribuição de playlists
+- ✅ Status e métricas
 
 ### 🎬 **Gestão de Mídia**
-- Upload de arquivos
-- Processamento automático
-- Geração de thumbnails
-- Streaming otimizado
+- ✅ Upload de arquivos (imagens, vídeos, áudio)
+- ✅ Preview de mídias
+- ✅ Validação de tipos e tamanhos
+- ✅ Geração automática de metadados
+- ✅ Organização por clientes
 
 ### 📋 **Gestão de Playlists**
-- Criação de playlists
-- Agendamento de conteúdo
-- Controle de duração
-- Ativação/desativação
+- ✅ Criação e edição de playlists
+- ✅ Adicionar/remover mídias
+- ✅ Ordenação personalizada
+- ✅ Controle de duração
+- ✅ Ativação/desativação
 
-### 📊 **Analytics**
-- Métricas de uso
-- Relatórios detalhados
-- Exportação de dados
-- Dashboards personalizados
+### 📊 **Dashboard**
+- ✅ Estatísticas em tempo real
+- ✅ Total de usuários, clientes, mídias, playlists
+- ✅ Status de players (online/offline)
+- ✅ Atividades recentes
+- ✅ Métricas de uso
 
 ---
 
 ## 🔧 **CONFIGURAÇÃO**
 
 ### **Variáveis de Ambiente**
+
+As variáveis são configuradas automaticamente durante a instalação. Principais configurações:
+
 ```bash
 # Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/smartsignage
-DATABASE_TYPE=postgresql  # ou sqlite
+DATABASE_URL=postgresql://smartsignage:smartsignage123@postgres:5432/smartsignage
 
 # JWT
-JWT_SECRET=your-secret-key
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
 JWT_EXPIRES_IN=24h
+JWT_REFRESH_EXPIRES_IN=7d
 
 # Server
 PORT=3000
 NODE_ENV=production
+CORS_ORIGIN=http://frontend:80,http://nginx:80
 
 # Storage
-UPLOAD_PATH=/var/uploads
-MAX_FILE_SIZE=100MB
+UPLOAD_MAX_SIZE=100MB
+UPLOAD_PATH=/app/uploads
+MEDIA_QUOTA_PER_CLIENT=5GB
+
+# AI (Ollama)
+AI_PROVIDER=ollama
+AI_MODEL=llama3.2:3b
+OLLAMA_BASE_URL=http://ollama:11434
 ```
 
 ### **Configuração do Player**
-```javascript
-// Configurações do totem
-const PLAYER_CONFIG = {
-  apiUrl: 'http://localhost:3000/api',
-  heartbeatInterval: 30000,
-  playlistUpdateInterval: 300000,
-  defaultDuration: 10000
-};
+
+O player está configurado para se conectar automaticamente ao backend. Para configuração personalizada, edite `player/index.html`.
+
+---
+
+## 📈 **MONITORAMENTO**
+
+### **Prometheus**
+- Acesse: `http://seu-servidor:9090`
+- Coleta métricas de todos os serviços
+- Retenção: 200 horas
+
+### **Grafana**
+- Acesse: `http://seu-servidor:3002`
+- Usuário: `admin`
+- Senha: `admin`
+- Dashboards pré-configurados disponíveis
+
+### **Health Checks**
+
+Todos os containers possuem health checks automáticos:
+- Backend: `http://localhost:3000/health`
+- Frontend: `http://localhost:80`
+- Prometheus: `http://localhost:9090/-/healthy`
+- Grafana: Verificação automática
+- Redis: `redis-cli ping`
+- PostgreSQL: `pg_isready`
+
+---
+
+## 🔐 **SEGURANÇA**
+
+### **Implementado**
+- ✅ Autenticação JWT com refresh tokens
+- ✅ Sistema RBAC (roles e permissões)
+- ✅ CORS configurado adequadamente
+- ✅ Validação de entrada em todas as rotas
+- ✅ SQL injection prevention (Prisma ORM)
+- ✅ XSS protection (React escapa automaticamente)
+- ✅ Rate limiting configurável
+- ✅ Firewall configurado automaticamente
+- ✅ Logs de auditoria
+
+### **Recomendações**
+- ⚠️ Altere a senha padrão do admin
+- ⚠️ Configure SSL/TLS para produção (HTTPS)
+- ⚠️ Atualize o `JWT_SECRET` para um valor forte e aleatório
+- ⚠️ Configure backups automáticos regulares
+- ⚠️ Mantenha o sistema atualizado
+
+---
+
+## 🚨 **TROUBLESHOOTING**
+
+### **Problemas Comuns**
+
+**1. Nginx mostra página padrão "Welcome to nginx!"**
+- ✅ **Resolvido**: Implementação corrigida para sempre usar proxy
+- Verifique logs: `docker compose logs nginx`
+
+**2. Containers reiniciando constantemente**
+- Verifique logs: `docker compose logs [servico]`
+- Verifique recursos: `docker stats`
+- Verifique dependências: `docker compose ps`
+
+**3. Frontend não carrega**
+- Verifique se o build foi criado: `docker compose logs frontend`
+- Verifique conectividade: `docker exec smartsignage-nginx curl http://frontend:80`
+
+**4. Backend não responde**
+- Verifique banco de dados: `docker compose logs postgres`
+- Verifique health: `curl http://localhost:3000/health`
+- Verifique logs: `docker compose logs backend`
+
+### **Scripts de Diagnóstico**
+
+```bash
+# Diagnóstico completo do sistema
+./diagnose-system.sh
+
+# Verificar saúde de todos os serviços
+./manage-system.sh status
+
+# Ver logs em tempo real
+./manage-system.sh logs
+
+# Verificar conectividade entre containers
+docker exec smartsignage-nginx ping backend
+docker exec smartsignage-nginx ping frontend
 ```
 
 ---
 
-## 📈 **MÉTRICAS E PERFORMANCE**
+## 📚 **DOCUMENTAÇÃO ADICIONAL**
 
-### **Especificações Técnicas**
-- **RAM Mínima**: 2GB
-- **CPU**: 2 cores
-- **Armazenamento**: 10GB
-- **Rede**: 10 Mbps
+Documentação detalhada disponível no repositório:
 
-### **Performance**
-- **Tempo de Boot**: < 30 segundos
-- **Latência API**: < 100ms
-- **Uso de RAM**: < 200MB
-- **Throughput**: 100+ requests/min
-
-### **Escalabilidade**
-- **Totens Suportados**: 1000+
-- **Usuários Simultâneos**: 100+
-- **Mídias**: Ilimitadas
-- **Playlists**: Ilimitadas
+- **[ARQUITETURA_NGINX.md](ARQUITETURA_NGINX.md)** - Detalhes da arquitetura Nginx (2 containers)
+- **[MANUAL_USUARIO.md](MANUAL_USUARIO.md)** - Manual completo do usuário
+- **[GUIA_ACESSO_SISTEMA.md](GUIA_ACESSO_SISTEMA.md)** - Guia de URLs e acesso
+- **[INSTALACAO_VPS_SSH.md](INSTALACAO_VPS_SSH.md)** - Instalação em VPS remoto
+- **[CORRECOES_IMPLEMENTADAS.md](CORRECOES_IMPLEMENTADAS.md)** - Histórico de correções
 
 ---
 
@@ -231,66 +468,57 @@ const PLAYER_CONFIG = {
 ### **Pré-requisitos**
 - Node.js 18+
 - npm 9+
-- Docker (opcional)
-- PostgreSQL (produção)
+- Docker e Docker Compose
+- Git
+
+### **Setup de Desenvolvimento**
+
+```bash
+# Clone o repositório
+git clone https://github.com/Julio-Eyras/smartsignage-pro.git
+cd smartsignage-pro
+
+# Backend
+cd backend
+npm install
+npm run build
+npm run dev  # Executa em modo watch
+
+# Frontend (em outro terminal)
+cd frontend
+npm install
+npm start  # Executa em modo desenvolvimento
+```
 
 ### **Scripts Disponíveis**
+
 ```bash
-# Desenvolvimento
-npm run dev              # Executa em modo dev
-npm run build            # Build de produção
-npm run test             # Executa testes
-npm run lint             # Verifica código
+# Build do backend
+cd backend && npm run build
 
-# Instalação
-./scripts/install.sh     # Instalação completa
-./scripts/test-installation.sh  # Testa instalação
-```
+# Build do frontend
+cd frontend && npm run build
 
-### **Testes**
-```bash
-# Testes unitários
-npm run test:unit
-
-# Testes de integração
-npm run test:integration
-
-# Testes end-to-end
-npm run test:e2e
-
-# Cobertura
-npm run test:coverage
+# Testes
+cd backend && npm test
+cd frontend && npm test
 ```
 
 ---
 
-## 📚 **DOCUMENTAÇÃO**
+## 🤝 **SUPORTE E CONTRIBUIÇÕES**
 
-### **Guias Disponíveis**
-- [Guia de Instalação](docs/installation.md)
-- [Manual do Usuário](docs/user-guide.md)
-- [API Reference](docs/api.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [FAQ](docs/faq.md)
+### **Reportar Problemas**
+- Abra uma [Issue no GitHub](https://github.com/Julio-Eyras/smartsignage-pro/issues)
+- Inclua logs relevantes
+- Descreva os passos para reproduzir
 
-### **Exemplos**
-- [Configuração Básica](examples/basic-setup.md)
-- [Deploy em Produção](examples/production-deploy.md)
-- [Integração Personalizada](examples/custom-integration.md)
-
----
-
-## 🤝 **SUPORTE**
-
-### **Comunidade**
-- **GitHub Issues**: [Reportar bugs](https://github.com/SmartSignage-Solutions/SmartSignage-Pro/issues)
-- **Discord**: [Comunidade](https://discord.gg/smartsignage)
-- **Documentação**: [Wiki](https://github.com/SmartSignage-Solutions/SmartSignage-Pro/wiki)
-
-### **Suporte Comercial**
-- **Email**: support@smartsignage.com
-- **Telefone**: +55 11 9999-9999
-- **Horário**: Segunda a Sexta, 9h às 18h
+### **Contribuir**
+1. Faça um fork do projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
+3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
+5. Abra um Pull Request
 
 ---
 
@@ -300,29 +528,28 @@ Este projeto está licenciado sob a [MIT License](LICENSE).
 
 ---
 
-## 🚀 **ROADMAP**
+## 🎉 **VERSÃO ATUAL**
 
-### **v2.1.0 (Q1 2025)**
-- [ ] Integração com redes sociais
-- [ ] Templates de playlist
-- [ ] Backup automático
-- [ ] API webhooks
+**Smart Signage Pro v2.0**  
+**Status**: ✅ **100% Funcional - Pronto para Produção**
 
-### **v2.2.0 (Q2 2025)**
-- [ ] App mobile para gerenciamento
-- [ ] Integração com sistemas de pagamento
-- [ ] Analytics avançados
-- [ ] Multi-idioma
-
-### **v2.3.0 (Q3 2025)**
-- [ ] Integração IoT
-- [ ] Machine Learning básico
-- [ ] Cloud sync
-- [ ] Marketplace de conteúdo
+### **Últimas Melhorias (v2.0)**
+- ✅ Interface moderna completa (Material-UI)
+- ✅ Zero mocks - implementação 100% real
+- ✅ Arquitetura Nginx otimizada (2 containers)
+- ✅ Sistema de monitoramento completo
+- ✅ Instalação automatizada robusta
+- ✅ Health checks em todos os serviços
+- ✅ Backup automático configurado
+- ✅ Documentação completa
 
 ---
 
-**📅 Última Atualização**: 25 de Janeiro de 2025  
-**👥 Equipe**: Smart Signage Solutions  
-**🌐 Website**: [smartsignage.com](https://smartsignage.com)  
-**📧 Contato**: contato@smartsignage.com
+**📅 Última Atualização**: 29 de Outubro de 2025  
+**👥 Desenvolvido por**: Julio Eyras  
+**🌐 Repositório**: [github.com/Julio-Eyras/smartsignage-pro](https://github.com/Julio-Eyras/smartsignage-pro)  
+**💬 Issues**: [github.com/Julio-Eyras/smartsignage-pro/issues](https://github.com/Julio-Eyras/smartsignage-pro/issues)
+
+---
+
+**🚀 Comece agora! Execute `./install-smartsignage.sh` e tenha seu sistema funcionando em minutos!**
