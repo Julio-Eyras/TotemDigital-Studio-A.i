@@ -39,18 +39,31 @@ RUN apk add --no-cache \
 # Definir timezone
 ENV TZ=America/Sao_Paulo
 
-# Copiar build do frontend
+# =============================================================================
+# ORDEM CRÍTICA: Remover arquivos padrão PRIMEIRO antes de copiar arquivos customizados
+# =============================================================================
+
+# ETAPA 1: Remover TODOS os arquivos padrão do Nginx ANTES de copiar nossos arquivos
+# Isso garante que a página padrão "Welcome to nginx!" seja completamente removida
+RUN rm -rf /etc/nginx/conf.d/*.conf \
+    && rm -rf /usr/share/nginx/html/* \
+    && rm -rf /usr/share/nginx/html/.* 2>/dev/null || true \
+    && echo "✅ Arquivos padrão do Nginx removidos"
+
+# ETAPA 2: Criar diretório limpo para nosso frontend
+RUN mkdir -p /usr/share/nginx/html/assets
+
+# ETAPA 3: Copiar build do frontend (AGORA o diretório está limpo)
 COPY --from=builder /app/frontend/build /usr/share/nginx/html
 
-# Copiar configuração completa do Nginx (frontend + proxy)
+# ETAPA 4: Copiar configuração completa do Nginx (frontend + proxy)
 COPY nginx/nginx-complete.conf /etc/nginx/nginx.conf
 
-# Remover TODOS os arquivos padrão do Alpine que podem interferir
-# CRÍTICO: Remover default.conf e páginas padrão que mostram "Welcome to nginx!"
-RUN rm -rf /etc/nginx/conf.d/*.conf \
-    && rm -f /usr/share/nginx/html/50x.html \
+# ETAPA 5: Garantir que NÃO há arquivos padrão remanescentes
+RUN rm -f /usr/share/nginx/html/50x.html \
     && rm -f /usr/share/nginx/html/index.html.orig \
-    && find /usr/share/nginx/html -name "index.*.html" ! -name "index.html" -delete 2>/dev/null || true
+    && find /usr/share/nginx/html -name "index.*.html" ! -name "index.html" -delete 2>/dev/null || true \
+    && echo "✅ Limpeza final concluída"
 
 # Copiar entrypoint customizado
 COPY docker/nginx-entrypoint.sh /docker-entrypoint.sh
