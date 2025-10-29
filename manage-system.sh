@@ -344,11 +344,19 @@ show_logs() {
     local service=${1:-""}
     
     if [ -z "$service" ]; then
-        echo -e "${BLUE}📋 Logs de Todos os Serviços${NC}"
+        echo -e "${BLUE}📋 Logs de Todos os Serviços (últimas 50 linhas)${NC}"
+        echo -e "${CYAN}Pressione Ctrl+C para sair ou aguarde finalizar...${NC}"
+        echo ""
         docker compose logs --tail=50
     else
-        echo -e "${BLUE}📋 Logs do Serviço: $service${NC}"
-        docker compose logs --tail=50 "$service"
+        echo -e "${BLUE}📋 Logs do Serviço: $service (últimas 100 linhas)${NC}"
+        echo -e "${CYAN}Pressione Ctrl+C para sair...${NC}"
+        echo ""
+        docker compose logs --tail=100 "$service" 2>&1 || {
+            echo -e "${YELLOW}⚠️  Serviço '$service' não encontrado ou sem logs${NC}"
+            echo -e "${CYAN}Serviços disponíveis:${NC}"
+            docker compose ps --services
+        }
     fi
 }
 
