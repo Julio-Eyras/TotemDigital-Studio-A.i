@@ -116,11 +116,11 @@ fi
 
 # Verificar endpoints
 ENDPOINTS=(
-    "http://localhost:3000/health:Backend API"
-    "http://localhost:3000/api/health:API Health"
-    "http://localhost:3001:Frontend"
-    "http://localhost:3002:Grafana"
-    "http://localhost:9090:Prometheus"
+    "http://localhost:${BACKEND_PORT:-3000}/health:Backend API"
+    "http://localhost:${BACKEND_PORT:-3000}/api/health:API Health"
+    "http://localhost:${FRONTEND_ALT_PORT:-3001}:Frontend"
+    "http://localhost:${GRAFANA_PORT:-3002}:Grafana"
+    "http://localhost:${PROMETHEUS_PORT:-9090}:Prometheus"
 )
 
 ALL_OK=true
@@ -141,10 +141,10 @@ if [ "$ALL_OK" = true ]; then
     echo -e "${GREEN}🎉 Restore concluído com sucesso!${NC}"
     echo ""
     echo -e "${GREEN}🌐 Acesse:${NC}"
-    echo -e "   Frontend: http://localhost:3001"
-    echo -e "   Backend:  http://localhost:3000"
-    echo -e "   Grafana:  http://localhost:3002"
-    echo -e "   Prometheus: http://localhost:9090"
+    echo -e "   Frontend: http://localhost:${FRONTEND_ALT_PORT:-3001}"
+    echo -e "   Backend:  http://localhost:${BACKEND_PORT:-3000}"
+    echo -e "   Grafana:  http://localhost:${GRAFANA_PORT:-3002}"
+    echo -e "   Prometheus: http://localhost:${PROMETHEUS_PORT:-9090}"
 else
     echo -e "${YELLOW}⚠️  Restore concluído com alguns problemas${NC}"
     echo -e "${YELLOW}⚠️  Verifique os logs: docker compose logs${NC}"

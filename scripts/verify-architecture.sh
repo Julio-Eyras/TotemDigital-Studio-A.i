@@ -28,6 +28,17 @@ info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
 
+# Carregar .env e padrões de portas
+if [ -f "$INSTALL_DIR/.env" ]; then
+    # shellcheck disable=SC1090
+    . "$INSTALL_DIR/.env"
+fi
+FRONTEND_PORT=${FRONTEND_PORT:-8080}
+FRONTEND_ALT_PORT=${FRONTEND_ALT_PORT:-3001}
+BACKEND_PORT=${BACKEND_PORT:-3000}
+PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
+GRAFANA_PORT=${GRAFANA_PORT:-3002}
+
 # Banner
 echo -e "${BLUE}"
 echo "╔══════════════════════════════════════════════════════════════╗"
@@ -151,7 +162,7 @@ echo ""
 echo "🏗️ CONTAINERS SEPARADOS:"
 echo "  • postgres: Banco de dados PostgreSQL"
 echo "  • backend: API Node.js (porta 3000)"
-echo "  • frontend: Interface React com Nginx integrado (porta 80 e 3001)"
+echo "  • frontend: Interface React com Nginx integrado (porta ${FRONTEND_PORT} e ${FRONTEND_ALT_PORT})"
 echo "  • redis: Cache (porta 6379)"
 echo "  • ollama: IA (porta 11434)"
 echo "  • prometheus: Métricas (porta 9090)"
@@ -173,12 +184,12 @@ echo "  • Dockerfile.backend: Container do backend"
 echo "  • Dockerfile.frontend: Container do frontend"
 echo ""
 echo "📋 ENDPOINTS DISPONÍVEIS:"
-echo "  • Frontend: http://SEU_IP:80 (Nginx integrado)"
-echo "  • Frontend Direto: http://SEU_IP:3001"
-echo "  • Backend API: http://SEU_IP:3000"
-echo "  • Player: http://SEU_IP:80/player"
-echo "  • Prometheus: http://SEU_IP:9090"
-echo "  • Grafana: http://SEU_IP:3002"
+echo "  • Frontend: http://SEU_IP:${FRONTEND_PORT} (Nginx integrado)"
+echo "  • Frontend Direto: http://SEU_IP:${FRONTEND_ALT_PORT}"
+echo "  • Backend API: http://SEU_IP:${BACKEND_PORT}"
+echo "  • Player: http://SEU_IP:${FRONTEND_PORT}/player"
+echo "  • Prometheus: http://SEU_IP:${PROMETHEUS_PORT}"
+echo "  • Grafana: http://SEU_IP:${GRAFANA_PORT}"
 
 # 8. Próximos passos
 echo ""

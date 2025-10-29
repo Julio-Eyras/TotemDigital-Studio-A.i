@@ -28,6 +28,16 @@ info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
 
+# Carregar .env e padrões de portas
+if [ -f "$INSTALL_DIR/.env" ]; then
+    # shellcheck disable=SC1090
+    . "$INSTALL_DIR/.env"
+fi
+FRONTEND_PORT=${FRONTEND_PORT:-8080}
+BACKEND_PORT=${BACKEND_PORT:-3000}
+PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
+GRAFANA_PORT=${GRAFANA_PORT:-3002}
+
 # Banner
 echo -e "${BLUE}"
 echo "╔══════════════════════════════════════════════════════════════╗"
@@ -80,7 +90,7 @@ $COMPOSE_CMD up -d backend
 # 6. Aguardar o backend ficar pronto
 log "Aguardando backend ficar pronto..."
 for i in {1..30}; do
-    if curl -s http://localhost:3000/health > /dev/null 2>&1; then
+    if curl -s http://localhost:${BACKEND_PORT}/health > /dev/null 2>&1; then
         log "✅ Backend: Pronto"
         break
     fi
@@ -96,7 +106,8 @@ for i in {1..30}; do
 done
 
 # 7. Verificar se o backend está funcionando
-if curl -s http://localhost:3000/health > /dev/null 2>&1; then
+if curl -s http://localhost:${BACKEND_PORT}/health > 
+    /dev/null 2>&1; then
     log "✅ Backend funcionando!"
     
     # Iniciar os outros serviços
@@ -111,11 +122,11 @@ if curl -s http://localhost:3000/health > /dev/null 2>&1; then
     SERVER_IP=$(hostname -I | awk '{print $1}')
     echo ""
     echo "📊 ENDPOINTS DISPONÍVEIS:"
-    echo "Frontend: http://$SERVER_IP:80"
-    echo "Backend API: http://$SERVER_IP:3000"
-    echo "Player: http://$SERVER_IP:80/player"
-    echo "Prometheus: http://$SERVER_IP:9090"
-    echo "Grafana: http://$SERVER_IP:3002"
+    echo "Frontend: http://$SERVER_IP:$FRONTEND_PORT"
+    echo "Backend API: http://$SERVER_IP:$BACKEND_PORT"
+    echo "Player: http://$SERVER_IP:$FRONTEND_PORT/player"
+    echo "Prometheus: http://$SERVER_IP:$PROMETHEUS_PORT"
+    echo "Grafana: http://$SERVER_IP:$GRAFANA_PORT"
     
 else
     error "❌ Backend ainda não está funcionando"

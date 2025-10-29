@@ -346,6 +346,11 @@ fi
 # INFORMAÇÕES FINAIS
 # =============================================
 
+FRONTEND_PORT=${FRONTEND_PORT:-8080}
+BACKEND_PORT=${BACKEND_PORT:-3000}
+PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
+GRAFANA_PORT=${GRAFANA_PORT:-3002}
+
 echo -e "${GREEN}"
 echo "=============================================="
 echo "    DEPLOY CONCLUÍDO COM SUCESSO!"
@@ -353,12 +358,12 @@ echo "=============================================="
 echo -e "${NC}"
 
 echo -e "${BLUE}URLs de Acesso:${NC}"
-echo "• Player: http://$SERVER_IP/player"
-echo "• Admin: http://$SERVER_IP/admin"
-echo "• API: http://$SERVER_IP/api"
-echo "• Health: http://$SERVER_IP/health"
-echo "• Grafana: http://$SERVER_IP:3002"
-echo "• Prometheus: http://$SERVER_IP:9090"
+echo "• Player: http://$SERVER_IP:$FRONTEND_PORT/player"
+echo "• Admin: http://$SERVER_IP:$FRONTEND_PORT"
+echo "• API: http://$SERVER_IP:$BACKEND_PORT/api"
+echo "• Health: http://$SERVER_IP:$BACKEND_PORT/health"
+echo "• Grafana: http://$SERVER_IP:$GRAFANA_PORT"
+echo "• Prometheus: http://$SERVER_IP:$PROMETHEUS_PORT"
 
 echo -e "\n${BLUE}Comandos Úteis (no servidor):${NC}"
 echo "• Ver logs: cd /opt/smart-signage && docker compose logs -f"
