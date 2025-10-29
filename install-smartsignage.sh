@@ -387,6 +387,9 @@ EOF
         # Copiar arquivo nginx se existir
         if [[ -d "$SOURCE_DIR/nginx" ]]; then
             cp -r "$SOURCE_DIR/nginx" $INSTALL_DIR/
+            # Garantir que diretório ssl existe (pode estar vazio)
+            mkdir -p $INSTALL_DIR/nginx/ssl
+            log "Diretório nginx copiado com sucesso"
         fi
         
         # Verificar se arquivos essenciais foram copiados
