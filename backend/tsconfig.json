@@ -47,7 +47,8 @@
     "node_modules",
     "dist",
     "**/*.test.ts",
-    "**/*.spec.ts"
+    "**/*.spec.ts",
+    "src/config/swagger.ts"
   ],
   "ts-node": {
     "require": ["tsconfig-paths/register"]
