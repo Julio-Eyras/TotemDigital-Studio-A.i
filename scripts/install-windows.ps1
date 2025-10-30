@@ -106,10 +106,14 @@ function Wait-Health {
 
 function Post-Install-Check {
   $env:HOST_OVERRIDE = "localhost"
-  $script = Join-Path $InstallDir "scripts/post-install-check.sh"
-  if (Test-Path $script) {
-    Write-Host "Executando checklist pós-instalação (WSL ou Git Bash recomendados)..."
-    try { bash $script } catch { Write-Warning "bash não disponível; pule este passo ou rode em WSL/Git Bash." }
+  $ps1 = Join-Path $InstallDir "scripts/post-install-check.ps1"
+  $sh = Join-Path $InstallDir "scripts/post-install-check.sh"
+  if (Get-Command bash -ErrorAction SilentlyContinue) {
+    if (Test-Path $sh) { Write-Host "Executando checklist (.sh via bash)..."; bash $sh }
+    elseif (Test-Path $ps1) { Write-Host "Executando checklist (.ps1)..."; & powershell -ExecutionPolicy Bypass -File $ps1 }
+  } else {
+    if (Test-Path $ps1) { Write-Host "Executando checklist (.ps1)..."; & powershell -ExecutionPolicy Bypass -File $ps1 }
+    else { Write-Warning "Checklist não encontrado" }
   }
 }
 

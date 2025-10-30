@@ -103,6 +103,22 @@ chmod +x install-smartsignage.sh
 #    - Criação de usuário admin padrão
 ```
 
+### **Instalação no Windows (PowerShell)**
+
+Requisitos: Docker Desktop (Linux containers), Git, PowerShell como Administrador.
+
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+cd C:\SmartSignage-Pro
+./scripts/install-windows.ps1
+
+# Opções
+# -InstallDir "D:\SmartSignage-Pro"  # caminho alternativo
+# -ForceRebuild -NoCache              # rebuild completo
+# -SkipClone                          # usar pasta existente (não clona)
+```
+
+
 ### **Instalação Single-Server (com HTTPS opcional)**
 
 ```bash
