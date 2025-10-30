@@ -1,0 +1,10 @@
+{
+  "serverBaseUrl": "http://localhost",
+  "playerId": 1,
+  "token": "REPLACE_WITH_PLAYER_JWT",
+  "mediaDir": "./media-cache",
+  "heartbeatIntervalSec": 30,
+  "syncIntervalSec": 60
+}
+
+
