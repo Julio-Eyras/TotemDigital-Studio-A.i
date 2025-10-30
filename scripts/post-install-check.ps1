@@ -4,9 +4,9 @@ param(
 )
 
 $HOSTNAME = $HostOverride
-$API = "http://$HOSTNAME:3000"
-$GRAFANA = "http://$HOSTNAME:3002"
-$PROM = "http://$HOSTNAME:9090"
+$API = "http://${HOSTNAME}:3000"
+$GRAFANA = "http://${HOSTNAME}:3002"
+$PROM = "http://${HOSTNAME}:9090"
 
 function Invoke-Json($url) {
   try {
