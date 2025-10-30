@@ -479,6 +479,7 @@ EOF
         # Copiar arquivos essenciais
         [[ -f "$SOURCE_DIR/docker-compose.yml" ]] && cp "$SOURCE_DIR/docker-compose.yml" $INSTALL_DIR/
         [[ -f "$SOURCE_DIR/Dockerfile" ]] && cp "$SOURCE_DIR/Dockerfile" $INSTALL_DIR/
+        [[ -f "$SOURCE_DIR/Dockerfile.app" ]] && cp "$SOURCE_DIR/Dockerfile.app" $INSTALL_DIR/
         [[ -f "$SOURCE_DIR/Dockerfile.backend" ]] && cp "$SOURCE_DIR/Dockerfile.backend" $INSTALL_DIR/
         [[ -f "$SOURCE_DIR/Dockerfile.frontend" ]] && cp "$SOURCE_DIR/Dockerfile.frontend" $INSTALL_DIR/
         [[ -f "$SOURCE_DIR/env.example" ]] && cp "$SOURCE_DIR/env.example" $INSTALL_DIR/.env
