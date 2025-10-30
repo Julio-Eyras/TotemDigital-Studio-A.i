@@ -282,7 +282,25 @@ export const openApiSpec = {
       get: {
         summary: 'Listar players',
         parameters: [ { in: 'query', name: 'page', schema: { type: 'integer' } }, { in: 'query', name: 'limit', schema: { type: 'integer' } }, { in: 'query', name: 'status', schema: { type: 'string', enum: ['online','offline','error'] } }, { in: 'query', name: 'clientId', schema: { type: 'integer' } } ],
-        responses: { '200': { description: 'OK', content: { 'application/json': { examples: { lista: { value: { page: 1, limit: 10, total: 1, data: [ { totem_id: 1001, name: 'Totem Entrada', location: 'Loja 1', client_id: 1, status: 'online' } ] } } } } } },
+        responses: {
+          '200': {
+            description: 'OK',
+            content: {
+              'application/json': {
+                examples: {
+                  lista: {
+                    value: {
+                      page: 1,
+                      limit: 10,
+                      total: 1,
+                      data: [ { totem_id: 1001, name: 'Totem Entrada', location: 'Loja 1', client_id: 1, status: 'online' } ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         security: [{ bearerAuth: [] }]
       },
       post: {

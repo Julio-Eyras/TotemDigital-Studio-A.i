@@ -2,7 +2,7 @@
 
 ## 🌐 ENDEREÇOS CORRETOS PARA ACESSO
 
-### ✅ **FRONTEND (Interface Web - Porta 80)**
+### ✅ **FRONTEND (Interface Web - Porta 80 - Nginx Integrado)**
 ```
 http://192.168.1.105:80
 ou
@@ -17,7 +17,7 @@ http://192.168.1.105
 
 ---
 
-### 🔧 **BACKEND API (Porta 3000)**
+### 🔧 **BACKEND API (Porta 3000 - Acesso Direto)**
 ```
 http://192.168.1.105:3000/
 ```
@@ -39,12 +39,12 @@ http://192.168.1.105:3000/
 
 ---
 
-### 📱 **PLAYER (Porta 3000)**
+### 📱 **PLAYER (via Frontend - Porta 80)**
 ```
-http://192.168.1.105:3000/player
+http://192.168.1.105/player
 ```
 
-Interface do player para exibição de conteúdo.
+Interface do player para exibição de conteúdo via proxy do frontend.
 
 ---
 
@@ -81,9 +81,10 @@ Acessar `http://192.168.1.105:3000/` retorna:
 
 ## 📝 **RESUMO**
 
-1. **Para usar o sistema:** Acesse `http://192.168.1.105:80` (porta 80)
-2. **Para testar a API:** Acesse `http://192.168.1.105:3000/` (porta 3000)
-3. **Para verificar saúde:** Acesse `http://192.168.1.105:3000/health`
+1. **Para usar o sistema:** Acesse `http://192.168.1.105` (porta 80)
+2. **Para usar o Player:** Acesse `http://192.168.1.105/player`
+3. **Para testar a API (direto):** Acesse `http://192.168.1.105:3000/`
+4. **Para verificar saúde (direto):** `http://192.168.1.105:3000/health`
 
 ---
 

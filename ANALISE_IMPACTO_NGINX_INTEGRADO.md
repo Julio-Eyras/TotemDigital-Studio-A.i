@@ -202,15 +202,15 @@
 ## ✅ **CHECKLIST DE CORREÇÕES NECESSÁRIAS**
 
 ### **CRÍTICAS (Impactam Funcionamento)**
-- [ ] **docker-compose.yml** - Remover `http://nginx:80` do CORS_ORIGIN
+- [x] **docker-compose.yml** - Remover referências ao container `nginx`
 - [ ] **monitoring/prometheus/prometheus.yml** - Remover/atualizar job `nginx`
-- [ ] **scripts/rebuild-architecture.sh** - Remover `docker compose up -d nginx`
+- [x] **scripts/rebuild-architecture.sh** - Remover `docker compose up -d nginx`
 - [ ] **scripts/logs-system.sh** - Remover opção de logs do container nginx separado
 
 ### **IMPORTANTES (Afetam Uso/Manutenção)**
-- [ ] **README.md** - Atualizar todas as referências à arquitetura antiga
+- [x] **README.md** - Atualizar todas as referências à arquitetura antiga
 - [ ] **scripts/verify-architecture.sh** - Atualizar verificações
-- [ ] **Documentação** - Marcar arquivos obsoletos ou atualizar
+- [x] **Documentação** - Marcar arquivos obsoletos ou atualizar
 
 ### **OPCIONAIS (Melhorias)**
 - [ ] Mover arquivos Nginx obsoletos para `obsoletos/`

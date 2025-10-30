@@ -1,8 +1,12 @@
-# Arquitetura Nginx - Smart Signage Pro
+# Arquitetura Nginx - Smart Signage Pro (OBSOLETO)
 
 ## 📊 **Resumo da Arquitetura**
 
-### **São 2 containers Nginx, sim!**
+> Este documento descreve a arquitetura ANTERIOR com dois containers Nginx.
+> A arquitetura ATUAL utiliza um único Nginx integrado ao container do frontend.
+> Consulte: `ARQUITETURA_NGINX_SIMPLIFICADA.md`.
+
+### (Histórico) **Eram 2 containers Nginx**
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -79,21 +83,22 @@
 1. ⚠️ **Complexidade**: Mais containers para gerenciar
 2. ⚠️ **Latência**: Requisição passa por 2 Nginx (principal → frontend)
 
-## 🤔 **Problema Atual**
+## (Histórico) **Problema identificado na época**
 
 O Nginx principal está mostrando "Welcome to nginx!" porque:
 1. O proxy para `frontend:80` pode estar falhando
 2. O Nginx principal não tem tratamento de erro adequado
 3. O Alpine tem arquivos padrão que estão sendo servidos
 
-## ✅ **Solução Implementada**
+## (Histórico) **Solução aplicada à época**
 
 1. **Remover arquivos padrão do Alpine** no container nginx principal
 2. **Não definir `root`** no nginx principal (só proxy)
 3. **Tratamento de erro customizado** - retorna JSON ao invés de HTML padrão
 4. **`default_server`** para garantir que é o server block principal
 
-## 🔧 **Alternativa: Simplificar Arquitetura**
+## (Concluído) **Arquitetura simplificada adotada**
+Agora utilizamos Nginx integrado no `frontend` para servir estáticos e fazer proxy direto para o `backend`. Veja `ARQUITETURA_NGINX_SIMPLIFICADA.md`.
 
 Se os problemas persistirem, podemos simplificar:
 
@@ -112,7 +117,7 @@ Se os problemas persistirem, podemos simplificar:
 - Timeouts maiores
 - Retry logic
 
-## 📝 **Comandos para Diagnóstico**
+## (Histórico) **Comandos para diagnóstico**
 
 ```bash
 # Verificar containers Nginx
@@ -129,7 +134,7 @@ docker exec smartsignage-nginx curl http://frontend:80
 docker exec smartsignage-nginx curl http://backend:3000/health
 ```
 
-## 🎯 **Conclusão**
+## (Histórico) **Conclusão**
 
 A arquitetura atual com **2 Nginx é correta e recomendada** para produção. O problema não é a arquitetura, mas sim:
 1. Configuração de erro handling

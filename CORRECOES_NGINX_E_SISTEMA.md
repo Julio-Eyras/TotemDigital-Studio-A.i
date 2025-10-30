@@ -10,16 +10,16 @@
 
 ## ✅ CORREÇÕES APLICADAS
 
-### 1. **Configuração do Nginx (nginx/frontend.conf)**
-- ✅ Configurado proxy reverso para o container `frontend:80`
-- ✅ Configurado proxy para API do backend em `/api/`
-- ✅ Removida dependência de arquivos estáticos locais
-- ✅ Adicionada configuração de compressão gzip
-- ✅ Configurados headers corretos para proxy
+### 1. **Configuração do Nginx (nginx/nginx-complete.conf)**
+- ✅ Frontend (Nginx integrado) serve estáticos e faz proxy
+- ✅ Proxy para API do backend em `/api/`
+- ✅ Proxy para `/player` → backend
+- ✅ Compressão gzip e buffers ajustados
+- ✅ Headers e ordem de locations corretos
 
 ### 2. **Docker Compose (docker-compose.yml)**
-- ✅ Removido volume desnecessário do Nginx
-- ✅ Mantido apenas volumes de configuração e SSL
+- ✅ Removido o container `nginx` separado
+- ✅ Frontend expõe porta 80 e inclui Nginx integrado
 
 ### 3. **Frontend API URLs (frontend/src/services/api/)**
 - ✅ Alterado `API_BASE_URL` de `http://localhost:3000/api` para `/api`
@@ -39,15 +39,17 @@
 ```
 Navegador (Porta 80)
     ↓
-Nginx (Proxy Reverso)
+Frontend (Nginx Integrado)
     ├─→ /api/* → Backend (Porta 3000)
-    └─→ /* → Frontend Container (Porta 80 interna)
+    ├─→ /player → Backend (Porta 3000)
+    └─→ /* → Estáticos React (porta 80 interna)
 ```
 
 ### **Endpoints:**
 
-- **Frontend:** `http://192.168.1.105:80` ou `http://192.168.1.105`
-- **Backend API:** `http://192.168.1.105:80/api/*`
+- **Frontend (principal):** `http://192.168.1.105` (porta 80)
+- **Player (via frontend):** `http://192.168.1.105/player`
+- **Backend API (via frontend):** `http://192.168.1.105/api/*`
 - **Backend Direto:** `http://192.168.1.105:3000/`
 - **Health Check:** `http://192.168.1.105:3000/health`
 
@@ -55,8 +57,8 @@ Nginx (Proxy Reverso)
 
 ## 📋 ARQUIVOS MODIFICADOS
 
-1. `nginx/frontend.conf` - Configuração completa de proxy reverso
-2. `docker-compose.yml` - Removido volume desnecessário do Nginx
+1. `nginx/nginx-complete.conf` - Configuração integrada (estáticos + proxy)
+2. `docker-compose.yml` - Removido container Nginx separado
 3. `frontend/src/services/api/index.ts` - URL da API relativa
 4. `frontend/src/services/api/authApi.ts` - URL da API relativa
 5. `backend/src/index.ts` - Rota raiz informativa (já corrigido anteriormente)
@@ -70,14 +72,14 @@ Nginx (Proxy Reverso)
 cd /opt/smart-signage
 git pull origin main
 
-# Reconstruir frontend (necessário por causa das mudanças na API)
-docker compose build frontend
+# Rebuild com arquitetura simplificada
+docker compose build frontend backend
 
-# Reiniciar serviços
-docker compose restart nginx frontend backend
+# Reiniciar serviços (sem nginx separado)
+docker compose up -d
 
-# Verificar logs
-docker compose logs -f nginx frontend
+# Verificar logs do frontend (inclui Nginx)
+docker compose logs -f frontend
 ```
 
 ---

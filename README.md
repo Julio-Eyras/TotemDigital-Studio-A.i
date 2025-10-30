@@ -50,12 +50,11 @@ O **Smart Signage Pro v2.0** é um sistema completo e robusto de sinalização d
 - ✅ **Sem Dados Mock** - 100% real
 
 ### 🐳 **Infraestrutura Docker**
-- ✅ **8 Containers Orquestrados**:
+- ✅ **7 Containers Orquestrados**:
   - PostgreSQL (banco de dados)
   - Redis (cache e sessões)
   - Backend Node.js (API)
-  - Frontend React (Interface)
-  - Nginx (Reverse Proxy)
+  - Frontend React + Nginx Integrado (Interface + Proxy)
   - Prometheus (Métricas)
   - Grafana (Dashboards)
   - Ollama (IA Local)
@@ -225,8 +224,7 @@ docker compose ps
 
 # Ver logs de um serviço específico
 docker compose logs -f backend
-docker compose logs -f frontend
-docker compose logs -f nginx
+docker compose logs -f frontend  # inclui Nginx integrado
 
 # Reiniciar um serviço
 docker compose restart backend
@@ -313,7 +311,7 @@ AI:           Ollama (IA local)
 Container:    Docker + Docker Compose
 ```
 
-### **Arquitetura de Containers**
+### **Arquitetura de Containers (Simplificada)**
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -540,7 +538,7 @@ curl -s http://localhost:3000/api/docs.json | jq '.info,.paths | keys | length'
 
 Todos os containers possuem health checks automáticos:
 - Backend: `http://localhost:3000/health`
-- Frontend: `http://localhost:80`
+- Frontend: `http://localhost:${FRONTEND_INTERNAL_PORT:-8080}`
 - Prometheus: `http://localhost:9090/-/healthy`
 - Grafana: Verificação automática
 - Redis: `redis-cli ping`
@@ -585,7 +583,7 @@ Todos os containers possuem health checks automáticos:
 
 **3. Frontend não carrega**
 - Verifique se o build foi criado: `docker compose logs frontend`
-- Verifique conectividade: `docker exec smartsignage-nginx curl http://frontend:80`
+- Verifique conectividade: `docker exec smartsignage-frontend curl -s http://localhost:${FRONTEND_INTERNAL_PORT:-8080}`
 
 **4. Backend não responde**
 - Verifique banco de dados: `docker compose logs postgres`
@@ -605,8 +603,8 @@ Todos os containers possuem health checks automáticos:
 ./manage-system.sh logs
 
 # Verificar conectividade entre containers
-docker exec smartsignage-nginx ping backend
-docker exec smartsignage-nginx ping frontend
+docker exec smartsignage-frontend ping -c1 backend
+docker exec smartsignage-frontend ping -c1 frontend
 ```
 
 ---
@@ -615,7 +613,8 @@ docker exec smartsignage-nginx ping frontend
 
 Documentação detalhada disponível no repositório:
 
-- **[ARQUITETURA_NGINX.md](ARQUITETURA_NGINX.md)** - Detalhes da arquitetura Nginx (2 containers)
+- ~~[ARQUITETURA_NGINX.md](ARQUITETURA_NGINX.md)~~ (obsoleto)
+  - Consulte: **[ARQUITETURA_NGINX_SIMPLIFICADA.md](ARQUITETURA_NGINX_SIMPLIFICADA.md)**
 - **[MANUAL_USUARIO.md](MANUAL_USUARIO.md)** - Manual completo do usuário
 - **[GUIA_ACESSO_SISTEMA.md](GUIA_ACESSO_SISTEMA.md)** - Guia de URLs e acesso
 - **[INSTALACAO_VPS_SSH.md](INSTALACAO_VPS_SSH.md)** - Instalação em VPS remoto

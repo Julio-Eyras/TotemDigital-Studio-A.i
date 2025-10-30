@@ -7,20 +7,20 @@ Garantir que o sistema funcione **perfeitamente desde o início** da instalaçã
 
 ## ✅ CORREÇÕES IMPLEMENTADAS
 
-### 1. **Nginx - Proxy Reverso Completo** ✅
-**Arquivo:** `nginx/frontend.conf`
+### 1. **Nginx Integrado ao Frontend (Proxy + Estáticos)** ✅
+**Arquivo:** `nginx/nginx-complete.conf`
 
-- ✅ Configurado proxy reverso para container do frontend
-- ✅ Configurado proxy para API do backend em `/api/`
-- ✅ Configuração de compressão gzip
-- ✅ Headers corretos para proxy
-- ✅ Cache para arquivos estáticos
+- ✅ Container `frontend` serve estáticos React e faz proxy direto
+- ✅ Proxy para API do backend em `/api/`
+- ✅ Proxy para `/player` → backend
+- ✅ Compressão gzip e buffers ajustados
+- ✅ Health endpoint e SPA routing
 
 ### 2. **Docker Compose** ✅
 **Arquivo:** `docker-compose.yml`
 
-- ✅ Removido volume desnecessário do Nginx
-- ✅ Configuração limpa e otimizada
+- ✅ Removido o container `nginx` separado
+- ✅ Frontend expõe porta 80 externamente (mapeado conforme variáveis)
 - ✅ Dependências corretas entre containers
 
 ### 3. **Frontend - URLs da API** ✅
@@ -35,7 +35,7 @@ Garantir que o sistema funcione **perfeitamente desde o início** da instalaçã
 ### 4. **Backend - CORS Flexível** ✅
 **Arquivo:** `backend/src/index.ts`
 
-- ✅ Configuração de CORS que aceita requisições do Nginx
+- ✅ Configuração de CORS que aceita requisições do Frontend (Nginx integrado)
 - ✅ Permite requisições sem origem (mobile apps)
 - ✅ Funciona em produção e desenvolvimento
 - ✅ Rota raiz informativa `/` adicionada
@@ -71,12 +71,14 @@ Garantir que o sistema funcione **perfeitamente desde o início** da instalaçã
    - ✅ Configura Docker e Docker Compose
    - ✅ Copia todos os arquivos necessários
    - ✅ Constrói containers do frontend e backend
-   - ✅ Configura Nginx corretamente
+- ✅ Configura Nginx integrado ao frontend corretamente
    - ✅ Inicia todos os serviços
 
 4. **Acessar sistema**
-   - Frontend: `http://SEU_IP:80`
-   - Login: `admin` / `admin`
+  - Frontend: `http://SEU_IP` (porta 80)
+  - Player: `http://SEU_IP/player` (via frontend)
+  - API (direto): `http://SEU_IP:3000/`
+  - Login: `admin` / `admin`
 
 ---
 

@@ -11,10 +11,10 @@
 
 ## ✅ CORREÇÕES IMPLEMENTADAS
 
-### 1. **Configuração do Nginx (nginx/frontend.conf)**
+### 1. **Configuração do Nginx (nginx/nginx-complete.conf)**
 
 #### **Alterações:**
-- ✅ Mudado `server_name localhost` para `server_name _` (aceita qualquer IP/hostname)
+- ✅ `server_name _` (aceita qualquer IP/hostname)
 - ✅ Adicionados buffers maiores para evitar erro 400
 - ✅ Rota `/player` com buffers específicos aumentados
 - ✅ Ordem correta das rotas: `/metrics` → `/api/` → `/player` → `/`
@@ -94,17 +94,17 @@ fi
 ### **Após Instalação, o Script Mostra:**
 
 ```
-📱 PAINEL ADMINISTRATIVO (Frontend):
-   👉 IP Externo: http://191.243.11.161:80 (Acesso remoto)
-   👉 IP Local:   http://192.168.1.105:80 (Rede interna)
+📱 PAINEL ADMINISTRATIVO (Frontend - Nginx integrado):
+   👉 IP Externo: http://191.243.11.161 (Acesso remoto)
+   👉 IP Local:   http://192.168.1.105 (Rede interna)
 
 🔧 API BACKEND:
    👉 IP Externo: http://191.243.11.161:3000 (Acesso remoto)
    👉 IP Local:   http://192.168.1.105:3000 (Rede interna)
 
-📺 PLAYER DE MÍDIA:
-   👉 IP Externo: http://191.243.11.161:80/player (Acesso remoto)
-   👉 IP Local:   http://192.168.1.105:80/player (Rede interna)
+📺 PLAYER DE MÍDIA (via frontend):
+   👉 IP Externo: http://191.243.11.161/player
+   👉 IP Local:   http://192.168.1.105/player
 ```
 
 ---
@@ -118,11 +118,11 @@ git pull origin main
 
 # Reconstruir containers com novas configurações
 docker compose down
-docker compose build nginx frontend backend
+docker compose build frontend backend
 docker compose up -d
 
-# Verificar logs
-docker compose logs -f nginx
+# Verificar logs do frontend (Nginx integrado)
+docker compose logs -f frontend
 
 # Testar acesso
 curl http://localhost:80
