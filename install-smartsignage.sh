@@ -1402,12 +1402,12 @@ setup_docker_compose() {
             log "Limpando imagens antigas..."
             $COMPOSE_CMD down --remove-orphans --rmi all 2>/dev/null || true
             
-            # Reconstruir imagens
-            log "Construindo imagens Docker (backend e frontend)..."
-            if $COMPOSE_CMD build --no-cache backend frontend 2>&1 | tee /tmp/docker-compose-build.log; then
-                log "✅ Build das imagens backend e frontend concluído com sucesso!"
+            # Reconstruir imagens (monolito)
+            log "Construindo imagem Docker do app (monolito)..."
+            if $COMPOSE_CMD build --no-cache app 2>&1 | tee /tmp/docker-compose-build.log; then
+                log "✅ Build da imagem app concluído com sucesso!"
             else
-                error "❌ Erro no build das imagens Docker"
+                error "❌ Erro no build da imagem app"
                 error "Últimas linhas do log:"
                 tail -50 /tmp/docker-compose-build.log
                 error "Log completo salvo em: /tmp/docker-compose-build.log"
@@ -1569,26 +1569,12 @@ start_services_in_order() {
         $COMPOSE_CMD up -d ollama
         wait_for_ollama
         
-        log "Iniciando Backend..."
-        $COMPOSE_CMD up -d backend
-        wait_for_backend
-        
-        log "Iniciando Frontend (com Nginx integrado)..."
-        # Verificar se arquivos de configuração do Nginx existem
-        log_detailed "Verificando arquivos de configuração do Nginx..."
-        if [[ ! -f "nginx/nginx-complete.conf" ]]; then
-            log_error "Arquivo nginx/nginx-complete.conf não encontrado!"
-            log_error "Caminho atual: $(pwd)"
-            log_error "Conteúdo do diretório nginx:"
-            ls -la nginx/ 2>/dev/null || echo "Diretório nginx não existe"
-            return 1
-        fi
-        log_detailed "✅ Arquivo de configuração do Nginx encontrado"
-        log_detailed "nginx/nginx-complete.conf: $(ls -lh nginx/nginx-complete.conf 2>/dev/null | awk '{print $5}')"
-        
-        # Iniciar frontend (que já inclui Nginx integrado)
-        $COMPOSE_CMD up -d frontend
-        wait_for_frontend
+        log "Iniciando App (monolito)..."
+        # Retry leve para imagens que podem falhar por rede
+        for i in {1..3}; do $COMPOSE_CMD up -d postgres redis ollama prometheus grafana && break || sleep 5; done
+        $COMPOSE_CMD up -d app
+        # Aguarde estabilização
+        sleep 5
         
         log "Iniciando Prometheus..."
         log_detailed "Verificando arquivos de configuração do Prometheus..."
@@ -1700,8 +1686,8 @@ check_startup_order() {
     
     if [[ "$INSTALL_MODE" == "docker" ]]; then
         # Ordem para Docker
-        # Nginx está integrado no frontend - não precisa verificar separadamente
-        SERVICES=("postgres" "redis" "ollama" "backend" "frontend" "prometheus" "grafana")
+        # Serviços monitorados (monolito app)
+        SERVICES=("postgres" "redis" "ollama" "app" "prometheus" "grafana")
         
         for service in "${SERVICES[@]}"; do
             log "Verificando $service..."
