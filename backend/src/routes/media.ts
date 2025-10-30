@@ -146,7 +146,7 @@ router.post('/upload',
           size: mediaData.size,
         },
       });
-      res.status(201).json(media);
+      res.status(201).json(created);
     } catch (error) {
       res.status(400).json({ error: 'Erro ao fazer upload do arquivo' });
     }
