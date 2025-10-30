@@ -525,6 +525,12 @@ EOF
 install_project_dependencies() {
     log "Instalando dependências do projeto..."
     
+    # No modo Docker, não instalamos/compilamos localmente (evita inconsistências do ambiente host).
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        log "Modo Docker: pulando instalação/compilação locais (será feito durante o Docker build)."
+        return 0
+    fi
+    
     # Backend
     cd $INSTALL_DIR/backend
     log "Instalando dependências do backend (incluindo dev para build)..."

@@ -1,0 +1,19 @@
+# Enforce LF line endings for source files to avoid CRLF parsing issues in builds
+*.sh text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+Dockerfile* text eol=lf
+*.md text eol=lf
+
+# Keep binaries as-is
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg text eol=lf
+
