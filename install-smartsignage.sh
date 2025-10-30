@@ -1151,21 +1151,27 @@ setup_docker_compose() {
             fi
         fi
         
-        # Verificar se Dockerfiles existem
-        if [[ ! -f "Dockerfile" ]] || [[ ! -f "Dockerfile.backend" ]] || [[ ! -f "Dockerfile.frontend" ]]; then
+        # Verificar se Dockerfiles existem (aceita monolito Dockerfile.app OU backend/frontend)
+        if [[ ! -f "Dockerfile.app" ]] && { [[ ! -f "Dockerfile.backend" ]] || [[ ! -f "Dockerfile.frontend" ]]; }; then
             log "Dockerfiles não encontrados, tentando copiar..."
             log "Verificando locais possíveis:"
             log "  - $SCRIPT_DIR/Dockerfile: $([[ -f "$SCRIPT_DIR/Dockerfile" ]] && echo "EXISTE" || echo "NÃO EXISTE")"
             log "  - $SCRIPT_DIR/Dockerfile.backend: $([[ -f "$SCRIPT_DIR/Dockerfile.backend" ]] && echo "EXISTE" || echo "NÃO EXISTE")"
             log "  - $SCRIPT_DIR/Dockerfile.frontend: $([[ -f "$SCRIPT_DIR/Dockerfile.frontend" ]] && echo "EXISTE" || echo "NÃO EXISTE")"
+            log "  - $SCRIPT_DIR/Dockerfile.app: $([[ -f "$SCRIPT_DIR/Dockerfile.app" ]] && echo "EXISTE" || echo "NÃO EXISTE")"
             log "  - ./Dockerfile: $([[ -f "./Dockerfile" ]] && echo "EXISTE" || echo "NÃO EXISTE")"
             log "  - ./Dockerfile.backend: $([[ -f "./Dockerfile.backend" ]] && echo "EXISTE" || echo "NÃO EXISTE")"
             log "  - ./Dockerfile.frontend: $([[ -f "./Dockerfile.frontend" ]] && echo "EXISTE" || echo "NÃO EXISTE")"
+            log "  - ./Dockerfile.app: $([[ -f "./Dockerfile.app" ]] && echo "EXISTE" || echo "NÃO EXISTE")"
             
             # Tentar copiar do diretório do script
             if [[ -f "$SCRIPT_DIR/Dockerfile" ]]; then
                 cp "$SCRIPT_DIR/Dockerfile" $INSTALL_DIR/
                 log "Arquivo Dockerfile copiado com sucesso!"
+            fi
+            if [[ -f "$SCRIPT_DIR/Dockerfile.app" ]]; then
+                cp "$SCRIPT_DIR/Dockerfile.app" $INSTALL_DIR/
+                log "Arquivo Dockerfile.app copiado com sucesso!"
             fi
             if [[ -f "$SCRIPT_DIR/Dockerfile.backend" ]]; then
                 cp "$SCRIPT_DIR/Dockerfile.backend" $INSTALL_DIR/
@@ -1181,6 +1187,10 @@ setup_docker_compose() {
                 cp ./Dockerfile $INSTALL_DIR/
                 log "Arquivo Dockerfile copiado do diretório atual!"
             fi
+            if [[ -f "./Dockerfile.app" ]]; then
+                cp ./Dockerfile.app $INSTALL_DIR/
+                log "Arquivo Dockerfile.app copiado do diretório atual!"
+            fi
             if [[ -f "./Dockerfile.backend" ]]; then
                 cp ./Dockerfile.backend $INSTALL_DIR/
                 log "Arquivo Dockerfile.backend copiado do diretório atual!"
@@ -1190,9 +1200,9 @@ setup_docker_compose() {
                 log "Arquivo Dockerfile.frontend copiado do diretório atual!"
             fi
             
-            if [[ ! -f "$INSTALL_DIR/Dockerfile" ]] || [[ ! -f "$INSTALL_DIR/Dockerfile.backend" ]] || [[ ! -f "$INSTALL_DIR/Dockerfile.frontend" ]]; then
+            if [[ ! -f "$INSTALL_DIR/Dockerfile.app" ]] && { [[ ! -f "$INSTALL_DIR/Dockerfile.backend" ]] || [[ ! -f "$INSTALL_DIR/Dockerfile.frontend" ]]; }; then
                 error "Dockerfiles não encontrados em nenhum local!"
-                error "Verifique se os arquivos Dockerfile, Dockerfile.backend e Dockerfile.frontend existem no diretório do projeto"
+                error "Verifique se existe Dockerfile.app ou os arquivos Dockerfile.backend e Dockerfile.frontend no diretório do projeto"
                 exit 1
             fi
         fi
@@ -1230,16 +1240,19 @@ setup_docker_compose() {
         fi
         
         # Verificar Dockerfiles especializados
-        if [[ -f "Dockerfile.backend" ]]; then
-            log "Arquivo Dockerfile.backend encontrado em $INSTALL_DIR"
+        if [[ -f "Dockerfile.app" ]]; then
+            log "Arquivo Dockerfile.app encontrado em $INSTALL_DIR"
         else
-            warning "AVISO: Dockerfile.backend não encontrado"
-        fi
-        
-        if [[ -f "Dockerfile.frontend" ]]; then
-            log "Arquivo Dockerfile.frontend encontrado em $INSTALL_DIR"
-        else
-            warning "AVISO: Dockerfile.frontend não encontrado"
+            if [[ -f "Dockerfile.backend" ]]; then
+                log "Arquivo Dockerfile.backend encontrado em $INSTALL_DIR"
+            else
+                warning "AVISO: Dockerfile.backend não encontrado"
+            fi
+            if [[ -f "Dockerfile.frontend" ]]; then
+                log "Arquivo Dockerfile.frontend encontrado em $INSTALL_DIR"
+            else
+                warning "AVISO: Dockerfile.frontend não encontrado"
+            fi
         fi
         
         log "Arquivo docker-compose.yml encontrado em $INSTALL_DIR"
@@ -1260,16 +1273,19 @@ setup_docker_compose() {
         fi
         
         # Verificar Dockerfiles especializados
-        if [[ -f "./Dockerfile.backend" ]]; then
-            log "Confirmado: Dockerfile.backend está em $(pwd)"
+        if [[ -f "./Dockerfile.app" ]]; then
+            log "Confirmado: Dockerfile.app está em $(pwd)"
         else
-            warning "AVISO: Dockerfile.backend não encontrado"
-        fi
-        
-        if [[ -f "./Dockerfile.frontend" ]]; then
-            log "Confirmado: Dockerfile.frontend está em $(pwd)"
-        else
-            warning "AVISO: Dockerfile.frontend não encontrado"
+            if [[ -f "./Dockerfile.backend" ]]; then
+                log "Confirmado: Dockerfile.backend está em $(pwd)"
+            else
+                warning "AVISO: Dockerfile.backend não encontrado"
+            fi
+            if [[ -f "./Dockerfile.frontend" ]]; then
+                log "Confirmado: Dockerfile.frontend está em $(pwd)"
+            else
+                warning "AVISO: Dockerfile.frontend não encontrado"
+            fi
         fi
         
         log "Confirmado: docker-compose.yml está em $(pwd)"
