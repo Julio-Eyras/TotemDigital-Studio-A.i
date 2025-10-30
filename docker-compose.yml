@@ -23,18 +23,18 @@ services:
     networks:
       - smartsignage-network
 
-  # Backend API
-  backend:
-    build: 
+  # Aplicação monolito (Frontend + Backend)
+  app:
+    build:
       context: .
-      dockerfile: Dockerfile.backend
-    container_name: smartsignage-backend
+      dockerfile: Dockerfile.app
+    container_name: smartsignage-app
     environment:
-      - DB_DRIVER=postgres
-      - DATABASE_URL=postgresql://smartsignage:smartsignage123@postgres:${POSTGRES_INTERNAL_PORT:-5432}/smartsignage
       - NODE_ENV=production
       - PORT=${BACKEND_INTERNAL_PORT:-3000}
       - HOST=0.0.0.0
+      - DB_DRIVER=postgres
+      - DATABASE_URL=postgresql://smartsignage:smartsignage123@postgres:${POSTGRES_INTERNAL_PORT:-5432}/smartsignage
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
       - JWT_EXPIRES_IN=24h
       - JWT_REFRESH_EXPIRES_IN=7d
@@ -47,11 +47,12 @@ services:
       - MEDIA_QUOTA_PER_CLIENT=5GB
       - LOG_LEVEL=info
       - LOG_FILE=/app/logs/app.log
-      - CORS_ORIGIN=http://frontend:${FRONTEND_INTERNAL_PORT:-8080}
+      - CORS_ORIGIN=http://localhost
       - RATE_LIMIT_WINDOW_MS=900000
       - RATE_LIMIT_MAX_REQUESTS=100
     ports:
-      - "${BACKEND_PORT:-3000}:${BACKEND_INTERNAL_PORT:-3000}"
+      - "${FRONTEND_PORT:-80}:80"
+      - "${BACKEND_PORT:-3000}:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,39 +67,7 @@ services:
       - backend_backups:/app/backups
       - backend_data:/app/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${BACKEND_INTERNAL_PORT:-3000}/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - smartsignage-network
-
-  # Frontend Admin Panel (com Nginx integrado)
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    container_name: smartsignage-frontend
-    environment:
-      - NGINX_PORT=${FRONTEND_INTERNAL_PORT:-8080}
-      - BACKEND_INTERNAL_PORT=${BACKEND_INTERNAL_PORT:-3000}
-    ports:
-      - "${FRONTEND_PORT:-8080}:${FRONTEND_INTERNAL_PORT:-8080}"
-      - "${FRONTEND_ALT_PORT:-3001}:${FRONTEND_INTERNAL_PORT:-8080}"
-    depends_on:
-      backend:
-        condition: service_started
-    restart: unless-stopped
-    # IMPORTANTE: Nginx workers rodam como usuário 'nginx' (não-privilegiado)
-    # O processo master precisa ser root apenas para bind na porta 80
-    # Isso é padrão e seguro - workers não têm privilégios
-    read_only: false  # Nginx precisa escrever logs e cache
-    security_opt:
-      - no-new-privileges:true  # Previne escalação de privilégios
-    volumes:
-      - frontend_assets:/usr/share/nginx/html/assets
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${FRONTEND_INTERNAL_PORT:-8080}"]
+      test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -203,9 +172,6 @@ volumes:
   backend_data:
     driver: local
   
-  # Frontend volumes
-  frontend_assets:
-    driver: local
   
   # AI Service volumes
   ollama_data:
