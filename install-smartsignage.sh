@@ -1407,12 +1407,13 @@ setup_docker_compose() {
             if $COMPOSE_CMD build --no-cache app 2>&1 | tee /tmp/docker-compose-build.log; then
                 log "✅ Build da imagem app concluído com sucesso!"
             else
-                error "❌ Erro no build da imagem app"
-                error "Últimas linhas do log:"
-                tail -50 /tmp/docker-compose-build.log
-                error "Log completo salvo em: /tmp/docker-compose-build.log"
-                exit 1
-            fi
+            error "❌ Erro no build da imagem app"
+            error "Verificando se Dockerfile.app existe:"
+            ls -la Dockerfile.app || error "Dockerfile.app NÃO EXISTE!"
+            error "Últimas linhas do log:"
+            tail -50 /tmp/docker-compose-build.log
+            error "Log completo salvo em: /tmp/docker-compose-build.log"
+            exit 1
         fi
         
         # Iniciar serviços
