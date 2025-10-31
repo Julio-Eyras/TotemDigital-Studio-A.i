@@ -1416,9 +1416,11 @@ setup_docker_compose() {
                 error "Log completo salvo em: /tmp/docker-compose-build.log"
                 exit 1
             fi
+        fi
         
         # Iniciar serviços
-        log "Iniciando containers Docker..."
+        if [[ "$INSTALL_MODE" == "docker" ]]; then
+            log "Iniciando containers Docker..."
         
         # Garantir que estamos no diretório correto
         cd $INSTALL_DIR
