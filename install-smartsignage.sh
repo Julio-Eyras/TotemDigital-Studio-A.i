@@ -20,6 +20,10 @@
 # =============================================================================
 
 set -e  # Parar em caso de erro
+set -o pipefail
+
+# Trap de erro para diagnóstico rápido
+trap 'echo -e "\033[0;31m[ERRO]\033[0m Falha na execução (linha $LINENO)."' ERR
 
 # =============================================================================
 # VARIÁVEIS GLOBAIS E FLAGS
@@ -90,6 +94,28 @@ error() {
 
 info() {
     echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+# Retry genérico com backoff exponencial
+retry_with_backoff() {
+    local max_attempts=$1
+    local initial_delay_seconds=$2
+    shift 2
+    local attempt=1
+    local delay=$initial_delay_seconds
+    while true; do
+        if "$@"; then
+            return 0
+        fi
+        if [[ $attempt -ge $max_attempts ]]; then
+            return 1
+        fi
+        log "Tentativa ${attempt}/${max_attempts} falhou. Aguardando ${delay}s e tentando novamente..."
+        sleep "$delay"
+        attempt=$((attempt+1))
+        delay=$((delay*2))
+        if [[ $delay -gt 30 ]]; then delay=30; fi
+    done
 }
 
 # Banner
@@ -1502,7 +1528,8 @@ setup_docker_compose() {
             
             # Reconstruir imagens (monolito)
             log "Construindo imagem Docker do app (monolito)..."
-            if $COMPOSE_CMD build --no-cache app 2>&1 | tee /tmp/docker-compose-build.log; then
+        # Tentar build com até 3 retries em caso de falha transitória
+        if retry_with_backoff 3 3 $COMPOSE_CMD build --no-cache app 2>&1 | tee /tmp/docker-compose-build.log; then
                 log "✅ Build da imagem app concluído com sucesso!"
             else
                 error "❌ Erro no build da imagem app"
@@ -1659,21 +1686,21 @@ start_services_in_order() {
         
         # Ordem para Docker - iniciar em sequência
         log "Iniciando PostgreSQL..."
-        $COMPOSE_CMD up -d postgres
+        retry_with_backoff 3 2 $COMPOSE_CMD up -d postgres || true
         wait_for_postgres
         
         log "Iniciando Redis..."
-        $COMPOSE_CMD up -d redis
+        retry_with_backoff 3 2 $COMPOSE_CMD up -d redis || true
         wait_for_redis
         
         log "Iniciando Ollama..."
-        $COMPOSE_CMD up -d ollama
+        retry_with_backoff 3 2 $COMPOSE_CMD up -d ollama || true
         wait_for_ollama
         
         log "Iniciando App (monolito)..."
         # Retry leve para imagens que podem falhar por rede
         for i in {1..3}; do $COMPOSE_CMD up -d postgres redis ollama prometheus grafana && break || sleep 5; done
-        $COMPOSE_CMD up -d app
+        retry_with_backoff 3 3 $COMPOSE_CMD up -d app || true
         # Aguarde estabilização
         sleep 5
         
@@ -1872,36 +1899,48 @@ check_startup_order() {
 # Funções de espera para cada serviço
 wait_for_postgres() {
     log "Aguardando PostgreSQL..."
-    for i in {1..30}; do
+    local attempts=0
+    local delay=2
+    while [[ $attempts -lt 30 ]]; do
         if $COMPOSE_CMD exec -T postgres pg_isready -U smartsignage > /dev/null 2>&1; then
             log "✅ PostgreSQL: Pronto"
             return 0
         fi
-        sleep 2
+        attempts=$((attempts+1))
+        sleep "$delay"
+        if [[ $delay -lt 10 ]]; then delay=$((delay+1)); fi
     done
     warning "❌ PostgreSQL: Timeout"
 }
 
 wait_for_redis() {
     log "Aguardando Redis..."
-    for i in {1..15}; do
+    local attempts=0
+    local delay=2
+    while [[ $attempts -lt 15 ]]; do
         if $COMPOSE_CMD exec -T redis redis-cli ping > /dev/null 2>&1; then
             log "✅ Redis: Pronto"
             return 0
         fi
-        sleep 2
+        attempts=$((attempts+1))
+        sleep "$delay"
+        if [[ $delay -lt 10 ]]; then delay=$((delay+1)); fi
     done
     warning "❌ Redis: Timeout"
 }
 
 wait_for_ollama() {
     log "Aguardando Ollama..."
-    for i in {1..20}; do
+    local attempts=0
+    local delay=3
+    while [[ $attempts -lt 20 ]]; do
         if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
             log "✅ Ollama: Pronto"
             return 0
         fi
-        sleep 3
+        attempts=$((attempts+1))
+        sleep "$delay"
+        if [[ $delay -lt 15 ]]; then delay=$((delay+1)); fi
     done
     warning "❌ Ollama: Timeout"
 }
@@ -2251,20 +2290,21 @@ apply_general_backend_fixes() {
 
 wait_for_frontend() {
     log_progress "Aguardando Frontend..."
-    for i in {1..20}; do
-        log_detailed "Tentativa $i/20 - Testando conectividade do frontend..."
+    local attempts=0
+    local delay=2
+    while [[ $attempts -lt 20 ]]; do
+        log_detailed "Tentativa $((attempts+1))/20 - Testando conectividade do frontend..."
         if curl -s -f http://localhost:3001 > /dev/null 2>&1; then
             log_status "✅ Frontend: Pronto (porta 3001)"
             return 0
         fi
-        
-        # Verificar status do container
         CONTAINER_STATUS=$(docker ps --filter "name=smartsignage-frontend" --format "table {{.Status}}" | tail -1)
         log_detailed "Status do container: $CONTAINER_STATUS"
-        
-        sleep 2
+        attempts=$((attempts+1))
+        sleep "$delay"
+        if [[ $delay -lt 8 ]]; then delay=$((delay+1)); fi
     done
-    log_error "❌ Frontend: Timeout após 40 segundos"
+    log_error "❌ Frontend: Timeout após ~45 segundos"
     
     # Diagnóstico automático do frontend
     diagnose_and_fix_frontend
