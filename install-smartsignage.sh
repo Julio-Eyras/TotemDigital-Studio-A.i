@@ -1228,8 +1228,9 @@ setup_docker_compose() {
             fi
         fi
         
-        # Verificar se Dockerfiles existem (aceita monolito Dockerfile.app OU backend/frontend)
-        if [[ ! -f "Dockerfile.app" ]] && { [[ ! -f "Dockerfile.backend" ]] || [[ ! -f "Dockerfile.frontend" ]]; }; then
+        # Verificar se Dockerfiles existem (aceita monolito Dockerfile.app OU backend+frontend)
+        # Condição correta: se NÃO existe Dockerfile.app E (NÃO existe backend OU NÃO existe frontend) => faltam arquivos
+        if [[ ! -f "Dockerfile.app" ]] && [[ ! -f "Dockerfile.backend" || ! -f "Dockerfile.frontend" ]]; then
             log "Dockerfiles não encontrados, tentando copiar..."
             log "Verificando locais possíveis:"
             log "  - $SCRIPT_DIR/Dockerfile: $([[ -f "$SCRIPT_DIR/Dockerfile" ]] && echo "EXISTE" || echo "NÃO EXISTE")"
