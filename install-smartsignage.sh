@@ -1582,6 +1582,7 @@ setup_docker_compose() {
                 exit 1
             fi
         fi
+    fi
 }
 
 # Testar pontos de entrada
