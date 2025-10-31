@@ -3126,7 +3126,12 @@ case "$1" in
         if [ -f "$INSTALL_DIR/.env" ]; then
             . "$INSTALL_DIR/.env"
         fi
-        FRONTEND_PORT=${FRONTEND_PORT:-8080}
+        # No modo single-server, Nginx está na porta 80
+        if [[ "$INSTALL_MODE" == "single-server" ]]; then
+            FRONTEND_PORT=${FRONTEND_PORT:-80}
+        else
+            FRONTEND_PORT=${FRONTEND_PORT:-8080}
+        fi
         FRONTEND_ALT_PORT=${FRONTEND_ALT_PORT:-3001}
         BACKEND_PORT=${BACKEND_PORT:-3000}
         PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
@@ -3228,7 +3233,12 @@ show_final_info() {
     if [ -f "$INSTALL_DIR/.env" ]; then
         . "$INSTALL_DIR/.env"
     fi
-    FRONTEND_PORT=${FRONTEND_PORT:-8080}
+    # No modo single-server, Nginx está na porta 80
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        FRONTEND_PORT=${FRONTEND_PORT:-80}
+    else
+        FRONTEND_PORT=${FRONTEND_PORT:-8080}
+    fi
     FRONTEND_ALT_PORT=${FRONTEND_ALT_PORT:-3001}
     BACKEND_PORT=${BACKEND_PORT:-3000}
     PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
