@@ -146,7 +146,7 @@ router.post('/upload',
           size: mediaData.size,
         },
       });
-      res.status(201).json(created);
+      res.status(201).json(media);
     } catch (error) {
       res.status(400).json({ error: 'Erro ao fazer upload do arquivo' });
     }
@@ -189,7 +189,7 @@ router.post('/upload-multiple',
         });
         created.push(media);
       }
-      res.status(201).json(media);
+      res.status(201).json(created);
     } catch (error) {
       res.status(400).json({ error: 'Erro ao fazer upload dos arquivos' });
     }
