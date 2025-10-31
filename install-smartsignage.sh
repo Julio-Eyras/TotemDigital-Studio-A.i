@@ -1084,6 +1084,20 @@ setup_nginx() {
         return 0
     fi
     
+    # Validar que o build do frontend existe
+    if [[ ! -d "$INSTALL_DIR/frontend/build" ]]; then
+        error "❌ Build do frontend não encontrado em $INSTALL_DIR/frontend/build"
+        error "O frontend precisa ser compilado antes de configurar o Nginx!"
+        exit 1
+    fi
+    
+    if [[ ! -f "$INSTALL_DIR/frontend/build/index.html" ]]; then
+        error "❌ Arquivo index.html não encontrado no build do frontend!"
+        exit 1
+    fi
+    
+    log "✅ Build do frontend encontrado: $INSTALL_DIR/frontend/build"
+    
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
     
     if [[ "$ENABLE_HTTPS_SELF_SIGNED" == "true" ]] && [[ "$INSTALL_MODE" == "single-server" ]]; then
@@ -1192,11 +1206,36 @@ EOF
         return 0
     fi
     
-    # Apenas testar configuração, não recarregar
+    # Testar configuração
     if sudo nginx -t; then
         log "Nginx configurado com sucesso!"
+        
+        # Para single-server, iniciar e habilitar Nginx
+        if [[ "$INSTALL_MODE" == "single-server" ]]; then
+            log "Iniciando e habilitando Nginx..."
+            sudo systemctl enable nginx
+            if ! systemctl is-active --quiet nginx; then
+                sudo systemctl start nginx
+                sleep 2
+                
+                # Verificar se iniciou corretamente
+                if systemctl is-active --quiet nginx; then
+                    log "✅ Nginx iniciado com sucesso!"
+                else
+                    error "❌ Falha ao iniciar Nginx!"
+                    sudo systemctl status nginx --no-pager -l || true
+                    exit 1
+                fi
+            else
+                log "✅ Nginx já está rodando"
+                # Recarregar configuração se já estava rodando
+                sudo systemctl reload nginx 2>/dev/null || true
+            fi
+        fi
     else
-        warning "Configuração do Nginx pode ter problemas, mas continuando..."
+        error "❌ Erro na configuração do Nginx!"
+        sudo nginx -t
+        exit 1
     fi
 }
 
@@ -1788,8 +1827,14 @@ EOF
         sudo systemctl start smart-signage
         wait_for_backend
         
-        log "Iniciando Nginx..."
-        sudo systemctl start nginx
+        # Nginx já foi iniciado em setup_nginx(), apenas verificar
+        log "Verificando Nginx..."
+        if ! systemctl is-active --quiet nginx; then
+            log "Nginx não está ativo. Tentando iniciar..."
+            sudo systemctl enable nginx
+            sudo systemctl start nginx
+            sleep 2
+        fi
         wait_for_nginx
         
     elif [[ "$INSTALL_MODE" == "development" ]]; then
@@ -2400,22 +2445,50 @@ wait_for_nginx() {
         return $?
     else
         # Modo single-server ou development: verificar serviço Nginx do sistema
-        for i in {1..20}; do
-            log_detailed "Tentativa $i/20 - Testando conectividade do Nginx..."
+        # Primeiro, garantir que o Nginx está iniciado
+        if ! systemctl is-active --quiet nginx 2>/dev/null; then
+            log "Nginx não está ativo. Tentando iniciar..."
+            sudo systemctl enable nginx 2>/dev/null || true
+            sudo systemctl start nginx 2>/dev/null || {
+                log_error "Falha ao iniciar Nginx!"
+                sudo systemctl status nginx --no-pager -l || true
+                return 1
+            }
+            sleep 2
+        fi
+        
+        # Aguardar Nginx responder
+        local attempts=0
+        local delay=2
+        while [[ $attempts -lt 20 ]]; do
+            log_detailed "Tentativa $((attempts+1))/20 - Testando conectividade do Nginx..."
             
+            # Verificar se serviço está ativo
             if systemctl is-active --quiet nginx 2>/dev/null; then
                 # Verificar se responde na porta 80
                 if curl -s -f http://localhost:80 > /dev/null 2>&1; then
                     log_status "✅ Nginx: Pronto (serviço ativo na porta 80)"
                     return 0
                 fi
+            else
+                # Se não estiver ativo, tentar iniciar novamente
+                log "Nginx não está ativo. Tentando iniciar..."
+                sudo systemctl start nginx 2>/dev/null || true
+                sleep 2
             fi
             
-            sleep 2
+            attempts=$((attempts+1))
+            sleep "$delay"
+            if [[ $delay -lt 8 ]]; then delay=$((delay+1)); fi
         done
         
-        log_error "❌ Nginx: Timeout após 30 segundos"
-        systemctl status nginx --no-pager -l 2>/dev/null || echo "Não foi possível obter status"
+        log_error "❌ Nginx: Timeout após ~40 segundos"
+        log "Status do serviço Nginx:"
+        sudo systemctl status nginx --no-pager -l 2>/dev/null || echo "Não foi possível obter status"
+        log "Testando configuração do Nginx:"
+        sudo nginx -t 2>&1 || true
+        log "Verificando se porta 80 está em uso:"
+        sudo ss -tlnp | grep ":80 " || echo "Porta 80 não está em uso"
         return 1
     fi
 }
