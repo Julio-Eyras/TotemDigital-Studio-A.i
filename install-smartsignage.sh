@@ -225,6 +225,7 @@ install_dependencies() {
         python3 \
         python3-pip \
         postgresql-client \
+        sqlite3 \
         nginx \
         ufw \
         htop \
@@ -626,6 +627,25 @@ setup_database() {
     log "Configurando banco de dados..."
     
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        # Verificar escolha do driver; padrão PostgreSQL
+        if [[ -z "$DB_DRIVER" ]]; then
+            DB_DRIVER="postgresql"
+        fi
+
+        if [[ "$DB_DRIVER" == "sqlite" ]]; then
+            log "Configurando SQLite (servidor único)..."
+            mkdir -p "$INSTALL_DIR/data"
+            SQLITE_PATH="$INSTALL_DIR/data/smartsignage.db"
+            if [[ ! -f "$SQLITE_PATH" ]]; then
+                log "Criando banco SQLite em $SQLITE_PATH"
+                : > "$SQLITE_PATH"
+            fi
+            export DB_DRIVER="sqlite"
+            export DATABASE_URL="file:$SQLITE_PATH"
+            log "✅ SQLite configurado. DATABASE_URL=$DATABASE_URL"
+            return 0
+        fi
+
         # PostgreSQL local (servidor único)
         log "Instalando e configurando PostgreSQL (servidor único)..."
         
@@ -727,8 +747,8 @@ INSTALL_MODE=$INSTALL_MODE
 # Identificação única do sistema
 UIN=$UIN
 
-# Banco de dados (apenas PostgreSQL)
-DB_DRIVER=postgresql
+# Banco de dados (PostgreSQL ou SQLite)
+DB_DRIVER=${DB_DRIVER:-postgresql}
 DATABASE_URL=${DATABASE_URL:-postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage}
 
 # Servidor
@@ -1278,7 +1298,7 @@ setup_docker_compose() {
                 log "Arquivo Dockerfile.frontend copiado do diretório atual!"
             fi
             
-            if [[ ! -f "$INSTALL_DIR/Dockerfile.app" ]] && { [[ ! -f "$INSTALL_DIR/Dockerfile.backend" ]] || [[ ! -f "$INSTALL_DIR/Dockerfile.frontend" ]]; }; then
+            if [[ ! -f "$INSTALL_DIR/Dockerfile.app" ]] && [[ ! -f "$INSTALL_DIR/Dockerfile.backend" || ! -f "$INSTALL_DIR/Dockerfile.frontend" ]]; then
                 error "Dockerfiles não encontrados em nenhum local!"
                 error "Verifique se existe Dockerfile.app ou os arquivos Dockerfile.backend e Dockerfile.frontend no diretório do projeto"
                 exit 1
@@ -3437,7 +3457,7 @@ show_menu() {
     
     echo
     echo -e "${CYAN}Selecione o modo de instalação:${NC}"
-    echo -e "${GREEN}1)${NC} Single-Server (Appliance dedicado - PostgreSQL)"
+    echo -e "${GREEN}1)${NC} Single-Server (Appliance dedicado)"
     echo -e "${GREEN}2)${NC} Docker (Produção - PostgreSQL)"
     echo
     read -p "Digite sua escolha (1-2): " choice
@@ -3445,9 +3465,21 @@ show_menu() {
     case $choice in
         1)
             INSTALL_MODE="single-server"
-            # Usar PostgreSQL no modo servidor único
-            DB_DRIVER="postgresql"
-            DATABASE_URL="postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage"
+            # Escolher banco para servidor único
+            echo
+            echo -e "${CYAN}Selecione o banco de dados para Single-Server:${NC}"
+            echo -e "${GREEN}1)${NC} PostgreSQL (recomendado)"
+            echo -e "${GREEN}2)${NC} SQLite (simples, sem servidor)"
+            echo
+            read -p "Digite sua escolha (1-2) [padrão: 1]: " db_choice
+            db_choice=${db_choice:-1}
+            if [[ "$db_choice" == "2" ]]; then
+                DB_DRIVER="sqlite"
+                DATABASE_URL="file:$INSTALL_DIR/data/smartsignage.db"
+            else
+                DB_DRIVER="postgresql"
+                DATABASE_URL="postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage"
+            fi
             ;;
         2)
             INSTALL_MODE="docker"
