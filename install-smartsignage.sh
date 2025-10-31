@@ -1421,43 +1421,43 @@ setup_docker_compose() {
         # Iniciar serviços
         if [[ "$INSTALL_MODE" == "docker" ]]; then
             log "Iniciando containers Docker..."
-        
-        # Garantir que estamos no diretório correto
-        cd $INSTALL_DIR
-        log "Diretório atual: $(pwd)"
-        
-        # Verificar se o arquivo existe
-        if [[ ! -f "docker-compose.yml" ]]; then
-            error "Arquivo docker-compose.yml não encontrado em $INSTALL_DIR"
-            error "Listando arquivos no diretório:"
-            ls -la
-            exit 1
+            
+            # Garantir que estamos no diretório correto
+            cd $INSTALL_DIR
+            log "Diretório atual: $(pwd)"
+            
+            # Verificar se o arquivo existe
+            if [[ ! -f "docker-compose.yml" ]]; then
+                error "Arquivo docker-compose.yml não encontrado em $INSTALL_DIR"
+                error "Listando arquivos no diretório:"
+                ls -la
+                exit 1
+            fi
+            
+            log "Arquivo docker-compose.yml encontrado: $(ls -la docker-compose.yml)"
+            
+            # Iniciar serviços na ordem correta
+            start_services_in_order
+            
+            # Verificar se containers estão rodando
+            log "Verificando status final dos containers..."
+            sleep 5
+            
+            # Garantir que estamos no diretório correto
+            cd $INSTALL_DIR
+            
+            if $COMPOSE_CMD ps | grep -q "Up"; then
+                log "Docker Compose configurado e iniciado com sucesso!"
+                $COMPOSE_CMD ps
+            else
+                error "Falha ao iniciar containers Docker!"
+                error "Status dos containers:"
+                $COMPOSE_CMD ps
+                error "Logs dos containers:"
+                $COMPOSE_CMD logs
+                exit 1
+            fi
         fi
-        
-        log "Arquivo docker-compose.yml encontrado: $(ls -la docker-compose.yml)"
-        
-        # Iniciar serviços na ordem correta
-        start_services_in_order
-        
-        # Verificar se containers estão rodando
-        log "Verificando status final dos containers..."
-        sleep 5
-        
-        # Garantir que estamos no diretório correto
-        cd $INSTALL_DIR
-        
-        if $COMPOSE_CMD ps | grep -q "Up"; then
-            log "Docker Compose configurado e iniciado com sucesso!"
-            $COMPOSE_CMD ps
-        else
-            error "Falha ao iniciar containers Docker!"
-            error "Status dos containers:"
-            $COMPOSE_CMD ps
-            error "Logs dos containers:"
-            $COMPOSE_CMD logs
-            exit 1
-        fi
-    fi
 }
 
 # Testar pontos de entrada
