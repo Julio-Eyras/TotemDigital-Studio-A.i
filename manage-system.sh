@@ -53,6 +53,7 @@ show_help() {
     echo -e "${GREEN}  update${NC}         Atualizar sistema"
     echo -e "${GREEN}  rebuild${NC}        Rebuild completo"
     echo -e "${GREEN}  clean${NC}          Limpar containers e volumes não utilizados"
+    echo -e "${GREEN}  clean-all${NC}      ${RED}LIMPEZA TOTAL - Remove TUDO (CUIDADO! Apaga tudo)${NC}"
     echo -e "${GREEN}  health${NC}         Verificar saúde do sistema"
     echo -e "${GREEN}  reset${NC}          Reset completo (CUIDADO! Apaga tudo)"
     echo -e "${GREEN}  help${NC}            Mostrar esta mensagem de ajuda"
@@ -619,6 +620,17 @@ main() {
             ;;
         clean)
             clean_system
+            ;;
+        clean-all)
+            if [[ -f "/opt/smart-signage/scripts/clean-all.sh" ]]; then
+                bash /opt/smart-signage/scripts/clean-all.sh
+            elif [[ -f "$(dirname "$0")/scripts/clean-all.sh" ]]; then
+                bash "$(dirname "$0")/scripts/clean-all.sh"
+            else
+                error "Script clean-all.sh não encontrado!"
+                error "Execute diretamente: bash scripts/clean-all.sh"
+                exit 1
+            fi
             ;;
         health)
             health_check
