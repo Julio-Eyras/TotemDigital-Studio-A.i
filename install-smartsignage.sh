@@ -626,11 +626,31 @@ setup_database() {
     log "Configurando banco de dados..."
     
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
-        # SQLite
-        DB_FILE="$INSTALL_DIR/data/smartsignage.db"
-        mkdir -p $INSTALL_DIR/data
-        sqlite3 $DB_FILE < $INSTALL_DIR/database/schema.sql
-        log "Banco SQLite configurado: $DB_FILE"
+        # PostgreSQL local (servidor único)
+        log "Instalando e configurando PostgreSQL (servidor único)..."
+        sudo apt-get update -y
+        sudo apt-get install -y postgresql postgresql-contrib
+
+        # Garantir serviço ativo
+        sudo systemctl enable postgresql
+        sudo systemctl start postgresql
+
+        # Parâmetros
+        local PG_DB="smartsignage"
+        local PG_USER="smartsignage"
+        local PG_PASS="smartsignage123"
+
+        # Criar DB/USER idempotente
+        sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname = '${PG_USER}'" | grep -q 1 || \
+            sudo -u postgres psql -c "CREATE USER ${PG_USER} WITH PASSWORD '${PG_PASS}';"
+        sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${PG_DB}'" | grep -q 1 || \
+            sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};"
+        sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO ${PG_USER};" >/dev/null 2>&1 || true
+
+        # Exportar variáveis para as próximas etapas
+        export DB_DRIVER="postgresql"
+        export DATABASE_URL="postgresql://${PG_USER}:${PG_PASS}@localhost:5432/${PG_DB}"
+        log "PostgreSQL configurado. DATABASE_URL=${DATABASE_URL}"
     else
         # PostgreSQL via Docker
         log "Banco PostgreSQL será configurado via Docker"
@@ -660,8 +680,8 @@ INSTALL_MODE=$INSTALL_MODE
 UIN=$UIN
 
 # Banco de dados
-DB_DRIVER=$DB_DRIVER
-DATABASE_URL=$DATABASE_URL
+DB_DRIVER=${DB_DRIVER:-postgresql}
+DATABASE_URL=${DATABASE_URL:-postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage}
 
 # Servidor
 NODE_ENV=production
@@ -3254,8 +3274,9 @@ show_menu() {
     case $choice in
         1)
             INSTALL_MODE="single-server"
-            DB_DRIVER="sqlite"
-            DATABASE_URL="file:$INSTALL_DIR/data/smartsignage.db"
+            # Usar PostgreSQL no modo servidor único
+            DB_DRIVER="postgresql"
+            DATABASE_URL="postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage"
             ;;
         2)
             INSTALL_MODE="docker"
