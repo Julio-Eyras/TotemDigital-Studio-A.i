@@ -224,7 +224,7 @@ install_dependencies() {
         build-essential \
         python3 \
         python3-pip \
-        sqlite3 \
+        postgresql-client \
         nginx \
         ufw \
         htop \
@@ -546,8 +546,8 @@ install_project_dependencies() {
         exit 1
     fi
     
-    # Frontend (se necessário)
-    if [[ "$INSTALL_MODE" != "single-server" ]]; then
+    # Frontend - sempre compilar para single-server também
+    if [[ "$INSTALL_MODE" == "single-server" ]] || [[ "$INSTALL_MODE" == "development" ]]; then
         cd $INSTALL_DIR/frontend
         
         # Verificar se os arquivos essenciais estão presentes antes da compilação
@@ -628,29 +628,77 @@ setup_database() {
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
         # PostgreSQL local (servidor único)
         log "Instalando e configurando PostgreSQL (servidor único)..."
-        sudo apt-get update -y
-        sudo apt-get install -y postgresql postgresql-contrib
+        
+        # Instalar PostgreSQL se não estiver instalado
+        if ! command -v psql &> /dev/null; then
+            log "Instalando PostgreSQL..."
+            sudo apt-get update -y
+            sudo apt-get install -y postgresql postgresql-contrib
+        else
+            log "PostgreSQL já está instalado: $(psql --version)"
+        fi
 
         # Garantir serviço ativo
         sudo systemctl enable postgresql
-        sudo systemctl start postgresql
+        if ! systemctl is-active --quiet postgresql; then
+            log "Iniciando PostgreSQL..."
+            sudo systemctl start postgresql
+            sleep 5  # Aguardar PostgreSQL iniciar
+        else
+            log "PostgreSQL já está rodando"
+        fi
+
+        # Aguardar PostgreSQL estar pronto
+        log "Aguardando PostgreSQL estar pronto..."
+        for i in {1..30}; do
+            if sudo -u postgres psql -c "SELECT 1" > /dev/null 2>&1; then
+                log "✅ PostgreSQL está pronto"
+                break
+            fi
+            if [[ $i -eq 30 ]]; then
+                error "❌ PostgreSQL não iniciou após 60 segundos"
+                exit 1
+            fi
+            sleep 2
+        done
 
         # Parâmetros
         local PG_DB="smartsignage"
         local PG_USER="smartsignage"
         local PG_PASS="smartsignage123"
 
-        # Criar DB/USER idempotente
-        sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname = '${PG_USER}'" | grep -q 1 || \
-            sudo -u postgres psql -c "CREATE USER ${PG_USER} WITH PASSWORD '${PG_PASS}';"
-        sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${PG_DB}'" | grep -q 1 || \
-            sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};"
+        # Criar USER idempotente
+        log "Criando usuário PostgreSQL '${PG_USER}'..."
+        if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname = '${PG_USER}'" | grep -q 1; then
+            log "Usuário '${PG_USER}' já existe"
+        else
+            sudo -u postgres psql -c "CREATE USER ${PG_USER} WITH PASSWORD '${PG_PASS}';" || {
+                error "❌ Falha ao criar usuário PostgreSQL"
+                exit 1
+            }
+            log "✅ Usuário '${PG_USER}' criado com sucesso"
+        fi
+
+        # Criar DATABASE idempotente
+        log "Criando banco de dados '${PG_DB}'..."
+        if sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${PG_DB}'" | grep -q 1; then
+            log "Banco de dados '${PG_DB}' já existe"
+        else
+            sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
+                error "❌ Falha ao criar banco de dados"
+                exit 1
+            }
+            log "✅ Banco de dados '${PG_DB}' criado com sucesso"
+        fi
+
+        # Garantir privilégios
         sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO ${PG_USER};" >/dev/null 2>&1 || true
+        sudo -u postgres psql -d ${PG_DB} -c "GRANT ALL ON SCHEMA public TO ${PG_USER};" >/dev/null 2>&1 || true
 
         # Exportar variáveis para as próximas etapas
         export DB_DRIVER="postgresql"
         export DATABASE_URL="postgresql://${PG_USER}:${PG_PASS}@localhost:5432/${PG_DB}"
-        log "PostgreSQL configurado. DATABASE_URL=${DATABASE_URL}"
+        log "✅ PostgreSQL configurado. DATABASE_URL=${DATABASE_URL}"
     else
         # PostgreSQL via Docker
         log "Banco PostgreSQL será configurado via Docker"
@@ -679,8 +727,8 @@ INSTALL_MODE=$INSTALL_MODE
 # Identificação única do sistema
 UIN=$UIN
 
-# Banco de dados
-DB_DRIVER=${DB_DRIVER:-postgresql}
+# Banco de dados (apenas PostgreSQL)
+DB_DRIVER=postgresql
 DATABASE_URL=${DATABASE_URL:-postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage}
 
 # Servidor
@@ -1116,17 +1164,25 @@ create_systemd_service() {
         sudo tee $SERVICE_FILE > /dev/null << EOF
 [Unit]
 Description=Smart Signage Pro Backend
-After=network.target
+After=network.target postgresql.service
+Requires=postgresql.service
 
 [Service]
 Type=simple
 User=$USER
+Group=$USER
 WorkingDirectory=$INSTALL_DIR/backend
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 Environment=NODE_ENV=production
 EnvironmentFile=$INSTALL_DIR/.env
+
+# Limites de recursos
+LimitNOFILE=65536
+LimitNPROC=4096
 
 [Install]
 WantedBy=multi-user.target
@@ -1134,9 +1190,9 @@ EOF
 
         sudo systemctl daemon-reload
         sudo systemctl enable smart-signage
-        sudo systemctl start smart-signage
         
-        log "Serviço systemd criado e iniciado!"
+        log "✅ Serviço systemd criado e habilitado"
+        log "⚠️  O serviço será iniciado após configurar o banco de dados"
     fi
 }
 
@@ -1670,6 +1726,15 @@ EOF
         
     elif [[ "$INSTALL_MODE" == "single-server" ]]; then
         # Ordem para Single-Server
+        log "Verificando PostgreSQL..."
+        if ! systemctl is-active --quiet postgresql; then
+            log "Iniciando PostgreSQL..."
+            sudo systemctl start postgresql
+            sleep 5  # Aguardar PostgreSQL iniciar
+        else
+            log "✅ PostgreSQL já está rodando"
+        fi
+        
         log "Iniciando Backend..."
         sudo systemctl start smart-signage
         wait_for_backend
@@ -1822,6 +1887,30 @@ wait_for_ollama() {
 
 wait_for_backend() {
     log "Aguardando Backend..."
+    
+    # No modo single-server, verificar serviço systemd primeiro
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        log "Verificando serviço systemd smart-signage..."
+        
+        # Aguardar serviço estar ativo
+        for i in {1..30}; do
+            if systemctl is-active --quiet smart-signage; then
+                log "✅ Serviço smart-signage está ativo"
+                break
+            fi
+            if [[ $i -eq 30 ]]; then
+                warning "⚠️ Serviço smart-signage não iniciou após 60 segundos"
+                log "Verificando status do serviço..."
+                sudo systemctl status smart-signage --no-pager -l || true
+                log "Verificando logs do serviço..."
+                sudo journalctl -u smart-signage --no-pager -n 50 || true
+                return 1
+            fi
+            sleep 2
+        done
+    fi
+    
+    # Aguardar endpoint responder
     for i in {1..60}; do
         # Tentar diferentes endpoints de health check
         if curl -s http://localhost:3000/health > /dev/null 2>&1 || \
@@ -1833,17 +1922,29 @@ wait_for_backend() {
         
         # Mostrar progresso a cada 10 tentativas
         if [[ $((i % 10)) -eq 0 ]]; then
-            log "Aguardando Backend... (${i}/60)"
+            log "Aguardando Backend responder... (${i}/60)"
+            if [[ "$INSTALL_MODE" == "single-server" ]]; then
+                # Verificar logs em modo single-server
+                log "Últimas linhas do log do serviço:"
+                sudo journalctl -u smart-signage --no-pager -n 5 || true
+            fi
         fi
         
         sleep 2
     done
     
     echo -e "${YELLOW}[WARNING]${NC} ❌ Backend: Timeout após 2 minutos"
-    echo -e "${YELLOW}[WARNING]${NC} Iniciando diagnóstico automático..."
     
-    # Diagnóstico automático e correção
-    diagnose_and_fix_backend
+    # Diagnóstico específico por modo
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        echo -e "${YELLOW}[WARNING]${NC} Verificando logs do serviço systemd..."
+        sudo journalctl -u smart-signage --no-pager -n 50 || true
+        echo -e "${YELLOW}[WARNING]${NC} Verificando status do serviço..."
+        sudo systemctl status smart-signage --no-pager -l || true
+    else
+        echo -e "${YELLOW}[WARNING]${NC} Iniciando diagnóstico automático..."
+        diagnose_and_fix_backend
+    fi
 }
 
 # Função de diagnóstico e correção automática do backend
@@ -2371,8 +2472,8 @@ log "Iniciando configuração do Smart Signage Pro v2.0..."
 export NODE_ENV=${NODE_ENV:-production}
 export PORT=${PORT:-3000}
 export HOST=${HOST:-0.0.0.0}
-export DATABASE_TYPE=${DATABASE_TYPE:-sqlite}
-export DATABASE_URL=${DATABASE_URL:-file:./data/smartsignage.db}
+export DATABASE_TYPE=postgresql
+export DATABASE_URL=${DATABASE_URL:-postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage}
 export JWT_SECRET=${JWT_SECRET:-smartsignage-docker-secret-key-2025}
 export UPLOAD_PATH=${UPLOAD_PATH:-./uploads}
 
@@ -2607,21 +2708,91 @@ test_docker_build() {
 }
 
 setup_first_boot() {
-    log "Configurando primeiro boot..."
-    
-    # Criar usuário admin padrão
-    ADMIN_PASSWORD=$(openssl rand -base64 12)
-    
-    # Executar script de primeiro boot
-    if [[ -f "$INSTALL_DIR/scripts/first-boot.sh" ]]; then
-        chmod +x $INSTALL_DIR/scripts/first-boot.sh
-        $INSTALL_DIR/scripts/first-boot.sh
+    if [[ "$INSTALL_MODE" != "single-server" ]]; then
+        log "Primeiro boot será configurado pelo Docker"
+        return 0
     fi
     
-    log "Primeiro boot configurado!"
-    log "Usuário admin padrão: admin"
-    log "Senha admin padrão: $ADMIN_PASSWORD"
-    warn "IMPORTANTE: Altere a senha padrão após o primeiro login!"
+    log "Configurando primeiro boot (migrations e seed)..."
+    
+    cd $INSTALL_DIR/backend || {
+        error "Diretório backend não encontrado: $INSTALL_DIR/backend"
+        exit 1
+    }
+    
+    # Garantir que DATABASE_URL está definido
+    if [[ -z "$DATABASE_URL" ]]; then
+        error "DATABASE_URL não está definido!"
+        exit 1
+    fi
+    
+    export DATABASE_URL
+    export NODE_ENV=production
+    
+    # Gerar Prisma Client
+    log "Gerando Prisma Client..."
+    if npx prisma generate; then
+        log "✅ Prisma Client gerado com sucesso"
+    else
+        error "❌ Falha ao gerar Prisma Client"
+        exit 1
+    fi
+    
+    # Executar migrations
+    log "Executando migrations do banco de dados..."
+    if npx prisma migrate deploy; then
+        log "✅ Migrations executadas com sucesso"
+    else
+        warn "⚠️ Migrate deploy falhou, tentando db push..."
+        if npx prisma db push --accept-data-loss; then
+            log "✅ Schema criado com sucesso (db push)"
+        else
+            error "❌ Falha ao criar schema do banco de dados"
+            exit 1
+        fi
+    fi
+    
+    # Executar seed (dados iniciais)
+    log "Executando seed do banco de dados..."
+    if npx prisma db seed 2>/dev/null || npm run seed 2>/dev/null; then
+        log "✅ Seed executado com sucesso"
+    else
+        warn "⚠️ Seed não foi executado (pode não estar configurado)"
+        # Criar usuário admin manualmente se necessário
+        log "Criando usuário admin padrão..."
+        cd $INSTALL_DIR/backend
+        node -e "
+        const { PrismaClient } = require('@prisma/client');
+        const bcrypt = require('bcryptjs');
+        const prisma = new PrismaClient();
+        (async () => {
+            try {
+                const hashedPassword = await bcrypt.hash('admin', 12);
+                await prisma.user.upsert({
+                    where: { email: 'admin@smart-signage.com' },
+                    update: {},
+                    create: {
+                        email: 'admin@smart-signage.com',
+                        password: hashedPassword,
+                        name: 'Administrator',
+                        role: 'admin',
+                        is_active: true
+                    }
+                });
+                console.log('✅ Usuário admin criado: admin@smart-signage.com / admin');
+            } catch (e) {
+                console.error('Erro:', e.message);
+            } finally {
+                await prisma.\$disconnect();
+            }
+        })();
+        " || warn "⚠️ Falha ao criar usuário admin automaticamente"
+    fi
+    
+    log "✅ Primeiro boot configurado!"
+    log "👤 Usuário admin padrão: admin@smart-signage.com"
+    log "🔑 Senha admin padrão: admin"
+    warn "⚠️  IMPORTANTE: Altere a senha padrão após o primeiro login!"
 }
 
 # Criar script de gerenciamento
@@ -3265,11 +3436,10 @@ show_menu() {
     
     echo
     echo -e "${CYAN}Selecione o modo de instalação:${NC}"
-    echo -e "${GREEN}1)${NC} Single-Server (Appliance dedicado - SQLite)"
+    echo -e "${GREEN}1)${NC} Single-Server (Appliance dedicado - PostgreSQL)"
     echo -e "${GREEN}2)${NC} Docker (Produção - PostgreSQL)"
-    echo -e "${GREEN}3)${NC} Desenvolvimento (Local - SQLite)"
     echo
-    read -p "Digite sua escolha (1-3): " choice
+    read -p "Digite sua escolha (1-2): " choice
     
     case $choice in
         1)
@@ -3282,11 +3452,6 @@ show_menu() {
             INSTALL_MODE="docker"
             DB_DRIVER="postgresql"
             DATABASE_URL="postgresql://smartsignage:smartsignage123@postgres:5432/smartsignage"
-            ;;
-        3)
-            INSTALL_MODE="development"
-            DB_DRIVER="sqlite"
-            DATABASE_URL="file:$INSTALL_DIR/data/smartsignage.db"
             ;;
         *)
             error "Opção inválida!"
@@ -3410,10 +3575,20 @@ main() {
     install_project_dependencies
     setup_database
     setup_environment
+    
+    # Para single-server: setup_first_boot DEVE ser antes de create_systemd_service
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        setup_first_boot  # Executar migrations e seed ANTES de iniciar o serviço
+    fi
+    
     setup_nginx
     setup_letsencrypt  # Configurar Let's Encrypt se escolhido
     create_systemd_service
-    setup_docker_compose
+    
+    # Para Docker: setup_docker_compose
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        setup_docker_compose
+    fi
     
     # Se modo Docker, verificar se precisa rebuild apenas SE já existe instalação anterior
     # Não fazer rebuild automático durante instalação nova (já foi feito build em setup_docker_compose)
@@ -3434,7 +3609,12 @@ main() {
     
     check_startup_order
     test_endpoints
-    setup_first_boot
+    
+    # Para Docker: setup_first_boot é executado dentro do container
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        log "Para Docker, primeiro boot será configurado dentro do container"
+    fi
+    
     create_management_script
     setup_management_scripts
     

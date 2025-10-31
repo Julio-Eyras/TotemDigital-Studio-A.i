@@ -10,6 +10,9 @@
     "test": "echo 'Testes implementados'",
     "lint": "echo 'Linting implementado'"
   },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
   "keywords": [
     "digital-signage",
     "totem",

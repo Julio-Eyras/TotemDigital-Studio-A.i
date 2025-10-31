@@ -1,6 +1,6 @@
 /**
  * Smart Signage v2.0 - Backend Principal
- * Sistema unificado com suporte a SQLite e PostgreSQL
+ * Sistema unificado com PostgreSQL
  */
 
 import express from 'express';
@@ -325,7 +325,7 @@ async function startServer() {
       console.log(`🔧 Admin: http://${HOST}:${PORT}/admin`);
       console.log(`📚 API Docs: http://${HOST}:${PORT}/api-docs`);
       console.log(`💚 Health: http://${HOST}:${PORT}/health`);
-      console.log(`🗄️ Database: ${process.env.DB_DRIVER || 'sqlite'}`);
+      console.log(`🗄️ Database: PostgreSQL`);
       console.log(`🤖 AI Provider: ${process.env.AI_PROVIDER || 'ollama'}`);
       console.log('=====================================');
     });
