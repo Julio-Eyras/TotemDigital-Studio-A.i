@@ -574,6 +574,33 @@ EOF
             fi
         fi
         
+        # Copiar arquivos TypeScript individuais que podem não estar em diretórios
+        if [[ -f "$SOURCE_DIR/frontend/src/index.css" ]]; then
+            if [[ ! -f "$INSTALL_DIR/frontend/src/index.css" ]]; then
+                cp "$SOURCE_DIR/frontend/src/index.css" "$INSTALL_DIR/frontend/src/"
+                log "✅ Arquivo index.css copiado"
+            fi
+        fi
+        
+        # Garantir que TODOS os arquivos .ts, .tsx, .js, .jsx do src sejam copiados
+        log "Garantindo cópia completa de todos os arquivos do frontend/src..."
+        if [[ -d "$SOURCE_DIR/frontend/src" ]]; then
+            # Copiar todos os arquivos TypeScript/JavaScript que possam ter sido perdidos
+            find "$SOURCE_DIR/frontend/src" -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.json" -o -name "*.css" \) -exec sh -c '
+                source_file="$1"
+                install_dir="$2"
+                source_dir="$3"
+                rel_path="${source_file#$source_dir/}"
+                target_file="$install_dir/$rel_path"
+                target_dir=$(dirname "$target_file")
+                mkdir -p "$target_dir"
+                if [[ ! -f "$target_file" ]]; then
+                    cp "$source_file" "$target_file"
+                fi
+            ' _ {} "$INSTALL_DIR/frontend" "$SOURCE_DIR/frontend/src" \;
+            log "✅ Verificação completa de arquivos TypeScript/JavaScript concluída"
+        fi
+        
         # Copiar arquivos opcionais se existirem
         [[ -d "$SOURCE_DIR/player" ]] && cp -r "$SOURCE_DIR/player" $INSTALL_DIR/
         [[ -d "$SOURCE_DIR/scripts" ]] && cp -r "$SOURCE_DIR/scripts" $INSTALL_DIR/
