@@ -557,21 +557,58 @@ install_project_dependencies() {
         
         # Verificar se os arquivos essenciais estão presentes antes da compilação
         log "Verificando arquivos do frontend antes da compilação..."
+        log "Diretório atual: $(pwd)"
+        log "INSTALL_DIR: $INSTALL_DIR"
         
-        # Verificar se App.tsx existe antes de compilar
+        # Verificação completa: listar estrutura de diretórios
+        log "Verificando estrutura do diretório frontend:"
+        log "  - Diretório frontend existe: $([[ -d "$INSTALL_DIR/frontend" ]] && echo "SIM" || echo "NÃO")"
+        log "  - Diretório frontend/src existe: $([[ -d "$INSTALL_DIR/frontend/src" ]] && echo "SIM" || echo "NÃO")"
+        log "  - Arquivo App.tsx existe: $([[ -f "$INSTALL_DIR/frontend/src/App.tsx" ]] && echo "SIM" || echo "NÃO")"
+        log "  - Arquivo index.tsx existe: $([[ -f "$INSTALL_DIR/frontend/src/index.tsx" ]] && echo "SIM" || echo "NÃO")"
+        
+        # Verificar se estamos no diretório correto
+        if [[ ! -d "src" ]]; then
+            error "❌ Diretório src não encontrado em $(pwd)"
+            error "Estrutura atual:"
+            ls -la
+            exit 1
+        fi
+        
+        # Verificar se App.tsx existe ANTES de compilar
         if [[ ! -f "src/App.tsx" ]]; then
-            log_error "Arquivo src/App.tsx não encontrado!"
-            log "Listando arquivos em src/:"
+            error "❌ Arquivo src/App.tsx não encontrado em $(pwd)/src/"
+            error "Listando arquivos em src/:"
             ls -la src/ 2>/dev/null || true
+            error "Listando todos os arquivos .tsx em src/:"
+            find src -name "*.tsx" 2>/dev/null || true
+            error "Verificando se App.tsx existe em $INSTALL_DIR/frontend/src/:"
+            ls -la "$INSTALL_DIR/frontend/src/App.tsx" 2>/dev/null || error "❌ App.tsx não existe!"
             error "O arquivo App.tsx é obrigatório para compilar o frontend!"
             exit 1
         fi
         
+        # Verificar se index.tsx existe
         if [[ ! -f "src/index.tsx" ]]; then
-            log_error "Arquivo src/index.tsx não encontrado!"
+            error "❌ Arquivo src/index.tsx não encontrado em $(pwd)/src/"
+            error "Listando arquivos em src/:"
+            ls -la src/ 2>/dev/null || true
             error "O arquivo index.tsx é obrigatório para compilar o frontend!"
             exit 1
         fi
+        
+        # Verificação adicional: confirmar que App.tsx pode ser lido
+        if [[ ! -r "src/App.tsx" ]]; then
+            error "❌ Arquivo src/App.tsx não pode ser lido (problema de permissões)"
+            error "Permissões do arquivo:"
+            ls -la src/App.tsx
+            error "Ajustando permissões..."
+            chmod 644 src/App.tsx || true
+        fi
+        
+        # Listar arquivos principais para debug
+        log "Arquivos principais encontrados em src/:"
+        ls -la src/*.tsx src/*.ts 2>/dev/null | head -10 || true
         
         log "✅ Arquivos essenciais do frontend encontrados (App.tsx, index.tsx)"
         
