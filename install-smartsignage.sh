@@ -661,6 +661,25 @@ install_project_dependencies() {
         
         log "✅ Arquivos essenciais do frontend encontrados (App.tsx, index.tsx)"
         
+        # Limpar cache do React/Webpack antes de compilar (resolve problemas de módulos não encontrados)
+        log "Limpando cache do build anterior..."
+        rm -rf node_modules/.cache 2>/dev/null || true
+        rm -rf build 2>/dev/null || true
+        log "✅ Cache limpo"
+        
+        # Verificação final antes da compilação: garantir que App.tsx pode ser importado
+        log "Testando se App.tsx pode ser lido pelo Node.js..."
+        if node -e "require('./src/App.tsx')" 2>/dev/null; then
+            log "✅ App.tsx pode ser importado pelo Node.js"
+        else
+            # Tentar ler o arquivo diretamente
+            log "Verificando conteúdo do App.tsx..."
+            if [[ -f "src/App.tsx" ]]; then
+                FIRST_CHARS=$(head -c 100 "src/App.tsx" 2>/dev/null || echo "")
+                log "Primeiros 100 caracteres: $FIRST_CHARS"
+            fi
+        fi
+        
         if [[ ! -f "public/index.html" ]]; then
             log_error "index.html não encontrado em frontend/public/"
             log "Criando arquivo index.html..."
