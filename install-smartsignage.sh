@@ -708,6 +708,22 @@ install_project_dependencies() {
 }
 EOF
             log "✅ tsconfig.json criado"
+        else
+            log "✅ tsconfig.json já existe"
+            # Verificar se moduleResolution está correto
+            if ! grep -q '"moduleResolution"' "tsconfig.json"; then
+                warn "⚠️  tsconfig.json não tem moduleResolution configurado"
+                log "Adicionando moduleResolution: node..."
+                # Adicionar moduleResolution se não existir
+                sed -i '/"module":/a\    "moduleResolution": "node",' "tsconfig.json" 2>/dev/null || true
+            fi
+        fi
+        
+        # Verificação crítica: garantir que o diretório src está no include
+        if ! grep -q '"src"' "tsconfig.json"; then
+            warn "⚠️  tsconfig.json não inclui 'src'"
+            log "Atualizando tsconfig.json para incluir src..."
+            sed -i 's/"include":.*/"include": ["src"]/' "tsconfig.json" 2>/dev/null || true
         fi
         
         # Verificação final: tentar compilar apenas o App.tsx para verificar sintaxe
