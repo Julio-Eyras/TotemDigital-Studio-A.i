@@ -4044,23 +4044,24 @@ main() {
         
         if [[ -d "$INSTALL_DIR" ]]; then
             cd "$INSTALL_DIR" 2>/dev/null || true
-        
-        if [[ "$FRESH_MODE" == "true" ]]; then
-            rebuild_fresh
-            # Após rebuild fresh, continuar instalação normalmente
-        elif check_rebuild_needed || [[ "$FORCE_REBUILD" == "true" ]]; then
-            rebuild_preserve_data
-            # rebuild_preserve_data já reinicia containers se REBUILD_ONLY não estiver ativo
-            if [[ "$REBUILD_ONLY" != "true" ]]; then
-                log "Aguardando serviços iniciarem após rebuild..."
-                sleep 20  # Dar tempo para containers iniciarem
-                check_startup_order
-                test_endpoints
-                show_final_info
-                exit 0
+            
+            if [[ "$FRESH_MODE" == "true" ]]; then
+                rebuild_fresh
+                # Após rebuild fresh, continuar instalação normalmente
+            elif check_rebuild_needed || [[ "$FORCE_REBUILD" == "true" ]]; then
+                rebuild_preserve_data
+                # rebuild_preserve_data já reinicia containers se REBUILD_ONLY não estiver ativo
+                if [[ "$REBUILD_ONLY" != "true" ]]; then
+                    log "Aguardando serviços iniciarem após rebuild..."
+                    sleep 20  # Dar tempo para containers iniciarem
+                    check_startup_order
+                    test_endpoints
+                    show_final_info
+                    exit 0
+                fi
+            else
+                log "Rebuild não necessário (use --force para forçar)"
             fi
-        else
-            log "Rebuild não necessário (use --force para forçar)"
         fi
     fi
     
