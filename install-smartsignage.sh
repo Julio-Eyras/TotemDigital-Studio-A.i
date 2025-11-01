@@ -1162,9 +1162,12 @@ server {
     listen 80;
     server_name _;
     
+    # Diretório raiz e arquivo índice
+    root $INSTALL_DIR/frontend/build;
+    index index.html;
+    
     # Frontend
     location / {
-        root $INSTALL_DIR/frontend/build;
         try_files \$uri \$uri/ /index.html;
     }
     
@@ -1206,9 +1209,22 @@ EOF
         return 0
     fi
     
+    # Garantir permissões corretas para o Nginx ler os arquivos
+    log "Ajustando permissões do build do frontend para o Nginx..."
+    sudo chmod -R 755 "$INSTALL_DIR/frontend/build" 2>/dev/null || true
+    sudo chmod 644 "$INSTALL_DIR/frontend/build/index.html" 2>/dev/null || true
+    # Garantir que o usuário www-data (Nginx) pode ler
+    if id www-data &>/dev/null; then
+        sudo chown -R $(whoami):www-data "$INSTALL_DIR/frontend/build" 2>/dev/null || true
+    else
+        # Se não existe www-data, usar nginx
+        sudo chown -R $(whoami):nginx "$INSTALL_DIR/frontend/build" 2>/dev/null || true
+    fi
+    log "✅ Permissões ajustadas"
+    
     # Testar configuração
     if sudo nginx -t; then
-        log "Nginx configurado com sucesso!"
+        log "✅ Configuração do Nginx válida!"
         
         # Para single-server, iniciar e habilitar Nginx
         if [[ "$INSTALL_MODE" == "single-server" ]]; then
@@ -1216,7 +1232,7 @@ EOF
             sudo systemctl enable nginx
             if ! systemctl is-active --quiet nginx; then
                 sudo systemctl start nginx
-                sleep 2
+                sleep 3
                 
                 # Verificar se iniciou corretamente
                 if systemctl is-active --quiet nginx; then
@@ -1224,12 +1240,37 @@ EOF
                 else
                     error "❌ Falha ao iniciar Nginx!"
                     sudo systemctl status nginx --no-pager -l || true
+                    error "Verificando logs do Nginx:"
+                    sudo tail -30 /var/log/nginx/error.log 2>/dev/null || true
                     exit 1
                 fi
             else
                 log "✅ Nginx já está rodando"
                 # Recarregar configuração se já estava rodando
                 sudo systemctl reload nginx 2>/dev/null || true
+                sleep 1
+            fi
+            
+            # Validação final: verificar se o Nginx consegue servir o index.html
+            log "Validando se o Nginx está servindo o frontend..."
+            sleep 2
+            if curl -s -f http://localhost:80 > /dev/null 2>&1; then
+                log "✅ Nginx está respondendo na porta 80!"
+                # Verificar se retorna HTML (não erro 404 ou 403)
+                HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80)
+                if [[ "$HTTP_STATUS" == "200" ]]; then
+                    log "✅ Nginx está servindo o frontend corretamente (HTTP 200)!"
+                else
+                    warning "⚠️  Nginx respondeu com status HTTP $HTTP_STATUS"
+                    warning "Verificando se index.html está acessível..."
+                    sudo ls -la "$INSTALL_DIR/frontend/build/index.html" || true
+                fi
+            else
+                warning "⚠️  Nginx pode não estar servindo o frontend corretamente"
+                warning "Verificando logs:"
+                sudo tail -20 /var/log/nginx/error.log 2>/dev/null || true
+                warning "Verificando permissões:"
+                sudo ls -la "$INSTALL_DIR/frontend/build/index.html" || true
             fi
         fi
     else
