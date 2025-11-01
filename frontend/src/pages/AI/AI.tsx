@@ -152,3 +152,5 @@ const AI: React.FC = () => {
     </Box>
   );
 };
+
+export default AI;

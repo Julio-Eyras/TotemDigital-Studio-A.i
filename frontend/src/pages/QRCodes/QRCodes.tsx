@@ -84,3 +84,5 @@ const QRCodes: React.FC = () => {
     </Box>
   );
 };
+
+export default QRCodes;

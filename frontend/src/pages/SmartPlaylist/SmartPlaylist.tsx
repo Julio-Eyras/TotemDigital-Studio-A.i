@@ -87,3 +87,5 @@ const SmartPlaylist: React.FC = () => {
     </Box>
   );
 };
+
+export default SmartPlaylist;

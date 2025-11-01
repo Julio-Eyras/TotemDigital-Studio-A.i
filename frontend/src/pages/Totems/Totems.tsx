@@ -94,3 +94,5 @@ const Totems: React.FC = () => {
     </Box>
   );
 };
+
+export default Totems;
