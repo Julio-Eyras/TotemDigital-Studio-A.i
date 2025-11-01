@@ -3399,11 +3399,26 @@ show_final_info() {
     echo -e "   Comando global: smartsignage {comando}"
     echo
     echo -e "${BLUE}📊 Monitoramento:${NC}"
-    if [[ "$INSTALL_MODE" == "docker" ]]; then
-        echo -e "   Prometheus: http://$SERVER_IP:$PROMETHEUS_PORT"
-        echo -e "   Grafana:    http://$SERVER_IP:$GRAFANA_PORT (admin/admin)"
-    fi
     echo -e "   Logs:       sudo journalctl -u smart-signage -f"
+    echo
+    
+    # Informações sobre Grafana e Prometheus baseado no modo
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        echo -e "${BLUE}📈 Monitoramento (Grafana/Prometheus):${NC}"
+        if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+            echo -e "   Grafana:    http://$EXTERNAL_IP:3002 (admin/admin) ${GREEN}(Acesso remoto)${NC}"
+            echo -e "   Prometheus: http://$EXTERNAL_IP:9090 ${GREEN}(Acesso remoto)${NC}"
+        fi
+        echo -e "   Grafana:    http://$LOCAL_IP:3002 (admin/admin) ${BLUE}(Rede interna)${NC}"
+        echo -e "   Prometheus: http://$LOCAL_IP:9090 ${BLUE}(Rede interna)${NC}"
+        echo -e "   ${YELLOW}💡 Acesse o Grafana para visualizar dashboards e métricas${NC}"
+        echo -e "   ${YELLOW}💡 O Prometheus coleta métricas do sistema${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Grafana/Prometheus:${NC}"
+        echo -e "   ${YELLOW}Monitoramento não está disponível no modo Single-Server${NC}"
+        echo -e "   ${YELLOW}Para habilitar: Reinstale usando modo Docker (opção 2)${NC}"
+        echo -e "   ${YELLOW}Ou instale manualmente seguindo a documentação${NC}"
+    fi
     echo
     echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║                    🚀 PRÓXIMOS PASSOS                       ║${NC}"
