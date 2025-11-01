@@ -585,20 +585,41 @@ EOF
         # Garantir que TODOS os arquivos .ts, .tsx, .js, .jsx do src sejam copiados
         log "Garantindo cópia completa de todos os arquivos do frontend/src..."
         if [[ -d "$SOURCE_DIR/frontend/src" ]]; then
-            # Copiar todos os arquivos TypeScript/JavaScript que possam ter sido perdidos
-            find "$SOURCE_DIR/frontend/src" -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.json" -o -name "*.css" \) -exec sh -c '
-                source_file="$1"
-                install_dir="$2"
-                source_dir="$3"
-                rel_path="${source_file#$source_dir/}"
-                target_file="$install_dir/$rel_path"
-                target_dir=$(dirname "$target_file")
-                mkdir -p "$target_dir"
-                if [[ ! -f "$target_file" ]]; then
-                    cp "$source_file" "$target_file"
+            # Usar uma abordagem mais simples: copiar recursivamente todo o diretório src
+            # Isso garante que todos os arquivos sejam copiados, independente da extensão
+            log "Copiando recursivamente todo o diretório frontend/src..."
+            
+            # Criar estrutura de diretórios completa primeiro
+            find "$SOURCE_DIR/frontend/src" -type d | while read src_dir; do
+                rel_dir="${src_dir#$SOURCE_DIR/frontend/src}"
+                if [[ -n "$rel_dir" && "$rel_dir" != "/" ]]; then
+                    target_dir="$INSTALL_DIR/frontend/src$rel_dir"
+                    mkdir -p "$target_dir"
                 fi
-            ' _ {} "$INSTALL_DIR/frontend" "$SOURCE_DIR/frontend/src" \;
-            log "✅ Verificação completa de arquivos TypeScript/JavaScript concluída"
+            done
+            
+            # Copiar todos os arquivos (TypeScript, JavaScript, CSS, JSON, etc)
+            find "$SOURCE_DIR/frontend/src" -type f | while read src_file; do
+                rel_path="${src_file#$SOURCE_DIR/frontend/src/}"
+                target_file="$INSTALL_DIR/frontend/src/$rel_path"
+                
+                # Copiar apenas se não existir ou se for mais recente
+                if [[ ! -f "$target_file" ]] || [[ "$src_file" -nt "$target_file" ]]; then
+                    cp "$src_file" "$target_file"
+                fi
+            done
+            
+            log "✅ Verificação completa de arquivos do frontend/src concluída"
+            
+            # Verificação final: garantir que App.tsx existe
+            if [[ ! -f "$INSTALL_DIR/frontend/src/App.tsx" ]]; then
+                error "❌ App.tsx ainda não foi copiado após todas as tentativas!"
+                error "Verificando origem:"
+                ls -la "$SOURCE_DIR/frontend/src/App.tsx" 2>/dev/null || error "App.tsx não existe na origem!"
+                error "Verificando destino:"
+                ls -la "$INSTALL_DIR/frontend/src/" 2>/dev/null || true
+                exit 1
+            fi
         fi
         
         # Copiar arquivos opcionais se existirem
