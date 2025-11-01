@@ -498,6 +498,82 @@ EOF
             exit 1
         fi
         
+        # Verificar se arquivos essenciais do src foram copiados
+        log "Verificando arquivos essenciais do frontend/src..."
+        if [[ ! -f "$INSTALL_DIR/frontend/src/App.tsx" ]]; then
+            log_error "Arquivo App.tsx não encontrado após cópia!"
+            log "Verificando se existe no diretório origem..."
+            if [[ -f "$SOURCE_DIR/frontend/src/App.tsx" ]]; then
+                log "Copiando App.tsx..."
+                cp "$SOURCE_DIR/frontend/src/App.tsx" "$INSTALL_DIR/frontend/src/"
+                log "✅ App.tsx copiado com sucesso"
+            else
+                log_error "Arquivo App.tsx não encontrado no diretório origem!"
+                log "Verificando estrutura do diretório src..."
+                ls -la "$SOURCE_DIR/frontend/src/" 2>/dev/null || true
+                error "Arquivo App.tsx é obrigatório para o build do frontend!"
+                exit 1
+            fi
+        else
+            log "✅ Arquivo App.tsx encontrado"
+        fi
+        
+        # Verificar se index.tsx foi copiado
+        if [[ ! -f "$INSTALL_DIR/frontend/src/index.tsx" ]]; then
+            log_error "Arquivo index.tsx não encontrado após cópia!"
+            if [[ -f "$SOURCE_DIR/frontend/src/index.tsx" ]]; then
+                cp "$SOURCE_DIR/frontend/src/index.tsx" "$INSTALL_DIR/frontend/src/"
+                log "✅ index.tsx copiado com sucesso"
+            else
+                error "Arquivo index.tsx não encontrado!"
+                exit 1
+            fi
+        fi
+        
+        # Verificar se diretório src/components existe (pode ser necessário)
+        if [[ ! -d "$INSTALL_DIR/frontend/src/components" ]]; then
+            log "Diretório src/components não encontrado. Copiando..."
+            if [[ -d "$SOURCE_DIR/frontend/src/components" ]]; then
+                cp -r "$SOURCE_DIR/frontend/src/components" "$INSTALL_DIR/frontend/src/"
+                log "✅ Diretório components copiado"
+            else
+                warn "Diretório components não encontrado no origem"
+            fi
+        fi
+        
+        # Verificar se diretório src/pages existe
+        if [[ ! -d "$INSTALL_DIR/frontend/src/pages" ]]; then
+            log "Diretório src/pages não encontrado. Copiando..."
+            if [[ -d "$SOURCE_DIR/frontend/src/pages" ]]; then
+                cp -r "$SOURCE_DIR/frontend/src/pages" "$INSTALL_DIR/frontend/src/"
+                log "✅ Diretório pages copiado"
+            else
+                warn "Diretório pages não encontrado no origem"
+            fi
+        fi
+        
+        # Verificar se diretório src/services existe
+        if [[ ! -d "$INSTALL_DIR/frontend/src/services" ]]; then
+            log "Diretório src/services não encontrado. Copiando..."
+            if [[ -d "$SOURCE_DIR/frontend/src/services" ]]; then
+                cp -r "$SOURCE_DIR/frontend/src/services" "$INSTALL_DIR/frontend/src/"
+                log "✅ Diretório services copiado"
+            else
+                warn "Diretório services não encontrado no origem"
+            fi
+        fi
+        
+        # Verificar se diretório src/store existe
+        if [[ ! -d "$INSTALL_DIR/frontend/src/store" ]]; then
+            log "Diretório src/store não encontrado. Copiando..."
+            if [[ -d "$SOURCE_DIR/frontend/src/store" ]]; then
+                cp -r "$SOURCE_DIR/frontend/src/store" "$INSTALL_DIR/frontend/src/"
+                log "✅ Diretório store copiado"
+            else
+                warn "Diretório store não encontrado no origem"
+            fi
+        fi
+        
         # Copiar arquivos opcionais se existirem
         [[ -d "$SOURCE_DIR/player" ]] && cp -r "$SOURCE_DIR/player" $INSTALL_DIR/
         [[ -d "$SOURCE_DIR/scripts" ]] && cp -r "$SOURCE_DIR/scripts" $INSTALL_DIR/
@@ -580,6 +656,23 @@ install_project_dependencies() {
         
         # Verificar se os arquivos essenciais estão presentes antes da compilação
         log "Verificando arquivos do frontend antes da compilação..."
+        
+        # Verificar se App.tsx existe antes de compilar
+        if [[ ! -f "src/App.tsx" ]]; then
+            log_error "Arquivo src/App.tsx não encontrado!"
+            log "Listando arquivos em src/:"
+            ls -la src/ 2>/dev/null || true
+            error "O arquivo App.tsx é obrigatório para compilar o frontend!"
+            exit 1
+        fi
+        
+        if [[ ! -f "src/index.tsx" ]]; then
+            log_error "Arquivo src/index.tsx não encontrado!"
+            error "O arquivo index.tsx é obrigatório para compilar o frontend!"
+            exit 1
+        fi
+        
+        log "✅ Arquivos essenciais do frontend encontrados (App.tsx, index.tsx)"
         
         if [[ ! -f "public/index.html" ]]; then
             log_error "index.html não encontrado em frontend/public/"
