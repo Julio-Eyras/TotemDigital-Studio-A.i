@@ -553,12 +553,25 @@ install_project_dependencies() {
     
     # Frontend - sempre compilar para single-server também
     if [[ "$INSTALL_MODE" == "single-server" ]] || [[ "$INSTALL_MODE" == "development" ]]; then
-        cd $INSTALL_DIR/frontend
+        cd $INSTALL_DIR/frontend || {
+            error "❌ Não foi possível entrar no diretório $INSTALL_DIR/frontend"
+            exit 1
+        }
         
         # Verificar se os arquivos essenciais estão presentes antes da compilação
         log "Verificando arquivos do frontend antes da compilação..."
         log "Diretório atual: $(pwd)"
         log "INSTALL_DIR: $INSTALL_DIR"
+        
+        # Verificar se index.tsx está importando corretamente
+        if [[ -f "src/index.tsx" ]]; then
+            log "Verificando importação em index.tsx..."
+            if ! grep -q "from './App'" "src/index.tsx" && ! grep -q "from \"./App\"" "src/index.tsx"; then
+                warn "⚠️  Import de App não encontrado em index.tsx como esperado"
+                log "Conteúdo de index.tsx:"
+                cat "src/index.tsx" | head -5
+            fi
+        fi
         
         # Verificação completa: listar estrutura de diretórios
         log "Verificando estrutura do diretório frontend:"
@@ -609,6 +622,42 @@ install_project_dependencies() {
         # Listar arquivos principais para debug
         log "Arquivos principais encontrados em src/:"
         ls -la src/*.tsx src/*.ts 2>/dev/null | head -10 || true
+        
+        # Verificação adicional: verificar se App.tsx tem conteúdo válido
+        if [[ -f "src/App.tsx" ]]; then
+            log "Verificando conteúdo de App.tsx..."
+            FILE_SIZE=$(wc -c < "src/App.tsx" 2>/dev/null || echo "0")
+            log "  - Tamanho do arquivo: $FILE_SIZE bytes"
+            
+            if [[ $FILE_SIZE -eq 0 ]]; then
+                error "❌ Arquivo App.tsx está vazio!"
+                exit 1
+            fi
+            
+            # Verificar se começa com import ou export (arquivo TypeScript válido)
+            FIRST_LINE=$(head -n 1 "src/App.tsx" 2>/dev/null || echo "")
+            if [[ ! "$FIRST_LINE" =~ ^(import|export) ]]; then
+                warn "⚠️  Primeira linha de App.tsx não é um import/export: $FIRST_LINE"
+                log "Primeiras 3 linhas de App.tsx:"
+                head -n 3 "src/App.tsx" 2>/dev/null || true
+            fi
+        fi
+        
+        # Verificar encoding e caracteres especiais no nome do arquivo
+        log "Verificando nome do arquivo App.tsx..."
+        FILE_NAME=$(ls -1 src/App.tsx 2>/dev/null | head -1)
+        log "  - Nome encontrado: '$FILE_NAME'"
+        
+        # Verificar se há problemas de case sensitivity
+        if [[ ! "$FILE_NAME" == "App.tsx" ]]; then
+            error "❌ Nome do arquivo não é exatamente 'App.tsx': '$FILE_NAME'"
+            error "Corrigindo nome do arquivo..."
+            mv "src/$FILE_NAME" "src/App.tsx" 2>/dev/null || error "Não foi possível renomear"
+        fi
+        
+        # Garantir permissões corretas
+        chmod 644 src/App.tsx 2>/dev/null || true
+        chmod 644 src/index.tsx 2>/dev/null || true
         
         log "✅ Arquivos essenciais do frontend encontrados (App.tsx, index.tsx)"
         
