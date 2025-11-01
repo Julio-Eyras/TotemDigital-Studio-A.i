@@ -372,9 +372,9 @@ configure_firewall() {
     log "Firewall configurado com sucesso!"
 }
 
-# Baixar e configurar projeto
-setup_project() {
-    log "Configurando projeto Smart Signage Pro..."
+# Detectar diretório do projeto (apenas detecção, sem cópia)
+detect_project_directory() {
+    log "Detectando diretório do projeto..."
     
     # Detectar diretório do script
     SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -397,6 +397,19 @@ setup_project() {
         ls -la "$SCRIPT_DIR" || true
         error "Execute este script no diretório raiz do projeto Smart Signage Pro"
         exit 1
+    fi
+    
+    export SOURCE_DIR
+    log "✅ Diretório de origem detectado: $SOURCE_DIR"
+}
+
+# Configurar projeto (define INSTALL_DIR baseado no modo)
+setup_project() {
+    log "Configurando projeto Smart Signage Pro..."
+    
+    # SOURCE_DIR deve ter sido definido por detect_project_directory()
+    if [[ -z "$SOURCE_DIR" ]]; then
+        detect_project_directory
     fi
     
     # Para single-server, usar diretório de origem diretamente (mais simples e confiável)
@@ -4016,12 +4029,21 @@ main() {
         fi
     fi
     
-    # Setup projeto primeiro (necessário para checksums)
-    setup_project
+    # Detectar diretório do projeto PRIMEIRO (necessário para checksums)
+    detect_project_directory
     
     # Verificar se é modo rebuild antes do menu
-    if [[ "$REBUILD_MODE" == "true" ]] && [[ -d "$INSTALL_DIR" ]]; then
-        cd "$INSTALL_DIR" 2>/dev/null || true
+    # Para rebuild, precisamos definir INSTALL_DIR temporariamente
+    if [[ "$REBUILD_MODE" == "true" ]]; then
+        # Tentar detectar INSTALL_DIR existente (pode ser /opt/smart-signage ou diretório de origem)
+        if [[ -d "/opt/smart-signage" ]]; then
+            INSTALL_DIR="/opt/smart-signage"
+        elif [[ -d "$SOURCE_DIR" ]] && [[ -f "$SOURCE_DIR/.env" ]]; then
+            INSTALL_DIR="$SOURCE_DIR"
+        fi
+        
+        if [[ -d "$INSTALL_DIR" ]]; then
+            cd "$INSTALL_DIR" 2>/dev/null || true
         
         if [[ "$FRESH_MODE" == "true" ]]; then
             rebuild_fresh
@@ -4044,6 +4066,9 @@ main() {
     
     show_menu
     
+    # AGORA definir INSTALL_DIR baseado no modo escolhido
+    setup_project
+    
     # Perguntar sobre HTTPS (após menu, antes da instalação)
     ask_https_configuration
     
@@ -4054,7 +4079,6 @@ main() {
     install_nodejs
     install_docker
     configure_firewall
-    # setup_project já foi chamado antes (para checksums)
     install_project_dependencies
     setup_database
     setup_environment
