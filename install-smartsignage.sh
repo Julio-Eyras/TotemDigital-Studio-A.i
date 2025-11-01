@@ -3381,7 +3381,7 @@ show_final_info() {
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo
     echo -e "${RED}👤 USUÁRIO:${NC} ${YELLOW}admin${NC}"
-    echo -e "${RED}🔑 SENHA:${NC}  ${YELLOW}admin${NC}"
+    echo -e "${RED}🔑 SENHA:${NC}  ${YELLOW}admin123${NC}"
     echo
     echo -e "${RED}⚠️  ATENÇÃO:${NC} ${YELLOW}ALTERE A SENHA APÓS O PRIMEIRO LOGIN!${NC}"
     echo

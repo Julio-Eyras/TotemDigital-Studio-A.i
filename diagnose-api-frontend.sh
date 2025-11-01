@@ -80,7 +80,7 @@ fi
 echo -e "\n${YELLOW}[5] Testando login...${NC}"
 LOGIN_RESPONSE=$(curl -s -X POST http://localhost:80/api/auth/login \
     -H "Content-Type: application/json" \
-    -d '{"email":"admin@smart-signage.com","password":"admin"}' 2>/dev/null || echo "ERRO")
+    -d '{"username":"admin","password":"admin123"}' 2>/dev/null || echo "ERRO")
 if echo "$LOGIN_RESPONSE" | grep -q "token\|success"; then
     echo -e "${GREEN}✅ Login funcionando corretamente${NC}"
     echo "Token recebido: $(echo "$LOGIN_RESPONSE" | grep -o '"token":"[^"]*' | cut -d'"' -f4 | head -c 20)..."

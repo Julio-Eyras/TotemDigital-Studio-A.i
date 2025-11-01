@@ -9,20 +9,41 @@ const prisma = new PrismaClient();
 async function upsertAdminAndOpsUsers(clientId) {
   const adminEmail = 'admin@smart-signage.com';
   const opsEmail = 'ops@smart-signage.com';
-  const adminHash = await bcrypt.hash('admin', 12);
+  const adminUsername = 'admin';
+  const opsUsername = 'ops';
+  // Senha deve ter pelo menos 6 caracteres (mudado de 'admin' para 'admin123')
+  const adminHash = await bcrypt.hash('admin123', 12);
   const opsHash = await bcrypt.hash('ops123', 12);
 
-  await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: { role: 'admin', is_active: true },
-    create: { email: adminEmail, password: adminHash, name: 'Administrator', role: 'admin', is_active: true }
-  });
-
-  await prisma.user.upsert({
-    where: { email: opsEmail },
-    update: { role: 'operator', is_active: true },
-    create: { email: opsEmail, password: opsHash, name: 'Operator', role: 'operator', is_active: true }
-  });
+  // Usar executeRaw para criar usuários com username (campo que existe no banco mas não no Prisma schema)
+  try {
+    // Admin user
+    await prisma.$executeRaw`
+      INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at)
+      VALUES (${adminUsername}, ${adminEmail}, ${adminHash}, 'Administrator', 'admin', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT (username) 
+      DO UPDATE SET 
+        role = 'admin',
+        is_active = true,
+        password_hash = ${adminHash},
+        updated_at = CURRENT_TIMESTAMP
+    `;
+    
+    // Ops user
+    await prisma.$executeRaw`
+      INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at)
+      VALUES (${opsUsername}, ${opsEmail}, ${opsHash}, 'Operator', 'operator', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT (username) 
+      DO UPDATE SET 
+        role = 'operator',
+        is_active = true,
+        password_hash = ${opsHash},
+        updated_at = CURRENT_TIMESTAMP
+    `;
+  } catch (error) {
+    console.error('Erro ao criar usuários:', error);
+    throw error;
+  }
 }
 
 async function ensureClient() {
