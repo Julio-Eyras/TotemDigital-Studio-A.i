@@ -3,7 +3,7 @@ import { Box, Typography, Grid, Card, CardContent, Button, Dialog, DialogTitle, 
 import { Payment, Add, Refresh, Check } from '@mui/icons-material';
 import { billingApi, BillingItem, CreateBillingRequest } from '../../services/api';
 
-export const Billing: React.FC = () => {
+const Billing: React.FC = () => {
   const [items, setItems] = useState<BillingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

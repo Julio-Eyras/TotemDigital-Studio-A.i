@@ -3,7 +3,7 @@ import { Box, Typography, Grid, Card, CardContent, Button, Dialog, DialogTitle, 
 import { QrCode, Add, Refresh } from '@mui/icons-material';
 import { qrCodeApi, QRCode as QRCodeType, CreateQRCodeRequest } from '../../services/api';
 
-export const QRCodes: React.FC = () => {
+const QRCodes: React.FC = () => {
   const [items, setItems] = useState<QRCodeType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

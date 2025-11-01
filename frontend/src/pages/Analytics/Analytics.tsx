@@ -3,7 +3,7 @@ import { Box, Typography, Grid, Card, CardContent, LinearProgress, Alert } from 
 import { analyticsApi, AnalyticsData } from '../../services/api';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from 'recharts';
 
-export const Analytics: React.FC = () => {
+const Analytics: React.FC = () => {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,3 +89,5 @@ export const Analytics: React.FC = () => {
     </Box>
   );
 };
+
+export default Analytics;

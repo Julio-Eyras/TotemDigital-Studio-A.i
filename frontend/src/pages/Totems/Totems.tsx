@@ -3,7 +3,7 @@ import { Box, Typography, Grid, Card, CardContent, Avatar, Chip, Button, Dialog,
 import { Tv, Add, Refresh, LocationOn } from '@mui/icons-material';
 import { totemApi, Player, CreatePlayerRequest } from '../../services/api';
 
-export const Totems: React.FC = () => {
+const Totems: React.FC = () => {
   const [totems, setTotems] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

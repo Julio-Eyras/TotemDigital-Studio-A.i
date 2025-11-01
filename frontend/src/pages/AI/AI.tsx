@@ -3,7 +3,7 @@ import { Box, Typography, Paper, Grid, Card, CardContent, Button, TextField, Men
 import { SmartToy, Refresh, PlayArrow } from '@mui/icons-material';
 import { aiApi, AIModel, AIGenerateRequest } from '../../services/api';
 
-export const AI: React.FC = () => {
+const AI: React.FC = () => {
   const [models, setModels] = useState<AIModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -3,7 +3,7 @@ import { Box, Typography, Paper, Grid, Card, CardContent, Button, TextField, Chi
 import { SmartToy, Add, Refresh } from '@mui/icons-material';
 import { smartPlaylistApi, SmartPlaylist as SmartPlaylistType, SmartPlaylistRequest } from '../../services/api';
 
-export const SmartPlaylist: React.FC = () => {
+const SmartPlaylist: React.FC = () => {
   const [items, setItems] = useState<SmartPlaylistType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

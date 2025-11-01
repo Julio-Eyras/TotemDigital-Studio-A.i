@@ -3,7 +3,7 @@ import { Box, Typography, Grid, Card, CardContent, TextField, Button, Alert } fr
 import { Settings as SettingsIcon, Save, Refresh } from '@mui/icons-material';
 import { settingsApi, SystemSetting } from '../../services/api';
 
-export const Settings: React.FC = () => {
+const Settings: React.FC = () => {
   const [settings, setSettings] = useState<SystemSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
