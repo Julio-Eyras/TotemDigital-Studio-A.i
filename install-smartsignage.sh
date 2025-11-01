@@ -381,11 +381,6 @@ setup_project() {
     log "Diretório do script: $SCRIPT_DIR"
     log "Diretório atual: $(pwd)"
     
-    # Criar diretório de instalação
-    INSTALL_DIR="/opt/smart-signage"
-    sudo mkdir -p $INSTALL_DIR
-    sudo chown $USER:$USER $INSTALL_DIR
-    
     # Determinar diretório de origem (onde estão os arquivos do projeto)
     if [[ -d "backend" && -d "frontend" ]]; then
         SOURCE_DIR=$(pwd)
@@ -404,271 +399,116 @@ setup_project() {
         exit 1
     fi
     
-    # Copiar arquivos do projeto
-    if [[ -d "$SOURCE_DIR/backend" && -d "$SOURCE_DIR/frontend" ]]; then
-        log "Copiando arquivos do projeto de $SOURCE_DIR..."
+    # Para single-server, usar diretório de origem diretamente (mais simples e confiável)
+    # Para Docker, ainda copiar para /opt/smart-signage (padrão do docker-compose)
+    if [[ "$INSTALL_MODE" == "single-server" ]] || [[ "$INSTALL_MODE" == "development" ]]; then
+        INSTALL_DIR="$SOURCE_DIR"
+        log "Modo Single-Server: usando diretório de origem diretamente: $INSTALL_DIR"
+        log "✅ Não será necessário copiar arquivos - trabalhando diretamente do diretório de origem"
         
-        # Copiar backend
-        cp -r "$SOURCE_DIR/backend" $INSTALL_DIR/
+        # Apenas garantir que estamos no diretório correto
+        cd "$INSTALL_DIR"
+    else
+        # Modo Docker: copiar para /opt/smart-signage
+        INSTALL_DIR="/opt/smart-signage"
+        sudo mkdir -p $INSTALL_DIR
+        sudo chown $USER:$USER $INSTALL_DIR
+        log "Modo Docker: copiando para $INSTALL_DIR"
         
-        # Copiar frontend com verificação robusta
-        log "Copiando frontend..."
-        cp -r "$SOURCE_DIR/frontend" $INSTALL_DIR/
-        
-        # Verificar se arquivos essenciais do frontend foram copiados
-        log "Verificando arquivos do frontend..."
-        
-        # Verificar se o diretório public existe
-        if [[ ! -d "$INSTALL_DIR/frontend/public" ]]; then
-            log_error "Diretório frontend/public não encontrado!"
-            log "Criando diretório e copiando arquivos..."
-            mkdir -p "$INSTALL_DIR/frontend/public"
-            cp -r "$SOURCE_DIR/frontend/public/"* "$INSTALL_DIR/frontend/public/" 2>/dev/null || true
-        fi
-        
-        # Verificar se index.html existe
-        if [[ ! -f "$INSTALL_DIR/frontend/public/index.html" ]]; then
-            log_error "Arquivo index.html não encontrado após cópia!"
-            log "Tentando copiar novamente..."
+        # Copiar arquivos do projeto (apenas para Docker, Single-Server usa diretório de origem)
+        if [[ -d "$SOURCE_DIR/backend" && -d "$SOURCE_DIR/frontend" ]]; then
+            log "Copiando arquivos do projeto de $SOURCE_DIR para $INSTALL_DIR..."
             
-            # Tentar copiar novamente
-            if [[ -f "$SOURCE_DIR/frontend/public/index.html" ]]; then
-                cp "$SOURCE_DIR/frontend/public/index.html" "$INSTALL_DIR/frontend/public/"
-                log "✅ index.html copiado com sucesso"
-            else
-                log_error "Arquivo index.html não encontrado no diretório origem!"
-                log "Criando arquivo index.html básico..."
-                cat > "$INSTALL_DIR/frontend/public/index.html" << 'EOF'
-<!DOCTYPE html>
-<html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Smart Signage Pro - Sistema de Sinalização Digital Profissional"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <title>Smart Signage Pro</title>
-  </head>
-  <body>
-    <noscript>Você precisa habilitar o JavaScript para executar este aplicativo.</noscript>
-    <div id="root"></div>
-  </body>
-</html>
-EOF
-                log "✅ Arquivo index.html criado"
-            fi
-        else
-            log "✅ Arquivo index.html encontrado"
-        fi
-        
-        # Verificar se manifest.json existe
-        if [[ ! -f "$INSTALL_DIR/frontend/public/manifest.json" ]]; then
-            log_error "Arquivo manifest.json não encontrado!"
-            log "Criando arquivo manifest.json..."
-            cat > "$INSTALL_DIR/frontend/public/manifest.json" << 'EOF'
-{
-  "short_name": "Smart Signage Pro",
-  "name": "Smart Signage Pro - Sistema de Sinalização Digital",
-  "icons": [
-    {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
-    }
-  ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
-}
-EOF
-            log "✅ Arquivo manifest.json criado"
-        else
-            log "✅ Arquivo manifest.json encontrado"
-        fi
-        
-        # Verificar se package.json do frontend foi copiado
-        if [[ ! -f "$INSTALL_DIR/frontend/package.json" ]]; then
-            log_error "package.json do frontend não encontrado!"
-            exit 1
-        fi
-        
-        # Verificar se arquivos essenciais do src foram copiados
-        log "Verificando arquivos essenciais do frontend/src..."
-        if [[ ! -f "$INSTALL_DIR/frontend/src/App.tsx" ]]; then
-            log_error "Arquivo App.tsx não encontrado após cópia!"
-            log "Verificando se existe no diretório origem..."
-            if [[ -f "$SOURCE_DIR/frontend/src/App.tsx" ]]; then
-                log "Copiando App.tsx..."
-                cp "$SOURCE_DIR/frontend/src/App.tsx" "$INSTALL_DIR/frontend/src/"
-                log "✅ App.tsx copiado com sucesso"
-            else
-                log_error "Arquivo App.tsx não encontrado no diretório origem!"
-                log "Verificando estrutura do diretório src..."
-                ls -la "$SOURCE_DIR/frontend/src/" 2>/dev/null || true
-                error "Arquivo App.tsx é obrigatório para o build do frontend!"
-                exit 1
-            fi
-        else
-            log "✅ Arquivo App.tsx encontrado"
-        fi
-        
-        # Verificar se index.tsx foi copiado
-        if [[ ! -f "$INSTALL_DIR/frontend/src/index.tsx" ]]; then
-            log_error "Arquivo index.tsx não encontrado após cópia!"
-            if [[ -f "$SOURCE_DIR/frontend/src/index.tsx" ]]; then
-                cp "$SOURCE_DIR/frontend/src/index.tsx" "$INSTALL_DIR/frontend/src/"
-                log "✅ index.tsx copiado com sucesso"
-            else
-                error "Arquivo index.tsx não encontrado!"
-                exit 1
-            fi
-        fi
-        
-        # Verificar se diretório src/components existe (pode ser necessário)
-        if [[ ! -d "$INSTALL_DIR/frontend/src/components" ]]; then
-            log "Diretório src/components não encontrado. Copiando..."
-            if [[ -d "$SOURCE_DIR/frontend/src/components" ]]; then
-                cp -r "$SOURCE_DIR/frontend/src/components" "$INSTALL_DIR/frontend/src/"
-                log "✅ Diretório components copiado"
-            else
-                warn "Diretório components não encontrado no origem"
-            fi
-        fi
-        
-        # Verificar se diretório src/pages existe
-        if [[ ! -d "$INSTALL_DIR/frontend/src/pages" ]]; then
-            log "Diretório src/pages não encontrado. Copiando..."
-            if [[ -d "$SOURCE_DIR/frontend/src/pages" ]]; then
-                cp -r "$SOURCE_DIR/frontend/src/pages" "$INSTALL_DIR/frontend/src/"
-                log "✅ Diretório pages copiado"
-            else
-                warn "Diretório pages não encontrado no origem"
-            fi
-        fi
-        
-        # Verificar se diretório src/services existe
-        if [[ ! -d "$INSTALL_DIR/frontend/src/services" ]]; then
-            log "Diretório src/services não encontrado. Copiando..."
-            if [[ -d "$SOURCE_DIR/frontend/src/services" ]]; then
-                cp -r "$SOURCE_DIR/frontend/src/services" "$INSTALL_DIR/frontend/src/"
-                log "✅ Diretório services copiado"
-            else
-                warn "Diretório services não encontrado no origem"
-            fi
-        fi
-        
-        # Verificar se diretório src/store existe
-        if [[ ! -d "$INSTALL_DIR/frontend/src/store" ]]; then
-            log "Diretório src/store não encontrado. Copiando..."
-            if [[ -d "$SOURCE_DIR/frontend/src/store" ]]; then
-                cp -r "$SOURCE_DIR/frontend/src/store" "$INSTALL_DIR/frontend/src/"
-                log "✅ Diretório store copiado"
-            else
-                warn "Diretório store não encontrado no origem"
-            fi
-        fi
-        
-        # Copiar arquivos TypeScript individuais que podem não estar em diretórios
-        if [[ -f "$SOURCE_DIR/frontend/src/index.css" ]]; then
-            if [[ ! -f "$INSTALL_DIR/frontend/src/index.css" ]]; then
-                cp "$SOURCE_DIR/frontend/src/index.css" "$INSTALL_DIR/frontend/src/"
-                log "✅ Arquivo index.css copiado"
-            fi
-        fi
-        
-        # Garantir que TODOS os arquivos .ts, .tsx, .js, .jsx do src sejam copiados
-        log "Garantindo cópia completa de todos os arquivos do frontend/src..."
-        if [[ -d "$SOURCE_DIR/frontend/src" ]]; then
-            # Usar uma abordagem mais simples: copiar recursivamente todo o diretório src
-            # Isso garante que todos os arquivos sejam copiados, independente da extensão
-            log "Copiando recursivamente todo o diretório frontend/src..."
-            
-            # Criar estrutura de diretórios completa primeiro
-            find "$SOURCE_DIR/frontend/src" -type d | while read src_dir; do
-                rel_dir="${src_dir#$SOURCE_DIR/frontend/src}"
-                if [[ -n "$rel_dir" && "$rel_dir" != "/" ]]; then
-                    target_dir="$INSTALL_DIR/frontend/src$rel_dir"
-                    mkdir -p "$target_dir"
-                fi
-            done
-            
-            # Copiar todos os arquivos (TypeScript, JavaScript, CSS, JSON, etc)
-            find "$SOURCE_DIR/frontend/src" -type f | while read src_file; do
-                rel_path="${src_file#$SOURCE_DIR/frontend/src/}"
-                target_file="$INSTALL_DIR/frontend/src/$rel_path"
+            # Usar rsync se disponível (mais eficiente e preserva permissões), senão usar cp
+            if command -v rsync &> /dev/null; then
+                log "Usando rsync para cópia recursiva eficiente..."
                 
-                # Copiar apenas se não existir ou se for mais recente
-                if [[ ! -f "$target_file" ]] || [[ "$src_file" -nt "$target_file" ]]; then
-                    cp "$src_file" "$target_file"
-                fi
-            done
+                # Copiar backend recursivamente
+                log "Copiando backend..."
+                rsync -av --delete "$SOURCE_DIR/backend/" "$INSTALL_DIR/backend/"
+                
+                # Copiar frontend recursivamente (garante TODOS os arquivos)
+                log "Copiando frontend (recursivo completo)..."
+                rsync -av --delete "$SOURCE_DIR/frontend/" "$INSTALL_DIR/frontend/"
+                
+                # Copiar outros diretórios importantes
+                [[ -d "$SOURCE_DIR/player" ]] && rsync -av --delete "$SOURCE_DIR/player/" "$INSTALL_DIR/player/"
+                [[ -d "$SOURCE_DIR/scripts" ]] && rsync -av --delete "$SOURCE_DIR/scripts/" "$INSTALL_DIR/scripts/"
+                [[ -d "$SOURCE_DIR/database" ]] && rsync -av --delete "$SOURCE_DIR/database/" "$INSTALL_DIR/database/"
+                [[ -d "$SOURCE_DIR/docker" ]] && rsync -av --delete "$SOURCE_DIR/docker/" "$INSTALL_DIR/docker/"
+                [[ -d "$SOURCE_DIR/nginx" ]] && rsync -av --delete "$SOURCE_DIR/nginx/" "$INSTALL_DIR/nginx/"
+                
+                log "✅ Cópia recursiva completa com rsync concluída"
+            else
+                # Fallback para cp -a (preserva permissões e links simbólicos)
+                log "Usando cp -a para cópia recursiva (rsync não disponível)..."
+                
+                # Copiar backend recursivamente
+                log "Copiando backend..."
+                cp -a "$SOURCE_DIR/backend" "$INSTALL_DIR/"
+                
+                # Copiar frontend recursivamente (garante TODOS os arquivos)
+                log "Copiando frontend (recursivo completo)..."
+                cp -a "$SOURCE_DIR/frontend" "$INSTALL_DIR/"
+                
+                # Copiar outros diretórios
+                [[ -d "$SOURCE_DIR/player" ]] && cp -a "$SOURCE_DIR/player" "$INSTALL_DIR/"
+                [[ -d "$SOURCE_DIR/scripts" ]] && cp -a "$SOURCE_DIR/scripts" "$INSTALL_DIR/"
+                [[ -d "$SOURCE_DIR/database" ]] && rm -rf "$INSTALL_DIR/database" && cp -a "$SOURCE_DIR/database" "$INSTALL_DIR/"
+                [[ -d "$SOURCE_DIR/docker" ]] && cp -a "$SOURCE_DIR/docker" "$INSTALL_DIR/"
+                [[ -d "$SOURCE_DIR/nginx" ]] && cp -a "$SOURCE_DIR/nginx" "$INSTALL_DIR/"
+                
+                log "✅ Cópia recursiva completa com cp -a concluída"
+            fi
+        
+            # Copiar arquivos essenciais (docker-compose.yml, Dockerfiles, etc)
+            [[ -f "$SOURCE_DIR/docker-compose.yml" ]] && cp "$SOURCE_DIR/docker-compose.yml" "$INSTALL_DIR/"
+            [[ -f "$SOURCE_DIR/Dockerfile" ]] && cp "$SOURCE_DIR/Dockerfile" "$INSTALL_DIR/"
+            [[ -f "$SOURCE_DIR/Dockerfile.app" ]] && cp "$SOURCE_DIR/Dockerfile.app" "$INSTALL_DIR/"
+            [[ -f "$SOURCE_DIR/Dockerfile.backend" ]] && cp "$SOURCE_DIR/Dockerfile.backend" "$INSTALL_DIR/"
+            [[ -f "$SOURCE_DIR/Dockerfile.frontend" ]] && cp "$SOURCE_DIR/Dockerfile.frontend" "$INSTALL_DIR/"
+            [[ -f "$SOURCE_DIR/env.example" ]] && cp "$SOURCE_DIR/env.example" "$INSTALL_DIR/.env"
+            [[ -f "$SOURCE_DIR/package.json" ]] && cp "$SOURCE_DIR/package.json" "$INSTALL_DIR/"
+            [[ -f "$SOURCE_DIR/manage-system.sh" ]] && cp "$SOURCE_DIR/manage-system.sh" "$INSTALL_DIR/"
             
-            log "✅ Verificação completa de arquivos do frontend/src concluída"
-            
-            # Verificação final: garantir que App.tsx existe
+            # Verificação final para Docker: garantir que App.tsx foi copiado
             if [[ ! -f "$INSTALL_DIR/frontend/src/App.tsx" ]]; then
-                error "❌ App.tsx ainda não foi copiado após todas as tentativas!"
+                error "❌ App.tsx não foi copiado!"
                 error "Verificando origem:"
                 ls -la "$SOURCE_DIR/frontend/src/App.tsx" 2>/dev/null || error "App.tsx não existe na origem!"
-                error "Verificando destino:"
-                ls -la "$INSTALL_DIR/frontend/src/" 2>/dev/null || true
                 exit 1
             fi
+            
+            log "✅ Arquivos copiados com sucesso para $INSTALL_DIR"
+        else
+            error "Arquivos do projeto não encontrados em $SOURCE_DIR!"
+            exit 1
         fi
-        
-        # Copiar arquivos opcionais se existirem
-        [[ -d "$SOURCE_DIR/player" ]] && cp -r "$SOURCE_DIR/player" $INSTALL_DIR/
-        [[ -d "$SOURCE_DIR/scripts" ]] && cp -r "$SOURCE_DIR/scripts" $INSTALL_DIR/
-        [[ -d "$SOURCE_DIR/database" ]] && rm -rf $INSTALL_DIR/database && cp -r "$SOURCE_DIR/database" $INSTALL_DIR/
-        [[ -d "$SOURCE_DIR/docker" ]] && cp -r "$SOURCE_DIR/docker" $INSTALL_DIR/
-        
-        # Copiar arquivos essenciais
-        [[ -f "$SOURCE_DIR/docker-compose.yml" ]] && cp "$SOURCE_DIR/docker-compose.yml" $INSTALL_DIR/
-        [[ -f "$SOURCE_DIR/Dockerfile" ]] && cp "$SOURCE_DIR/Dockerfile" $INSTALL_DIR/
-        [[ -f "$SOURCE_DIR/Dockerfile.app" ]] && cp "$SOURCE_DIR/Dockerfile.app" $INSTALL_DIR/
-        [[ -f "$SOURCE_DIR/Dockerfile.backend" ]] && cp "$SOURCE_DIR/Dockerfile.backend" $INSTALL_DIR/
-        [[ -f "$SOURCE_DIR/Dockerfile.frontend" ]] && cp "$SOURCE_DIR/Dockerfile.frontend" $INSTALL_DIR/
-        [[ -f "$SOURCE_DIR/env.example" ]] && cp "$SOURCE_DIR/env.example" $INSTALL_DIR/.env
-        [[ -f "$SOURCE_DIR/package.json" ]] && cp "$SOURCE_DIR/package.json" $INSTALL_DIR/
-        [[ -f "$SOURCE_DIR/manage-system.sh" ]] && cp "$SOURCE_DIR/manage-system.sh" $INSTALL_DIR/
-        
-        # Copiar arquivo nginx se existir
-        if [[ -d "$SOURCE_DIR/nginx" ]]; then
-            cp -r "$SOURCE_DIR/nginx" $INSTALL_DIR/
-            # Garantir que diretório ssl existe (pode estar vazio)
-            mkdir -p $INSTALL_DIR/nginx/ssl
-            log "Diretório nginx copiado com sucesso"
-        fi
-        
-        # Verificar se arquivos essenciais foram copiados
-        if [[ ! -f "$INSTALL_DIR/docker-compose.yml" ]]; then
-            log "AVISO: docker-compose.yml não foi copiado. Será copiado posteriormente."
-        fi
-        
-        if [[ ! -f "$INSTALL_DIR/Dockerfile" ]]; then
-            log "AVISO: Dockerfile não foi copiado. Será copiado posteriormente."
-        fi
-        
-        if [[ ! -f "$INSTALL_DIR/Dockerfile.backend" ]]; then
-            log "AVISO: Dockerfile.backend não foi copiado. Será copiado posteriormente."
-        fi
-        
-        if [[ ! -f "$INSTALL_DIR/Dockerfile.frontend" ]]; then
-            log "AVISO: Dockerfile.frontend não foi copiado. Será copiado posteriormente."
-        fi
-        
-        log "Arquivos do projeto copiados com sucesso!"
-    else
-        error "Arquivos do projeto não encontrados!"
-        error "Execute este script no diretório raiz do projeto Smart Signage Pro"
+    fi
+    
+    # Verificação final: garantir que arquivos essenciais existem
+    log "Verificando arquivos essenciais..."
+    
+    if [[ ! -f "$INSTALL_DIR/frontend/src/App.tsx" ]]; then
+        error "❌ App.tsx não encontrado em $INSTALL_DIR/frontend/src/App.tsx"
+        error "Diretório atual: $(pwd)"
+        error "INSTALL_DIR: $INSTALL_DIR"
+        error "Verificando estrutura:"
+        ls -la "$INSTALL_DIR/frontend/src/" 2>/dev/null || true
         exit 1
     fi
+    
+    if [[ ! -f "$INSTALL_DIR/frontend/src/index.tsx" ]]; then
+        error "❌ index.tsx não encontrado em $INSTALL_DIR/frontend/src/index.tsx"
+        exit 1
+    fi
+    
+    if [[ ! -f "$INSTALL_DIR/frontend/package.json" ]]; then
+        error "❌ package.json não encontrado em $INSTALL_DIR/frontend/package.json"
+        exit 1
+    fi
+    
+    log "✅ Todos os arquivos essenciais verificados"
     
     cd $INSTALL_DIR
     log "Projeto configurado em $INSTALL_DIR"
