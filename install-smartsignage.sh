@@ -558,6 +558,35 @@ install_project_dependencies() {
             exit 1
         }
         
+        # CRÍTICO: Garantir tsconfig.json ANTES de instalar dependências
+        # React Scripts precisa disso para resolver módulos corretamente
+        if [[ ! -f "tsconfig.json" ]]; then
+            log "⚠️  tsconfig.json não encontrado! Criando antes de instalar dependências..."
+            cat > "tsconfig.json" << 'EOF'
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": false,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["src"]
+}
+EOF
+            log "✅ tsconfig.json criado"
+        fi
+        
         # Verificar se os arquivos essenciais estão presentes antes da compilação
         log "Verificando arquivos do frontend antes da compilação..."
         log "Diretório atual: $(pwd)"
