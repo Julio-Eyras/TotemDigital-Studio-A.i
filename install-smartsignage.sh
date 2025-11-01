@@ -676,7 +676,39 @@ install_project_dependencies() {
         log "Limpando cache do build anterior..."
         rm -rf node_modules/.cache 2>/dev/null || true
         rm -rf build 2>/dev/null || true
+        rm -rf .cache 2>/dev/null || true
+        rm -rf .eslintcache 2>/dev/null || true
+        # Limpar cache do npm também
+        npm cache clean --force 2>/dev/null || true
         log "✅ Cache limpo"
+        
+        # Garantir que tsconfig.json existe e está configurado corretamente
+        if [[ ! -f "tsconfig.json" ]]; then
+            log "Criando tsconfig.json para o frontend..."
+            cat > "tsconfig.json" << 'EOF'
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": false,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["src"]
+}
+EOF
+            log "✅ tsconfig.json criado"
+        fi
         
         # Verificação final: tentar compilar apenas o App.tsx para verificar sintaxe
         log "Verificando sintaxe do App.tsx..."
@@ -717,6 +749,28 @@ EOF
         log "Verificando se index.tsx pode importar App.tsx..."
         if grep -q "from './App'" "src/index.tsx" || grep -q "from \"./App\"" "src/index.tsx"; then
             log "✅ Importação em index.tsx está correta"
+            
+            # Verificação final: confirmar que App.tsx está no mesmo diretório
+            log "Verificando localização exata do App.tsx..."
+            if [[ -f "src/App.tsx" ]]; then
+                log "✅ App.tsx confirmado em src/App.tsx"
+                # Listar todos os arquivos .tsx em src/ para debug
+                log "Arquivos .tsx em src/:"
+                ls -1 src/*.tsx 2>/dev/null | head -5 || true
+                
+                # Verificar permissões e propriedade
+                log "Informações detalhadas de App.tsx:"
+                ls -la "src/App.tsx" 2>/dev/null || true
+                
+                # Tentar ler o arquivo diretamente para confirmar que está acessível
+                if head -1 "src/App.tsx" > /dev/null 2>&1; then
+                    log "✅ App.tsx pode ser lido diretamente"
+                else
+                    error "❌ App.tsx NÃO pode ser lido diretamente!"
+                    error "Verificando permissões..."
+                    chmod 644 "src/App.tsx" || true
+                fi
+            fi
         else
             warn "⚠️  Importação em index.tsx não está como esperado"
             log "Conteúdo de index.tsx:"
