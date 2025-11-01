@@ -723,6 +723,35 @@ EOF
             head -5 "src/index.tsx"
         fi
         
+        # Verificar se os arquivos importados pelo App.tsx existem
+        log "Verificando arquivos importados pelo App.tsx..."
+        MISSING_FILES=()
+        
+        # Lista de arquivos que App.tsx importa
+        REQUIRED_FILES=(
+            "src/pages/Auth/LoginPage.tsx"
+            "src/pages/Dashboard/Dashboard.tsx"
+            "src/pages/Media/Media.tsx"
+            "src/pages/Playlists/Playlists.tsx"
+            "src/pages/Players/Players.tsx"
+            "src/components/Layout/Layout.tsx"
+        )
+        
+        for file in "${REQUIRED_FILES[@]}"; do
+            if [[ ! -f "$file" ]]; then
+                MISSING_FILES+=("$file")
+                warn "⚠️  Arquivo não encontrado: $file"
+            fi
+        done
+        
+        if [[ ${#MISSING_FILES[@]} -gt 0 ]]; then
+            warn "⚠️  Alguns arquivos importados por App.tsx estão faltando:"
+            printf '  - %s\n' "${MISSING_FILES[@]}"
+            warn "Isso pode impedir a compilação do App.tsx"
+        else
+            log "✅ Todos os arquivos principais importados por App.tsx existem"
+        fi
+        
         if [[ ! -f "public/index.html" ]]; then
             log_error "index.html não encontrado em frontend/public/"
             log "Criando arquivo index.html..."
