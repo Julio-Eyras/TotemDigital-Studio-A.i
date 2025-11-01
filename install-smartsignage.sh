@@ -851,6 +851,40 @@ EOF
             log "✅ Todos os arquivos principais importados por App.tsx existem"
         fi
         
+        # CRÍTICO: Verificação final ANTES de compilar - garantir que App.tsx pode ser encontrado
+        log "Verificação final antes da compilação..."
+        
+        # Testar resolução do módulo usando Node.js diretamente
+        log "Testando resolução do módulo App.tsx..."
+        TEST_RESOLVE=$(node -e "
+            const fs = require('fs');
+            const path = require('path');
+            try {
+                const appPath = path.resolve('src/App.tsx');
+                if (fs.existsSync(appPath)) {
+                    console.log('EXISTS');
+                } else {
+                    console.log('NOT_FOUND');
+                }
+            } catch(e) {
+                console.log('ERROR');
+            }
+        " 2>&1 || echo "ERROR")
+        
+        if [[ "$TEST_RESOLVE" == *"EXISTS"* ]]; then
+            log "✅ Node.js confirma que App.tsx existe e pode ser encontrado"
+        else
+            warn "⚠️  Node.js não conseguiu encontrar App.tsx: $TEST_RESOLVE"
+        fi
+        
+        # Verificação final: confirmar que estamos no diretório correto
+        if [[ ! -f "src/App.tsx" ]] || [[ ! -f "src/index.tsx" ]]; then
+            error "❌ Arquivos não encontrados no diretório atual: $(pwd)"
+            error "Estrutura esperada:"
+            ls -la src/ 2>/dev/null | head -10 || true
+            exit 1
+        fi
+        
         if [[ ! -f "public/index.html" ]]; then
             log_error "index.html não encontrado em frontend/public/"
             log "Criando arquivo index.html..."
