@@ -1166,12 +1166,29 @@ server {
     root $INSTALL_DIR/frontend/build;
     index index.html;
     
-    # Frontend
-    location / {
-        try_files \$uri \$uri/ /index.html;
+    # Configurações gerais
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    
+    # Arquivos estáticos do React (JS, CSS, etc.)
+    location /static/ {
+        alias $INSTALL_DIR/frontend/build/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
     }
     
-    # Backend API
+    # Outros arquivos estáticos (manifest, favicon, etc.)
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    
+    # Backend API (DEVE vir antes de / para não interceptar)
     location /api/ {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
@@ -1182,6 +1199,9 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
     }
     
     # Player
@@ -1196,6 +1216,17 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
+    
+    # Frontend SPA - todas as rotas vão para index.html
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+    
+    # Compressão Gzip
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
 }
 EOF
     fi
