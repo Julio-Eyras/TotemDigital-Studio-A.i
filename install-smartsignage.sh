@@ -937,6 +937,27 @@ EOF
         log "Instalando dependências do frontend..."
         npm install
         
+        # ÚLTIMO RECURSO: Verificar se index.tsx precisa de extensão explícita
+        # Algumas versões do React Scripts requerem extensão explícita para .tsx
+        log "Verificando se precisamos adicionar extensão explícita no import..."
+        if grep -q "from './App'" "src/index.tsx" && [[ -f "src/App.tsx" ]]; then
+            # Tentar temporariamente adicionar extensão para ver se resolve
+            log "⚠️  Testando importação com extensão explícita..."
+            BACKUP_INDEX="src/index.tsx.backup.$(date +%s)"
+            cp "src/index.tsx" "$BACKUP_INDEX"
+            
+            # Substituir import sem extensão por import com extensão explícita
+            sed -i "s|from './App'|from './App.tsx'|g" "src/index.tsx" 2>/dev/null || \
+            sed -i 's|from "./App"|from "./App.tsx"|g' "src/index.tsx" 2>/dev/null || {
+                warn "⚠️  Não foi possível modificar index.tsx"
+                mv "$BACKUP_INDEX" "src/index.tsx"
+            }
+            
+            if [[ -f "$BACKUP_INDEX" ]]; then
+                log "✅ Importação modificada para usar extensão explícita"
+            fi
+        fi
+        
         log "Compilando frontend..."
         npm run build
         
