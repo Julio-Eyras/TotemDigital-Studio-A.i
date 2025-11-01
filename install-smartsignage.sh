@@ -645,14 +645,25 @@ install_project_dependencies() {
         
         # Verificar encoding e caracteres especiais no nome do arquivo
         log "Verificando nome do arquivo App.tsx..."
-        FILE_NAME=$(ls -1 src/App.tsx 2>/dev/null | head -1)
-        log "  - Nome encontrado: '$FILE_NAME'"
-        
-        # Verificar se há problemas de case sensitivity
-        if [[ ! "$FILE_NAME" == "App.tsx" ]]; then
-            error "❌ Nome do arquivo não é exatamente 'App.tsx': '$FILE_NAME'"
-            error "Corrigindo nome do arquivo..."
-            mv "src/$FILE_NAME" "src/App.tsx" 2>/dev/null || error "Não foi possível renomear"
+        # Obter apenas o nome do arquivo (sem caminho)
+        if [[ -f "src/App.tsx" ]]; then
+            FILE_NAME=$(basename "src/App.tsx")
+            log "  - Nome encontrado: '$FILE_NAME'"
+            
+            # Verificar se há problemas de case sensitivity (comparar apenas o nome)
+            if [[ "$FILE_NAME" != "App.tsx" ]]; then
+                warn "⚠️  Nome do arquivo não é exatamente 'App.tsx': '$FILE_NAME'"
+                warn "Corrigindo nome do arquivo..."
+                # Encontrar o arquivo com case incorreto
+                for file in src/*.tsx; do
+                    if [[ -f "$file" ]] && [[ "$(basename "$file" | tr '[:upper:]' '[:lower:]')" == "app.tsx" ]]; then
+                        mv "$file" "src/App.tsx" && log "✅ Arquivo renomeado para App.tsx" || warn "⚠️  Não foi possível renomear"
+                        break
+                    fi
+                done
+            else
+                log "✅ Nome do arquivo está correto: App.tsx"
+            fi
         fi
         
         # Garantir permissões corretas
@@ -667,17 +678,49 @@ install_project_dependencies() {
         rm -rf build 2>/dev/null || true
         log "✅ Cache limpo"
         
-        # Verificação final antes da compilação: garantir que App.tsx pode ser importado
-        log "Testando se App.tsx pode ser lido pelo Node.js..."
-        if node -e "require('./src/App.tsx')" 2>/dev/null; then
-            log "✅ App.tsx pode ser importado pelo Node.js"
-        else
-            # Tentar ler o arquivo diretamente
-            log "Verificando conteúdo do App.tsx..."
-            if [[ -f "src/App.tsx" ]]; then
-                FIRST_CHARS=$(head -c 100 "src/App.tsx" 2>/dev/null || echo "")
-                log "Primeiros 100 caracteres: $FIRST_CHARS"
+        # Verificação final: tentar compilar apenas o App.tsx para verificar sintaxe
+        log "Verificando sintaxe do App.tsx..."
+        if command -v tsc &> /dev/null; then
+            # Tentar verificar sintaxe TypeScript do App.tsx
+            TEMP_TS_CONFIG=$(mktemp)
+            cat > "$TEMP_TS_CONFIG" << 'EOF'
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": false,
+    "forceConsistentCasingInFileNames": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["src"]
+}
+EOF
+            if tsc --noEmit --project "$TEMP_TS_CONFIG" src/App.tsx 2>&1 | grep -q "error"; then
+                warn "⚠️  Erros de sintaxe detectados em App.tsx:"
+                tsc --noEmit --project "$TEMP_TS_CONFIG" src/App.tsx 2>&1 | head -5
+            else
+                log "✅ Sintaxe do App.tsx está OK"
             fi
+            rm -f "$TEMP_TS_CONFIG"
+        fi
+        
+        # Verificação adicional: confirmar que index.tsx pode encontrar App.tsx
+        log "Verificando se index.tsx pode importar App.tsx..."
+        if grep -q "from './App'" "src/index.tsx" || grep -q "from \"./App\"" "src/index.tsx"; then
+            log "✅ Importação em index.tsx está correta"
+        else
+            warn "⚠️  Importação em index.tsx não está como esperado"
+            log "Conteúdo de index.tsx:"
+            head -5 "src/index.tsx"
         fi
         
         if [[ ! -f "public/index.html" ]]; then
