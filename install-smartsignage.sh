@@ -40,6 +40,7 @@ ENABLE_HTTPS_SELF_SIGNED=false
 ENABLE_HTTPS_LETSENCRYPT=false
 DOMAIN_NAME=""
 SSL_EMAIL=""
+ENABLE_KIOSK_MODE=false
 
 # Cores para output
 RED='\033[0;31m'
@@ -3419,6 +3420,30 @@ show_final_info() {
         echo -e "   ${YELLOW}Para habilitar: Reinstale usando modo Docker (opção 2)${NC}"
         echo -e "   ${YELLOW}Ou instale manualmente seguindo a documentação${NC}"
     fi
+    
+    # Informações sobre modo Kiosk
+    if [[ "$ENABLE_KIOSK_MODE" == "true" ]]; then
+        echo
+        echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${GREEN}║                    🖥️  MODO KIOSK CONFIGURADO                  ║${NC}"
+        echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
+        echo
+        echo -e "${CYAN}📺 Modo Kiosk (Totem/Sinalização):${NC}"
+        echo -e "   ${GREEN}✓${NC} Ambiente gráfico XFCE instalado"
+        echo -e "   ${GREEN}✓${NC} Auto-login configurado"
+        echo -e "   ${GREEN}✓${NC} Navegador inicia automaticamente"
+        echo -e "   ${GREEN}✓${NC} Tela em modo Portrait (vertical)"
+        echo -e "   ${GREEN}✓${NC} URL: ${YELLOW}${KIOSK_URL:-http://$LOCAL_IP:80}${NC}"
+        echo
+        echo -e "${BLUE}🔧 Gerenciamento do Kiosk:${NC}"
+        echo -e "   ${YELLOW}$INSTALL_DIR/scripts/manage-kiosk.sh start${NC}    - Iniciar Kiosk"
+        echo -e "   ${YELLOW}$INSTALL_DIR/scripts/manage-kiosk.sh stop${NC}     - Parar Kiosk"
+        echo -e "   ${YELLOW}$INSTALL_DIR/scripts/manage-kiosk.sh restart${NC}  - Reiniciar Kiosk"
+        echo -e "   ${YELLOW}$INSTALL_DIR/scripts/manage-kiosk.sh rotate${NC}   - Aplicar rotação Portrait"
+        echo
+        echo -e "${YELLOW}💡 DICA:${NC} ${CYAN}Após reiniciar o servidor, o ambiente gráfico iniciará automaticamente${NC}"
+        echo -e "${YELLOW}💡 DICA:${NC} ${CYAN}Para iniciar agora sem reiniciar: sudo systemctl start lightdm${NC}"
+    fi
     echo
     echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║                    🚀 PRÓXIMOS PASSOS                       ║${NC}"
@@ -3705,6 +3730,29 @@ show_menu() {
     
     echo
     log "Modo selecionado: $INSTALL_MODE"
+    
+    # Perguntar sobre modo kiosk (apenas para single-server)
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        echo
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${CYAN}                    Modo Kiosk (Totem/Sinalização)${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo
+        echo -e "${YELLOW}Deseja instalar ambiente gráfico em modo Kiosk?${NC}"
+        echo -e "${GREEN}✓${NC} Interface gráfica (XFCE)"
+        echo -e "${GREEN}✓${NC} Login automático"
+        echo -e "${GREEN}✓${NC} Navegador inicia automaticamente com o sistema"
+        echo -e "${GREEN}✓${NC} Tela em modo Portrait (vertical) por padrão"
+        echo
+        read -p "Instalar modo Kiosk? (s/N): " kiosk_choice
+        if [[ "$kiosk_choice" =~ ^[Ss]$ ]]; then
+            ENABLE_KIOSK_MODE=true
+            log "Modo Kiosk será configurado após a instalação"
+        else
+            ENABLE_KIOSK_MODE=false
+            log "Modo Kiosk não será configurado"
+        fi
+    fi
 }
 
 # Função para configurar scripts de gerenciamento
@@ -3744,6 +3792,216 @@ setup_management_scripts() {
     fi
     
     log "Scripts de gerenciamento configurados com sucesso!"
+}
+
+# Configurar modo Kiosk (ambiente gráfico com auto-login e navegador automático)
+setup_kiosk_mode() {
+    if [[ "$ENABLE_KIOSK_MODE" != "true" ]]; then
+        return 0
+    fi
+    
+    log "Configurando modo Kiosk (ambiente gráfico)..."
+    
+    # Verificar se já tem ambiente gráfico instalado
+    if [[ -f /usr/bin/xfce4-session ]] || [[ -f /usr/bin/gnome-session ]]; then
+        log "Ambiente gráfico já está instalado!"
+    else
+        # Instalar ambiente gráfico (XFCE - leve e eficiente)
+        log "Instalando ambiente gráfico XFCE..."
+        sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            xfce4 \
+            xfce4-goodies \
+            xorg \
+            xserver-xorg \
+            lightdm \
+            chromium-browser \
+            unclutter \
+            xdotool
+        
+        log "✅ Ambiente gráfico XFCE instalado!"
+    fi
+    
+    # Configurar auto-login
+    log "Configurando auto-login..."
+    CURRENT_USER=$(whoami)
+    
+    # Configurar LightDM para auto-login
+    sudo tee /etc/lightdm/lightdm.conf > /dev/null << EOF
+[Seat:*]
+autologin-user=$CURRENT_USER
+autologin-user-timeout=0
+user-session=xfce
+greeter-session=lightdm-greeter
+EOF
+    
+    log "✅ Auto-login configurado para usuário: $CURRENT_USER"
+    
+    # Obter IP do servidor para o URL
+    SERVER_IP=$(hostname -I | awk '{print $1}')
+    KIOSK_URL="http://${SERVER_IP}:80"
+    
+    # Criar diretório de autostart
+    mkdir -p "$HOME/.config/autostart"
+    
+    # Script de inicialização do Kiosk
+    KIOSK_SCRIPT="$HOME/.config/autostart/kiosk.sh"
+    cat > "$KIOSK_SCRIPT" << 'KIOSK_SCRIPT_EOF'
+#!/bin/bash
+# Smart Signage Pro - Script de Inicialização Kiosk
+
+# Aguardar XFCE iniciar completamente
+sleep 10
+
+# Configurar orientação Portrait (90 graus - vertical)
+# Detecta a tela primária e aplica rotação
+PRIMARY_DISPLAY=$(xrandr | grep " connected" | grep -o "^[^ ]*" | head -1)
+
+if [[ -n "$PRIMARY_DISPLAY" ]]; then
+    # Aplicar rotação Portrait (90 graus no sentido horário)
+    xrandr --output "$PRIMARY_DISPLAY" --rotate right
+    
+    # Se não funcionar, tentar outras opções
+    if [[ $? -ne 0 ]]; then
+        # Tentar rotação no sentido anti-horário (270 graus)
+        xrandr --output "$PRIMARY_DISPLAY" --rotate left
+    fi
+fi
+
+# Esconder cursor após 5 segundos de inatividade
+unclutter -idle 5 -root &
+
+# Desabilitar proteção de tela
+xset s off
+xset -dpms
+xset s noblank
+
+# Obter IP do servidor (pode ser passado como variável ou detectar)
+KIOSK_URL="${KIOSK_URL:-http://localhost:80}"
+
+# Iniciar navegador em modo kiosk (tela cheia, sem barra de endereço)
+chromium-browser \
+    --kiosk \
+    --no-first-run \
+    --disable-infobars \
+    --disable-session-crashed-bubble \
+    --disable-restore-session-state \
+    --start-maximized \
+    --incognito \
+    --disable-translate \
+    --disable-features=TranslateUI \
+    --noerrdialogs \
+    --disable-web-security \
+    --disable-dev-shm-usage \
+    --autoplay-policy=no-user-gesture-required \
+    "$KIOSK_URL" &
+KIOSK_SCRIPT_EOF
+    
+    chmod +x "$KIOSK_SCRIPT"
+    
+    # Substituir KIOSK_URL no script com o IP real
+    sed -i "s|KIOSK_URL=\"\${KIOSK_URL:-http://localhost:80}\"|KIOSK_URL=\"$KIOSK_URL\"|g" "$KIOSK_SCRIPT"
+    
+    # Criar entrada no autostart do XFCE
+    KIOSK_DESKTOP="$HOME/.config/autostart/kiosk.desktop"
+    cat > "$KIOSK_DESKTOP" << EOF
+[Desktop Entry]
+Type=Application
+Name=Smart Signage Kiosk
+Exec=$KIOSK_SCRIPT
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+EOF
+    
+    chmod +x "$KIOSK_DESKTOP"
+    
+    log "✅ Script de Kiosk criado: $KIOSK_SCRIPT"
+    log "✅ URL do Kiosk: $KIOSK_URL"
+    
+    # Configurar xrandr para ser executado no login (fallback)
+    # Adicionar ao .bashrc ou .profile para garantir rotação
+    if ! grep -q "xrandr.*rotate" "$HOME/.bashrc" 2>/dev/null; then
+        echo "" >> "$HOME/.bashrc"
+        echo "# Smart Signage Pro - Configuração de rotação de tela" >> "$HOME/.bashrc"
+        echo "if [[ -n \"\$DISPLAY\" ]]; then" >> "$HOME/.bashrc"
+        echo "    PRIMARY_DISPLAY=\$(xrandr | grep ' connected' | grep -o '^[^ ]*' | head -1)" >> "$HOME/.bashrc"
+        echo "    if [[ -n \"\$PRIMARY_DISPLAY\" ]]; then" >> "$HOME/.bashrc"
+        echo "        xrandr --output \"\$PRIMARY_DISPLAY\" --rotate right 2>/dev/null || xrandr --output \"\$PRIMARY_DISPLAY\" --rotate left 2>/dev/null" >> "$HOME/.bashrc"
+        echo "    fi" >> "$HOME/.bashrc"
+        echo "fi" >> "$HOME/.bashrc"
+    fi
+    
+    # Habilitar LightDM
+    sudo systemctl enable lightdm
+    if ! systemctl is-active --quiet lightdm 2>/dev/null; then
+        log "⚠️  LightDM será iniciado no próximo boot"
+        log "💡 Para iniciar agora, execute: sudo systemctl start lightdm"
+    else
+        log "✅ LightDM já está ativo"
+    fi
+    
+    # Criar script de gerenciamento do kiosk
+    KIOSK_MANAGE_SCRIPT="$INSTALL_DIR/scripts/manage-kiosk.sh"
+    mkdir -p "$INSTALL_DIR/scripts"
+    cat > "$KIOSK_MANAGE_SCRIPT" << 'KIOSK_MANAGE_EOF'
+#!/bin/bash
+# Smart Signage Pro - Gerenciamento do Modo Kiosk
+
+case "$1" in
+    start)
+        echo "Iniciando modo Kiosk..."
+        sudo systemctl start lightdm
+        ;;
+    stop)
+        echo "Parando modo Kiosk..."
+        sudo systemctl stop lightdm
+        ;;
+    restart)
+        echo "Reiniciando modo Kiosk..."
+        sudo systemctl restart lightdm
+        ;;
+    status)
+        echo "Status do modo Kiosk:"
+        sudo systemctl status lightdm --no-pager
+        ;;
+    rotate)
+        echo "Aplicando rotação Portrait..."
+        PRIMARY_DISPLAY=$(xrandr | grep " connected" | grep -o "^[^ ]*" | head -1)
+        if [[ -n "$PRIMARY_DISPLAY" ]]; then
+            xrandr --output "$PRIMARY_DISPLAY" --rotate right || \
+            xrandr --output "$PRIMARY_DISPLAY" --rotate left
+            echo "✅ Rotação aplicada em: $PRIMARY_DISPLAY"
+        else
+            echo "❌ Nenhuma tela detectada"
+        fi
+        ;;
+    *)
+        echo "Uso: $0 {start|stop|restart|status|rotate}"
+        echo ""
+        echo "Comandos:"
+        echo "  start   - Inicia o ambiente gráfico (Kiosk)"
+        echo "  stop    - Para o ambiente gráfico"
+        echo "  restart - Reinicia o ambiente gráfico"
+        echo "  status  - Mostra status do LightDM"
+        echo "  rotate  - Aplica rotação Portrait na tela"
+        exit 1
+        ;;
+esac
+KIOSK_MANAGE_EOF
+    
+    chmod +x "$KIOSK_MANAGE_SCRIPT"
+    
+    log "✅ Script de gerenciamento criado: $KIOSK_MANAGE_SCRIPT"
+    
+    # Adicionar informação sobre o Kiosk na mensagem final
+    log "✅ Modo Kiosk configurado com sucesso!"
+    log "📍 URL do Kiosk: $KIOSK_URL"
+    log "💡 Use '$KIOSK_MANAGE_SCRIPT' para gerenciar o modo Kiosk"
+    
+    # Criar variável global para usar em show_final_info
+    export KIOSK_URL
+    export KIOSK_ENABLED=true
 }
 
 # Função principal
@@ -3861,6 +4119,11 @@ main() {
     
     create_management_script
     setup_management_scripts
+    
+    # Configurar modo Kiosk se solicitado
+    if [[ "$ENABLE_KIOSK_MODE" == "true" ]]; then
+        setup_kiosk_mode
+    fi
     
     # Executar checklist pós-instalação (não bloqueante)
     if [[ -f "$INSTALL_DIR/scripts/post-install-check.sh" ]]; then
