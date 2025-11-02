@@ -1614,64 +1614,22 @@ EOF
     # Garantir permissões corretas para o Nginx ler os arquivos
     log "Ajustando permissões do build do frontend para o Nginx..."
     
-    # CRÍTICO: Se INSTALL_DIR está em um diretório home, precisamos ajustar permissões dos diretórios pais
-    # O Nginx (www-data) precisa de permissão de execução (leitura) em todos os diretórios até o build
-    if [[ "$INSTALL_DIR" =~ ^/home/ ]]; then
-        log "⚠️  INSTALL_DIR está em um diretório home - ajustando permissões dos diretórios pais..."
-        
-        # Obter usuário do Nginx (www-data ou nginx)
-        NGINX_USER="www-data"
-        if ! id www-data &>/dev/null; then
-            NGINX_USER="nginx"
-        fi
-        
-        # Ajustar permissões dos diretórios pais (home, smartsignage-pro-main, frontend, build)
-        # Usar ACLs (setfacl) se disponível, senão usar chmod no grupo
-        if command -v setfacl &>/dev/null; then
-            log "Usando ACLs para dar permissão ao Nginx..."
-            # Dar permissão de execução (leitura) ao www-data/nginx nos diretórios pais
-            sudo setfacl -m u:$NGINX_USER:x "$(dirname "$INSTALL_DIR")" 2>/dev/null || true
-            sudo setfacl -m u:$NGINX_USER:x "$INSTALL_DIR" 2>/dev/null || true
-            sudo setfacl -m u:$NGINX_USER:x "$INSTALL_DIR/frontend" 2>/dev/null || true
-            sudo setfacl -R -m u:$NGINX_USER:rX "$INSTALL_DIR/frontend/build" 2>/dev/null || true
-        else
-            log "Usando chmod para dar permissão ao Nginx nos diretórios pais..."
-            # Dar permissão de execução (leitura) nos diretórios pais para o Nginx poder navegar até o build
-            # Começar do diretório home e ir descendo
-            HOME_DIR=$(dirname "$(dirname "$INSTALL_DIR")")
-            if [[ -d "$HOME_DIR" ]]; then
-                sudo chmod 755 "$HOME_DIR" 2>/dev/null || true
-            fi
-            # Diretório do projeto (smartsignage-pro-main)
-            sudo chmod 755 "$(dirname "$INSTALL_DIR")" 2>/dev/null || true
-            sudo chmod 755 "$INSTALL_DIR" 2>/dev/null || true
-            sudo chmod 755 "$INSTALL_DIR/frontend" 2>/dev/null || true
-            
-            # Ajustar ownership e permissões do build
-            if id www-data &>/dev/null; then
-                sudo chown -R $(whoami):www-data "$INSTALL_DIR/frontend/build" 2>/dev/null || true
-                sudo chmod -R 755 "$INSTALL_DIR/frontend/build" 2>/dev/null || true
-            else
-                sudo chown -R $(whoami):nginx "$INSTALL_DIR/frontend/build" 2>/dev/null || true
-                sudo chmod -R 755 "$INSTALL_DIR/frontend/build" 2>/dev/null || true
-            fi
-        fi
+    # Se usamos DEPLOY_DIR (diretório público), já foram ajustadas acima
+    # Se não, ajustar permissões do diretório original
+    if [[ -n "$FRONTEND_BUILD_DIR" ]] && [[ "$FRONTEND_BUILD_DIR" != "$INSTALL_DIR/frontend/build" ]]; then
+        log "✅ Permissões já foram ajustadas no diretório de deploy: $FRONTEND_BUILD_DIR"
     else
-        # Se não está em um diretório home, apenas ajustar permissões normais
-        sudo chmod -R 755 "$INSTALL_DIR/frontend/build" 2>/dev/null || true
+        # Ajustar permissões do diretório original (caso não tenha sido copiado)
         if id www-data &>/dev/null; then
-            sudo chown -R $(whoami):www-data "$INSTALL_DIR/frontend/build" 2>/dev/null || true
+            sudo chown -R www-data:www-data "$FRONTEND_BUILD_DIR" 2>/dev/null || true
         else
-            sudo chown -R $(whoami):nginx "$INSTALL_DIR/frontend/build" 2>/dev/null || true
+            sudo chown -R nginx:nginx "$FRONTEND_BUILD_DIR" 2>/dev/null || true
         fi
+        sudo chmod -R 755 "$FRONTEND_BUILD_DIR" 2>/dev/null || true
+        sudo find "$FRONTEND_BUILD_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+        sudo find "$FRONTEND_BUILD_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
+        log "✅ Permissões ajustadas para $FRONTEND_BUILD_DIR"
     fi
-    
-    # Ajustar permissão dos arquivos
-    sudo chmod 644 "$INSTALL_DIR/frontend/build/index.html" 2>/dev/null || true
-    sudo find "$INSTALL_DIR/frontend/build" -type f -exec chmod 644 {} \; 2>/dev/null || true
-    sudo find "$INSTALL_DIR/frontend/build" -type d -exec chmod 755 {} \; 2>/dev/null || true
-    
-    log "✅ Permissões ajustadas"
     
     # Testar configuração
     if sudo nginx -t; then
@@ -1714,7 +1672,7 @@ EOF
                 else
                     warning "⚠️  Nginx respondeu com status HTTP $HTTP_STATUS"
                     warning "Verificando se index.html está acessível..."
-                    sudo ls -la "$INSTALL_DIR/frontend/build/index.html" || true
+                    sudo ls -la "$FRONTEND_BUILD_DIR/index.html" || true
                 fi
             else
                 warning "⚠️  Nginx pode não estar servindo o frontend corretamente"
