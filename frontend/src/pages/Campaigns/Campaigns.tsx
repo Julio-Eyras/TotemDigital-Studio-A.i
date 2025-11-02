@@ -31,7 +31,7 @@ import {
   Add,
   Edit,
   Delete,
-  Campaign,
+  Campaign as CampaignIcon,
   CalendarToday,
   People,
   PlayArrow,
@@ -203,7 +203,7 @@ const Campaigns: React.FC = () => {
       case 'cancelled':
         return <Stop />;
       default:
-        return <Campaign />;
+        return <CampaignIcon />;
     }
   };
 
@@ -259,7 +259,7 @@ const Campaigns: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 InputProps={{
-                  startAdornment: <Campaign sx={{ mr: 1, color: theme.palette.text.secondary }} />,
+                  startAdornment: <CampaignIcon sx={{ mr: 1, color: theme.palette.text.secondary }} />,
                 }}
               />
             </Grid>
@@ -412,7 +412,7 @@ const Campaigns: React.FC = () => {
       {campaigns.length === 0 && !loading && (
         <Card sx={{ textAlign: 'center', py: 8 }}>
           <CardContent>
-            <Campaign sx={{ fontSize: 64, color: theme.palette.text.secondary, mb: 2 }} />
+            <CampaignIcon sx={{ fontSize: 64, color: theme.palette.text.secondary, mb: 2 }} />
             <Typography variant="h6" sx={{ mb: 1 }}>
               Nenhuma campanha encontrada
             </Typography>
