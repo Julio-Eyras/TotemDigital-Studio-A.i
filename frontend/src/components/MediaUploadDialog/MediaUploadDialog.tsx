@@ -95,10 +95,9 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
           title: formData.name || file.name.split('.')[0],
           description: formData.description,
           tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()) : [],
-          file: file,
         };
 
-        const result = await mediaApi.upload(mediaData);
+        const result = await mediaApi.upload(file, mediaData);
         
         // Atualizar progresso
         setUploadProgress(((index + 1) / files.length) * 100);
