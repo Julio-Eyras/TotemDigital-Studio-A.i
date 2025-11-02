@@ -17,7 +17,7 @@ curl -fsS "$API/api/docs.json" | jq '.info,.paths | keys | length' || true
 echo "===> 3) Login admin e token"
 TOKEN=$(curl -fsS -X POST "$API/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin"}' | jq -r '.accessToken' || echo "")
+  -d '{"username":"admin","password":"admin123"}' | jq -r '.token' || echo "")
 if [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ]; then echo "TOKEN OK"; else echo "TOKEN FALHOU"; fi
 
 echo "===> 4) CRUD rápido - criar cliente e checar lista"
