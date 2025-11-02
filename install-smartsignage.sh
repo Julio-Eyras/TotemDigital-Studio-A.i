@@ -3424,19 +3424,48 @@ setup_first_boot() {
         fi
     fi
     
-    # Verificar se tabelas foram criadas corretamente
-    log "Verificando se todas as tabelas foram criadas..."
+    # Verificar se TODAS as tabelas do schema foram criadas corretamente
+    log "Verificando se TODAS as tabelas do schema foram criadas..."
     cd $INSTALL_DIR/backend
     
-    # Lista de tabelas obrigatórias
-    REQUIRED_TABLES=("users" "clients" "totems" "medias" "playlists" "playlist_items" "campaigns")
+    # Lista COMPLETA de TODAS as 15 tabelas do schema Prisma (em ordem de dependência)
+    # Ordem importa: tabelas sem foreign keys primeiro
+    # Schema completo: User, Client, Totem, Media, Playlist, PlaylistItem, Campaign, QRCode, Analytics, AuditLog, SystemLog, Notification, Settings, Report, Billing
+    ALL_TABLES=(
+        "clients"           # Client - Tabela base sem dependências
+        "users"             # User - Depende de clients (opcional)
+        "medias"            # Media - Depende de clients (opcional)
+        "playlists"         # Playlist - Depende de clients (opcional)
+        "playlist_items"    # PlaylistItem - Depende de playlists, medias
+        "campaigns"         # Campaign - Depende de clients (opcional)
+        "qrcodes"           # QRCode - Depende de campaigns (opcional)
+        "totems"            # Totem - Depende de clients (opcional)
+        "analytics"         # Analytics - Depende de totems (opcional)
+        "auditlogs"         # AuditLog - Depende de users (opcional)
+        "systemlogs"        # SystemLog - Sem dependências
+        "notifications"     # Notification - Depende de users (opcional)
+        "settings"          # Settings - Sem dependências
+        "reports"           # Report - Sem dependências
+        "billing"           # Billing - Depende de clients (opcional)
+    )
+    
+    log "Schema completo: ${#ALL_TABLES[@]} tabelas projetadas para o sistema"
     
     MISSING_TABLES=()
-    for table in "${REQUIRED_TABLES[@]}"; do
-        if ! psql "$DATABASE_URL" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '$table'" | grep -q 1; then
+    EXISTING_TABLES=()
+    
+    log "Verificando ${#ALL_TABLES[@]} tabelas do schema..."
+    for table in "${ALL_TABLES[@]}"; do
+        if psql "$DATABASE_URL" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '$table'" | grep -q 1; then
+            EXISTING_TABLES+=("$table")
+            log "✅ Tabela $table existe"
+        else
             MISSING_TABLES+=("$table")
+            warn "⚠️ Tabela $table NÃO existe"
         fi
     done
+    
+    log "Resumo: ${#EXISTING_TABLES[@]} tabelas existem, ${#MISSING_TABLES[@]} faltando"
     
     if [[ ${#MISSING_TABLES[@]} -gt 0 ]]; then
         warn "⚠️ Tabelas faltando: ${MISSING_TABLES[*]}"
@@ -3466,12 +3495,79 @@ setup_first_boot() {
         log "✅ Todas as tabelas obrigatórias existem"
     fi
     
-    # Executar seed (dados iniciais)
-    log "Executando seed do banco de dados..."
-    if npx prisma db seed 2>/dev/null || npm run seed 2>/dev/null; then
-        log "✅ Seed executado com sucesso"
+    # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
+    log "Executando seed completo do banco de dados com dados correlacionados..."
+    
+    # Verificar se arquivo seed.js existe
+    if [[ -f "prisma/seed.js" ]]; then
+        log "✅ Arquivo seed.js encontrado"
+        log "Executando seed completo (clientes, usuários, totens, mídias, playlists, campanhas, QR codes, analytics, etc.)..."
+        
+        # Tentar executar seed
+        if npx prisma db seed 2>&1; then
+            log "✅ Seed executado com sucesso"
+            
+            # Verificar se dados foram inseridos (verificação COMPLETA de todos os dados correlacionados)
+            log "Verificando TODOS os dados inseridos pelo seed..."
+            SEED_CLIENTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
+            SEED_USERS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
+            SEED_TOTEMS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems" 2>/dev/null || echo "0")
+            SEED_MEDIA=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias" 2>/dev/null || echo "0")
+            SEED_PLAYLISTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists" 2>/dev/null || echo "0")
+            SEED_PLAYLIST_ITEMS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlist_items" 2>/dev/null || echo "0")
+            SEED_CAMPAIGNS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM campaigns" 2>/dev/null || echo "0")
+            SEED_QRCODES=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM qrcodes" 2>/dev/null || echo "0")
+            SEED_ANALYTICS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM analytics" 2>/dev/null || echo "0")
+            SEED_AUDITLOGS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM auditlogs" 2>/dev/null || echo "0")
+            SEED_SYSTEMLOGS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM systemlogs" 2>/dev/null || echo "0")
+            SEED_NOTIFICATIONS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM notifications" 2>/dev/null || echo "0")
+            SEED_SETTINGS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM settings" 2>/dev/null || echo "0")
+            SEED_REPORTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM reports" 2>/dev/null || echo "0")
+            SEED_BILLING=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM billing" 2>/dev/null || echo "0")
+            
+            log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            log "DADOS INSERIDOS PELO SEED (DADOS CORRELACIONADOS):"
+            log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            log "  📋 Clientes:            $SEED_CLIENTS"
+            log "  👥 Usuários:            $SEED_USERS"
+            log "  📺 Totens:              $SEED_TOTEMS"
+            log "  🎬 Mídias:              $SEED_MEDIA"
+            log "  📋 Playlists:           $SEED_PLAYLISTS"
+            log "  📋 Itens de Playlist:   $SEED_PLAYLIST_ITEMS"
+            log "  📢 Campanhas:           $SEED_CAMPAIGNS"
+            log "  📱 QR Codes:            $SEED_QRCODES"
+            log "  📊 Analytics:           $SEED_ANALYTICS"
+            log "  📝 Audit Logs:          $SEED_AUDITLOGS"
+            log "  📋 System Logs:         $SEED_SYSTEMLOGS"
+            log "  🔔 Notificações:        $SEED_NOTIFICATIONS"
+            log "  ⚙️  Configurações:      $SEED_SETTINGS"
+            log "  📄 Relatórios:          $SEED_REPORTS"
+            log "  💳 Faturamento:         $SEED_BILLING"
+            log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            
+            # Verificar se pelo menos os dados básicos foram inseridos
+            if [[ "$SEED_CLIENTS" == "0" ]] || [[ "$SEED_USERS" == "0" ]]; then
+                warn "⚠️ Seed pode não ter inserido todos os dados básicos"
+                warn "Verifique os logs acima para detalhes"
+            else
+                log "✅ Seed executado - dados correlacionados inseridos com sucesso"
+            fi
+        elif npm run seed 2>&1; then
+            log "✅ Seed executado via npm run seed"
+        else
+            warn "⚠️ Seed falhou ou não retornou sucesso"
+            warn "Verificando se seed.js está configurado em package.json..."
+            
+            if grep -q '"seed"' package.json; then
+                error "❌ Seed configurado mas falhou ao executar"
+                error "Execute manualmente: cd $INSTALL_DIR/backend && node prisma/seed.js"
+            else
+                warn "⚠️ Seed não configurado em package.json"
+            fi
+        fi
     else
-        warn "⚠️ Seed não foi executado (pode não estar configurado)"
+        warn "⚠️ Arquivo prisma/seed.js não encontrado"
+        warn "Criando dados mínimos manualmente..."
         # Criar usuário admin manualmente se necessário
         log "Criando usuário admin padrão..."
         cd $INSTALL_DIR/backend
