@@ -4535,13 +4535,14 @@ sleep 10
 PRIMARY_DISPLAY=$(xrandr | grep " connected" | grep -o "^[^ ]*" | head -1)
 
 if [[ -n "$PRIMARY_DISPLAY" ]]; then
-    # Aplicar rotação Portrait (90 graus no sentido horário)
-    xrandr --output "$PRIMARY_DISPLAY" --rotate right
+    # Aplicar rotação Portrait (270 graus / -90 graus - sentido anti-horário)
+    # Left = portrait invertido (sentido correto para totens)
+    xrandr --output "$PRIMARY_DISPLAY" --rotate left
     
     # Se não funcionar, tentar outras opções
     if [[ $? -ne 0 ]]; then
-        # Tentar rotação no sentido anti-horário (270 graus)
-        xrandr --output "$PRIMARY_DISPLAY" --rotate left
+        # Tentar rotação no sentido horário (90 graus) como fallback
+        xrandr --output "$PRIMARY_DISPLAY" --rotate right
     fi
 fi
 
@@ -4604,7 +4605,7 @@ EOF
         echo "if [[ -n \"\$DISPLAY\" ]]; then" >> "$HOME/.bashrc"
         echo "    PRIMARY_DISPLAY=\$(xrandr | grep ' connected' | grep -o '^[^ ]*' | head -1)" >> "$HOME/.bashrc"
         echo "    if [[ -n \"\$PRIMARY_DISPLAY\" ]]; then" >> "$HOME/.bashrc"
-        echo "        xrandr --output \"\$PRIMARY_DISPLAY\" --rotate right 2>/dev/null || xrandr --output \"\$PRIMARY_DISPLAY\" --rotate left 2>/dev/null" >> "$HOME/.bashrc"
+        echo "        xrandr --output \"\$PRIMARY_DISPLAY\" --rotate left 2>/dev/null || xrandr --output \"\$PRIMARY_DISPLAY\" --rotate right 2>/dev/null" >> "$HOME/.bashrc"
         echo "    fi" >> "$HOME/.bashrc"
         echo "fi" >> "$HOME/.bashrc"
     fi
@@ -4643,12 +4644,14 @@ case "$1" in
         sudo systemctl status lightdm --no-pager
         ;;
     rotate)
-        echo "Aplicando rotação Portrait..."
+        echo "Aplicando rotação Portrait (lado correto)..."
         PRIMARY_DISPLAY=$(xrandr | grep " connected" | grep -o "^[^ ]*" | head -1)
         if [[ -n "$PRIMARY_DISPLAY" ]]; then
-            xrandr --output "$PRIMARY_DISPLAY" --rotate right || \
-            xrandr --output "$PRIMARY_DISPLAY" --rotate left
-            echo "✅ Rotação aplicada em: $PRIMARY_DISPLAY"
+            # Usar left primeiro (270° / -90°) - lado correto para totens portrait
+            xrandr --output "$PRIMARY_DISPLAY" --rotate left || \
+            xrandr --output "$PRIMARY_DISPLAY" --rotate right
+            echo "✅ Rotação Portrait aplicada em: $PRIMARY_DISPLAY"
+            echo "💡 Use 'xrandr --output $PRIMARY_DISPLAY --rotate normal' para voltar ao normal"
         else
             echo "❌ Nenhuma tela detectada"
         fi
