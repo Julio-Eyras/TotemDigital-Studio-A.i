@@ -33,7 +33,7 @@ interface UploadDialogProps {
   onSuccess: () => void;
 }
 
-export const MediaUploadDialog: React.FC<UploadDialogProps> = ({
+const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   open,
   onClose,
   onSuccess,
@@ -305,3 +305,5 @@ export const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     </Dialog>
   );
 };
+
+export default MediaUploadDialog;

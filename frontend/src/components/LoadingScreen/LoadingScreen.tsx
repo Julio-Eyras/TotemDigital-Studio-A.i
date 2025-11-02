@@ -5,7 +5,7 @@ interface LoadingScreenProps {
   message?: string;
 }
 
-export const LoadingScreen: React.FC<LoadingScreenProps> = ({ 
+const LoadingScreen: React.FC<LoadingScreenProps> = ({ 
   message = 'Carregando...' 
 }) => {
   return (
@@ -41,3 +41,5 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     </Box>
   );
 };
+
+export default LoadingScreen;
