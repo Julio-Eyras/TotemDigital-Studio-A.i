@@ -25,7 +25,12 @@ const AI: React.FC = () => {
       // default provider first available
       if (resp.length > 0) {
         const first = resp[0];
-        setProvider(first.provider as any);
+        const providerValue = first.provider;
+        if (providerValue === 'ollama' || providerValue === 'openai' || providerValue === 'anthropic') {
+          setProvider(providerValue);
+        } else {
+          setProvider('ollama'); // padrão
+        }
         if (first.models?.length) setModel(first.models[0]);
       }
     } catch (e) {
