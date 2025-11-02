@@ -428,7 +428,15 @@ const Users: React.FC = () => {
             <InputLabel>Função</InputLabel>
             <Select
               value={newUser.role}
-              onChange={(e) => setNewUser({ ...newUser, role: e.target.value as any })}
+              onChange={(e) => {
+                const value = e.target.value;
+                setNewUser({ 
+                  ...newUser, 
+                  role: (value === 'admin' || value === 'manager' || value === 'operator') 
+                    ? value as 'admin' | 'manager' | 'operator'
+                    : 'operator'
+                });
+              }}
               label="Função"
             >
               <MenuItem value="admin">Administrador</MenuItem>
@@ -496,7 +504,15 @@ const Users: React.FC = () => {
             <InputLabel>Função</InputLabel>
             <Select
               value={selectedUser?.role || 'user'}
-              onChange={(e) => setSelectedUser({ ...selectedUser!, role: e.target.value as any })}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSelectedUser({ 
+                  ...selectedUser!, 
+                  role: (value === 'admin' || value === 'manager' || value === 'operator') 
+                    ? value as 'admin' | 'manager' | 'operator'
+                    : selectedUser!.role
+                });
+              }}
               label="Função"
             >
               <MenuItem value="admin">Administrador</MenuItem>
