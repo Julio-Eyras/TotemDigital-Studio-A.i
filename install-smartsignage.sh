@@ -3369,15 +3369,72 @@ setup_first_boot() {
         fi
     else
         log "Nenhuma migration encontrada - usando db push para criar schema..."
+        log "Executando prisma db push..."
         if npx prisma db push --accept-data-loss --skip-generate; then
             log "✅ Schema criado com sucesso (db push)"
         else
             error "❌ Falha ao criar schema do banco de dados"
             error "Verificando conexão com o banco..."
-            cd $INSTALL_DIR/backend
             psql "$DATABASE_URL" -c "SELECT 1" || error "❌ Não foi possível conectar ao banco de dados!"
-            exit 1
+            
+            # Tentar criar schema manualmente usando código do backend
+            log "Tentando criar schema manualmente..."
+            cd $INSTALL_DIR/backend
+            node -e "
+            const { PrismaClient } = require('@prisma/client');
+            const prisma = new PrismaClient();
+            (async () => {
+                try {
+                    await prisma.\$connect();
+                    console.log('✅ Conectado ao banco');
+                    
+                    // Verificar se tabelas já existem
+                    const tables = await prisma.\$queryRaw\`
+                        SELECT table_name 
+                        FROM information_schema.tables 
+                        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                    \`;
+                    console.log('Tabelas encontradas:', tables.length);
+                    
+                    if (tables.length === 0) {
+                        console.log('⚠️ Nenhuma tabela encontrada - executando db push...');
+                        const { execSync } = require('child_process');
+                        execSync('npx prisma db push --accept-data-loss --skip-generate', { 
+                            stdio: 'inherit',
+                            env: process.env
+                        });
+                        console.log('✅ Schema criado');
+                    } else {
+                        console.log('✅ Tabelas já existem no banco');
+                    }
+                    
+                    await prisma.\$disconnect();
+                    process.exit(0);
+                } catch (e) {
+                    console.error('❌ Erro:', e.message);
+                    await prisma.\$disconnect();
+                    process.exit(1);
+                }
+            })();
+            " || {
+                error "❌ Falha crítica ao criar schema do banco de dados"
+                error "Verifique os logs acima para mais detalhes"
+                exit 1
+            }
         fi
+    fi
+    
+    # Verificar se tabela users foi criada
+    log "Verificando se tabela users foi criada..."
+    cd $INSTALL_DIR/backend
+    if psql "$DATABASE_URL" -c "\d users" > /dev/null 2>&1; then
+        log "✅ Tabela users existe"
+    else
+        warn "⚠️ Tabela users não encontrada - tentando criar novamente..."
+        npx prisma db push --accept-data-loss --skip-generate --force-reset || {
+            error "❌ Não foi possível criar a tabela users"
+            exit 1
+        }
     fi
     
     # Executar seed (dados iniciais)
@@ -3389,32 +3446,83 @@ setup_first_boot() {
         # Criar usuário admin manualmente se necessário
         log "Criando usuário admin padrão..."
         cd $INSTALL_DIR/backend
-        node -e "
-        const { PrismaClient } = require('@prisma/client');
-        const bcrypt = require('bcryptjs');
-        const prisma = new PrismaClient();
-        (async () => {
-            try {
-                // Usar executeRaw para criar com username (campo que existe no banco mas não no Prisma schema)
-                const hashedPassword = await bcrypt.hash('admin123', 12);
-                await prisma.\$executeRaw\`
-                    INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at)
-                    VALUES ('admin', 'admin@smart-signage.com', \${hashedPassword}, 'Administrator', 'admin', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    ON CONFLICT (username) 
-                    DO UPDATE SET 
-                        role = 'admin',
-                        is_active = true,
-                        password_hash = \${hashedPassword},
-                        updated_at = CURRENT_TIMESTAMP
-                \`;
-                console.log('✅ Usuário admin criado: admin@smart-signage.com / admin123');
-            } catch (e) {
-                console.error('Erro:', e.message);
-            } finally {
-                await prisma.\$disconnect();
+        
+        # Verificar se usuário já existe antes de criar
+        log "Verificando se usuário admin já existe..."
+        if psql "$DATABASE_URL" -tAc "SELECT 1 FROM users WHERE username = 'admin'" | grep -q 1; then
+            log "✅ Usuário admin já existe - atualizando senha..."
+            node -e "
+            const { PrismaClient } = require('@prisma/client');
+            const bcrypt = require('bcryptjs');
+            const prisma = new PrismaClient();
+            (async () => {
+                try {
+                    const hashedPassword = await bcrypt.hash('admin123', 12);
+                    await prisma.\$executeRaw\`
+                        UPDATE users 
+                        SET password_hash = \${hashedPassword},
+                            role = 'admin',
+                            is_active = true,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE username = 'admin'
+                    \`;
+                    console.log('✅ Senha do admin atualizada para admin123');
+                } catch (e) {
+                    console.error('Erro ao atualizar:', e.message);
+                } finally {
+                    await prisma.\$disconnect();
+                }
+            })();
+            " || warn "⚠️ Falha ao atualizar usuário admin"
+        else
+            log "Criando novo usuário admin..."
+            node -e "
+            const { PrismaClient } = require('@prisma/client');
+            const bcrypt = require('bcryptjs');
+            const prisma = new PrismaClient();
+            (async () => {
+                try {
+                    // Verificar se tabela users existe
+                    const tables = await prisma.\$queryRaw\`
+                        SELECT table_name 
+                        FROM information_schema.tables 
+                        WHERE table_schema = 'public' AND table_name = 'users'
+                    \`;
+                    
+                    if (!Array.isArray(tables) || tables.length === 0) {
+                        console.error('❌ Tabela users não existe! Execute prisma db push primeiro.');
+                        await prisma.\$disconnect();
+                        process.exit(1);
+                    }
+                    
+                    // Usar executeRaw para criar com username (campo que existe no banco mas não no Prisma schema)
+                    const hashedPassword = await bcrypt.hash('admin123', 12);
+                    await prisma.\$executeRaw\`
+                        INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at)
+                        VALUES ('admin', 'admin@smart-signage.com', \${hashedPassword}, 'Administrator', 'admin', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT (username) 
+                        DO UPDATE SET 
+                            role = 'admin',
+                            is_active = true,
+                            password_hash = \${hashedPassword},
+                            updated_at = CURRENT_TIMESTAMP
+                    \`;
+                    console.log('✅ Usuário admin criado: admin@smart-signage.com / admin123');
+                } catch (e) {
+                    console.error('❌ Erro ao criar admin:', e.message);
+                    console.error('Stack:', e.stack);
+                    if (e.message.includes('relation \"users\" does not exist')) {
+                        console.error('💡 A tabela users não existe! Execute: npx prisma db push');
+                    }
+                } finally {
+                    await prisma.\$disconnect();
+                }
+            })();
+            " || {
+                warn "⚠️ Falha ao criar usuário admin automaticamente"
+                warn "Você pode criar manualmente após verificar se o schema foi criado"
             }
-        })();
-        " || warn "⚠️ Falha ao criar usuário admin automaticamente"
+        fi
     fi
     
     log "✅ Primeiro boot configurado!"
