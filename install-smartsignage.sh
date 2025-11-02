@@ -937,25 +937,29 @@ EOF
         log "Instalando dependências do frontend..."
         npm install
         
-        # ÚLTIMO RECURSO: Verificar se index.tsx precisa de extensão explícita
-        # Algumas versões do React Scripts requerem extensão explícita para .tsx
-        log "Verificando se precisamos adicionar extensão explícita no import..."
-        if grep -q "from './App'" "src/index.tsx" && [[ -f "src/App.tsx" ]]; then
-            # Tentar temporariamente adicionar extensão para ver se resolve
-            log "⚠️  Testando importação com extensão explícita..."
+        # Verificação final: garantir que o import NÃO tenha extensão .tsx
+        # TypeScript/Webpack NÃO permite extensões em imports de arquivos TypeScript
+        log "Verificando se o import em index.tsx está correto (sem extensão)..."
+        if grep -q "from './App.tsx'" "src/index.tsx" || grep -q 'from "./App.tsx"' "src/index.tsx"; then
+            log "⚠️  Corrigindo import: removendo extensão .tsx (não permitida pelo TypeScript)..."
             BACKUP_INDEX="src/index.tsx.backup.$(date +%s)"
             cp "src/index.tsx" "$BACKUP_INDEX"
             
-            # Substituir import sem extensão por import com extensão explícita
-            sed -i "s|from './App'|from './App.tsx'|g" "src/index.tsx" 2>/dev/null || \
-            sed -i 's|from "./App"|from "./App.tsx"|g' "src/index.tsx" 2>/dev/null || {
-                warn "⚠️  Não foi possível modificar index.tsx"
+            # Remover extensão .tsx do import (TypeScript não permite)
+            sed -i "s|from './App.tsx'|from './App'|g" "src/index.tsx" 2>/dev/null || \
+            sed -i 's|from "./App.tsx"|from "./App"|g' "src/index.tsx" 2>/dev/null || {
+                warn "⚠️  Não foi possível corrigir index.tsx"
                 mv "$BACKUP_INDEX" "src/index.tsx"
             }
             
-            if [[ -f "$BACKUP_INDEX" ]]; then
-                log "✅ Importação modificada para usar extensão explícita"
+            if grep -q "from './App'" "src/index.tsx" || grep -q 'from "./App"' "src/index.tsx"; then
+                log "✅ Importação corrigida: extensão .tsx removida"
+            else
+                warn "⚠️  Não foi possível corrigir a importação"
+                mv "$BACKUP_INDEX" "src/index.tsx"
             fi
+        else
+            log "✅ Importação em index.tsx está correta (sem extensão)"
         fi
         
         log "Compilando frontend..."
