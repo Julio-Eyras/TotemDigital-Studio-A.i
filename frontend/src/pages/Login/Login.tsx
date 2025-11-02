@@ -22,12 +22,12 @@ const Login: React.FC = () => {
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
 
   const [formData, setFormData] = useState({
-    email: '',
+    username: '',
     password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{
-    email?: string;
+    username?: string;
     password?: string;
   }>({});
 
@@ -55,10 +55,10 @@ const Login: React.FC = () => {
   const validateForm = () => {
     const errors: typeof validationErrors = {};
 
-    if (!formData.email) {
-      errors.email = 'Email é obrigatório';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      errors.email = 'Email inválido';
+    if (!formData.username) {
+      errors.username = 'Nome de usuário é obrigatório';
+    } else if (formData.username.length < 3) {
+      errors.username = 'Nome de usuário deve ter pelo menos 3 caracteres';
     }
 
     if (!formData.password) {
@@ -142,15 +142,15 @@ const Login: React.FC = () => {
         <form onSubmit={handleSubmit}>
           <TextField
             fullWidth
-            label="Email"
-            name="email"
-            type="email"
-            value={formData.email}
+            label="Nome de Usuário"
+            name="username"
+            type="text"
+            value={formData.username}
             onChange={handleInputChange}
-            error={!!validationErrors.email}
-            helperText={validationErrors.email}
+            error={!!validationErrors.username}
+            helperText={validationErrors.username}
             margin="normal"
-            autoComplete="email"
+            autoComplete="username"
             autoFocus
             disabled={isLoading}
           />
@@ -211,7 +211,7 @@ const Login: React.FC = () => {
 
         <Box sx={{ textAlign: 'center', marginTop: 3 }}>
           <Typography variant="body2" color="text.secondary">
-            Credenciais padrão: admin@smart-signage.com / admin
+            Credenciais padrão: admin / admin123
           </Typography>
         </Box>
       </Paper>
