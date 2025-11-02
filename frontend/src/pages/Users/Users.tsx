@@ -432,9 +432,9 @@ const Users: React.FC = () => {
                 const value = e.target.value;
                 setNewUser({ 
                   ...newUser, 
-                  role: (value === 'admin' || value === 'manager' || value === 'operator') 
-                    ? value as 'admin' | 'manager' | 'operator'
-                    : 'operator'
+                  role: (value === 'admin' || value === 'user' || value === 'client') 
+                    ? value as 'admin' | 'user' | 'client'
+                    : 'user'
                 });
               }}
               label="Função"
@@ -508,8 +508,8 @@ const Users: React.FC = () => {
                 const value = e.target.value;
                 setSelectedUser({ 
                   ...selectedUser!, 
-                  role: (value === 'admin' || value === 'manager' || value === 'operator') 
-                    ? value as 'admin' | 'manager' | 'operator'
+                  role: (value === 'admin' || value === 'user' || value === 'client') 
+                    ? value as 'admin' | 'user' | 'client'
                     : selectedUser!.role
                 });
               }}
