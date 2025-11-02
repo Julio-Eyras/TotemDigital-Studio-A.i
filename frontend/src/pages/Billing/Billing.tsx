@@ -96,7 +96,17 @@ const Billing: React.FC = () => {
               <MenuItem value="license">Licença</MenuItem>
             </Select>
           </FormControl>
-          <TextField fullWidth label="Valor (R$)" type="number" margin="normal" value={newBill.amount} onChange={(e) => setNewBill({ ...newBill, amount: parseFloat(e.target.value) })} />
+          <TextField 
+            fullWidth 
+            label="Valor (R$)" 
+            type="number" 
+            margin="normal" 
+            value={newBill.amount} 
+            onChange={(e) => {
+              const value = e.target.value;
+              setNewBill({ ...newBill, amount: value ? parseFloat(String(value)) : 0 });
+            }} 
+          />
           <TextField fullWidth label="Vencimento" type="date" margin="normal" InputLabelProps={{ shrink: true }} onChange={(e) => setNewBill({ ...newBill, due_date: e.target.value })} />
         </DialogContent>
         <DialogActions>
