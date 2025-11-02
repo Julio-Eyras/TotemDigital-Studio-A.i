@@ -18,7 +18,7 @@ const Totems: React.FC = () => {
     try {
       setLoading(true);
       const resp = await totemApi.getAll();
-      setTotems(resp.data || resp);
+      setTotems(resp.data || []);
     } catch (e) {
       setError('Erro ao carregar totems');
     } finally {
