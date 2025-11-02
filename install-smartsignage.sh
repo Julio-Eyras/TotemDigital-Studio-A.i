@@ -1534,7 +1534,7 @@ server {
     server_name _;
     
     # Diretório raiz e arquivo índice
-    root $INSTALL_DIR/frontend/build;
+    root $FRONTEND_BUILD_DIR;
     index index.html;
     
     # Configurações gerais
