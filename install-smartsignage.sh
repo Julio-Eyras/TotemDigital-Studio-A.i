@@ -1656,8 +1656,20 @@ EOF
             else
                 log "✅ Nginx já está rodando"
                 # Recarregar configuração se já estava rodando
-                sudo systemctl reload nginx 2>/dev/null || true
-                sleep 1
+                # IMPORTANTE: Forçar reload para aplicar nova configuração com FRONTEND_BUILD_DIR
+                log "Recarregando Nginx para aplicar nova configuração..."
+                if sudo nginx -t 2>/dev/null; then
+                    sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload || {
+                        warn "⚠️  Falha ao recarregar Nginx, tentando restart..."
+                        sudo systemctl restart nginx
+                        sleep 3
+                    }
+                    log "✅ Nginx recarregado"
+                else
+                    error "❌ Configuração do Nginx inválida após atualização!"
+                    sudo nginx -t
+                fi
+                sleep 2
             fi
             
             # Validação final: verificar se o Nginx consegue servir o index.html
