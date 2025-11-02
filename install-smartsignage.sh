@@ -3379,19 +3379,19 @@ setup_first_boot() {
         const prisma = new PrismaClient();
         (async () => {
             try {
-                const hashedPassword = await bcrypt.hash('admin', 12);
-                await prisma.user.upsert({
-                    where: { email: 'admin@smart-signage.com' },
-                    update: {},
-                    create: {
-                        email: 'admin@smart-signage.com',
-                        password: hashedPassword,
-                        name: 'Administrator',
-                        role: 'admin',
-                        is_active: true
-                    }
-                });
-                console.log('✅ Usuário admin criado: admin@smart-signage.com / admin');
+                // Usar executeRaw para criar com username (campo que existe no banco mas não no Prisma schema)
+                const hashedPassword = await bcrypt.hash('admin123', 12);
+                await prisma.\$executeRaw\`
+                    INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at)
+                    VALUES ('admin', 'admin@smart-signage.com', \${hashedPassword}, 'Administrator', 'admin', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ON CONFLICT (username) 
+                    DO UPDATE SET 
+                        role = 'admin',
+                        is_active = true,
+                        password_hash = \${hashedPassword},
+                        updated_at = CURRENT_TIMESTAMP
+                \`;
+                console.log('✅ Usuário admin criado: admin@smart-signage.com / admin123');
             } catch (e) {
                 console.error('Erro:', e.message);
             } finally {
@@ -3403,7 +3403,7 @@ setup_first_boot() {
     
     log "✅ Primeiro boot configurado!"
     log "👤 Usuário admin padrão: admin@smart-signage.com"
-    log "🔑 Senha admin padrão: admin"
+    log "🔑 Senha admin padrão: admin123"
     warn "⚠️  IMPORTANTE: Altere a senha padrão após o primeiro login!"
 }
 
@@ -3854,7 +3854,7 @@ show_final_info() {
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo
     echo -e "${YELLOW}1.${NC} ${CYAN}Acesse o sistema:${NC} ${YELLOW}http://$SERVER_IP:$FRONTEND_PORT${NC}"
-    echo -e "${YELLOW}2.${NC} ${CYAN}Faça login com:${NC} admin/admin"
+    echo -e "${YELLOW}2.${NC} ${CYAN}Faça login com:${NC} admin/admin123"
     echo -e "${YELLOW}3.${NC} ${CYAN}Altere a senha} do administrador"
     echo -e "${YELLOW}4.${NC} ${CYAN}Configure seus clientes e totems"
     echo -e "${YELLOW}5.${NC} ${CYAN}Configure SSL/HTTPS para produção"
