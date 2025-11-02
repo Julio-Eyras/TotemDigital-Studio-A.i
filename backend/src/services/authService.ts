@@ -56,8 +56,12 @@ export class AuthService {
   async login(credentials: LoginRequest): Promise<AuthResponse> {
     try {
       const { username, password } = credentials;
+      
+      console.log(`[AUTH] Tentativa de login para usuário: ${username}`);
+      console.log(`[AUTH] Senha fornecida (tamanho): ${password ? password.length : 0} caracteres`);
 
       // Buscar usuário
+      console.log(`[AUTH] Buscando usuário no banco de dados...`);
       const user = await this.db.findFirst(`
         SELECT u.*, c.name as client_name 
         FROM users u 
@@ -65,31 +69,46 @@ export class AuthService {
         WHERE u.username = ? AND u.is_active = 1
       `, [username]);
 
+      console.log(`[AUTH] Resultado da busca: ${user ? `Usuário encontrado (ID: ${user.user_id})` : 'Usuário NÃO encontrado'}`);
+
       if (!user) {
-        await this.getAuditService().log('auth', 'login_failed', null, { username, reason: 'user_not_found' });
+        console.log(`[AUTH] ❌ Usuário '${username}' não encontrado ou inativo`);
+        await this.getAuditService().log('auth', 'login_failed', null, { username, reason: 'user_not_found' }).catch(e => console.error('[AUTH] Erro ao registrar log:', e.message));
         return { success: false, error: 'Credenciais inválidas' };
       }
 
+      console.log(`[AUTH] Usuário encontrado: ${user.username}, Role: ${user.role}, Email: ${user.email || 'N/A'}`);
+      console.log(`[AUTH] Password hash do banco: ${user.password_hash ? `${user.password_hash.substring(0, 10)}...` : 'NÃO DEFINIDO'}`);
+
       // Verificar senha
+      console.log(`[AUTH] Verificando senha...`);
       const isValidPassword = await bcrypt.compare(password, user.password_hash);
+      console.log(`[AUTH] Senha válida: ${isValidPassword ? 'SIM' : 'NÃO'}`);
+
       if (!isValidPassword) {
-        await this.getAuditService().log('auth', 'login_failed', user.user_id, { username, reason: 'invalid_password' });
+        console.log(`[AUTH] ❌ Senha inválida para usuário '${username}'`);
+        await this.getAuditService().log('auth', 'login_failed', user.user_id, { username, reason: 'invalid_password' }).catch(e => console.error('[AUTH] Erro ao registrar log:', e.message));
         return { success: false, error: 'Credenciais inválidas' };
       }
 
       // Atualizar último login
+      console.log(`[AUTH] Atualizando último login...`);
       await this.db.executeRaw(`
         UPDATE users 
         SET last_login = CURRENT_TIMESTAMP 
         WHERE user_id = ?
-      `, [user.user_id]);
+      `, [user.user_id]).catch(e => console.error('[AUTH] Erro ao atualizar last_login:', e.message));
 
       // Gerar tokens
+      console.log(`[AUTH] Gerando tokens JWT...`);
       const token = this.generateToken(user);
       const refreshToken = this.generateRefreshToken(user);
+      console.log(`[AUTH] Tokens gerados com sucesso`);
 
       // Log de sucesso
-      await this.getAuditService().log('auth', 'login_success', user.user_id, { username });
+      await this.getAuditService().log('auth', 'login_success', user.user_id, { username }).catch(e => console.error('[AUTH] Erro ao registrar log de sucesso:', e.message));
+
+      console.log(`[AUTH] ✅ Login bem-sucedido para '${username}'`);
 
       return {
         success: true,
@@ -104,8 +123,22 @@ export class AuthService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro no login:', error.message);
-      return { success: false, error: 'Erro interno do servidor' };
+      console.error('❌ [AUTH] Erro no login:', error.message);
+      console.error('❌ [AUTH] Stack trace:', error.stack);
+      console.error('❌ [AUTH] Erro completo:', JSON.stringify(error, null, 2));
+      
+      // Verificar se é erro de banco de dados
+      if (error.message && error.message.includes('relation') && error.message.includes('does not exist')) {
+        console.error('❌ [AUTH] ERRO CRÍTICO: Tabela users não existe no banco de dados!');
+        return { success: false, error: 'Erro interno: Tabela de usuários não encontrada. Verifique a instalação do banco de dados.' };
+      }
+      
+      if (error.message && error.message.includes('column') && error.message.includes('does not exist')) {
+        console.error(`❌ [AUTH] ERRO CRÍTICO: Coluna não existe na tabela users! Erro: ${error.message}`);
+        return { success: false, error: 'Erro interno: Estrutura do banco de dados incorreta. Execute: npx prisma db push' };
+      }
+      
+      return { success: false, error: `Erro interno do servidor: ${error.message}` };
     }
   }
 

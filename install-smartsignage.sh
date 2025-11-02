@@ -3525,8 +3525,32 @@ setup_first_boot() {
         fi
     fi
     
+    # Verificar se o admin foi criado corretamente
+    log "Verificando se usuário admin foi criado corretamente..."
+    cd $INSTALL_DIR/backend
+    if psql "$DATABASE_URL" -tAc "SELECT 1 FROM users WHERE username = 'admin'" | grep -q 1; then
+        ADMIN_INFO=$(psql "$DATABASE_URL" -tAc "SELECT username, email, role, is_active FROM users WHERE username = 'admin" 2>/dev/null || echo "")
+        if [[ -n "$ADMIN_INFO" ]]; then
+            log "✅ Usuário admin encontrado: $ADMIN_INFO"
+        else
+            warn "⚠️ Usuário admin existe mas não foi possível ler detalhes"
+        fi
+        
+        # Verificar se password_hash existe
+        if psql "$DATABASE_URL" -tAc "SELECT password_hash FROM users WHERE username = 'admin'" | grep -q '\$'; then
+            log "✅ Senha do admin está configurada (hash encontrado)"
+        else
+            warn "⚠️ Senha do admin pode não estar configurada corretamente"
+        fi
+    else
+        error "❌ ATENÇÃO: Usuário admin NÃO foi criado!"
+        error "Execute manualmente para criar o admin:"
+        error "cd $INSTALL_DIR/backend"
+        error "node -e \"const {PrismaClient} = require('@prisma/client'); const bcrypt = require('bcryptjs'); const prisma = new PrismaClient(); (async () => { const hash = await bcrypt.hash('admin123', 12); await prisma.\$executeRaw\`INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at) VALUES ('admin', 'admin@smart-signage.com', \${hash}, 'Administrator', 'admin', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (username) DO UPDATE SET password_hash = \${hash}\`; await prisma.\$disconnect(); })();\""
+    fi
+    
     log "✅ Primeiro boot configurado!"
-    log "👤 Usuário admin padrão: admin@smart-signage.com"
+    log "👤 Usuário admin padrão: admin"
     log "🔑 Senha admin padrão: admin123"
     warn "⚠️  IMPORTANTE: Altere a senha padrão após o primeiro login!"
 }

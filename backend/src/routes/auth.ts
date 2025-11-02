@@ -99,15 +99,21 @@ const abandonPinValidator = [
  */
 router.post('/login', loginValidator, async (req: Request, res: Response) => {
   try {
+    console.log(`[API] POST /api/auth/login - Recebendo requisição`);
+    console.log(`[API] Body recebido:`, JSON.stringify(req.body));
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log(`[API] ❌ Erros de validação:`, errors.array());
       return res.status(400).json({
         error: 'Dados inválidos',
         details: errors.array()
       });
     }
 
+    console.log(`[API] Chamando AuthService.login()...`);
     const result = await getAuthService().login(req.body);
+    console.log(`[API] Resultado do login:`, result.success ? 'SUCESSO' : `FALHA - ${result.error}`);
     
     if (!result.success) {
       return res.status(401).json({
@@ -115,6 +121,7 @@ router.post('/login', loginValidator, async (req: Request, res: Response) => {
       });
     }
 
+    console.log(`[API] ✅ Login bem-sucedido - retornando tokens e dados do usuário`);
     res.json({
       message: 'Login realizado com sucesso',
       token: result.token,
@@ -123,9 +130,11 @@ router.post('/login', loginValidator, async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro no login:', error.message);
+    console.error('❌ [API] Erro no endpoint /login:', error.message);
+    console.error('❌ [API] Stack trace:', error.stack);
     res.status(500).json({
-      error: 'Erro interno do servidor'
+      error: `Erro interno do servidor: ${error.message}`,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
