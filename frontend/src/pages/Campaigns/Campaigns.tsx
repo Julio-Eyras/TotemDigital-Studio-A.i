@@ -479,7 +479,13 @@ const Campaigns: React.FC = () => {
             <InputLabel>Cliente</InputLabel>
             <Select
               value={newCampaign.clientId || ''}
-              onChange={(e) => setNewCampaign({ ...newCampaign, clientId: e.target.value ? parseInt(e.target.value) : undefined })}
+              onChange={(e) => {
+                const value = e.target.value;
+                setNewCampaign({ 
+                  ...newCampaign, 
+                  clientId: value && value !== '' ? parseInt(String(value), 10) : undefined 
+                });
+              }}
               label="Cliente"
             >
               <MenuItem value="">Nenhum</MenuItem>

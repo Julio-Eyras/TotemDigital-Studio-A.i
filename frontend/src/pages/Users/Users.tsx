@@ -440,7 +440,13 @@ const Users: React.FC = () => {
             <InputLabel>Cliente</InputLabel>
             <Select
               value={newUser.clientId || ''}
-              onChange={(e) => setNewUser({ ...newUser, clientId: e.target.value ? parseInt(e.target.value) : undefined })}
+              onChange={(e) => {
+                const value = e.target.value;
+                setNewUser({ 
+                  ...newUser, 
+                  clientId: value && value !== '' ? parseInt(String(value), 10) : undefined 
+                });
+              }}
               label="Cliente"
             >
               <MenuItem value="">Nenhum</MenuItem>
@@ -502,7 +508,13 @@ const Users: React.FC = () => {
             <InputLabel>Cliente</InputLabel>
             <Select
               value={selectedUser?.client_id || ''}
-              onChange={(e) => setSelectedUser({ ...selectedUser!, client_id: e.target.value ? parseInt(e.target.value) : undefined })}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSelectedUser({ 
+                  ...selectedUser!, 
+                  client_id: value && value !== '' ? parseInt(String(value), 10) : undefined 
+                });
+              }}
               label="Cliente"
             >
               <MenuItem value="">Nenhum</MenuItem>
