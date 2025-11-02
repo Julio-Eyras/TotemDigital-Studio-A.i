@@ -3529,7 +3529,7 @@ setup_first_boot() {
     log "Verificando se usuário admin foi criado corretamente..."
     cd $INSTALL_DIR/backend
     if psql "$DATABASE_URL" -tAc "SELECT 1 FROM users WHERE username = 'admin'" | grep -q 1; then
-        ADMIN_INFO=$(psql "$DATABASE_URL" -tAc "SELECT username, email, role, is_active FROM users WHERE username = 'admin" 2>/dev/null || echo "")
+        ADMIN_INFO=$(psql "$DATABASE_URL" -tAc "SELECT username, email, role, is_active FROM users WHERE username = 'admin'" 2>/dev/null || echo "")
         if [[ -n "$ADMIN_INFO" ]]; then
             log "✅ Usuário admin encontrado: $ADMIN_INFO"
         else
