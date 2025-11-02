@@ -16,7 +16,7 @@ import { Visibility, VisibilityOff, Login as LoginIcon } from '@mui/icons-materi
 import { AppDispatch, RootState } from '../../store/store';
 import { login, clearError } from '../../store/slices/authSlice';
 
-export const Login: React.FC = () => {
+const Login: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
@@ -218,3 +218,5 @@ export const Login: React.FC = () => {
     </Box>
   );
 };
+
+export default Login;
