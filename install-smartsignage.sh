@@ -1288,7 +1288,7 @@ server {
     
     # Frontend
     location / {
-        root $INSTALL_DIR/frontend/build;
+        root $FRONTEND_BUILD_DIR;
         try_files \$uri \$uri/ /index.html;
     }
     
@@ -1371,7 +1371,7 @@ server {
     
     # Frontend
     location / {
-        root $INSTALL_DIR/frontend/build;
+        root $FRONTEND_BUILD_DIR;
         try_files \$uri \$uri/ /index.html;
     }
     
@@ -1428,6 +1428,47 @@ setup_nginx() {
     
     log "✅ Build do frontend encontrado: $INSTALL_DIR/frontend/build"
     
+    # SOLUÇÃO PROFISSIONAL: Para servidor dedicado, copiar build para diretório público padrão
+    # Isso evita problemas de permissão em diretórios home e segue melhores práticas de deploy
+    if [[ "$INSTALL_MODE" == "single-server" ]] && [[ "$INSTALL_DIR" =~ ^/home/ ]]; then
+        log "📦 Servidor dedicado detectado - copiando build para diretório público padrão..."
+        
+        # Definir diretório de deploy profissional
+        if [[ -d "/opt/smart-signage" ]]; then
+            DEPLOY_DIR="/opt/smart-signage/frontend/build"
+        else
+            DEPLOY_DIR="/var/www/smart-signage"
+        fi
+        
+        log "Copiando build de $INSTALL_DIR/frontend/build para $DEPLOY_DIR..."
+        
+        # Criar diretório de deploy
+        sudo mkdir -p "$DEPLOY_DIR"
+        
+        # Copiar build completo
+        sudo rm -rf "$DEPLOY_DIR"/* 2>/dev/null || true
+        sudo cp -a "$INSTALL_DIR/frontend/build"/* "$DEPLOY_DIR/" || {
+            error "❌ Erro ao copiar build para $DEPLOY_DIR"
+            exit 1
+        }
+        
+        # Ajustar permissões corretas
+        if id www-data &>/dev/null; then
+            sudo chown -R www-data:www-data "$DEPLOY_DIR" 2>/dev/null || true
+        else
+            sudo chown -R nginx:nginx "$DEPLOY_DIR" 2>/dev/null || true
+        fi
+        sudo chmod -R 755 "$DEPLOY_DIR" 2>/dev/null || true
+        sudo find "$DEPLOY_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+        
+        # Atualizar INSTALL_DIR para o diretório de deploy (apenas para configuração do Nginx)
+        FRONTEND_BUILD_DIR="$DEPLOY_DIR"
+        log "✅ Build copiado para $DEPLOY_DIR (diretório público padrão)"
+    else
+        # Usar diretório original se não estiver em home ou se não for single-server
+        FRONTEND_BUILD_DIR="$INSTALL_DIR/frontend/build"
+    fi
+    
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
     
     if [[ "$ENABLE_HTTPS_SELF_SIGNED" == "true" ]] && [[ "$INSTALL_MODE" == "single-server" ]]; then
@@ -1455,7 +1496,7 @@ server {
 
     # Frontend
     location / {
-        root $INSTALL_DIR/frontend/build;
+        root $FRONTEND_BUILD_DIR;
         try_files \$uri \$uri/ /index.html;
     }
 
@@ -1505,7 +1546,7 @@ server {
     
     # Arquivos estáticos do React (JS, CSS, etc.)
     location /static/ {
-        alias $INSTALL_DIR/frontend/build/static/;
+        alias $FRONTEND_BUILD_DIR/static/;
         expires 1y;
         add_header Cache-Control "public, immutable";
         access_log off;
@@ -1680,7 +1721,7 @@ EOF
                 warning "Verificando logs:"
                 sudo tail -20 /var/log/nginx/error.log 2>/dev/null || true
                 warning "Verificando permissões:"
-                sudo ls -la "$INSTALL_DIR/frontend/build/index.html" || true
+                sudo ls -la "$FRONTEND_BUILD_DIR/index.html" || true
             fi
         fi
     else
