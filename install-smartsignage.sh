@@ -3424,17 +3424,46 @@ setup_first_boot() {
         fi
     fi
     
-    # Verificar se tabela users foi criada
-    log "Verificando se tabela users foi criada..."
+    # Verificar se tabelas foram criadas corretamente
+    log "Verificando se todas as tabelas foram criadas..."
     cd $INSTALL_DIR/backend
-    if psql "$DATABASE_URL" -c "\d users" > /dev/null 2>&1; then
-        log "✅ Tabela users existe"
-    else
-        warn "⚠️ Tabela users não encontrada - tentando criar novamente..."
-        npx prisma db push --accept-data-loss --skip-generate --force-reset || {
-            error "❌ Não foi possível criar a tabela users"
+    
+    # Lista de tabelas obrigatórias
+    REQUIRED_TABLES=("users" "clients" "totems" "medias" "playlists" "playlist_items" "campaigns")
+    
+    MISSING_TABLES=()
+    for table in "${REQUIRED_TABLES[@]}"; do
+        if ! psql "$DATABASE_URL" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '$table'" | grep -q 1; then
+            MISSING_TABLES+=("$table")
+        fi
+    done
+    
+    if [[ ${#MISSING_TABLES[@]} -gt 0 ]]; then
+        warn "⚠️ Tabelas faltando: ${MISSING_TABLES[*]}"
+        log "Tentando criar todas as tabelas novamente com db push..."
+        
+        # Gerar Prisma Client novamente antes de db push
+        npx prisma generate || warn "⚠️ Falha ao gerar Prisma Client"
+        
+        # Executar db push para criar todas as tabelas
+        if npx prisma db push --accept-data-loss --skip-generate; then
+            log "✅ Tabelas criadas com sucesso"
+            
+            # Verificar novamente
+            for table in "${MISSING_TABLES[@]}"; do
+                if psql "$DATABASE_URL" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '$table'" | grep -q 1; then
+                    log "✅ Tabela $table criada"
+                else
+                    error "❌ Falha ao criar tabela $table"
+                fi
+            done
+        else
+            error "❌ Falha crítica ao criar tabelas do banco de dados"
+            error "Tabelas faltando: ${MISSING_TABLES[*]}"
             exit 1
-        }
+        fi
+    else
+        log "✅ Todas as tabelas obrigatórias existem"
     fi
     
     # Executar seed (dados iniciais)

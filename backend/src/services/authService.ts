@@ -62,12 +62,30 @@ export class AuthService {
 
       // Buscar usuário
       console.log(`[AUTH] Buscando usuário no banco de dados...`);
-      const user = await this.db.findFirst(`
-        SELECT u.*, c.name as client_name 
-        FROM users u 
-        LEFT JOIN clients c ON u.client_id = c.client_id 
-        WHERE u.username = ? AND u.is_active = 1
-      `, [username]);
+      
+      // Verificar se tabela clients existe antes de fazer JOIN
+      let user;
+      try {
+        // Tentar com JOIN primeiro
+        user = await this.db.findFirst(`
+          SELECT u.*, c.name as client_name 
+          FROM users u 
+          LEFT JOIN clients c ON u.client_id = c.client_id 
+          WHERE u.username = ? AND u.is_active = 1
+        `, [username]);
+      } catch (error: any) {
+        // Se falhar por tabela clients não existir, buscar sem JOIN
+        if (error.message && error.message.includes('relation "clients" does not exist')) {
+          console.log(`[AUTH] ⚠️ Tabela clients não existe - buscando usuário sem JOIN...`);
+          user = await this.db.findFirst(`
+            SELECT u.*
+            FROM users u 
+            WHERE u.username = ? AND u.is_active = 1
+          `, [username]);
+        } else {
+          throw error;
+        }
+      }
 
       console.log(`[AUTH] Resultado da busca: ${user ? `Usuário encontrado (ID: ${user.user_id})` : 'Usuário NÃO encontrado'}`);
 
