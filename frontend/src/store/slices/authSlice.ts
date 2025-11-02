@@ -152,7 +152,14 @@ const authSlice = createSlice({
       })
       .addCase(login.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.user = action.payload.user;
+        // Garantir que o role seja um dos valores permitidos
+        const user = action.payload.user;
+        state.user = {
+          ...user,
+          role: (user.role === 'admin' || user.role === 'manager' || user.role === 'operator') 
+            ? user.role 
+            : 'operator' as 'admin' | 'manager' | 'operator'
+        };
         state.token = action.payload.token;
         state.refreshToken = action.payload.refreshToken;
         state.isAuthenticated = true;
@@ -222,7 +229,14 @@ const authSlice = createSlice({
       })
       .addCase(checkAuthStatus.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.user = action.payload;
+        // Garantir que o role seja um dos valores permitidos
+        const user = action.payload;
+        state.user = {
+          ...user,
+          role: (user.role === 'admin' || user.role === 'manager' || user.role === 'operator') 
+            ? user.role 
+            : 'operator' as 'admin' | 'manager' | 'operator'
+        };
         state.isAuthenticated = true;
         state.error = null;
       })
@@ -240,7 +254,14 @@ const authSlice = createSlice({
       
       // Update Profile
       .addCase(updateProfile.fulfilled, (state, action) => {
-        state.user = action.payload;
+        // Garantir que o role seja um dos valores permitidos
+        const user = action.payload;
+        state.user = {
+          ...user,
+          role: (user.role === 'admin' || user.role === 'manager' || user.role === 'operator') 
+            ? user.role 
+            : (state.user?.role || 'operator') as 'admin' | 'manager' | 'operator'
+        };
       })
       
       // Change Password
