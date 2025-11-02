@@ -1674,6 +1674,18 @@ EOF
             
             # Validação final: verificar se o Nginx consegue servir o index.html
             log "Validando se o Nginx está servindo o frontend..."
+            log "Diretório configurado: $FRONTEND_BUILD_DIR"
+            
+            # Verificar se a configuração do Nginx está correta
+            log "Verificando configuração atual do Nginx..."
+            if grep -q "$FRONTEND_BUILD_DIR" /etc/nginx/sites-available/smart-signage 2>/dev/null; then
+                log "✅ Configuração do Nginx aponta para: $FRONTEND_BUILD_DIR"
+            else
+                warning "⚠️  Configuração do Nginx pode não estar apontando para $FRONTEND_BUILD_DIR"
+                warning "Conteúdo atual da configuração:"
+                sudo grep -A 5 "location /" /etc/nginx/sites-available/smart-signage 2>/dev/null | head -10 || true
+            fi
+            
             sleep 2
             if curl -s -f http://localhost:80 > /dev/null 2>&1; then
                 log "✅ Nginx está respondendo na porta 80!"
@@ -1683,15 +1695,18 @@ EOF
                     log "✅ Nginx está servindo o frontend corretamente (HTTP 200)!"
                 else
                     warning "⚠️  Nginx respondeu com status HTTP $HTTP_STATUS"
-                    warning "Verificando se index.html está acessível..."
+                    warning "Verificando se index.html está acessível em $FRONTEND_BUILD_DIR..."
                     sudo ls -la "$FRONTEND_BUILD_DIR/index.html" || true
+                    warning "Verificando logs recentes do Nginx:"
+                    sudo tail -30 /var/log/nginx/error.log 2>/dev/null | grep -E "(stat|Permission|denied)" | tail -5 || true
                 fi
             else
                 warning "⚠️  Nginx pode não estar servindo o frontend corretamente"
-                warning "Verificando logs:"
-                sudo tail -20 /var/log/nginx/error.log 2>/dev/null || true
-                warning "Verificando permissões:"
+                warning "Diretório configurado: $FRONTEND_BUILD_DIR"
+                warning "Verificando se arquivo existe:"
                 sudo ls -la "$FRONTEND_BUILD_DIR/index.html" || true
+                warning "Verificando logs:"
+                sudo tail -30 /var/log/nginx/error.log 2>/dev/null | grep -E "(stat|Permission|denied)" | tail -10 || true
             fi
         fi
     else
