@@ -234,7 +234,7 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               <strong>Usuário:</strong> admin
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              <strong>Senha:</strong> admin
+              <strong>Senha:</strong> admin123
             </Typography>
           </Box>
 

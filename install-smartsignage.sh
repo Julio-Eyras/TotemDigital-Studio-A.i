@@ -3350,16 +3350,32 @@ setup_first_boot() {
         exit 1
     fi
     
-    # Executar migrations
-    log "Executando migrations do banco de dados..."
-    if npx prisma migrate deploy; then
-        log "✅ Migrations executadas com sucesso"
+    # Executar migrations ou criar schema
+    log "Criando schema do banco de dados..."
+    
+    # Verificar se existem migrations
+    if [[ -d "prisma/migrations" ]] && [[ -n "$(ls -A prisma/migrations 2>/dev/null)" ]]; then
+        log "Migrations encontradas - executando migrate deploy..."
+        if npx prisma migrate deploy; then
+            log "✅ Migrations executadas com sucesso"
+        else
+            warn "⚠️ Migrate deploy falhou, tentando db push..."
+            if npx prisma db push --accept-data-loss --skip-generate; then
+                log "✅ Schema criado com sucesso (db push)"
+            else
+                error "❌ Falha ao criar schema do banco de dados"
+                exit 1
+            fi
+        fi
     else
-        warn "⚠️ Migrate deploy falhou, tentando db push..."
-        if npx prisma db push --accept-data-loss; then
+        log "Nenhuma migration encontrada - usando db push para criar schema..."
+        if npx prisma db push --accept-data-loss --skip-generate; then
             log "✅ Schema criado com sucesso (db push)"
         else
             error "❌ Falha ao criar schema do banco de dados"
+            error "Verificando conexão com o banco..."
+            cd $INSTALL_DIR/backend
+            psql "$DATABASE_URL" -c "SELECT 1" || error "❌ Não foi possível conectar ao banco de dados!"
             exit 1
         fi
     fi
