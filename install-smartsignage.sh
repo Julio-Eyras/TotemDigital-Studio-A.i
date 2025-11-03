@@ -4721,14 +4721,13 @@ sleep 10
 PRIMARY_DISPLAY=$(xrandr | grep " connected" | grep -o "^[^ ]*" | head -1)
 
 if [[ -n "$PRIMARY_DISPLAY" ]]; then
-    # Aplicar rotação Portrait (270 graus / -90 graus - sentido anti-horário)
-    # Left = portrait invertido (sentido correto para totens)
-    xrandr --output "$PRIMARY_DISPLAY" --rotate left
+    # Aplicar rotação Portrait Right (90 graus - sentido horário)
+    # Right = portrait correto para totens
+    xrandr --output "$PRIMARY_DISPLAY" --rotate right
     
-    # Se não funcionar, tentar outras opções
+    # Verificar se rotação foi aplicada com sucesso
     if [[ $? -ne 0 ]]; then
-        # Tentar rotação no sentido horário (90 graus) como fallback
-        xrandr --output "$PRIMARY_DISPLAY" --rotate right
+        echo "⚠️ Falha ao aplicar rotação right, tente manualmente com: xrandr --output $PRIMARY_DISPLAY --rotate right"
     fi
 fi
 
@@ -4833,8 +4832,7 @@ case "$1" in
         echo "Aplicando rotação Portrait (lado correto)..."
         PRIMARY_DISPLAY=$(xrandr | grep " connected" | grep -o "^[^ ]*" | head -1)
         if [[ -n "$PRIMARY_DISPLAY" ]]; then
-            # Usar left primeiro (270° / -90°) - lado correto para totens portrait
-            xrandr --output "$PRIMARY_DISPLAY" --rotate left || \
+            # Usar right (90° - sentido horário) - lado correto para totens portrait
             xrandr --output "$PRIMARY_DISPLAY" --rotate right
             echo "✅ Rotação Portrait aplicada em: $PRIMARY_DISPLAY"
             echo "💡 Use 'xrandr --output $PRIMARY_DISPLAY --rotate normal' para voltar ao normal"

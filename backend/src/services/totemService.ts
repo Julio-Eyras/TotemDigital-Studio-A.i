@@ -220,19 +220,27 @@ export class TotemService {
       const totem = await this.db.findFirst(`
         SELECT
           t.totem_id as id,
-          t.name,
-          t.location,
+          t.identifier,
           t.uin,
-          t.is_active as isActive,
+          t.description,
+          t.local_id,
+          t.status,
+          t.active,
+          t.blocked,
+          t.blocked_until,
           t.last_heartbeat as lastHeartbeat,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           c.client_id as clientId,
-          c.name as clientName
+          c.name as clientName,
+          l.description as location,
+          h.name as hostName
         FROM totems t
         LEFT JOIN clients c ON t.client_id = c.client_id
-        WHERE t.uin = ?
-      `, [uin]);
+        LEFT JOIN locals l ON t.local_id = l.local_id
+        LEFT JOIN hosts h ON l.host_id = h.host_id
+        WHERE t.uin = ? OR t.identifier = ?
+      `, [uin, uin]);
 
       return totem;
     } catch (error: any) {

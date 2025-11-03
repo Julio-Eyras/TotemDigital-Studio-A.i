@@ -11,6 +11,7 @@
             box-sizing: border-box;
         }
         
+        /* Portrait Right - 90 graus no sentido horário */
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: #000;
@@ -18,6 +19,22 @@
             overflow: hidden;
             width: 100vw;
             height: 100vh;
+            transform: rotate(90deg);
+            transform-origin: center center;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+        
+        /* Ajustar dimensões para portrait right */
+        @media screen and (orientation: landscape) {
+            body {
+                width: 100vh;
+                height: 100vw;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(90deg);
+            }
         }
         
         #loading {
@@ -68,6 +85,29 @@
             height: 100%;
             object-fit: contain;
         }
+        
+        /* Estilos para vídeos e imagens */
+        #content video,
+        #content img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        /* Transições suaves */
+        .media-item {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        
+        .media-item.active {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -87,139 +127,413 @@
     </div>
 
     <script>
-        // Obter UIN da URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const uin = urlParams.get('uin') || urlParams.get('UIN') || localStorage.getItem('totemUIN');
-        
-        // Configuração da API
-        const API_BASE_URL = window.location.origin;
-        
-        let totemData = null;
-        let validationToken = null;
-        
-        // Função para mostrar erro
-        function showError(message) {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('error').style.display = 'flex';
-            document.getElementById('error-message').textContent = message;
-        }
-        
-        // Função para validar totem
-        async function validateTotem() {
-            if (!uin) {
-                showError('UIN do totem não fornecido. Use ?uin=SEU_UIN na URL.');
-                return false;
+        class SmartSignagePlayer {
+            constructor() {
+                this.apiBaseUrl = window.location.origin + '/api';
+                this.uin = new URLSearchParams(window.location.search).get('uin') || 
+                          new URLSearchParams(window.location.search).get('UIN') || 
+                          localStorage.getItem('totemUIN');
+                this.token = null;
+                this.totemData = null;
+                this.playlist = null;
+                this.currentMediaIndex = 0;
+                this.mediaElements = [];
+                this.pendingCommands = [];
+                this.heartbeatInterval = null;
+                this.playlistInterval = null;
+                this.init();
             }
-            
-            try {
-                // Gerar token inicial
-                const tokenResponse = await fetch(`${API_BASE_URL}/api/player/token?uin=${encodeURIComponent(uin)}`);
-                if (!tokenResponse.ok) {
-                    throw new Error('Falha ao gerar token de validação');
+
+            async init() {
+                try {
+                    console.log('🚀 Iniciando Smart Signage Player v2.1...');
+                    console.log('UIN:', this.uin);
+                    
+                    if (!this.uin) {
+                        this.showError('UIN do totem não fornecido. Use ?uin=SEU_UIN na URL.');
+                        return;
+                    }
+
+                    // Validar totem
+                    const validation = await this.validateTotem();
+                    if (!validation.valid) {
+                        this.showError(validation.error || 'Totem inválido ou bloqueado');
+                        return;
+                    }
+
+                    console.log('✅ Totem validado:', this.totemData);
+                    console.log('📋 Comandos pendentes:', this.pendingCommands.length);
+                    console.log('🎬 Playlist:', this.playlist ? `${this.playlist.name} (${this.playlist.items?.length || 0} itens)` : 'Nenhuma playlist');
+
+                    // Executar comandos pendentes
+                    await this.executePendingCommands();
+
+                    // Carregar e reproduzir playlist
+                    if (this.playlist && this.playlist.items && this.playlist.items.length > 0) {
+                        await this.loadPlaylist(this.playlist);
+                        this.startPlayback();
+                    } else {
+                        this.showError('Nenhuma playlist disponível para este totem.');
+                        return;
+                    }
+
+                    // Iniciar heartbeat
+                    this.startHeartbeat();
+                    
+                    // Verificar atualizações de playlist periodicamente
+                    this.startPlaylistCheck();
+
+                    console.log('✅ Player inicializado com sucesso');
+                } catch (error) {
+                    console.error('❌ Erro ao inicializar player:', error);
+                    this.showError('Erro ao inicializar player: ' + error.message);
                 }
-                
-                const tokenData = await tokenResponse.json();
-                validationToken = tokenData.token;
-                
-                // Validar totem com token
-                const validateResponse = await fetch(
-                    `${API_BASE_URL}/api/player/validate?uin=${encodeURIComponent(uin)}&token=${encodeURIComponent(validationToken)}`
-                );
-                
-                if (!validateResponse.ok) {
-                    const errorData = await validateResponse.json();
-                    throw new Error(errorData.error || 'Totem inválido ou não autorizado');
-                }
-                
-                const validateData = await validateResponse.json();
-                totemData = validateData.totem;
-                validationToken = validateData.token; // Atualizar token
-                
-                // Salvar UIN no localStorage para próximo carregamento
-                localStorage.setItem('totemUIN', uin);
-                localStorage.setItem('totemToken', validationToken);
-                
-                console.log('✅ Totem validado:', totemData);
-                return true;
-                
-            } catch (error) {
-                console.error('❌ Erro ao validar totem:', error);
-                showError(error.message || 'Erro ao validar totem. Verifique a conexão com o servidor.');
-                return false;
             }
-        }
-        
-        // Função para renovar token periodicamente
-        async function renewToken() {
-            if (!uin || !validationToken) return;
-            
-            try {
-                const response = await fetch(
-                    `${API_BASE_URL}/api/player/validate?uin=${encodeURIComponent(uin)}&token=${encodeURIComponent(validationToken)}`
-                );
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    validationToken = data.token;
-                    localStorage.setItem('totemToken', validationToken);
+
+            async validateTotem() {
+                try {
+                    // Gerar token inicial
+                    const tokenResponse = await fetch(`${this.apiBaseUrl}/player/token?uin=${encodeURIComponent(this.uin)}`);
+                    if (!tokenResponse.ok) {
+                        throw new Error('Falha ao gerar token de validação');
+                    }
+                    
+                    const tokenData = await tokenResponse.json();
+                    this.token = tokenData.token;
+
+                    // Validar totem com token e obter dados completos
+                    const validateResponse = await fetch(
+                        `${this.apiBaseUrl}/player/validate?uin=${encodeURIComponent(this.uin)}&token=${encodeURIComponent(this.token)}`
+                    );
+                    
+                    if (!validateResponse.ok) {
+                        const errorData = await validateResponse.json();
+                        return { 
+                            valid: false, 
+                            error: errorData.error || 'Totem inválido ou não autorizado',
+                            blocked: errorData.blocked,
+                            reason: errorData.reason
+                        };
+                    }
+                    
+                    const validateData = await validateResponse.json();
+                    this.totemData = validateData.totem;
+                    this.token = validateData.token;
+                    this.pendingCommands = validateData.pendingCommands || [];
+                    this.playlist = validateData.playlist;
+                    
+                    // Salvar para próximo carregamento
+                    localStorage.setItem('totemUIN', this.uin);
+                    localStorage.setItem('totemToken', this.token);
+                    
+                    return { valid: true };
+                } catch (error) {
+                    console.error('❌ Erro ao validar totem:', error);
+                    return { 
+                        valid: false, 
+                        error: 'Erro ao validar totem. Verifique a conexão com o servidor.' 
+                    };
                 }
-            } catch (error) {
-                console.error('Erro ao renovar token:', error);
             }
-        }
-        
-        // Função para carregar conteúdo do player
-        async function loadPlayerContent() {
-            try {
-                // Obter configuração do player
-                const configResponse = await fetch(`${API_BASE_URL}/player/config`);
-                if (!configResponse.ok) {
-                    throw new Error('Falha ao obter configuração do player');
+
+            async executePendingCommands() {
+                if (!this.pendingCommands || this.pendingCommands.length === 0) {
+                    return;
                 }
+
+                const executedCommandIds = [];
+
+                for (const cmd of this.pendingCommands) {
+                    try {
+                        console.log(`📨 Executando comando: ${cmd.type}`, cmd.data);
+                        
+                        switch (cmd.type) {
+                            case 'reboot':
+                                // Programar reboot (pode ser após X segundos)
+                                const delay = cmd.data?.delay || 0;
+                                setTimeout(() => {
+                                    if (confirm('Sistema será reiniciado. Continuar?')) {
+                                        location.reload(); // Em produção, usar comando real de reboot
+                                    }
+                                }, delay * 1000);
+                                executedCommandIds.push(cmd.id);
+                                break;
+                                
+                            case 'update_playlist':
+                                // Recarregar playlist
+                                await this.validateTotem();
+                                if (this.playlist) {
+                                    await this.loadPlaylist(this.playlist);
+                                }
+                                executedCommandIds.push(cmd.id);
+                                break;
+                                
+                            case 'change_brightness':
+                                // Ajustar brilho (se possível via API do sistema)
+                                if (cmd.data?.brightness !== undefined) {
+                                    console.log(`💡 Ajustando brilho para: ${cmd.data.brightness}%`);
+                                    // Implementar ajuste de brilho se disponível
+                                }
+                                executedCommandIds.push(cmd.id);
+                                break;
+                                
+                            case 'play_media':
+                                // Reproduzir mídia específica
+                                if (cmd.data?.mediaId) {
+                                    // Buscar mídia na playlist e reproduzir
+                                    const mediaIndex = this.playlist?.items?.findIndex(item => item.media?.id === cmd.data.mediaId);
+                                    if (mediaIndex !== undefined && mediaIndex >= 0) {
+                                        this.currentMediaIndex = mediaIndex;
+                                        this.playMedia(this.mediaElements[mediaIndex]);
+                                    }
+                                }
+                                executedCommandIds.push(cmd.id);
+                                break;
+                                
+                            default:
+                                console.warn(`⚠️ Tipo de comando desconhecido: ${cmd.type}`);
+                                executedCommandIds.push(cmd.id);
+                        }
+                    } catch (error) {
+                        console.error(`❌ Erro ao executar comando ${cmd.id}:`, error);
+                    }
+                }
+
+                // Marcar comandos como executados no próximo heartbeat
+                if (executedCommandIds.length > 0) {
+                    this.executedCommands = executedCommandIds;
+                }
+            }
+
+            async loadPlaylist(playlist) {
+                if (!playlist || !playlist.items || playlist.items.length === 0) {
+                    throw new Error('Playlist vazia ou inválida');
+                }
+
+                console.log(`📋 Carregando playlist: ${playlist.name} com ${playlist.items.length} itens`);
+
+                const container = document.getElementById('content');
+                container.innerHTML = '';
+
+                this.mediaElements = [];
+
+                for (let i = 0; i < playlist.items.length; i++) {
+                    const item = playlist.items[i];
+                    const media = item.media;
+
+                    if (!media || !media.path) {
+                        console.warn(`⚠️ Mídia ${i} inválida ou sem caminho`);
+                        continue;
+                    }
+
+                    const mediaUrl = `${this.apiBaseUrl.replace('/api', '')}/media/${media.path}`;
+                    const mediaElement = this.createMediaElement(mediaUrl, media.mimeType || media.type);
+                    
+                    mediaElement.classList.add('media-item');
+                    if (i === 0) {
+                        mediaElement.classList.add('active');
+                    }
+
+                    container.appendChild(mediaElement);
+                    this.mediaElements.push({
+                        element: mediaElement,
+                        duration: item.duration || media.durationSeconds || 10000,
+                        media: media
+                    });
+                }
+
+                console.log(`✅ ${this.mediaElements.length} mídias carregadas`);
+            }
+
+            createMediaElement(url, mimeType) {
+                const element = document.createElement(mimeType?.startsWith('video') ? 'video' : 'img');
+                element.src = url;
+                element.style.width = '100%';
+                element.style.height = '100%';
+                element.style.objectFit = 'contain';
+
+                if (mimeType?.startsWith('video')) {
+                    element.controls = false;
+                    element.autoplay = false;
+                    element.loop = false;
+                    element.muted = true; // Sem áudio por padrão em totens
+                    element.addEventListener('error', (e) => {
+                        console.error('❌ Erro ao carregar vídeo:', url, e);
+                    });
+                } else {
+                    element.addEventListener('error', (e) => {
+                        console.error('❌ Erro ao carregar imagem:', url, e);
+                    });
+                }
+
+                return element;
+            }
+
+            startPlayback() {
+                if (this.mediaElements.length === 0) {
+                    console.warn('⚠️ Nenhuma mídia para reproduzir');
+                    return;
+                }
+
+                this.currentMediaIndex = 0;
+                this.playMedia(this.mediaElements[0]);
+
+                console.log('▶️ Reprodução iniciada');
+            }
+
+            playMedia(mediaData) {
+                if (!mediaData || !mediaData.element) {
+                    return;
+                }
+
+                // Ocultar todas as mídias
+                this.mediaElements.forEach(m => m.element.classList.remove('active'));
+
+                // Mostrar mídia atual
+                mediaData.element.classList.add('active');
                 
-                const config = await configResponse.json();
-                console.log('Configuração do player:', config);
+                const element = mediaData.element;
+                const duration = mediaData.duration || 10000;
+
+                if (element.tagName === 'VIDEO') {
+                    element.currentTime = 0;
+                    element.play().then(() => {
+                        console.log(`▶️ Reproduzindo vídeo: ${mediaData.media?.name || 'sem nome'}`);
+                    }).catch(error => {
+                        console.error('❌ Erro ao reproduzir vídeo:', error);
+                        // Continuar para próxima mídia após duração
+                        setTimeout(() => this.nextMedia(), duration);
+                    });
+
+                    // Avançar para próxima quando vídeo terminar ou após duração
+                    element.addEventListener('ended', () => {
+                        this.nextMedia();
+                    });
+
+                    const durationTimeout = setTimeout(() => {
+                        if (!element.ended) {
+                            element.pause();
+                            this.nextMedia();
+                        }
+                    }, duration);
+                } else {
+                    // Imagem - avançar após duração
+                    console.log(`🖼️ Exibindo imagem: ${mediaData.media?.name || 'sem nome'}`);
+                    setTimeout(() => {
+                        this.nextMedia();
+                    }, duration);
+                }
+            }
+
+            nextMedia() {
+                if (this.mediaElements.length === 0) {
+                    return;
+                }
+
+                this.currentMediaIndex = (this.currentMediaIndex + 1) % this.mediaElements.length;
                 
-                // Aqui você pode carregar playlists, campanhas, etc. baseado no totemData
-                // Por enquanto, apenas mostra mensagem de sucesso
+                // Se voltou ao início, recarregar playlist para verificar atualizações
+                if (this.currentMediaIndex === 0) {
+                    this.checkPlaylistUpdates();
+                }
+
+                this.playMedia(this.mediaElements[this.currentMediaIndex]);
+            }
+
+            async checkPlaylistUpdates() {
+                try {
+                    const validation = await this.validateTotem();
+                    if (validation.valid && this.playlist) {
+                        const newPlaylist = validation.playlist;
+                        if (newPlaylist && JSON.stringify(newPlaylist) !== JSON.stringify(this.playlist)) {
+                            console.log('🔄 Playlist atualizada, recarregando...');
+                            await this.loadPlaylist(newPlaylist);
+                            this.currentMediaIndex = 0;
+                            this.playMedia(this.mediaElements[0]);
+                        }
+                    }
+                } catch (error) {
+                    console.error('❌ Erro ao verificar atualizações de playlist:', error);
+                }
+            }
+
+            startHeartbeat() {
+                // Heartbeat a cada 60 segundos
+                this.heartbeatInterval = setInterval(() => {
+                    this.sendHeartbeat();
+                }, 60000);
+
+                // Enviar primeiro heartbeat após 5 segundos
+                setTimeout(() => this.sendHeartbeat(), 5000);
+            }
+
+            async sendHeartbeat() {
+                if (!this.uin || !this.token) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/player/heartbeat?uin=${encodeURIComponent(this.uin)}&token=${encodeURIComponent(this.token)}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            executedCommands: this.executedCommands || [],
+                            metrics: {
+                                currentMediaIndex: this.currentMediaIndex,
+                                playlistId: this.playlist?.id,
+                                uptime: Math.floor((Date.now() - this.startTime) / 1000)
+                            }
+                        })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.token = data.token;
+                        localStorage.setItem('totemToken', this.token);
+
+                        // Executar novos comandos pendentes
+                        if (data.pendingCommands && data.pendingCommands.length > 0) {
+                            this.pendingCommands = data.pendingCommands;
+                            await this.executePendingCommands();
+                        }
+                    }
+                } catch (error) {
+                    console.error('❌ Erro ao enviar heartbeat:', error);
+                }
+            }
+
+            startPlaylistCheck() {
+                // Verificar atualizações de playlist a cada 5 minutos
+                this.playlistInterval = setInterval(() => {
+                    this.checkPlaylistUpdates();
+                }, 300000); // 5 minutos
+            }
+
+            showError(message) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('player-container').style.display = 'none';
+                document.getElementById('error').style.display = 'flex';
+                document.getElementById('error-message').textContent = message;
+            }
+
+            hideLoading() {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('player-container').style.display = 'block';
-                document.getElementById('content').innerHTML = `
-                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; padding: 20px;">
-                        <h1 style="font-size: 48px; margin-bottom: 20px;">Smart Signage Player</h1>
-                        <p style="font-size: 24px; margin-bottom: 10px;">Totem: ${totemData.name}</p>
-                        <p style="font-size: 18px; color: #888;">Localização: ${totemData.location}</p>
-                        <p style="font-size: 14px; color: #555; margin-top: 40px;">UIN: ${uin}</p>
-                        <p style="font-size: 14px; color: #555;">Status: Conectado e Validado</p>
-                    </div>
-                `;
-                
-            } catch (error) {
-                console.error('Erro ao carregar conteúdo:', error);
-                showError('Erro ao carregar conteúdo do player');
             }
         }
-        
-        // Inicializar player
-        async function init() {
-            // Validar totem
-            const isValid = await validateTotem();
-            if (!isValid) {
-                return;
-            }
-            
-            // Carregar conteúdo
-            await loadPlayerContent();
-            
-            // Renovar token a cada 30 minutos
-            setInterval(renewToken, 30 * 60 * 1000);
-        }
-        
-        // Iniciar quando página carregar
+
+        // Inicializar player quando página carregar
+        let player;
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', init);
+            document.addEventListener('DOMContentLoaded', () => {
+                player = new SmartSignagePlayer();
+                player.startTime = Date.now();
+            });
         } else {
-            init();
+            player = new SmartSignagePlayer();
+            player.startTime = Date.now();
         }
     </script>
 </body>

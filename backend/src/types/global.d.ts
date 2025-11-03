@@ -47,16 +47,7 @@ declare module 'qrcode' {
   export function toString(text: string, options?: any): Promise<string>;
 }
 
-declare module 'sqlite3' {
-  export class Database {
-    constructor(filename: string, callback?: (err: Error | null) => void);
-    all(sql: string, params: any[], callback: (err: Error | null, rows: any[]) => void): void;
-    get(sql: string, params: any[], callback: (err: Error | null, row: any) => void): void;
-    run(sql: string, params: any[], callback?: (this: { lastID: number; changes: number }, err: Error | null) => void): void;
-    exec(sql: string, callback?: (err: Error | null) => void): void;
-    close(callback?: (err: Error | null) => void): void;
-    backup(filename: string, callback?: (err: Error | null) => void): void;
-  }
-}
+// SQLite removido na v2.1 - apenas PostgreSQL suportado
+// Módulo sqlite3 não é mais usado ou necessário
 
 export {};

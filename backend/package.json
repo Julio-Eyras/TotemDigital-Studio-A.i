@@ -1,6 +1,6 @@
 {
   "name": "smartsignage-pro",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Sistema de Sinalização Digital Profissional - Tudo que você precisa para começar",
   "main": "dist/index.js",
   "scripts": {
@@ -9,9 +9,6 @@
     "build": "tsc -p tsconfig.json",
     "test": "echo 'Testes implementados'",
     "lint": "echo 'Linting implementado'"
-  },
-  "prisma": {
-    "seed": "node prisma/seed.js"
   },
   "keywords": [
     "digital-signage",
@@ -27,8 +24,7 @@
     "npm": ">=9.0.0"
   },
   "dependencies": {
-    "@prisma/client": "^5.7.1",
-    "@types/sqlite3": "^3.1.11",
+    "@types/pg": "^8.10.9",
     "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.4",
@@ -45,7 +41,6 @@
     "morgan": "^1.10.0",
     "multer": "^2.0.0",
     "pg": "^8.11.3",
-    "prisma": "^5.7.1",
     "qrcode": "^1.5.4",
     "sharp": "^0.34.4",
     "uuid": "^9.0.1",

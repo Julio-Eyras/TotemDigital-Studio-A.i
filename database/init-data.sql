@@ -62,14 +62,14 @@ INSERT INTO users (id, client_id, username, email, password_hash, name, role, is
 -- DADOS DE EXEMPLO - TOTEMS
 -- =============================================
 
-INSERT INTO totems (totem_id, identifier, device_id, local_id, description, config, status, version, firmware_version, ip_address, last_seen, last_heartbeat, active) VALUES 
-(1, 'TOTEM-SHOPPING-001', 'DEVICE-001', 'SHOPPING-NORTE-ENTRADA', 'Totem Entrada Principal', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 80}', 'online', '2.0.1', '1.2.3', '192.168.1.100', NOW(), NOW(), true),
-(2, 'TOTEM-SHOPPING-002', 'DEVICE-002', 'SHOPPING-NORTE-PRACA', 'Totem Praça Alimentação', '{"resolution": "1920x1080", "orientation": "landscape", "brightness": 75}', 'online', '2.0.1', '1.2.3', '192.168.1.101', NOW(), NOW(), true),
-(3, 'TOTEM-SHOPPING-003', 'DEVICE-003', 'SHOPPING-NORTE-CINEMA', 'Totem Área Cinema', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 70}', 'online', '2.0.1', '1.2.3', '192.168.1.102', NOW(), NOW(), true),
-(4, 'TOTEM-FARMACIA-001', 'DEVICE-004', 'FARMACIA-CENTRAL-MATRIZ', 'Totem Farmácia Matriz', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 85}', 'online', '2.0.1', '1.2.3', '192.168.2.100', NOW(), NOW(), true),
-(5, 'TOTEM-FARMACIA-002', 'DEVICE-005', 'FARMACIA-CENTRAL-FILIAL1', 'Totem Farmácia Filial Sul', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 85}', 'online', '2.0.1', '1.2.3', '192.168.2.101', NOW(), NOW(), true),
-(6, 'TOTEM-SUPER-001', 'DEVICE-006', 'SUPER-CENTRO-CAIXA', 'Totem Área Caixas', '{"resolution": "1920x1080", "orientation": "landscape", "brightness": 80}', 'online', '2.0.1', '1.2.3', '192.168.3.100', NOW(), NOW(), true),
-(7, 'TOTEM-SUPER-002', 'DEVICE-007', 'SUPER-CENTRO-ACOUGUE', 'Totem Seção Açougue', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 75}', 'offline', '2.0.0', '1.2.2', '192.168.3.101', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours', true);
+INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, description, config, status, version, firmware_version, ip_address, last_seen, last_heartbeat, active, blocked) VALUES 
+(1, 'TOTEM-SHOPPING-001', 'UIN-SHOPPING-001-2024', 'DEVICE-001', 'SHOPPING-NORTE-ENTRADA', 'Totem Entrada Principal', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 80}', 'online', '2.0.1', '1.2.3', '192.168.1.100', NOW(), NOW(), true, false),
+(2, 'TOTEM-SHOPPING-002', 'UIN-SHOPPING-002-2024', 'DEVICE-002', 'SHOPPING-NORTE-PRACA', 'Totem Praça Alimentação', '{"resolution": "1920x1080", "orientation": "landscape", "brightness": 75}', 'online', '2.0.1', '1.2.3', '192.168.1.101', NOW(), NOW(), true, false),
+(3, 'TOTEM-SHOPPING-003', 'UIN-SHOPPING-003-2024', 'DEVICE-003', 'SHOPPING-NORTE-CINEMA', 'Totem Área Cinema', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 70}', 'online', '2.0.1', '1.2.3', '192.168.1.102', NOW(), NOW(), true, false),
+(4, 'TOTEM-FARMACIA-001', 'UIN-FARMACIA-001-2024', 'DEVICE-004', 'FARMACIA-CENTRAL-MATRIZ', 'Totem Farmácia Matriz', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 85}', 'online', '2.0.1', '1.2.3', '192.168.2.100', NOW(), NOW(), true, false),
+(5, 'TOTEM-FARMACIA-002', 'UIN-FARMACIA-002-2024', 'DEVICE-005', 'FARMACIA-CENTRAL-FILIAL1', 'Totem Farmácia Filial Sul', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 85}', 'online', '2.0.1', '1.2.3', '192.168.2.101', NOW(), NOW(), true, false),
+(6, 'TOTEM-SUPER-001', 'UIN-SUPER-001-2024', 'DEVICE-006', 'SUPER-CENTRO-CAIXA', 'Totem Área Caixas', '{"resolution": "1920x1080", "orientation": "landscape", "brightness": 80}', 'online', '2.0.1', '1.2.3', '192.168.3.100', NOW(), NOW(), true, false),
+(7, 'TOTEM-SUPER-002', 'UIN-SUPER-002-2024', 'DEVICE-007', 'SUPER-CENTRO-ACOUGUE', 'Totem Seção Açougue', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 75}', 'offline', '2.0.0', '1.2.2', '192.168.3.101', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours', true, false);
 
 -- =============================================
 -- DADOS DE EXEMPLO - SMART TVs
