@@ -3643,8 +3643,17 @@ setup_first_boot() {
         log "✅ Arquivo init-data.sql encontrado - usando seeds completos do modelo E.R."
         log "Executando init-data.sql (todas as tabelas usadas em JOINs serão populadas)..."
         
-        if psql "$DATABASE_URL" -f "$INIT_DATA_SQL_FILE" 2>&1; then
-            log "✅ Seeds executados com sucesso usando init-data.sql"
+        # Executar init-data.sql (ignorar avisos de "already exists" e NOTICE)
+        log "Executando init-data.sql..."
+        if psql "$DATABASE_URL" -f "$INIT_DATA_SQL_FILE" 2>&1 | grep -v "NOTICE:" | grep -v "already exists" | grep -v "^$" | grep -i "error" >/dev/null; then
+            warn "⚠️ Alguns erros ao executar init-data.sql, mas continuando..."
+        else
+            log "✅ Seeds executados usando init-data.sql"
+        fi
+        
+        # Verificar se dados foram inseridos (mesmo que haja avisos)
+        TABLE_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ' || echo "0")
+        if [[ -n "$TABLE_COUNT" ]] && [[ "$TABLE_COUNT" -gt 5 ]]; then
             
             # Verificar se dados foram inseridos
             log "Verificando dados inseridos pelo init-data.sql..."
@@ -3718,8 +3727,17 @@ SQL
             # Seed executado via SQL, não precisa executar seed.js
             return 0
         else
-            warn "⚠️ Erro ao executar init-data.sql, tentando fallback (seed.js)..."
+            warn "⚠️ Poucas tabelas encontradas após seed. Verificando se dados foram inseridos..."
+            # Verificar se pelo menos alguns dados foram inseridos
+            SEED_CLIENTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
+            if [[ "$SEED_CLIENTS" -gt 0 ]]; then
+                log "✅ Alguns dados foram inseridos, continuando..."
+            else
+                warn "⚠️ Nenhum dado encontrado. Verifique o arquivo init-data.sql"
+            fi
         fi
+    else
+        warn "⚠️ Arquivo init-data.sql não encontrado em $INSTALL_DIR/database/"
     fi
     
     # PRIORIDADE 2: Fallback para seed.js do Prisma
@@ -3797,64 +3815,64 @@ SQL
         
         # Verificar se usuário já existe antes de criar
         log "Verificando se usuário admin já existe..."
-        if psql "$DATABASE_URL" -tAc "SELECT 1 FROM users WHERE username = 'admin'" | grep -q 1; then
+        if psql "$DATABASE_URL" -tAc "SELECT 1 FROM users WHERE username = 'admin'" 2>/dev/null | grep -q 1; then
             log "✅ Usuário admin já existe - atualizando senha..."
             node -e "
-            const { PrismaClient } = require('@prisma/client');
+            const { Pool } = require('pg');
             const bcrypt = require('bcryptjs');
-            const prisma = new PrismaClient();
+            const pool = new Pool({ connectionString: process.env.DATABASE_URL || '$DATABASE_URL' });
             (async () => {
                 try {
                     const hashedPassword = await bcrypt.hash('admin123', 12);
-                    await prisma.\$executeRaw\`
+                    await pool.query(\`
                         UPDATE users 
-                        SET password_hash = \${hashedPassword},
+                        SET password_hash = \$1,
                             role = 'admin',
                             is_active = true,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE username = 'admin'
-                    \`;
+                    \`, [hashedPassword]);
                     console.log('✅ Senha do admin atualizada para admin123');
                 } catch (e) {
                     console.error('Erro ao atualizar:', e.message);
                 } finally {
-                    await prisma.\$disconnect();
+                    await pool.end();
                 }
             })();
             " || warn "⚠️ Falha ao atualizar usuário admin"
         else
             log "Criando novo usuário admin..."
             node -e "
-            const { PrismaClient } = require('@prisma/client');
+            const { Pool } = require('pg');
             const bcrypt = require('bcryptjs');
-            const prisma = new PrismaClient();
+            const pool = new Pool({ connectionString: process.env.DATABASE_URL || '$DATABASE_URL' });
             (async () => {
                 try {
                     // Verificar se tabela users existe
-                    const tables = await prisma.\$queryRaw\`
+                    const tablesResult = await pool.query(\`
                         SELECT table_name 
                         FROM information_schema.tables 
                         WHERE table_schema = 'public' AND table_name = 'users'
-                    \`;
+                    \`);
                     
-                    if (!Array.isArray(tables) || tables.length === 0) {
+                    if (!tablesResult.rows || tablesResult.rows.length === 0) {
                         console.error('❌ Tabela users não existe! Execute schema-postgresql.sql primeiro.');
-                        await prisma.\$disconnect();
+                        await pool.end();
                         process.exit(1);
                     }
                     
-                    // Usar executeRaw para criar com username (campo que existe no banco mas não no Prisma schema)
+                    // Criar usuário admin
                     const hashedPassword = await bcrypt.hash('admin123', 12);
-                    await prisma.\$executeRaw\`
+                    await pool.query(\`
                         INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at)
-                        VALUES ('admin', 'admin@smart-signage.com', \${hashedPassword}, 'Administrator', 'admin', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        VALUES ('admin', 'admin@smart-signage.com', \$1, 'Administrator', 'admin', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         ON CONFLICT (username) 
                         DO UPDATE SET 
                             role = 'admin',
                             is_active = true,
-                            password_hash = \${hashedPassword},
+                            password_hash = \$1,
                             updated_at = CURRENT_TIMESTAMP
-                    \`;
+                    \`, [hashedPassword]);
                     console.log('✅ Usuário admin criado: admin@smart-signage.com / admin123');
                 } catch (e) {
                     console.error('❌ Erro ao criar admin:', e.message);
@@ -3863,7 +3881,7 @@ SQL
                         console.error('💡 A tabela users não existe! Execute o schema-postgresql.sql');
                     }
                 } finally {
-                    await prisma.\$disconnect();
+                    await pool.end();
                 }
             })();
             " || {
@@ -3894,7 +3912,7 @@ SQL
         error "❌ ATENÇÃO: Usuário admin NÃO foi criado!"
         error "Execute manualmente para criar o admin:"
         error "cd $INSTALL_DIR/backend"
-        error "node -e \"const {PrismaClient} = require('@prisma/client'); const bcrypt = require('bcryptjs'); const prisma = new PrismaClient(); (async () => { const hash = await bcrypt.hash('admin123', 12); await prisma.\$executeRaw\`INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at) VALUES ('admin', 'admin@smart-signage.com', \${hash}, 'Administrator', 'admin', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (username) DO UPDATE SET password_hash = \${hash}\`; await prisma.\$disconnect(); })();\""
+        error "node -e \"const {Pool} = require('pg'); const bcrypt = require('bcryptjs'); const pool = new Pool({connectionString: '$DATABASE_URL'}); (async () => { const hash = await bcrypt.hash('admin123', 12); await pool.query('INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at) VALUES (\\\$1, \\\$2, \\\$3, \\\$4, \\\$5, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (username) DO UPDATE SET password_hash = \\\$3', ['admin', 'admin@smart-signage.com', hash, 'Administrator', 'admin']); await pool.end(); })();\""
     fi
     
     log "✅ Primeiro boot configurado!"
@@ -3974,47 +3992,92 @@ manage_demo_seed_strategy() {
 
 # Remover dados de demonstração conhecidos de forma segura
 clean_demo_seed_data() {
+    # Verificar se tabelas existem antes de limpar
+    if ! psql "$DATABASE_URL" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='playlists');" 2>/dev/null | grep -q t; then
+        log "⚠️ Tabelas ainda não existem. Pulando limpeza de dados demo."
+        return 0
+    fi
+    
     psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
 BEGIN;
--- Playlist Demo e seus itens
-WITH demo_playlists AS (
+-- Playlist Demo e seus itens (usando subqueries diretas)
+DELETE FROM playlist_items WHERE playlist_id IN (
   SELECT playlist_id FROM playlists WHERE name ILIKE 'Playlist Demo' OR playlist_id = 5
-)
-DELETE FROM playlist_items WHERE playlist_id IN (SELECT playlist_id FROM demo_playlists);
-DELETE FROM campaign_playlists WHERE playlist_id IN (SELECT playlist_id FROM demo_playlists);
-DELETE FROM playlists WHERE playlist_id IN (SELECT playlist_id FROM demo_playlists);
+);
+DELETE FROM campaign_playlists WHERE playlist_id IN (
+  SELECT playlist_id FROM playlists WHERE name ILIKE 'Playlist Demo' OR playlist_id = 5
+);
+DELETE FROM playlists WHERE playlist_id IN (
+  SELECT playlist_id FROM playlists WHERE name ILIKE 'Playlist Demo' OR playlist_id = 5
+);
 
--- Totem default-demo e dependências
-WITH demo_totems AS (
+-- Totem default-demo e dependências (usando subqueries diretas)
+DELETE FROM device_certificates WHERE totem_id IN (
   SELECT totem_id FROM totems WHERE uin = 'default-demo'
-)
-DELETE FROM device_certificates WHERE totem_id IN (SELECT totem_id FROM demo_totems);
-DELETE FROM totem_ml_config WHERE totem_id IN (SELECT totem_id FROM demo_totems);
-DELETE FROM ml_sessions WHERE totem_id IN (SELECT totem_id FROM demo_totems);
-DELETE FROM campaign_totems WHERE totem_id IN (SELECT totem_id FROM demo_totems);
-DELETE FROM analytics_sessions WHERE totem_id IN (SELECT totem_id FROM demo_totems);
-DELETE FROM emotion_data WHERE totem_id IN (SELECT totem_id FROM demo_totems);
-DELETE FROM gesture_data WHERE totem_id IN (SELECT totem_id FROM demo_totems);
-DELETE FROM behavior_data WHERE totem_id IN (SELECT totem_id FROM demo_totems);
-DELETE FROM execution_logs WHERE totem_id IN (SELECT totem_id FROM demo_totems);
-DELETE FROM totems WHERE totem_id IN (SELECT totem_id FROM demo_totems);
+);
+DELETE FROM totem_ml_config WHERE totem_id IN (
+  SELECT totem_id FROM totems WHERE uin = 'default-demo'
+);
+DELETE FROM ml_sessions WHERE totem_id IN (
+  SELECT totem_id FROM totems WHERE uin = 'default-demo'
+);
+DELETE FROM campaign_totems WHERE totem_id IN (
+  SELECT totem_id FROM totems WHERE uin = 'default-demo'
+);
+DELETE FROM analytics_sessions WHERE totem_id IN (
+  SELECT totem_id FROM totems WHERE uin = 'default-demo'
+);
+DELETE FROM emotion_data WHERE totem_id IN (
+  SELECT totem_id FROM totems WHERE uin = 'default-demo'
+);
+DELETE FROM gesture_data WHERE totem_id IN (
+  SELECT totem_id FROM totems WHERE uin = 'default-demo'
+);
+DELETE FROM behavior_data WHERE totem_id IN (
+  SELECT totem_id FROM totems WHERE uin = 'default-demo'
+);
+DELETE FROM execution_logs WHERE totem_id IN (
+  SELECT totem_id FROM totems WHERE uin = 'default-demo'
+);
+DELETE FROM totems WHERE totem_id IN (
+  SELECT totem_id FROM totems WHERE uin = 'default-demo'
+);
 
--- Mídias de demonstração (por título/arquivo/tags contendo demo)
-WITH demo_medias AS (
+-- Mídias de demonstração (por título/arquivo/tags contendo demo) - usando subqueries diretas
+DELETE FROM playlist_items WHERE media_id IN (
   SELECT media_id FROM medias 
   WHERE title ILIKE 'Smart Signage-Pro %' 
      OR filename ILIKE 'smart-signage-pro-%' 
      OR (tags::text ILIKE '%demo%')
-)
-DELETE FROM playlist_items WHERE media_id IN (SELECT media_id FROM demo_medias);
-DELETE FROM aggregated_metrics WHERE media_id IN (SELECT media_id FROM demo_medias);
-DELETE FROM approval_workflows WHERE media_id IN (SELECT media_id FROM demo_medias);
-DELETE FROM execution_logs WHERE media_id IN (SELECT media_id FROM demo_medias);
-DELETE FROM medias WHERE media_id IN (SELECT media_id FROM demo_medias);
+);
+DELETE FROM aggregated_metrics WHERE media_id IN (
+  SELECT media_id FROM medias 
+  WHERE title ILIKE 'Smart Signage-Pro %' 
+     OR filename ILIKE 'smart-signage-pro-%' 
+     OR (tags::text ILIKE '%demo%')
+);
+DELETE FROM approval_workflows WHERE media_id IN (
+  SELECT media_id FROM medias 
+  WHERE title ILIKE 'Smart Signage-Pro %' 
+     OR filename ILIKE 'smart-signage-pro-%' 
+     OR (tags::text ILIKE '%demo%')
+);
+DELETE FROM execution_logs WHERE media_id IN (
+  SELECT media_id FROM medias 
+  WHERE title ILIKE 'Smart Signage-Pro %' 
+     OR filename ILIKE 'smart-signage-pro-%' 
+     OR (tags::text ILIKE '%demo%')
+);
+DELETE FROM medias WHERE media_id IN (
+  SELECT media_id FROM medias 
+  WHERE title ILIKE 'Smart Signage-Pro %' 
+     OR filename ILIKE 'smart-signage-pro-%' 
+     OR (tags::text ILIKE '%demo%')
+);
 
 -- Outros seeds pontuais conhecidos
-DELETE FROM short_links WHERE short_id IN ('BF2024');
-DELETE FROM remote_commands WHERE request_id IN ('CMD-001');
+DELETE FROM short_links WHERE short_id = 'BF2024';
+DELETE FROM remote_commands WHERE request_id = 'CMD-001';
 
 COMMIT;
 SQL
