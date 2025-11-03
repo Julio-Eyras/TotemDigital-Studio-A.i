@@ -1338,7 +1338,7 @@ server {
         return 301 /player/;
     }
     location /player/ {
-        alias $INSTALL_DIR/player/;
+        alias /opt/smart-signage/player/;
         try_files \$uri \$uri/ /player/index.html;
     }
     
@@ -1495,6 +1495,21 @@ setup_nginx() {
         sudo chmod -R 755 "$DEPLOY_DIR" 2>/dev/null || true
         sudo find "$DEPLOY_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
         
+        # Copiar player para /opt/smart-signage/player
+        sudo mkdir -p /opt/smart-signage/player
+        if [[ -d "$INSTALL_DIR/player" ]]; then
+            sudo rm -rf /opt/smart-signage/player/* 2>/dev/null || true
+            sudo cp -a "$INSTALL_DIR/player"/* /opt/smart-signage/player/ || true
+            if id www-data &>/dev/null; then
+                sudo chown -R www-data:www-data /opt/smart-signage/player 2>/dev/null || true
+            else
+                sudo chown -R nginx:nginx /opt/smart-signage/player 2>/dev/null || true
+            fi
+            sudo chmod -R 755 /opt/smart-signage/player 2>/dev/null || true
+            sudo find /opt/smart-signage/player -type f -exec chmod 644 {} \; 2>/dev/null || true
+            log "✅ Player copiado para /opt/smart-signage/player"
+        fi
+
         # Atualizar INSTALL_DIR para o diretório de deploy (apenas para configuração do Nginx)
         FRONTEND_BUILD_DIR="$DEPLOY_DIR"
         log "✅ Build copiado para $DEPLOY_DIR (diretório público padrão)"
@@ -4608,17 +4623,7 @@ EOF
 # Aguardar XFCE iniciar completamente
 sleep 10
 
-# Aplicar rotação conforme seleção do instalador
-KIOSK_DISPLAY_SELECTED_PLACEHOLDER
-KIOSK_ROTATION_SELECTED_PLACEHOLDER
-PRIMARY_DISPLAY=$(xrandr | grep " connected" | grep -o "^[^ ]*" | head -1)
-TARGET_DISPLAY="$PRIMARY_DISPLAY"
-if [[ -n "$KIOSK_DISPLAY" ]]; then
-  TARGET_DISPLAY="$KIOSK_DISPLAY"
-fi
-if [[ -n "$TARGET_DISPLAY" ]]; then
-  xrandr --output "$TARGET_DISPLAY" --rotate "${KIOSK_ROTATION:-left}"
-fi
+# Rotação: não ajustar aqui; já feita no boot conforme configuração
 
 # Esconder cursor após 5 segundos de inatividade
 unclutter -idle 5 -root &
@@ -4673,28 +4678,7 @@ EOF
     log "✅ Script de Kiosk criado: $KIOSK_SCRIPT"
     log "✅ URL do Kiosk: $KIOSK_URL"
     
-    # Configurar xrandr para ser executado no login (persistência)
-    if ! grep -q "Smart Signage Pro - Configuração de rotação de tela" "$HOME/.bashrc" 2>/dev/null; then
-        cat >> "$HOME/.bashrc" << 'BRC'
-
-# Smart Signage Pro - Configuração de rotação de tela
-if [[ -n "$DISPLAY" ]]; then
-    DISP="KIOSK_DISPLAY_SELECTED_RUNTIME"
-    ROT="KIOSK_ROTATION_SELECTED_RUNTIME"
-    if [[ -z "$DISP" ]]; then DISP=$(xrandr | grep ' connected' | grep -o '^[^ ]*' | head -1); fi
-    if [[ -n "$DISP" ]]; then xrandr --output "$DISP" --rotate "$ROT" 2>/dev/null; fi
-fi
-BRC
-        sed -i "s|KIOSK_DISPLAY_SELECTED_RUNTIME|${KIOSK_DISPLAY_SELECTED}|g" "$HOME/.bashrc"
-        sed -i "s|KIOSK_ROTATION_SELECTED_RUNTIME|${KIOSK_ROTATION_SELECTED:-left}|g" "$HOME/.bashrc"
-    fi
-    
-    # Persistir rotação antes do login (LightDM)
-    sudo mkdir -p /etc/lightdm/lightdm.conf.d
-    sudo tee /etc/lightdm/lightdm.conf.d/50-rotate.conf > /dev/null << LDM
-[Seat:*]
-display-setup-script=/bin/sh -c 'OUT="${KIOSK_DISPLAY_SELECTED}"; ROT="${KIOSK_ROTATION_SELECTED:-left}"; if [ -z "${KIOSK_DISPLAY_SELECTED}" ]; then OUT=$(xrandr | awk "/ connected/{print \$1; exit}"); fi; xrandr --output "$OUT" --rotate "$ROT" || true'
-LDM
+    # Não persistir rotação em sessão/greeter; rotação é aplicada apenas no boot
     
     # Habilitar LightDM
     sudo systemctl enable lightdm
