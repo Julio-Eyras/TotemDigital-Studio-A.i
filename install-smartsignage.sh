@@ -2632,11 +2632,7 @@ diagnose_and_fix_backend() {
     done
     
     # Detectar problemas comuns
-    if echo "$BACKEND_LOGS" | grep -q "prisma generate"; then
-        log_error "PROBLEMA DETECTADO: Prisma client não inicializado"
-        log "🔄 Aplicando correção específica para Prisma..."
-        fix_prisma_initialization
-    elif echo "$BACKEND_LOGS" | grep -q "Database not initialized"; then
+    if echo "$BACKEND_LOGS" | grep -q "Database not initialized"; then
         log_error "PROBLEMA DETECTADO: Database not initialized"
         log "🔄 Aplicando correção automática..."
         fix_database_initialization
@@ -2682,145 +2678,7 @@ diagnose_and_fix_backend() {
 }
 
 # Corrigir inicialização do Prisma
-fix_prisma_initialization() {
-    log "🔄 Corrigindo inicialização do Prisma..."
-    
-    # Parar container completamente para evitar loop de reinicialização
-    log_detailed "Parando container backend para correção..."
-    docker compose stop backend
-    sleep 5
-    
-    # Limpar redes conflitantes primeiro
-    log_detailed "Limpando redes conflitantes..."
-    docker network prune -f 2>/dev/null || true
-    
-    # Iniciar container em modo interativo para correção
-    log_detailed "Iniciando container backend em modo de correção..."
-    docker compose run --rm --no-deps backend sh -c '
-        echo "🔧 Modo de correção do Prisma iniciado"
-        
-        # Verificar estrutura de diretórios
-        echo "📁 Estrutura atual:"
-        ls -la /app/
-        
-        # Criar diretório prisma no local correto
-        mkdir -p /app/prisma
-        
-        # Criar schema.prisma mínimo
-        cat > /app/prisma/schema.prisma << 'EOF'
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String
-  role      String   @default("user")
-  is_active Boolean  @default(true)
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
-}
-
-model Client {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String?
-  phone     String?
-  address   String?
-  is_active Boolean  @default(true)
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
-}
-
-model Totem {
-  id            Int      @id @default(autoincrement())
-  name          String
-  location      String?
-  client_id     Int?
-  is_active     Boolean  @default(true)
-  last_heartbeat DateTime?
-  created_at    DateTime @default(now())
-  updated_at    DateTime @default(now())
-}
-
-model Media {
-  id           Int      @id @default(autoincrement())
-  filename     String
-  original_name String
-  file_path    String
-  file_type    String
-  file_size    Int
-  duration     Int?
-  client_id    Int?
-  created_at   DateTime @default(now())
-}
-
-model Playlist {
-  id          Int      @id @default(autoincrement())
-  name        String
-  description String?
-  client_id   Int?
-  is_active   Boolean  @default(true)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @default(now())
-}
-
-model PlaylistItem {
-  id          Int      @id @default(autoincrement())
-  playlist_id Int?
-  media_id    Int?
-  order_index Int
-  duration    Int      @default(10000)
-  created_at  DateTime @default(now())
-}
-EOF
-        
-        echo "✅ Schema.prisma criado em /app/prisma/"
-        
-        # Verificar se foi criado
-        ls -la /app/prisma/
-        
-        # Executar prisma generate no diretório correto
-        echo "🔄 Executando prisma generate..."
-        cd /app
-        npx prisma generate --schema=./prisma/schema.prisma
-        
-        if [ $? -eq 0 ]; then
-            echo "✅ Prisma generate executado com sucesso"
-        else
-            echo "❌ Falha ao executar prisma generate"
-            exit 1
-        fi
-        
-        echo "✅ Correção do Prisma concluída"
-    '
-    
-    PRISMA_EXIT_CODE=$?
-    
-    if [ $PRISMA_EXIT_CODE -eq 0 ]; then
-        log "✅ Prisma generate executado com sucesso"
-        
-        # Reconstruir imagem com Prisma gerado
-        log "🔄 Reconstruindo imagem backend com Prisma corrigido..."
-        docker compose build --no-cache backend
-        
-        # Iniciar backend normalmente
-        log "🔄 Iniciando backend com Prisma corrigido..."
-        docker compose up -d backend
-        sleep 15
-    else
-        log_error "Falha ao executar prisma generate (código: $PRISMA_EXIT_CODE)"
-        log "🔄 Tentando reconstruir container completamente..."
-        rebuild_backend_container
-    fi
-}
+# fix_prisma_initialization removido (Prisma não é mais utilizado)
 
 # Função para reconstruir container backend
 rebuild_backend_container() {
@@ -3420,13 +3278,7 @@ setup_first_boot() {
     export NODE_ENV=production
     
     # Gerar Prisma Client
-    log "Gerando Prisma Client..."
-    if npx prisma generate; then
-        log "✅ Prisma Client gerado com sucesso"
-    else
-        error "❌ Falha ao gerar Prisma Client"
-        exit 1
-    fi
+    log "Ignorando Prisma (não utilizado)"
     
     # Executar migrations ou criar schema
     log "Criando schema do banco de dados..."
@@ -3472,11 +3324,11 @@ setup_first_boot() {
         # Verificar se existem migrations
         if [[ -d "prisma/migrations" ]] && [[ -n "$(ls -A prisma/migrations 2>/dev/null)" ]]; then
             log "Migrations encontradas - executando migrate deploy..."
-            if npx prisma migrate deploy; then
+            if false; then # Prisma removido
                 log "✅ Migrations executadas com sucesso"
             else
                 warn "⚠️ Migrate deploy falhou, tentando db push..."
-                if npx prisma db push --accept-data-loss --skip-generate; then
+                if false; then # Prisma removido
                     log "✅ Schema criado com sucesso (db push)"
                 else
                     error "❌ Falha ao criar schema do banco de dados"
@@ -3485,8 +3337,8 @@ setup_first_boot() {
             fi
         else
             log "Nenhuma migration encontrada - usando db push para criar schema..."
-            log "Executando prisma db push..."
-            if npx prisma db push --accept-data-loss --skip-generate; then
+            log "Ignorando prisma db push (removido)"
+            if false; then # Prisma removido
                 log "✅ Schema criado com sucesso (db push)"
             else
                 error "❌ Falha ao criar schema do banco de dados"
@@ -3515,7 +3367,7 @@ setup_first_boot() {
                         if (tables.length === 0) {
                             console.log('⚠️ Nenhuma tabela encontrada - executando db push...');
                             const { execSync } = require('child_process');
-                            execSync('npx prisma db push --accept-data-loss --skip-generate', { 
+                            /* Prisma removido: db push não é mais utilizado */
                                 stdio: 'inherit',
                                 env: process.env
                             });
@@ -3614,10 +3466,10 @@ setup_first_boot() {
         log "Tentando criar todas as tabelas novamente com db push..."
         
         # Gerar Prisma Client novamente antes de db push
-        npx prisma generate || warn "⚠️ Falha ao gerar Prisma Client"
+        # Prisma removido: ignorar generate
         
         # Executar db push para criar todas as tabelas
-        if npx prisma db push --accept-data-loss --skip-generate; then
+        if false; then # Prisma removido
             log "✅ Tabelas criadas com sucesso"
             
             # Verificar novamente
@@ -3631,7 +3483,7 @@ setup_first_boot() {
         else
             error "❌ Falha crítica ao criar tabelas do banco de dados"
             error "Tabelas faltando: ${MISSING_TABLES[*]}"
-            error "Execute manualmente: cd $INSTALL_DIR/backend && npx prisma db push --accept-data-loss"
+            error "Use schema-postgresql.sql e init-data.sql para criar o schema"
             exit 1
         fi
     else
@@ -3681,12 +3533,12 @@ setup_first_boot() {
     fi
     
     # PRIORIDADE 2: Fallback para seed.js do Prisma
-    if [[ -f "prisma/seed.js" ]]; then
+    if false; then # Prisma removido
         log "✅ Arquivo seed.js encontrado"
         log "Executando seed completo (clientes, usuários, totens, mídias, playlists, campanhas, QR codes, analytics, etc.)..."
         
         # Tentar executar seed
-        if npx prisma db seed 2>&1; then
+        if false; then # Prisma removido
             log "✅ Seed executado com sucesso"
             
             # Verificar se dados foram inseridos (verificação COMPLETA de todos os dados correlacionados)
@@ -3742,14 +3594,13 @@ setup_first_boot() {
             
             if grep -q '"seed"' package.json; then
                 error "❌ Seed configurado mas falhou ao executar"
-                error "Execute manualmente: cd $INSTALL_DIR/backend && node prisma/seed.js"
+                error "Use init-data.sql para popular os dados"
             else
                 warn "⚠️ Seed não configurado em package.json"
             fi
         fi
     else
-        warn "⚠️ Arquivo prisma/seed.js não encontrado"
-        warn "Criando dados mínimos manualmente..."
+        warn "⚠️ Seed do Prisma removido; usar init-data.sql"
         # Criar usuário admin manualmente se necessário
         log "Criando usuário admin padrão..."
         cd $INSTALL_DIR/backend
@@ -3797,7 +3648,7 @@ setup_first_boot() {
                     \`;
                     
                     if (!Array.isArray(tables) || tables.length === 0) {
-                        console.error('❌ Tabela users não existe! Execute prisma db push primeiro.');
+                        console.error('❌ Tabela users não existe! Execute schema-postgresql.sql primeiro.');
                         await prisma.\$disconnect();
                         process.exit(1);
                     }
@@ -3819,7 +3670,7 @@ setup_first_boot() {
                     console.error('❌ Erro ao criar admin:', e.message);
                     console.error('Stack:', e.stack);
                     if (e.message.includes('relation \"users\" does not exist')) {
-                        console.error('💡 A tabela users não existe! Execute: npx prisma db push');
+                        console.error('💡 A tabela users não existe! Execute o schema-postgresql.sql');
                     }
                 } finally {
                     await prisma.\$disconnect();
