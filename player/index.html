@@ -10,7 +10,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         /* Portrait Right - 90 graus no sentido horário */
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -55,12 +55,12 @@
             animation: spin 1s linear infinite;
             margin-bottom: 20px;
         }
-        
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
+
         #error {
             display: none;
             flex-direction: column;
@@ -99,8 +99,8 @@
             position: absolute;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
+                width: 100%;
+                height: 100%;
             opacity: 0;
             transition: opacity 0.5s ease-in-out;
         }
@@ -114,14 +114,14 @@
     <div id="loading">
         <div class="spinner"></div>
         <p>Carregando player...</p>
-    </div>
-    
+        </div>
+
     <div id="error">
         <h2>Erro ao Carregar Player</h2>
         <p id="error-message"></p>
         <p style="margin-top: 20px; font-size: 14px; color: #888;">Verifique se o UIN do totem foi fornecido corretamente.</p>
-    </div>
-    
+        </div>
+
     <div id="player-container">
         <div id="content"></div>
     </div>
@@ -150,15 +150,25 @@
                     console.log('UIN:', this.uin);
                     
                     if (!this.uin) {
-                        this.showError('UIN do totem não fornecido. Use ?uin=SEU_UIN na URL.');
-                        return;
+                        // Fallback para demo quando UIN não for fornecido
+                        this.uin = 'default-demo';
                     }
 
                     // Validar totem
                     const validation = await this.validateTotem();
                     if (!validation.valid) {
-                        this.showError(validation.error || 'Totem inválido ou bloqueado');
-                        return;
+                        if (validation.blocked) {
+                            this.showBlockedPage(validation.reason);
+                            return;
+                        }
+                        // UIN inexistente: fallback para demo
+                        console.warn('UIN não encontrado. Carregando demo...');
+                        this.uin = 'default-demo';
+                        const demoValidation = await this.validateTotem();
+                        if (!demoValidation.valid) {
+                            this.showError('Falha ao carregar demo.');
+                            return;
+                        }
                     }
 
                     console.log('✅ Totem validado:', this.totemData);
@@ -173,16 +183,27 @@
                         await this.loadPlaylist(this.playlist);
                         this.startPlayback();
                     } else {
-                        this.showError('Nenhuma playlist disponível para este totem.');
-                        return;
+                        // Tentar carregar demo caso não haja playlist
+                        if (this.uin !== 'default-demo') {
+                            console.warn('Sem playlist. Carregando demo...');
+                            this.uin = 'default-demo';
+                            const demoValidation2 = await this.validateTotem();
+                            if (!demoValidation2.valid || !this.playlist || !this.playlist.items || this.playlist.items.length === 0) {
+                                this.showError('Nenhuma playlist disponível e demo indisponível.');
+                                return;
+                            }
+                        } else {
+                            this.showError('Nenhuma playlist disponível para este totem.');
+                            return;
+                        }
                     }
-
+                    
                     // Iniciar heartbeat
                     this.startHeartbeat();
                     
                     // Verificar atualizações de playlist periodicamente
                     this.startPlaylistCheck();
-
+                    
                     console.log('✅ Player inicializado com sucesso');
                 } catch (error) {
                     console.error('❌ Erro ao inicializar player:', error);
@@ -474,19 +495,19 @@
 
                 try {
                     const response = await fetch(`${this.apiBaseUrl}/player/heartbeat?uin=${encodeURIComponent(this.uin)}&token=${encodeURIComponent(this.token)}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
                             executedCommands: this.executedCommands || [],
                             metrics: {
                                 currentMediaIndex: this.currentMediaIndex,
                                 playlistId: this.playlist?.id,
                                 uptime: Math.floor((Date.now() - this.startTime) / 1000)
                             }
-                        })
-                    });
+                            })
+                        });
 
                     if (response.ok) {
                         const data = await response.json();
@@ -518,6 +539,27 @@
                 document.getElementById('error-message').textContent = message;
             }
 
+            showBlockedPage(reason) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('player-container').style.display = 'none';
+                const error = document.getElementById('error');
+                error.style.display = 'flex';
+                error.innerHTML = `
+                    <h2 style="color:#ffcc00;">Totem Bloqueado</h2>
+                    <p style="margin-top:10px;">${reason || 'Acesso temporariamente bloqueado.'}</p>
+                    <div style="margin-top:30px;font-size:14px;color:#ccc;max-width:800px;">
+                        <p><strong>Smart Signage Pro</strong> — Plataforma completa de sinalização digital para redes de totens e Smart TVs.</p>
+                        <ul style="text-align:left; margin: 10px auto; max-width:600px; line-height:1.6;">
+                            <li>Playlists dinâmicas com regras e campanhas</li>
+                            <li>Player seguro com validação por UIN (HMAC)</li>
+                            <li>Comandos remotos e heartbeat</li>
+                            <li>Analytics e relatórios</li>
+                        </ul>
+                        <p>Entre em contato para desbloqueio e planos comerciais.</p>
+                    </div>
+                `;
+            }
+
             hideLoading() {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('player-container').style.display = 'block';
@@ -527,7 +569,7 @@
         // Inicializar player quando página carregar
         let player;
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', () => {
                 player = new SmartSignagePlayer();
                 player.startTime = Date.now();
             });
