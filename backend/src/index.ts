@@ -1,6 +1,6 @@
 /**
- * Smart Signage v2.0 - Backend Principal
- * Sistema unificado com PostgreSQL
+ * Smart Signage v2.1 - Backend Principal
+ * PostgreSQL-only (Prisma removido)
  */
 
 import express from 'express';
@@ -308,7 +308,7 @@ process.on('SIGINT', async () => {
 
 async function startServer() {
   try {
-    console.log('🚀 Iniciando Smart Signage v2.0...');
+    console.log('🚀 Iniciando Smart Signage v2.1...');
     
     // Inicializar database
     console.log('📊 Conectando ao database...');
@@ -326,7 +326,7 @@ async function startServer() {
     
     // Iniciar servidor
     app.listen(PORT, HOST, () => {
-      console.log('✅ Smart Signage v2.0 iniciado com sucesso!');
+      console.log('✅ Smart Signage v2.1 iniciado com sucesso!');
       console.log(`🌐 Servidor rodando em http://${HOST}:${PORT}`);
       console.log(`📱 Player: http://${HOST}:${PORT}/player`);
       console.log(`🔧 Admin: http://${HOST}:${PORT}/admin`);

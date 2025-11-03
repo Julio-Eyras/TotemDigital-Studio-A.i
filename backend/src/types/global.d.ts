@@ -47,7 +47,8 @@ declare module 'qrcode' {
   export function toString(text: string, options?: any): Promise<string>;
 }
 
-declare module 'sqlite3' {
+// SQLite removido na v2.1 - apenas PostgreSQL
+// declare module 'sqlite3' {
   export class Database {
     constructor(filename: string, callback?: (err: Error | null) => void);
     all(sql: string, params: any[], callback: (err: Error | null, rows: any[]) => void): void;
