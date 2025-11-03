@@ -1,6 +1,6 @@
 /**
- * System Service - Smart Signage v2.0
- * Serviço de informações do sistema
+ * System Service - Smart Signage v2.1
+ * Serviço de informações do sistema (PostgreSQL-only)
  */
 
 import { getDatabase } from '../config/database';
@@ -120,7 +120,7 @@ export class SystemService {
         status,
         database: {
           status: dbStatus,
-          driver: process.env.DB_DRIVER || 'sqlite',
+          driver: 'postgresql',
           responseTime: dbResponseTime
         },
         memory: {
@@ -153,7 +153,7 @@ export class SystemService {
         'Faturamento e cobrança',
         'QR Codes dinâmicos',
         'Integração com IA (Ollama/OpenAI/Anthropic)',
-        'Suporte a SQLite e PostgreSQL',
+        'PostgreSQL (apenas)',
         'Instalação Docker e single-server'
       ];
 
@@ -180,7 +180,7 @@ export class SystemService {
         description: 'Sistema unificado de digital signage',
         environment: process.env.NODE_ENV || 'development',
         database: {
-          driver: process.env.DB_DRIVER || 'sqlite',
+          driver: 'postgresql',
           version: await this.getDatabaseVersion()
         },
         features,
@@ -252,13 +252,9 @@ export class SystemService {
    */
   private async getDatabaseVersion(): Promise<string | undefined> {
     try {
-      if (process.env.DB_DRIVER === 'sqlite') {
-        const result = await this.db.findFirst('SELECT sqlite_version() as version');
-        return result?.version;
-      } else if (process.env.DB_DRIVER === 'postgres') {
-        const result = await this.db.findFirst('SELECT version() as version');
-        return result?.version;
-      }
+      // Apenas PostgreSQL suportado na v2.1
+      const result = await this.db.findFirst('SELECT version() as version');
+      return result?.version;
       return undefined;
     } catch (error) {
       return undefined;
