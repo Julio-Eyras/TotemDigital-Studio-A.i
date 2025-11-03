@@ -130,7 +130,7 @@ INSERT INTO playlists (playlist_id, totem_id, campaign_id, name, description, is
 
 -- Playlist de demonstração para o totem default-demo
 INSERT INTO playlists (playlist_id, totem_id, campaign_id, name, description, is_default, medias, loop, config, is_active) VALUES
-(5, 8, NULL, 'Playlist Demo', 'Demonstração comercial do Smart Signage-Pro', true, '[]', true, '{"transition_duration": 2000, "fade_effect": true}', true);
+(5, 8, 1, 'Playlist Demo', 'Demonstração comercial do Smart Signage-Pro', true, '[]', true, '{"transition_duration": 2000, "fade_effect": true}', true);
 
 -- =============================================
 -- DADOS DE EXEMPLO - ITENS DE PLAYLIST

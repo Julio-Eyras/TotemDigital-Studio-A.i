@@ -3701,15 +3701,27 @@ BEGIN
   END IF;
 
   -- Playlist Demo (id=5)
+  -- Obter totem_id do totem default-demo usando subquery
   IF NOT EXISTS (SELECT 1 FROM playlists WHERE playlist_id = 5) THEN
     INSERT INTO playlists (
-      playlist_id, client_id, campaign_id, name, description, is_active, tags, loop, settings, is_public
-    ) VALUES (
-      5, 1, 1, 'Playlist Demo', 'Demonstração comercial do Smart Signage-Pro', true, '[]', true,
-      '{"transition_duration":2000,"fade_effect":true}', true
-    ) ON CONFLICT DO NOTHING;
+      playlist_id, totem_id, campaign_id, name, description, is_active, loop, config, is_default
+    ) 
+    SELECT 
+      5,
+      COALESCE((SELECT totem_id FROM totems WHERE uin = 'default-demo' LIMIT 1), 1),
+      1,
+      'Playlist Demo',
+      'Demonstração comercial do Smart Signage-Pro',
+      true,
+      true,
+      '{"transition_duration":2000,"fade_effect":true}',
+      false
+    ON CONFLICT DO NOTHING;
   ELSE
-    UPDATE playlists SET is_active = true WHERE playlist_id = 5;
+    UPDATE playlists 
+    SET is_active = true, 
+        totem_id = COALESCE((SELECT totem_id FROM totems WHERE uin = 'default-demo' LIMIT 1), totem_id)
+    WHERE playlist_id = 5;
   END IF;
 
   -- Vincular campanha↔playlist
