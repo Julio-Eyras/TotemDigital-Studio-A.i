@@ -4462,6 +4462,48 @@ show_menu() {
         if [[ "$kiosk_choice" =~ ^[Ss]$ ]]; then
             ENABLE_KIOSK_MODE=true
             log "Modo Kiosk será configurado após a instalação"
+            # Perguntar saída de vídeo e orientação
+            echo
+            echo -e "${CYAN}Configuração de Exibição (Saída e Orientação)${NC}"
+            echo -e "${YELLOW}Detectando saídas de vídeo...${NC}"
+            XRANDR_OUTPUTS=$(xrandr --query 2>/dev/null | awk '/ connected/{print $1" ("$2")"}')
+            if [[ -z "$XRANDR_OUTPUTS" ]]; then
+                echo -e "${YELLOW}⚠️ Não foi possível detectar saídas via xrandr. Usaremos detecção automática no login.${NC}"
+            else
+                echo "Saídas detectadas:"
+                i=1
+                declare -a OUT_ARR
+                while read -r line; do
+                  [[ -z "$line" ]] && continue
+                  OUT_NAME=$(echo "$line" | awk '{print $1}')
+                  OUT_ARR[$i]="$OUT_NAME"
+                  echo "  $i) $line"
+                  i=$((i+1))
+                done <<< "$XRANDR_OUTPUTS"
+                echo "  0) Auto (primária)"
+                read -p "Escolha a saída (0 para auto): " out_idx
+                if [[ "$out_idx" =~ ^[0-9]+$ ]] && [[ $out_idx -gt 0 ]] && [[ -n "${OUT_ARR[$out_idx]}" ]]; then
+                  KIOSK_DISPLAY_SELECTED="${OUT_ARR[$out_idx]}"
+                else
+                  KIOSK_DISPLAY_SELECTED=""
+                fi
+            fi
+
+            echo
+            echo "Orientações disponíveis:"
+            echo "  1) normal (landscape)"
+            echo "  2) left (portrait anti-horário)"
+            echo "  3) right (portrait horário)"
+            echo "  4) inverted (180°)"
+            read -p "Escolha a orientação [padrão: left]: " rot_choice
+            case "$rot_choice" in
+              1) KIOSK_ROTATION_SELECTED="normal";;
+              3) KIOSK_ROTATION_SELECTED="right";;
+              4) KIOSK_ROTATION_SELECTED="inverted";;
+              *) KIOSK_ROTATION_SELECTED="left";;
+            esac
+            export KIOSK_ROTATION_SELECTED
+            export KIOSK_DISPLAY_SELECTED
         else
             ENABLE_KIOSK_MODE=false
             log "Modo Kiosk não será configurado"
@@ -4567,19 +4609,16 @@ EOF
 # Aguardar XFCE iniciar completamente
 sleep 10
 
-# Configurar orientação Portrait (90 graus - vertical)
-# Detecta a tela primária e aplica rotação
+# Aplicar rotação conforme seleção do instalador
+KIOSK_DISPLAY_SELECTED_PLACEHOLDER
+KIOSK_ROTATION_SELECTED_PLACEHOLDER
 PRIMARY_DISPLAY=$(xrandr | grep " connected" | grep -o "^[^ ]*" | head -1)
-
-if [[ -n "$PRIMARY_DISPLAY" ]]; then
-    # Aplicar rotação Portrait Right (90 graus - sentido horário)
-    # Right = portrait correto para totens
-    xrandr --output "$PRIMARY_DISPLAY" --rotate right
-    
-    # Verificar se rotação foi aplicada com sucesso
-    if [[ $? -ne 0 ]]; then
-        echo "⚠️ Falha ao aplicar rotação right, tente manualmente com: xrandr --output $PRIMARY_DISPLAY --rotate right"
-    fi
+TARGET_DISPLAY="$PRIMARY_DISPLAY"
+if [[ -n "$KIOSK_DISPLAY" ]]; then
+  TARGET_DISPLAY="$KIOSK_DISPLAY"
+fi
+if [[ -n "$TARGET_DISPLAY" ]]; then
+  xrandr --output "$TARGET_DISPLAY" --rotate "${KIOSK_ROTATION:-left}"
 fi
 
 # Esconder cursor após 5 segundos de inatividade
@@ -4613,8 +4652,10 @@ KIOSK_SCRIPT_EOF
     
     chmod +x "$KIOSK_SCRIPT"
     
-    # Substituir KIOSK_URL no script com o IP real
+    # Substituir variáveis no script com seleções reais
     sed -i "s|KIOSK_URL=\"\${KIOSK_URL:-http://localhost:80}\"|KIOSK_URL=\"$KIOSK_URL\"|g" "$KIOSK_SCRIPT"
+    sed -i "s|KIOSK_DISPLAY_SELECTED_PLACEHOLDER|KIOSK_DISPLAY=\"$KIOSK_DISPLAY_SELECTED\"|g" "$KIOSK_SCRIPT"
+    sed -i "s|KIOSK_ROTATION_SELECTED_PLACEHOLDER|KIOSK_ROTATION=\"$KIOSK_ROTATION_SELECTED\"|g" "$KIOSK_SCRIPT"
     
     # Criar entrada no autostart do XFCE
     KIOSK_DESKTOP="$HOME/.config/autostart/kiosk.desktop"
@@ -4633,18 +4674,28 @@ EOF
     log "✅ Script de Kiosk criado: $KIOSK_SCRIPT"
     log "✅ URL do Kiosk: $KIOSK_URL"
     
-    # Configurar xrandr para ser executado no login (fallback)
-    # Adicionar ao .bashrc ou .profile para garantir rotação
-    if ! grep -q "xrandr.*rotate" "$HOME/.bashrc" 2>/dev/null; then
-        echo "" >> "$HOME/.bashrc"
-        echo "# Smart Signage Pro - Configuração de rotação de tela" >> "$HOME/.bashrc"
-        echo "if [[ -n \"\$DISPLAY\" ]]; then" >> "$HOME/.bashrc"
-        echo "    PRIMARY_DISPLAY=\$(xrandr | grep ' connected' | grep -o '^[^ ]*' | head -1)" >> "$HOME/.bashrc"
-        echo "    if [[ -n \"\$PRIMARY_DISPLAY\" ]]; then" >> "$HOME/.bashrc"
-        echo "        xrandr --output \"\$PRIMARY_DISPLAY\" --rotate left 2>/dev/null || xrandr --output \"\$PRIMARY_DISPLAY\" --rotate right 2>/dev/null" >> "$HOME/.bashrc"
-        echo "    fi" >> "$HOME/.bashrc"
-        echo "fi" >> "$HOME/.bashrc"
+    # Configurar xrandr para ser executado no login (persistência)
+    if ! grep -q "Smart Signage Pro - Configuração de rotação de tela" "$HOME/.bashrc" 2>/dev/null; then
+        cat >> "$HOME/.bashrc" << 'BRC'
+
+# Smart Signage Pro - Configuração de rotação de tela
+if [[ -n "$DISPLAY" ]]; then
+    DISP="KIOSK_DISPLAY_SELECTED_RUNTIME"
+    ROT="KIOSK_ROTATION_SELECTED_RUNTIME"
+    if [[ -z "$DISP" ]]; then DISP=$(xrandr | grep ' connected' | grep -o '^[^ ]*' | head -1); fi
+    if [[ -n "$DISP" ]]; then xrandr --output "$DISP" --rotate "$ROT" 2>/dev/null; fi
+fi
+BRC
+        sed -i "s|KIOSK_DISPLAY_SELECTED_RUNTIME|${KIOSK_DISPLAY_SELECTED}|g" "$HOME/.bashrc"
+        sed -i "s|KIOSK_ROTATION_SELECTED_RUNTIME|${KIOSK_ROTATION_SELECTED:-left}|g" "$HOME/.bashrc"
     fi
+    
+    # Persistir rotação antes do login (LightDM)
+    sudo mkdir -p /etc/lightdm/lightdm.conf.d
+    sudo tee /etc/lightdm/lightdm.conf.d/50-rotate.conf > /dev/null << LDM
+[Seat:*]
+display-setup-script=/bin/sh -c 'OUT="${KIOSK_DISPLAY_SELECTED}"; ROT="${KIOSK_ROTATION_SELECTED:-left}"; if [ -z "${KIOSK_DISPLAY_SELECTED}" ]; then OUT=$(xrandr | awk "/ connected/{print \$1; exit}"); fi; xrandr --output "$OUT" --rotate "$ROT" || true'
+LDM
     
     # Habilitar LightDM
     sudo systemctl enable lightdm
@@ -4684,7 +4735,7 @@ case "$1" in
         PRIMARY_DISPLAY=$(xrandr | grep " connected" | grep -o "^[^ ]*" | head -1)
         if [[ -n "$PRIMARY_DISPLAY" ]]; then
             # Usar right (90° - sentido horário) - lado correto para totens portrait
-            xrandr --output "$PRIMARY_DISPLAY" --rotate right
+            xrandr --output "$PRIMARY_DISPLAY" --rotate left
             echo "✅ Rotação Portrait aplicada em: $PRIMARY_DISPLAY"
             echo "💡 Use 'xrandr --output $PRIMARY_DISPLAY --rotate normal' para voltar ao normal"
         else
