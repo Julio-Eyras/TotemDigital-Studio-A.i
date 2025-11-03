@@ -255,7 +255,6 @@ export class SystemService {
       // Apenas PostgreSQL suportado na v2.1
       const result = await this.db.findFirst('SELECT version() as version');
       return result?.version;
-      return undefined;
     } catch (error) {
       return undefined;
     }
