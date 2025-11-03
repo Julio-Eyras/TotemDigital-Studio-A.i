@@ -154,6 +154,19 @@
             async init() {
                 try {
                     console.log('🚀 Iniciando Smart Signage Player v2.1...');
+                    
+                    // Tentar carregar UIN do arquivo de configuração encriptado
+                    if (!this.uin) {
+                        this.uin = await this.loadUinFromConfig();
+                    }
+                    
+                    // Se ainda não tiver UIN, tentar da URL ou localStorage
+                    if (!this.uin) {
+                        this.uin = new URLSearchParams(window.location.search).get('uin') || 
+                                  new URLSearchParams(window.location.search).get('UIN') || 
+                                  localStorage.getItem('totemUIN');
+                    }
+                    
                     console.log('UIN:', this.uin);
                     
                     if (!this.uin) {
@@ -216,6 +229,71 @@
                     console.error('❌ Erro ao inicializar player:', error);
                     this.showError('Erro ao inicializar player: ' + error.message);
                 }
+            }
+            
+            async loadUinFromConfig() {
+                try {
+                    // Tentar carregar arquivo de configuração encriptado
+                    const configResponse = await fetch('/player/config.json.enc');
+                    if (!configResponse.ok) {
+                        console.log('⚠️ Arquivo de configuração não encontrado. Usando UIN da URL ou fallback.');
+                        return null;
+                    }
+                    
+                    const config = await configResponse.json();
+                    if (!config.encrypted || !config.data) {
+                        console.warn('⚠️ Arquivo de configuração inválido.');
+                        return null;
+                    }
+                    
+                    // Obter MAC address atual (via API ou fallback)
+                    const macAddress = await this.getMacAddress();
+                    
+                    // Enviar configuração encriptada para o backend para desencriptar e validar
+                    const decryptResponse = await fetch(`${this.apiBaseUrl}/player/decrypt-config`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            encryptedConfig: config,
+                            currentMac: macAddress
+                        })
+                    });
+                    
+                    if (!decryptResponse.ok) {
+                        console.error('❌ Falha ao desencriptar configuração do player');
+                        return null;
+                    }
+                    
+                    const decryptData = await decryptResponse.json();
+                    if (decryptData.valid && decryptData.uin) {
+                        console.log('✅ UIN carregado do arquivo de configuração encriptado');
+                        return decryptData.uin;
+                    } else {
+                        console.error('❌ Configuração do player inválida ou vinculada a outro hardware');
+                        return null;
+                    }
+                } catch (error) {
+                    console.error('❌ Erro ao carregar configuração do player:', error);
+                    return null;
+                }
+            }
+            
+            async getMacAddress() {
+                try {
+                    // Tentar obter MAC address via API do backend (se disponível)
+                    const macResponse = await fetch(`${this.apiBaseUrl}/player/hardware-info`);
+                    if (macResponse.ok) {
+                        const macData = await macResponse.json();
+                        return macData.macAddress || null;
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Não foi possível obter MAC address via API');
+                }
+                
+                // Fallback: retornar null (backend irá validar de outra forma)
+                return null;
             }
 
             async validateTotem() {

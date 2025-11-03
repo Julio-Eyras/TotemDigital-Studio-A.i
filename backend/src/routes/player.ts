@@ -1,8 +1,13 @@
 import express, { Request, Response } from 'express';
-import { param, query, validationResult } from 'express-validator';
+import { param, query, body, validationResult } from 'express-validator';
 import { TotemService } from '../services/totemService';
 import { getDatabase } from '../config/database';
 import crypto from 'crypto';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import os from 'os';
+
+const execAsync = promisify(exec);
 
 const router = express.Router();
 
@@ -384,5 +389,155 @@ router.post('/heartbeat',
     }
   }
 );
+
+/**
+ * @route POST /api/player/decrypt-config
+ * @desc Desencriptar e validar configuração do player vinculada ao hardware
+ * @access Public (para totens)
+ */
+router.post('/decrypt-config',
+  body('encryptedConfig').isObject(),
+  body('encryptedConfig.encrypted').isBoolean(),
+  body('encryptedConfig.data').isString(),
+  body('encryptedConfig.mac').isString(),
+  body('currentMac').optional().isString(),
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ error: 'Parâmetros inválidos', details: errors.array() });
+      }
+
+      const { encryptedConfig, currentMac } = req.body;
+
+      if (!encryptedConfig.encrypted || !encryptedConfig.data) {
+        return res.status(400).json({ error: 'Configuração encriptada inválida' });
+      }
+
+      // Obter MAC address atual do servidor
+      let serverMacAddress = currentMac;
+      if (!serverMacAddress) {
+        try {
+          // Tentar obter MAC address da primeira interface de rede ativa
+          const { stdout } = await execAsync('ip link show | grep -A1 "state UP" | grep -oE "([0-9a-f]{2}:){5}[0-9a-f]{2}" | head -1');
+          serverMacAddress = stdout.trim();
+        } catch {
+          // Fallback: usar MAC de eth0
+          try {
+            const { stdout } = await execAsync('cat /sys/class/net/eth0/address 2>/dev/null || echo ""');
+            serverMacAddress = stdout.trim();
+          } catch {
+            serverMacAddress = null;
+          }
+        }
+      }
+
+      // Validar MAC address (se fornecido)
+      if (serverMacAddress && encryptedConfig.mac) {
+        const normalizedConfigMac = encryptedConfig.mac.toLowerCase().replace(/[^0-9a-f:]/g, '');
+        const normalizedServerMac = serverMacAddress.toLowerCase().replace(/[^0-9a-f:]/g, '');
+        
+        if (normalizedConfigMac !== normalizedServerMac) {
+          console.warn(`⚠️ MAC address não corresponde: config=${encryptedConfig.mac}, server=${serverMacAddress}`);
+          // Por enquanto, apenas avisar mas não bloquear (pode ser servidor diferente)
+          // Em produção, você pode querer bloquear aqui
+        }
+      }
+
+      // Desencriptar usando OpenSSL (via child_process)
+      try {
+        const { stdout } = await execAsync(
+          `echo -n "${encryptedConfig.data}" | openssl enc -aes-256-cbc -d -base64 -salt -pbkdf2 -iter 10000 -k "${TOTEM_SECRET_KEY}"`,
+          { timeout: 5000 }
+        );
+        
+        const decrypted = stdout.trim();
+        const [uin, configMac, timestamp] = decrypted.split(':');
+        
+        if (!uin || uin.length < 3) {
+          return res.status(400).json({ 
+            valid: false,
+            error: 'UIN desencriptado inválido' 
+          });
+        }
+
+        // Validar MAC address do payload
+        if (configMac && serverMacAddress) {
+          const normalizedConfigMac = configMac.toLowerCase().replace(/[^0-9a-f:]/g, '');
+          const normalizedServerMac = serverMacAddress.toLowerCase().replace(/[^0-9a-f:]/g, '');
+          
+          if (normalizedConfigMac !== normalizedServerMac) {
+            return res.status(403).json({ 
+              valid: false,
+              error: 'Configuração vinculada a outro hardware (MAC address não corresponde)' 
+            });
+          }
+        }
+
+        // Verificar se totem existe e está ativo
+        const totemService = new TotemService();
+        const totem = await totemService.getTotemByUin(uin);
+        
+        if (!totem || !totem.active) {
+          return res.status(404).json({ 
+            valid: false,
+            error: 'Totem não encontrado ou inativo' 
+          });
+        }
+
+        return res.json({
+          valid: true,
+          uin: uin,
+          mac: configMac || encryptedConfig.mac,
+          timestamp: timestamp ? parseInt(timestamp) : null
+        });
+      } catch (decryptError: any) {
+        console.error('❌ Erro ao desencriptar configuração:', decryptError.message);
+        return res.status(400).json({ 
+          valid: false,
+          error: 'Falha ao desencriptar configuração. Verifique a chave secreta.' 
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao processar configuração do player:', error.message);
+      res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/player/hardware-info
+ * @desc Obter informações de hardware do servidor (MAC address)
+ * @access Public (para totens)
+ */
+router.get('/hardware-info', async (req: Request, res: Response) => {
+  try {
+    let macAddress: string | null = null;
+    
+    try {
+      // Tentar obter MAC address da primeira interface de rede ativa
+      const { stdout } = await execAsync('ip link show | grep -A1 "state UP" | grep -oE "([0-9a-f]{2}:){5}[0-9a-f]{2}" | head -1', { timeout: 3000 });
+      macAddress = stdout.trim();
+    } catch {
+      // Fallback: usar MAC de eth0
+      try {
+        const { stdout } = await execAsync('cat /sys/class/net/eth0/address 2>/dev/null || echo ""', { timeout: 2000 });
+        macAddress = stdout.trim() || null;
+      } catch {
+        macAddress = null;
+      }
+    }
+
+    res.json({
+      macAddress: macAddress,
+      hostname: os.hostname(),
+      platform: os.platform(),
+      arch: os.arch()
+    });
+  } catch (error: any) {
+    console.error('❌ Erro ao obter informações de hardware:', error.message);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
 
 export default router;

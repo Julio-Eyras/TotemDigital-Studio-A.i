@@ -1200,6 +1200,10 @@ setup_environment() {
     # Gerar JWT secret
     JWT_SECRET=$(openssl rand -base64 32)
     
+    # Gerar TOTEM secret key (para encriptação de configuração do player)
+    TOTEM_SECRET_KEY=$(openssl rand -base64 32)
+    export TOTEM_SECRET_KEY  # Exportar para uso em scripts
+    
     # Gerar UIN único
     UIN=$(date +%s)$(cat /sys/class/net/eth0/address 2>/dev/null | tr -d ':' || echo "000000000000")
     
@@ -1226,6 +1230,9 @@ HOST=0.0.0.0
 JWT_SECRET=$JWT_SECRET
 JWT_EXPIRES_IN=24h
 JWT_REFRESH_EXPIRES_IN=7d
+
+# Player - Encriptação de configuração
+TOTEM_SECRET_KEY=$TOTEM_SECRET_KEY
 
 # Player
 PLAYER_ABANDON_PIN=1234
@@ -1590,6 +1597,33 @@ setup_nginx() {
             sudo chmod -R 755 /opt/smart-signage/player 2>/dev/null || true
             sudo find /opt/smart-signage/player -type f -exec chmod 644 {} \; 2>/dev/null || true
             log "✅ Player copiado para /opt/smart-signage/player"
+            
+            # Gerar arquivo de configuração encriptado do player (se não existir)
+            if [[ ! -f "/opt/smart-signage/player/config.json.enc" ]]; then
+                log "Gerando arquivo de configuração encriptado do player..."
+                if [[ -f "$INSTALL_DIR/scripts/generate-player-config.sh" ]]; then
+                    chmod +x "$INSTALL_DIR/scripts/generate-player-config.sh"
+                    # Gerar configuração para totem 'default-demo' inicialmente
+                    # O usuário pode gerar configuração para outros totens depois usando o script manualmente
+                    if sudo "$INSTALL_DIR/scripts/generate-player-config.sh" "default-demo" "/opt/smart-signage/player" "$TOTEM_SECRET_KEY" 2>/dev/null; then
+                        # Ajustar permissões para que nginx possa ler
+                        if id www-data &>/dev/null; then
+                            sudo chown www-data:www-data /opt/smart-signage/player/config.json.enc 2>/dev/null || true
+                        else
+                            sudo chown nginx:nginx /opt/smart-signage/player/config.json.enc 2>/dev/null || true
+                        fi
+                        sudo chmod 644 /opt/smart-signage/player/config.json.enc 2>/dev/null || true
+                        log "✅ Arquivo de configuração encriptado gerado para totem 'default-demo'"
+                    else
+                        warn "⚠️ Não foi possível gerar arquivo de configuração encriptado automaticamente"
+                        warn "   Você pode gerar manualmente usando: sudo scripts/generate-player-config.sh <UIN> /opt/smart-signage/player"
+                    fi
+                else
+                    warn "⚠️ Script de geração de configuração não encontrado"
+                fi
+            else
+                log "✅ Arquivo de configuração encriptado já existe"
+            fi
         fi
 
         # Atualizar INSTALL_DIR para o diretório de deploy (apenas para configuração do Nginx)
@@ -3871,8 +3905,8 @@ SQL
 
 # Detectar e tratar dados demo já existentes
 manage_demo_seed_strategy() {
-    # Verificar se já existem tabelas no schema public
-    TABLE_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ')
+    # Verificar se já existem tabelas no schema public (com timeout)
+    TABLE_COUNT=$(timeout 5 psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ')
     [[ -z "$TABLE_COUNT" ]] && TABLE_COUNT=0
 
     if [[ "$TABLE_COUNT" -eq 0 ]]; then
@@ -3882,16 +3916,23 @@ manage_demo_seed_strategy() {
 
     log "Detectando dados existentes no banco para estratégia de seeds..."
 
-    # Detectar marcadores de DEMO (default-demo, playlist demo, mídias demo)
-    DEMO_TOTEM_CNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems WHERE uin = 'default-demo'" 2>/dev/null | tr -d ' ')
-    DEMO_PLAYLIST_CNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists WHERE name ILIKE 'Playlist Demo' OR playlist_id = 5" 2>/dev/null | tr -d ' ')
-    DEMO_MEDIA_CNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE title ILIKE 'Smart Signage-Pro %' OR filename ILIKE 'smart-signage-pro-%' OR (tags::text ILIKE '%demo%')" 2>/dev/null | tr -d ' ')
+    # Verificar se tabelas necessárias existem antes de consultar
+    TABLE_EXISTS=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='totems');" 2>/dev/null | tr -d ' ')
+    if [[ "$TABLE_EXISTS" != "t" ]]; then
+        log "⚠️ Tabelas necessárias ainda não existem. Pulando detecção de dados demo."
+        return 0
+    fi
 
-    # Contar dados NÃO-DEMO em tabelas principais
-    NON_DEMO_CLIENTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM clients WHERE name NOT ILIKE '%demo%'" 2>/dev/null | tr -d ' ')
-    NON_DEMO_TOTEMS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems WHERE uin <> 'default-demo'" 2>/dev/null | tr -d ' ')
-    NON_DEMO_MEDIA=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE NOT (title ILIKE 'Smart Signage-Pro %' OR filename ILIKE 'smart-signage-pro-%' OR (tags::text ILIKE '%demo%'))" 2>/dev/null | tr -d ' ')
-    NON_DEMO_PLAYLISTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists WHERE NOT (name ILIKE 'Playlist Demo' OR playlist_id = 5)" 2>/dev/null | tr -d ' ')
+    # Detectar marcadores de DEMO (default-demo, playlist demo, mídias demo) com timeout e tratamento de erro
+    DEMO_TOTEM_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems WHERE uin = 'default-demo';" 2>/dev/null | tr -d ' ' || echo "0")
+    DEMO_PLAYLIST_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists WHERE name ILIKE 'Playlist Demo' OR playlist_id = 5;" 2>/dev/null | tr -d ' ' || echo "0")
+    DEMO_MEDIA_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE title ILIKE 'Smart Signage-Pro %' OR filename ILIKE 'smart-signage-pro-%' OR (tags::text ILIKE '%demo%');" 2>/dev/null | tr -d ' ' || echo "0")
+
+    # Contar dados NÃO-DEMO em tabelas principais (com timeout e tratamento de erro)
+    NON_DEMO_CLIENTS=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM clients WHERE name NOT ILIKE '%demo%';" 2>/dev/null | tr -d ' ' || echo "0")
+    NON_DEMO_TOTEMS=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems WHERE uin <> 'default-demo' OR uin IS NULL;" 2>/dev/null | tr -d ' ' || echo "0")
+    NON_DEMO_MEDIA=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE NOT (title ILIKE 'Smart Signage-Pro %' OR filename ILIKE 'smart-signage-pro-%' OR (tags::text ILIKE '%demo%'));" 2>/dev/null | tr -d ' ' || echo "0")
+    NON_DEMO_PLAYLISTS=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists WHERE NOT (name ILIKE 'Playlist Demo' OR playlist_id = 5);" 2>/dev/null | tr -d ' ' || echo "0")
 
     [[ -z "$DEMO_TOTEM_CNT" ]] && DEMO_TOTEM_CNT=0
     [[ -z "$DEMO_PLAYLIST_CNT" ]] && DEMO_PLAYLIST_CNT=0
