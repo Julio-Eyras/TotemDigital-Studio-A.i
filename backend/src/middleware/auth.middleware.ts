@@ -52,9 +52,9 @@ export const authMiddleware = async (
     // Verificar se usuário ainda existe e está ativo
     const db = getDatabase();
     const user = await db.findFirst(`
-      SELECT user_id, username, role, client_id, is_active
+      SELECT id, username, email, role, client_id, is_active
       FROM users 
-      WHERE user_id = ? AND is_active = true
+      WHERE id = ? AND is_active = true
     `, [decoded.userId]);
 
     if (!user) {
@@ -67,7 +67,7 @@ export const authMiddleware = async (
 
     // Adicionar dados do usuário à requisição
     req.user = {
-      id: user.user_id,
+      id: user.id,
       username: user.username,
       email: user.email || '',
       role: user.role,
@@ -264,14 +264,14 @@ export const optionalAuth = async (
     // Verificar se usuário ainda existe e está ativo
     const db = getDatabase();
     const user = await db.findFirst(`
-      SELECT user_id, username, role, client_id, is_active
+      SELECT id, username, email, role, client_id, is_active
       FROM users 
-      WHERE user_id = ? AND is_active = true
+      WHERE id = ? AND is_active = true
     `, [decoded.userId]);
 
     if (user) {
       req.user = {
-        id: user.user_id,
+        id: user.id,
         username: user.username,
         email: user.email || '',
         role: user.role,

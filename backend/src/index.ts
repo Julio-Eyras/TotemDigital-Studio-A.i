@@ -45,6 +45,9 @@ const HOST = process.env.HOST || '0.0.0.0';
 // MIDDLEWARE GLOBAL
 // =============================================
 
+// Nginx em frente ao Express
+app.set('trust proxy', true);
+
 // Security
 app.use(helmet({
   contentSecurityPolicy: {

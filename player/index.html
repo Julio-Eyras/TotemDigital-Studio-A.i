@@ -129,6 +129,26 @@
                 this.heartbeatInterval = null;
                 this.playlistInterval = null;
                 this.init();
+
+                // PIN: 5 cliques com botão direito em 2s → solicitar PIN 1950
+                this._rcCount = 0;
+                this._rcTimer = null;
+                window.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    this._rcCount++;
+                    if (this._rcTimer) clearTimeout(this._rcTimer);
+                    this._rcTimer = setTimeout(() => { this._rcCount = 0; }, 2000);
+                    if (this._rcCount >= 5) {
+                        this._rcCount = 0;
+                        const pin = prompt('Digite o PIN (4 dígitos):');
+                        if (pin === '1950') {
+                            alert('PIN correto. Saindo do player.');
+                            window.location.href = '/';
+                        } else if (pin !== null) {
+                            alert('PIN incorreto.');
+                        }
+                    }
+                });
             }
 
             async init() {
