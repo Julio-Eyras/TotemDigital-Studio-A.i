@@ -3431,37 +3431,59 @@ setup_first_boot() {
     # Executar migrations ou criar schema
     log "Criando schema do banco de dados..."
     
+    SCHEMA_SQL_SUCCESS=false
+    
     # PRIORIDADE 1: Usar schema-postgresql.sql se existir (modelo E.R. completo)
     SCHEMA_SQL_FILE="$INSTALL_DIR/database/schema-postgresql.sql"
     if [[ -f "$SCHEMA_SQL_FILE" ]]; then
         log "✅ Arquivo schema-postgresql.sql encontrado - usando modelo E.R. completo"
         log "Executando schema SQL (todas as tabelas do modelo E.R.)..."
         
-        if psql "$DATABASE_URL" -f "$SCHEMA_SQL_FILE" 2>&1; then
-            log "✅ Schema criado com sucesso usando schema-postgresql.sql"
+        # Executar schema SQL e capturar resultado
+        if psql "$DATABASE_URL" -f "$SCHEMA_SQL_FILE" 2>&1 | grep -v "already exists" | grep -v "NOTICE"; then
+            # Verificar se houve erro crítico (ignorando avisos de "already exists")
+            SCHEMA_SQL_EXIT_CODE=${PIPESTATUS[0]}
+            if [[ $SCHEMA_SQL_EXIT_CODE -eq 0 ]]; then
+                log "✅ Schema criado com sucesso usando schema-postgresql.sql"
+                SCHEMA_SQL_SUCCESS=true
+            else
+                warn "⚠️ Alguns erros ao executar schema-postgresql.sql (pode ser normal se tabelas já existem)"
+                # Verificar se pelo menos algumas tabelas foram criadas
+                TABLE_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ')
+                if [[ -n "$TABLE_COUNT" ]] && [[ "$TABLE_COUNT" -gt 5 ]]; then
+                    log "✅ Schema parcialmente criado ($TABLE_COUNT tabelas encontradas)"
+                    SCHEMA_SQL_SUCCESS=true
+                fi
+            fi
         else
-            warn "⚠️ Erro ao executar schema-postgresql.sql, tentando fallback..."
-            # Continuar com Prisma como fallback
+            # Se o comando falhou completamente, verificar se tabelas existem
+            TABLE_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ')
+            if [[ -n "$TABLE_COUNT" ]] && [[ "$TABLE_COUNT" -gt 5 ]]; then
+                log "✅ Schema já existe ($TABLE_COUNT tabelas encontradas)"
+                SCHEMA_SQL_SUCCESS=true
+            else
+                warn "⚠️ Schema SQL falhou ou não criou tabelas suficientes"
+            fi
         fi
     fi
     
-    # Verificar se existem migrations
-    if [[ -d "prisma/migrations" ]] && [[ -n "$(ls -A prisma/migrations 2>/dev/null)" ]]; then
-        log "Migrations encontradas - executando migrate deploy..."
-        if npx prisma migrate deploy; then
-            log "✅ Migrations executadas com sucesso"
-        else
-            warn "⚠️ Migrate deploy falhou, tentando db push..."
-            if npx prisma db push --accept-data-loss --skip-generate; then
-                log "✅ Schema criado com sucesso (db push)"
+    # SÓ executar Prisma se o schema SQL NÃO foi executado com sucesso
+    if [[ "$SCHEMA_SQL_SUCCESS" != "true" ]]; then
+        # Verificar se existem migrations
+        if [[ -d "prisma/migrations" ]] && [[ -n "$(ls -A prisma/migrations 2>/dev/null)" ]]; then
+            log "Migrations encontradas - executando migrate deploy..."
+            if npx prisma migrate deploy; then
+                log "✅ Migrations executadas com sucesso"
             else
-                error "❌ Falha ao criar schema do banco de dados"
-                exit 1
+                warn "⚠️ Migrate deploy falhou, tentando db push..."
+                if npx prisma db push --accept-data-loss --skip-generate; then
+                    log "✅ Schema criado com sucesso (db push)"
+                else
+                    error "❌ Falha ao criar schema do banco de dados"
+                    exit 1
+                fi
             fi
-        fi
-    else
-        # Se não executou schema SQL, tentar Prisma db push
-        if [[ ! -f "$SCHEMA_SQL_FILE" ]] || [[ $? -ne 0 ]]; then
+        else
             log "Nenhuma migration encontrada - usando db push para criar schema..."
             log "Executando prisma db push..."
             if npx prisma db push --accept-data-loss --skip-generate; then
