@@ -3299,6 +3299,9 @@ setup_first_boot() {
     # Gerar Prisma Client
     log "Ignorando Prisma (não utilizado)"
     
+    # Gerenciar dados demo existentes antes de (re)criar/semear
+    manage_demo_seed_strategy
+
     # Executar migrations ou criar schema
     log "Criando schema do banco de dados..."
     
@@ -3730,6 +3733,121 @@ setup_first_boot() {
     log "👤 Usuário admin padrão: admin"
     log "🔑 Senha admin padrão: admin123"
     warn "⚠️  IMPORTANTE: Altere a senha padrão após o primeiro login!"
+}
+
+# Detectar e tratar dados demo já existentes
+manage_demo_seed_strategy() {
+    # Verificar se já existem tabelas no schema public
+    TABLE_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ')
+    [[ -z "$TABLE_COUNT" ]] && TABLE_COUNT=0
+
+    if [[ "$TABLE_COUNT" -eq 0 ]]; then
+        # Não há nada para gerenciar
+        return 0
+    fi
+
+    log "Detectando dados existentes no banco para estratégia de seeds..."
+
+    # Detectar marcadores de DEMO (default-demo, playlist demo, mídias demo)
+    DEMO_TOTEM_CNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems WHERE uin = 'default-demo'" 2>/dev/null | tr -d ' ')
+    DEMO_PLAYLIST_CNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists WHERE name ILIKE 'Playlist Demo' OR playlist_id = 5" 2>/dev/null | tr -d ' ')
+    DEMO_MEDIA_CNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE title ILIKE 'Smart Signage-Pro %' OR filename ILIKE 'smart-signage-pro-%' OR (tags::text ILIKE '%demo%')" 2>/dev/null | tr -d ' ')
+
+    # Contar dados NÃO-DEMO em tabelas principais
+    NON_DEMO_CLIENTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM clients WHERE name NOT ILIKE '%demo%'" 2>/dev/null | tr -d ' ')
+    NON_DEMO_TOTEMS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems WHERE uin <> 'default-demo'" 2>/dev/null | tr -d ' ')
+    NON_DEMO_MEDIA=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE NOT (title ILIKE 'Smart Signage-Pro %' OR filename ILIKE 'smart-signage-pro-%' OR (tags::text ILIKE '%demo%'))" 2>/dev/null | tr -d ' ')
+    NON_DEMO_PLAYLISTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists WHERE NOT (name ILIKE 'Playlist Demo' OR playlist_id = 5)" 2>/dev/null | tr -d ' ')
+
+    [[ -z "$DEMO_TOTEM_CNT" ]] && DEMO_TOTEM_CNT=0
+    [[ -z "$DEMO_PLAYLIST_CNT" ]] && DEMO_PLAYLIST_CNT=0
+    [[ -z "$DEMO_MEDIA_CNT" ]] && DEMO_MEDIA_CNT=0
+    [[ -z "$NON_DEMO_CLIENTS" ]] && NON_DEMO_CLIENTS=0
+    [[ -z "$NON_DEMO_TOTEMS" ]] && NON_DEMO_TOTEMS=0
+    [[ -z "$NON_DEMO_MEDIA" ]] && NON_DEMO_MEDIA=0
+    [[ -z "$NON_DEMO_PLAYLISTS" ]] && NON_DEMO_PLAYLISTS=0
+
+    ONLY_DEMO=true
+    if [[ "$NON_DEMO_CLIENTS" -gt 0 || "$NON_DEMO_TOTEMS" -gt 0 || "$NON_DEMO_MEDIA" -gt 0 || "$NON_DEMO_PLAYLISTS" -gt 0 ]]; then
+        ONLY_DEMO=false
+    fi
+
+    if [[ "$ONLY_DEMO" == true && ( "$DEMO_TOTEM_CNT" -gt 0 || "$DEMO_PLAYLIST_CNT" -gt 0 || "$DEMO_MEDIA_CNT" -gt 0 ) ]]; then
+        echo
+        warn "Foi detectado um banco existente contendo APENAS dados de demonstração (seeds)."
+        read -p "Deseja APAGAR COMPLETAMENTE os dados (DROP SCHEMA public)? Digite DROP para confirmar: " confirm_drop
+        if [[ "$confirm_drop" == "DROP" ]]; then
+            log "Apagando schema public (DROP SCHEMA CASCADE) e recriando..."
+            if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;"; then
+                log "✅ Schema limpo com sucesso (somente dados demo existiam)."
+            else
+                warn "⚠️ Falha ao limpar schema. Continuando mesmo assim."
+            fi
+        else
+            log "Operação de DROP cancelada pelo usuário. Manteremos o schema atual."
+            # Nesse caso, removeremos apenas os dados demo para re-inserir limpos
+            clean_demo_seed_data
+        fi
+    else
+        # Há dados do usuário. Apenas limpar demos (se existirem) antes de re-seedar
+        if [[ "$DEMO_TOTEM_CNT" -gt 0 || "$DEMO_PLAYLIST_CNT" -gt 0 || "$DEMO_MEDIA_CNT" -gt 0 ]]; then
+            log "Removendo dados de demonstração existentes sem afetar dados do usuário..."
+            clean_demo_seed_data
+        fi
+    fi
+}
+
+# Remover dados de demonstração conhecidos de forma segura
+clean_demo_seed_data() {
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
+-- Playlist Demo e seus itens
+WITH demo_playlists AS (
+  SELECT playlist_id FROM playlists WHERE name ILIKE 'Playlist Demo' OR playlist_id = 5
+)
+DELETE FROM playlist_items WHERE playlist_id IN (SELECT playlist_id FROM demo_playlists);
+DELETE FROM campaign_playlists WHERE playlist_id IN (SELECT playlist_id FROM demo_playlists);
+DELETE FROM playlists WHERE playlist_id IN (SELECT playlist_id FROM demo_playlists);
+
+-- Totem default-demo e dependências
+WITH demo_totems AS (
+  SELECT totem_id FROM totems WHERE uin = 'default-demo'
+)
+DELETE FROM device_certificates WHERE totem_id IN (SELECT totem_id FROM demo_totems);
+DELETE FROM totem_ml_config WHERE totem_id IN (SELECT totem_id FROM demo_totems);
+DELETE FROM ml_sessions WHERE totem_id IN (SELECT totem_id FROM demo_totems);
+DELETE FROM campaign_totems WHERE totem_id IN (SELECT totem_id FROM demo_totems);
+DELETE FROM analytics_sessions WHERE totem_id IN (SELECT totem_id FROM demo_totems);
+DELETE FROM emotion_data WHERE totem_id IN (SELECT totem_id FROM demo_totems);
+DELETE FROM gesture_data WHERE totem_id IN (SELECT totem_id FROM demo_totems);
+DELETE FROM behavior_data WHERE totem_id IN (SELECT totem_id FROM demo_totems);
+DELETE FROM execution_logs WHERE totem_id IN (SELECT totem_id FROM demo_totems);
+DELETE FROM totems WHERE totem_id IN (SELECT totem_id FROM demo_totems);
+
+-- Mídias de demonstração (por título/arquivo/tags contendo demo)
+WITH demo_medias AS (
+  SELECT media_id FROM medias 
+  WHERE title ILIKE 'Smart Signage-Pro %' 
+     OR filename ILIKE 'smart-signage-pro-%' 
+     OR (tags::text ILIKE '%demo%')
+)
+DELETE FROM playlist_items WHERE media_id IN (SELECT media_id FROM demo_medias);
+DELETE FROM aggregated_metrics WHERE media_id IN (SELECT media_id FROM demo_medias);
+DELETE FROM approval_workflows WHERE media_id IN (SELECT media_id FROM demo_medias);
+DELETE FROM execution_logs WHERE media_id IN (SELECT media_id FROM demo_medias);
+DELETE FROM medias WHERE media_id IN (SELECT media_id FROM demo_medias);
+
+-- Outros seeds pontuais conhecidos
+DELETE FROM short_links WHERE short_id IN ('BF2024');
+DELETE FROM remote_commands WHERE request_id IN ('CMD-001');
+
+COMMIT;
+SQL
+    if [[ $? -eq 0 ]]; then
+        log "✅ Dados de demonstração removidos."
+    else
+        warn "⚠️ Falha ao remover dados de demonstração (continua)."
+    fi
 }
 
 # Criar script de gerenciamento
