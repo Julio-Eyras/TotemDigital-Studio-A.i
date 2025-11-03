@@ -39,8 +39,6 @@
     "moment": "^2.29.4",
     "lodash": "^4.17.21",
     "winston": "^3.11.0",
-    "prisma": "^5.7.1",
-    "@prisma/client": "^5.7.1",
     "pg": "^8.11.3"
   },
   "devDependencies": {
