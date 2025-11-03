@@ -64,27 +64,35 @@ export class AuthService {
       console.log(`[AUTH] Buscando usuário no banco de dados...`);
       
       // Verificar se tabela clients existe antes de fazer JOIN
+      const clientsTableExists = await this.db.tableExists('clients');
       let user;
-      try {
-        // Tentar com JOIN primeiro
-        user = await this.db.findFirst(`
-          SELECT u.*, c.name as client_name 
-          FROM users u 
-          LEFT JOIN clients c ON u.client_id = c.client_id 
-          WHERE u.username = ? AND u.is_active = 1
-        `, [username]);
-      } catch (error: any) {
-        // Se falhar por tabela clients não existir, buscar sem JOIN
-        if (error.message && error.message.includes('relation "clients" does not exist')) {
-          console.log(`[AUTH] ⚠️ Tabela clients não existe - buscando usuário sem JOIN...`);
+      
+      if (clientsTableExists) {
+        // Tentar com JOIN se a tabela existir
+        try {
+          user = await this.db.findFirst(`
+            SELECT u.*, c.name as client_name 
+            FROM users u 
+            LEFT JOIN clients c ON u.client_id = c.client_id 
+            WHERE u.username = ? AND u.is_active = 1
+          `, [username]);
+        } catch (error: any) {
+          // Se falhar mesmo com a tabela existindo, tentar sem JOIN
+          console.log(`[AUTH] ⚠️ Erro no JOIN com clients - buscando sem JOIN: ${error.message}`);
           user = await this.db.findFirst(`
             SELECT u.*
             FROM users u 
             WHERE u.username = ? AND u.is_active = 1
           `, [username]);
-        } else {
-          throw error;
         }
+      } else {
+        // Buscar sem JOIN se a tabela não existir
+        console.log(`[AUTH] ⚠️ Tabela clients não existe - buscando usuário sem JOIN...`);
+        user = await this.db.findFirst(`
+          SELECT u.*
+          FROM users u 
+          WHERE u.username = ? AND u.is_active = 1
+        `, [username]);
       }
 
       console.log(`[AUTH] Resultado da busca: ${user ? `Usuário encontrado (ID: ${user.user_id})` : 'Usuário NÃO encontrado'}`);
@@ -190,13 +198,31 @@ export class AuthService {
         return { success: false, error: 'Erro ao criar usuário' };
       }
 
-      // Buscar usuário criado
-      const newUser = await this.db.findFirst(`
-        SELECT u.*, c.name as client_name 
-        FROM users u 
-        LEFT JOIN clients c ON u.client_id = c.client_id 
-        WHERE u.user_id = ?
-      `, [result.lastInsertRowid]);
+      // Buscar usuário criado (com ou sem JOIN dependendo da existência da tabela)
+      const clientsTableExists = await this.db.tableExists('clients');
+      let newUser;
+      if (clientsTableExists) {
+        try {
+          newUser = await this.db.findFirst(`
+            SELECT u.*, c.name as client_name 
+            FROM users u 
+            LEFT JOIN clients c ON u.client_id = c.client_id 
+            WHERE u.user_id = ?
+          `, [result.lastInsertRowid]);
+        } catch {
+          newUser = await this.db.findFirst(`
+            SELECT u.*
+            FROM users u 
+            WHERE u.user_id = ?
+          `, [result.lastInsertRowid]);
+        }
+      } else {
+        newUser = await this.db.findFirst(`
+          SELECT u.*
+          FROM users u 
+          WHERE u.user_id = ?
+        `, [result.lastInsertRowid]);
+      }
 
       // Gerar tokens
       const token = this.generateToken(newUser);
@@ -230,13 +256,31 @@ export class AuthService {
     try {
       const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET!) as any;
       
-      // Buscar usuário
-      const user = await this.db.findFirst(`
-        SELECT u.*, c.name as client_name 
-        FROM users u 
-        LEFT JOIN clients c ON u.client_id = c.client_id 
-        WHERE u.user_id = ? AND u.is_active = 1
-      `, [decoded.userId]);
+      // Buscar usuário (com ou sem JOIN dependendo da existência da tabela)
+      const clientsTableExists = await this.db.tableExists('clients');
+      let user;
+      if (clientsTableExists) {
+        try {
+          user = await this.db.findFirst(`
+            SELECT u.*, c.name as client_name 
+            FROM users u 
+            LEFT JOIN clients c ON u.client_id = c.client_id 
+            WHERE u.user_id = ? AND u.is_active = 1
+          `, [decoded.userId]);
+        } catch {
+          user = await this.db.findFirst(`
+            SELECT u.*
+            FROM users u 
+            WHERE u.user_id = ? AND u.is_active = 1
+          `, [decoded.userId]);
+        }
+      } else {
+        user = await this.db.findFirst(`
+          SELECT u.*
+          FROM users u 
+          WHERE u.user_id = ? AND u.is_active = 1
+        `, [decoded.userId]);
+      }
 
       if (!user) {
         return { success: false, error: 'Token inválido' };
@@ -312,21 +356,54 @@ export class AuthService {
    */
   async getMe(userId: number): Promise<any> {
     try {
-      const user = await this.db.findFirst(`
-        SELECT 
-          u.user_id,
-          u.username,
-          u.role,
-          u.is_active,
-          u.last_login,
-          u.created_at,
-          u.updated_at,
-          c.name as client_name,
-          c.email as client_email
-        FROM users u 
-        LEFT JOIN clients c ON u.client_id = c.client_id 
-        WHERE u.user_id = ? AND u.is_active = 1
-      `, [userId]);
+      // Buscar usuário (com ou sem JOIN dependendo da existência da tabela)
+      const clientsTableExists = await this.db.tableExists('clients');
+      let user;
+      if (clientsTableExists) {
+        try {
+          user = await this.db.findFirst(`
+            SELECT 
+              u.user_id,
+              u.username,
+              u.role,
+              u.is_active,
+              u.last_login,
+              u.created_at,
+              u.updated_at,
+              c.name as client_name,
+              c.email as client_email
+            FROM users u 
+            LEFT JOIN clients c ON u.client_id = c.client_id 
+            WHERE u.user_id = ? AND u.is_active = 1
+          `, [userId]);
+        } catch {
+          user = await this.db.findFirst(`
+            SELECT 
+              u.user_id,
+              u.username,
+              u.role,
+              u.is_active,
+              u.last_login,
+              u.created_at,
+              u.updated_at
+            FROM users u 
+            WHERE u.user_id = ? AND u.is_active = 1
+          `, [userId]);
+        }
+      } else {
+        user = await this.db.findFirst(`
+          SELECT 
+            u.user_id,
+            u.username,
+            u.role,
+            u.is_active,
+            u.last_login,
+            u.created_at,
+            u.updated_at
+          FROM users u 
+          WHERE u.user_id = ? AND u.is_active = 1
+        `, [userId]);
+      }
 
       if (!user) {
         return null;

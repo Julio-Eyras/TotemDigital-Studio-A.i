@@ -103,6 +103,23 @@ class DatabaseWrapper {
   get prisma(): PrismaClient {
     return this.prismaClient;
   }
+
+  // Check if a table exists
+  async tableExists(tableName: string): Promise<boolean> {
+    try {
+      const result = await this.prismaClient.$queryRawUnsafe(`
+        SELECT 1 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = '${tableName}'
+        LIMIT 1
+      `);
+      return Array.isArray(result) && result.length > 0;
+    } catch (error) {
+      console.error(`[DB] Erro ao verificar existência da tabela ${tableName}:`, error);
+      return false;
+    }
+  }
 }
 
 // Get database instance

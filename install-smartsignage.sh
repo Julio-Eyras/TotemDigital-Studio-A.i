@@ -544,10 +544,39 @@ install_project_dependencies() {
     
     # Compilar TypeScript do backend
     log "Compilando TypeScript do backend..."
+    
+    # Limpar build anterior para garantir compilação limpa
+    if [[ -d "dist" ]]; then
+        log "Limpando build anterior..."
+        rm -rf dist/*
+    fi
+    
     if npm run build; then
         log "✅ Backend compilado com sucesso!"
+        
+        # Verificar se arquivos críticos foram compilados
+        if [[ ! -f "dist/services/authService.js" ]]; then
+            error "❌ Arquivo authService.js não foi compilado!"
+            exit 1
+        fi
+        
+        if [[ ! -f "dist/config/database.js" ]]; then
+            error "❌ Arquivo database.js não foi compilado!"
+            exit 1
+        fi
+        
+        log "✅ Arquivos compilados verificados (authService.js, database.js)"
+        
+        # Verificar se o serviço systemd existe e reiniciar se necessário
+        if [[ -f "/etc/systemd/system/smart-signage.service" ]] && systemctl is-active --quiet smart-signage 2>/dev/null; then
+            log "Serviço systemd ativo detectado - reiniciando para aplicar mudanças..."
+            sudo systemctl restart smart-signage || warn "⚠️ Não foi possível reiniciar o serviço (será reiniciado após a instalação)"
+            sleep 3
+            log "✅ Serviço reiniciado"
+        fi
     else
         error "❌ Erro ao compilar backend TypeScript"
+        error "Verifique os erros de compilação acima"
         exit 1
     fi
     
@@ -3489,10 +3518,17 @@ setup_first_boot() {
         else
             error "❌ Falha crítica ao criar tabelas do banco de dados"
             error "Tabelas faltando: ${MISSING_TABLES[*]}"
+            error "Execute manualmente: cd $INSTALL_DIR/backend && npx prisma db push --accept-data-loss"
             exit 1
         fi
     else
-        log "✅ Todas as tabelas obrigatórias existem"
+        log "✅ Todas as ${#ALL_TABLES[@]} tabelas do schema existem"
+        
+        # Listar todas as tabelas para confirmação
+        log "Tabelas encontradas no banco:"
+        psql "$DATABASE_URL" -tAc "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name" | while read table; do
+            [[ -n "$table" ]] && log "  ✅ $table"
+        done
     fi
     
     # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
