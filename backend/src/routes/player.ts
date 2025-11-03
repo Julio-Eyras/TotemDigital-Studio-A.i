@@ -104,6 +104,9 @@ router.get('/validate',
         LIMIT 1
       `, [uin, uin]);
 
+      // Determinar o ID numérico do totem para consultas relacionadas
+      const totemId = (totemFull && (totemFull as any).totem_id) || (totem as any).id;
+
       if (totemFull && totemFull.blocked) {
         // Verificar se bloqueio expirou
         if (totemFull.blocked_until && new Date(totemFull.blocked_until) > new Date()) {
