@@ -1334,6 +1334,9 @@ server {
     }
     
     # Player
+    location = /player {
+        return 301 /player/;
+    }
     location /player/ {
         alias $INSTALL_DIR/player/;
         try_files \$uri \$uri/ /player/index.html;
@@ -1417,6 +1420,9 @@ server {
     }
     
     # Player
+    location = /player {
+        return 301 /player/;
+    }
     location /player/ {
         alias $INSTALL_DIR/player/;
         try_files \$uri \$uri/ /player/index.html;
@@ -1803,17 +1809,18 @@ create_systemd_service() {
         sudo tee $SERVICE_FILE > /dev/null << EOF
 [Unit]
 Description=Smart Signage Pro Backend
-After=network.target postgresql.service
-Requires=postgresql.service
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
 
 [Service]
 Type=simple
 User=$USER
 Group=$USER
 WorkingDirectory=$INSTALL_DIR/backend
+ExecStartPre=/usr/bin/env bash -lc 'pg_isready -h 127.0.0.1 -p 5432 -U smartsignage -d smartsignage -t 5 || exit 0'
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
-RestartSec=10
+RestartSec=5
 StandardOutput=journal
 StandardError=journal
 Environment=NODE_ENV=production
