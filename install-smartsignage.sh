@@ -3546,6 +3546,58 @@ setup_first_boot() {
             log "  🎬 Mídias: $SEED_MEDIA"
             log "  📋 Playlists: $SEED_PLAYLISTS"
             log "  📢 Campanhas: $SEED_CAMPAIGNS"
+
+            # Garantir totem demo 'default-demo' ativo e utilizável
+            log "Garantindo totem demo (uin=default-demo) e relacionamentos mínimos..."
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+DO $$
+BEGIN
+  -- Cliente base se necessário
+  IF NOT EXISTS (SELECT 1 FROM clients WHERE client_id = 1) THEN
+    INSERT INTO clients (client_id, name) VALUES (1, 'Cliente Demo') ON CONFLICT DO NOTHING;
+  END IF;
+
+  -- Totem default-demo
+  IF NOT EXISTS (SELECT 1 FROM totems WHERE uin = 'default-demo') THEN
+    INSERT INTO totems (totem_id, client_id, identifier, uin, description, active, status)
+    VALUES (8, 1, 'TOTEM-DEFAULT-DEMO', 'default-demo', 'Totem de demonstração', true, 'online')
+    ON CONFLICT DO NOTHING;
+  ELSE
+    UPDATE totems SET active = true, status = 'online' WHERE uin = 'default-demo';
+  END IF;
+
+  -- Campanha 1 ativa
+  IF NOT EXISTS (SELECT 1 FROM campaigns WHERE campaign_id = 1) THEN
+    INSERT INTO campaigns (campaign_id, client_id, title, status, is_active)
+    VALUES (1, 1, 'Campanha Demo', 'active', true)
+    ON CONFLICT DO NOTHING;
+  ELSE
+    UPDATE campaigns SET is_active = true, status = 'active' WHERE campaign_id = 1;
+  END IF;
+
+  -- Playlist Demo (id=5)
+  IF NOT EXISTS (SELECT 1 FROM playlists WHERE playlist_id = 5) THEN
+    INSERT INTO playlists (
+      playlist_id, client_id, campaign_id, name, description, is_active, tags, loop, settings, is_public
+    ) VALUES (
+      5, 1, 1, 'Playlist Demo', 'Demonstração comercial do Smart Signage-Pro', true, '[]', true,
+      '{"transition_duration":2000,"fade_effect":true}', true
+    ) ON CONFLICT DO NOTHING;
+  ELSE
+    UPDATE playlists SET is_active = true WHERE playlist_id = 5;
+  END IF;
+
+  -- Vincular campanha↔playlist
+  INSERT INTO campaign_playlists (campaign_id, playlist_id)
+  VALUES (1, 5) ON CONFLICT DO NOTHING;
+
+  -- Vincular campanha↔totem default-demo
+  INSERT INTO campaign_totems (campaign_id, totem_id)
+  SELECT 1, t.totem_id FROM totems t WHERE t.uin = 'default-demo'
+  ON CONFLICT DO NOTHING;
+END$$;
+SQL
+            log "✅ Totem demo garantido"
             
             # Seed executado via SQL, não precisa executar seed.js
             return 0
