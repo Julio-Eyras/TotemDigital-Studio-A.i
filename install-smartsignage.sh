@@ -252,7 +252,6 @@ install_dependencies() {
         python3 \
         python3-pip \
         postgresql-client \
-        sqlite3 \
         nginx \
         ufw \
         htop \
@@ -4417,19 +4416,10 @@ show_menu() {
             INSTALL_MODE="single-server"
             # Escolher banco para servidor único
             echo
-            echo -e "${CYAN}Selecione o banco de dados para Single-Server:${NC}"
-            echo -e "${GREEN}1)${NC} PostgreSQL (recomendado)"
-            echo -e "${GREEN}2)${NC} SQLite (simples, sem servidor)"
-            echo
-            read -p "Digite sua escolha (1-2) [padrão: 1]: " db_choice
-            db_choice=${db_choice:-1}
-            if [[ "$db_choice" == "2" ]]; then
-                DB_DRIVER="sqlite"
-                DATABASE_URL="file:$INSTALL_DIR/data/smartsignage.db"
-            else
-                DB_DRIVER="postgresql"
-                DATABASE_URL="postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage"
-            fi
+            echo -e "${CYAN}Banco de dados para Single-Server:${NC}"
+            echo -e "${GREEN}✓${NC} PostgreSQL (único suportado)"
+            DB_DRIVER="postgresql"
+            DATABASE_URL="postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage"
             ;;
         2)
             INSTALL_MODE="docker"
@@ -4466,10 +4456,9 @@ show_menu() {
             echo
             echo -e "${CYAN}Configuração de Exibição (Saída e Orientação)${NC}"
             echo -e "${YELLOW}Detectando saídas de vídeo...${NC}"
-            XRANDR_OUTPUTS=$(xrandr --query 2>/dev/null | awk '/ connected/{print $1" ("$2")"}')
-            if [[ -z "$XRANDR_OUTPUTS" ]]; then
-                echo -e "${YELLOW}⚠️ Não foi possível detectar saídas via xrandr. Usaremos detecção automática no login.${NC}"
-            else
+            XRANDR_CMD="DISPLAY=${DISPLAY:-:0} xrandr --query"
+            XRANDR_OUTPUTS=$(eval "$XRANDR_CMD" 2>/dev/null | awk '/ connected/{print $1" ("$2")"}')
+            if [[ -n "$XRANDR_OUTPUTS" ]]; then
                 echo "Saídas detectadas:"
                 i=1
                 declare -a OUT_ARR
@@ -4487,6 +4476,9 @@ show_menu() {
                 else
                   KIOSK_DISPLAY_SELECTED=""
                 fi
+            else
+                echo -e "${YELLOW}⚠️ Não foi possível detectar saídas via xrandr (ambiente sem DISPLAY).${NC}"
+                read -p "Digite o nome da saída (ex.: HDMI-1) ou deixe em branco para auto: " KIOSK_DISPLAY_SELECTED
             fi
 
             echo
