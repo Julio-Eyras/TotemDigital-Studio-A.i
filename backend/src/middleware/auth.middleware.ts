@@ -54,7 +54,7 @@ export const authMiddleware = async (
     const user = await db.findFirst(`
       SELECT user_id, username, role, client_id, is_active
       FROM users 
-      WHERE user_id = ? AND is_active = 1
+      WHERE user_id = ? AND is_active = true
     `, [decoded.userId]);
 
     if (!user) {
@@ -266,7 +266,7 @@ export const optionalAuth = async (
     const user = await db.findFirst(`
       SELECT user_id, username, role, client_id, is_active
       FROM users 
-      WHERE user_id = ? AND is_active = 1
+      WHERE user_id = ? AND is_active = true
     `, [decoded.userId]);
 
     if (user) {

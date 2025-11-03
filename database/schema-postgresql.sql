@@ -21,10 +21,12 @@ CREATE TABLE IF NOT EXISTS clients (
 
 -- Users
 CREATE TABLE IF NOT EXISTS users (
-    user_id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     client_id INTEGER,
     username TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE,
     password_hash TEXT NOT NULL,
+    name TEXT,
     role TEXT NOT NULL, -- admin, manager, operator, viewer, client
     is_active BOOLEAN DEFAULT true,
     last_login TIMESTAMP,
@@ -135,7 +137,7 @@ CREATE TABLE IF NOT EXISTS medias (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE,
-    FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Playlists
@@ -250,7 +252,7 @@ CREATE TABLE IF NOT EXISTS remote_commands (
     result TEXT,
     created_by INTEGER,
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
-    FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Analytics Sessions
@@ -508,9 +510,9 @@ CREATE TABLE IF NOT EXISTS user_roles (
     role_id INTEGER NOT NULL,
     granted_by INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE,
-    FOREIGN KEY (granted_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    FOREIGN KEY (granted_by) REFERENCES users(id) ON DELETE SET NULL,
     UNIQUE(user_id, role_id)
 );
 
@@ -535,7 +537,7 @@ CREATE TABLE IF NOT EXISTS approval_workflows (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (media_id) REFERENCES medias(media_id) ON DELETE CASCADE,
-    FOREIGN KEY (reviewed_by) REFERENCES users(user_id) ON DELETE SET NULL
+    FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Audit Log
@@ -547,7 +549,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     entity_id INTEGER,
     metadata TEXT, -- JSON
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Aggregated Metrics

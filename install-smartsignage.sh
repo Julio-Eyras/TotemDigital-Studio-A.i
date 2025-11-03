@@ -3474,25 +3474,50 @@ setup_first_boot() {
     log "Verificando se TODAS as tabelas do schema foram criadas..."
     cd $INSTALL_DIR/backend
     
-    # Lista COMPLETA de TODAS as 15 tabelas do schema Prisma (em ordem de dependência)
+    # Lista COMPLETA de TODAS as tabelas do schema E.R. (em ordem de dependência)
+    # Baseado em database/schema-postgresql.sql - TODAS as tabelas usadas em JOINs
     # Ordem importa: tabelas sem foreign keys primeiro
-    # Schema completo: User, Client, Totem, Media, Playlist, PlaylistItem, Campaign, QRCode, Analytics, AuditLog, SystemLog, Notification, Settings, Report, Billing
     ALL_TABLES=(
-        "clients"           # Client - Tabela base sem dependências
-        "users"             # User - Depende de clients (opcional)
-        "medias"            # Media - Depende de clients (opcional)
-        "playlists"         # Playlist - Depende de clients (opcional)
-        "playlist_items"    # PlaylistItem - Depende de playlists, medias
-        "campaigns"         # Campaign - Depende de clients (opcional)
-        "qrcodes"           # QRCode - Depende de campaigns (opcional)
-        "totems"            # Totem - Depende de clients (opcional)
-        "analytics"         # Analytics - Depende de totems (opcional)
-        "auditlogs"         # AuditLog - Depende de users (opcional)
-        "systemlogs"        # SystemLog - Sem dependências
-        "notifications"     # Notification - Depende de users (opcional)
-        "settings"          # Settings - Sem dependências
-        "reports"           # Report - Sem dependências
-        "billing"           # Billing - Depende de clients (opcional)
+        "clients"           # Client - Tabela base sem dependências (usada em JOINs)
+        "users"             # User - Depende de clients (usada em JOINs)
+        "hosts"             # Host - Sem dependências
+        "locals"            # Local - Depende de hosts
+        "totems"            # Totem - Depende de locals (usada em JOINs)
+        "smart_tvs"         # SmartTV - Depende de totems
+        "campaigns"         # Campaign - Depende de clients (usada em JOINs)
+        "medias"            # Media - Depende de clients, users (usada em JOINs)
+        "playlists"         # Playlist - Depende de totems, campaigns (usada em JOINs)
+        "playlist_items"    # PlaylistItem - Depende de playlists, medias (usada em JOINs)
+        "campaign_playlists" # CampaignPlaylist - Depende de campaigns, playlists
+        "campaign_totems"   # CampaignTotem - Depende de totems, campaigns
+        "qr_codes"          # QRCode - Depende de campaigns (usada em JOINs)
+        "short_links"       # ShortLink - Depende de campaigns, totems
+        "remote_commands"   # RemoteCommand - Depende de totems, users
+        "analytics_sessions" # AnalyticsSession - Depende de totems (usada em JOINs)
+        "analytics_emotions" # AnalyticsEmotion - Depende de analytics_sessions
+        "analytics_gestures" # AnalyticsGesture - Depende de analytics_sessions
+        "analytics_qr_scans" # AnalyticsQRScan - Depende de qr_codes, totems
+        "ai_models"        # AIModel - Sem dependências
+        "execution_logs"   # ExecutionLog - Depende de totems, clients, campaigns, medias
+        "system_logs"       # SystemLog - Sem dependências
+        "webhook_configs"  # WebhookConfig - Sem dependências
+        "webhook_deliveries" # WebhookDelivery - Depende de webhook_configs
+        "alert_rules"       # AlertRule - Sem dependências
+        "alert_logs"        # AlertLog - Depende de alert_rules
+        "emotion_data"      # EmotionData - Depende de totems, analytics_sessions
+        "gesture_data"      # GestureData - Depende de totems, analytics_sessions
+        "behavior_data"     # BehaviorData - Depende de totems, analytics_sessions
+        "ml_models"        # MLModel - Sem dependências
+        "totem_ml_config"  # TotemMLConfig - Depende de totems
+        "ml_sessions"      # MLSession - Depende de totems
+        "roles"            # Role - Sem dependências
+        "permissions"      # Permission - Sem dependências
+        "user_roles"       # UserRole - Depende de users, roles
+        "role_permissions" # RolePermission - Depende de roles, permissions
+        "approval_workflows" # ApprovalWorkflow - Depende de medias, users
+        "audit_logs"       # AuditLog - Depende de users (usada em JOINs)
+        "aggregated_metrics" # AggregatedMetric - Depende de totems, campaigns, medias
+        "device_certificates" # DeviceCertificate - Depende de totems
     )
     
     log "Schema completo: ${#ALL_TABLES[@]} tabelas projetadas para o sistema"

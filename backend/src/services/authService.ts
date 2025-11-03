@@ -74,7 +74,7 @@ export class AuthService {
             SELECT u.*, c.name as client_name 
             FROM users u 
             LEFT JOIN clients c ON u.client_id = c.client_id 
-            WHERE u.username = ? AND u.is_active = 1
+            WHERE u.username = ? AND u.is_active = true
           `, [username]);
         } catch (error: any) {
           // Se falhar mesmo com a tabela existindo, tentar sem JOIN
@@ -82,7 +82,7 @@ export class AuthService {
           user = await this.db.findFirst(`
             SELECT u.*
             FROM users u 
-            WHERE u.username = ? AND u.is_active = 1
+            WHERE u.username = ? AND u.is_active = true
           `, [username]);
         }
       } else {
@@ -91,7 +91,7 @@ export class AuthService {
         user = await this.db.findFirst(`
           SELECT u.*
           FROM users u 
-          WHERE u.username = ? AND u.is_active = 1
+          WHERE u.username = ? AND u.is_active = true
         `, [username]);
       }
 
@@ -265,13 +265,13 @@ export class AuthService {
             SELECT u.*, c.name as client_name 
             FROM users u 
             LEFT JOIN clients c ON u.client_id = c.client_id 
-            WHERE u.user_id = ? AND u.is_active = 1
+            WHERE u.user_id = ? AND u.is_active = true
           `, [decoded.userId]);
         } catch {
           user = await this.db.findFirst(`
             SELECT u.*
             FROM users u 
-            WHERE u.user_id = ? AND u.is_active = 1
+            WHERE u.user_id = ? AND u.is_active = true
           `, [decoded.userId]);
         }
       } else {
@@ -315,7 +315,7 @@ export class AuthService {
 
       // Buscar usuário
       const user = await this.db.findFirst(`
-        SELECT password_hash FROM users WHERE user_id = ? AND is_active = 1
+        SELECT password_hash FROM users WHERE user_id = ? AND is_active = true
       `, [userId]);
 
       if (!user) {
@@ -374,7 +374,7 @@ export class AuthService {
               c.email as client_email
             FROM users u 
             LEFT JOIN clients c ON u.client_id = c.client_id 
-            WHERE u.user_id = ? AND u.is_active = 1
+            WHERE u.user_id = ? AND u.is_active = true
           `, [userId]);
         } catch {
           user = await this.db.findFirst(`
@@ -387,7 +387,7 @@ export class AuthService {
               u.created_at,
               u.updated_at
             FROM users u 
-            WHERE u.user_id = ? AND u.is_active = 1
+            WHERE u.user_id = ? AND u.is_active = true
           `, [userId]);
         }
       } else {

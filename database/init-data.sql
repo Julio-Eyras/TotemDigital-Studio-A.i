@@ -7,7 +7,9 @@
 -- =============================================
 
 -- Desabilitar triggers temporariamente para inserção em massa
-SET session_replication_role = replica;
+-- Nota: session_replication_role requer privilégios superuser
+-- Removido para permitir execução com usuário normal
+-- SET session_replication_role = replica;
 
 -- =============================================
 -- DADOS DE EXEMPLO - CLIENTES
@@ -47,14 +49,14 @@ INSERT INTO locals (local_id, host_id, description, active) VALUES
 -- =============================================
 
 -- Hash da senha 'admin123' usando bcrypt
-INSERT INTO users (user_id, client_id, username, password_hash, role, is_active, last_login) VALUES 
-(1, NULL, 'admin', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'admin', true, NOW()),
-(2, 1, 'maria.silva', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'manager', true, NOW()),
-(3, 2, 'joao.santos', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'manager', true, NOW()),
-(4, 3, 'ana.costa', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'manager', true, NOW()),
-(5, 1, 'operador.shopping', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'operator', true, NOW()),
-(6, 2, 'operador.farmacia', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'operator', true, NOW()),
-(7, NULL, 'viewer.relatorios', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'viewer', true, NOW());
+INSERT INTO users (id, client_id, username, email, password_hash, name, role, is_active, last_login) VALUES 
+(1, NULL, 'admin', 'admin@smartsignage.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'Administrador', 'admin', true, NOW()),
+(2, 1, 'maria.silva', 'maria.silva@shoppingnorte.com.br', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'Maria Silva', 'manager', true, NOW()),
+(3, 2, 'joao.santos', 'joao.santos@farmaciapop.com.br', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'João Santos', 'manager', true, NOW()),
+(4, 3, 'ana.costa', 'ana.costa@restaurantebomgusto.com.br', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'Ana Costa', 'manager', true, NOW()),
+(5, 1, 'operador.shopping', 'operador@shoppingnorte.com.br', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'Operador Shopping', 'operator', true, NOW()),
+(6, 2, 'operador.farmacia', 'operador@farmaciapop.com.br', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'Operador Farmácia', 'operator', true, NOW()),
+(7, NULL, 'viewer.relatorios', 'viewer@smartsignage.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'Visualizador', 'viewer', true, NOW());
 
 -- =============================================
 -- DADOS DE EXEMPLO - TOTEMS
@@ -380,11 +382,13 @@ INSERT INTO audit_logs (user_id, action, entity, entity_id, metadata, timestamp)
 -- =============================================
 
 -- Reabilitar triggers
-SET session_replication_role = DEFAULT;
+-- Nota: session_replication_role requer privilégios superuser
+-- Removido para permitir execução com usuário normal
+-- SET session_replication_role = DEFAULT;
 
 -- Atualizar sequências para PostgreSQL
 SELECT setval('clients_client_id_seq', (SELECT MAX(client_id) FROM clients));
-SELECT setval('users_user_id_seq', (SELECT MAX(user_id) FROM users));
+SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 SELECT setval('hosts_host_id_seq', (SELECT MAX(host_id) FROM hosts));
 SELECT setval('totems_totem_id_seq', (SELECT MAX(totem_id) FROM totems));
 SELECT setval('campaigns_campaign_id_seq', (SELECT MAX(campaign_id) FROM campaigns));

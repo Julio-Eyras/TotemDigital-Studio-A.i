@@ -92,10 +92,58 @@ class DatabaseWrapper {
   // Helper method to process parameterized queries
   private processQuery(query: string, params: any[]): string {
     let processedQuery = query;
-    params.forEach((param, index) => {
-      // Replace ? with $1, $2, etc. for PostgreSQL
-      processedQuery = processedQuery.replace('?', `$${index + 1}`);
+    let paramIndex = 0;
+    
+    // Replace ? placeholders with actual values, handling booleans specially
+    processedQuery = processedQuery.replace(/\?/g, () => {
+      if (paramIndex >= params.length) {
+        throw new Error(`Not enough parameters for query. Expected more than ${paramIndex}`);
+      }
+      
+      const param = params[paramIndex];
+      paramIndex++;
+      
+      // Handle boolean values (including 1/0 as boolean)
+      // Detect if this is likely a boolean comparison by checking context
+      const querySoFar = processedQuery.substring(0, processedQuery.lastIndexOf('?') + 1);
+      const isBooleanContext = 
+        querySoFar.match(/(is_active|active|is_read)\s*=\s*\?$/i) ||
+        querySoFar.match(/SET\s+(is_active|active)\s*=\s*\?$/i);
+      
+      if (isBooleanContext || param === true || param === false) {
+        // Convert 1/0 to boolean if in boolean context
+        if (param === 1) return 'true';
+        if (param === 0) return 'false';
+        if (param === true) return 'true';
+        if (param === false) return 'false';
+      }
+      
+      // For other types, escape and quote appropriately
+      if (typeof param === 'string') {
+        // Escape single quotes and wrap in quotes
+        return `'${param.replace(/'/g, "''")}'`;
+      }
+      
+      if (param === null || param === undefined) {
+        return 'NULL';
+      }
+      
+      // For numbers and other types, use directly
+      return String(param);
     });
+    
+    // Also normalize boolean literals in the query itself (for safety)
+    processedQuery = processedQuery.replace(/\bis_active\s*=\s*1\b/gi, 'is_active = true');
+    processedQuery = processedQuery.replace(/\bis_active\s*=\s*0\b/gi, 'is_active = false');
+    processedQuery = processedQuery.replace(/\bactive\s*=\s*1\b/gi, 'active = true');
+    processedQuery = processedQuery.replace(/\bactive\s*=\s*0\b/gi, 'active = false');
+    
+    // Normalize SET statements for boolean fields
+    processedQuery = processedQuery.replace(/\bSET\s+is_active\s*=\s*1\b/gi, 'SET is_active = true');
+    processedQuery = processedQuery.replace(/\bSET\s+is_active\s*=\s*0\b/gi, 'SET is_active = false');
+    processedQuery = processedQuery.replace(/\bSET\s+active\s*=\s*1\b/gi, 'SET active = true');
+    processedQuery = processedQuery.replace(/\bSET\s+active\s*=\s*0\b/gi, 'SET active = false');
+    
     return processedQuery;
   }
 
