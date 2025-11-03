@@ -4725,10 +4725,9 @@ if [[ -n "$PRIMARY_DISPLAY" ]]; then
     # Right = portrait correto para totens
     xrandr --output "$PRIMARY_DISPLAY" --rotate right
     
-    # Se não funcionar, tentar outras opções
+    # Verificar se rotação foi aplicada com sucesso
     if [[ $? -ne 0 ]]; then
-        # Tentar rotação no sentido horário (90 graus) como fallback
-        xrandr --output "$PRIMARY_DISPLAY" --rotate right
+        echo "⚠️ Falha ao aplicar rotação right, tente manualmente com: xrandr --output $PRIMARY_DISPLAY --rotate right"
     fi
 fi
 
