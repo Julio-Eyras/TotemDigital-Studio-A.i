@@ -3382,6 +3382,20 @@ setup_first_boot() {
     # Executar migrations ou criar schema
     log "Criando schema do banco de dados..."
     
+    # PRIORIDADE 1: Usar schema-postgresql.sql se existir (modelo E.R. completo)
+    SCHEMA_SQL_FILE="$INSTALL_DIR/database/schema-postgresql.sql"
+    if [[ -f "$SCHEMA_SQL_FILE" ]]; then
+        log "✅ Arquivo schema-postgresql.sql encontrado - usando modelo E.R. completo"
+        log "Executando schema SQL (todas as tabelas do modelo E.R.)..."
+        
+        if psql "$DATABASE_URL" -f "$SCHEMA_SQL_FILE" 2>&1; then
+            log "✅ Schema criado com sucesso usando schema-postgresql.sql"
+        else
+            warn "⚠️ Erro ao executar schema-postgresql.sql, tentando fallback..."
+            # Continuar com Prisma como fallback
+        fi
+    fi
+    
     # Verificar se existem migrations
     if [[ -d "prisma/migrations" ]] && [[ -n "$(ls -A prisma/migrations 2>/dev/null)" ]]; then
         log "Migrations encontradas - executando migrate deploy..."
@@ -3397,59 +3411,62 @@ setup_first_boot() {
             fi
         fi
     else
-        log "Nenhuma migration encontrada - usando db push para criar schema..."
-        log "Executando prisma db push..."
-        if npx prisma db push --accept-data-loss --skip-generate; then
-            log "✅ Schema criado com sucesso (db push)"
-        else
-            error "❌ Falha ao criar schema do banco de dados"
-            error "Verificando conexão com o banco..."
-            psql "$DATABASE_URL" -c "SELECT 1" || error "❌ Não foi possível conectar ao banco de dados!"
-            
-            # Tentar criar schema manualmente usando código do backend
-            log "Tentando criar schema manualmente..."
-            cd $INSTALL_DIR/backend
-            node -e "
-            const { PrismaClient } = require('@prisma/client');
-            const prisma = new PrismaClient();
-            (async () => {
-                try {
-                    await prisma.\$connect();
-                    console.log('✅ Conectado ao banco');
-                    
-                    // Verificar se tabelas já existem
-                    const tables = await prisma.\$queryRaw\`
-                        SELECT table_name 
-                        FROM information_schema.tables 
-                        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-                    \`;
-                    console.log('Tabelas encontradas:', tables.length);
-                    
-                    if (tables.length === 0) {
-                        console.log('⚠️ Nenhuma tabela encontrada - executando db push...');
-                        const { execSync } = require('child_process');
-                        execSync('npx prisma db push --accept-data-loss --skip-generate', { 
-                            stdio: 'inherit',
-                            env: process.env
-                        });
-                        console.log('✅ Schema criado');
-                    } else {
-                        console.log('✅ Tabelas já existem no banco');
+        # Se não executou schema SQL, tentar Prisma db push
+        if [[ ! -f "$SCHEMA_SQL_FILE" ]] || [[ $? -ne 0 ]]; then
+            log "Nenhuma migration encontrada - usando db push para criar schema..."
+            log "Executando prisma db push..."
+            if npx prisma db push --accept-data-loss --skip-generate; then
+                log "✅ Schema criado com sucesso (db push)"
+            else
+                error "❌ Falha ao criar schema do banco de dados"
+                error "Verificando conexão com o banco..."
+                psql "$DATABASE_URL" -c "SELECT 1" || error "❌ Não foi possível conectar ao banco de dados!"
+                
+                # Tentar criar schema manualmente usando código do backend
+                log "Tentando criar schema manualmente..."
+                cd $INSTALL_DIR/backend
+                node -e "
+                const { PrismaClient } = require('@prisma/client');
+                const prisma = new PrismaClient();
+                (async () => {
+                    try {
+                        await prisma.\$connect();
+                        console.log('✅ Conectado ao banco');
+                        
+                        // Verificar se tabelas já existem
+                        const tables = await prisma.\$queryRaw\`
+                            SELECT table_name 
+                            FROM information_schema.tables 
+                            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                        \`;
+                        console.log('Tabelas encontradas:', tables.length);
+                        
+                        if (tables.length === 0) {
+                            console.log('⚠️ Nenhuma tabela encontrada - executando db push...');
+                            const { execSync } = require('child_process');
+                            execSync('npx prisma db push --accept-data-loss --skip-generate', { 
+                                stdio: 'inherit',
+                                env: process.env
+                            });
+                            console.log('✅ Schema criado');
+                        } else {
+                            console.log('✅ Tabelas já existem no banco');
+                        }
+                        
+                        await prisma.\$disconnect();
+                        process.exit(0);
+                    } catch (e) {
+                        console.error('❌ Erro:', e.message);
+                        await prisma.\$disconnect();
+                        process.exit(1);
                     }
-                    
-                    await prisma.\$disconnect();
-                    process.exit(0);
-                } catch (e) {
-                    console.error('❌ Erro:', e.message);
-                    await prisma.\$disconnect();
-                    process.exit(1);
+                })();
+                " || {
+                    error "❌ Falha crítica ao criar schema do banco de dados"
+                    error "Verifique os logs acima para mais detalhes"
+                    exit 1
                 }
-            })();
-            " || {
-                error "❌ Falha crítica ao criar schema do banco de dados"
-                error "Verifique os logs acima para mais detalhes"
-                exit 1
-            }
+            fi
         fi
     fi
     
@@ -3534,7 +3551,40 @@ setup_first_boot() {
     # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
     log "Executando seed completo do banco de dados com dados correlacionados..."
     
-    # Verificar se arquivo seed.js existe
+    # PRIORIDADE 1: Usar init-data.sql se existir (seeds de todas as tabelas com JOINs)
+    INIT_DATA_SQL_FILE="$INSTALL_DIR/database/init-data.sql"
+    if [[ -f "$INIT_DATA_SQL_FILE" ]]; then
+        log "✅ Arquivo init-data.sql encontrado - usando seeds completos do modelo E.R."
+        log "Executando init-data.sql (todas as tabelas usadas em JOINs serão populadas)..."
+        
+        if psql "$DATABASE_URL" -f "$INIT_DATA_SQL_FILE" 2>&1; then
+            log "✅ Seeds executados com sucesso usando init-data.sql"
+            
+            # Verificar se dados foram inseridos
+            log "Verificando dados inseridos pelo init-data.sql..."
+            SEED_CLIENTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
+            SEED_USERS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
+            SEED_TOTEMS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems" 2>/dev/null || echo "0")
+            SEED_MEDIA=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias" 2>/dev/null || echo "0")
+            SEED_PLAYLISTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists" 2>/dev/null || echo "0")
+            SEED_CAMPAIGNS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM campaigns" 2>/dev/null || echo "0")
+            
+            log "Dados inseridos:"
+            log "  📋 Clientes: $SEED_CLIENTS"
+            log "  👥 Usuários: $SEED_USERS"
+            log "  📺 Totens: $SEED_TOTEMS"
+            log "  🎬 Mídias: $SEED_MEDIA"
+            log "  📋 Playlists: $SEED_PLAYLISTS"
+            log "  📢 Campanhas: $SEED_CAMPAIGNS"
+            
+            # Seed executado via SQL, não precisa executar seed.js
+            return 0
+        else
+            warn "⚠️ Erro ao executar init-data.sql, tentando fallback (seed.js)..."
+        fi
+    fi
+    
+    # PRIORIDADE 2: Fallback para seed.js do Prisma
     if [[ -f "prisma/seed.js" ]]; then
         log "✅ Arquivo seed.js encontrado"
         log "Executando seed completo (clientes, usuários, totens, mídias, playlists, campanhas, QR codes, analytics, etc.)..."
