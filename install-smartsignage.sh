@@ -365,6 +365,11 @@ configure_firewall() {
         sudo ufw allow 9090/tcp  # Prometheus
         sudo ufw allow 3002/tcp  # Grafana
         sudo ufw allow 11434/tcp # Ollama
+    elif [[ "$INSTALL_MODE" == "single-server" ]]; then
+        # PostgreSQL: permitir apenas da rede local (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+        sudo ufw allow from 192.168.0.0/16 to any port 5432 2>/dev/null || true
+        sudo ufw allow from 10.0.0.0/8 to any port 5432 2>/dev/null || true
+        sudo ufw allow from 172.16.0.0/12 to any port 5432 2>/dev/null || true
     fi
     
     sudo ufw --force enable
@@ -1099,10 +1104,87 @@ setup_database() {
         sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO ${PG_USER};" >/dev/null 2>&1 || true
         sudo -u postgres psql -d ${PG_DB} -c "GRANT ALL ON SCHEMA public TO ${PG_USER};" >/dev/null 2>&1 || true
 
+        # Configurar PostgreSQL para aceitar conexões da rede local
+        log "Configurando PostgreSQL para acesso remoto (rede local)..."
+        
+        # Detectar diretório de configuração do PostgreSQL
+        PG_CONFIG_FILE=$(sudo -u postgres psql -tAc "SHOW config_file;" 2>/dev/null || echo "")
+        if [[ -n "$PG_CONFIG_FILE" && -f "$PG_CONFIG_FILE" ]]; then
+            PG_CONFIG_DIR=$(dirname "$PG_CONFIG_FILE")
+        else
+            # Tentar detectar versão do PostgreSQL
+            PG_VERSION=$(sudo -u postgres psql -tAc "SELECT version();" 2>/dev/null | grep -oE '[0-9]+' | head -1)
+            if [[ -n "$PG_VERSION" ]]; then
+                PG_CONFIG_DIR="/etc/postgresql/${PG_VERSION}/main"
+            else
+                # Tentar encontrar diretório padrão
+                PG_CONFIG_DIR=$(find /etc/postgresql -name "postgresql.conf" 2>/dev/null | head -1 | xargs dirname 2>/dev/null || echo "")
+            fi
+        fi
+        
+        if [[ -d "$PG_CONFIG_DIR" ]]; then
+            # Configurar postgresql.conf para escutar em todas as interfaces
+            PG_CONF="${PG_CONFIG_DIR}/postgresql.conf"
+            if [[ -f "$PG_CONF" ]]; then
+                # Comentar listen_addresses se existir e não estiver como '*'
+                if grep -q "^listen_addresses" "$PG_CONF"; then
+                    sudo sed -i "s/^listen_addresses = .*/listen_addresses = '*'/" "$PG_CONF" || true
+                elif ! grep -q "^listen_addresses" "$PG_CONF"; then
+                    echo "listen_addresses = '*'" | sudo tee -a "$PG_CONF" > /dev/null
+                fi
+                log "✅ postgresql.conf configurado para aceitar conexões remotas"
+            fi
+            
+            # Configurar pg_hba.conf para permitir conexões da rede local
+            PG_HBA="${PG_CONFIG_DIR}/pg_hba.conf"
+            if [[ -f "$PG_HBA" ]]; then
+                # Verificar se já existe regra para rede local
+                if ! grep -q "^host.*${PG_DB}.*${PG_USER}.*192.168" "$PG_HBA"; then
+                    # Adicionar regra para rede local (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+                    echo "host    ${PG_DB}    ${PG_USER}    192.168.0.0/16    md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    echo "host    ${PG_DB}    ${PG_USER}    10.0.0.0/8         md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    echo "host    ${PG_DB}    ${PG_USER}    172.16.0.0/12      md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    log "✅ pg_hba.conf configurado para aceitar conexões da rede local"
+                else
+                    log "✅ pg_hba.conf já tem regras para rede local"
+                fi
+            fi
+            
+            # Reiniciar PostgreSQL para aplicar mudanças
+            log "Reiniciando PostgreSQL para aplicar configurações de rede..."
+            sudo systemctl restart postgresql
+            sleep 3
+            
+            # Verificar se reiniciou corretamente
+            if systemctl is-active --quiet postgresql; then
+                log "✅ PostgreSQL reiniciado com sucesso"
+            else
+                warn "⚠️ PostgreSQL pode não ter reiniciado corretamente"
+            fi
+        else
+            warn "⚠️ Diretório de configuração do PostgreSQL não encontrado: $PG_CONFIG_DIR"
+            warn "Configure manualmente o postgresql.conf e pg_hba.conf para acesso remoto"
+        fi
+        
+        # Garantir regras do firewall para PostgreSQL na rede local (idempotente)
+        log "Garantindo regras do firewall para PostgreSQL (porta 5432 - rede local)..."
+        # As regras principais estão em configure_firewall(), mas garantimos aqui também
+        sudo ufw allow from 192.168.0.0/16 to any port 5432 2>/dev/null || true
+        sudo ufw allow from 10.0.0.0/8 to any port 5432 2>/dev/null || true
+        sudo ufw allow from 172.16.0.0/12 to any port 5432 2>/dev/null || true
+        log "✅ Firewall garantido para PostgreSQL (rede local)"
+
         # Exportar variáveis para as próximas etapas
         export DB_DRIVER="postgresql"
         export DATABASE_URL="postgresql://${PG_USER}:${PG_PASS}@localhost:5432/${PG_DB}"
         log "✅ PostgreSQL configurado. DATABASE_URL=${DATABASE_URL}"
+        log "✅ PostgreSQL acessível remotamente na rede local (porta 5432)"
+        log "💡 Para acessar via pgAdmin:"
+        log "   Host: IP_DO_SERVIDOR (ex: 192.168.1.105)"
+        log "   Port: 5432"
+        log "   Database: ${PG_DB}"
+        log "   Username: ${PG_USER}"
+        log "   Password: ${PG_PASS}"
     else
         # PostgreSQL via Docker
         log "Banco PostgreSQL será configurado via Docker"
