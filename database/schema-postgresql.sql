@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS locals (
 CREATE TABLE IF NOT EXISTS totems (
     totem_id SERIAL PRIMARY KEY,
     identifier TEXT UNIQUE NOT NULL,
+    uin TEXT UNIQUE, -- Unique Identifier Number (UIN) para validação do player
     device_id TEXT UNIQUE,
     local_id TEXT,
     description TEXT,
@@ -75,6 +76,8 @@ CREATE TABLE IF NOT EXISTS totems (
     last_seen TIMESTAMP,
     last_heartbeat TIMESTAMP,
     active BOOLEAN DEFAULT true,
+    blocked BOOLEAN DEFAULT false, -- Bloqueio manual do totem
+    blocked_until TIMESTAMP, -- Bloqueio temporário até data/hora
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (local_id) REFERENCES locals(local_id) ON DELETE SET NULL
