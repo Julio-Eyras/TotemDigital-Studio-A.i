@@ -95,7 +95,7 @@ export class AuthService {
         `, [username]);
       }
 
-      console.log(`[AUTH] Resultado da busca: ${user ? `Usuário encontrado (ID: ${user.user_id})` : 'Usuário NÃO encontrado'}`);
+      console.log(`[AUTH] Resultado da busca: ${user ? `Usuário encontrado (ID: ${user.id || user.user_id})` : 'Usuário NÃO encontrado'}`);
 
       if (!user) {
         console.log(`[AUTH] ❌ Usuário '${username}' não encontrado ou inativo`);
@@ -113,7 +113,7 @@ export class AuthService {
 
       if (!isValidPassword) {
         console.log(`[AUTH] ❌ Senha inválida para usuário '${username}'`);
-        await this.getAuditService().log('auth', 'login_failed', user.user_id, { username, reason: 'invalid_password' }).catch(e => console.error('[AUTH] Erro ao registrar log:', e.message));
+        await this.getAuditService().log('auth', 'login_failed', user.id || user.user_id, { username, reason: 'invalid_password' }).catch(e => console.error('[AUTH] Erro ao registrar log:', e.message));
         return { success: false, error: 'Credenciais inválidas' };
       }
 
@@ -122,8 +122,8 @@ export class AuthService {
       await this.db.executeRaw(`
         UPDATE users 
         SET last_login = CURRENT_TIMESTAMP 
-        WHERE user_id = ?
-      `, [user.user_id]).catch(e => console.error('[AUTH] Erro ao atualizar last_login:', e.message));
+        WHERE id = ?
+      `, [user.id || user.user_id]).catch(e => console.error('[AUTH] Erro ao atualizar last_login:', e.message));
 
       // Gerar tokens
       console.log(`[AUTH] Gerando tokens JWT...`);
@@ -132,7 +132,7 @@ export class AuthService {
       console.log(`[AUTH] Tokens gerados com sucesso`);
 
       // Log de sucesso
-      await this.getAuditService().log('auth', 'login_success', user.user_id, { username }).catch(e => console.error('[AUTH] Erro ao registrar log de sucesso:', e.message));
+      await this.getAuditService().log('auth', 'login_success', user.id || user.user_id, { username }).catch(e => console.error('[AUTH] Erro ao registrar log de sucesso:', e.message));
 
       console.log(`[AUTH] ✅ Login bem-sucedido para '${username}'`);
 
@@ -141,7 +141,7 @@ export class AuthService {
         token,
         refreshToken,
         user: {
-          id: user.user_id,
+          id: user.id || user.user_id,
           username: user.username,
           role: user.role,
           clientId: user.client_id
@@ -177,7 +177,7 @@ export class AuthService {
 
       // Verificar se usuário já existe
       const existingUser = await this.db.findFirst(`
-        SELECT user_id FROM users WHERE username = ?
+        SELECT id FROM users WHERE username = ?
       `, [username]);
 
       if (existingUser) {
@@ -207,13 +207,13 @@ export class AuthService {
             SELECT u.*, c.name as client_name 
             FROM users u 
             LEFT JOIN clients c ON u.client_id = c.client_id 
-            WHERE u.user_id = ?
+            WHERE u.id = ?
           `, [result.lastInsertRowid]);
         } catch {
           newUser = await this.db.findFirst(`
             SELECT u.*
             FROM users u 
-            WHERE u.user_id = ?
+            WHERE u.id = ?
           `, [result.lastInsertRowid]);
         }
       } else {
@@ -229,7 +229,7 @@ export class AuthService {
       const refreshToken = this.generateRefreshToken(newUser);
 
       // Log de registro
-      await this.getAuditService().log('auth', 'user_registered', newUser.user_id, { username, role });
+      await this.getAuditService().log('auth', 'user_registered', newUser.id || newUser.user_id, { username, role });
 
       return {
         success: true,
@@ -278,7 +278,7 @@ export class AuthService {
         user = await this.db.findFirst(`
           SELECT u.*
           FROM users u 
-          WHERE u.user_id = ? AND u.is_active = 1
+          WHERE u.id = ? AND u.is_active = true
         `, [decoded.userId]);
       }
 
@@ -293,7 +293,7 @@ export class AuthService {
         success: true,
         token: newToken,
         user: {
-          id: user.user_id,
+          id: user.id || user.user_id,
           username: user.username,
           role: user.role,
           clientId: user.client_id
@@ -315,7 +315,7 @@ export class AuthService {
 
       // Buscar usuário
       const user = await this.db.findFirst(`
-        SELECT password_hash FROM users WHERE user_id = ? AND is_active = true
+        SELECT password_hash FROM users WHERE id = ? AND is_active = true
       `, [userId]);
 
       if (!user) {
@@ -337,7 +337,7 @@ export class AuthService {
       await this.db.executeRaw(`
         UPDATE users 
         SET password_hash = ?, updated_at = CURRENT_TIMESTAMP 
-        WHERE user_id = ?
+        WHERE id = ?
       `, [newPasswordHash, userId]);
 
       // Log de alteração
@@ -374,7 +374,7 @@ export class AuthService {
               c.email as client_email
             FROM users u 
             LEFT JOIN clients c ON u.client_id = c.client_id 
-            WHERE u.user_id = ? AND u.is_active = true
+            WHERE u.id = ? AND u.is_active = true
           `, [userId]);
         } catch {
           user = await this.db.findFirst(`
@@ -387,7 +387,7 @@ export class AuthService {
               u.created_at,
               u.updated_at
             FROM users u 
-            WHERE u.user_id = ? AND u.is_active = true
+            WHERE u.id = ? AND u.is_active = true
           `, [userId]);
         }
       } else {
@@ -401,7 +401,7 @@ export class AuthService {
             u.created_at,
             u.updated_at
           FROM users u 
-          WHERE u.user_id = ? AND u.is_active = 1
+          WHERE u.user_id = ? AND u.is_active = true
         `, [userId]);
       }
 
@@ -450,7 +450,7 @@ export class AuthService {
    */
   private generateToken(user: any): string {
     const payload = {
-      userId: user.user_id,
+      userId: user.id || user.user_id,
       username: user.username,
       role: user.role,
       clientId: user.client_id
@@ -466,7 +466,7 @@ export class AuthService {
    */
   private generateRefreshToken(user: any): string {
     const payload = {
-      userId: user.user_id,
+      userId: user.id || user.user_id,
       type: 'refresh'
     };
 
@@ -489,7 +489,7 @@ export class AuthService {
   async createDefaultAdmin(): Promise<void> {
     try {
       const adminExists = await this.db.findFirst(`
-        SELECT user_id FROM users WHERE username = 'admin'
+        SELECT id FROM users WHERE username = 'admin'
       `);
 
       if (adminExists) {

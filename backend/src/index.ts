@@ -19,7 +19,7 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import clientRoutes from './routes/clients';
 import dashboardRoutes from './routes/dashboard';
-import playerRoutes from './routes/players';
+import playerRoutes from './routes/players'; // API de gerenciamento de players
 import mediaRoutes from './routes/media';
 import playlistRoutes from './routes/playlists';
 import campaignRoutes from './routes/campaigns';
@@ -225,9 +225,16 @@ app.get('/api/docs.json', (req, res) => {
 });
 
 // Player routes (sem autenticação)
+import playerValidationRoutes from './routes/player';
+
+// Servir player com suporte a UIN como parâmetro
 app.get('/player', (req, res) => {
-  res.sendFile('/opt/smart-signage/player/index.html');
+  const playerPath = process.env.PLAYER_PATH || '/opt/smart-signage/player/index.html';
+  res.sendFile(playerPath);
 });
+
+// API de validação do player (antes do middleware de autenticação)
+app.use('/api/player', playerValidationRoutes);
 
 app.get('/player/config', async (req, res) => {
   try {

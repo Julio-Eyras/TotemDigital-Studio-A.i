@@ -1557,9 +1557,63 @@ server {
 }
 EOF
     else
+        # Configuração separada: Porta 80 (Player) e Porta 8080 (Admin)
         sudo tee $NGINX_CONFIG > /dev/null << EOF
+# ============================================
+# PORTA 80 - PLAYER (Público, sem autenticação)
+# ============================================
 server {
     listen 80;
+    server_name _;
+    
+    # Backend API para player
+    location /api/player/ {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+    
+    # Player - rota principal
+    location = /player {
+        alias $INSTALL_DIR/player/index.html;
+        try_files \$uri =404;
+    }
+    
+    # Player - arquivos estáticos
+    location /player/ {
+        alias $INSTALL_DIR/player/;
+        try_files \$uri \$uri/ /player/index.html;
+    }
+    
+    # Redirecionar raiz para player
+    location = / {
+        return 301 /player;
+    }
+    
+    # Health check (sem redirecionamento)
+    location = /health {
+        proxy_pass http://localhost:3000/health;
+        proxy_set_header Host \$host;
+    }
+    
+    # Compressão Gzip
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
+}
+
+# ============================================
+# PORTA 8080 - PAINEL ADMINISTRATIVO (Login)
+# ============================================
+server {
+    listen 8080;
     server_name _;
     
     # Diretório raiz e arquivo índice
@@ -1583,6 +1637,7 @@ server {
     
     # Outros arquivos estáticos (manifest, favicon, etc.)
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
+        root $FRONTEND_BUILD_DIR;
         expires 1y;
         add_header Cache-Control "public, immutable";
         access_log off;
@@ -1602,12 +1657,6 @@ server {
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
-    }
-    
-    # Player
-    location /player/ {
-        alias $INSTALL_DIR/player/;
-        try_files \$uri \$uri/ /player/index.html;
     }
     
     # Assets
@@ -2156,8 +2205,8 @@ test_endpoints() {
         ENDPOINTS=(
             ["Backend Health"]="http://$SERVER_IP:3000/health"
             ["Backend API"]="http://$SERVER_IP:3000/api/health"
-            ["Frontend"]="http://$SERVER_IP:80"
-            ["Player"]="http://$SERVER_IP:80/player"
+            ["Player (Porta 80)"]="http://$SERVER_IP:80/player"
+            ["Painel Admin (Porta 8080)"]="http://$SERVER_IP:8080"
         )
         
     elif [[ "$INSTALL_MODE" == "development" ]]; then
@@ -4094,11 +4143,15 @@ show_final_info() {
     if [ -f "$INSTALL_DIR/.env" ]; then
         . "$INSTALL_DIR/.env"
     fi
-    # No modo single-server, Nginx está na porta 80
+    # No modo single-server:
+    # - Porta 80: Player (público)
+    # - Porta 8080: Painel Administrativo (login)
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
-        FRONTEND_PORT=${FRONTEND_PORT:-80}
+        FRONTEND_PORT=${FRONTEND_PORT:-8080}  # Painel Admin na porta 8080
+        PLAYER_PORT=${PLAYER_PORT:-80}        # Player na porta 80
     else
         FRONTEND_PORT=${FRONTEND_PORT:-8080}
+        PLAYER_PORT=${PLAYER_PORT:-80}
     fi
     FRONTEND_ALT_PORT=${FRONTEND_ALT_PORT:-3001}
     BACKEND_PORT=${BACKEND_PORT:-3000}
@@ -4136,12 +4189,19 @@ show_final_info() {
     echo -e "${GREEN}║                    🌐 LINKS DE ACESSO                        ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo
-    echo -e "${CYAN}📱 PAINEL ADMINISTRATIVO (Frontend):${NC}"
+    echo -e "${CYAN}📱 PAINEL ADMINISTRATIVO (Login):${NC}"
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-    echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:$FRONTEND_PORT${NC} ${GREEN}(Acesso remoto)${NC}"
+    echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:8080${NC} ${GREEN}(Acesso remoto)${NC}"
     fi
-    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:$FRONTEND_PORT${NC} ${BLUE}(Rede interna)${NC}"
-    echo -e "   ${BLUE}   (Interface principal do sistema)${NC}"
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:8080${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${BLUE}   (Interface administrativa com login)${NC}"
+    echo
+    echo -e "${CYAN}📺 PLAYER DE MÍDIA (Totem):${NC}"
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+    echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:80/player?uin=TOTEM_UIN${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80/player?uin=TOTEM_UIN${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${BLUE}   (Player público para totems - sem login)${NC}"
     echo
     echo -e "${CYAN}🔧 API BACKEND:${NC}"
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
@@ -4150,17 +4210,10 @@ show_final_info() {
     echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:3000${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (API REST para integração)${NC}"
     echo
-    echo -e "${CYAN}📺 PLAYER DE MÍDIA:${NC}"
-    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-    echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:$FRONTEND_PORT/player${NC} ${GREEN}(Acesso remoto)${NC}"
-    fi
-    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:$FRONTEND_PORT/player${NC} ${BLUE}(Rede interna)${NC}"
-    echo -e "   ${BLUE}   (Player para totems)${NC}"
-    echo
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
         echo -e "${GREEN}💡 DICA:${NC} ${YELLOW}Use o IP Externo para acesso remoto${NC}"
         echo -e "${GREEN}💡 DICA:${NC} ${YELLOW}Use o IP Local para acesso na rede interna${NC}"
-        echo -e "${YELLOW}⚠️  IMPORTANTE:${NC} ${RED}Configure firewall para permitir acesso às portas 80 e 3000${NC}"
+        echo -e "${YELLOW}⚠️  IMPORTANTE:${NC} ${RED}Configure firewall para permitir acesso às portas 80, 8080 e 3000${NC}"
     else
         echo -e "${YELLOW}⚠️  AVISO:${NC} ${RED}IP Externo não detectado. Configure firewall para acesso remoto.${NC}"
     fi
@@ -4221,7 +4274,7 @@ show_final_info() {
         echo -e "   ${GREEN}✓${NC} Auto-login configurado"
         echo -e "   ${GREEN}✓${NC} Navegador inicia automaticamente"
         echo -e "   ${GREEN}✓${NC} Tela em modo Portrait (vertical)"
-        echo -e "   ${GREEN}✓${NC} URL: ${YELLOW}${KIOSK_URL:-http://$LOCAL_IP:80}${NC}"
+        echo -e "   ${GREEN}✓${NC} URL: ${YELLOW}${KIOSK_URL:-http://$LOCAL_IP:80/player}${NC}"
         echo
         echo -e "${BLUE}🔧 Gerenciamento do Kiosk:${NC}"
         echo -e "   ${YELLOW}$INSTALL_DIR/scripts/manage-kiosk.sh start${NC}    - Iniciar Kiosk"
@@ -4627,7 +4680,7 @@ EOF
     
     # Obter IP do servidor para o URL
     SERVER_IP=$(hostname -I | awk '{print $1}')
-    KIOSK_URL="http://${SERVER_IP}:80"
+    KIOSK_URL="http://${SERVER_IP}:80/player"
     
     # Criar diretório de autostart
     mkdir -p "$HOME/.config/autostart"
