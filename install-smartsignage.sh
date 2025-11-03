@@ -1563,8 +1563,10 @@ server {
     }
 
     # Player
+    location = /player { return 301 /player/; }
     location /player/ {
-        alias $INSTALL_DIR/player/;
+        alias /opt/smart-signage/player/;
+        index index.html;
         try_files \$uri \$uri/ /player/index.html;
     }
 
@@ -1599,15 +1601,11 @@ server {
         proxy_read_timeout 60s;
     }
     
-    # Player - rota principal
-    location = /player {
-        alias $INSTALL_DIR/player/index.html;
-        try_files \$uri =404;
-    }
-    
-    # Player - arquivos estáticos
+    # Player - redirect raiz e arquivos
+    location = /player { return 301 /player/; }
     location /player/ {
-        alias $INSTALL_DIR/player/;
+        alias /opt/smart-signage/player/;
+        index index.html;
         try_files \$uri \$uri/ /player/index.html;
     }
     
