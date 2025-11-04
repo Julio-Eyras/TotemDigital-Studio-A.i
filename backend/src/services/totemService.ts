@@ -33,6 +33,7 @@ export interface UpdateTotemRequest {
 export interface TotemResponse {
   id: number;
   identifier: string;
+  uin?: string;
   deviceId?: string;
   localId?: string;
   description?: string;
