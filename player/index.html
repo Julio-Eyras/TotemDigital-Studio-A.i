@@ -142,8 +142,8 @@
                         this._rcCount = 0;
                         const pin = prompt('Digite o PIN (4 dígitos):');
                         if (pin === '1950') {
-                            alert('PIN correto. Saindo do player.');
-                            window.location.href = '/';
+                            alert('PIN correto. Saindo do player e retornando ao ambiente gráfico...');
+                            this.exitKioskMode();
                         } else if (pin !== null) {
                             alert('PIN incorreto.');
                         }
@@ -294,6 +294,47 @@
                 
                 // Fallback: retornar null (backend irá validar de outra forma)
                 return null;
+            }
+            
+            async exitKioskMode() {
+                try {
+                    // Tentar chamar o backend para executar comando de saída do kiosk
+                    const exitResponse = await fetch(`${this.apiBaseUrl}/player/exit-kiosk`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            uin: this.uin,
+                            token: this.token
+                        })
+                    });
+                    
+                    if (exitResponse.ok) {
+                        console.log('✅ Comando de saída do kiosk enviado ao backend');
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Não foi possível enviar comando de saída ao backend:', error);
+                }
+                
+                // Tentar fechar o navegador (se permitido)
+                try {
+                    // Para navegadores em modo kiosk, pode precisar de um pequeno delay
+                    setTimeout(() => {
+                        if (window.close) {
+                            window.close();
+                        }
+                    }, 500);
+                } catch (error) {
+                    console.warn('⚠️ Não foi possível fechar a janela:', error);
+                }
+                
+                // Se não conseguiu fechar, tentar fazer logout do usuário via comando do sistema
+                // Isso será feito pelo backend se o endpoint /player/exit-kiosk existir
+                // Por enquanto, redirecionar para uma página que indica saída
+                setTimeout(() => {
+                    window.location.href = '/player/exit';
+                }, 1000);
             }
 
             async validateTotem() {

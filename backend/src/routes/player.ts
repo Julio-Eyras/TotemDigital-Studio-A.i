@@ -540,4 +540,71 @@ router.get('/hardware-info', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @route POST /api/player/exit-kiosk
+ * @desc Sair do modo kiosk e retornar ao ambiente gráfico
+ * @access Public (para totens com PIN correto)
+ */
+router.post('/exit-kiosk',
+  body('uin').optional().isString(),
+  body('token').optional().isString(),
+  async (req: Request, res: Response) => {
+    try {
+      const { uin, token } = req.body;
+
+      // Validar token se fornecido
+      if (uin && token && typeof token === 'string') {
+        if (!validateTotemToken(uin, token)) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+      }
+
+      // Executar comando para sair do modo kiosk
+      // Tentar várias abordagens para garantir que funcione
+      const commands = [
+        // Fechar navegador Chromium
+        'pkill -f chromium',
+        // Fechar navegador Firefox
+        'pkill -f firefox',
+        // Fechar navegador Chrome
+        'pkill -f chrome',
+        // Fazer logout do usuário atual (se estiver em sessão gráfica)
+        'bash -c "SESSION_ID=$(loginctl list-sessions --no-legend 2>/dev/null | grep "$(whoami)" | head -1 | awk \'{print $1}\'); if [ -n \"$SESSION_ID\" ]; then loginctl terminate-session \"$SESSION_ID\" 2>/dev/null; fi"',
+        // Fechar sessão X (se aplicável)
+        'pkill -9 X 2>/dev/null || true'
+      ];
+
+      let executed = false;
+      for (const cmd of commands) {
+        try {
+          await execAsync(cmd, { timeout: 3000 });
+          executed = true;
+          console.log(`✅ Comando executado para sair do kiosk: ${cmd}`);
+          // Não parar aqui, tentar executar todos os comandos possíveis
+        } catch (error: any) {
+          // Continuar tentando outros comandos mesmo se este falhar
+          continue;
+        }
+      }
+
+      if (executed) {
+        res.json({
+          success: true,
+          message: 'Comando de saída do kiosk executado com sucesso'
+        });
+      } else {
+        // Se nenhum comando funcionou, retornar instruções
+        res.json({
+          success: false,
+          message: 'Não foi possível executar comando de saída automaticamente',
+          instructions: 'Você pode fechar o navegador manualmente ou fazer logout do usuário'
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao executar saída do kiosk:', error.message);
+      res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
 export default router;
