@@ -3956,12 +3956,12 @@ manage_demo_seed_strategy() {
     # Detectar marcadores de DEMO (default-demo, playlist demo, mídias demo) com timeout e tratamento de erro
     DEMO_TOTEM_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems WHERE uin = 'default-demo';" 2>/dev/null | tr -d ' ' || echo "0")
     DEMO_PLAYLIST_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists WHERE name ILIKE 'Playlist Demo' OR playlist_id = 5;" 2>/dev/null | tr -d ' ' || echo "0")
-    DEMO_MEDIA_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE title ILIKE 'Smart Signage-Pro %' OR filename ILIKE 'smart-signage-pro-%' OR (tags::text ILIKE '%demo%');" 2>/dev/null | tr -d ' ' || echo "0")
+    DEMO_MEDIA_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE title ILIKE 'Smart Signage-Pro %' OR file_path ILIKE '%smart-signage-pro-%' OR name ILIKE 'Smart Signage-Pro %' OR (tags::text ILIKE '%demo%');" 2>/dev/null | tr -d ' ' || echo "0")
 
     # Contar dados NÃO-DEMO em tabelas principais (com timeout e tratamento de erro)
     NON_DEMO_CLIENTS=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM clients WHERE name NOT ILIKE '%demo%';" 2>/dev/null | tr -d ' ' || echo "0")
     NON_DEMO_TOTEMS=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems WHERE uin <> 'default-demo' OR uin IS NULL;" 2>/dev/null | tr -d ' ' || echo "0")
-    NON_DEMO_MEDIA=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE NOT (title ILIKE 'Smart Signage-Pro %' OR filename ILIKE 'smart-signage-pro-%' OR (tags::text ILIKE '%demo%'));" 2>/dev/null | tr -d ' ' || echo "0")
+    NON_DEMO_MEDIA=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE NOT (title ILIKE 'Smart Signage-Pro %' OR file_path ILIKE '%smart-signage-pro-%' OR name ILIKE 'Smart Signage-Pro %' OR (tags::text ILIKE '%demo%'));" 2>/dev/null | tr -d ' ' || echo "0")
     NON_DEMO_PLAYLISTS=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists WHERE NOT (name ILIKE 'Playlist Demo' OR playlist_id = 5);" 2>/dev/null | tr -d ' ' || echo "0")
 
     [[ -z "$DEMO_TOTEM_CNT" ]] && DEMO_TOTEM_CNT=0
@@ -4059,31 +4059,36 @@ DELETE FROM totems WHERE totem_id IN (
 DELETE FROM playlist_items WHERE media_id IN (
   SELECT media_id FROM medias 
   WHERE title ILIKE 'Smart Signage-Pro %' 
-     OR filename ILIKE 'smart-signage-pro-%' 
+     OR file_path ILIKE '%smart-signage-pro-%' 
+     OR name ILIKE 'Smart Signage-Pro %'
      OR (tags::text ILIKE '%demo%')
 );
 DELETE FROM aggregated_metrics WHERE media_id IN (
   SELECT media_id FROM medias 
   WHERE title ILIKE 'Smart Signage-Pro %' 
-     OR filename ILIKE 'smart-signage-pro-%' 
+     OR file_path ILIKE '%smart-signage-pro-%' 
+     OR name ILIKE 'Smart Signage-Pro %'
      OR (tags::text ILIKE '%demo%')
 );
 DELETE FROM approval_workflows WHERE media_id IN (
   SELECT media_id FROM medias 
   WHERE title ILIKE 'Smart Signage-Pro %' 
-     OR filename ILIKE 'smart-signage-pro-%' 
+     OR file_path ILIKE '%smart-signage-pro-%' 
+     OR name ILIKE 'Smart Signage-Pro %'
      OR (tags::text ILIKE '%demo%')
 );
 DELETE FROM execution_logs WHERE media_id IN (
   SELECT media_id FROM medias 
   WHERE title ILIKE 'Smart Signage-Pro %' 
-     OR filename ILIKE 'smart-signage-pro-%' 
+     OR file_path ILIKE '%smart-signage-pro-%' 
+     OR name ILIKE 'Smart Signage-Pro %'
      OR (tags::text ILIKE '%demo%')
 );
 DELETE FROM medias WHERE media_id IN (
   SELECT media_id FROM medias 
   WHERE title ILIKE 'Smart Signage-Pro %' 
-     OR filename ILIKE 'smart-signage-pro-%' 
+     OR file_path ILIKE '%smart-signage-pro-%' 
+     OR name ILIKE 'Smart Signage-Pro %'
      OR (tags::text ILIKE '%demo%')
 );
 
