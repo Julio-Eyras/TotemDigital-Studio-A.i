@@ -322,4 +322,127 @@ router.get('/stats/offline', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @route PUT /api/totems/:id/approve
+ * @desc Aprovar totem pendente de aprovação
+ * @access Private (Admin)
+ */
+router.put('/:id/approve',
+  param('id').isInt({ min: 1 }),
+  body('generateEncryptedConfig').optional().isBoolean(),
+  validateRequest,
+  async (req: Request, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id);
+      const { generateEncryptedConfig = false } = req.body;
+      const userId = (req as any).user?.id || 1; // Default user if not available
+
+      // Buscar totem
+      const totem = await getTotemService().getTotemById(totemId);
+      if (!totem) {
+        return res.status(404).json({ error: 'Totem não encontrado' });
+      }
+
+      // Verificar se totem está pendente de aprovação
+      const db = require('../config/database').getDatabase();
+      const totemFull = await db.findFirst(`
+        SELECT status, uin, identifier, config
+        FROM totems
+        WHERE totem_id = ?
+      `, [totemId]);
+
+      if (!totemFull || totemFull.status !== 'pending_approval') {
+        return res.status(400).json({ 
+          error: 'Totem não está pendente de aprovação',
+          currentStatus: totemFull?.status || 'unknown'
+        });
+      }
+
+      // Atualizar status para 'online' ou 'active'
+      await db.executeRaw(`
+        UPDATE totems
+        SET status = 'online', updated_at = CURRENT_TIMESTAMP
+        WHERE totem_id = ?
+      `, [totemId]);
+
+      // Se solicitado, gerar arquivo de configuração encriptado
+      let encryptedConfigPath = null;
+      if (generateEncryptedConfig && totemFull.uin) {
+        try {
+          const { exec } = require('child_process');
+          const { promisify } = require('util');
+          const execAsync = promisify(exec);
+          
+          // Determinar diretório do player
+          const playerDir = process.env.PLAYER_DIR || '/opt/smart-signage/player';
+          const secretKey = process.env.TOTEM_SECRET_KEY || 'smart-signage-totem-secret-key-2025-change-in-production';
+          
+          // Executar script de geração de config
+          const path = require('path');
+          const scriptPath = process.env.GENERATE_CONFIG_SCRIPT || 
+                           path.join(__dirname, '../../scripts/generate-player-config.sh');
+          
+          await execAsync(`bash "${scriptPath}" "${totemFull.uin}" "${playerDir}" "${secretKey}"`, {
+            timeout: 10000
+          });
+          
+          encryptedConfigPath = `${playerDir}/config.json.enc`;
+        } catch (configError: any) {
+          console.warn('⚠️ Erro ao gerar config encriptado:', configError.message);
+          // Não falhar a aprovação se gerar config falhar
+        }
+      }
+
+      // Log de auditoria
+      try {
+        const auditService = require('../services/auditService').getAuditService();
+        await auditService.log('totem', 'approved', userId, {
+          totemId,
+          uin: totemFull.uin,
+          identifier: totemFull.identifier
+        });
+      } catch (auditError) {
+        console.warn('⚠️ Erro ao registrar log de auditoria:', auditError);
+      }
+
+      // Buscar totem atualizado
+      const approvedTotem = await getTotemService().getTotemById(totemId);
+
+      res.json({
+        success: true,
+        message: 'Totem aprovado com sucesso',
+        totem: approvedTotem,
+        encryptedConfigPath: encryptedConfigPath || undefined
+      });
+    } catch (error: any) {
+      console.error('❌ Erro ao aprovar totem:', error.message);
+      res.status(500).json({ error: 'Erro ao aprovar totem', details: error.message });
+    }
+  }
+);
+
+/**
+ * @route GET /api/totems/pending
+ * @desc Listar totems pendentes de aprovação
+ * @access Private (Admin)
+ */
+router.get('/pending',
+  query('page').optional().isInt({ min: 1 }),
+  query('limit').optional().isInt({ min: 1, max: 100 }),
+  validateRequest,
+  async (req: Request, res: Response) => {
+    try {
+      const { page = 1, limit = 10 } = req.query;
+      const result = await getTotemService().getAllTotems({
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        status: 'pending_approval'
+      });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao listar totems pendentes' });
+    }
+  }
+);
+
 export default router;

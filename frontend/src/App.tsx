@@ -20,6 +20,7 @@ import SmartPlaylist from './pages/SmartPlaylist/SmartPlaylist';
 import Totems from './pages/Totems/Totems';
 import Billing from './pages/Billing/Billing';
 import QRCodes from './pages/QRCodes/QRCodes';
+import AdminTools from './pages/AdminTools/AdminTools';
 
 // Components
 import Layout from './components/Layout/Layout';
@@ -265,6 +266,14 @@ const App: React.FC = () => {
             element={
               <ProtectedRoute>
                 <QRCodes />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin-tools"
+            element={
+              <ProtectedRoute>
+                <AdminTools />
               </ProtectedRoute>
             }
           />

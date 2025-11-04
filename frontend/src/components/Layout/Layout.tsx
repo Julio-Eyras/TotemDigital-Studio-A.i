@@ -39,6 +39,7 @@ import {
   QrCode,
   Payment,
   Tv,
+  Build,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authApi } from '../../services/api';
@@ -89,6 +90,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'QR Codes', icon: <QrCode />, path: '/qr-codes' },
     { text: 'Faturamento', icon: <Payment />, path: '/billing' },
     { text: 'IA', icon: <SmartToy />, path: '/ai' },
+    { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
     { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 

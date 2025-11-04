@@ -85,15 +85,6 @@ router.get('/validate',
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
 
-      // Verificar se totem está ativo
-      if (!totem.active) {
-        return res.status(403).json({ 
-          error: 'Totem inativo',
-          blocked: true,
-          reason: 'Totem desativado no sistema'
-        });
-      }
-
       // Verificar bloqueios adicionais (campo status pode indicar bloqueio)
       const totemFull = await db.findFirst(`
         SELECT 
@@ -108,6 +99,32 @@ router.get('/validate',
         WHERE t.identifier = ? OR t.uin = ?
         LIMIT 1
       `, [uin, uin]);
+
+      // Verificar se totem está pendente de aprovação
+      if (totemFull && totemFull.status === 'pending_approval') {
+        return res.status(403).json({ 
+          error: 'Totem aguardando aprovação',
+          blocked: true,
+          pendingApproval: true,
+          reason: 'Este totem foi auto-registrado e está aguardando aprovação do administrador',
+          message: 'Aguarde aprovação do administrador para ativação',
+          totem: {
+            id: (totemFull as any).totem_id,
+            uin: uin,
+            identifier: totemFull.identifier,
+            status: 'pending_approval'
+          }
+        });
+      }
+
+      // Verificar se totem está ativo
+      if (!totem.active) {
+        return res.status(403).json({ 
+          error: 'Totem inativo',
+          blocked: true,
+          reason: 'Totem desativado no sistema'
+        });
+      }
 
       // Determinar o ID numérico do totem para consultas relacionadas
       const totemId = (totemFull && (totemFull as any).totem_id) || (totem as any).id;
@@ -539,6 +556,277 @@ router.get('/hardware-info', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
+
+/**
+ * @route POST /api/player/register
+ * @desc Auto-registro de totem na primeira instalação
+ * @access Public (para players na primeira instalação)
+ */
+router.post('/register',
+  body('uin').isString().isLength({ min: 3, max: 100 }),
+  body('hardware').isObject(),
+  body('hardware.macAddress').optional().isString(),
+  body('hardware.hostname').optional().isString(),
+  body('hardware.platform').optional().isString(),
+  body('hardware.arch').optional().isString(),
+  body('hardware.hardwareHash').optional().isString(),
+  async (req: Request, res: Response) => {
+    const requestId = `REG-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const startTime = Date.now();
+    
+    try {
+      console.log(`[${requestId}] 📡 Iniciando auto-registro de totem`);
+      console.log(`[${requestId}] 📋 Dados recebidos:`, JSON.stringify({
+        uin: req.body.uin,
+        hardware: {
+          ...req.body.hardware,
+          hardwareHash: req.body.hardware?.hardwareHash ? 'HASH_PRESENTE' : 'AUSENTE'
+        },
+        ip: req.ip,
+        userAgent: req.get('user-agent')
+      }, null, 2));
+
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        console.error(`[${requestId}] ❌ Erros de validação:`, errors.array());
+        return res.status(400).json({ 
+          error: 'Parâmetros inválidos', 
+          details: errors.array(),
+          requestId: requestId
+        });
+      }
+
+      const { uin, hardware } = req.body;
+      console.log(`[${requestId}] ✅ Validação passou. UIN: ${uin}`);
+      
+      const db = getDatabase();
+      const totemService = new TotemService();
+      
+      console.log(`[${requestId}] 🔍 Verificando se UIN já existe...`);
+
+      // Verificar se UIN já existe
+      const existingTotem = await totemService.getTotemByUin(uin);
+      if (existingTotem) {
+        console.warn(`[${requestId}] ⚠️ UIN já registrado: ${uin}`);
+        return res.status(409).json({ 
+          error: 'UIN já registrado',
+          uin: uin,
+          message: 'Este UIN já está cadastrado no sistema',
+          requestId: requestId
+        });
+      }
+      console.log(`[${requestId}] ✅ UIN não existe, pode prosseguir`);
+
+      // Verificar se hardware já está registrado (prevenção de clonagem)
+      const hardwareHash = hardware.hardwareHash || (hardware.macAddress || '').toLowerCase();
+      console.log(`[${requestId}] 🔍 Verificando hardware duplicado. Hash: ${hardwareHash ? 'PRESENTE' : 'AUSENTE'}`);
+      
+      if (hardwareHash && hardwareHash !== 'unknown') {
+        try {
+          const existingHardware = await db.findFirst(`
+            SELECT totem_id, uin, identifier 
+            FROM totems 
+            WHERE config::text ILIKE '%"${hardwareHash}"%' 
+               OR config::text ILIKE '%"${hardware.macAddress || ''}"%'
+            LIMIT 1
+          `);
+          
+          if (existingHardware) {
+            console.warn(`[${requestId}] ⚠️ Hardware já registrado:`, existingHardware);
+            return res.status(409).json({ 
+              error: 'Hardware já registrado',
+              message: 'Este hardware já está cadastrado com outro totem',
+              existingTotem: {
+                id: existingHardware.totem_id,
+                uin: existingHardware.uin,
+                identifier: existingHardware.identifier
+              },
+              requestId: requestId
+            });
+          }
+          console.log(`[${requestId}] ✅ Hardware não está duplicado`);
+        } catch (hardwareCheckError: any) {
+          console.error(`[${requestId}] ⚠️ Erro ao verificar hardware duplicado:`, hardwareCheckError.message);
+          // Continuar mesmo se houver erro na verificação de hardware
+        }
+      } else {
+        console.log(`[${requestId}] ⚠️ Hardware hash ausente, pulando verificação de duplicação`);
+      }
+
+      // Obter próximo totem_id disponível
+      console.log(`[${requestId}] 🔢 Obtendo próximo totem_id...`);
+      const nextTotemId = await db.findFirst(`
+        SELECT COALESCE(MAX(totem_id), 0) + 1 as next_id FROM totems
+      `);
+      const totemId = (nextTotemId as any)?.next_id || 1;
+      console.log(`[${requestId}] ✅ Totem ID obtido: ${totemId}`);
+
+      // Criar cliente padrão se não existir
+      console.log(`[${requestId}] 👤 Verificando cliente padrão...`);
+      const clientExists = await db.findFirst(`
+        SELECT client_id FROM clients WHERE client_id = 1
+      `);
+      if (!clientExists) {
+        console.log(`[${requestId}] 👤 Criando cliente padrão...`);
+        await db.executeRaw(`
+          INSERT INTO clients (client_id, name) 
+          VALUES (1, 'Cliente Padrão') 
+          ON CONFLICT DO NOTHING
+        `);
+        console.log(`[${requestId}] ✅ Cliente padrão criado`);
+      } else {
+        console.log(`[${requestId}] ✅ Cliente padrão já existe`);
+      }
+
+      // Preparar configuração com hardware info
+      const config = {
+        hardware: {
+          mac: hardware.macAddress || null,
+          hostname: hardware.hostname || null,
+          platform: hardware.platform || null,
+          arch: hardware.arch || null,
+          serial: hardware.serial || null,
+          hardwareHash: hardware.hardwareHash || null,
+          registeredAt: new Date().toISOString(),
+          userAgent: hardware.userAgent || null
+        },
+        resolution: '1920x1080',
+        orientation: 'portrait',
+        brightness: 80
+      };
+
+      // Criar totem no banco de dados
+      const identifier = hardware.hostname || `TOTEM-${totemId}`;
+      const deviceId = `DEVICE-${totemId.toString().padStart(3, '0')}`;
+      const description = `Totem auto-registrado - ${hardware.hostname || identifier}`;
+      const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
+      
+      console.log(`[${requestId}] 💾 Criando totem no banco de dados...`);
+      console.log(`[${requestId}] 📋 Dados do totem:`, {
+        totemId,
+        identifier,
+        uin,
+        deviceId,
+        description,
+        ipAddress,
+        configKeys: Object.keys(config)
+      });
+      
+      try {
+        await db.executeRaw(`
+          INSERT INTO totems (
+            totem_id,
+            identifier,
+            uin,
+            device_id,
+            local_id,
+            description,
+            config,
+            status,
+            version,
+            firmware_version,
+            ip_address,
+            last_seen,
+            last_heartbeat,
+            active,
+            blocked,
+            created_at,
+            updated_at
+          ) VALUES (
+            ?,
+            ?,
+            ?,
+            ?,
+            NULL,
+            ?,
+            ?,
+            'pending_approval',
+            '2.1.0',
+            '1.0.0',
+            ?,
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP,
+            true,
+            false,
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+          )
+        `, [
+          totemId,
+          identifier,
+          uin,
+          deviceId,
+          description,
+          JSON.stringify(config),
+          ipAddress
+        ]);
+        console.log(`[${requestId}] ✅ Totem inserido no banco de dados`);
+      } catch (insertError: any) {
+        console.error(`[${requestId}] ❌ Erro ao inserir totem:`, insertError.message);
+        console.error(`[${requestId}] ❌ Stack trace:`, insertError.stack);
+        throw insertError;
+      }
+
+      // Buscar totem criado
+      console.log(`[${requestId}] 🔍 Buscando totem criado...`);
+      const newTotem = await totemService.getTotemByUin(uin);
+      if (!newTotem) {
+        console.error(`[${requestId}] ❌ Totem não encontrado após inserção!`);
+        return res.status(500).json({ 
+          error: 'Erro ao criar totem',
+          message: 'Totem inserido mas não encontrado após criação',
+          requestId: requestId
+        });
+      }
+      console.log(`[${requestId}] ✅ Totem encontrado após criação:`, {
+        id: (newTotem as any).id || totemId,
+        uin: newTotem.uin,
+        identifier: (newTotem as any).identifier
+      });
+
+      // Gerar token de validação
+      const token = generateTotemToken(uin);
+      const duration = Date.now() - startTime;
+      
+      console.log(`[${requestId}] ✅ Auto-registro concluído com sucesso em ${duration}ms`);
+      
+      res.status(201).json({
+        success: true,
+        message: 'Totem registrado com sucesso. Aguardando aprovação do administrador.',
+        uin: uin,
+        token: token,
+        totem: {
+          id: (newTotem as any).id || totemId,
+          uin: uin,
+          identifier: identifier,
+          status: 'pending_approval',
+          active: true,
+          message: 'Aguardando aprovação do administrador para ativação'
+        },
+        nextSteps: [
+          'Aguarde aprovação do administrador',
+          'O totem ficará inativo até ser aprovado',
+          'Após aprovação, o totem será ativado automaticamente'
+        ],
+        requestId: requestId,
+        duration: `${duration}ms`
+      });
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      console.error(`[${requestId}] ❌ Erro ao registrar totem após ${duration}ms:`, error.message);
+      console.error(`[${requestId}] ❌ Stack trace:`, error.stack);
+      console.error(`[${requestId}] ❌ Erro completo:`, JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      
+      res.status(500).json({ 
+        error: 'Erro interno do servidor',
+        message: error.message,
+        requestId: requestId,
+        duration: `${duration}ms`,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
+  }
+);
 
 /**
  * @route POST /api/player/exit-kiosk

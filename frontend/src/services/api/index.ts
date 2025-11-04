@@ -217,15 +217,18 @@ export const clientApi = {
 
 export interface Player {
   totem_id: number;
-  name: string;
+  name?: string;
+  identifier?: string;
+  uin?: string;
   location?: string;
   client_id?: number;
   is_active: boolean;
   last_heartbeat?: string;
   current_playlist_id?: number;
-  status: 'online' | 'offline' | 'error';
+  status: 'online' | 'offline' | 'error' | 'pending_approval';
   created_at: string;
   updated_at: string;
+  config?: any;
 }
 
 export interface CreatePlayerRequest {
@@ -817,6 +820,19 @@ export const totemApi = {
   delete: async (id: number): Promise<void> => {
     await api.delete(`/totems/${id}`);
   },
+
+  approve: async (id: number, generateEncryptedConfig: boolean = false): Promise<{ success: boolean; message: string; totem: Player; encryptedConfigPath?: string }> => {
+    const response = await api.put(`/totems/${id}/approve`, { generateEncryptedConfig });
+    return response.data;
+  },
+
+  getPending: async (params: {
+    page?: number;
+    limit?: number;
+  } = {}): Promise<PlayerListResponse> => {
+    const response = await api.get('/totems/pending', { params });
+    return response.data;
+  },
 };
 
 // =============================================
@@ -896,6 +912,67 @@ export const qrCodeApi = {
 
   delete: async (id: number): Promise<void> => {
     await api.delete(`/qr-codes/${id}`);
+  },
+};
+
+// =============================================
+// DEBUG API
+// =============================================
+
+export interface PlayerRegistrationLog {
+  id: number;
+  identifier: string;
+  uin: string;
+  status: string;
+  createdAt: string;
+  ipAddress: string;
+  hardware: any;
+}
+
+export interface PlayerRegistrationLogsResponse {
+  success: boolean;
+  totems: PlayerRegistrationLog[];
+  systemLogs: string[];
+  count: number;
+}
+
+export interface TotemDebugInfo {
+  success: boolean;
+  totem: any;
+}
+
+export interface SystemInfo {
+  success: boolean;
+  system: {
+    nodeVersion: string;
+    platform: string;
+    uptime: number;
+    memory: any;
+    env: string;
+  };
+  totems: {
+    stats: any;
+    recentRegistrations: any[];
+  };
+}
+
+export const debugApi = {
+  getPlayerRegistrationLogs: async (params?: {
+    limit?: number;
+    since?: string;
+  }): Promise<PlayerRegistrationLogsResponse> => {
+    const response = await api.get('/debug/player-registration-logs', { params });
+    return response.data;
+  },
+
+  getTotemInfo: async (id: string | number): Promise<TotemDebugInfo> => {
+    const response = await api.get(`/debug/totem/${id}`);
+    return response.data;
+  },
+
+  getSystemInfo: async (): Promise<SystemInfo> => {
+    const response = await api.get('/debug/system-info');
+    return response.data;
   },
 };
 

@@ -167,16 +167,30 @@
                                   localStorage.getItem('totemUIN');
                     }
                     
-                    console.log('UIN:', this.uin);
+                    console.log('UIN atual:', this.uin);
                     
+                    // Se não tiver UIN, tentar auto-registro (primeira instalação)
                     if (!this.uin) {
-                        // Fallback para demo quando UIN não for fornecido
-                        this.uin = 'default-demo';
+                        console.log('⚠️ UIN não encontrado. Tentando auto-registro...');
+                        const registrationResult = await this.autoRegister();
+                        if (registrationResult && registrationResult.success && registrationResult.uin) {
+                            this.uin = registrationResult.uin;
+                            console.log('✅ Auto-registro concluído. UIN:', this.uin);
+                        } else {
+                            // Fallback para demo quando auto-registro falhar
+                            console.warn('⚠️ Auto-registro falhou. Usando fallback demo...');
+                            this.uin = 'default-demo';
+                        }
                     }
 
                     // Validar totem
                     const validation = await this.validateTotem();
                     if (!validation.valid) {
+                        if (validation.pendingApproval) {
+                            // Totem aguardando aprovação
+                            this.showPendingApprovalPage(validation.message || 'Aguardando aprovação do administrador');
+                            return;
+                        }
                         if (validation.blocked) {
                             this.showBlockedPage(validation.reason);
                             return;
@@ -294,6 +308,251 @@
                 
                 // Fallback: retornar null (backend irá validar de outra forma)
                 return null;
+            }
+            
+            async collectHardwareInfo() {
+                try {
+                    // Coletar informações de hardware via API do backend
+                    const hardwareResponse = await fetch(`${this.apiBaseUrl}/player/hardware-info`);
+                    let hardwareInfo = {};
+                    
+                    if (hardwareResponse.ok) {
+                        hardwareInfo = await hardwareResponse.json();
+                    } else {
+                        // Fallback: coletar informações básicas do navegador
+                        hardwareInfo = {
+                            userAgent: navigator.userAgent,
+                            platform: navigator.platform,
+                            language: navigator.language,
+                            screenWidth: screen.width,
+                            screenHeight: screen.height,
+                            timestamp: Date.now()
+                        };
+                    }
+                    
+                    // Gerar hash único para identificação
+                    const hardwareString = JSON.stringify(hardwareInfo);
+                    const hardwareHash = await this.sha256(hardwareString);
+                    
+                    return {
+                        ...hardwareInfo,
+                        hardwareHash: hardwareHash
+                    };
+                } catch (error) {
+                    console.error('❌ Erro ao coletar informações de hardware:', error);
+                    return {
+                        userAgent: navigator.userAgent,
+                        platform: navigator.platform,
+                        timestamp: Date.now()
+                    };
+                }
+            }
+            
+            async sha256(message) {
+                // Gerar hash SHA-256 usando Web Crypto API
+                const msgBuffer = new TextEncoder().encode(message);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                return hashHex;
+            }
+            
+            async generateUIN(hardwareInfo) {
+                try {
+                    // Gerar UIN baseado em hardware info
+                    const uinData = {
+                        mac: hardwareInfo.macAddress || hardwareInfo.mac || 'unknown',
+                        hostname: hardwareInfo.hostname || 'unknown',
+                        platform: hardwareInfo.platform || 'unknown',
+                        arch: hardwareInfo.arch || 'unknown',
+                        hash: hardwareInfo.hardwareHash || 'unknown'
+                    };
+                    
+                    const uinString = JSON.stringify(uinData);
+                    const uinHash = await this.sha256(uinString);
+                    
+                    // Formato: SSP-{hash_16_primeiros_caracteres}
+                    const uin = `SSP-${uinHash.substring(0, 16)}`;
+                    
+                    return uin;
+                } catch (error) {
+                    console.error('❌ Erro ao gerar UIN:', error);
+                    // Fallback: UIN baseado em timestamp + random
+                    return `SSP-${Date.now().toString(36)}${Math.random().toString(36).substring(2, 8)}`;
+                }
+            }
+            
+            async autoRegister() {
+                const startTime = Date.now();
+                const requestId = `PLAYER-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+                
+                try {
+                    console.log(`[${requestId}] 📡 Iniciando auto-registro no servidor...`);
+                    console.log(`[${requestId}] 🌐 API Base URL: ${this.apiBaseUrl}`);
+                    
+                    // Coletar informações de hardware
+                    console.log(`[${requestId}] 🔧 Coletando informações de hardware...`);
+                    let hardwareInfo;
+                    try {
+                        hardwareInfo = await this.collectHardwareInfo();
+                        console.log(`[${requestId}] ✅ Hardware coletado:`, {
+                            ...hardwareInfo,
+                            hardwareHash: hardwareInfo.hardwareHash ? 'PRESENTE' : 'AUSENTE'
+                        });
+                    } catch (hwError) {
+                        console.error(`[${requestId}] ❌ Erro ao coletar hardware:`, hwError);
+                        // Continuar com hardware básico
+                        hardwareInfo = {
+                            userAgent: navigator.userAgent,
+                            platform: navigator.platform,
+                            timestamp: Date.now()
+                        };
+                        console.warn(`[${requestId}] ⚠️ Usando hardware básico devido a erro`);
+                    }
+                    
+                    // Gerar UIN baseado em hardware
+                    console.log(`[${requestId}] 🔑 Gerando UIN...`);
+                    let generatedUIN;
+                    try {
+                        generatedUIN = await this.generateUIN(hardwareInfo);
+                        console.log(`[${requestId}] ✅ UIN gerado: ${generatedUIN}`);
+                    } catch (uinError) {
+                        console.error(`[${requestId}] ❌ Erro ao gerar UIN:`, uinError);
+                        // Fallback: UIN baseado em timestamp + random
+                        generatedUIN = `SSP-${Date.now().toString(36)}${Math.random().toString(36).substring(2, 8)}`;
+                        console.warn(`[${requestId}] ⚠️ Usando UIN de fallback: ${generatedUIN}`);
+                    }
+                    
+                    // Enviar para servidor para registro
+                    console.log(`[${requestId}] 📤 Enviando requisição de registro...`);
+                    const requestBody = {
+                        uin: generatedUIN,
+                        hardware: hardwareInfo
+                    };
+                    console.log(`[${requestId}] 📋 Payload:`, JSON.stringify({
+                        ...requestBody,
+                        hardware: {
+                            ...requestBody.hardware,
+                            hardwareHash: requestBody.hardware.hardwareHash ? 'HASH_PRESENTE' : 'AUSENTE'
+                        }
+                    }, null, 2));
+                    
+                    let registerResponse;
+                    try {
+                        registerResponse = await fetch(`${this.apiBaseUrl}/player/register`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(requestBody)
+                        });
+                        console.log(`[${requestId}] 📥 Resposta recebida:`, {
+                            status: registerResponse.status,
+                            statusText: registerResponse.statusText,
+                            ok: registerResponse.ok
+                        });
+                    } catch (fetchError) {
+                        console.error(`[${requestId}] ❌ Erro de rede ao enviar requisição:`, fetchError);
+                        return { 
+                            success: false, 
+                            error: `Erro de conexão: ${fetchError.message}`,
+                            requestId: requestId,
+                            details: {
+                                apiBaseUrl: this.apiBaseUrl,
+                                endpoint: `${this.apiBaseUrl}/player/register`,
+                                error: fetchError.message
+                            }
+                        };
+                    }
+                    
+                    // Verificar resposta
+                    let responseData;
+                    try {
+                        const responseText = await registerResponse.text();
+                        console.log(`[${requestId}] 📄 Resposta bruta:`, responseText.substring(0, 500));
+                        
+                        try {
+                            responseData = JSON.parse(responseText);
+                        } catch (parseError) {
+                            console.error(`[${requestId}] ❌ Erro ao parsear JSON:`, parseError);
+                            console.error(`[${requestId}] ❌ Resposta completa:`, responseText);
+                            return { 
+                                success: false, 
+                                error: 'Resposta inválida do servidor',
+                                requestId: requestId,
+                                details: {
+                                    status: registerResponse.status,
+                                    responseText: responseText.substring(0, 500)
+                                }
+                            };
+                        }
+                    } catch (readError) {
+                        console.error(`[${requestId}] ❌ Erro ao ler resposta:`, readError);
+                        return { 
+                            success: false, 
+                            error: `Erro ao ler resposta: ${readError.message}`,
+                            requestId: requestId
+                        };
+                    }
+                    
+                    if (!registerResponse.ok) {
+                        console.error(`[${requestId}] ❌ Erro no auto-registro:`, responseData);
+                        return { 
+                            success: false, 
+                            error: responseData.error || `Erro HTTP ${registerResponse.status}`,
+                            details: responseData.details || responseData,
+                            requestId: responseData.requestId || requestId,
+                            httpStatus: registerResponse.status
+                        };
+                    }
+                    
+                    console.log(`[${requestId}] ✅ Auto-registro concluído:`, {
+                        success: responseData.success,
+                        uin: responseData.uin,
+                        requestId: responseData.requestId,
+                        duration: responseData.duration
+                    });
+                    
+                    // Salvar UIN localmente
+                    if (responseData.uin) {
+                        localStorage.setItem('totemUIN', responseData.uin);
+                        this.uin = responseData.uin;
+                        console.log(`[${requestId}] 💾 UIN salvo no localStorage: ${responseData.uin}`);
+                        
+                        // Gerar arquivo de configuração encriptado (se possível)
+                        if (responseData.token) {
+                            this.token = responseData.token;
+                            localStorage.setItem('totemToken', responseData.token);
+                            console.log(`[${requestId}] 🔐 Token salvo`);
+                        }
+                    }
+                    
+                    const duration = Date.now() - startTime;
+                    return {
+                        success: true,
+                        uin: responseData.uin || generatedUIN,
+                        totem: responseData.totem,
+                        message: responseData.message,
+                        requestId: responseData.requestId || requestId,
+                        duration: `${duration}ms`
+                    };
+                } catch (error) {
+                    const duration = Date.now() - startTime;
+                    console.error(`[${requestId}] ❌ Erro no auto-registro após ${duration}ms:`, error);
+                    console.error(`[${requestId}] ❌ Stack trace:`, error.stack);
+                    
+                    return { 
+                        success: false, 
+                        error: error.message || 'Erro desconhecido',
+                        requestId: requestId,
+                        duration: `${duration}ms`,
+                        details: {
+                            name: error.name,
+                            message: error.message,
+                            stack: error.stack
+                        }
+                    };
+                }
             }
             
             async exitKioskMode() {
@@ -663,6 +922,47 @@
                 document.getElementById('player-container').style.display = 'none';
                 document.getElementById('error').style.display = 'flex';
                 document.getElementById('error-message').textContent = message;
+            }
+
+            showPendingApprovalPage(message) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('player-container').style.display = 'none';
+                const error = document.getElementById('error');
+                error.style.display = 'flex';
+                error.innerHTML = `
+                    <h2 style="color:#2196f3;">Aguardando Aprovação</h2>
+                    <div style="margin-top:20px;font-size:16px;color:#fff;">
+                        <p style="margin-bottom:20px;">${message || 'Este totem foi auto-registrado e está aguardando aprovação do administrador.'}</p>
+                        <div style="margin-top:30px;font-size:14px;color:#ccc;max-width:800px;">
+                            <p><strong>Smart Signage Pro</strong> — Plataforma completa de sinalização digital para redes de totens e Smart TVs.</p>
+                            <ul style="text-align:left; margin: 20px auto; max-width:600px; line-height:1.8;">
+                                <li>✅ Totem registrado com sucesso</li>
+                                <li>⏳ Aguardando aprovação do administrador</li>
+                                <li>📋 Após aprovação, o totem será ativado automaticamente</li>
+                                <li>🔄 Esta página será atualizada automaticamente quando aprovado</li>
+                            </ul>
+                            <div style="margin-top:30px;padding:20px;background:rgba(33,150,243,0.1);border-radius:8px;border:1px solid rgba(33,150,243,0.3);">
+                                <p style="margin:0;font-size:13px;color:#90caf9;">
+                                    <strong>UIN:</strong> ${this.uin || 'N/A'}<br>
+                                    <strong>Status:</strong> Pendente de Aprovação
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Verificar atualização de status a cada 30 segundos
+                setInterval(async () => {
+                    try {
+                        const validation = await this.validateTotem();
+                        if (validation.valid && !validation.pendingApproval) {
+                            // Totem foi aprovado, recarregar página
+                            location.reload();
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Erro ao verificar status de aprovação:', error);
+                    }
+                }, 30000); // Verificar a cada 30 segundos
             }
 
             showBlockedPage(reason) {

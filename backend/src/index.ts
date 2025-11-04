@@ -30,6 +30,7 @@ import settingsRoutes from './routes/settings';
 import reportsRoutes from './routes/reports';
 import aiRoutes from './routes/ai';
 import smartPlaylistRoutes from './routes/smart-playlist';
+import debugRoutes from './routes/debug';
 import { openApiSpec } from './config/swagger';
 
 // Services
@@ -238,6 +239,7 @@ app.get('/player', (req, res) => {
 
 // API de validação do player (antes do middleware de autenticação)
 app.use('/api/player', playerValidationRoutes);
+app.use('/api/debug', debugRoutes); // Debug endpoints (logs, diagnóstico)
 
 app.get('/player/config', async (req, res) => {
   try {

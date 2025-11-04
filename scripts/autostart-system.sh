@@ -55,8 +55,8 @@ log "Criando arquivo de serviço systemd..."
 sudo tee /etc/systemd/system/smart-signage.service > /dev/null << 'EOF'
 [Unit]
 Description=Smart Signage Pro v2.0
-After=docker.service
-Requires=docker.service
+After=network.target docker.service
+Wants=network.target docker.service
 
 [Service]
 Type=oneshot

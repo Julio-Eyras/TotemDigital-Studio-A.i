@@ -83,7 +83,7 @@ function createSystemdService() {
   const systemdService = `[Unit]
 Description=SmartSignage-Pro v2.0
 After=network.target postgresql.service
-Requires=postgresql.service
+Wants=network.target postgresql.service
 
 [Service]
 Type=simple

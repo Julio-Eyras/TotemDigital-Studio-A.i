@@ -10,8 +10,8 @@ echo "[install] Criando unit systemd..."
 sudo bash -c "cat > /etc/systemd/system/${SERVICE_NAME}.service" <<EOF
 [Unit]
 Description=SmartSignage SmartPlayer Agent
-After=network-online.target
-Wants=network-online.target
+After=network.target
+Wants=network.target
 
 [Service]
 Type=simple

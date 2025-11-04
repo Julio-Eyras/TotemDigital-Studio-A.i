@@ -1938,8 +1938,8 @@ create_systemd_service() {
         sudo tee $SERVICE_FILE > /dev/null << EOF
 [Unit]
 Description=Smart Signage Pro Backend
-After=network-online.target postgresql.service
-Wants=network-online.target postgresql.service
+After=network.target postgresql.service
+Wants=network.target postgresql.service
 
 [Service]
 Type=simple
