@@ -40,10 +40,23 @@
 ---
 
 ### ✅ 2. Testes Automatizados
-- **Status:** ⏳ Pendente
-- **Progresso:** 0%
-- **Tempo Estimado:** 1-2 semanas
-- **Dependências:** Jest, Supertest
+- **Status:** ✅ COMPLETO (Fase Inicial)
+- **Progresso:** 100% (fase inicial)
+- **Tempo Real:** ~1.5 horas
+- **Dependências:** Jest (instalado), Supertest (instalado), ts-jest (instalado)
+
+**Implementado:**
+- [x] Configurar Jest com ts-jest (jest.config.js)
+- [x] Criar setup.ts para configuração inicial de testes
+- [x] Criar testes unitários para AuthService (forgotPassword, resetPassword, login, register, cleanupExpiredTokens)
+- [x] Criar testes unitários para EmailService (sendEmail, sendPasswordResetEmail, sendWelcomeEmail, sendNotificationEmail, testConnection)
+- [x] Criar testes de integração para rotas de autenticação (login, register, forgot-password, reset-password)
+- [x] Configurar relatórios de cobertura de código (lcov, html, text)
+- [x] Adicionar scripts npm (test, test:watch, test:coverage, test:unit, test:integration)
+- [x] Criar .env.test.example para configuração de testes
+- [x] Criar README_TESTS.md com documentação completa
+- [x] Mock de dependências (banco de dados, serviços externos)
+- [ ] Integrar com CI/CD (futuro)
 
 **Checklist:**
 - [ ] Configurar Jest no backend
