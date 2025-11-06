@@ -1,13 +1,13 @@
 # 📊 Cobertura de Testes - Smart Signage Pro v2.1
 
 **Data:** 2025-11-06  
-**Status:** 🟡 Parcial (30% de serviços críticos)
+**Status:** 🟢 Bom Progresso (59% de serviços, 100% críticos + importantes)
 
 ---
 
 ## ✅ Testes Implementados
 
-### Testes Unitários de Serviços (8/27)
+### Testes Unitários de Serviços (16/27)
 
 1. **✅ AuthService** (`authService.test.ts`)
    - `forgotPassword` - Recuperação de senha
@@ -70,6 +70,68 @@
    - `deleteTotem` - Deletar totem
    - `updateHeartbeat` - Atualizar heartbeat do totem
 
+9. **✅ NotificationService** (`notificationService.test.ts`)
+   - `createNotification` - Criar notificação (com envio de email para alta prioridade)
+   - `getNotificationById` - Buscar notificação por ID
+   - `getNotifications` - Listar notificações com paginação e filtros
+   - `markAsRead` - Marcar notificação como lida
+   - `deleteNotification` - Deletar notificação
+
+10. **✅ SettingsService** (`settingsService.test.ts`)
+    - `getSettings` - Buscar todas as configurações organizadas por categoria
+    - `getSetting` - Buscar configuração por chave
+    - `updateSetting` - Atualizar configuração (com validação de editabilidade)
+    - `updateSettings` - Atualizar múltiplas configurações
+    - `validateSettings` - Validar configurações
+
+11. **✅ ExportQueryService** (`exportQueryService.test.ts`)
+    - `createQuery` - Criar nova query de exportação
+    - `getQueryById` - Buscar query por ID
+    - `getAllQueries` - Listar todas as queries (com filtros)
+    - `updateQuery` - Atualizar query existente
+    - `deleteQuery` - Deletar query
+    - `testConnection` - Testar conexão com provider
+
+12. **✅ ExportScheduleService** (`exportScheduleService.test.ts`)
+    - `createSchedule` - Criar agendamento (com validação de cron e query)
+    - `getSchedules` - Listar agendamentos com paginação
+    - `getScheduleById` - Buscar agendamento por ID
+    - `validateCronExpression` - Validar expressão cron
+    - `updateSchedule` - Atualizar agendamento
+    - `deleteSchedule` - Deletar agendamento
+
+13. **✅ AdvancedScheduleService** (`advancedScheduleService.test.ts`)
+    - `createSchedule` - Criar agendamento avançado (campanha/playlist)
+    - `getSchedules` - Listar agendamentos com paginação e filtros
+    - `getScheduleById` - Buscar agendamento por ID
+    - `validateCronExpression` - Validar expressão cron
+    - `validateTarget` - Validar existência de campanha/playlist
+    - `updateSchedule` - Atualizar agendamento
+    - `deleteSchedule` - Deletar agendamento
+
+14. **✅ AnalyticsService** (`analyticsService.test.ts`)
+    - `getDashboardStats` - Estatísticas gerais do dashboard
+    - `getAnalytics` - Dados de analytics com filtros
+    - `getViewingTrends` - Tendências de visualização
+    - `getDiskUsage` - Uso de disco
+
+15. **✅ ReportsService** (`reportsService.test.ts`)
+    - `generateReport` - Gerar relatório (PDF/Excel/CSV)
+    - `getReportById` - Buscar relatório por ID
+    - `getReports` - Listar relatórios com paginação
+    - `deleteReport` - Deletar relatório (com remoção de arquivo)
+    - `incrementDownloadCount` - Incrementar contador de downloads
+    - `createReportTemplate` - Criar template de relatório
+    - `getReportTemplates` - Listar templates de relatório
+
+16. **✅ SmartPlaylistService** (`smartPlaylistService.test.ts`)
+    - `getSmartPlaylists` - Listar smart playlists com paginação e filtros
+    - `getSmartPlaylistById` - Buscar smart playlist por ID
+    - `createSmartPlaylist` - Criar nova smart playlist
+    - `updateSmartPlaylist` - Atualizar smart playlist existente
+    - `deleteSmartPlaylist` - Deletar smart playlist
+    - `generateSmartPlaylist` - Gerar playlist inteligente (com IA)
+
 ### Testes de Integração de Rotas (1/20+)
 
 1. **✅ Rotas de Autenticação** (`routes/auth.test.ts`)
@@ -82,7 +144,7 @@
 
 ## ❌ Testes Pendentes
 
-### Serviços Sem Testes (19/27)
+### Serviços Sem Testes (11/27)
 
 #### 🔴 Alta Prioridade (Funcionalidades Críticas)
 
@@ -90,45 +152,7 @@
 
 #### 🟡 Média Prioridade (Funcionalidades Importantes)
 
-7. **AnalyticsService** - Analytics e métricas
-   - Coleta de dados
-   - Agregações e estatísticas
-   - Tendências e relatórios
-
-8. **ReportsService** - Geração de relatórios
-   - Criar relatórios
-   - Exportar dados
-   - Templates de relatórios
-
-9. **SmartPlaylistService** - Playlists inteligentes
-   - Geração automática
-   - Regras e filtros
-   - Integração com IA
-
-10. **ExportQueryService** - Queries de exportação
-    - CRUD de queries
-    - Validação de SQL
-    - Execução de queries
-
-11. **ExportScheduleService** - Agendamento de exportações
-    - CRUD de agendamentos
-    - Validação de cron
-    - Execução de jobs
-
-12. **AdvancedScheduleService** - Agendamento avançado
-    - Agendamento de campanhas
-    - Agendamento de playlists
-    - Validação de cron
-
-13. **NotificationService** - Sistema de notificações
-    - Criar notificações
-    - Envio de alertas
-    - Gestão de prioridades
-
-14. **SettingsService** - Configurações do sistema
-    - CRUD de configurações
-    - Validação de valores
-    - Categorias de configurações
+✅ **TODOS OS SERVIÇOS IMPORTANTES IMPLEMENTADOS!**
 
 #### 🟢 Baixa Prioridade (Funcionalidades Auxiliares)
 
@@ -216,31 +240,31 @@
 
 | Categoria | Total | Implementado | Pendente | Cobertura |
 |-----------|-------|--------------|----------|-----------|
-| **Serviços** | 27 | 8 | 19 | **30%** |
+| **Serviços** | 27 | 16 | 11 | **59%** |
 | **Rotas** | 20+ | 1 | 19+ | 5% |
-| **Total Geral** | 47+ | 9 | 38+ | **19%** |
+| **Total Geral** | 47+ | 17 | 30+ | **36%** |
 
 ---
 
 ## 🎯 Plano de Implementação
 
-### Fase 1: Funcionalidades Críticas (2-3 semanas)
-- CampaignService
-- MediaService
-- PlaylistService
-- TotemService
-- UserService
-- ClientService
+### Fase 1: Funcionalidades Críticas (2-3 semanas) ✅ COMPLETA
+- ✅ CampaignService
+- ✅ MediaService
+- ✅ PlaylistService
+- ✅ TotemService
+- ✅ UserService
+- ✅ ClientService
 
-### Fase 2: Funcionalidades Importantes (2-3 semanas)
-- AnalyticsService
-- ReportsService
-- SmartPlaylistService
-- ExportQueryService
-- ExportScheduleService
-- AdvancedScheduleService
-- NotificationService
-- SettingsService
+### Fase 2: Funcionalidades Importantes (2-3 semanas) ✅ COMPLETA
+- ✅ AnalyticsService
+- ✅ ReportsService
+- ✅ SmartPlaylistService
+- ✅ ExportQueryService
+- ✅ ExportScheduleService
+- ✅ AdvancedScheduleService
+- ✅ NotificationService
+- ✅ SettingsService
 
 ### Fase 3: Funcionalidades Auxiliares (1-2 semanas)
 - SQLValidatorService
