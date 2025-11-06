@@ -7,7 +7,11 @@
     "start": "node dist/index.js",
     "dev": "nodemon backend/src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "test": "echo 'Testes implementados'",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest --testPathPattern=__tests__/services",
+    "test:integration": "jest --testPathPattern=__tests__/routes",
     "lint": "echo 'Linting implementado'"
   },
   "keywords": [
@@ -63,6 +67,7 @@
     "@types/compression": "^1.7.5",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/lodash": "^4.14.202",
     "@types/morgan": "^1.9.9",
@@ -70,8 +75,12 @@
     "@types/node": "^20.10.4",
     "@types/node-cron": "^3.0.11",
     "@types/pdfkit": "^0.13.0",
+    "@types/supertest": "^6.0.3",
     "@types/uuid": "^9.0.7",
+    "jest": "^29.7.0",
     "nodemon": "^3.0.2",
+    "supertest": "^6.3.4",
+    "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }
