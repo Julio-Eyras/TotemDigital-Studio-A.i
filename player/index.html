@@ -194,10 +194,33 @@
                             this.showBlockedPage(validation.reason);
                             return;
                         }
-                        // UIN inexistente: entrar em modo demo local
-                        console.warn('⚠️ UIN não encontrado. Iniciando modo demo local...');
-                        this.startDemoMode();
-                        return;
+                        // UIN inexistente: tentar auto-registro
+                        console.warn('⚠️ UIN não encontrado. Tentando auto-registro...');
+                        const registration = await this.autoRegisterTotem();
+                        if (registration.success) {
+                            console.log('✅ Totem auto-registrado com sucesso! Status:', registration.status);
+                            if (registration.status === 'pending_approval') {
+                                // Totem registrado, aguardando aprovação
+                                this.showPendingApprovalPage('Totem registrado com sucesso! Aguardando aprovação do administrador.');
+                                return;
+                            }
+                            // Totem registrado e aprovado, tentar validar novamente
+                            const revalidation = await this.validateTotem();
+                            if (revalidation.valid) {
+                                console.log('✅ Totem validado após auto-registro');
+                                // Continuar com o fluxo normal
+                            } else {
+                                console.warn('⚠️ Totem registrado mas ainda não validado. Iniciando modo demo local...');
+                                this.startDemoMode();
+                                return;
+                            }
+                        } else {
+                            console.error('❌ Falha ao auto-registrar totem:', registration.error);
+                            // Se auto-registro falhar, entrar em modo demo local
+                            console.warn('⚠️ Iniciando modo demo local...');
+                            this.startDemoMode();
+                            return;
+                        }
                     }
 
                     console.log('✅ Totem validado:', this.totemData);
@@ -589,6 +612,114 @@
                 setTimeout(() => {
                     window.location.href = '/player/exit';
                 }, 1000);
+            }
+
+            async autoRegisterTotem() {
+                try {
+                    console.log('📡 Iniciando auto-registro de totem...');
+                    
+                    // Se não tiver UIN, gerar um baseado no hardware
+                    if (!this.uin || this.uin.trim() === '') {
+                        console.log('🔧 Gerando UIN baseado no hardware...');
+                        const hardwareInfo = await this.collectHardwareInfo();
+                        this.uin = await this.generateUIN(hardwareInfo);
+                        console.log('✅ UIN gerado:', this.uin);
+                    }
+                    
+                    // Coletar informações de hardware
+                    const hardwareInfo = await this.collectHardwareInfo();
+                    console.log('📋 Informações de hardware coletadas:', {
+                        macAddress: hardwareInfo.macAddress || 'N/A',
+                        hostname: hardwareInfo.hostname || 'N/A',
+                        platform: hardwareInfo.platform || 'N/A',
+                        hardwareHash: hardwareInfo.hardwareHash ? 'Presente' : 'Ausente'
+                    });
+                    
+                    // Tentar registrar no servidor
+                    const registerController = new AbortController();
+                    const registerTimeout = setTimeout(() => registerController.abort(), 15000); // 15 segundos
+                    
+                    let registerResponse;
+                    try {
+                        registerResponse = await fetch(`${this.apiBaseUrl}/player/register`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                uin: this.uin,
+                                hardware: {
+                                    macAddress: hardwareInfo.macAddress || null,
+                                    hostname: hardwareInfo.hostname || null,
+                                    platform: hardwareInfo.platform || null,
+                                    arch: hardwareInfo.arch || null,
+                                    hardwareHash: hardwareInfo.hardwareHash || null,
+                                    userAgent: hardwareInfo.userAgent || navigator.userAgent
+                                }
+                            }),
+                            signal: registerController.signal
+                        });
+                        clearTimeout(registerTimeout);
+                    } catch (fetchError) {
+                        clearTimeout(registerTimeout);
+                        if (fetchError.name === 'AbortError') {
+                            console.error('❌ Timeout ao auto-registrar totem (15s)');
+                            return { 
+                                success: false, 
+                                error: 'Timeout ao conectar com o servidor para auto-registro'
+                            };
+                        }
+                        throw fetchError;
+                    }
+                    
+                    if (!registerResponse.ok) {
+                        let errorData;
+                        try {
+                            errorData = await registerResponse.json();
+                        } catch {
+                            errorData = { error: `Erro HTTP ${registerResponse.status}` };
+                        }
+                        
+                        console.error('❌ Erro ao auto-registrar totem:', registerResponse.status, errorData);
+                        
+                        // Se já estiver registrado, isso é OK
+                        if (registerResponse.status === 409) {
+                            console.log('ℹ️ Totem já registrado, tentando validar...');
+                            return { 
+                                success: true, 
+                                status: 'already_registered',
+                                message: errorData.message || 'Totem já registrado'
+                            };
+                        }
+                        
+                        return { 
+                            success: false, 
+                            error: errorData.error || `Erro ao auto-registrar: ${registerResponse.status}`
+                        };
+                    }
+                    
+                    const registerData = await registerResponse.json();
+                    console.log('✅ Totem auto-registrado com sucesso:', registerData);
+                    
+                    // Salvar UIN no localStorage
+                    if (this.uin) {
+                        localStorage.setItem('totemUIN', this.uin);
+                    }
+                    
+                    return { 
+                        success: true, 
+                        status: registerData.status || 'pending_approval',
+                        totem: registerData.totem,
+                        message: registerData.message || 'Totem registrado com sucesso'
+                    };
+                    
+                } catch (error) {
+                    console.error('❌ Erro ao auto-registrar totem:', error);
+                    return { 
+                        success: false, 
+                        error: error.message || 'Erro desconhecido ao auto-registrar'
+                    };
+                }
             }
 
             async validateTotem() {

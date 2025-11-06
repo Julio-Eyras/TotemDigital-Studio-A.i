@@ -40,6 +40,7 @@ import debugRoutes from './routes/debug';
 import exportQueriesRoutes from './routes/export-queries';
 import exportSchedulesRoutes from './routes/export-schedules';
 import logsRoutes from './routes/logs';
+import playerDebugRoutes from './routes/player-debug';
 import { openApiSpec } from './config/swagger';
 
 // Services
@@ -251,6 +252,7 @@ app.get('/player', (req, res) => {
 
 // API de validação do player (antes do middleware de autenticação)
 app.use('/api/player', playerValidationRoutes);
+app.use('/api/player/debug', authMiddleware, playerDebugRoutes); // Debug de transações do player (requer autenticação)
 app.use('/api/debug', debugRoutes); // Debug endpoints (logs, diagnóstico)
 
 app.get('/player/config', async (req, res) => {

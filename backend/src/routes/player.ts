@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import { param, query, body, validationResult } from 'express-validator';
 import { TotemService } from '../services/totemService';
 import { getDatabase } from '../config/database';
+import { playerDebugService, PlayerDebugService } from '../services/playerDebugService';
 import crypto from 'crypto';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -61,14 +62,34 @@ router.get('/validate',
   query('uin').isString().isLength({ min: 1, max: 100 }),
   query('token').optional().isString(),
   async (req: Request, res: Response) => {
+    const transactionId = PlayerDebugService.generateTransactionId('VAL');
+    const startTime = Date.now();
+    
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        await playerDebugService.logTransaction({
+          transactionId,
+          uin: req.query.uin as string,
+          action: 'validate',
+          status: 'error',
+          requestUrl: req.url,
+          requestMethod: req.method,
+          requestHeaders: req.headers,
+          responseStatus: 400,
+          errorMessage: 'Parâmetros inválidos',
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          duration: Date.now() - startTime
+        });
+        
         return res.status(400).json({ error: 'Parâmetros inválidos', details: errors.array() });
       }
 
       const { uin, token } = req.query;
       const db = getDatabase();
+      
+      console.log(`[${transactionId}] 🔍 Validando totem: ${uin}`);
 
       // Validar token se fornecido
       if (token && typeof token === 'string') {
@@ -90,11 +111,30 @@ router.get('/validate',
       const totem = await totemService.getTotemByUin(uin as string);
 
       if (!totem) {
-        console.warn(`⚠️ UIN não encontrado: ${uin}`);
+        console.warn(`[${transactionId}] ⚠️ UIN não encontrado: ${uin}`);
+        
+        await playerDebugService.logTransaction({
+          transactionId,
+          uin: uin as string,
+          action: 'validate',
+          status: 'error',
+          requestUrl: req.url,
+          requestMethod: req.method,
+          requestHeaders: req.headers,
+          responseStatus: 404,
+          responseBody: { error: 'Totem não encontrado' },
+          errorMessage: `Nenhum totem encontrado com UIN: ${uin}`,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          duration: Date.now() - startTime,
+          metadata: { suggestion: 'Tentar auto-registro' }
+        });
+        
         return res.status(404).json({ 
           error: 'Totem não encontrado',
           details: `Nenhum totem encontrado com UIN: ${uin}`,
-          suggestion: 'Verifique se o UIN está correto ou se o totem foi registrado no sistema'
+          suggestion: 'Verifique se o UIN está correto ou se o totem foi registrado no sistema',
+          canAutoRegister: true
         });
       }
 
@@ -302,7 +342,23 @@ router.get('/validate',
         expiresIn: 3600, // 1 hora
       });
     } catch (error: any) {
-      console.error('❌ Erro ao validar totem:', error.message);
+      console.error(`[${transactionId}] ❌ Erro ao validar totem:`, error.message);
+      
+      await playerDebugService.logTransaction({
+        transactionId,
+        uin: req.query.uin as string,
+        action: 'validate',
+        status: 'error',
+        requestUrl: req.url,
+        requestMethod: req.method,
+        requestHeaders: req.headers,
+        responseStatus: 500,
+        errorMessage: error.message,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        duration: Date.now() - startTime
+      });
+      
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -598,6 +654,26 @@ router.post('/register',
         ip: req.ip,
         userAgent: req.get('user-agent')
       }, null, 2));
+      
+      // Registrar transação de início
+      await playerDebugService.logTransaction({
+        transactionId: requestId,
+        uin: req.body.uin,
+        action: 'auto_register',
+        status: 'pending',
+        requestUrl: req.url,
+        requestMethod: req.method,
+        requestHeaders: req.headers,
+        requestBody: {
+          uin: req.body.uin,
+          hardware: {
+            ...req.body.hardware,
+            hardwareHash: req.body.hardware?.hardwareHash ? 'HASH_PRESENTE' : 'AUSENTE'
+          }
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
 
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -803,9 +879,10 @@ router.post('/register',
       
       console.log(`[${requestId}] ✅ Auto-registro concluído com sucesso em ${duration}ms`);
       
-      res.status(201).json({
+      const responseData = {
         success: true,
         message: 'Totem registrado com sucesso. Aguardando aprovação do administrador.',
+        status: 'pending_approval',
         uin: uin,
         token: token,
         totem: {
@@ -823,12 +900,61 @@ router.post('/register',
         ],
         requestId: requestId,
         duration: `${duration}ms`
+      };
+      
+      // Registrar transação de sucesso
+      await playerDebugService.logTransaction({
+        transactionId: requestId,
+        uin: uin,
+        action: 'auto_register',
+        status: 'success',
+        requestUrl: req.url,
+        requestMethod: req.method,
+        requestHeaders: req.headers,
+        requestBody: {
+          uin: req.body.uin,
+          hardware: {
+            ...req.body.hardware,
+            hardwareHash: req.body.hardware?.hardwareHash ? 'HASH_PRESENTE' : 'AUSENTE'
+          }
+        },
+        responseStatus: 201,
+        responseBody: responseData,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        duration: duration,
+        metadata: { totemId: (newTotem as any).id || totemId }
       });
+      
+      res.status(201).json(responseData);
     } catch (error: any) {
       const duration = Date.now() - startTime;
       console.error(`[${requestId}] ❌ Erro ao registrar totem após ${duration}ms:`, error.message);
       console.error(`[${requestId}] ❌ Stack trace:`, error.stack);
       console.error(`[${requestId}] ❌ Erro completo:`, JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      
+      // Registrar transação de erro
+      await playerDebugService.logTransaction({
+        transactionId: requestId,
+        uin: req.body.uin,
+        action: 'auto_register',
+        status: 'error',
+        requestUrl: req.url,
+        requestMethod: req.method,
+        requestHeaders: req.headers,
+        requestBody: {
+          uin: req.body.uin,
+          hardware: {
+            ...req.body.hardware,
+            hardwareHash: req.body.hardware?.hardwareHash ? 'HASH_PRESENTE' : 'AUSENTE'
+          }
+        },
+        responseStatus: 500,
+        errorMessage: error.message,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        duration: duration
+      });
       
       res.status(500).json({ 
         error: 'Erro interno do servidor',
