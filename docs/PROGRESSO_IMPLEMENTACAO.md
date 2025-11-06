@@ -111,9 +111,23 @@
 - [x] Converter respostas do Grafana e Prometheus para formato tabular
 
 ### ✅ 7. Agendamento Avançado
-- **Status:** ⏳ Pendente
-- **Progresso:** 0%
-- **Tempo Estimado:** 1 semana
+- **Status:** ✅ COMPLETO
+- **Progresso:** 100%
+- **Tempo Real:** ~2 horas
+- **Dependências:** Bull (já instalado), cron-parser (já instalado)
+
+**Implementado:**
+- [x] Criar database/advanced-schedules-schema.sql com tabelas advanced_schedules e schedule_executions
+- [x] Criar backend/src/services/advancedScheduleService.ts com CRUD completo
+- [x] Criar backend/src/workers/advancedScheduleWorker.ts para processar agendamentos
+- [x] Adicionar queue de agendamento avançado em backend/src/config/queue.ts
+- [x] Criar rotas backend/src/routes/advanced-schedules.ts
+- [x] Integrar no backend/src/index.ts (inicialização e rotas)
+- [x] Atualizar install-smartsignage.sh para aplicar schema de agendamentos avançados
+- [x] Suporte a 4 tipos de agendamento: campaign, playlist, campaign_activation, playlist_generation
+- [x] Suporte a ações customizadas (activate, pause, finish, regenerate)
+- [x] Integração com Bull para execução automática baseada em cron
+- [x] Histórico de execuções com status e logs detalhados
 
 ---
 
