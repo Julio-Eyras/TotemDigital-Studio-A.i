@@ -565,7 +565,21 @@ install_project_dependencies() {
     if npm install winston-daily-rotate-file --save; then
         log "✅ winston-daily-rotate-file instalado com sucesso"
     else
-        warn "⚠️ Falha ao instalar winston-daily-rotate-file (pode ser instalado manualmente depois)"
+        error "❌ Falha ao instalar winston-daily-rotate-file"
+        error "💡 Tentando novamente sem --save..."
+        if npm install winston-daily-rotate-file; then
+            log "✅ winston-daily-rotate-file instalado com sucesso (sem --save)"
+        else
+            error "❌ Falha crítica ao instalar winston-daily-rotate-file"
+            exit 1
+        fi
+    fi
+    
+    # Verificar se foi instalado corretamente
+    if npm list winston-daily-rotate-file >/dev/null 2>&1; then
+        log "✅ winston-daily-rotate-file verificado no package.json"
+    else
+        warn "⚠️ winston-daily-rotate-file pode não estar no package.json (continuando...)"
     fi
     
     # Compilar TypeScript do backend
@@ -1216,6 +1230,26 @@ setup_database() {
 # Configurar variáveis de ambiente
 setup_environment() {
     log "Configurando variáveis de ambiente..."
+    
+    # Criar diretório de logs se não existir
+    LOGS_DIR="/opt/smart-signage/Logs"
+    log "Criando diretório de logs: $LOGS_DIR"
+    if [[ ! -d "$LOGS_DIR" ]]; then
+        sudo mkdir -p "$LOGS_DIR"
+        # Tentar definir permissões para o usuário atual
+        if [[ -n "$USER" ]]; then
+            sudo chown -R "$USER:$USER" "$LOGS_DIR" 2>/dev/null || sudo chown -R "$(whoami):$(whoami)" "$LOGS_DIR" 2>/dev/null || true
+        fi
+        sudo chmod 755 "$LOGS_DIR"
+        log "✅ Diretório de logs criado: $LOGS_DIR"
+    else
+        log "✅ Diretório de logs já existe: $LOGS_DIR"
+        # Garantir permissões corretas
+        if [[ -n "$USER" ]]; then
+            sudo chown -R "$USER:$USER" "$LOGS_DIR" 2>/dev/null || sudo chown -R "$(whoami):$(whoami)" "$LOGS_DIR" 2>/dev/null || true
+        fi
+        sudo chmod 755 "$LOGS_DIR"
+    fi
     
     ENV_FILE="$INSTALL_DIR/.env"
     
@@ -3657,29 +3691,72 @@ setup_first_boot() {
     fi
     
     # Executar schema de configurações de logs (após schema principal)
+    log "Aplicando schema de configurações de logs..."
     LOGS_CONFIG_SQL_FILE="$INSTALL_DIR/database/logs-config-schema.sql"
-    if [[ -f "$LOGS_CONFIG_SQL_FILE" ]]; then
-        log "Executando schema de configurações de logs..."
-        log "📋 Arquivo: $LOGS_CONFIG_SQL_FILE"
-        
-        # Executar schema e capturar erros críticos (ignorando NOTICE e avisos de já existe)
-        if psql "$DATABASE_URL" -f "$LOGS_CONFIG_SQL_FILE" 2>&1 | grep -v "NOTICE:" | grep -v "already exists" | grep -i "error" >/dev/null; then
-            warn "⚠️ Alguns erros ao executar logs-config-schema.sql, mas continuando..."
+    
+    # Verificar se arquivo existe (tentar múltiplos caminhos)
+    if [[ ! -f "$LOGS_CONFIG_SQL_FILE" ]]; then
+        # Tentar caminhos alternativos
+        if [[ -f "database/logs-config-schema.sql" ]]; then
+            LOGS_CONFIG_SQL_FILE="database/logs-config-schema.sql"
+            log "📋 Arquivo encontrado em: $LOGS_CONFIG_SQL_FILE"
+        elif [[ -f "./database/logs-config-schema.sql" ]]; then
+            LOGS_CONFIG_SQL_FILE="./database/logs-config-schema.sql"
+            log "📋 Arquivo encontrado em: $LOGS_CONFIG_SQL_FILE"
         else
-            log "✅ Schema de configurações de logs executado"
-        fi
-        
-        # Sempre verificar se configurações foram criadas
-        LOGS_CONFIG_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
-        if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
-            log "✅ Configurações de logs criadas ($LOGS_CONFIG_COUNT configurações encontradas)"
-        else
-            warn "⚠️ Configurações de logs podem não ter sido criadas"
-            warn "💡 Execute manualmente: psql \"$DATABASE_URL\" -f \"$LOGS_CONFIG_SQL_FILE\""
+            error "❌ Arquivo logs-config-schema.sql não encontrado!"
+            error "   Procurado em: $INSTALL_DIR/database/logs-config-schema.sql"
+            error "   Procurado em: database/logs-config-schema.sql"
+            error "   Procurado em: ./database/logs-config-schema.sql"
+            error "   Diretório atual: $(pwd)"
+            error "   INSTALL_DIR: $INSTALL_DIR"
+            error "   Listando database/:"
+            ls -la "$INSTALL_DIR/database/" 2>/dev/null || ls -la "database/" 2>/dev/null || echo "   Diretório não encontrado"
+            exit 1
         fi
     else
-        warn "⚠️ Arquivo logs-config-schema.sql não encontrado em $LOGS_CONFIG_SQL_FILE"
-        warn "💡 Verifique se o arquivo existe no diretório database/"
+        log "📋 Arquivo encontrado: $LOGS_CONFIG_SQL_FILE"
+    fi
+    
+    # Executar schema de logs
+    log "Executando schema de configurações de logs..."
+    PSQL_OUTPUT=$(psql "$DATABASE_URL" -f "$LOGS_CONFIG_SQL_FILE" 2>&1)
+    PSQL_EXIT_CODE=$?
+    
+    # Filtrar NOTICE e avisos de "already exists" mas manter erros
+    if echo "$PSQL_OUTPUT" | grep -v "NOTICE:" | grep -v "already exists" | grep -i "error" >/dev/null; then
+        error "❌ Erros ao executar logs-config-schema.sql:"
+        echo "$PSQL_OUTPUT" | grep -v "NOTICE:" | grep -i "error"
+        exit 1
+    else
+        log "✅ Schema de configurações de logs executado"
+    fi
+    
+    # Sempre verificar se configurações foram criadas
+    sleep 1  # Aguardar um pouco para garantir que o commit foi feito
+    LOGS_CONFIG_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
+    
+    if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
+        log "✅ Configurações de logs criadas ($LOGS_CONFIG_COUNT configurações encontradas)"
+        
+        # Listar configurações criadas
+        log "📋 Configurações de logs aplicadas:"
+        psql "$DATABASE_URL" -tAc "SELECT setting_key FROM system_settings WHERE setting_key LIKE 'log.%' ORDER BY setting_key;" 2>/dev/null | while read key; do
+            [[ -n "$key" ]] && log "   ✓ $key"
+        done
+    else
+        error "❌ Configurações de logs NÃO foram criadas!"
+        error "   Verificando se tabela system_settings existe..."
+        TABLE_EXISTS=$(psql "$DATABASE_URL" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='system_settings');" 2>/dev/null | tr -d ' ')
+        if [[ "$TABLE_EXISTS" == "t" ]]; then
+            error "   Tabela system_settings existe, mas não há configurações de logs"
+            error "   Tentando aplicar novamente..."
+            psql "$DATABASE_URL" -f "$LOGS_CONFIG_SQL_FILE" 2>&1 | grep -v "NOTICE:" | grep -v "already exists" || true
+        else
+            error "   Tabela system_settings NÃO existe!"
+            error "   O schema de logs deve criar esta tabela primeiro"
+        fi
+        exit 1
     fi
     
     # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
