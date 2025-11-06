@@ -976,4 +976,85 @@ export const debugApi = {
   },
 };
 
+// =============================================
+// LOGS API
+// =============================================
+
+export interface LogRotationConfig {
+  maxSize: number;
+  maxSizeFormatted: string;
+  maxDays: number;
+  minFreeSpace: number;
+  minFreeSpaceFormatted: string;
+  enabled: boolean;
+  compress: boolean;
+  alertsEnabled: boolean;
+  logDirectory: string;
+}
+
+export interface LogFileInfo {
+  name: string;
+  path: string;
+  size: number;
+  sizeFormatted: string;
+  created: string;
+  modified: string;
+  age: number;
+}
+
+export interface DiskSpaceInfo {
+  total: number;
+  totalFormatted: string;
+  free: number;
+  freeFormatted: string;
+  used: number;
+  usedFormatted: string;
+  percentUsed: number;
+  percentFree: string;
+}
+
+export interface RotationStatus {
+  needsRotation: boolean;
+  reason: string;
+  details: any;
+}
+
+export interface RotationResult {
+  success: boolean;
+  filesRotated: number;
+  filesDeleted: number;
+  details: any;
+}
+
+export const logsApi = {
+  getConfig: async (): Promise<LogRotationConfig> => {
+    const response = await api.get('/logs/config');
+    return response.data.data;
+  },
+
+  getFiles: async (): Promise<LogFileInfo[]> => {
+    const response = await api.get('/logs/files');
+    return response.data.data || [];
+  },
+
+  getDiskSpace: async (): Promise<DiskSpaceInfo> => {
+    const response = await api.get('/logs/disk-space');
+    return response.data.data;
+  },
+
+  getRotationStatus: async (): Promise<RotationStatus> => {
+    const response = await api.get('/logs/rotation-status');
+    return response.data.data;
+  },
+
+  rotate: async (): Promise<RotationResult> => {
+    const response = await api.post('/logs/rotate');
+    return response.data;
+  },
+
+  reload: async (): Promise<void> => {
+    await api.post('/logs/reload');
+  },
+};
+
 export default api;

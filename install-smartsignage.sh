@@ -261,6 +261,20 @@ install_dependencies() {
     log "Dependências básicas instaladas!"
 }
 
+# Corrigir demora no boot causada por systemd-networkd-wait-online
+fix_network_wait() {
+    log "Corrigindo demora no boot (network-wait)..."
+    
+    # Verificar se script existe
+    if [ -f "scripts/fix-network-wait.sh" ]; then
+        chmod +x scripts/fix-network-wait.sh
+        ./scripts/fix-network-wait.sh
+        log "Correção de network-wait aplicada!"
+    else
+        warn "Script fix-network-wait.sh não encontrado, pulando correção..."
+    fi
+}
+
 # Instalar Node.js
 install_nodejs() {
     log "Instalando Node.js..."
@@ -545,6 +559,14 @@ install_project_dependencies() {
     cd $INSTALL_DIR/backend
     log "Instalando dependências do backend (incluindo dev para build)..."
     npm install --include=dev
+    
+    # Instalar dependência adicional do sistema de logs (winston-daily-rotate-file)
+    log "Instalando dependência do sistema de logs (winston-daily-rotate-file)..."
+    if npm install winston-daily-rotate-file --save; then
+        log "✅ winston-daily-rotate-file instalado com sucesso"
+    else
+        warn "⚠️ Falha ao instalar winston-daily-rotate-file (pode ser instalado manualmente depois)"
+    fi
     
     # Compilar TypeScript do backend
     log "Compilando TypeScript do backend..."
@@ -3634,6 +3656,26 @@ setup_first_boot() {
         done
     fi
     
+    # Executar schema de configurações de logs (após schema principal)
+    LOGS_CONFIG_SQL_FILE="$INSTALL_DIR/database/logs-config-schema.sql"
+    if [[ -f "$LOGS_CONFIG_SQL_FILE" ]]; then
+        log "Executando schema de configurações de logs..."
+        if psql "$DATABASE_URL" -f "$LOGS_CONFIG_SQL_FILE" >/dev/null 2>&1; then
+            log "✅ Schema de configurações de logs aplicado com sucesso"
+        else
+            warn "⚠️ Alguns avisos ao executar logs-config-schema.sql (pode ser normal se configurações já existem)"
+            # Verificar se pelo menos algumas configurações foram criadas
+            LOGS_CONFIG_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
+            if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
+                log "✅ Configurações de logs criadas ($LOGS_CONFIG_COUNT configurações encontradas)"
+            else
+                warn "⚠️ Configurações de logs podem não ter sido criadas"
+            fi
+        fi
+    else
+        warn "⚠️ Arquivo logs-config-schema.sql não encontrado em $LOGS_CONFIG_SQL_FILE"
+    fi
+    
     # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
     log "Executando seed completo do banco de dados com dados correlacionados..."
     
@@ -5004,8 +5046,18 @@ xset s off
 xset -dpms
 xset s noblank
 
-# Obter IP do servidor (pode ser passado como variável ou detectar)
-KIOSK_URL="${KIOSK_URL:-http://localhost:80}"
+# Obter IP do servidor dinamicamente (não usar IP fixo)
+# Detectar IP da interface de rede principal
+SERVER_IP=$(hostname -I | awk '{print $1}')
+if [ -z "$SERVER_IP" ] || [ "$SERVER_IP" == "" ]; then
+    SERVER_IP="localhost"
+fi
+
+# URL do player (sem UIN para entrar em modo demo)
+KIOSK_URL="${KIOSK_URL:-http://${SERVER_IP}:80/player}"
+
+# Log para debug
+echo "$(date): Iniciando Chromium com URL: $KIOSK_URL" >> /tmp/kiosk.log
 
 # Iniciar navegador em modo kiosk (tela cheia, sem barra de endereço)
 chromium-browser \
@@ -5027,10 +5079,14 @@ KIOSK_SCRIPT_EOF
     
     chmod +x "$KIOSK_SCRIPT"
     
-    # Substituir variáveis no script com seleções reais
-    sed -i "s|KIOSK_URL=\"\${KIOSK_URL:-http://localhost:80}\"|KIOSK_URL=\"$KIOSK_URL\"|g" "$KIOSK_SCRIPT"
-    sed -i "s|KIOSK_DISPLAY_SELECTED_PLACEHOLDER|KIOSK_DISPLAY=\"$KIOSK_DISPLAY_SELECTED\"|g" "$KIOSK_SCRIPT"
-    sed -i "s|KIOSK_ROTATION_SELECTED_PLACEHOLDER|KIOSK_ROTATION=\"$KIOSK_ROTATION_SELECTED\"|g" "$KIOSK_SCRIPT"
+    # NÃO substituir URL fixa - deixar o script detectar dinamicamente
+    # Apenas substituir placeholders de display e rotation se existirem
+    if grep -q "KIOSK_DISPLAY_SELECTED_PLACEHOLDER" "$KIOSK_SCRIPT"; then
+        sed -i "s|KIOSK_DISPLAY_SELECTED_PLACEHOLDER|KIOSK_DISPLAY=\"$KIOSK_DISPLAY_SELECTED\"|g" "$KIOSK_SCRIPT"
+    fi
+    if grep -q "KIOSK_ROTATION_SELECTED_PLACEHOLDER" "$KIOSK_SCRIPT"; then
+        sed -i "s|KIOSK_ROTATION_SELECTED_PLACEHOLDER|KIOSK_ROTATION=\"$KIOSK_ROTATION_SELECTED\"|g" "$KIOSK_SCRIPT"
+    fi
     
     # Criar entrada no autostart do XFCE
     KIOSK_DESKTOP="$HOME/.config/autostart/kiosk.desktop"
@@ -5203,6 +5259,7 @@ main() {
     
     update_system
     install_dependencies
+    fix_network_wait
     install_nodejs
     install_docker
     configure_firewall

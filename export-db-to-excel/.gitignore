@@ -1,0 +1,32 @@
+# Logs
+logs/
+*.log
+
+# Exports
+exports/
+*.xlsx
+*.xls
+
+# Configurações sensíveis
+config-*.json
+!config.json
+
+# Módulos PowerShell instalados
+Modules/
+
+# Arquivos temporários
+*.tmp
+*.bak
+*.swp
+*~
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+
+# Arquivos de IDE
+.vscode/
+.idea/
+*.suo
+*.user
+

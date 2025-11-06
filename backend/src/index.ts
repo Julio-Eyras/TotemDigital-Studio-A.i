@@ -10,9 +10,15 @@ import compression from 'compression';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { initializeDatabase, closeDatabase, getDatabase } from './config/database';
+import { initializeRedis, closeRedis, testRedisConnection } from './config/redis';
+import { initializeExportQueue, closeExportQueue } from './config/queue';
+import { registerExportWorker } from './workers/exportWorker';
+import { exportScheduleService } from './services/exportScheduleService';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
 import { authMiddleware } from './middleware/auth.middleware';
+import { getLogger, reloadLogger } from './config/logger';
+import { LogRotationService } from './services/logRotationService';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -31,6 +37,9 @@ import reportsRoutes from './routes/reports';
 import aiRoutes from './routes/ai';
 import smartPlaylistRoutes from './routes/smart-playlist';
 import debugRoutes from './routes/debug';
+import exportQueriesRoutes from './routes/export-queries';
+import exportSchedulesRoutes from './routes/export-schedules';
+import logsRoutes from './routes/logs';
 import { openApiSpec } from './config/swagger';
 
 // Services
@@ -222,6 +231,9 @@ app.use('/api/settings', authMiddleware, settingsRoutes);
 app.use('/api/reports', authMiddleware, reportsRoutes);
 app.use('/api/ai', authMiddleware, aiRoutes);
 app.use('/api/smart-playlist', authMiddleware, smartPlaylistRoutes);
+app.use('/api/export-queries', exportQueriesRoutes);
+app.use('/api/export-schedules', exportSchedulesRoutes);
+app.use('/api/logs', logsRoutes);
 
 // Docs JSON (Swagger OpenAPI)
 app.get('/api/docs.json', (req, res) => {
@@ -283,6 +295,12 @@ process.on('SIGTERM', async () => {
   console.log('🔄 SIGTERM recebido. Iniciando shutdown graceful...');
   
   try {
+    await closeExportQueue();
+    console.log('✅ Queue de exportação fechada');
+    
+    await closeRedis();
+    console.log('✅ Redis desconectado');
+    
     await closeDatabase();
     console.log('✅ Database desconectado');
     
@@ -297,6 +315,12 @@ process.on('SIGINT', async () => {
   console.log('🔄 SIGINT recebido. Iniciando shutdown graceful...');
   
   try {
+    await closeExportQueue();
+    console.log('✅ Queue de exportação fechada');
+    
+    await closeRedis();
+    console.log('✅ Redis desconectado');
+    
     await closeDatabase();
     console.log('✅ Database desconectado');
     
@@ -319,6 +343,39 @@ async function startServer() {
     console.log('📊 Conectando ao database...');
     await initializeDatabase();
     
+    // Inicializar Redis
+    console.log('🔴 Conectando ao Redis...');
+    await initializeRedis();
+    const redisConnected = await testRedisConnection();
+    if (!redisConnected) {
+      throw new Error('Falha ao conectar ao Redis');
+    }
+    
+    // Inicializar Bull Queue
+    console.log('📦 Inicializando Bull Queue...');
+    initializeExportQueue();
+    registerExportWorker();
+    
+    // Carregar agendamentos ativos
+    console.log('📅 Carregando agendamentos ativos...');
+    await exportScheduleService.loadAllActiveSchedules();
+    
+    // Inicializar logger
+    console.log('📋 Inicializando sistema de logs...');
+    const logger = await getLogger();
+    logger.info('Smart Signage v2.1 iniciando...');
+    
+    // Inicializar serviço de rotação de logs
+    const logRotationService = new LogRotationService();
+    // Verificar rotação a cada hora
+    setInterval(async () => {
+      const rotationCheck = await logRotationService.checkRotation();
+      if (rotationCheck.needsRotation) {
+        logger.warn(`Rotação de logs necessária: ${rotationCheck.reason}`, rotationCheck.details);
+        await logRotationService.rotateLogs();
+      }
+    }, 60 * 60 * 1000); // 1 hora
+    
     // Inicializar serviços
     console.log('⚙️ Inicializando serviços...');
     const systemService = new SystemService();
@@ -338,6 +395,8 @@ async function startServer() {
       console.log(`📚 API Docs: http://${HOST}:${PORT}/api-docs`);
       console.log(`💚 Health: http://${HOST}:${PORT}/health`);
       console.log(`🗄️ Database: PostgreSQL`);
+      console.log(`🔴 Redis: Conectado`);
+      console.log(`📦 Bull Queue: Ativo`);
       console.log(`🤖 AI Provider: ${process.env.AI_PROVIDER || 'ollama'}`);
       console.log('=====================================');
     });

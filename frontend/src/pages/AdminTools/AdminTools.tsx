@@ -11,6 +11,7 @@ import RegistrationLogs from './components/RegistrationLogs';
 import RequestTracking from './components/RequestTracking';
 import TotemDetails from './components/TotemDetails';
 import SystemInfo from './components/SystemInfo';
+import CronSQL from './components/CronSQL';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -52,6 +53,7 @@ const AdminTools: React.FC = () => {
           <Tab label="Rastreamento de Requisições" />
           <Tab label="Detalhes de Totem" />
           <Tab label="Informações do Sistema" />
+          <Tab label="CronSQL" />
         </Tabs>
       </Paper>
 
@@ -69,6 +71,10 @@ const AdminTools: React.FC = () => {
 
       <TabPanel value={tabValue} index={3}>
         <SystemInfo />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={4}>
+        <CronSQL />
       </TabPanel>
     </Container>
   );

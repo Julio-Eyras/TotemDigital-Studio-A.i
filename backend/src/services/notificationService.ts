@@ -20,11 +20,12 @@ export interface Notification {
 }
 
 export interface NotificationRequest {
-  type: 'info' | 'warning' | 'error' | 'success';
+  type: 'info' | 'warning' | 'error' | 'success' | 'system_alert';
   title: string;
   message: string;
   userId?: number;
   clientId?: number;
+  priority?: 'low' | 'medium' | 'high';
   metadata?: any;
   expiresAt?: string;
 }

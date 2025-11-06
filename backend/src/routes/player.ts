@@ -77,12 +77,25 @@ router.get('/validate',
         }
       }
 
+      // Validar UIN não vazio
+      if (!uin || (uin as string).trim() === '') {
+        return res.status(400).json({ 
+          error: 'UIN não fornecido ou vazio',
+          details: 'O parâmetro UIN é obrigatório e não pode estar vazio'
+        });
+      }
+
       // Buscar totem por UIN
       const totemService = new TotemService();
       const totem = await totemService.getTotemByUin(uin as string);
 
       if (!totem) {
-        return res.status(404).json({ error: 'Totem não encontrado' });
+        console.warn(`⚠️ UIN não encontrado: ${uin}`);
+        return res.status(404).json({ 
+          error: 'Totem não encontrado',
+          details: `Nenhum totem encontrado com UIN: ${uin}`,
+          suggestion: 'Verifique se o UIN está correto ou se o totem foi registrado no sistema'
+        });
       }
 
       // Verificar bloqueios adicionais (campo status pode indicar bloqueio)

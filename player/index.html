@@ -169,21 +169,20 @@
                     
                     console.log('UIN atual:', this.uin);
                     
-                    // Se não tiver UIN, tentar auto-registro (primeira instalação)
+                    // Se não tiver UIN, entrar em modo demo local
                     if (!this.uin) {
-                        console.log('⚠️ UIN não encontrado. Tentando auto-registro...');
-                        const registrationResult = await this.autoRegister();
-                        if (registrationResult && registrationResult.success && registrationResult.uin) {
-                            this.uin = registrationResult.uin;
-                            console.log('✅ Auto-registro concluído. UIN:', this.uin);
-                        } else {
-                            // Fallback para demo quando auto-registro falhar
-                            console.warn('⚠️ Auto-registro falhou. Usando fallback demo...');
-                            this.uin = 'default-demo';
-                        }
+                        console.log('🎬 UIN não encontrado. Iniciando modo demo local...');
+                        this.startDemoMode();
+                        return;
                     }
 
                     // Validar totem
+                    if (!this.uin || this.uin.trim() === '') {
+                        console.log('🎬 UIN vazio. Iniciando modo demo local...');
+                        this.startDemoMode();
+                        return;
+                    }
+                    
                     const validation = await this.validateTotem();
                     if (!validation.valid) {
                         if (validation.pendingApproval) {
@@ -195,14 +194,10 @@
                             this.showBlockedPage(validation.reason);
                             return;
                         }
-                        // UIN inexistente: fallback para demo
-                        console.warn('UIN não encontrado. Carregando demo...');
-                        this.uin = 'default-demo';
-                        const demoValidation = await this.validateTotem();
-                        if (!demoValidation.valid) {
-                            this.showError('Falha ao carregar demo.');
-                            return;
-                        }
+                        // UIN inexistente: entrar em modo demo local
+                        console.warn('⚠️ UIN não encontrado. Iniciando modo demo local...');
+                        this.startDemoMode();
+                        return;
                     }
 
                     console.log('✅ Totem validado:', this.totemData);
@@ -598,27 +593,101 @@
 
             async validateTotem() {
                 try {
-                    // Gerar token inicial
-                    const tokenResponse = await fetch(`${this.apiBaseUrl}/player/token?uin=${encodeURIComponent(this.uin)}`);
+                    if (!this.uin || this.uin.trim() === '') {
+                        console.error('❌ UIN vazio na validação');
+                        return { 
+                            valid: false, 
+                            error: 'UIN não fornecido',
+                            pendingApproval: false,
+                            blocked: false
+                        };
+                    }
+                    
+                    console.log(`🔍 Validando totem com UIN: ${this.uin}`);
+                    console.log(`🌐 API Base URL: ${this.apiBaseUrl}`);
+                    
+                    // Gerar token inicial com timeout
+                    const tokenController = new AbortController();
+                    const tokenTimeout = setTimeout(() => tokenController.abort(), 10000); // 10 segundos
+                    
+                    let tokenResponse;
+                    try {
+                        tokenResponse = await fetch(`${this.apiBaseUrl}/player/token?uin=${encodeURIComponent(this.uin)}`, {
+                            signal: tokenController.signal
+                        });
+                        clearTimeout(tokenTimeout);
+                    } catch (fetchError) {
+                        clearTimeout(tokenTimeout);
+                        if (fetchError.name === 'AbortError') {
+                            console.error('❌ Timeout ao gerar token de validação (10s)');
+                            return { 
+                                valid: false, 
+                                error: 'Timeout ao conectar com o servidor. Verifique a conexão de rede.',
+                                pendingApproval: false,
+                                blocked: false
+                            };
+                        }
+                        throw fetchError;
+                    }
+                    
                     if (!tokenResponse.ok) {
-                        throw new Error('Falha ao gerar token de validação');
+                        const errorText = await tokenResponse.text();
+                        console.error('❌ Erro ao gerar token:', tokenResponse.status, errorText);
+                        return { 
+                            valid: false, 
+                            error: `Erro ao gerar token: ${tokenResponse.status} ${tokenResponse.statusText}`,
+                            pendingApproval: false,
+                            blocked: false
+                        };
                     }
                     
                     const tokenData = await tokenResponse.json();
                     this.token = tokenData.token;
+                    console.log('✅ Token gerado com sucesso');
 
                     // Validar totem com token e obter dados completos
-                    const validateResponse = await fetch(
-                        `${this.apiBaseUrl}/player/validate?uin=${encodeURIComponent(this.uin)}&token=${encodeURIComponent(this.token)}`
-                    );
+                    const validateController = new AbortController();
+                    const validateTimeout = setTimeout(() => validateController.abort(), 10000); // 10 segundos
+                    
+                    let validateResponse;
+                    try {
+                        validateResponse = await fetch(
+                            `${this.apiBaseUrl}/player/validate?uin=${encodeURIComponent(this.uin)}&token=${encodeURIComponent(this.token)}`,
+                            {
+                                signal: validateController.signal
+                            }
+                        );
+                        clearTimeout(validateTimeout);
+                    } catch (fetchError) {
+                        clearTimeout(validateTimeout);
+                        if (fetchError.name === 'AbortError') {
+                            console.error('❌ Timeout ao validar totem (10s)');
+                            return { 
+                                valid: false, 
+                                error: 'Timeout ao validar totem. Verifique a conexão com o servidor.',
+                                pendingApproval: false,
+                                blocked: false
+                            };
+                        }
+                        throw fetchError;
+                    }
                     
                     if (!validateResponse.ok) {
-                        const errorData = await validateResponse.json();
+                        let errorData;
+                        try {
+                            errorData = await validateResponse.json();
+                        } catch {
+                            errorData = { error: `Erro HTTP ${validateResponse.status}` };
+                        }
+                        
+                        console.error('❌ Erro na validação:', validateResponse.status, errorData);
+                        
                         return { 
                             valid: false, 
                             error: errorData.error || 'Totem inválido ou não autorizado',
-                            blocked: errorData.blocked,
-                            reason: errorData.reason
+                            blocked: errorData.blocked || false,
+                            pendingApproval: errorData.pendingApproval || false,
+                            reason: errorData.reason || null
                         };
                     }
                     
@@ -627,6 +696,12 @@
                     this.token = validateData.token;
                     this.pendingCommands = validateData.pendingCommands || [];
                     this.playlist = validateData.playlist;
+                    
+                    console.log('✅ Totem validado com sucesso:', {
+                        totemId: this.totemData?.id,
+                        identifier: this.totemData?.identifier,
+                        status: this.totemData?.status
+                    });
                     
                     // Salvar para próximo carregamento
                     localStorage.setItem('totemUIN', this.uin);
@@ -637,7 +712,9 @@
                     console.error('❌ Erro ao validar totem:', error);
                     return { 
                         valid: false, 
-                        error: 'Erro ao validar totem. Verifique a conexão com o servidor.' 
+                        error: `Erro ao validar totem: ${error.message || 'Erro desconhecido'}. Verifique a conexão com o servidor.`,
+                        pendingApproval: false,
+                        blocked: false
                     };
                 }
             }
@@ -920,8 +997,29 @@
             showError(message) {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('player-container').style.display = 'none';
-                document.getElementById('error').style.display = 'flex';
-                document.getElementById('error-message').textContent = message;
+                const errorDiv = document.getElementById('error');
+                errorDiv.style.display = 'flex';
+                errorDiv.innerHTML = `
+                    <h2 style="color:#ff4444;">❌ Erro ao Carregar Player</h2>
+                    <p style="margin-top:20px;font-size:16px;color:#fff;max-width:800px;">${message}</p>
+                    <div style="margin-top:30px;font-size:14px;color:#ccc;max-width:800px;">
+                        <p><strong>Smart Signage Pro</strong> — Plataforma completa de sinalização digital</p>
+                        <div style="margin-top:20px;padding:20px;background:rgba(255,68,68,0.1);border-radius:8px;border:1px solid rgba(255,68,68,0.3);">
+                            <p style="margin:0;font-size:13px;color:#ffaaaa;">
+                                <strong>UIN Atual:</strong> ${this.uin || 'N/A'}<br>
+                                <strong>API URL:</strong> ${this.apiBaseUrl || 'N/A'}<br>
+                                <strong>Status:</strong> Erro de Validação
+                            </p>
+                        </div>
+                        <p style="margin-top:20px;font-size:13px;color:#888;">
+                            <strong>Soluções possíveis:</strong><br>
+                            1. Verifique se o UIN está correto na URL: ?uin=SEU_UIN<br>
+                            2. Verifique se o totem está registrado no sistema<br>
+                            3. Verifique a conexão com o servidor<br>
+                            4. Entre em contato com o administrador do sistema
+                        </p>
+                    </div>
+                `;
             }
 
             showPendingApprovalPage(message) {
@@ -989,6 +1087,159 @@
             hideLoading() {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('player-container').style.display = 'block';
+            }
+
+            /**
+             * Modo Demo Local
+             * Toca uma vinheta demo local em loop sem se registrar no servidor
+             */
+            startDemoMode() {
+                console.log('🎬 Iniciando modo demo local...');
+                
+                // Ocultar loading
+                document.getElementById('loading').style.display = 'none';
+                
+                // Mostrar player container
+                const container = document.getElementById('player-container');
+                container.style.display = 'block';
+                
+                // Criar elemento de vídeo/imagem para demo
+                const content = document.getElementById('content');
+                content.innerHTML = '';
+                
+                // Criar vinheta demo local (SVG simples como fallback)
+                const demoElement = this.createDemoVinhet();
+                content.appendChild(demoElement);
+                
+                // Iniciar reprodução em loop
+                this.startDemoPlayback(demoElement);
+                
+                console.log('✅ Modo demo iniciado - Vinheta local em loop');
+            }
+
+            /**
+             * Cria vinheta demo local (SVG simples)
+             */
+            createDemoVinhet() {
+                // Criar SVG simples com animação
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('width', '100%');
+                svg.setAttribute('height', '100%');
+                svg.setAttribute('viewBox', '0 0 1920 1080');
+                svg.style.position = 'absolute';
+                svg.style.top = '0';
+                svg.style.left = '0';
+                svg.style.width = '100%';
+                svg.style.height = '100%';
+                
+                // Background gradiente
+                const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+                gradient.setAttribute('id', 'demoGradient');
+                gradient.setAttribute('x1', '0%');
+                gradient.setAttribute('y1', '0%');
+                gradient.setAttribute('x2', '100%');
+                gradient.setAttribute('y2', '100%');
+                
+                const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                stop1.setAttribute('offset', '0%');
+                stop1.setAttribute('stop-color', '#1a237e');
+                
+                const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                stop2.setAttribute('offset', '100%');
+                stop2.setAttribute('stop-color', '#283593');
+                
+                gradient.appendChild(stop1);
+                gradient.appendChild(stop2);
+                defs.appendChild(gradient);
+                svg.appendChild(defs);
+                
+                // Retângulo de fundo
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('width', '100%');
+                rect.setAttribute('height', '100%');
+                rect.setAttribute('fill', 'url(#demoGradient)');
+                svg.appendChild(rect);
+                
+                // Texto principal
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', '50%');
+                text.setAttribute('y', '45%');
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('font-family', 'Arial, sans-serif');
+                text.setAttribute('font-size', '120');
+                text.setAttribute('font-weight', 'bold');
+                text.setAttribute('fill', '#ffffff');
+                text.textContent = 'Smart Signage Pro';
+                
+                // Animação de fade
+                const animate = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+                animate.setAttribute('attributeName', 'opacity');
+                animate.setAttribute('values', '0.3;1;0.3');
+                animate.setAttribute('dur', '3s');
+                animate.setAttribute('repeatCount', 'indefinite');
+                text.appendChild(animate);
+                svg.appendChild(text);
+                
+                // Texto secundário
+                const subtext = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                subtext.setAttribute('x', '50%');
+                subtext.setAttribute('y', '55%');
+                subtext.setAttribute('text-anchor', 'middle');
+                subtext.setAttribute('font-family', 'Arial, sans-serif');
+                subtext.setAttribute('font-size', '48');
+                subtext.setAttribute('fill', '#90caf9');
+                subtext.textContent = 'Modo Demonstração';
+                svg.appendChild(subtext);
+                
+                // Texto de instruções
+                const instructions = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                instructions.setAttribute('x', '50%');
+                instructions.setAttribute('y', '70%');
+                instructions.setAttribute('text-anchor', 'middle');
+                instructions.setAttribute('font-family', 'Arial, sans-serif');
+                instructions.setAttribute('font-size', '32');
+                instructions.setAttribute('fill', '#b0bec5');
+                instructions.textContent = 'Configure o UIN na URL: ?uin=SEU_UIN';
+                svg.appendChild(instructions);
+                
+                // Versão
+                const version = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                version.setAttribute('x', '50%');
+                version.setAttribute('y', '90%');
+                version.setAttribute('text-anchor', 'middle');
+                version.setAttribute('font-family', 'Arial, sans-serif');
+                version.setAttribute('font-size', '24');
+                version.setAttribute('fill', '#78909c');
+                version.textContent = 'v2.1.0';
+                svg.appendChild(version);
+                
+                return svg;
+            }
+
+            /**
+             * Inicia reprodução da vinheta demo em loop
+             */
+            startDemoPlayback(demoElement) {
+                // Duração da vinheta (10 segundos)
+                const duration = 10000;
+                
+                // Função para reiniciar após duração
+                const loopPlayback = () => {
+                    setTimeout(() => {
+                        // Recriar elemento para reiniciar animação
+                        const content = document.getElementById('content');
+                        content.innerHTML = '';
+                        const newDemo = this.createDemoVinhet();
+                        content.appendChild(newDemo);
+                        loopPlayback();
+                    }, duration);
+                };
+                
+                // Iniciar loop
+                loopPlayback();
+                
+                console.log('🔄 Vinheta demo em loop (10s por ciclo)');
             }
         }
 
