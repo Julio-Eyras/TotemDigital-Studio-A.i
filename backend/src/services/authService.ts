@@ -5,6 +5,7 @@
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 
@@ -481,6 +482,170 @@ export class AuthService {
   async verifyAbandonPin(pin: string): Promise<boolean> {
     const correctPin = process.env.PLAYER_ABANDON_PIN || '1234';
     return pin === correctPin;
+  }
+
+  /**
+   * Solicita recuperação de senha (forgot password)
+   */
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string; token?: string }> {
+    try {
+      // Buscar usuário por email
+      const user = await this.db.findFirst(`
+        SELECT id, username, email, is_active
+        FROM users
+        WHERE email = ? AND is_active = true
+      `, [email]);
+
+      // Por segurança, sempre retornar sucesso mesmo se email não existir
+      // Isso previne enumeração de emails
+      if (!user) {
+        console.log(`[PASSWORD_RESET] Tentativa de recuperação para email não cadastrado: ${email}`);
+        return {
+          success: true,
+          message: 'Se o email estiver cadastrado, você receberá um link de recuperação.'
+        };
+      }
+
+      // Invalidar tokens anteriores do usuário
+      await this.db.executeRaw(`
+        UPDATE password_reset_tokens
+        SET used = true
+        WHERE user_id = ? AND used = false
+      `, [user.id]);
+
+      // Gerar token seguro
+      const token = this.generatePasswordResetToken();
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 1); // Token expira em 1 hora
+
+      // Salvar token no banco
+      await this.db.executeRaw(`
+        INSERT INTO password_reset_tokens (user_id, token, expires_at)
+        VALUES (?, ?, ?)
+      `, [user.id, token, expiresAt]);
+
+      // Log de auditoria
+      await this.getAuditService().log('auth', 'password_reset_requested', user.id, {
+        email: email,
+        username: user.username
+      });
+
+      // TODO: Enviar email com token (mock temporário)
+      // Por enquanto, logar no console (apenas em desenvolvimento)
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`\n🔐 [PASSWORD RESET] Token gerado para ${email}:`);
+        console.log(`   Token: ${token}`);
+        console.log(`   Expira em: ${expiresAt.toISOString()}`);
+        console.log(`   Link: ${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}\n`);
+      }
+
+      return {
+        success: true,
+        message: 'Se o email estiver cadastrado, você receberá um link de recuperação.',
+        token: process.env.NODE_ENV === 'development' ? token : undefined // Apenas em dev
+      };
+
+    } catch (error: any) {
+      console.error('❌ Erro ao solicitar recuperação de senha:', error.message);
+      return {
+        success: false,
+        message: 'Erro ao processar solicitação de recuperação de senha'
+      };
+    }
+  }
+
+  /**
+   * Redefine senha usando token (reset password)
+   */
+  async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Buscar token válido
+      const resetToken = await this.db.findFirst(`
+        SELECT prt.*, u.id as user_id, u.username, u.email
+        FROM password_reset_tokens prt
+        INNER JOIN users u ON prt.user_id = u.id
+        WHERE prt.token = ? 
+          AND prt.used = false 
+          AND prt.expires_at > CURRENT_TIMESTAMP
+          AND u.is_active = true
+      `, [token]);
+
+      if (!resetToken) {
+        return {
+          success: false,
+          message: 'Token inválido ou expirado. Solicite uma nova recuperação de senha.'
+        };
+      }
+
+      // Validar nova senha
+      if (!newPassword || newPassword.length < 6) {
+        return {
+          success: false,
+          message: 'A nova senha deve ter pelo menos 6 caracteres'
+        };
+      }
+
+      // Hash da nova senha
+      const saltRounds = 12;
+      const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+      // Atualizar senha do usuário
+      await this.db.executeRaw(`
+        UPDATE users
+        SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [passwordHash, resetToken.user_id]);
+
+      // Marcar token como usado
+      await this.db.executeRaw(`
+        UPDATE password_reset_tokens
+        SET used = true
+        WHERE id = ?
+      `, [resetToken.id]);
+
+      // Log de auditoria
+      await this.getAuditService().log('auth', 'password_reset_completed', resetToken.user_id, {
+        username: resetToken.username,
+        email: resetToken.email
+      });
+
+      return {
+        success: true,
+        message: 'Senha redefinida com sucesso. Você já pode fazer login com a nova senha.'
+      };
+
+    } catch (error: any) {
+      console.error('❌ Erro ao redefinir senha:', error.message);
+      return {
+        success: false,
+        message: 'Erro ao processar redefinição de senha'
+      };
+    }
+  }
+
+  /**
+   * Gera token seguro para recuperação de senha
+   */
+  private generatePasswordResetToken(): string {
+    // Gerar token aleatório de 32 bytes (256 bits) em hexadecimal
+    return crypto.randomBytes(32).toString('hex');
+  }
+
+  /**
+   * Limpa tokens expirados (manutenção)
+   */
+  async cleanupExpiredTokens(): Promise<number> {
+    try {
+      const result = await this.db.executeRaw(`
+        DELETE FROM password_reset_tokens
+        WHERE expires_at < CURRENT_TIMESTAMP OR used = true
+      `);
+
+      return (result as any).rowCount || 0;
+    } catch (error: any) {
+      console.error('❌ Erro ao limpar tokens expirados:', error.message);
+      return 0;
+    }
   }
 
   /**

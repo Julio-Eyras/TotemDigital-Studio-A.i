@@ -89,6 +89,27 @@ const abandonPinValidator = [
     .withMessage('PIN deve conter apenas números')
 ];
 
+const forgotPasswordValidator = [
+  body('email')
+    .notEmpty()
+    .withMessage('Email é obrigatório')
+    .isEmail()
+    .withMessage('Email deve ser válido')
+];
+
+const resetPasswordValidator = [
+  body('token')
+    .notEmpty()
+    .withMessage('Token é obrigatório')
+    .isLength({ min: 64 })
+    .withMessage('Token inválido'),
+  body('password')
+    .notEmpty()
+    .withMessage('Nova senha é obrigatória')
+    .isLength({ min: 6 })
+    .withMessage('Nova senha deve ter pelo menos 6 caracteres')
+];
+
 // =============================================
 // ROUTES
 // =============================================
@@ -360,6 +381,81 @@ router.get('/default-credentials', async (req: Request, res: Response) => {
 
   } catch (error: any) {
     console.error('❌ Erro ao verificar credenciais padrão:', error.message);
+    res.status(500).json({
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Solicita recuperação de senha
+ */
+router.post('/forgot-password', forgotPasswordValidator, async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        error: 'Dados inválidos',
+        details: errors.array()
+      });
+    }
+
+    const { email } = req.body;
+    const result = await getAuthService().forgotPassword(email);
+
+    if (!result.success) {
+      return res.status(400).json({
+        error: result.message
+      });
+    }
+
+    // Retornar resposta genérica por segurança (mesmo se email não existir)
+    res.json({
+      success: true,
+      message: result.message,
+      // Em desenvolvimento, retornar token para facilitar testes
+      ...(process.env.NODE_ENV === 'development' && result.token ? { token: result.token } : {})
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro ao solicitar recuperação de senha:', error.message);
+    res.status(500).json({
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+/**
+ * POST /api/auth/reset-password
+ * Redefine senha usando token
+ */
+router.post('/reset-password', resetPasswordValidator, async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        error: 'Dados inválidos',
+        details: errors.array()
+      });
+    }
+
+    const { token, password } = req.body;
+    const result = await getAuthService().resetPassword(token, password);
+
+    if (!result.success) {
+      return res.status(400).json({
+        error: result.message
+      });
+    }
+
+    res.json({
+      success: true,
+      message: result.message
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro ao redefinir senha:', error.message);
     res.status(500).json({
       error: 'Erro interno do servidor'
     });

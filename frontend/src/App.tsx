@@ -5,6 +5,8 @@ import { CssBaseline, Box } from '@mui/material';
 
 // Pages
 import LoginPage from './pages/Auth/LoginPage';
+import ForgotPassword from './pages/Auth/ForgotPassword';
+import ResetPassword from './pages/Auth/ResetPassword';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Media from './pages/Media/Media';
 import Playlists from './pages/Playlists/Playlists';
@@ -144,6 +146,26 @@ const App: React.FC = () => {
                 <Navigate to="/dashboard" />
               ) : (
                 <LoginPage onLoginSuccess={handleLoginSuccess} />
+              )
+            }
+          />
+          <Route
+            path="/forgot-password"
+            element={
+              isAuthenticated ? (
+                <Navigate to="/dashboard" />
+              ) : (
+                <ForgotPassword />
+              )
+            }
+          />
+          <Route
+            path="/reset-password"
+            element={
+              isAuthenticated ? (
+                <Navigate to="/dashboard" />
+              ) : (
+                <ResetPassword />
               )
             }
           />

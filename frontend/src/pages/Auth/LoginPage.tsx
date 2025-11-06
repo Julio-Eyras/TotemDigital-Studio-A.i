@@ -238,6 +238,24 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </Typography>
           </Box>
 
+          {/* Forgot Password Link */}
+          <Box sx={{ textAlign: 'center', mt: 3 }}>
+            <Link
+              component="button"
+              variant="body2"
+              onClick={() => window.location.href = '/forgot-password'}
+              sx={{
+                cursor: 'pointer',
+                textDecoration: 'none',
+                '&:hover': {
+                  textDecoration: 'underline',
+                },
+              }}
+            >
+              Esqueci minha senha
+            </Link>
+          </Box>
+
           {/* Footer */}
           <Box sx={{ textAlign: 'center', mt: 4 }}>
             <Typography variant="body2" color="text.secondary">
