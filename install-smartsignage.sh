@@ -3660,20 +3660,26 @@ setup_first_boot() {
     LOGS_CONFIG_SQL_FILE="$INSTALL_DIR/database/logs-config-schema.sql"
     if [[ -f "$LOGS_CONFIG_SQL_FILE" ]]; then
         log "Executando schema de configurações de logs..."
-        if psql "$DATABASE_URL" -f "$LOGS_CONFIG_SQL_FILE" >/dev/null 2>&1; then
-            log "✅ Schema de configurações de logs aplicado com sucesso"
+        log "📋 Arquivo: $LOGS_CONFIG_SQL_FILE"
+        
+        # Executar schema e capturar erros críticos (ignorando NOTICE e avisos de já existe)
+        if psql "$DATABASE_URL" -f "$LOGS_CONFIG_SQL_FILE" 2>&1 | grep -v "NOTICE:" | grep -v "already exists" | grep -i "error" >/dev/null; then
+            warn "⚠️ Alguns erros ao executar logs-config-schema.sql, mas continuando..."
         else
-            warn "⚠️ Alguns avisos ao executar logs-config-schema.sql (pode ser normal se configurações já existem)"
-            # Verificar se pelo menos algumas configurações foram criadas
-            LOGS_CONFIG_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
-            if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
-                log "✅ Configurações de logs criadas ($LOGS_CONFIG_COUNT configurações encontradas)"
-            else
-                warn "⚠️ Configurações de logs podem não ter sido criadas"
-            fi
+            log "✅ Schema de configurações de logs executado"
+        fi
+        
+        # Sempre verificar se configurações foram criadas
+        LOGS_CONFIG_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
+        if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
+            log "✅ Configurações de logs criadas ($LOGS_CONFIG_COUNT configurações encontradas)"
+        else
+            warn "⚠️ Configurações de logs podem não ter sido criadas"
+            warn "💡 Execute manualmente: psql \"$DATABASE_URL\" -f \"$LOGS_CONFIG_SQL_FILE\""
         fi
     else
         warn "⚠️ Arquivo logs-config-schema.sql não encontrado em $LOGS_CONFIG_SQL_FILE"
+        warn "💡 Verifique se o arquivo existe no diretório database/"
     fi
     
     # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
