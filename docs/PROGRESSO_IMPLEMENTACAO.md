@@ -10,11 +10,11 @@
 | Prioridade | Total | Concluído | Em Andamento | Pendente |
 |------------|-------|-----------|--------------|----------|
 | 🔴 Alta | 3 | 2 | 0 | 1 |
-| 🟡 Média | 4 | 1 | 0 | 3 |
+| 🟡 Média | 4 | 2 | 0 | 2 |
 | 🟢 Baixa | 2 | 1 | 0 | 1 |
-| **TOTAL** | **9** | **4** | **0** | **5** |
+| **TOTAL** | **9** | **5** | **0** | **4** |
 
-**Progresso Geral:** 44% (4/9 tarefas completas)
+**Progresso Geral:** 56% (5/9 tarefas completas)
 
 ---
 
