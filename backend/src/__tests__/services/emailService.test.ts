@@ -121,11 +121,26 @@ describe('EmailService', () => {
     });
   });
 
-  // Nota: sendWelcomeEmail não está implementado ainda
-  // Este teste será adicionado quando o método for implementado
-  describe.skip('sendWelcomeEmail', () => {
+  describe('sendWelcomeEmail', () => {
     it('deve enviar email de boas-vindas', async () => {
-      // Será implementado quando o método for criado
+      mockTransporter.sendMail.mockResolvedValue({
+        messageId: 'test-message-id',
+      });
+
+      const result = await emailService.sendWelcomeEmail(
+        'user@example.com',
+        'testuser',
+        'temp-password'
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockTransporter.sendMail).toHaveBeenCalled();
+      
+      const callArgs = mockTransporter.sendMail.mock.calls[0][0];
+      expect(callArgs.to).toBe('user@example.com');
+      expect(callArgs.subject).toContain('Bem-vindo');
+      expect(callArgs.html).toContain('testuser');
+      expect(callArgs.html).toContain('temp-password');
     });
   });
 
