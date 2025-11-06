@@ -298,16 +298,43 @@ router.post('/:id/process',
   body('generateThumbnail').optional().isBoolean(),
   body('optimize').optional().isBoolean(),
   body('resize').optional().isObject(),
+  body('resize.width').optional().isInt({ min: 1 }),
+  body('resize.height').optional().isInt({ min: 1 }),
+  body('resize.fit').optional().isIn(['cover', 'contain', 'fill', 'inside', 'outside']),
   validateRequest,
   async (req: Request, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       const processOptions = req.body;
-      // const result = await getMediaService().processMedia(mediaId, processOptions); // Método privado
-      const result = { success: true, message: 'Processamento de mídia não implementado' }; // Mock
+
+      // Verificar se mídia existe
+      const media = await getMediaService().getMediaById(mediaId);
+      if (!media) {
+        return res.status(404).json({ 
+          success: false,
+          error: 'Mídia não encontrada' 
+        });
+      }
+
+      // Processar mídia
+      const result = await getMediaService().processMediaById(mediaId, {
+        generateThumbnail: processOptions.generateThumbnail !== false, // Padrão: true
+        optimize: processOptions.optimize !== false, // Padrão: true
+        resize: processOptions.resize || undefined
+      });
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
       res.json(result);
-    } catch (error) {
-      res.status(400).json({ error: 'Erro ao processar arquivo de mídia' });
+    } catch (error: any) {
+      console.error('❌ Erro ao processar mídia:', error.message);
+      res.status(500).json({ 
+        success: false,
+        error: 'Erro ao processar arquivo de mídia',
+        message: error.message
+      });
     }
   }
 );

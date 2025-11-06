@@ -9,12 +9,12 @@
 
 | Prioridade | Total | Concluído | Em Andamento | Pendente |
 |------------|-------|-----------|--------------|----------|
-| 🔴 Alta | 3 | 1 | 0 | 2 |
+| 🔴 Alta | 3 | 1 | 1 | 1 |
 | 🟡 Média | 4 | 0 | 0 | 4 |
 | 🟢 Baixa | 2 | 0 | 0 | 2 |
-| **TOTAL** | **9** | **1** | **0** | **8** |
+| **TOTAL** | **9** | **1** | **1** | **7** |
 
-**Progresso Geral:** 11% (1/9 tarefas)
+**Progresso Geral:** 20% (1 completo + 1 em andamento/9 tarefas)
 
 ---
 
@@ -58,18 +58,21 @@
 ---
 
 ### ✅ 3. Processamento de Mídia
-- **Status:** ⏳ Pendente
-- **Progresso:** 0%
-- **Tempo Estimado:** 1 semana
-- **Dependências:** Sharp, FFmpeg (opcional)
+- **Status:** 🟡 Em Andamento
+- **Progresso:** 80%
+- **Tempo Real:** ~1 hora
+- **Dependências:** Sharp (instalado), FFmpeg (opcional para vídeos)
 
 **Checklist:**
-- [ ] Instalar Sharp para processamento de imagens
-- [ ] Implementar geração de thumbnails
-- [ ] Implementar redimensionamento de imagens
-- [ ] Implementar otimização de imagens
-- [ ] Implementar extração de metadados (duração, resolução)
-- [ ] Integrar com MediaService
+- [x] Sharp já instalado no package.json
+- [x] Implementar método público processMediaById
+- [x] Implementar geração de thumbnails (imagens)
+- [x] Implementar redimensionamento de imagens (com fit)
+- [x] Implementar otimização de imagens (JPEG/PNG/WebP)
+- [x] Implementar atualização de metadados no banco
+- [x] Melhorar método getThumbnail
+- [x] Atualizar rota POST /api/media/:id/process (remover mock)
+- [x] Implementar thumbnail de vídeo (com ffmpeg, fallback se não disponível)
 - [ ] Testes
 
 ---

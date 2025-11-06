@@ -557,11 +557,35 @@ export class MediaService {
 
   /**
    * Gera thumbnail de vídeo
+   * Nota: Requer ffmpeg instalado no sistema para funcionar completamente
    */
   private async generateVideoThumbnail(buffer: Buffer, filePath: string): Promise<string> {
     try {
-      // Implementar com ffmpeg
-      // Por enquanto, retorna o caminho original
+      const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+      
+      // Verificar se ffmpeg está disponível
+      const { exec } = require('child_process');
+      const { promisify } = require('util');
+      const execAsync = promisify(exec);
+
+      try {
+        // Tentar usar ffmpeg para extrair frame do vídeo
+        // Extrai frame no segundo 1 do vídeo
+        await execAsync(`ffmpeg -i "${filePath}" -ss 00:00:01 -vframes 1 -vf "scale=300:300:force_original_aspect_ratio=decrease" "${thumbnailPath}"`);
+        
+        // Verificar se thumbnail foi criado
+        if (fs.existsSync(thumbnailPath)) {
+          return thumbnailPath;
+        }
+      } catch (ffmpegError: any) {
+        // ffmpeg não disponível ou erro na execução
+        console.warn('⚠️ ffmpeg não disponível. Thumbnail de vídeo não pode ser gerado.');
+        console.warn('   Instale ffmpeg para suporte completo: sudo apt-get install ffmpeg');
+        
+        // Retornar caminho original como fallback
+        return filePath;
+      }
+
       return filePath;
 
     } catch (error: any) {
@@ -617,11 +641,189 @@ export class MediaService {
         return null;
       }
       
-      // Retorna o caminho do thumbnail se existir
-      return (media as any).thumbnailPath || null;
+      // Construir caminho do thumbnail
+      const thumbnailPath = media.filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+      
+      // Verificar se arquivo existe
+      if (fs.existsSync(thumbnailPath)) {
+        return thumbnailPath;
+      }
+      
+      return null;
     } catch (error: any) {
       console.error('❌ Erro ao buscar thumbnail:', error.message);
       throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Processa mídia existente (gera thumbnails, otimiza, redimensiona)
+   */
+  async processMediaById(
+    mediaId: number,
+    options: {
+      generateThumbnail?: boolean;
+      optimize?: boolean;
+      resize?: { width?: number; height?: number; fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside' };
+    } = {}
+  ): Promise<{
+    success: boolean;
+    message: string;
+    thumbnailUrl?: string;
+    optimized?: boolean;
+    resized?: boolean;
+    metadata?: {
+      width?: number;
+      height?: number;
+      size?: number;
+    };
+  }> {
+    try {
+      const media = await this.getMediaById(mediaId);
+      if (!media) {
+        throw new Error('Mídia não encontrada');
+      }
+
+      // Verificar se arquivo existe
+      if (!fs.existsSync(media.filePath)) {
+        throw new Error('Arquivo de mídia não encontrado no sistema de arquivos');
+      }
+
+      const result: any = {
+        success: true,
+        message: 'Mídia processada com sucesso',
+        optimized: false,
+        resized: false
+      };
+
+      // Ler arquivo
+      const fileBuffer = fs.readFileSync(media.filePath);
+
+      // Processar apenas imagens por enquanto
+      if (media.mediaType === 'image') {
+        let image = sharp(fileBuffer);
+        let metadata = await image.metadata();
+        let processed = false;
+
+        // Redimensionar se solicitado
+        if (options.resize && (options.resize.width || options.resize.height)) {
+          const width = options.resize.width || undefined;
+          const height = options.resize.height || undefined;
+          const fit = options.resize.fit || 'inside'; // Manter proporção por padrão
+
+          image = image.resize(width, height, {
+            fit: fit,
+            withoutEnlargement: true // Não aumentar se menor
+          });
+
+          // Reprocessar para obter novos metadados
+          metadata = await image.metadata();
+          processed = true;
+          result.resized = true;
+          result.metadata = {
+            width: metadata.width,
+            height: metadata.height
+          };
+        }
+
+        // Otimizar imagem
+        if (options.optimize !== false) {
+          const outputPath = media.filePath;
+          
+          // Determinar formato de saída baseado no original
+          if (media.mimeType === 'image/jpeg' || media.mimeType === 'image/jpg') {
+            image = image.jpeg({ quality: 85, progressive: true });
+          } else if (media.mimeType === 'image/png') {
+            image = image.png({ compressionLevel: 9, adaptiveFiltering: true });
+          } else if (media.mimeType === 'image/webp') {
+            image = image.webp({ quality: 85 });
+          }
+
+          // Salvar imagem otimizada
+          await image.toFile(outputPath);
+          processed = true;
+          result.optimized = true;
+
+          // Atualizar tamanho no banco
+          const stats = fs.statSync(outputPath);
+          await this.db.executeRaw(`
+            UPDATE medias
+            SET size_bytes = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE media_id = ?
+          `, [stats.size, mediaId]);
+
+          result.metadata = {
+            ...result.metadata,
+            size: stats.size
+          };
+        }
+
+        // Gerar thumbnail se solicitado ou se não existir
+        if (options.generateThumbnail !== false) {
+          const thumbnailPath = media.filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+          
+          // Verificar se já existe
+          if (!fs.existsSync(thumbnailPath) || options.generateThumbnail === true) {
+            await sharp(fileBuffer)
+              .resize(300, 300, {
+                fit: 'inside',
+                withoutEnlargement: true
+              })
+              .jpeg({ quality: 80, progressive: true })
+              .toFile(thumbnailPath);
+
+            result.thumbnailUrl = this.getThumbnailUrl(thumbnailPath, 'image');
+            processed = true;
+          } else {
+            result.thumbnailUrl = this.getThumbnailUrl(thumbnailPath, 'image');
+          }
+        }
+
+        // Atualizar metadados no banco se processado
+        if (processed && result.metadata) {
+          await this.db.executeRaw(`
+            UPDATE medias
+            SET width = ?, height = ?, size_bytes = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE media_id = ?
+          `, [
+            result.metadata.width || metadata.width,
+            result.metadata.height || metadata.height,
+            result.metadata.size || metadata.size || 0,
+            mediaId
+          ]);
+        }
+
+        result.message = 'Imagem processada com sucesso';
+        return result;
+
+      } else if (media.mediaType === 'video') {
+        // Para vídeos, apenas gerar thumbnail se solicitado
+        if (options.generateThumbnail !== false) {
+          const thumbnailPath = await this.generateVideoThumbnail(fileBuffer, media.filePath);
+          if (thumbnailPath && thumbnailPath !== media.filePath) {
+            result.thumbnailUrl = this.getThumbnailUrl(thumbnailPath, 'video');
+            result.message = 'Thumbnail de vídeo gerado (requer ffmpeg para processamento completo)';
+          } else {
+            result.message = 'Processamento de vídeo requer ffmpeg. Thumbnail não gerado.';
+          }
+        } else {
+          result.message = 'Processamento de vídeo requer ffmpeg. Apenas otimização de imagens está disponível.';
+        }
+        return result;
+
+      } else {
+        return {
+          success: false,
+          message: `Processamento não suportado para tipo de mídia: ${media.mediaType}`
+        };
+      }
+
+    } catch (error: any) {
+      console.error('❌ Erro ao processar mídia:', error.message);
+      return {
+        success: false,
+        message: `Erro ao processar mídia: ${error.message}`
+      };
     }
   }
 
