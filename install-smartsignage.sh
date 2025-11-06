@@ -3481,6 +3481,7 @@ setup_first_boot() {
     
     # PRIORIDADE 1: Usar schema-postgresql.sql se existir (modelo E.R. completo)
     SCHEMA_SQL_FILE="$INSTALL_DIR/database/schema-postgresql.sql"
+    ADVANCED_SCHEDULES_SCHEMA_FILE="$INSTALL_DIR/database/advanced-schedules-schema.sql"
     if [[ -f "$SCHEMA_SQL_FILE" ]]; then
         log "✅ Arquivo schema-postgresql.sql encontrado - usando modelo E.R. completo"
         log "Executando schema SQL (todas as tabelas do modelo E.R.)..."
@@ -3492,6 +3493,13 @@ setup_first_boot() {
             if [[ $SCHEMA_SQL_EXIT_CODE -eq 0 ]]; then
                 log "✅ Schema criado com sucesso usando schema-postgresql.sql"
                 SCHEMA_SQL_SUCCESS=true
+                
+                # Aplicar schema de agendamentos avançados se existir
+                if [[ -f "$ADVANCED_SCHEDULES_SCHEMA_FILE" ]]; then
+                    log "Aplicando schema de agendamentos avançados..."
+                    psql "$DATABASE_URL" -f "$ADVANCED_SCHEDULES_SCHEMA_FILE" 2>&1 | grep -v "already exists" | grep -v "NOTICE" || true
+                    log "✅ Schema de agendamentos avançados aplicado"
+                fi
             else
                 warn "⚠️ Alguns erros ao executar schema-postgresql.sql (pode ser normal se tabelas já existem)"
                 # Verificar se pelo menos algumas tabelas foram criadas

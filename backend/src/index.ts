@@ -11,8 +11,9 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { initializeDatabase, closeDatabase, getDatabase } from './config/database';
 import { initializeRedis, closeRedis, testRedisConnection } from './config/redis';
-import { initializeExportQueue, closeExportQueue } from './config/queue';
+import { initializeExportQueue, closeExportQueue, initializeAdvancedScheduleQueue, closeAdvancedScheduleQueue } from './config/queue';
 import { registerExportWorker } from './workers/exportWorker';
+import { registerAdvancedScheduleWorker } from './workers/advancedScheduleWorker';
 import { exportScheduleService } from './services/exportScheduleService';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
@@ -41,6 +42,7 @@ import exportQueriesRoutes from './routes/export-queries';
 import exportSchedulesRoutes from './routes/export-schedules';
 import logsRoutes from './routes/logs';
 import playerDebugRoutes from './routes/player-debug';
+import advancedSchedulesRoutes from './routes/advanced-schedules';
 import { openApiSpec } from './config/swagger';
 
 // Services
@@ -235,6 +237,7 @@ app.use('/api/smart-playlist', authMiddleware, smartPlaylistRoutes);
 app.use('/api/export-queries', exportQueriesRoutes);
 app.use('/api/export-schedules', exportSchedulesRoutes);
 app.use('/api/logs', logsRoutes);
+app.use('/api/advanced-schedules', advancedSchedulesRoutes);
 
 // Docs JSON (Swagger OpenAPI)
 app.get('/api/docs.json', (req, res) => {
@@ -300,6 +303,9 @@ process.on('SIGTERM', async () => {
     await closeExportQueue();
     console.log('✅ Queue de exportação fechada');
     
+    await closeAdvancedScheduleQueue();
+    console.log('✅ Queue de agendamento avançado fechada');
+    
     await closeRedis();
     console.log('✅ Redis desconectado');
     
@@ -319,6 +325,9 @@ process.on('SIGINT', async () => {
   try {
     await closeExportQueue();
     console.log('✅ Queue de exportação fechada');
+    
+    await closeAdvancedScheduleQueue();
+    console.log('✅ Queue de agendamento avançado fechada');
     
     await closeRedis();
     console.log('✅ Redis desconectado');
@@ -357,6 +366,11 @@ async function startServer() {
     console.log('📦 Inicializando Bull Queue...');
     initializeExportQueue();
     registerExportWorker();
+    
+    // Inicializar Bull Queue de Agendamento Avançado
+    console.log('📅 Inicializando Bull Queue de Agendamento Avançado...');
+    initializeAdvancedScheduleQueue();
+    registerAdvancedScheduleWorker();
     
     // Carregar agendamentos ativos
     console.log('📅 Carregando agendamentos ativos...');

@@ -109,3 +109,94 @@ export interface ExportJobResult {
   executionLog?: string;
 }
 
+// Queue de agendamento avançado
+let advancedScheduleQueue: Bull.Queue | null = null;
+
+/**
+ * Inicializa queue de agendamento avançado
+ */
+export function initializeAdvancedScheduleQueue(): Bull.Queue {
+  if (!advancedScheduleQueue) {
+    advancedScheduleQueue = new Bull('advanced-schedule-queue', {
+      redis: redisConfig,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000,
+        },
+        removeOnComplete: {
+          age: 24 * 3600, // Manter por 24 horas
+          count: 1000, // Manter últimos 1000 jobs
+        },
+        removeOnFail: {
+          age: 7 * 24 * 3600, // Manter por 7 dias
+        },
+      },
+    });
+
+    advancedScheduleQueue.on('error', (error) => {
+      console.error('❌ Erro na queue de agendamento avançado:', error);
+    });
+
+    advancedScheduleQueue.on('waiting', (jobId) => {
+      console.log(`⏳ Job ${jobId} aguardando processamento (agendamento avançado)`);
+    });
+
+    advancedScheduleQueue.on('active', (job) => {
+      console.log(`🔄 Processando job ${job.id} - Agendamento ${job.data.scheduleId}`);
+    });
+
+    advancedScheduleQueue.on('completed', (job, result) => {
+      console.log(`✅ Job ${job.id} concluído - Agendamento ${job.data.scheduleId}`);
+    });
+
+    advancedScheduleQueue.on('failed', (job, err) => {
+      console.error(`❌ Job ${job?.id} falhou:`, err.message);
+    });
+
+    advancedScheduleQueue.on('stalled', (job) => {
+      console.warn(`⚠️ Job ${job.id} travado`);
+    });
+
+    console.log('✅ Queue de agendamento avançado inicializada');
+  }
+
+  return advancedScheduleQueue;
+}
+
+/**
+ * Obtém queue de agendamento avançado
+ */
+export function getAdvancedScheduleQueue(): Bull.Queue {
+  if (!advancedScheduleQueue) {
+    return initializeAdvancedScheduleQueue();
+  }
+  return advancedScheduleQueue;
+}
+
+/**
+ * Fecha queue de agendamento avançado
+ */
+export async function closeAdvancedScheduleQueue(): Promise<void> {
+  if (advancedScheduleQueue) {
+    await advancedScheduleQueue.close();
+    advancedScheduleQueue = null;
+    console.log('✅ Queue de agendamento avançado fechada');
+  }
+}
+
+// Exportar tipos
+export interface AdvancedScheduleJobData {
+  scheduleId: number;
+  scheduleType: 'campaign' | 'playlist' | 'campaign_activation' | 'playlist_generation';
+  targetId: number;
+}
+
+export interface AdvancedScheduleJobResult {
+  success: boolean;
+  message: string;
+  error?: string;
+  executionLog?: string;
+}
+
