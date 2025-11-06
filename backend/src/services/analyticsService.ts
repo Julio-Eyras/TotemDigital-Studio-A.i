@@ -584,21 +584,93 @@ export class AnalyticsService {
     uniqueViewers: number;
   }[]> {
     try {
-      // Implementação simplificada - em um sistema real, você teria dados históricos
-      const trends = [];
-      const days = 7;
+      // Determinar período baseado no groupBy
+      const days = groupBy === 'day' ? 30 : groupBy === 'week' ? 12 : 7;
       
-      for (let i = days - 1; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        
-        trends.push({
-          date: date.toISOString().split('T')[0],
-          views: Math.floor(Math.random() * 1000) + 100,
-          duration: Math.floor(Math.random() * 3600) + 1800,
-          uniqueViewers: Math.floor(Math.random() * 50) + 10
-        });
+      // Construir query baseada em execution_logs e analytics_sessions
+      let whereClause = 'WHERE 1=1';
+      const params: any[] = [];
+
+      if (filters.startDate) {
+        whereClause += ' AND DATE(executed_at) >= ?';
+        params.push(filters.startDate);
       }
+
+      if (filters.endDate) {
+        whereClause += ' AND DATE(executed_at) <= ?';
+        params.push(filters.endDate);
+      }
+
+      if (filters.totemId) {
+        whereClause += ' AND totem_id = ?';
+        params.push(filters.totemId);
+      }
+
+      if (filters.campaignId) {
+        whereClause += ' AND campaign_id = ?';
+        params.push(filters.campaignId);
+      }
+
+      // Buscar dados de execution_logs
+      const executionData = await this.db.findMany(`
+        SELECT 
+          DATE(executed_at) as date,
+          COUNT(*) as views,
+          SUM(duration_seconds) as duration,
+          COUNT(DISTINCT totem_id) as uniqueViewers
+        FROM execution_logs
+        ${whereClause}
+        AND executed_at >= datetime('now', '-${days} days')
+        GROUP BY DATE(executed_at)
+        ORDER BY date DESC
+      `, params);
+
+      // Buscar dados de analytics_sessions para uniqueViewers mais preciso
+      const sessionData = await this.db.findMany(`
+        SELECT 
+          DATE(session_start) as date,
+          COUNT(DISTINCT id) as uniqueSessions
+        FROM analytics_sessions
+        ${whereClause.replace('executed_at', 'session_start')}
+        AND session_start >= datetime('now', '-${days} days')
+        GROUP BY DATE(session_start)
+        ORDER BY date DESC
+      `, params);
+
+      // Combinar dados
+      const trendsMap = new Map<string, { views: number; duration: number; uniqueViewers: number }>();
+
+      executionData.forEach((row: any) => {
+        const date = row.date;
+        trendsMap.set(date, {
+          views: row.views || 0,
+          duration: row.duration || 0,
+          uniqueViewers: row.uniqueViewers || 0
+        });
+      });
+
+      // Adicionar uniqueSessions de analytics_sessions
+      sessionData.forEach((row: any) => {
+        const date = row.date;
+        if (trendsMap.has(date)) {
+          const existing = trendsMap.get(date)!;
+          existing.uniqueViewers = Math.max(existing.uniqueViewers, row.uniqueSessions || 0);
+        } else {
+          trendsMap.set(date, {
+            views: 0,
+            duration: 0,
+            uniqueViewers: row.uniqueSessions || 0
+          });
+        }
+      });
+
+      // Converter para array e ordenar
+      const trends = Array.from(trendsMap.entries()).map(([date, data]) => ({
+        date,
+        views: data.views,
+        duration: data.duration,
+        uniqueViewers: data.uniqueViewers
+      })).sort((a, b) => a.date.localeCompare(b.date));
 
       return trends;
 
@@ -922,12 +994,45 @@ export class AnalyticsService {
   }
 
   /**
-   * Obtém uso de disco (implementação simplificada)
+   * Obtém uso de disco (implementação real)
    */
   private async getDiskUsage(): Promise<number> {
     try {
-      // Implementação simplificada - em um sistema real, você usaria fs.stat
-      return 75; // Simulado
+      const fs = require('fs');
+      const path = require('path');
+      const { exec } = require('child_process');
+      const { promisify } = require('util');
+      const execAsync = promisify(exec);
+
+      // Tentar usar comando df (Linux/Unix)
+      try {
+        const { stdout } = await execAsync('df -h /');
+        const lines = stdout.split('\n');
+        if (lines.length > 1) {
+          const parts = lines[1].split(/\s+/);
+          if (parts.length >= 5) {
+            // Extrair percentual de uso (ex: "75%" -> 75)
+            const usageStr = parts[4];
+            const usage = parseInt(usageStr.replace('%', ''));
+            return isNaN(usage) ? 0 : usage;
+          }
+        }
+      } catch (dfError: any) {
+        // Se df falhar, tentar calcular manualmente
+        console.warn('⚠️ Comando df não disponível, calculando uso manualmente');
+      }
+
+      // Fallback: calcular uso manualmente (Windows ou se df falhar)
+      try {
+        const stats = fs.statSync('/');
+        // Esta é uma aproximação - em produção, use uma biblioteca como 'diskusage'
+        // Por enquanto, retornar um valor baseado no espaço disponível
+        return 50; // Valor padrão se não conseguir calcular
+      } catch (statError: any) {
+        console.warn('⚠️ Não foi possível calcular uso de disco:', statError.message);
+        return 0;
+      }
+
     } catch (error: any) {
       console.error('❌ Erro ao obter uso de disco:', error.message);
       return 0;

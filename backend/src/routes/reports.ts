@@ -256,7 +256,12 @@ router.get('/download/:id', async (req: any, res) => {
     fileStream.pipe(res);
 
     // Incrementar contador de downloads
-    // await getReportsService().incrementDownloadCount(parseInt(id)); // Método não implementado
+    try {
+      await getReportsService().incrementDownloadCount(parseInt(id));
+    } catch (error: any) {
+      console.warn('⚠️ Erro ao incrementar contador de downloads:', error.message);
+      // Não falhar o download se o incremento falhar
+    }
 
   } catch (error: any) {
     console.error('❌ Erro ao baixar relatório:', error.message);
@@ -358,8 +363,14 @@ router.post('/templates', authorizeRole(['admin']), async (req, res) => {
   try {
     const templateData = req.body;
 
-    // const template = await getReportsService().createReportTemplate(templateData, req.user.id); // Método não implementado
-    const template = { id: 1, name: templateData.name, description: templateData.description }; // Mock
+    const template = await getReportsService().createReportTemplate({
+      name: templateData.name,
+      description: templateData.description,
+      type: templateData.type || 'custom',
+      templateConfig: templateData.templateConfig || {},
+      isDefault: templateData.isDefault || false,
+      isPublic: templateData.isPublic || false
+    }, req.user.id);
 
     res.status(201).json({
       success: true,

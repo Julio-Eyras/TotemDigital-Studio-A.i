@@ -741,16 +741,117 @@ export class ReportsService {
    */
   private async generateAnalyticsReportData(filters: any): Promise<any> {
     try {
-      // Implementar geração de dados de analytics
-      // Esta é uma implementação simplificada
+      let whereClause = 'WHERE 1=1';
+      const params: any[] = [];
+
+      if (filters.startDate) {
+        whereClause += ' AND DATE(executed_at) >= ?';
+        params.push(filters.startDate);
+      }
+
+      if (filters.endDate) {
+        whereClause += ' AND DATE(executed_at) <= ?';
+        params.push(filters.endDate);
+      }
+
+      if (filters.totemId) {
+        whereClause += ' AND totem_id = ?';
+        params.push(filters.totemId);
+      }
+
+      if (filters.campaignId) {
+        whereClause += ' AND campaign_id = ?';
+        params.push(filters.campaignId);
+      }
+
+      // Buscar dados de execution_logs
+      const executionLogs = await this.db.findMany(`
+        SELECT 
+          el.log_id,
+          el.totem_id,
+          el.campaign_id,
+          el.media_id,
+          el.executed_at,
+          el.duration_seconds,
+          el.status,
+          el.play_success,
+          t.identifier as totem_identifier,
+          c.title as campaign_title,
+          m.name as media_name
+        FROM execution_logs el
+        LEFT JOIN totems t ON el.totem_id = t.totem_id
+        LEFT JOIN campaigns c ON el.campaign_id = c.campaign_id
+        LEFT JOIN medias m ON el.media_id = m.media_id
+        ${whereClause}
+        ORDER BY el.executed_at DESC
+        LIMIT 1000
+      `, params);
+
+      // Buscar estatísticas agregadas
+      const stats = await this.db.findFirst(`
+        SELECT 
+          COUNT(*) as totalViews,
+          SUM(duration_seconds) as totalDuration,
+          AVG(duration_seconds) as averageViewDuration,
+          COUNT(DISTINCT totem_id) as uniqueViewers,
+          SUM(CASE WHEN play_success = 1 THEN 1 ELSE 0 END) as successfulPlays,
+          SUM(CASE WHEN play_success = 0 THEN 1 ELSE 0 END) as failedPlays
+        FROM execution_logs
+        ${whereClause}
+      `, params);
+
+      // Buscar dados de analytics_sessions
+      const sessions = await this.db.findMany(`
+        SELECT 
+          id,
+          totem_id,
+          session_start,
+          session_end,
+          total_interactions,
+          avg_emotion_score,
+          dominant_emotion
+        FROM analytics_sessions
+        ${whereClause.replace('executed_at', 'session_start')}
+        ORDER BY session_start DESC
+        LIMIT 500
+      `, params);
+
       return {
         type: 'analytics',
-        data: [],
+        data: {
+          executionLogs: executionLogs.map((log: any) => ({
+            logId: log.log_id,
+            totemId: log.totem_id,
+            totemIdentifier: log.totem_identifier,
+            campaignId: log.campaign_id,
+            campaignTitle: log.campaign_title,
+            mediaId: log.media_id,
+            mediaName: log.media_name,
+            executedAt: log.executed_at,
+            durationSeconds: log.duration_seconds,
+            status: log.status,
+            playSuccess: log.play_success
+          })),
+          sessions: sessions.map((session: any) => ({
+            sessionId: session.id,
+            totemId: session.totem_id,
+            sessionStart: session.session_start,
+            sessionEnd: session.session_end,
+            totalInteractions: session.total_interactions,
+            avgEmotionScore: session.avg_emotion_score,
+            dominantEmotion: session.dominant_emotion
+          }))
+        },
         summary: {
-          totalViews: 0,
-          totalDuration: 0,
-          averageViewDuration: 0,
-          uniqueViewers: 0
+          totalViews: stats?.totalViews || 0,
+          totalDuration: stats?.totalDuration || 0,
+          averageViewDuration: stats?.averageViewDuration || 0,
+          uniqueViewers: stats?.uniqueViewers || 0,
+          successfulPlays: stats?.successfulPlays || 0,
+          failedPlays: stats?.failedPlays || 0,
+          successRate: stats?.totalViews > 0 
+            ? ((stats.successfulPlays || 0) / stats.totalViews * 100).toFixed(2)
+            : 0
         }
       };
 
@@ -982,6 +1083,203 @@ export class ReportsService {
     } catch (error: any) {
       console.error('❌ Erro ao buscar estatísticas de relatórios:', error.message);
       throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Incrementa contador de downloads de um relatório
+   */
+  async incrementDownloadCount(reportId: number): Promise<void> {
+    try {
+      await this.db.executeRaw(`
+        UPDATE reports
+        SET download_count = download_count + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE report_id = ?
+      `, [reportId]);
+
+      // Log de auditoria
+      await this.getAuditService().log('reports', 'download', reportId, {
+        reportId,
+        action: 'download'
+      });
+
+    } catch (error: any) {
+      console.error('❌ Erro ao incrementar contador de downloads:', error.message);
+      throw new Error('Erro ao incrementar contador de downloads');
+    }
+  }
+
+  /**
+   * Cria template de relatório
+   */
+  async createReportTemplate(
+    templateData: {
+      name: string;
+      description?: string;
+      type: string;
+      templateConfig: any;
+      isDefault?: boolean;
+      isPublic?: boolean;
+    },
+    createdBy: number
+  ): Promise<ReportTemplate> {
+    try {
+      // Se for marcado como padrão, desmarcar outros templates padrão do mesmo tipo
+      if (templateData.isDefault) {
+        await this.db.executeRaw(`
+          UPDATE report_templates
+          SET is_default = false
+          WHERE type = ? AND is_default = true
+        `, [templateData.type]);
+      }
+
+      // Criar template
+      const result = await this.db.executeRaw(`
+        INSERT INTO report_templates (
+          name, description, type, template_config,
+          is_default, is_public, created_by
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [
+        templateData.name,
+        templateData.description || null,
+        templateData.type,
+        JSON.stringify(templateData.templateConfig),
+        templateData.isDefault ? 1 : 0,
+        templateData.isPublic ? 1 : 0,
+        createdBy
+      ]);
+
+      if (!result.lastInsertRowid) {
+        throw new Error('Erro ao criar template de relatório');
+      }
+
+      const templateId = result.lastInsertRowid;
+
+      // Buscar template criado
+      const template = await this.db.findFirst(`
+        SELECT 
+          template_id as id,
+          name,
+          description,
+          type,
+          template_config as template,
+          is_default as isDefault,
+          is_public as isPublic,
+          created_at as createdAt,
+          created_by as createdBy
+        FROM report_templates
+        WHERE template_id = ?
+      `, [templateId]);
+
+      if (!template) {
+        throw new Error('Template não encontrado após criação');
+      }
+
+      // Log de auditoria
+      await this.getAuditService().log('reports', 'template_created', templateId, {
+        templateId,
+        name: templateData.name,
+        type: templateData.type
+      });
+
+      return {
+        ...template,
+        template: template.template ? JSON.parse(template.template) : {}
+      };
+
+    } catch (error: any) {
+      console.error('❌ Erro ao criar template de relatório:', error.message);
+      throw new Error('Erro ao criar template de relatório');
+    }
+  }
+
+  /**
+   * Lista templates de relatório
+   */
+  async getReportTemplates(filters: {
+    type?: string;
+    isPublic?: boolean;
+    createdBy?: number;
+  } = {}): Promise<ReportTemplate[]> {
+    try {
+      let whereClause = 'WHERE 1=1';
+      const params: any[] = [];
+
+      if (filters.type) {
+        whereClause += ' AND type = ?';
+        params.push(filters.type);
+      }
+
+      if (filters.isPublic !== undefined) {
+        whereClause += ' AND (is_public = ? OR created_by = ?)';
+        params.push(filters.isPublic ? 1 : 0);
+        params.push(filters.createdBy || 0);
+      } else if (filters.createdBy) {
+        whereClause += ' AND (is_public = 1 OR created_by = ?)';
+        params.push(filters.createdBy);
+      }
+
+      const templates = await this.db.findMany(`
+        SELECT 
+          template_id as id,
+          name,
+          description,
+          type,
+          template_config as template,
+          is_default as isDefault,
+          is_public as isPublic,
+          created_at as createdAt,
+          created_by as createdBy
+        FROM report_templates
+        ${whereClause}
+        ORDER BY is_default DESC, created_at DESC
+      `, params);
+
+      return templates.map(t => ({
+        ...t,
+        template: t.template ? JSON.parse(t.template) : {}
+      }));
+
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar templates de relatório:', error.message);
+      throw new Error('Erro ao buscar templates de relatório');
+    }
+  }
+
+  /**
+   * Busca template por ID
+   */
+  async getReportTemplateById(templateId: number): Promise<ReportTemplate | null> {
+    try {
+      const template = await this.db.findFirst(`
+        SELECT 
+          template_id as id,
+          name,
+          description,
+          type,
+          template_config as template,
+          is_default as isDefault,
+          is_public as isPublic,
+          created_at as createdAt,
+          created_by as createdBy
+        FROM report_templates
+        WHERE template_id = ?
+      `, [templateId]);
+
+      if (!template) {
+        return null;
+      }
+
+      return {
+        ...template,
+        template: template.template ? JSON.parse(template.template) : {}
+      };
+
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar template de relatório:', error.message);
+      throw new Error('Erro ao buscar template de relatório');
     }
   }
 }

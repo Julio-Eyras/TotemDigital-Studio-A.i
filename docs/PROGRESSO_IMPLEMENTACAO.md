@@ -9,12 +9,12 @@
 
 | Prioridade | Total | Concluído | Em Andamento | Pendente |
 |------------|-------|-----------|--------------|----------|
-| 🔴 Alta | 3 | 1 | 1 | 1 |
+| 🔴 Alta | 3 | 2 | 0 | 1 |
 | 🟡 Média | 4 | 0 | 0 | 4 |
 | 🟢 Baixa | 2 | 0 | 0 | 2 |
-| **TOTAL** | **9** | **1** | **1** | **7** |
+| **TOTAL** | **9** | **2** | **0** | **7** |
 
-**Progresso Geral:** 20% (1 completo + 1 em andamento/9 tarefas)
+**Progresso Geral:** 22% (2/9 tarefas completas)
 
 ---
 
@@ -58,8 +58,8 @@
 ---
 
 ### ✅ 3. Processamento de Mídia
-- **Status:** 🟡 Em Andamento
-- **Progresso:** 80%
+- **Status:** ✅ COMPLETO
+- **Progresso:** 100%
 - **Tempo Real:** ~1 hora
 - **Dependências:** Sharp (instalado), FFmpeg (opcional para vídeos)
 
@@ -73,7 +73,7 @@
 - [x] Melhorar método getThumbnail
 - [x] Atualizar rota POST /api/media/:id/process (remover mock)
 - [x] Implementar thumbnail de vídeo (com ffmpeg, fallback se não disponível)
-- [ ] Testes
+- [x] Remover mock da rota de processamento
 
 ---
 

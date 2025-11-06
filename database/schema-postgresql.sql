@@ -1,6 +1,8 @@
 -- Smart Signage v2.0 - Schema SQL PostgreSQL
 -- Adaptado para PostgreSQL 15+
 -- Baseado no schema Prisma da v7.0.0
+-- 
+-- NOTA: Execute também database/reports-schema.sql para criar as tabelas de relatórios
 
 -- =============================================
 -- TABLES
