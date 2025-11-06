@@ -95,9 +95,20 @@
 - [x] Dados consistentes com Dashboard e Reports
 
 ### ✅ 6. Execução de Queries por Provider
-- **Status:** ⏳ Pendente
-- **Progresso:** 0%
-- **Tempo Estimado:** 2 semanas
+- **Status:** ✅ COMPLETO
+- **Progresso:** 100%
+- **Tempo Real:** ~2 horas
+- **Dependências:** ioredis (já instalado), axios (já instalado)
+
+**Implementado:**
+- [x] Criar config/grafana.ts com executeGrafanaQuery e testGrafanaConnection
+- [x] Criar config/prometheus.ts com executePrometheusQuery, executePrometheusInstantQuery e testPrometheusConnection
+- [x] Implementar executeRedisQuery no exportWorker.ts (suporta KEYS, GET, HGETALL, SMEMBERS, LRANGE, ZRANGE, INFO)
+- [x] Implementar executePrometheusQueryWrapper no exportWorker.ts (detecta range vs instant)
+- [x] Atualizar executeQuery no exportWorker.ts para suportar todos os providers
+- [x] Atualizar testConnection no exportQueryService.ts para testar todos os providers
+- [x] Adicionar variáveis de ambiente para Grafana e Prometheus
+- [x] Converter respostas do Grafana e Prometheus para formato tabular
 
 ### ✅ 7. Agendamento Avançado
 - **Status:** ⏳ Pendente
