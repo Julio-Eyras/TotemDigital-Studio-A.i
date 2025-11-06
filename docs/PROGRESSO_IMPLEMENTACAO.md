@@ -58,16 +58,6 @@
 - [x] Mock de dependências (banco de dados, serviços externos)
 - [ ] Integrar com CI/CD (futuro)
 
-**Checklist:**
-- [ ] Configurar Jest no backend
-- [ ] Configurar Supertest para testes de API
-- [ ] Criar testes unitários para AuthService
-- [ ] Criar testes de integração para rotas de autenticação
-- [ ] Criar testes para UserService
-- [ ] Criar testes para TotemService
-- [ ] Configurar coverage reports
-- [ ] Integrar com CI/CD (futuro)
-
 ---
 
 ### ✅ 3. Processamento de Mídia
