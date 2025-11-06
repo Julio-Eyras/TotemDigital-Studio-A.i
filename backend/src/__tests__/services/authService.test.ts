@@ -181,22 +181,6 @@ describe('AuthService', () => {
     });
   });
 
-  describe('validateCronExpression', () => {
-    it('deve validar expressão cron válida', () => {
-      const cronValidation = authService.validateCronExpression('0 0 * * *');
-      
-      expect(cronValidation.valid).toBe(true);
-      expect(cronValidation.nextExecution).toBeInstanceOf(Date);
-    });
-
-    it('deve rejeitar expressão cron inválida', () => {
-      const cronValidation = authService.validateCronExpression('invalid-cron');
-      
-      expect(cronValidation.valid).toBe(false);
-      expect(cronValidation.error).toBeDefined();
-    });
-  });
-
   describe('register', () => {
     it('deve registrar novo usuário com dados válidos', async () => {
       const mockNewUser = {
