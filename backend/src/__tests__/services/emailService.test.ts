@@ -171,7 +171,8 @@ describe('EmailService', () => {
 
   describe('testConnection', () => {
     it('deve retornar true quando conexão é bem-sucedida', async () => {
-      mockTransporter.verify.mockResolvedValue(true);
+      // Mock do verify como Promise
+      mockTransporter.verify = jest.fn().mockResolvedValue(true);
 
       const result = await emailService.testConnection();
 
@@ -180,11 +181,32 @@ describe('EmailService', () => {
     });
 
     it('deve retornar false quando conexão falha', async () => {
-      mockTransporter.verify.mockRejectedValue(new Error('Connection failed'));
+      // Mock do verify com erro
+      mockTransporter.verify = jest.fn().mockRejectedValue(new Error('Connection failed'));
 
       const result = await emailService.testConnection();
 
       expect(result).toBe(false);
+      expect(mockTransporter.verify).toHaveBeenCalled();
+    });
+
+    it('deve retornar false quando transporter não existe', async () => {
+      // Criar serviço sem transporter
+      process.env.EMAIL_ENABLED = 'false';
+      process.env.SMTP_USER = '';
+      process.env.SMTP_PASS = '';
+      
+      const disabledEmailService = new EmailService();
+      const result = await disabledEmailService.testConnection();
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('isServiceEnabled', () => {
+    it('deve retornar true quando serviço está habilitado', () => {
+      const isEnabled = emailService.isServiceEnabled();
+      expect(typeof isEnabled).toBe('boolean');
     });
   });
 });
