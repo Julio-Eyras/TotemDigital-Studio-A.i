@@ -243,7 +243,8 @@ router.post('/:id/test-connection', authorizeRole(['admin', 'manager']), async (
       : query.database_config;
 
     // Testar conexão
-    const connected = await exportQueryService.testConnection(databaseConfig);
+    const provider = req.body.provider || 'PostgreSQL';
+    const connected = await exportQueryService.testConnection(provider, databaseConfig);
 
     res.json({
       success: connected,

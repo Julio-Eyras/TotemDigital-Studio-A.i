@@ -91,7 +91,7 @@ export class ExportQueryService {
         data.description || null,
         data.provider,
         data.sqlQuery,
-        JSON.stringify(databaseConfig),
+        data.databaseConfig ? JSON.stringify(data.databaseConfig) : null,
         JSON.stringify(data.exportConfig),
         data.enabled !== false,
         userId
@@ -292,11 +292,33 @@ export class ExportQueryService {
   /**
    * Testa conexão com banco de dados
    */
-  async testConnection(databaseConfig: any): Promise<boolean> {
+  async testConnection(provider: string, databaseConfig?: any): Promise<boolean> {
     try {
-      // Implementar teste de conexão baseado no provider
-      // Por enquanto, retorna true (será implementado depois)
-      return true;
+      switch (provider) {
+        case 'PostgreSQL':
+          // Testar conexão PostgreSQL (banco principal)
+          const db = getDatabase();
+          await db.findFirst('SELECT 1');
+          return true;
+
+        case 'Redis':
+          // Testar conexão Redis
+          const { testRedisConnection } = await import('../config/redis');
+          return await testRedisConnection();
+
+        case 'Grafana':
+          // Testar conexão Grafana
+          const { testGrafanaConnection } = await import('../config/grafana');
+          return await testGrafanaConnection();
+
+        case 'Prometheus':
+          // Testar conexão Prometheus
+          const { testPrometheusConnection } = await import('../config/prometheus');
+          return await testPrometheusConnection();
+
+        default:
+          return false;
+      }
     } catch (error: any) {
       console.error('❌ Erro ao testar conexão:', error.message);
       return false;
