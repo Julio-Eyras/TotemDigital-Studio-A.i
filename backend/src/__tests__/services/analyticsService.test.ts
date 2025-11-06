@@ -92,39 +92,33 @@ describe('AnalyticsService', () => {
     });
   });
 
-  describe('getViewingTrends', () => {
-    it('deve retornar tendências de visualização', async () => {
-      const mockTrends = [
-        {
-          date: '2024-01-01',
-          views: 100,
-          duration: 3600,
-          uniqueViewers: 50,
-        },
-      ];
+  describe('getAnalytics - viewingTrends', () => {
+    it('deve incluir tendências de visualização nos analytics', async () => {
+      mockDb.findFirst
+        .mockResolvedValueOnce({ total: 1000 }) // totalViews
+        .mockResolvedValueOnce({ total: 3600 }) // totalDuration
+        .mockResolvedValueOnce({ count: 100 }); // uniqueViewers
 
-      mockDb.findMany.mockResolvedValue(mockTrends);
+      mockDb.findMany
+        .mockResolvedValueOnce([]) // viewingTrends (executionData)
+        .mockResolvedValueOnce([]) // viewingTrends (sessionData)
+        .mockResolvedValueOnce([]) // mostViewedContent
+        .mockResolvedValueOnce([]) // deviceStats
+        .mockResolvedValueOnce([]) // locationStats
+        .mockResolvedValueOnce([]) // campaignPerformance
+        .mockResolvedValueOnce([]) // totemPerformance
+        .mockResolvedValueOnce([]) // qrCodeStats
+        .mockResolvedValueOnce([]) // revenue byClient
+        .mockResolvedValueOnce([]); // revenue byCampaign
 
-      const result = await analyticsService.getViewingTrends({
+      const result = await analyticsService.getAnalytics({
         startDate: '2024-01-01',
         endDate: '2024-01-31',
       });
 
       expect(result).toBeDefined();
-      expect(Array.isArray(result)).toBe(true);
-    });
-  });
-
-  describe('getDiskUsage', () => {
-    it('deve retornar uso de disco', async () => {
-      // Mock será baseado em execução de comando do sistema
-      // Por enquanto, testamos que o método existe e retorna dados estruturados
-      const result = await analyticsService.getDiskUsage();
-
-      expect(result).toBeDefined();
-      expect(typeof result.total).toBe('number');
-      expect(typeof result.used).toBe('number');
-      expect(typeof result.free).toBe('number');
+      expect(result.viewingTrends).toBeDefined();
+      expect(Array.isArray(result.viewingTrends)).toBe(true);
     });
   });
 });

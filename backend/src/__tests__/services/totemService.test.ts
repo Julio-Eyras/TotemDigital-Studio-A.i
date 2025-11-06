@@ -48,9 +48,12 @@ describe('TotemService', () => {
       ];
 
       mockDb.findMany.mockResolvedValue(mockTotems);
-      mockDb.findFirst.mockResolvedValue({ total: '1' });
-      mockDb.findFirst.mockResolvedValueOnce({ campaignCount: 2, playlistCount: 1 });
-      mockDb.findFirst.mockResolvedValueOnce(3600); // uptime
+      mockDb.findFirst
+        .mockResolvedValueOnce({ total: '1' }) // Contar total
+        .mockResolvedValueOnce({ count: 2 }) // getTotemStats - campaignCount
+        .mockResolvedValueOnce({ count: 1 }) // getTotemStats - playlistCount
+        .mockResolvedValueOnce({ count: 2 }) // getTotemStats - campaignCount (segundo totem)
+        .mockResolvedValueOnce({ count: 1 }); // getTotemStats - playlistCount (segundo totem)
 
       const result = await totemService.getTotems(1, 20);
 
@@ -84,8 +87,8 @@ describe('TotemService', () => {
 
       mockDb.findFirst
         .mockResolvedValueOnce(mockTotem) // Buscar totem
-        .mockResolvedValueOnce({ campaignCount: 2, playlistCount: 1 }) // Stats
-        .mockResolvedValueOnce(3600); // Uptime
+        .mockResolvedValueOnce({ count: 2 }) // getTotemStats - campaignCount
+        .mockResolvedValueOnce({ count: 1 }); // getTotemStats - playlistCount
 
       const result = await totemService.getTotemById(1);
 
@@ -141,9 +144,10 @@ describe('TotemService', () => {
 
       mockDb.findFirst.mockResolvedValue(null); // Totem não existe
       mockDb.executeRaw.mockResolvedValue({ lastInsertRowid: 1 });
-      mockDb.findFirst.mockResolvedValueOnce(mockTotem); // Retornar criado
-      mockDb.findFirst.mockResolvedValueOnce({ campaignCount: 0, playlistCount: 0 });
-      mockDb.findFirst.mockResolvedValueOnce(0); // Uptime
+      mockDb.findFirst
+        .mockResolvedValueOnce(mockTotem) // Retornar criado
+        .mockResolvedValueOnce({ count: 0 }) // getTotemStats - campaignCount
+        .mockResolvedValueOnce({ count: 0 }); // getTotemStats - playlistCount
 
       const result = await totemService.createTotem(
         {
@@ -184,8 +188,8 @@ describe('TotemService', () => {
       mockDb.findFirst
         .mockResolvedValueOnce({ totem_id: 1 }) // Verificar existência
         .mockResolvedValueOnce(mockTotem) // Retornar atualizado
-        .mockResolvedValueOnce({ campaignCount: 2, playlistCount: 1 })
-        .mockResolvedValueOnce(3600);
+        .mockResolvedValueOnce({ count: 2 }) // getTotemStats - campaignCount
+        .mockResolvedValueOnce({ count: 1 }); // getTotemStats - playlistCount
       
       mockDb.executeRaw.mockResolvedValue({ rows: [] });
 

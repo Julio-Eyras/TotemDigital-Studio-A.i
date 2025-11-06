@@ -76,16 +76,20 @@ describe('ReportsService', () => {
 
       mockDb.findFirst.mockResolvedValue(mockReport);
 
-      // Mock do generateReportData e generateReportFile
-      jest.spyOn(reportsService as any, 'generateReportData').mockResolvedValue({
-        recordCount: 100,
-        generationTime: 1000,
-      });
-      jest.spyOn(reportsService as any, 'generateReportFile').mockResolvedValue({
-        filePath: '/path/to/report.pdf',
-        fileSize: 1024,
-        downloadUrl: '/api/reports/1/download',
-      });
+      // Mock dos métodos privados via spy
+      const generateReportDataSpy = jest.spyOn(reportsService as any, 'generateReportData')
+        .mockResolvedValue({
+          recordCount: 100,
+          generationTime: 1000,
+          data: {},
+        });
+      
+      const generateReportFileSpy = jest.spyOn(reportsService as any, 'generateReportFile')
+        .mockResolvedValue({
+          filePath: '/path/to/report.pdf',
+          fileSize: 1024,
+          downloadUrl: '/api/reports/1/download',
+        });
 
       const result = await reportsService.generateReport(
         {
