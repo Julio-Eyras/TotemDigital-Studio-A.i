@@ -11,10 +11,10 @@
 |------------|-------|-----------|--------------|----------|
 | 🔴 Alta | 3 | 2 | 0 | 1 |
 | 🟡 Média | 4 | 0 | 0 | 4 |
-| 🟢 Baixa | 2 | 0 | 0 | 2 |
-| **TOTAL** | **9** | **2** | **0** | **7** |
+| 🟢 Baixa | 2 | 1 | 0 | 1 |
+| **TOTAL** | **9** | **3** | **0** | **6** |
 
-**Progresso Geral:** 22% (2/9 tarefas completas)
+**Progresso Geral:** 33% (3/9 tarefas completas)
 
 ---
 
@@ -85,9 +85,14 @@
 - **Tempo Estimado:** 1 semana
 
 ### ✅ 5. Tendências de Analytics
-- **Status:** ⏳ Pendente
-- **Progresso:** 0%
-- **Tempo Estimado:** 1 semana
+- **Status:** ✅ COMPLETO (implementado junto com remoção de mocks)
+- **Progresso:** 100%
+- **Tempo Real:** Implementado junto com Tarefa 8
+
+**Implementado:**
+- [x] `getViewingTrends` agora consulta dados reais de `execution_logs` e `analytics_sessions`
+- [x] Queries otimizadas com filtros e agregações
+- [x] Dados consistentes com Dashboard e Reports
 
 ### ✅ 6. Execução de Queries por Provider
 - **Status:** ⏳ Pendente
@@ -104,8 +109,17 @@
 ## 🟢 PRIORIDADE BAIXA
 
 ### ✅ 8. Remover Mocks Restantes
-- **Status:** ⏳ Pendente
-- **Progresso:** 0%
+- **Status:** ✅ COMPLETO
+- **Progresso:** 100%
+- **Tempo Real:** ~2 horas
+
+**Mocks removidos:**
+- [x] `reportsService.incrementDownloadCount` - Implementado com atualização no banco
+- [x] `reportsService.createReportTemplate` - Implementado com CRUD completo
+- [x] `getViewingTrends` em analyticsService - Implementado com dados reais
+- [x] `getDiskUsage` em analyticsService - Implementado com cálculo real (df)
+- [x] `generateAnalyticsReportData` em reportsService - Implementado com dados reais
+- [x] Criado schema reports-schema.sql com tabelas reports e report_templates
 
 ### ✅ 9. Compressão de Logs
 - **Status:** ⏳ Pendente
