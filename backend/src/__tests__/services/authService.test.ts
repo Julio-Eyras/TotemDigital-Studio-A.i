@@ -5,10 +5,24 @@
 
 import { AuthService } from '../../services/authService';
 import { getDatabase } from '../../config/database';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 // Mock do banco de dados
 jest.mock('../../config/database', () => ({
   getDatabase: jest.fn(),
+}));
+
+// Mock do bcrypt
+jest.mock('bcryptjs', () => ({
+  compare: jest.fn(),
+  hash: jest.fn(),
+}));
+
+// Mock do jwt
+jest.mock('jsonwebtoken', () => ({
+  sign: jest.fn(),
+  verify: jest.fn(),
 }));
 
 describe('AuthService', () => {
@@ -180,6 +194,99 @@ describe('AuthService', () => {
       
       expect(cronValidation.valid).toBe(false);
       expect(cronValidation.error).toBeDefined();
+    });
+  });
+
+  describe('register', () => {
+    it('deve registrar novo usuário com dados válidos', async () => {
+      const mockNewUser = {
+        user_id: 1,
+        id: 1,
+        username: 'newuser',
+        email: 'newuser@example.com',
+        role: 'operator',
+        client_id: null,
+      };
+
+      mockDb.tableExists = jest.fn().mockResolvedValue(false);
+      mockDb.findFirst
+        .mockResolvedValueOnce(null) // Usuário não existe
+        .mockResolvedValueOnce(mockNewUser); // Buscar usuário criado
+      
+      mockDb.executeRaw.mockResolvedValue({
+        lastInsertRowid: 1,
+        rows: [],
+      });
+
+      (bcrypt.hash as jest.Mock).mockResolvedValue('$2a$12$hashedpassword');
+      (jwt.sign as jest.Mock).mockReturnValue('test-token');
+
+      const result = await authService.register({
+        username: 'newuser',
+        email: 'newuser@example.com',
+        password: 'password123',
+        role: 'operator',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.token).toBeDefined();
+      expect(result.user?.username).toBe('newuser');
+    });
+
+    it('deve retornar erro quando usuário já existe', async () => {
+      const mockExistingUser = {
+        id: 1,
+        username: 'existinguser',
+      };
+
+      mockDb.tableExists = jest.fn().mockResolvedValue(false);
+      mockDb.findFirst.mockResolvedValue(mockExistingUser);
+
+      const result = await authService.register({
+        username: 'existinguser',
+        email: 'existing@example.com',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('já existe');
+    });
+  });
+
+  describe('generatePasswordResetToken', () => {
+    it('deve gerar token seguro de 64 caracteres', () => {
+      // Acessar método privado via instância
+      const token = (authService as any).generatePasswordResetToken();
+      
+      expect(token).toBeDefined();
+      expect(typeof token).toBe('string');
+      expect(token.length).toBe(64); // 32 bytes em hex = 64 caracteres
+    });
+  });
+
+  describe('cleanupExpiredTokens', () => {
+    it('deve limpar tokens expirados', async () => {
+      mockDb.executeRaw.mockResolvedValue({
+        rowCount: 5,
+      });
+
+      const result = await authService.cleanupExpiredTokens();
+
+      expect(result).toBe(5);
+      expect(mockDb.executeRaw).toHaveBeenCalledWith(
+        expect.stringContaining('DELETE FROM password_reset_tokens'),
+        []
+      );
+    });
+
+    it('deve retornar 0 se não houver tokens expirados', async () => {
+      mockDb.executeRaw.mockResolvedValue({
+        rowCount: 0,
+      });
+
+      const result = await authService.cleanupExpiredTokens();
+
+      expect(result).toBe(0);
     });
   });
 });
