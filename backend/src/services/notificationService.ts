@@ -90,6 +90,31 @@ export class NotificationService {
         title: newNotification.title
       });
 
+      // Enviar email se configurado e se for notificação importante
+      if (notification.priority === 'high' || notification.type === 'error' || notification.type === 'system_alert') {
+        try {
+          const { emailService } = await import('./emailService');
+          
+          // Buscar email do usuário se userId fornecido
+          if (notification.userId) {
+            const user = await this.db.findFirst(`
+              SELECT email FROM users WHERE id = ? AND is_active = true
+            `, [notification.userId]);
+
+            if (user?.email) {
+              await emailService.sendNotificationEmail(user.email, {
+                title: notification.title,
+                message: notification.message,
+                type: notification.type
+              });
+            }
+          }
+        } catch (emailError: any) {
+          console.error('❌ Erro ao enviar email de notificação:', emailError.message);
+          // Não falhar a criação da notificação se o email falhar
+        }
+      }
+
       return newNotification;
 
     } catch (error: any) {

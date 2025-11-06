@@ -530,13 +530,30 @@ export class AuthService {
         username: user.username
       });
 
-      // TODO: Enviar email com token (mock temporário)
-      // Por enquanto, logar no console (apenas em desenvolvimento)
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`\n🔐 [PASSWORD RESET] Token gerado para ${email}:`);
-        console.log(`   Token: ${token}`);
-        console.log(`   Expira em: ${expiresAt.toISOString()}`);
-        console.log(`   Link: ${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}\n`);
+      // Enviar email de recuperação de senha
+      try {
+        const { emailService } = await import('./emailService');
+        const emailResult = await emailService.sendPasswordResetEmail(
+          user.email || email,
+          token,
+          user.username
+        );
+
+        if (!emailResult.success && process.env.NODE_ENV === 'development') {
+          console.log(`\n🔐 [PASSWORD RESET] Token gerado para ${email}:`);
+          console.log(`   Token: ${token}`);
+          console.log(`   Expira em: ${expiresAt.toISOString()}`);
+          console.log(`   Link: ${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}\n`);
+        }
+      } catch (emailError: any) {
+        console.error('❌ Erro ao enviar email de recuperação de senha:', emailError.message);
+        // Em desenvolvimento, mostrar token no console
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`\n🔐 [PASSWORD RESET] Token gerado para ${email}:`);
+          console.log(`   Token: ${token}`);
+          console.log(`   Expira em: ${expiresAt.toISOString()}`);
+          console.log(`   Link: ${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}\n`);
+        }
       }
 
       return {

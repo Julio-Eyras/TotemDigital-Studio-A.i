@@ -43,6 +43,7 @@ import exportSchedulesRoutes from './routes/export-schedules';
 import logsRoutes from './routes/logs';
 import playerDebugRoutes from './routes/player-debug';
 import advancedSchedulesRoutes from './routes/advanced-schedules';
+import emailRoutes from './routes/email';
 import { openApiSpec } from './config/swagger';
 
 // Services
@@ -238,6 +239,7 @@ app.use('/api/export-queries', exportQueriesRoutes);
 app.use('/api/export-schedules', exportSchedulesRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/advanced-schedules', advancedSchedulesRoutes);
+app.use('/api/email', emailRoutes);
 
 // Docs JSON (Swagger OpenAPI)
 app.get('/api/docs.json', (req, res) => {
@@ -380,6 +382,20 @@ async function startServer() {
     console.log('📋 Inicializando sistema de logs...');
     const logger = await getLogger();
     logger.info('Smart Signage v2.1 iniciando...');
+    
+    // Inicializar Email Service
+    console.log('📧 Inicializando Email Service...');
+    const { emailService } = await import('./services/emailService');
+    if (emailService.isServiceEnabled()) {
+      const emailConnected = await emailService.testConnection();
+      if (emailConnected) {
+        console.log('✅ Email Service configurado e conectado');
+      } else {
+        console.warn('⚠️ Email Service configurado mas não conectado');
+      }
+    } else {
+      console.log('ℹ️ Email Service desabilitado (SMTP não configurado)');
+    }
     
     // Inicializar serviço de rotação de logs
     const logRotationService = new LogRotationService();
