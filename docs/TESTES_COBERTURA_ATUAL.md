@@ -1,13 +1,13 @@
 # 📊 Cobertura de Testes - Smart Signage Pro v2.1
 
 **Data:** 2025-11-06  
-**Status:** 🟡 Parcial (7% de cobertura)
+**Status:** 🟡 Parcial (30% de serviços críticos)
 
 ---
 
 ## ✅ Testes Implementados
 
-### Testes Unitários de Serviços (2/27)
+### Testes Unitários de Serviços (8/27)
 
 1. **✅ AuthService** (`authService.test.ts`)
    - `forgotPassword` - Recuperação de senha
@@ -25,6 +25,51 @@
    - `testConnection` - Teste de conexão SMTP
    - `isServiceEnabled` - Verificação de status
 
+3. **✅ ClientService** (`clientService.test.ts`)
+   - `getAllClients` - Listar clientes com paginação e filtros
+   - `getClientById` - Buscar cliente por ID
+   - `createClient` - Criar novo cliente
+   - `updateClient` - Atualizar cliente existente
+   - `deleteClient` - Deletar cliente
+
+4. **✅ UserService** (`userService.test.ts`)
+   - `getAllUsers` - Listar usuários com paginação e filtros
+   - `getUserById` - Buscar usuário por ID
+   - `createUser` - Criar novo usuário
+   - `updateUser` - Atualizar usuário existente (incluindo senha)
+   - `deleteUser` - Deletar usuário
+
+5. **✅ CampaignService** (`campaignService.test.ts`)
+   - `getCampaigns` - Listar campanhas com paginação e filtros
+   - `getCampaignById` - Buscar campanha por ID
+   - `createCampaign` - Criar nova campanha (com validação de datas)
+   - `updateCampaign` - Atualizar campanha (ativação/pausa)
+   - `deleteCampaign` - Deletar campanha
+
+6. **✅ PlaylistService** (`playlistService.test.ts`)
+   - `getAllPlaylists` - Listar playlists com paginação e filtros
+   - `getPlaylistById` - Buscar playlist por ID
+   - `createPlaylist` - Criar nova playlist
+   - `updatePlaylist` - Atualizar playlist existente
+   - `deletePlaylist` - Deletar playlist
+
+7. **✅ MediaService** (`mediaService.test.ts`)
+   - `getMedia` - Listar mídia com paginação e filtros
+   - `getMediaById` - Buscar mídia por ID
+   - `updateMedia` - Atualizar mídia existente
+   - `deleteMedia` - Deletar mídia
+   - `processMediaById` - Processar mídia (thumbnails, otimização)
+   - `getThumbnail` - Obter URL do thumbnail
+
+8. **✅ TotemService** (`totemService.test.ts`)
+   - `getTotems` - Listar totens com paginação e filtros
+   - `getTotemById` - Buscar totem por ID
+   - `getTotemByUin` - Buscar totem por UIN
+   - `createTotem` - Criar novo totem
+   - `updateTotem` - Atualizar totem existente
+   - `deleteTotem` - Deletar totem
+   - `updateHeartbeat` - Atualizar heartbeat do totem
+
 ### Testes de Integração de Rotas (1/20+)
 
 1. **✅ Rotas de Autenticação** (`routes/auth.test.ts`)
@@ -37,43 +82,11 @@
 
 ## ❌ Testes Pendentes
 
-### Serviços Sem Testes (25/27)
+### Serviços Sem Testes (19/27)
 
 #### 🔴 Alta Prioridade (Funcionalidades Críticas)
 
-1. **CampaignService** - Gestão de campanhas
-   - Criar, editar, excluir campanhas
-   - Ativar/desativar campanhas
-   - Listar campanhas por cliente
-   - Validações de datas e status
-
-2. **MediaService** - Upload e gestão de mídia
-   - Upload de arquivos
-   - Processamento de mídia (thumbnails, otimização)
-   - Validação de formatos
-   - Gestão de storage
-
-3. **PlaylistService** - Gestão de playlists
-   - Criar, editar, excluir playlists
-   - Adicionar/remover itens
-   - Ordenação de itens
-   - Validações de duração
-
-4. **TotemService** - Gestão de totens
-   - Registrar totens
-   - Heartbeat e monitoramento
-   - Validação de UIN
-   - Status e localização
-
-5. **UserService** - Gestão de usuários
-   - CRUD de usuários
-   - Permissões e roles
-   - Validações de acesso
-
-6. **ClientService** - Gestão de clientes
-   - CRUD de clientes
-   - Validações de dados
-   - Relacionamentos com usuários
+✅ **TODOS OS SERVIÇOS CRÍTICOS IMPLEMENTADOS!**
 
 #### 🟡 Média Prioridade (Funcionalidades Importantes)
 
@@ -203,9 +216,9 @@
 
 | Categoria | Total | Implementado | Pendente | Cobertura |
 |-----------|-------|--------------|----------|-----------|
-| **Serviços** | 27 | 2 | 25 | 7% |
+| **Serviços** | 27 | 8 | 19 | **30%** |
 | **Rotas** | 20+ | 1 | 19+ | 5% |
-| **Total Geral** | 47+ | 3 | 44+ | **6%** |
+| **Total Geral** | 47+ | 9 | 38+ | **19%** |
 
 ---
 
