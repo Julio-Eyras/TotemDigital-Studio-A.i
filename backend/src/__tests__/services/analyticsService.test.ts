@@ -32,6 +32,8 @@ describe('AnalyticsService', () => {
     };
 
     analyticsService = new AnalyticsService();
+
+    mockDb.findMany.mockImplementation(() => Promise.resolve([]));
   });
 
   describe('getDashboardStats', () => {
@@ -71,14 +73,9 @@ describe('AnalyticsService', () => {
         .mockResolvedValueOnce({ count: 100 }); // uniqueViewers
 
       mockDb.findMany
-        .mockResolvedValueOnce([]) // viewingTrends
-        .mockResolvedValueOnce([]) // mostViewedContent
-        .mockResolvedValueOnce([]) // deviceStats
-        .mockResolvedValueOnce([]) // locationStats
-        .mockResolvedValueOnce([]) // campaignPerformance
-        .mockResolvedValueOnce([]) // totemPerformance
-        .mockResolvedValueOnce([]) // qrCodeStats
-        .mockResolvedValueOnce([]); // revenue byClient/byCampaign
+        .mockResolvedValueOnce([]) // viewingTrends (executionData)
+        .mockResolvedValueOnce([]) // viewingTrends (sessionData)
+        .mockResolvedValueOnce([]); // deviceStats
 
       const result = await analyticsService.getAnalytics({
         clientId: 1,
@@ -89,6 +86,7 @@ describe('AnalyticsService', () => {
       expect(result).toBeDefined();
       expect(result.totalViews).toBeDefined();
       expect(result.viewingTrends).toBeDefined();
+      expect(Array.isArray(result.deviceStats)).toBe(true);
     });
   });
 
@@ -102,14 +100,7 @@ describe('AnalyticsService', () => {
       mockDb.findMany
         .mockResolvedValueOnce([]) // viewingTrends (executionData)
         .mockResolvedValueOnce([]) // viewingTrends (sessionData)
-        .mockResolvedValueOnce([]) // mostViewedContent
-        .mockResolvedValueOnce([]) // deviceStats
-        .mockResolvedValueOnce([]) // locationStats
-        .mockResolvedValueOnce([]) // campaignPerformance
-        .mockResolvedValueOnce([]) // totemPerformance
-        .mockResolvedValueOnce([]) // qrCodeStats
-        .mockResolvedValueOnce([]) // revenue byClient
-        .mockResolvedValueOnce([]); // revenue byCampaign
+        .mockResolvedValueOnce([{ device_type: 'v2.0', count: '3' }]); // deviceStats
 
       const result = await analyticsService.getAnalytics({
         startDate: '2024-01-01',
@@ -119,6 +110,9 @@ describe('AnalyticsService', () => {
       expect(result).toBeDefined();
       expect(result.viewingTrends).toBeDefined();
       expect(Array.isArray(result.viewingTrends)).toBe(true);
+      expect(result.deviceStats).toEqual([
+        { deviceType: 'v2.0', count: 3, percentage: 100 },
+      ]);
     });
   });
 });

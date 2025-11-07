@@ -9,6 +9,8 @@ const renameSync = jest.fn();
 const unlinkSync = jest.fn();
 const mkdirSync = jest.fn();
 const chmodSync = jest.fn();
+const readFileSync = jest.fn();
+const writeFileSync = jest.fn();
 
 jest.mock('fs', () => ({
   readdirSync,
@@ -18,6 +20,8 @@ jest.mock('fs', () => ({
   unlinkSync,
   mkdirSync,
   chmodSync,
+  readFileSync,
+  writeFileSync,
 }));
 
 import { LogRotationService } from '../../services/logRotationService';
@@ -161,6 +165,39 @@ describe('LogRotationService', () => {
       expect(unlinkSync).toHaveBeenCalledWith('/var/logs/old.log');
       expect(result).toMatchObject({ success: true, filesRotated: 1, filesDeleted: 1 });
       expect(sendAlertSpy).toHaveBeenCalledWith('rotation_completed', expect.objectContaining({ filesRotated: 1, filesDeleted: 1 }));
+    });
+
+    it('deve comprimir arquivo rotacionado quando opção estiver habilitada', async () => {
+      const config = {
+        maxSize: 50,
+        maxDays: 30,
+        minFreeSpace: 200,
+        enabled: true,
+        compress: true,
+        alertsEnabled: false,
+        logDirectory: '/var/logs',
+      };
+
+      const logFiles = [
+        {
+          name: 'heavy.log',
+          path: '/var/logs/heavy.log',
+          size: 80,
+          created: new Date(),
+          modified: new Date(),
+        },
+      ];
+
+      readFileSync.mockReturnValue(Buffer.from('conteudo de log'));
+
+      jest.spyOn(service, 'getConfig').mockResolvedValue(config as any);
+      jest.spyOn(service, 'listLogFiles').mockResolvedValue(logFiles as any);
+
+      await service.rotateLogs();
+
+      expect(renameSync).toHaveBeenCalledWith('/var/logs/heavy.log', expect.stringContaining('heavy.log.'));
+      expect(readFileSync).toHaveBeenCalled();
+      expect(writeFileSync).toHaveBeenCalledWith(expect.stringMatching(/heavy\.log\..+\.rotated\.gz$/), expect.any(Buffer));
     });
   });
 });

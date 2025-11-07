@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as zlib from 'zlib';
 import { getDatabase } from '../config/database';
 import { NotificationService } from './notificationService';
 
@@ -320,12 +321,19 @@ export class LogRotationService {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
             const newPath = path.join(config.logDirectory, `${file.name}.${timestamp}.rotated`);
             fs.renameSync(file.path, newPath);
-            
+
             if (config.compress) {
-              // Compactar arquivo rotacionado (será implementado com zlib)
-              // TODO: Implementar compressão com zlib
+              try {
+                const gzPath = `${newPath}.gz`;
+                const fileData = fs.readFileSync(newPath);
+                const compressed = zlib.gzipSync(fileData);
+                fs.writeFileSync(gzPath, compressed);
+                fs.unlinkSync(newPath);
+              } catch (zipError: any) {
+                console.error(`❌ Erro ao comprimir arquivo ${file.name}:`, zipError.message);
+              }
             }
-            
+
             filesRotated++;
           } catch (error: any) {
             console.error(`❌ Erro ao rotacionar arquivo ${file.name}:`, error.message);

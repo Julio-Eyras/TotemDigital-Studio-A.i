@@ -689,12 +689,27 @@ export class AnalyticsService {
     percentage: number;
   }[]> {
     try {
-      // Implementação simplificada
-      return [
-        { deviceType: 'Desktop', count: 45, percentage: 45 },
-        { deviceType: 'Mobile', count: 35, percentage: 35 },
-        { deviceType: 'Tablet', count: 20, percentage: 20 }
-      ];
+      const devices = await this.db.findMany(`
+        SELECT 
+          COALESCE(NULLIF(version, ''), 'unknown') as device_type,
+          COUNT(*) as count
+        FROM totems
+        WHERE is_active = true
+        GROUP BY COALESCE(NULLIF(version, ''), 'unknown')
+        ORDER BY count DESC
+      `);
+
+      const total = devices.reduce((sum: number, item: any) => sum + parseInt(item.count || '0'), 0);
+
+      return devices.map((item: any) => {
+        const count = parseInt(item.count || '0');
+        const percentage = total > 0 ? (count / total) * 100 : 0;
+        return {
+          deviceType: item.device_type,
+          count,
+          percentage: Math.round(percentage * 100) / 100,
+        };
+      });
 
     } catch (error: any) {
       console.error('❌ Erro ao buscar estatísticas de dispositivos:', error.message);
