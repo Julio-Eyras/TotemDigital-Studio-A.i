@@ -7,7 +7,7 @@
 
 ## ✅ Testes Implementados
 
-### Testes Unitários de Serviços (25/27)
+### Testes Unitários de Serviços (27/27)
 
 1. **✅ AuthService** (`authService.test.ts`)
    - `forgotPassword` - Recuperação de senha
@@ -190,17 +190,9 @@
 
 ## ❌ Testes Pendentes
 
-### Serviços Sem Testes (2/27)
+### Serviços Sem Testes (0/27)
 
-- **DashboardService**
-  - Consolidação de métricas operacionais
-  - Indicadores de campanhas, totems e mídia
-  - Cache e agregações para o dashboard
-
-- **SystemService**
-  - Health-checks da plataforma
-  - Informações do ambiente/versão
-  - Monitoramento de serviços auxiliares
+✅ Todos os serviços contam com cobertura de testes unitários.
 
 ### Rotas Sem Testes (19+/20+)
 
@@ -231,9 +223,9 @@
 
 | Categoria | Total | Implementado | Pendente | Cobertura |
 |-----------|-------|--------------|----------|-----------|
-| **Serviços** | 27 | 25 | 2 | **93%** |
+| **Serviços** | 27 | 27 | 0 | **100%** |
 | **Rotas** | 20+ | 1 | 19+ | 5% |
-| **Total Geral** | 47+ | 26 | 21+ | **55%** |
+| **Total Geral** | 47+ | 28 | 19+ | **60%** |
 
 ---
 
