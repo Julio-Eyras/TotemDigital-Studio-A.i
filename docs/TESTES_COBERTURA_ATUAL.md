@@ -1,13 +1,13 @@
 # 📊 Cobertura de Testes - Smart Signage Pro v2.1
 
 **Data:** 2025-11-06  
-**Status:** 🟢 Bom Progresso (59% de serviços, 100% críticos + importantes)
+**Status:** 🟢 Quase Completo (93% dos serviços cobertos)
 
 ---
 
 ## ✅ Testes Implementados
 
-### Testes Unitários de Serviços (16/27)
+### Testes Unitários de Serviços (25/27)
 
 1. **✅ AuthService** (`authService.test.ts`)
    - `forgotPassword` - Recuperação de senha
@@ -132,6 +132,52 @@
     - `deleteSmartPlaylist` - Deletar smart playlist
     - `generateSmartPlaylist` - Gerar playlist inteligente (com IA)
 
+17. **✅ SQLValidatorService** (`sqlValidatorService.test.ts`)
+    - `validateSQL` - Validação de sintaxe por provider
+    - `extractTables` - Identificação de tabelas utilizadas
+    - `extractColumns` - Extração de colunas declaradas
+
+18. **✅ StorageService** (`storageService.test.ts`)
+    - `saveMediaFile` - Salvamento com sanitização de nome e permissões
+    - `deleteMediaFile` - Remoção de arquivo e thumbnail associado
+    - `validateFileType` / `validateFileSize` - Validações utilitárias
+
+19. **✅ PlayerDebugService** (`playerDebugService.test.ts`)
+    - `logTransaction` - Registro e criação da tabela de debug
+    - `getTransactions` - Consulta com filtros e desserialização de JSON
+
+20. **✅ PlayerService** (`playerService.test.ts`)
+    - `getAllPlayers` - Listagem com filtros
+    - `createPlayer` / `updatePlayer` - CRUD completo
+    - `deletePlayer` - Soft delete
+    - `assignPlaylist` - Associação de playlist
+    - `getPlayerStatus` - Status e playlist atual
+
+21. **✅ BillingService** (`billingService.test.ts`)
+    - `getBillings` - Paginação com cálculo de atraso
+    - `createBilling` - Criação com validações e auditoria
+    - `updateBilling` - Atualização e registro de mudanças
+    - `deleteBilling` - Remoção com auditoria
+
+22. **✅ QRCodeService** (`qrcodeService.test.ts`)
+    - `getQRCodes` - Listagem com geração de imagem e flags
+    - `createQRCode` - Criação com validações de relacionamento
+
+23. **✅ LogRotationService** (`logRotationService.test.ts`)
+    - `getConfig` - Leitura e conversão de tamanhos
+    - `listLogFiles` - Listagem filtrada
+    - `checkRotation` / `rotateLogs` - Detecção e execução de rotação
+
+24. **✅ AIService** (`aiService.test.ts`)
+    - `processRequest` - Fluxo completo (Ollama) com persistência
+    - `getAIRequests` - Paginação e filtros
+    - `getAIUsageStats` - Agregações e métricas
+
+25. **✅ AuditService** (`auditService.test.ts`)
+    - `log` - Registro de auditoria
+    - `getAuditLogs` / `getAuditLogById` - Consulta com metadados
+    - `getUserAuditLogs` - Histórico filtrado por usuário
+
 ### Testes de Integração de Rotas (1/20+)
 
 1. **✅ Rotas de Autenticação** (`routes/auth.test.ts`)
@@ -144,72 +190,17 @@
 
 ## ❌ Testes Pendentes
 
-### Serviços Sem Testes (11/27)
+### Serviços Sem Testes (2/27)
 
-#### 🔴 Alta Prioridade (Funcionalidades Críticas)
+- **DashboardService**
+  - Consolidação de métricas operacionais
+  - Indicadores de campanhas, totems e mídia
+  - Cache e agregações para o dashboard
 
-✅ **TODOS OS SERVIÇOS CRÍTICOS IMPLEMENTADOS!**
-
-#### 🟡 Média Prioridade (Funcionalidades Importantes)
-
-✅ **TODOS OS SERVIÇOS IMPORTANTES IMPLEMENTADOS!**
-
-#### 🟢 Baixa Prioridade (Funcionalidades Auxiliares)
-
-15. **SQLValidatorService** - Validação de SQL
-    - Validação de sintaxe
-    - Validação por provider
-    - Sanitização de queries
-
-16. **LogRotationService** - Rotação de logs
-    - Verificação de tamanho
-    - Rotação automática
-    - Limpeza de logs antigos
-
-17. **PlayerService** - Serviço do player
-    - Configuração do player
-    - Validação de totem
-    - Heartbeat
-
-18. **PlayerDebugService** - Debug do player
-    - Log de transações
-    - Rastreamento de erros
-    - Diagnóstico
-
-19. **DashboardService** - Dashboard e métricas
-    - Agregação de dados
-    - Cálculo de métricas
-    - Cache de dados
-
-20. **SystemService** - Informações do sistema
-    - Health check
-    - Informações do sistema
-    - Status de serviços
-
-21. **StorageService** - Gestão de storage
-    - Upload de arquivos
-    - Gestão de espaço
-    - Limpeza de arquivos
-
-22. **QRCodeService** - Geração de QR Codes
-    - Geração de códigos
-    - Validação de URLs
-    - Templates
-
-23. **BillingService** - Faturamento
-    - Criação de faturas
-    - Cálculo de valores
-    - Histórico de pagamentos
-
-24. **AIService** - Integração com IA
-    - Chamadas à API
-    - Processamento de prompts
-    - Cache de respostas
-
-25. **AuditService** - Auditoria
-    - Log de ações
-    - Rastreamento de mudanças
-    - Histórico de auditoria
+- **SystemService**
+  - Health-checks da plataforma
+  - Informações do ambiente/versão
+  - Monitoramento de serviços auxiliares
 
 ### Rotas Sem Testes (19+/20+)
 
@@ -240,9 +231,9 @@
 
 | Categoria | Total | Implementado | Pendente | Cobertura |
 |-----------|-------|--------------|----------|-----------|
-| **Serviços** | 27 | 16 | 11 | **59%** |
+| **Serviços** | 27 | 25 | 2 | **93%** |
 | **Rotas** | 20+ | 1 | 19+ | 5% |
-| **Total Geral** | 47+ | 17 | 30+ | **36%** |
+| **Total Geral** | 47+ | 26 | 21+ | **55%** |
 
 ---
 
@@ -267,17 +258,16 @@
 - ✅ SettingsService
 
 ### Fase 3: Funcionalidades Auxiliares (1-2 semanas)
-- SQLValidatorService
-- LogRotationService
-- PlayerService
-- PlayerDebugService
-- DashboardService
-- SystemService
-- StorageService
-- QRCodeService
-- BillingService
-- AIService
-- AuditService
+- ✅ SQLValidatorService
+- ✅ LogRotationService
+- ✅ PlayerService
+- ✅ PlayerDebugService
+- 🔸 DashboardService (pendente)
+- 🔸 SystemService (pendente)
+- ✅ StorageService
+- ✅ QRCodeService
+- ✅ BillingService
+- ✅ AIService
 
 ### Fase 4: Testes de Integração (2-3 semanas)
 - Todas as rotas da API
