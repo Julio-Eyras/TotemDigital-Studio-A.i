@@ -1258,9 +1258,49 @@ setup_database() {
         log "   Database: ${PG_DB}"
         log "   Username: ${PG_USER}"
         log "   Password: ${PG_PASS}"
+
+        # Após configurar PostgreSQL, garantir Redis local
+        setup_redis_single_server
     else
         # PostgreSQL via Docker
         log "Banco PostgreSQL será configurado via Docker"
+    fi
+}
+
+# Configurar Redis local (modo single-server)
+setup_redis_single_server() {
+    log "Verificando Redis (servidor único)..."
+
+    if command -v redis-server >/dev/null 2>&1; then
+        log "Redis já está instalado: $(redis-server --version | awk '{print $1" "$3}')"
+    else
+        log "Instalando Redis..."
+        sudo apt-get update -y
+        sudo apt-get install -y redis-server || {
+            error "❌ Falha ao instalar Redis"
+            exit 1
+        }
+        log "✅ Redis instalado com sucesso"
+    fi
+
+    # Habilitar e iniciar serviço
+    sudo systemctl enable redis-server >/dev/null 2>&1 || true
+    if ! systemctl is-active --quiet redis-server; then
+        log "Iniciando serviço redis-server..."
+        sudo systemctl start redis-server || {
+            error "❌ Falha ao iniciar serviço redis-server"
+            exit 1
+        }
+    fi
+
+    # Verificar disponibilidade
+    log "Testando conexão com Redis..."
+    if redis-cli -h 127.0.0.1 -p 6379 ping | grep -q "PONG"; then
+        log "✅ Redis respondendo em 127.0.0.1:6379"
+    else
+        error "❌ Redis não respondeu ao ping em 127.0.0.1:6379"
+        error "    Verifique o serviço com: sudo systemctl status redis-server"
+        exit 1
     fi
 }
 
