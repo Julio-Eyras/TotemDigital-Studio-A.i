@@ -10,7 +10,7 @@ import { getDatabase } from '../config/database';
 import { CampaignService } from '../services/campaignService';
 import { SmartPlaylistService } from '../services/smartPlaylistService';
 
-const db = getDatabase();
+const getDb = () => getDatabase();
 const campaignService = new CampaignService();
 const smartPlaylistService = new SmartPlaylistService();
 
@@ -18,6 +18,7 @@ const smartPlaylistService = new SmartPlaylistService();
  * Processa job de agendamento avançado
  */
 export async function processAdvancedScheduleJob(job: Job<AdvancedScheduleJobData>): Promise<AdvancedScheduleJobResult> {
+  const db = getDb();
   const { scheduleId, scheduleType, targetId } = job.data;
   const startTime = new Date();
   let executionId: number | null = null;
@@ -171,6 +172,7 @@ async function processCampaignActivation(campaignId: number, config: any): Promi
  */
 async function processPlaylistGeneration(playlistId: number, config: any): Promise<AdvancedScheduleJobResult> {
   try {
+    const db = getDb();
     // Buscar playlist
     const playlist = await db.findFirst(`
       SELECT * FROM playlists WHERE playlist_id = ?
@@ -296,6 +298,7 @@ async function processCampaignSchedule(campaignId: number, config: any): Promise
  */
 async function processPlaylistSchedule(playlistId: number, config: any): Promise<AdvancedScheduleJobResult> {
   try {
+    const db = getDb();
     const playlist = await db.findFirst(`
       SELECT * FROM playlists WHERE playlist_id = ?
     `, [playlistId]);

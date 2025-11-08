@@ -15,12 +15,13 @@ import { getRedisClient } from '../config/redis';
 import { executeGrafanaQuery } from '../config/grafana';
 import { executePrometheusQuery, executePrometheusInstantQuery } from '../config/prometheus';
 
-const db = getDatabase();
+const getDb = () => getDatabase();
 
 /**
  * Processa job de exportação
  */
 export async function processExportJob(job: Job<ExportJobData>): Promise<ExportJobResult> {
+  const db = getDb();
   const { scheduleId, queryId, userId } = job.data;
   const startTime = new Date();
   let executionId: number | null = null;
@@ -205,6 +206,7 @@ async function executeQuery(
     switch (provider) {
       case 'PostgreSQL':
         // Usar banco principal se for PostgreSQL
+        const db = getDb();
         const result = await db.findMany(sql, []);
         return result;
 
