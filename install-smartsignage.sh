@@ -1304,6 +1304,34 @@ setup_redis_single_server() {
     fi
 }
 
+# Aplicar schemas adicionais (export/export views)
+apply_additional_schemas() {
+    if [[ "$INSTALL_MODE" != "single-server" ]]; then
+        return 0
+    fi
+
+    local SCHEMA_DIR="$INSTALL_DIR/database"
+    local PG_DB="smartsignage"
+
+    if [[ -f "$SCHEMA_DIR/export-schema.sql" ]]; then
+        log "Aplicando schema de exportações (export-schema.sql)..."
+        if sudo -u postgres psql -d "$PG_DB" -f "$SCHEMA_DIR/export-schema.sql" >/dev/null 2>&1; then
+            log "✅ Schema de exportações criado"
+        else
+            warn "⚠️ Falha ao aplicar export-schema.sql (verifique manualmente)"
+        fi
+    fi
+
+    if [[ -f "$SCHEMA_DIR/views-schema.sql" ]]; then
+        log "Aplicando schema de views de leitura (views-schema.sql)..."
+        if sudo -u postgres psql -d "$PG_DB" -f "$SCHEMA_DIR/views-schema.sql" >/dev/null 2>&1; then
+            log "✅ Views de leitura criadas"
+        else
+            warn "⚠️ Falha ao aplicar views-schema.sql (verifique manualmente)"
+        fi
+    fi
+}
+
 # Configurar variáveis de ambiente
 setup_environment() {
     log "Configurando variáveis de ambiente..."
@@ -3774,6 +3802,9 @@ setup_first_boot() {
             [[ -n "$table" ]] && log "  ✅ $table"
         done
     fi
+    
+    # Aplicar schemas complementares (exportações, views, etc.)
+    apply_additional_schemas
     
     # Executar schema de configurações de logs (após schema principal)
     log "Aplicando schema de configurações de logs..."
