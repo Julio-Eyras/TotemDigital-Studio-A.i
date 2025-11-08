@@ -108,7 +108,9 @@ export interface PlaylistGenerationResult {
 }
 
 export class SmartPlaylistService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
@@ -1083,3 +1085,4 @@ export class SmartPlaylistService {
     }
   }
 }
+

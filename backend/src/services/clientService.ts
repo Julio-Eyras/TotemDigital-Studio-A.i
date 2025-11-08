@@ -34,7 +34,9 @@ export interface ClientListResponse {
 }
 
 export class ClientService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
 
   /**
    * Listar clientes com paginação e filtros
@@ -272,3 +274,4 @@ export function getClientService(): ClientService {
   }
   return clientServiceInstance;
 }
+

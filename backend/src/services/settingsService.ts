@@ -47,7 +47,9 @@ export interface SettingsValidation {
 }
 
 export class SettingsService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
@@ -670,3 +672,4 @@ export class SettingsService {
     return icons[category] || 'settings';
   }
 }
+

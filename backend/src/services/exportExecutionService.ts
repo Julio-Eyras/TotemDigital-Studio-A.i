@@ -19,7 +19,9 @@ export interface ExportExecution {
 }
 
 export class ExportExecutionService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
 
   async getExecutions(filters?: {
     scheduleId?: number;
@@ -213,4 +215,5 @@ export class ExportExecutionService {
 }
 
 export const exportExecutionService = new ExportExecutionService();
+
 

@@ -72,7 +72,9 @@ export interface MediaStats {
 }
 
 export class MediaService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
@@ -993,3 +995,4 @@ export class MediaService {
     }
   }
 }
+

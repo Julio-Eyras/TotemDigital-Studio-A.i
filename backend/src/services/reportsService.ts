@@ -79,7 +79,9 @@ export interface ReportStats {
 }
 
 export class ReportsService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
@@ -1283,3 +1285,4 @@ export class ReportsService {
     }
   }
 }
+

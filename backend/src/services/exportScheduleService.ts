@@ -43,7 +43,9 @@ export interface ExportSchedule {
 }
 
 export class ExportScheduleService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
   
   // Lazy initialization
   private getAuditService(): AuditService {
@@ -533,4 +535,5 @@ export class ExportScheduleService {
 
 // Exportar instância singleton
 export const exportScheduleService = new ExportScheduleService();
+
 

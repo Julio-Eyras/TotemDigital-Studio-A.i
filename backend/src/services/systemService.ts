@@ -65,7 +65,9 @@ export interface PlayerConfig {
 }
 
 export class SystemService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
 
   /**
    * Inicializa o serviço
@@ -297,3 +299,4 @@ export class SystemService {
     }
   }
 }
+

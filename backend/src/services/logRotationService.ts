@@ -35,7 +35,9 @@ export interface LogFileInfo {
 }
 
 export class LogRotationService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
   private notificationService: NotificationService;
 
   constructor() {
@@ -480,4 +482,5 @@ export class LogRotationService {
     return `${size.toFixed(2)} ${units[unitIndex]}`;
   }
 }
+
 

@@ -101,7 +101,9 @@ export interface PaymentResponse {
 }
 
 export class BillingService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
@@ -885,3 +887,4 @@ export class BillingService {
     };
   }
 }
+

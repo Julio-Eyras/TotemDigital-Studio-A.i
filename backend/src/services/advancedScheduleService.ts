@@ -49,7 +49,9 @@ export interface AdvancedSchedule {
 }
 
 export class AdvancedScheduleService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
   
   // Lazy initialization
   private getAuditService(): AuditService {
@@ -466,4 +468,5 @@ export class AdvancedScheduleService {
 
 // Exportar instância singleton
 export const advancedScheduleService = new AdvancedScheduleService();
+
 

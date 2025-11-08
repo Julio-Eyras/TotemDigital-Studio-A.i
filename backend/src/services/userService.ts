@@ -40,7 +40,9 @@ export interface UserListResponse {
 }
 
 export class UserService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
 
   /**
    * Listar usuários com paginação e filtros

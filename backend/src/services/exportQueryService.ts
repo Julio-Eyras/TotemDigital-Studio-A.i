@@ -54,7 +54,9 @@ export interface ExportQuery {
 }
 
 export class ExportQueryService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
   
   // Lazy initialization
   private getAuditService(): AuditService {
@@ -384,4 +386,5 @@ export class ExportQueryService {
 
 // Exportar instância singleton
 export const exportQueryService = new ExportQueryService();
+
 

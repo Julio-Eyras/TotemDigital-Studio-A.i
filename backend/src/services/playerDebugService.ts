@@ -20,7 +20,9 @@ export interface PlayerTransaction {
 }
 
 export class PlayerDebugService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
 
   /**
    * Registra uma transação do player
@@ -256,4 +258,5 @@ export class PlayerDebugService {
 }
 
 export const playerDebugService = new PlayerDebugService();
+
 

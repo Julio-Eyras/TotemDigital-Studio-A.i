@@ -29,7 +29,9 @@ export interface AuditLogFilter {
 }
 
 export class AuditService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
 
   /**
    * Registra log de auditoria
@@ -525,3 +527,4 @@ export class AuditService {
     }
   }
 }
+

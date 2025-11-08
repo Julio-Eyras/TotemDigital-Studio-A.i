@@ -42,7 +42,9 @@ export interface PlaylistMediaItem {
 }
 
 export class PlaylistService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
 
   /**
    * Listar playlists com paginação e filtros

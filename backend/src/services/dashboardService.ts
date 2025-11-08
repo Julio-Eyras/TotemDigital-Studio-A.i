@@ -18,7 +18,9 @@ export interface RecentActivity {
 }
 
 export class DashboardService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
 
   /**
    * Obter estatísticas do dashboard
@@ -275,3 +277,4 @@ export function getDashboardService(): DashboardService {
   }
   return dashboardServiceInstance;
 }
+

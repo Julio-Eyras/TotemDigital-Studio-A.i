@@ -34,7 +34,9 @@ export interface PlayerListResponse {
 }
 
 export class PlayerService {
-  private db = getDatabase();
+  private get db() {
+    return getDatabase();
+  }
 
   /**
    * Listar players com paginação e filtros
@@ -360,3 +362,4 @@ export function getPlayerService(): PlayerService {
   }
   return playerServiceInstance;
 }
+
