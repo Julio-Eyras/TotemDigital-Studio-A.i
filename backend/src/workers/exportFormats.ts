@@ -4,7 +4,7 @@
  */
 
 import * as ExcelJS from 'exceljs';
-import * as PDFDocument from 'pdfkit';
+import PDFDocument from 'pdfkit';
 import * as createCsvWriter from 'csv-writer';
 import * as fs from 'fs';
 import * as path from 'path';
