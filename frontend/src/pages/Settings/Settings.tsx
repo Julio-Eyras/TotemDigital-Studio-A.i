@@ -112,10 +112,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleChange = (key: string, value: string) => {
-    setSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
-  };
-
   const handleSave = async () => {
     try {
       setError(null);
@@ -147,9 +143,8 @@ const Settings: React.FC = () => {
   };
 
   const handleChange = (key: string, value: string) => {
-    if (tabValue === 0) {
-      setSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
-    } else {
+    setSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
+    if (key.startsWith('log.')) {
       setLogSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
     }
   };
