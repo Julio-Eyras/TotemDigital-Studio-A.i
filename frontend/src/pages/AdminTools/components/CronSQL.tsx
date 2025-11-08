@@ -339,12 +339,24 @@ const CronSQL: React.FC = () => {
   const handleOpenQueryDialog = (query?: ExportQueryRecord) => {
     if (query) {
       setEditingQuery(query);
+      const exportConfig = query.export_config || {
+        outputDirectory: './exports',
+        fileName: 'export',
+        format: 'xlsx' as 'xlsx' | 'pdf' | 'csv',
+      };
       setQueryForm({
         name: query.name,
         description: query.description || '',
         provider: query.provider,
         sqlQuery: query.sql_query,
-        exportConfig: query.export_config,
+        exportConfig: {
+          outputDirectory: exportConfig.outputDirectory || './exports',
+          fileName: exportConfig.fileName || 'export',
+          format: exportConfig.format || 'xlsx',
+          sheetName: exportConfig.sheetName ?? 'Data',
+          applyFormatting: exportConfig.applyFormatting !== false,
+          timestampSuffix: exportConfig.timestampSuffix !== false,
+        },
         enabled: query.enabled,
       });
     } else {

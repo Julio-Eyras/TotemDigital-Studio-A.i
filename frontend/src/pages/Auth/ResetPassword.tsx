@@ -66,7 +66,7 @@ const ResetPassword: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await authApi.resetPassword(token, password);
+      const response = await authApi.resetPassword({ token, password });
 
       if (response.success) {
         setSuccess(true);
