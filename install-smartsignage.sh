@@ -41,6 +41,7 @@ ENABLE_HTTPS_LETSENCRYPT=false
 DOMAIN_NAME=""
 SSL_EMAIL=""
 ENABLE_KIOSK_MODE=false
+RESET_DATABASE=false
 
 # Cores para output
 RED='\033[0;31m'
@@ -176,6 +177,10 @@ parse_arguments() {
                 ENABLE_HTTPS_SELF_SIGNED=true
                 shift
                 ;;
+            --reset-db)
+                RESET_DATABASE=true
+                shift
+                ;;
             --help|-h)
                 echo "Smart Signage Pro v2.0 - Script de Instalação"
                 echo ""
@@ -190,6 +195,7 @@ parse_arguments() {
                 echo "  --check-only         Apenas verifica se precisa rebuild"
                 echo "  --skip-menu          Pula menu (usa Docker)"
                 echo "  --https-self-signed  Habilita HTTPS autoassinado (single-server)"
+                echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir"
                 echo "  --help               Mostra esta ajuda"
                 exit 0
                 ;;
@@ -1124,11 +1130,42 @@ setup_database() {
             log "✅ Usuário '${PG_USER}' criado com sucesso"
         fi
 
-        # Criar DATABASE idempotente
+        # Criar DATABASE com opção de recriação
         log "Criando banco de dados '${PG_DB}'..."
+        local DB_EXISTS=false
         if sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${PG_DB}'" | grep -q 1; then
+            DB_EXISTS=true
             log "Banco de dados '${PG_DB}' já existe"
-        else
+        fi
+
+        local DROP_DB=false
+        if [[ "$DB_EXISTS" == true ]]; then
+            if [[ "$RESET_DATABASE" == "true" ]]; then
+                DROP_DB=true
+            else
+                echo
+                warn "⚠️  Banco de dados '${PG_DB}' já existe."
+                read -r -p "Deseja apagar e recriar o banco do zero? (s/N): " DROP_CONFIRM
+                if [[ "$DROP_CONFIRM" =~ ^([sSyY])$ ]]; then
+                    DROP_DB=true
+                else
+                    log "👉 Mantendo banco existente (nenhuma tabela será apagada automaticamente)."
+                fi
+            fi
+        fi
+
+        if [[ "$DROP_DB" == true ]]; then
+            log "🗑️  Removendo banco de dados '${PG_DB}'..."
+            sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${PG_DB}' AND pid <> pg_backend_pid();" >/dev/null 2>&1 || true
+            sudo -u postgres psql -c "DROP DATABASE IF EXISTS ${PG_DB};" || {
+                error "❌ Falha ao remover banco de dados existente"
+                exit 1
+            }
+            log "✅ Banco de dados antigo removido"
+            DB_EXISTS=false
+        fi
+
+        if [[ "$DB_EXISTS" == false ]]; then
             sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
                 error "❌ Falha ao criar banco de dados"
                 exit 1
