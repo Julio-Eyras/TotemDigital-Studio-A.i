@@ -258,8 +258,7 @@ describe('AuthService', () => {
 
       expect(result).toBe(5);
       expect(mockDb.executeRaw).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM password_reset_tokens'),
-        []
+        expect.stringContaining('DELETE FROM password_reset_tokens')
       );
     });
 

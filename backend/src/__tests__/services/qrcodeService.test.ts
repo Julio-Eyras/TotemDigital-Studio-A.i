@@ -39,6 +39,10 @@ describe('QRCodeService', () => {
     (require('qrcode').toDataURL as jest.Mock).mockImplementation(toDataURL);
 
     service = new QRCodeService();
+
+    (global as any).auditServiceInstance = {
+      log: logMock,
+    };
   });
 
   describe('getQRCodes', () => {

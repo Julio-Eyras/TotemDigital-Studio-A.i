@@ -57,13 +57,15 @@ backend/
 │   ├── services/
 │   │   ├── exportQueryService.ts      # CRUD de queries
 │   │   ├── exportScheduleService.ts   # CRUD de agendamentos
+│   │   ├── exportExecutionService.ts  # Histórico de execuções e download
 │   │   └── sqlValidatorService.ts     # Validação SQL
 │   ├── workers/
 │   │   ├── exportWorker.ts           # Worker principal
 │   │   └── exportFormats.ts          # Funções de exportação
 │   └── routes/
 │       ├── export-queries.ts         # API de queries
-│       └── export-schedules.ts       # API de agendamentos
+│       ├── export-schedules.ts       # API de agendamentos
+│       └── export-executions.ts      # API de histórico/download
 ```
 
 ### **Frontend (React/TypeScript/MUI)**
@@ -71,8 +73,10 @@ backend/
 ```
 frontend/src/pages/AdminTools/
 ├── components/
-│   └── CronSQL.tsx              # Interface principal
+│   └── CronSQL.tsx              # Interface principal (queries, horários, execuções)
 └── AdminTools.tsx               # Integração no Admin Tools
+
+frontend/src/services/api/index.ts  # cronSqlApi tipado (queries, schedules, execuções)
 ```
 
 ### **Database (PostgreSQL)**
@@ -155,9 +159,9 @@ Histórico de execuções.
 - Configuração de exportação (formato, diretório, etc.)
 
 #### **Visualizar Query**
-- Lista todas as queries
-- Filtros por provider, status, busca
-- Detalhes completos
+- Lista paginada de queries (page/limit)
+- Filtros por provider, status e busca textual
+- Detalhes completos + preview de validação SQL
 
 #### **Editar Query**
 - Atualização de todos os campos
@@ -178,10 +182,9 @@ Histórico de execuções.
 - Registro no Bull Queue
 
 #### **Visualizar Agendamento**
-- Lista todos os agendamentos
-- Status de execução
-- Estatísticas (sucesso/falha)
-- Próxima execução
+- Lista paginada com filtros por query associada, status e busca
+- Resumo de status de execução (última/próxima execução)
+- Estatísticas (execuções totais, sucesso, falhas) em tempo real
 
 #### **Editar Agendamento**
 - Atualização de cron expression
@@ -256,6 +259,22 @@ Histórico de execuções.
 - ✅ Limpeza automática de jobs antigos
 - ✅ Monitoramento de status
 
+### **6. Monitoramento de Execuções**
+
+#### **Serviço de Execuções**
+- ✅ `exportExecutionService` com filtros e paginação
+- ✅ Download seguro dos arquivos gerados (Excel/PDF/CSV compactados)
+- ✅ Detalhamento de logs, mensagens de erro e métricas agregadas
+
+#### **Filtros Disponíveis**
+- Por query associada, agendamento, status e período (start/end date)
+- Busca textual em nomes e logs
+- Paginação padronizada (`total`, `page`, `limit`)
+
+#### **RBAC**
+- `admin` / `manager`: leitura e download
+- `auditor`: leitura somente
+
 ---
 
 ## 🔌 **API Endpoints**
@@ -270,6 +289,19 @@ PUT    /api/export-queries/:id          # Atualiza query
 DELETE /api/export-queries/:id          # Exclui query
 POST   /api/export-queries/:id/test-connection  # Testa conexão
 POST   /api/export-queries/validate-sql # Valida SQL
+
+`GET /api/export-queries` aceita `provider`, `enabled`, `search`, `page` e `limit`, retornando:
+
+```json
+{
+  "data": [...],
+  "pagination": {
+    "total": 10,
+    "page": 1,
+    "limit": 25
+  }
+}
+```
 ```
 
 ### **Export Schedules**
@@ -282,6 +314,34 @@ PUT    /api/export-schedules/:id        # Atualiza agendamento
 DELETE /api/export-schedules/:id        # Exclui agendamento
 POST   /api/export-schedules/:id/execute-now  # Executa manualmente
 POST   /api/export-schedules/validate-cron    # Valida expressão cron
+
+`GET /api/export-schedules` aceita `queryId`, `enabled`, `search`, `page` e `limit` com o mesmo envelope de paginação.
+
+### **Export Executions**
+
+```
+GET    /api/export-executions              # Lista execuções com filtros e paginação
+GET    /api/export-executions/:id          # Detalhes da execução
+GET    /api/export-executions/:id/download # Download do arquivo gerado
+```
+
+Parâmetros suportados: `scheduleId`, `queryId`, `status`, `search`, `startDate`, `endDate`, `page`, `limit`.
+
+### **RBAC (Resumo)**
+
+| Endpoint / Operação | admin | manager | auditor |
+|---------------------|:-----:|:-------:|:-------:|
+| GET /api/export-queries | ✅ | ✅ | ❌ |
+| POST/PUT /api/export-queries | ✅ | ✅ | ❌ |
+| DELETE /api/export-queries | ✅ | ❌ | ❌ |
+| POST /api/export-queries/:id/test-connection | ✅ | ✅ | ❌ |
+| GET /api/export-schedules | ✅ | ✅ | ❌ |
+| POST/PUT /api/export-schedules | ✅ | ✅ | ❌ |
+| DELETE /api/export-schedules | ✅ | ❌ | ❌ |
+| POST /api/export-schedules/:id/execute-now | ✅ | ✅ | ❌ |
+| GET /api/export-executions | ✅ | ✅ | ✅ |
+| GET /api/export-executions/:id | ✅ | ✅ | ✅ |
+| GET /api/export-executions/:id/download | ✅ | ✅ | ❌ |
 ```
 
 ---
@@ -292,17 +352,19 @@ POST   /api/export-schedules/validate-cron    # Valida expressão cron
 
 #### **Tabs**
 1. **Queries SQL**
-   - Tabela de queries
-   - Ações: Criar, Editar, Excluir
-   - Filtros: Provider, Status
-   - Busca
+   - Tabela paginada com filtros (provider/status/busca)
+   - Ações: Criar, Validar SQL, Testar Conexão, Editar, Excluir
+   - Feedback visual via snackbar/alerts
 
 2. **Agendamentos**
-   - Tabela de agendamentos
-   - Status de execução
-   - Próxima execução
-   - Última execução
-   - Ações: Criar, Editar, Excluir, Executar Agora
+   - Lista paginada com filtros (query/status/busca)
+   - Exibe próxima/última execução + métricas (sucesso/falha)
+   - Ações: Criar, Validar Cron, Editar, Executar Agora, Excluir
+
+3. **Execuções**
+   - Histórico com filtros por status, período e busca textual
+   - Exibe registros exportados, tamanho do arquivo e timestamps
+   - Download direto de exportações concluídas (Excel/PDF/CSV)
 
 #### **Formulário de Query**
 - Nome e descrição
@@ -446,7 +508,9 @@ Usuário → Frontend → API → Criar job único no Bull → Worker → Execut
 - `database/export-schema.sql` - Schema completo
 - `backend/src/services/exportQueryService.ts` - Documentação do serviço
 - `backend/src/services/exportScheduleService.ts` - Documentação do serviço
+- `backend/src/services/exportExecutionService.ts` - Histórico e download
 - `frontend/src/pages/AdminTools/components/CronSQL.tsx` - Interface do usuário
+- `frontend/src/services/api/index.ts` - cronSqlApi (queries/schedules/executions)
 
 ---
 

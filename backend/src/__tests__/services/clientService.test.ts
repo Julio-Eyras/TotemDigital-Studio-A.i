@@ -113,7 +113,7 @@ describe('ClientService', () => {
         .mockResolvedValueOnce(null) // Cliente não existe
         .mockResolvedValueOnce(mockClient); // Retornar criado
       
-      mockDb.executeRaw.mockResolvedValue({ lastInsertRowid: 1 });
+      mockDb.executeRaw.mockResolvedValue({ rows: [{ client_id: 1 }] });
 
       const result = await clientService.createClient({
         name: 'Novo Cliente',

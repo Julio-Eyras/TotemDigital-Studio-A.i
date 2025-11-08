@@ -145,7 +145,7 @@ describe('ReportsService', () => {
       ];
 
       mockDb.findMany.mockResolvedValue(mockReports);
-      mockDb.findFirst.mockResolvedValue({ total: '1' });
+      mockDb.findFirst.mockResolvedValue({ total: 1 });
 
       const result = await reportsService.getReports(1, 20);
 
@@ -208,7 +208,7 @@ describe('ReportsService', () => {
           name: 'Template Teste',
           description: 'Descrição',
           type: 'analytics',
-          template: {},
+          templateConfig: {},
         },
         1
       );

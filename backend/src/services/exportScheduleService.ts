@@ -180,31 +180,64 @@ export class ExportScheduleService {
     queryId?: number;
     enabled?: boolean;
     search?: string;
-  }): Promise<ExportSchedule[]> {
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    data: ExportSchedule[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     try {
       let sql = 'SELECT * FROM export_schedules WHERE 1=1';
+      let countSql = 'SELECT COUNT(*) as total FROM export_schedules WHERE 1=1';
       const params: any[] = [];
+      const countParams: any[] = [];
 
       if (filters?.queryId) {
         sql += ' AND query_id = ?';
         params.push(filters.queryId);
+        countSql += ' AND query_id = ?';
+        countParams.push(filters.queryId);
       }
 
       if (filters?.enabled !== undefined) {
         sql += ' AND enabled = ?';
         params.push(filters.enabled);
+        countSql += ' AND enabled = ?';
+        countParams.push(filters.enabled);
       }
 
       if (filters?.search) {
         sql += ' AND (name ILIKE ? OR description ILIKE ?)';
         const searchTerm = `%${filters.search}%`;
         params.push(searchTerm, searchTerm);
+        countSql += ' AND (name ILIKE ? OR description ILIKE ?)';
+        countParams.push(searchTerm, searchTerm);
       }
 
       sql += ' ORDER BY created_at DESC';
 
-      const schedules = await this.db.findMany(sql, params);
-      return schedules.map(s => this.mapToExportSchedule(s));
+      const page = Math.max(1, filters?.page || 1);
+      const limit = Math.max(1, Math.min(filters?.limit || 25, 100));
+      const offset = (page - 1) * limit;
+
+      sql += ' LIMIT ? OFFSET ?';
+      params.push(limit, offset);
+
+      const [rows, countRow] = await Promise.all([
+        this.db.findMany(sql, params),
+        this.db.findFirst(countSql, countParams)
+      ]);
+
+      const total = Number(countRow?.total || 0);
+
+      return {
+        data: rows.map(s => this.mapToExportSchedule(s)),
+        total,
+        page,
+        limit
+      };
     } catch (error: any) {
       console.error('❌ Erro ao buscar agendamentos:', error.message);
       throw error;
@@ -453,7 +486,8 @@ export class ExportScheduleService {
    */
   async loadAllActiveSchedules(): Promise<void> {
     try {
-      const schedules = await this.getAllSchedules({ enabled: true });
+      const schedulesResult = await this.getAllSchedules({ enabled: true, limit: 500 });
+      const schedules = schedulesResult.data;
       
       for (const schedule of schedules) {
         try {

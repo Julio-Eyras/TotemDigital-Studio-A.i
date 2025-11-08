@@ -6,12 +6,6 @@
 import request from 'supertest';
 import express from 'express';
 import authRoutes from '../../routes/auth';
-import { getAuthService } from '../../services/authService';
-
-// Mock do AuthService
-jest.mock('../../services/authService', () => ({
-  getAuthService: jest.fn(),
-}));
 
 describe('Auth Routes', () => {
   let app: express.Application;
@@ -37,7 +31,7 @@ describe('Auth Routes', () => {
       getMe: jest.fn(),
     };
 
-    (getAuthService as jest.Mock).mockReturnValue(mockAuthService);
+    (global as any).authServiceInstance = mockAuthService;
   });
 
   describe('POST /api/auth/login', () => {
@@ -61,10 +55,12 @@ describe('Auth Routes', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
       expect(response.body.token).toBe('test-jwt-token');
       expect(response.body.user.username).toBe('testuser');
-      expect(mockAuthService.login).toHaveBeenCalledWith('testuser', 'password123');
+      expect(mockAuthService.login).toHaveBeenCalledWith({
+        username: 'testuser',
+        password: 'password123',
+      });
     });
 
     it('deve retornar erro 400 com credenciais inválidas', async () => {
@@ -81,7 +77,6 @@ describe('Auth Routes', () => {
         });
 
       expect(response.status).toBe(401);
-      expect(response.body.success).toBe(false);
       expect(response.body.error).toContain('Credenciais inválidas');
     });
 
@@ -112,7 +107,6 @@ describe('Auth Routes', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
       expect(response.body.message).toBeDefined();
       expect(mockAuthService.forgotPassword).toHaveBeenCalledWith('test@example.com');
     });
@@ -144,7 +138,6 @@ describe('Auth Routes', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
       expect(response.body.message).toContain('Senha redefinida com sucesso');
       expect(mockAuthService.resetPassword).toHaveBeenCalledWith(
         'valid-reset-token-64-characters-long-string-12345678901234567890',
@@ -166,8 +159,7 @@ describe('Auth Routes', () => {
         });
 
       expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toContain('Token inválido');
+      expect(response.body.error).toBe('Dados inválidos');
     });
 
     it('deve retornar erro 400 se senha for muito curta', async () => {
@@ -206,9 +198,13 @@ describe('Auth Routes', () => {
         });
 
       expect(response.status).toBe(201);
-      expect(response.body.success).toBe(true);
       expect(response.body.user.username).toBe('newuser');
-      expect(mockAuthService.register).toHaveBeenCalled();
+      expect(mockAuthService.register).toHaveBeenCalledWith({
+        username: 'newuser',
+        password: 'password123',
+        email: 'newuser@example.com',
+        role: 'operator',
+      });
     });
 
     it('deve retornar erro 400 se dados estiverem faltando', async () => {

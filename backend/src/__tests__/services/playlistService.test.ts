@@ -166,18 +166,26 @@ describe('PlaylistService', () => {
         updated_at: '2024-01-02',
       };
 
-      mockDb.findFirst
-        .mockResolvedValueOnce(mockPlaylist) // Verificar existência
-        .mockResolvedValueOnce(null) // Nenhuma playlist com mesmo nome
-        .mockResolvedValueOnce(mockPlaylist); // Retornar atualizada
-      
+      jest.spyOn(playlistService, 'getPlaylistById')
+        .mockResolvedValueOnce({
+          playlist_id: 1,
+          name: 'Playlist Antiga',
+          description: 'Descrição antiga',
+          client_id: 1,
+          is_active: true,
+          created_at: '2024-01-01',
+          updated_at: '2024-01-01',
+        } as any)
+        .mockResolvedValueOnce(mockPlaylist as any);
+
+      mockDb.findFirst.mockResolvedValueOnce(null); // Nenhuma playlist com mesmo nome
       mockDb.executeRaw.mockResolvedValue({ rows: [] });
 
       const result = await playlistService.updatePlaylist(1, {
         name: 'Playlist Atualizada',
       });
 
-      expect(result).toEqual(mockPlaylist);
+      expect(result).toMatchObject(mockPlaylist);
       expect(mockDb.executeRaw).toHaveBeenCalled();
     });
 

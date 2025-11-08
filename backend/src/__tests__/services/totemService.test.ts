@@ -48,12 +48,18 @@ describe('TotemService', () => {
       ];
 
       mockDb.findMany.mockResolvedValue(mockTotems);
-      mockDb.findFirst
-        .mockResolvedValueOnce({ total: '1' }) // Contar total
-        .mockResolvedValueOnce({ count: 2 }) // getTotemStats - campaignCount
-        .mockResolvedValueOnce({ count: 1 }) // getTotemStats - playlistCount
-        .mockResolvedValueOnce({ count: 2 }) // getTotemStats - campaignCount (segundo totem)
-        .mockResolvedValueOnce({ count: 1 }); // getTotemStats - playlistCount (segundo totem)
+      mockDb.findFirst.mockImplementation((query: string) => {
+        if (query.includes('COUNT(*) as total')) {
+          return { total: 1 };
+        }
+        if (query.includes('campaign_totems')) {
+          return { count: 2 };
+        }
+        if (query.includes('playlists')) {
+          return { count: 1 };
+        }
+        return { count: 0 };
+      });
 
       const result = await totemService.getTotems(1, 20);
 
@@ -65,7 +71,7 @@ describe('TotemService', () => {
 
     it('deve filtrar totems por status', async () => {
       mockDb.findMany.mockResolvedValue([]);
-      mockDb.findFirst.mockResolvedValue({ total: '0' });
+      mockDb.findFirst.mockResolvedValue({ total: 0 });
 
       await totemService.getTotems(1, 20, { status: 'online' });
 
@@ -142,12 +148,16 @@ describe('TotemService', () => {
         updatedAt: '2024-01-01',
       };
 
-      mockDb.findFirst.mockResolvedValue(null); // Totem não existe
-      mockDb.executeRaw.mockResolvedValue({ lastInsertRowid: 1 });
       mockDb.findFirst
-        .mockResolvedValueOnce(mockTotem) // Retornar criado
-        .mockResolvedValueOnce({ count: 0 }) // getTotemStats - campaignCount
-        .mockResolvedValueOnce({ count: 0 }); // getTotemStats - playlistCount
+        .mockResolvedValueOnce(null) // Verificar duplicidade
+        .mockResolvedValueOnce(mockTotem) // getTotemById - totem
+        .mockResolvedValueOnce({ count: 0 })
+        .mockResolvedValueOnce({ count: 0 })
+        .mockResolvedValueOnce(mockTotem)
+        .mockResolvedValueOnce({ count: 0 })
+        .mockResolvedValueOnce({ count: 0 });
+
+      mockDb.executeRaw.mockResolvedValue({ lastInsertRowid: 1 });
 
       const result = await totemService.createTotem(
         {
@@ -187,9 +197,12 @@ describe('TotemService', () => {
 
       mockDb.findFirst
         .mockResolvedValueOnce({ totem_id: 1 }) // Verificar existência
-        .mockResolvedValueOnce(mockTotem) // Retornar atualizado
-        .mockResolvedValueOnce({ count: 2 }) // getTotemStats - campaignCount
-        .mockResolvedValueOnce({ count: 1 }); // getTotemStats - playlistCount
+        .mockResolvedValueOnce(mockTotem) // getTotemById inicial
+        .mockResolvedValueOnce({ count: 2 })
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce(mockTotem) // getTotemById final
+        .mockResolvedValueOnce({ count: 2 })
+        .mockResolvedValueOnce({ count: 1 });
       
       mockDb.executeRaw.mockResolvedValue({ rows: [] });
 
@@ -220,23 +233,34 @@ describe('TotemService', () => {
       await totemService.deleteTotem(1, 1);
 
       expect(mockDb.executeRaw).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM totems'),
+        expect.stringContaining('UPDATE totems'),
         [1]
       );
     });
   });
 
-  describe('updateHeartbeat', () => {
-    it('deve atualizar heartbeat do totem', async () => {
+  describe('processHeartbeat', () => {
+    it('deve processar heartbeat e atualizar totem', async () => {
       const mockTotem = {
         id: 1,
         identifier: 'TOTEM-001',
+        status: 'offline',
+        lastHeartbeat: '2024-01-01',
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-01',
       };
 
-      mockDb.findFirst.mockResolvedValue(mockTotem);
+      mockDb.findFirst
+        .mockResolvedValueOnce(mockTotem) // getTotemById inicial
+        .mockResolvedValueOnce({ count: 0 })
+        .mockResolvedValueOnce({ count: 0 })
+        .mockResolvedValueOnce({ ...mockTotem, status: 'online' }) // getTotemById final
+        .mockResolvedValueOnce({ count: 0 })
+        .mockResolvedValueOnce({ count: 0 });
+
       mockDb.executeRaw.mockResolvedValue({ rows: [] });
 
-      await totemService.updateHeartbeat({
+      const result = await totemService.processHeartbeat({
         totemId: 1,
         status: 'online',
         version: '1.0.0',
@@ -246,17 +270,18 @@ describe('TotemService', () => {
         expect.stringContaining('UPDATE totems'),
         expect.arrayContaining([1])
       );
+      expect(result.status).toBe('online');
     });
 
     it('deve lançar erro quando totem não existe', async () => {
       mockDb.findFirst.mockResolvedValue(null);
 
       await expect(
-        totemService.updateHeartbeat({
+        totemService.processHeartbeat({
           totemId: 999,
           status: 'online',
         })
-      ).rejects.toThrow();
+      ).rejects.toThrow('Totem não encontrado');
     });
   });
 });

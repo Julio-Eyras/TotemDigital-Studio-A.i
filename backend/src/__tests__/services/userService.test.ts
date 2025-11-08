@@ -128,10 +128,12 @@ describe('UserService', () => {
         updated_at: '2024-01-01',
       };
 
-      mockDb.findFirst.mockResolvedValue(null); // Usuário não existe
+      mockDb.findFirst
+        .mockResolvedValueOnce(null) // Verificar duplicidade
+        .mockResolvedValueOnce(mockUser); // Buscar usuário criado
+
       (bcrypt.hash as jest.Mock).mockResolvedValue('$2a$12$hashedpassword');
-      mockDb.executeRaw.mockResolvedValue({ lastInsertRowid: 1 });
-      mockDb.findFirst.mockResolvedValueOnce(mockUser); // Retornar criado
+      mockDb.executeRaw.mockResolvedValue({ rows: [{ user_id: 1 }] });
 
       const result = await userService.createUser({
         username: 'newuser',

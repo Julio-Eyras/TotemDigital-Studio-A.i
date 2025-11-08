@@ -88,52 +88,37 @@ describe('SettingsService', () => {
     });
   });
 
-  describe('updateSetting', () => {
-    it('deve atualizar configuração existente', async () => {
-      const mockSetting = {
-        id: 1,
-        key: 'app.name',
-        value: 'Smart Signage Pro',
-        type: 'string',
-        isEditable: true,
-      };
-
-      mockDb.findFirst
-        .mockResolvedValueOnce(mockSetting) // Verificar existência e editabilidade
-        .mockResolvedValueOnce(mockSetting); // Retornar atualizada
-      
-      mockDb.executeRaw.mockResolvedValue({ rows: [] });
-
-      const result = await settingsService.updateSetting('app.name', 'Smart Signage Pro', 1);
-
-      expect(result).toBeDefined();
-      expect(mockDb.executeRaw).toHaveBeenCalled();
-    });
-
-    it('deve lançar erro quando configuração não é editável', async () => {
-      const mockSetting = {
-        id: 1,
-        key: 'app.name',
-        isEditable: false,
-      };
-
-      mockDb.findFirst.mockResolvedValue(mockSetting);
-
-      await expect(
-        settingsService.updateSetting('app.name', 'New Value', 1)
-      ).rejects.toThrow();
-    });
-  });
-
   describe('updateSettings', () => {
     it('deve atualizar múltiplas configurações', async () => {
-      const mockSettings = [
-        { id: 1, key: 'app.name', isEditable: true },
-        { id: 2, key: 'app.version', isEditable: true },
-      ];
+      jest.spyOn(settingsService, 'validateSettings').mockResolvedValue({
+        isValid: true,
+        errors: {},
+        warnings: {},
+      });
 
-      mockDb.findMany.mockResolvedValue(mockSettings);
-      mockDb.findFirst.mockResolvedValue(mockSettings[0]);
+      const getSettingSpy = jest
+        .spyOn(settingsService, 'getSetting')
+        .mockResolvedValue({
+          key: 'app.name',
+          type: 'string',
+          isEditable: true,
+          value: 'Smart Signage',
+        } as any);
+
+      getSettingSpy
+        .mockResolvedValueOnce({
+          key: 'app.name',
+          type: 'string',
+          isEditable: true,
+          value: 'Smart Signage',
+        } as any)
+        .mockResolvedValueOnce({
+          key: 'app.version',
+          type: 'string',
+          isEditable: true,
+          value: '2.0.0',
+        } as any);
+
       mockDb.executeRaw.mockResolvedValue({ rows: [] });
 
       const result = await settingsService.updateSettings(
@@ -144,8 +129,33 @@ describe('SettingsService', () => {
         1
       );
 
-      expect(result).toBeDefined();
-      expect(mockDb.executeRaw).toHaveBeenCalled();
+      expect(result.isValid).toBe(true);
+      expect(mockDb.executeRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('deve retornar erro quando configuração não é editável', async () => {
+      jest.spyOn(settingsService, 'validateSettings').mockResolvedValue({
+        isValid: true,
+        errors: {},
+        warnings: {},
+      });
+
+      jest.spyOn(settingsService, 'getSetting').mockResolvedValue({
+        key: 'app.name',
+        type: 'string',
+        isEditable: false,
+        value: 'Smart Signage',
+      } as any);
+
+      const result = await settingsService.updateSettings(
+        {
+          'app.name': 'Novo Nome',
+        },
+        1
+      );
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors['app.name']).toBeDefined();
     });
   });
 

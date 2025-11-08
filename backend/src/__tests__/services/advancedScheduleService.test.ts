@@ -23,6 +23,7 @@ jest.mock('../../config/queue', () => ({
 describe('AdvancedScheduleService', () => {
   let advancedScheduleService: AdvancedScheduleService;
   let mockDb: any;
+  let mockQueue: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -39,6 +40,16 @@ describe('AdvancedScheduleService', () => {
     (global as any).auditServiceInstance = {
       log: jest.fn().mockResolvedValue(undefined),
     };
+
+    mockQueue = {
+      add: jest.fn().mockResolvedValue({ id: 'job-123' }),
+      getRepeatableJobs: jest.fn().mockResolvedValue([]),
+      removeRepeatableByKey: jest.fn().mockResolvedValue(true),
+      getJob: jest.fn().mockResolvedValue(null),
+    };
+
+    const { getAdvancedScheduleQueue } = require('../../config/queue');
+    (getAdvancedScheduleQueue as jest.Mock).mockReturnValue(mockQueue);
 
     advancedScheduleService = new AdvancedScheduleService();
   });
@@ -139,7 +150,7 @@ describe('AdvancedScheduleService', () => {
   });
 
   describe('getSchedules', () => {
-    it('deve listar agendamentos com paginação', async () => {
+    it('deve listar agendamentos', async () => {
       const mockSchedules = [
         {
           schedule_id: 1,
@@ -150,19 +161,17 @@ describe('AdvancedScheduleService', () => {
       ];
 
       mockDb.findMany.mockResolvedValue(mockSchedules);
-      mockDb.findFirst.mockResolvedValue({ total: '1' });
 
-      const result = await advancedScheduleService.getSchedules(1, 20);
+      const result = await advancedScheduleService.getSchedules();
 
-      expect(result.schedules).toBeDefined();
-      expect(result.total).toBe(1);
+      expect(Array.isArray(result)).toBe(true);
+      expect(result[0].schedule_id).toBe(1);
     });
 
     it('deve filtrar agendamentos por tipo', async () => {
       mockDb.findMany.mockResolvedValue([]);
-      mockDb.findFirst.mockResolvedValue({ total: '0' });
 
-      await advancedScheduleService.getSchedules(1, 20, { scheduleType: 'campaign' });
+      await advancedScheduleService.getSchedules({ scheduleType: 'campaign' });
 
       expect(mockDb.findMany).toHaveBeenCalledWith(
         expect.stringContaining('schedule_type ='),

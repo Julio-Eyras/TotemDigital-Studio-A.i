@@ -215,7 +215,7 @@ export class AdvancedScheduleService {
         } as AdvancedScheduleJobData,
         {
           repeat: {
-            pattern: cronExpression
+            cron: cronExpression
           },
           jobId: `schedule-${scheduleId}`
         }

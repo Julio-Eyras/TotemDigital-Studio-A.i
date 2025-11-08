@@ -701,7 +701,7 @@ export class MediaService {
 
       // Processar apenas imagens por enquanto
       if (media.mediaType === 'image') {
-        let image = sharp(fileBuffer);
+        let image = (sharp as any)(fileBuffer);
         let metadata = await image.metadata();
         let processed = false;
 
@@ -764,7 +764,7 @@ export class MediaService {
           
           // Verificar se já existe
           if (!fs.existsSync(thumbnailPath) || options.generateThumbnail === true) {
-            await sharp(fileBuffer)
+            await (sharp as any)(fileBuffer)
               .resize(300, 300, {
                 fit: 'inside',
                 withoutEnlargement: true

@@ -16,18 +16,17 @@
 #### **Backend**
 - ✅ Schema SQL com 3 tabelas (queries, schedules, executions)
 - ✅ Configuração Redis + Bull Queue
-- ✅ Serviços CRUD completos
-- ✅ Worker de exportação
-- ✅ Funções de exportação (Excel, PDF, CSV)
-- ✅ Rotas API REST completas
-- ✅ Validação SQL por provider
+- ✅ Serviços CRUD (queries, agendamentos, execuções)
+- ✅ Worker de exportação + formatos (Excel, PDF, CSV)
+- ✅ Rotas REST completas com paginação/filtros
+- ✅ Validação SQL por provider + teste de conexão
 
 #### **Frontend**
-- ✅ Componente CronSQL completo
-- ✅ Interface de CRUD de queries
-- ✅ Interface de CRUD de agendamentos
-- ✅ Integração no Admin Tools
-- ✅ Validação em tempo real
+- ✅ Componente CronSQL com 3 abas (Queries, Agendamentos, Execuções)
+- ✅ CRUD completo com validação SQL/cron e teste de conexão
+- ✅ Histórico de execuções com filtros, paginação e download
+- ✅ Integração no Admin Tools + feedback via snackbar/toasts
+- ✅ `cronSqlApi` tipado para queries/agendamentos/execuções
 
 ---
 
@@ -52,6 +51,12 @@
 - ✅ CSV simples
 - ✅ Histórico completo de execuções
 
+### **Execuções**
+- ✅ Listagem com filtros (status, período, texto)
+- ✅ Paginação padrão (page/limit/total)
+- ✅ Download seguro dos arquivos gerados
+- ✅ Status detalhado (pendente, em execução, concluído, falhou, cancelado)
+
 ---
 
 ## 🔧 **Arquivos Criados/Modificados**
@@ -63,12 +68,15 @@ backend/src/config/redis.ts
 backend/src/config/queue.ts
 backend/src/services/exportQueryService.ts
 backend/src/services/exportScheduleService.ts
+backend/src/services/exportExecutionService.ts
 backend/src/services/sqlValidatorService.ts
 backend/src/workers/exportWorker.ts
 backend/src/workers/exportFormats.ts
 backend/src/routes/export-queries.ts
 backend/src/routes/export-schedules.ts
+backend/src/routes/export-executions.ts
 frontend/src/pages/AdminTools/components/CronSQL.tsx
+frontend/src/services/api/index.ts
 ```
 
 ### **Arquivos Modificados**
@@ -86,7 +94,7 @@ frontend/src/pages/AdminTools/AdminTools.tsx  (nova aba CronSQL)
 {
   "bull": "^4.12.2",
   "ioredis": "^5.3.2",
-  "bull-board": "^0.11.0",
+  "@bull-board/express": "^6.14.0",
   "exceljs": "^4.4.0",
   "pdfkit": "^0.14.0",
   "csv-writer": "^1.6.0",
@@ -136,18 +144,25 @@ frontend/src/pages/AdminTools/AdminTools.tsx  (nova aba CronSQL)
 ## 🔌 **API Endpoints**
 
 ### **Queries**
-- `GET /api/export-queries` - Lista queries
-- `POST /api/export-queries` - Cria query
-- `PUT /api/export-queries/:id` - Atualiza query
-- `DELETE /api/export-queries/:id` - Exclui query
-- `POST /api/export-queries/validate-sql` - Valida SQL
+- `GET /api/export-queries` — Lista paginada (filtros: provider, status, busca)
+- `POST /api/export-queries` — Cria query
+- `PUT /api/export-queries/:id` — Atualiza query
+- `DELETE /api/export-queries/:id` — Exclui query
+- `POST /api/export-queries/validate-sql` — Valida SQL por provider
+- `POST /api/export-queries/:id/test-connection` — Testa conexão usando config do sistema
 
 ### **Agendamentos**
-- `GET /api/export-schedules` - Lista agendamentos
-- `POST /api/export-schedules` - Cria agendamento
-- `PUT /api/export-schedules/:id` - Atualiza agendamento
-- `DELETE /api/export-schedules/:id` - Exclui agendamento
-- `POST /api/export-schedules/:id/execute-now` - Executa manualmente
+- `GET /api/export-schedules` — Lista paginada (filtros: queryId, status, busca)
+- `POST /api/export-schedules` — Cria agendamento
+- `PUT /api/export-schedules/:id` — Atualiza agendamento
+- `DELETE /api/export-schedules/:id` — Exclui agendamento
+- `POST /api/export-schedules/:id/execute-now` — Executa manualmente
+- `POST /api/export-schedules/validate-cron` — Valida expressão cron
+
+### **Execuções**
+- `GET /api/export-executions` — Lista execuções (filtros: scheduleId, queryId, status, período, busca)
+- `GET /api/export-executions/:id` — Detalhes/log da execução
+- `GET /api/export-executions/:id/download` — Download do arquivo gerado
 
 ---
 
@@ -171,6 +186,7 @@ frontend/src/pages/AdminTools/AdminTools.tsx  (nova aba CronSQL)
 3. **Gerenciamento**: Bull + Redis (não usa cron do sistema)
 4. **Configuração**: Usa banco do sistema automaticamente
 5. **Segurança**: Validação SQL bloqueia comandos perigosos
+6. **RBAC**: admin/manager controlam CRUD; auditor possui acesso somente leitura às execuções
 
 ---
 

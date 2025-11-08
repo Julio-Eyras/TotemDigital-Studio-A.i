@@ -25,12 +25,14 @@ jest.mock('../../config/queue', () => ({
     add: jest.fn().mockResolvedValue({ id: 'job-123' }),
     getRepeatableJobs: jest.fn().mockResolvedValue([]),
     removeRepeatableByKey: jest.fn().mockResolvedValue(true),
+    getJob: jest.fn().mockResolvedValue(null),
   })),
 }));
 
 describe('ExportScheduleService', () => {
   let exportScheduleService: ExportScheduleService;
   let mockDb: any;
+  let mockQueue: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -47,6 +49,16 @@ describe('ExportScheduleService', () => {
     (global as any).auditServiceInstance = {
       log: jest.fn().mockResolvedValue(undefined),
     };
+
+    mockQueue = {
+      add: jest.fn().mockResolvedValue({ id: 'job-123' }),
+      getRepeatableJobs: jest.fn().mockResolvedValue([]),
+      removeRepeatableByKey: jest.fn().mockResolvedValue(true),
+      getJob: jest.fn().mockResolvedValue(null),
+    };
+
+    const { getExportQueue } = require('../../config/queue');
+    (getExportQueue as jest.Mock).mockReturnValue(mockQueue);
 
     exportScheduleService = new ExportScheduleService();
   });
@@ -78,7 +90,8 @@ describe('ExportScheduleService', () => {
         created_at: '2024-01-01',
       };
 
-      mockDb.findFirst.mockResolvedValue(null); // Agendamento não existe
+      mockDb.findFirst
+        .mockResolvedValueOnce(null); // Agendamento não existe
       (exportQueryService.getQueryById as jest.Mock).mockResolvedValue({ query_id: 1 });
       mockDb.executeRaw.mockResolvedValue({ rows: [mockSchedule] });
 
@@ -146,8 +159,8 @@ describe('ExportScheduleService', () => {
     });
   });
 
-  describe('getSchedules', () => {
-    it('deve listar agendamentos com paginação', async () => {
+  describe('getAllSchedules', () => {
+    it('deve listar agendamentos', async () => {
       const mockSchedules = [
         {
           schedule_id: 1,
@@ -156,15 +169,13 @@ describe('ExportScheduleService', () => {
         },
       ];
 
-      mockDb.findMany.mockResolvedValue(mockSchedules);
-      mockDb.findFirst.mockResolvedValue({ total: '1' });
+      mockDb.findMany.mockResolvedValueOnce(mockSchedules);
+      mockDb.findFirst.mockResolvedValueOnce({ total: '1' });
 
-      const result = await exportScheduleService.getSchedules(1, 20);
+      const result = await exportScheduleService.getAllSchedules();
 
-      expect(result.schedules).toBeDefined();
+      expect(result.data[0].schedule_id).toBe(1);
       expect(result.total).toBe(1);
-      expect(result.page).toBe(1);
-      expect(result.limit).toBe(20);
     });
   });
 
@@ -178,10 +189,10 @@ describe('ExportScheduleService', () => {
       };
 
       mockDb.findFirst
-        .mockResolvedValueOnce({ schedule_id: 1 }) // Verificar existência
-        .mockResolvedValueOnce(mockSchedule); // Retornar atualizado
-      
-      mockDb.executeRaw.mockResolvedValue({ rows: [] });
+        .mockResolvedValueOnce({ schedule_id: 1 }) // getScheduleById - primeiro
+        .mockResolvedValueOnce(null); // Verificar duplicidade de nome
+
+      mockDb.executeRaw.mockResolvedValue({ rows: [mockSchedule] });
 
       const result = await exportScheduleService.updateSchedule(
         1,

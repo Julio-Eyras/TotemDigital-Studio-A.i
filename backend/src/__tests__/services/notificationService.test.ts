@@ -147,7 +147,7 @@ describe('NotificationService', () => {
       ];
 
       mockDb.findMany.mockResolvedValue(mockNotifications);
-      mockDb.findFirst.mockResolvedValue({ total: '1' });
+      mockDb.findFirst.mockResolvedValue({ total: 1 });
 
       const result = await notificationService.getNotifications(1, 20);
 
@@ -159,7 +159,7 @@ describe('NotificationService', () => {
 
     it('deve filtrar notificações por usuário', async () => {
       mockDb.findMany.mockResolvedValue([]);
-      mockDb.findFirst.mockResolvedValue({ total: '0' });
+      mockDb.findFirst.mockResolvedValue({ total: 0 });
 
       await notificationService.getNotifications(1, 20, { userId: 1 });
 

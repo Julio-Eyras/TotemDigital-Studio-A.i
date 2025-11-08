@@ -91,7 +91,7 @@ export class ExportQueryService {
         data.description || null,
         data.provider,
         data.sqlQuery,
-        data.databaseConfig ? JSON.stringify(data.databaseConfig) : null,
+        JSON.stringify(data.databaseConfig || {}),
         JSON.stringify(data.exportConfig),
         data.enabled !== false,
         userId
@@ -139,31 +139,64 @@ export class ExportQueryService {
     provider?: string;
     enabled?: boolean;
     search?: string;
-  }): Promise<ExportQuery[]> {
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    data: ExportQuery[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     try {
       let sql = 'SELECT * FROM export_queries WHERE 1=1';
+      let countSql = 'SELECT COUNT(*) as total FROM export_queries WHERE 1=1';
       const params: any[] = [];
+      const countParams: any[] = [];
 
       if (filters?.provider) {
         sql += ' AND provider = ?';
         params.push(filters.provider);
+        countSql += ' AND provider = ?';
+        countParams.push(filters.provider);
       }
 
       if (filters?.enabled !== undefined) {
         sql += ' AND enabled = ?';
         params.push(filters.enabled);
+        countSql += ' AND enabled = ?';
+        countParams.push(filters.enabled);
       }
 
       if (filters?.search) {
         sql += ' AND (name ILIKE ? OR description ILIKE ?)';
         const searchTerm = `%${filters.search}%`;
         params.push(searchTerm, searchTerm);
+        countSql += ' AND (name ILIKE ? OR description ILIKE ?)';
+        countParams.push(searchTerm, searchTerm);
       }
 
       sql += ' ORDER BY created_at DESC';
 
-      const queries = await this.db.findMany(sql, params);
-      return queries.map(q => this.mapToExportQuery(q));
+      const page = Math.max(1, filters?.page || 1);
+      const limit = Math.max(1, Math.min(filters?.limit || 25, 100));
+      const offset = (page - 1) * limit;
+
+      sql += ' LIMIT ? OFFSET ?';
+      params.push(limit, offset);
+
+      const [rows, countRow] = await Promise.all([
+        this.db.findMany(sql, params),
+        this.db.findFirst(countSql, countParams)
+      ]);
+
+      const total = Number(countRow?.total || 0);
+
+      return {
+        data: rows.map(q => this.mapToExportQuery(q)),
+        total,
+        page,
+        limit
+      };
     } catch (error: any) {
       console.error('❌ Erro ao buscar queries:', error.message);
       throw error;
@@ -337,10 +370,10 @@ export class ExportQueryService {
       sql_query: row.sql_query,
       database_config: typeof row.database_config === 'string' 
         ? JSON.parse(row.database_config) 
-        : row.database_config,
+        : row.database_config || {},
       export_config: typeof row.export_config === 'string'
         ? JSON.parse(row.export_config)
-        : row.export_config,
+        : row.export_config || {},
       enabled: row.enabled,
       created_at: row.created_at,
       updated_at: row.updated_at,

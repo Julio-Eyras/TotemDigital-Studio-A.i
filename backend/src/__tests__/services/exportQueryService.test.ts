@@ -41,6 +41,10 @@ describe('ExportQueryService', () => {
     exportQueryService = new ExportQueryService();
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   describe('createQuery', () => {
     it('deve criar query com dados válidos', async () => {
       const mockQuery = {
@@ -133,21 +137,28 @@ describe('ExportQueryService', () => {
         },
       ];
 
-      mockDb.findMany.mockResolvedValue(mockQueries);
+      mockDb.findMany.mockResolvedValueOnce(mockQueries);
+      mockDb.findFirst.mockResolvedValueOnce({ total: '1' });
 
       const result = await exportQueryService.getAllQueries();
 
-      expect(result).toEqual(mockQueries.map(q => expect.objectContaining({ query_id: q.query_id })));
+      expect(result.data).toEqual(expect.arrayContaining([
+        expect.objectContaining({ query_id: 1 })
+      ]));
+      expect(result.total).toBe(1);
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(25);
     });
 
     it('deve filtrar queries por provider', async () => {
-      mockDb.findMany.mockResolvedValue([]);
+      mockDb.findMany.mockResolvedValueOnce([]);
+      mockDb.findFirst.mockResolvedValueOnce({ total: '0' });
 
       await exportQueryService.getAllQueries({ provider: 'PostgreSQL' });
 
       expect(mockDb.findMany).toHaveBeenCalledWith(
         expect.stringContaining('provider ='),
-        expect.arrayContaining(['PostgreSQL'])
+        ['PostgreSQL', 25, 0]
       );
     });
   });
@@ -162,11 +173,19 @@ describe('ExportQueryService', () => {
         enabled: true,
       };
 
-      mockDb.findFirst
-        .mockResolvedValueOnce({ query_id: 1 }) // Verificar existência
-        .mockResolvedValueOnce(mockQuery); // Retornar atualizada
-      
-      mockDb.executeRaw.mockResolvedValue({ rows: [] });
+      jest.spyOn(exportQueryService, 'getQueryById')
+        .mockResolvedValueOnce({
+          query_id: 1,
+          name: 'Query Antiga',
+          provider: 'PostgreSQL',
+          sql_query: 'SELECT 1',
+          enabled: true,
+          export_config: JSON.stringify({ format: 'xlsx' }),
+        } as any)
+        .mockResolvedValueOnce(mockQuery as any);
+
+      mockDb.findFirst.mockResolvedValue(null); // Sem duplicados
+      mockDb.executeRaw.mockResolvedValue({ rows: [mockQuery] });
 
       const result = await exportQueryService.updateQuery(
         1,
@@ -191,7 +210,16 @@ describe('ExportQueryService', () => {
 
   describe('deleteQuery', () => {
     it('deve deletar query existente', async () => {
-      mockDb.findFirst.mockResolvedValue({ query_id: 1 });
+      jest.spyOn(exportQueryService, 'getQueryById').mockResolvedValue({
+        query_id: 1,
+        name: 'Query Teste',
+        provider: 'PostgreSQL',
+        sql_query: 'SELECT 1',
+        enabled: true,
+        export_config: JSON.stringify({ format: 'xlsx' }),
+      } as any);
+
+      mockDb.findMany.mockResolvedValue([]); // Sem agendamentos
       mockDb.executeRaw.mockResolvedValue({ rows: [] });
 
       await exportQueryService.deleteQuery(1, 1);

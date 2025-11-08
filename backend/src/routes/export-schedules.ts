@@ -20,19 +20,25 @@ router.use(authMiddleware);
  */
 router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
   try {
-    const { queryId, enabled, search } = req.query;
+    const { queryId, enabled, search, page, limit } = req.query;
 
     const filters: any = {};
     if (queryId) filters.queryId = parseInt(queryId as string);
     if (enabled !== undefined) filters.enabled = enabled === 'true';
     if (search) filters.search = search;
+    if (page) filters.page = parseInt(page as string, 10);
+    if (limit) filters.limit = parseInt(limit as string, 10);
 
-    const schedules = await exportScheduleService.getAllSchedules(filters);
+    const result = await exportScheduleService.getAllSchedules(filters);
 
     res.json({
       success: true,
-      data: schedules,
-      count: schedules.length
+      data: result.data,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit
+      }
     });
   } catch (error: any) {
     console.error('❌ Erro ao listar agendamentos:', error.message);

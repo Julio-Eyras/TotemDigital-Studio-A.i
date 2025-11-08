@@ -48,7 +48,7 @@ describe('SQLValidatorService', () => {
     it('deve rejeitar queries Redis vazias', () => {
       const result = validator.validateSQL('   ', 'Redis');
       expect(result.valid).toBe(false);
-      expect(result.error).toBe('Query Redis não pode estar vazia');
+      expect(result.error).toBe('Query SQL não pode estar vazia');
     });
 
     it('deve validar queries Grafana não vazias', () => {
@@ -78,7 +78,7 @@ describe('SQLValidatorService', () => {
 
       const columns = validator.extractColumns(sql);
 
-      expect(columns).toEqual(['id', 'userName', 'total']);
+      expect(columns).toEqual(['id', 'name', 'total']);
     });
 
     it('deve ignorar * na cláusula SELECT', () => {

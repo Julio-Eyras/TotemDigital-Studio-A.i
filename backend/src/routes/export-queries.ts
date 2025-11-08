@@ -21,19 +21,25 @@ router.use(authMiddleware);
  */
 router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
   try {
-    const { provider, enabled, search } = req.query;
+    const { provider, enabled, search, page, limit } = req.query;
 
     const filters: any = {};
     if (provider) filters.provider = provider;
     if (enabled !== undefined) filters.enabled = enabled === 'true';
     if (search) filters.search = search;
+    if (page) filters.page = parseInt(page as string, 10);
+    if (limit) filters.limit = parseInt(limit as string, 10);
 
-    const queries = await exportQueryService.getAllQueries(filters);
+    const result = await exportQueryService.getAllQueries(filters);
 
     res.json({
       success: true,
-      data: queries,
-      count: queries.length
+      data: result.data,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit
+      }
     });
   } catch (error: any) {
     console.error('❌ Erro ao listar queries:', error.message);
@@ -95,11 +101,15 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Resp
     const userId = req.user.id;
 
     // Validar dados obrigatórios
-    if (!data.name || !data.provider || !data.sqlQuery || !data.databaseConfig || !data.exportConfig) {
+    if (!data.name || !data.provider || !data.sqlQuery || !data.exportConfig) {
       return res.status(400).json({
         success: false,
-        message: 'Dados obrigatórios faltando: name, provider, sqlQuery, databaseConfig, exportConfig'
+        message: 'Dados obrigatórios faltando: name, provider, sqlQuery, exportConfig'
       });
+    }
+
+    if (!data.databaseConfig) {
+      data.databaseConfig = {};
     }
 
     // Validar SQL
@@ -149,9 +159,18 @@ router.put('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
       });
     }
 
+    const existingQuery = await exportQueryService.getQueryById(queryId);
+    if (!existingQuery) {
+      return res.status(404).json({
+        success: false,
+        message: 'Query não encontrada'
+      });
+    }
+
     // Validar SQL se estiver sendo atualizado
-    if (data.sqlQuery && data.provider) {
-      const sqlValidation = sqlValidatorService.validateSQL(data.sqlQuery, data.provider);
+    if (data.sqlQuery) {
+      const provider = data.provider || existingQuery.provider;
+      const sqlValidation = sqlValidatorService.validateSQL(data.sqlQuery, provider);
       if (!sqlValidation.valid) {
         return res.status(400).json({
           success: false,

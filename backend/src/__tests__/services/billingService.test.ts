@@ -31,6 +31,8 @@ describe('BillingService', () => {
 
     (getDatabase as jest.Mock).mockReturnValue(mockDb);
     service = new BillingService();
+
+    (global as any).auditServiceInstance = { log: logMock };
   });
 
   describe('getBillings', () => {

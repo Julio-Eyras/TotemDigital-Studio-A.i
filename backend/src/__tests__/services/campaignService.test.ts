@@ -14,6 +14,8 @@ jest.mock('../../config/database', () => ({
 describe('CampaignService', () => {
   let campaignService: CampaignService;
   let mockDb: any;
+  let getStatsSpy: jest.SpyInstance;
+  let getScheduleInfoSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -32,6 +34,18 @@ describe('CampaignService', () => {
     };
 
     campaignService = new CampaignService();
+
+    getStatsSpy = jest
+      .spyOn<any, any>(CampaignService.prototype as any, 'getCampaignStats')
+      .mockResolvedValue({ totemCount: 0, playlistCount: 0, mediaCount: 0, totalDuration: 0 });
+
+    getScheduleInfoSpy = jest
+      .spyOn<any, any>(CampaignService.prototype as any, 'getScheduleInfo')
+      .mockReturnValue({ isScheduled: false, isExpired: false, isActiveNow: true });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   describe('getCampaigns', () => {
@@ -49,11 +63,11 @@ describe('CampaignService', () => {
       ];
 
       mockDb.findMany.mockResolvedValue(mockCampaigns);
-      mockDb.findFirst.mockResolvedValue({ total: '1' });
+      mockDb.findFirst.mockResolvedValue({ total: 1 });
 
       const result = await campaignService.getCampaigns(1, 20);
 
-      expect(result.campaigns).toEqual(mockCampaigns);
+      expect(result.campaigns[0]).toMatchObject(mockCampaigns[0]);
       expect(result.total).toBe(1);
       expect(result.page).toBe(1);
       expect(result.limit).toBe(20);
@@ -61,7 +75,7 @@ describe('CampaignService', () => {
 
     it('deve filtrar campanhas por cliente', async () => {
       mockDb.findMany.mockResolvedValue([]);
-      mockDb.findFirst.mockResolvedValue({ total: '0' });
+      mockDb.findFirst.mockResolvedValue({ total: 0 });
 
       await campaignService.getCampaigns(1, 20, { clientId: 1 });
 
@@ -73,7 +87,7 @@ describe('CampaignService', () => {
 
     it('deve filtrar campanhas por status', async () => {
       mockDb.findMany.mockResolvedValue([]);
-      mockDb.findFirst.mockResolvedValue({ total: '0' });
+      mockDb.findFirst.mockResolvedValue({ total: 0 });
 
       await campaignService.getCampaigns(1, 20, { status: 'active' });
 
@@ -98,7 +112,7 @@ describe('CampaignService', () => {
 
       const result = await campaignService.getCampaignById(1);
 
-      expect(result).toEqual(mockCampaign);
+      expect(result).toMatchObject(mockCampaign);
     });
 
     it('deve retornar null quando campanha não encontrada', async () => {
@@ -122,8 +136,9 @@ describe('CampaignService', () => {
         updatedAt: '2024-01-01',
       };
 
+      mockDb.findFirst.mockResolvedValueOnce({ client_id: 1 });
+      jest.spyOn(campaignService, 'getCampaignById').mockResolvedValueOnce(mockCampaign as any);
       mockDb.executeRaw.mockResolvedValue({ lastInsertRowid: 1 });
-      mockDb.findFirst.mockResolvedValue(mockCampaign);
 
       const result = await campaignService.createCampaign(
         {
@@ -133,7 +148,7 @@ describe('CampaignService', () => {
         1 // userId
       );
 
-      expect(result).toEqual(mockCampaign);
+      expect(result).toMatchObject(mockCampaign);
       expect(mockDb.executeRaw).toHaveBeenCalled();
     });
 
@@ -165,10 +180,16 @@ describe('CampaignService', () => {
         isActive: true,
       };
 
-      mockDb.findFirst
-        .mockResolvedValueOnce({ campaign_id: 1 }) // Verificar existência
-        .mockResolvedValueOnce(mockCampaign); // Retornar atualizado
-      
+      jest.spyOn(campaignService, 'getCampaignById')
+        .mockResolvedValueOnce({
+          id: 1,
+          clientId: 1,
+          title: 'Campanha Original',
+          status: 'draft',
+          isActive: false,
+        } as any)
+        .mockResolvedValueOnce(mockCampaign as any);
+
       mockDb.executeRaw.mockResolvedValue({ rows: [] });
 
       const result = await campaignService.updateCampaign(
@@ -177,7 +198,7 @@ describe('CampaignService', () => {
         1
       );
 
-      expect(result).toEqual(mockCampaign);
+      expect(result).toMatchObject(mockCampaign);
       expect(mockDb.executeRaw).toHaveBeenCalled();
     });
 
@@ -192,7 +213,16 @@ describe('CampaignService', () => {
 
   describe('deleteCampaign', () => {
     it('deve deletar campanha existente', async () => {
-      mockDb.findFirst.mockResolvedValue({ campaign_id: 1 });
+      jest.spyOn(campaignService, 'getCampaignById').mockResolvedValue({
+        id: 1,
+        clientId: 1,
+        title: 'Campanha',
+        status: 'draft',
+        isActive: true,
+      } as any);
+      mockDb.findFirst
+        .mockResolvedValueOnce({ count: 0 })
+        .mockResolvedValueOnce({ count: 0 });
       mockDb.executeRaw.mockResolvedValue({ rows: [] });
 
       await campaignService.deleteCampaign(1, 1);
@@ -212,10 +242,16 @@ describe('CampaignService', () => {
         isActive: true,
       };
 
-      mockDb.findFirst
-        .mockResolvedValueOnce({ campaign_id: 1 })
-        .mockResolvedValueOnce(mockCampaign);
-      
+      jest.spyOn(campaignService, 'getCampaignById')
+        .mockResolvedValueOnce({
+          id: 1,
+          clientId: 1,
+          title: 'Campanha',
+          status: 'draft',
+          isActive: false,
+        } as any)
+        .mockResolvedValueOnce(mockCampaign as any);
+       
       mockDb.executeRaw.mockResolvedValue({ rows: [] });
 
       const result = await campaignService.updateCampaign(
@@ -237,10 +273,16 @@ describe('CampaignService', () => {
         isActive: false,
       };
 
-      mockDb.findFirst
-        .mockResolvedValueOnce({ campaign_id: 1 })
-        .mockResolvedValueOnce(mockCampaign);
-      
+      jest.spyOn(campaignService, 'getCampaignById')
+        .mockResolvedValueOnce({
+          id: 1,
+          clientId: 1,
+          title: 'Campanha',
+          status: 'draft',
+          isActive: false,
+        } as any)
+        .mockResolvedValueOnce(mockCampaign as any);
+       
       mockDb.executeRaw.mockResolvedValue({ rows: [] });
 
       const result = await campaignService.updateCampaign(

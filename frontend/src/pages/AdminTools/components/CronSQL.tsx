@@ -1,45 +1,56 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box,
-  Typography,
-  Tab,
-  Tabs,
-  Paper,
-  Container,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Switch,
-  FormControlLabel,
   Alert,
+  Box,
+  Button,
+  Chip,
   CircularProgress,
+  Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  FormControlLabel,
+  Grid,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Snackbar,
+  Stack,
+  Switch,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
-  IconButton,
-  Chip,
+  Tabs,
+  TextField,
   Tooltip,
+  Typography,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   PlayArrow as PlayIcon,
-  CheckCircle as CheckIcon,
-  Cancel as CancelIcon,
   Refresh as RefreshIcon,
+  Download as DownloadIcon,
+  Science as ValidateIcon,
+  Lan as ConnectionIcon,
 } from '@mui/icons-material';
-import api from '../../../services/api';
+import {
+  cronSqlApi,
+  ExportExecutionRecord,
+  ExportProvider,
+  ExportQueryRecord,
+  ExportScheduleRecord,
+} from '../../../services/api';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -56,108 +67,276 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-interface ExportQuery {
-  query_id: number;
-  name: string;
-  description: string | null;
-  provider: string;
-  sql_query: string;
-  database_config: any;
-  export_config: any;
-  enabled: boolean;
-  created_at: string;
-  updated_at: string;
+type QueryEnabledFilter = 'all' | 'true' | 'false';
+type ScheduleEnabledFilter = 'all' | 'true' | 'false';
+type ExecutionStatusFilter = 'all' | ExportExecutionRecord['status'];
+
+interface QueryFilters {
+  provider: '' | ExportProvider;
+  enabled: QueryEnabledFilter;
+  search: string;
 }
 
-interface ExportSchedule {
-  schedule_id: number;
-  name: string;
-  description: string | null;
-  query_id: number;
-  cron_expression: string;
-  enabled: boolean;
-  last_execution: string | null;
-  next_execution: string | null;
-  execution_count: number;
-  success_count: number;
-  failure_count: number;
-  created_at: string;
+interface ScheduleFilters {
+  queryId: number | 'all';
+  enabled: ScheduleEnabledFilter;
+  search: string;
 }
+
+interface ExecutionFilters {
+  status: ExecutionStatusFilter;
+  search: string;
+  startDate: string;
+  endDate: string;
+}
+
+interface PaginationState {
+  page: number;
+  limit: number;
+  total: number;
+}
+
+interface SqlValidationResult {
+  valid: boolean;
+  error?: string;
+  warnings?: string[];
+  tables?: string[];
+  columns?: string[];
+}
+
+const providerOptions: ExportProvider[] = ['PostgreSQL', 'Redis', 'Grafana', 'Prometheus'];
+const rowsPerPageOptions = [5, 10, 25, 50];
+
+const statusColorMap: Record<ExportExecutionRecord['status'], 'default' | 'success' | 'warning' | 'error' | 'info'> = {
+  pending: 'info',
+  running: 'warning',
+  completed: 'success',
+  failed: 'error',
+  cancelled: 'default',
+};
+
+const formatDateTime = (value: string | null | undefined) => {
+  if (!value) return '-';
+  return new Date(value).toLocaleString('pt-BR');
+};
+
+const formatFileSize = (bytes?: number | null) => {
+  if (!bytes || bytes <= 0) return '-';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const power = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const size = bytes / Math.pow(1024, power);
+  return `${size.toFixed(1)} ${units[power]}`;
+};
 
 const CronSQL: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
-  const [queries, setQueries] = useState<ExportQuery[]>([]);
-  const [schedules, setSchedules] = useState<ExportSchedule[]>([]);
-  const [loading, setLoading] = useState(false);
+
+  const [queries, setQueries] = useState<ExportQueryRecord[]>([]);
+  const [queryFilters, setQueryFilters] = useState<QueryFilters>({
+    provider: '',
+    enabled: 'all',
+    search: '',
+  });
+  const [queryPagination, setQueryPagination] = useState<PaginationState>({
+    page: 1,
+    limit: 10,
+    total: 0,
+  });
+  const [queriesLoading, setQueriesLoading] = useState(false);
+
+  const [schedules, setSchedules] = useState<ExportScheduleRecord[]>([]);
+  const [scheduleFilters, setScheduleFilters] = useState<ScheduleFilters>({
+    queryId: 'all',
+    enabled: 'all',
+    search: '',
+  });
+  const [schedulePagination, setSchedulePagination] = useState<PaginationState>({
+    page: 1,
+    limit: 10,
+    total: 0,
+  });
+  const [schedulesLoading, setSchedulesLoading] = useState(false);
+
+  const [executions, setExecutions] = useState<ExportExecutionRecord[]>([]);
+  const [executionFilters, setExecutionFilters] = useState<ExecutionFilters>({
+    status: 'all',
+    search: '',
+    startDate: '',
+    endDate: '',
+  });
+  const [executionPagination, setExecutionPagination] = useState<PaginationState>({
+    page: 1,
+    limit: 10,
+    total: 0,
+  });
+  const [executionsLoading, setExecutionsLoading] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
-  
-  // Dialog de query
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error' | 'info' | 'warning';
+  }>({ open: false, message: '', severity: 'success' });
+
   const [queryDialogOpen, setQueryDialogOpen] = useState(false);
-  const [editingQuery, setEditingQuery] = useState<ExportQuery | null>(null);
+  const [editingQuery, setEditingQuery] = useState<ExportQueryRecord | null>(null);
   const [queryForm, setQueryForm] = useState({
     name: '',
     description: '',
-    provider: 'PostgreSQL' as 'PostgreSQL' | 'Redis' | 'Grafana' | 'Prometheus',
+    provider: 'PostgreSQL' as ExportProvider,
     sqlQuery: '',
-    databaseConfig: {}, // Usa configuração do sistema
     exportConfig: {
       outputDirectory: './exports',
       fileName: 'export',
       format: 'xlsx' as 'xlsx' | 'pdf' | 'csv',
-      sheetName: 'Data', // Apenas para Excel
+      sheetName: 'Data',
       applyFormatting: true,
       timestampSuffix: true,
     },
     enabled: true,
   });
+  const [sqlValidation, setSqlValidation] = useState<SqlValidationResult | null>(null);
+  const [validatingSql, setValidatingSql] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [savingQuery, setSavingQuery] = useState(false);
 
-  // Dialog de schedule
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const [editingSchedule, setEditingSchedule] = useState<ExportSchedule | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<ExportScheduleRecord | null>(null);
   const [scheduleForm, setScheduleForm] = useState({
     name: '',
     description: '',
     queryId: 0,
-    cronExpression: '0 8 * * *', // Diário às 8h
+    cronExpression: '0 8 * * *',
     enabled: true,
   });
+  const [cronValidation, setCronValidation] = useState<{ nextExecution?: string; error?: string } | null>(null);
+  const [savingSchedule, setSavingSchedule] = useState(false);
 
-  // Carregar dados
   useEffect(() => {
-    loadQueries();
-    loadSchedules();
+    loadQueries({ page: 1, limit: queryPagination.limit });
+    loadSchedules({ page: 1, limit: schedulePagination.limit });
+    loadExecutions({ page: 1, limit: executionPagination.limit });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadQueries = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/export-queries');
-      if (response.data.success) {
-        setQueries(response.data.data);
-      }
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Erro ao carregar queries');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    loadQueries({ page: 1, limit: queryPagination.limit });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryFilters]);
 
-  const loadSchedules = async () => {
-    try {
-      const response = await api.get('/export-schedules');
-      if (response.data.success) {
-        setSchedules(response.data.data);
-      }
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Erro ao carregar agendamentos');
-    }
-  };
+  useEffect(() => {
+    loadSchedules({ page: 1, limit: schedulePagination.limit });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduleFilters]);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  useEffect(() => {
+    loadExecutions({ page: 1, limit: executionPagination.limit });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [executionFilters]);
+
+  const loadQueries = useCallback(
+    async (options: { page?: number; limit?: number } = {}) => {
+      try {
+        setQueriesLoading(true);
+        const response = await cronSqlApi.getQueries({
+          provider: queryFilters.provider || undefined,
+          enabled: queryFilters.enabled !== 'all' ? queryFilters.enabled : undefined,
+          search: queryFilters.search || undefined,
+          page: options.page ?? queryPagination.page,
+          limit: options.limit ?? queryPagination.limit,
+        });
+        setQueries(response.data);
+        setQueryPagination({
+          page: response.pagination.page,
+          limit: response.pagination.limit,
+          total: response.pagination.total,
+        });
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Erro ao carregar queries');
+      } finally {
+        setQueriesLoading(false);
+      }
+    },
+    [queryFilters, queryPagination.limit, queryPagination.page]
+  );
+
+  const loadSchedules = useCallback(
+    async (options: { page?: number; limit?: number } = {}) => {
+      try {
+        setSchedulesLoading(true);
+        const response = await cronSqlApi.getSchedules({
+          queryId: scheduleFilters.queryId !== 'all' ? Number(scheduleFilters.queryId) : undefined,
+          enabled: scheduleFilters.enabled !== 'all' ? scheduleFilters.enabled : undefined,
+          search: scheduleFilters.search || undefined,
+          page: options.page ?? schedulePagination.page,
+          limit: options.limit ?? schedulePagination.limit,
+        });
+        setSchedules(response.data);
+        setSchedulePagination({
+          page: response.pagination.page,
+          limit: response.pagination.limit,
+          total: response.pagination.total,
+        });
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Erro ao carregar agendamentos');
+      } finally {
+        setSchedulesLoading(false);
+      }
+    },
+    [scheduleFilters, schedulePagination.limit, schedulePagination.page]
+  );
+
+  const loadExecutions = useCallback(
+    async (options: { page?: number; limit?: number } = {}) => {
+      try {
+        setExecutionsLoading(true);
+        const response = await cronSqlApi.getExecutions({
+          status: executionFilters.status !== 'all' ? executionFilters.status : undefined,
+          search: executionFilters.search || undefined,
+          startDate: executionFilters.startDate || undefined,
+          endDate: executionFilters.endDate || undefined,
+          page: options.page ?? executionPagination.page,
+          limit: options.limit ?? executionPagination.limit,
+        });
+        setExecutions(response.data);
+        setExecutionPagination({
+          page: response.pagination.page,
+          limit: response.pagination.limit,
+          total: response.pagination.total,
+        });
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Erro ao carregar execuções');
+      } finally {
+        setExecutionsLoading(false);
+      }
+    },
+    [executionFilters, executionPagination.limit, executionPagination.page]
+  );
+
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
-  const handleOpenQueryDialog = (query?: ExportQuery) => {
+  const resetQueryForm = () => {
+    setQueryForm({
+      name: '',
+      description: '',
+      provider: 'PostgreSQL',
+      sqlQuery: '',
+      exportConfig: {
+        outputDirectory: './exports',
+        fileName: 'export',
+        format: 'xlsx',
+        sheetName: 'Data',
+        applyFormatting: true,
+        timestampSuffix: true,
+      },
+      enabled: true,
+    });
+    setSqlValidation(null);
+  };
+
+  const handleOpenQueryDialog = (query?: ExportQueryRecord) => {
     if (query) {
       setEditingQuery(query);
       setQueryForm({
@@ -165,55 +344,50 @@ const CronSQL: React.FC = () => {
         description: query.description || '',
         provider: query.provider,
         sqlQuery: query.sql_query,
-        databaseConfig: typeof query.database_config === 'string'
-          ? JSON.parse(query.database_config)
-          : query.database_config || {},
-        exportConfig: typeof query.export_config === 'string'
-          ? JSON.parse(query.export_config)
-          : query.export_config,
+        exportConfig: query.export_config,
         enabled: query.enabled,
       });
     } else {
       setEditingQuery(null);
-      setQueryForm({
-        name: '',
-        description: '',
-        provider: 'PostgreSQL',
-        sqlQuery: '',
-        databaseConfig: {},
-        exportConfig: {
-          outputDirectory: './exports',
-          fileName: 'export',
-          format: 'xlsx',
-          sheetName: 'Data',
-          applyFormatting: true,
-          timestampSuffix: true,
-        },
-        enabled: true,
-      });
+      resetQueryForm();
     }
+    setSqlValidation(null);
     setQueryDialogOpen(true);
   };
 
   const handleSaveQuery = async () => {
     try {
-      setLoading(true);
+      setSavingQuery(true);
       setError(null);
 
       if (editingQuery) {
-        // Atualizar
-        await api.put(`/export-queries/${editingQuery.query_id}`, queryForm);
+        await cronSqlApi.updateQuery(editingQuery.query_id, {
+          name: queryForm.name,
+          description: queryForm.description,
+          provider: queryForm.provider,
+          sqlQuery: queryForm.sqlQuery,
+          exportConfig: queryForm.exportConfig,
+          enabled: queryForm.enabled,
+        });
+        setSnackbar({ open: true, message: 'Query atualizada com sucesso.', severity: 'success' });
       } else {
-        // Criar
-        await api.post('/export-queries', queryForm);
+        await cronSqlApi.createQuery({
+          name: queryForm.name,
+          description: queryForm.description,
+          provider: queryForm.provider,
+          sqlQuery: queryForm.sqlQuery,
+          exportConfig: queryForm.exportConfig,
+          enabled: queryForm.enabled,
+        });
+        setSnackbar({ open: true, message: 'Query criada com sucesso.', severity: 'success' });
       }
 
       setQueryDialogOpen(false);
-      loadQueries();
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Erro ao salvar query');
+      loadQueries({ page: queryPagination.page, limit: queryPagination.limit });
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erro ao salvar query');
     } finally {
-      setLoading(false);
+      setSavingQuery(false);
     }
   };
 
@@ -223,17 +397,81 @@ const CronSQL: React.FC = () => {
     }
 
     try {
-      setLoading(true);
-      await api.delete(`/export-queries/${queryId}`);
-      loadQueries();
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Erro ao excluir query');
+      setQueriesLoading(true);
+      await cronSqlApi.deleteQuery(queryId);
+      setSnackbar({ open: true, message: 'Query excluída com sucesso.', severity: 'success' });
+      loadQueries({ page: 1, limit: queryPagination.limit });
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erro ao excluir query');
     } finally {
-      setLoading(false);
+      setQueriesLoading(false);
     }
   };
 
-  const handleOpenScheduleDialog = (schedule?: ExportSchedule) => {
+  const handleValidateSql = async () => {
+    if (!queryForm.sqlQuery.trim()) {
+      setSnackbar({ open: true, message: 'Informe a SQL para validar.', severity: 'info' });
+      return;
+    }
+    try {
+      setValidatingSql(true);
+      const result = await cronSqlApi.validateSql({
+        sql: queryForm.sqlQuery,
+        provider: queryForm.provider,
+      });
+      setSqlValidation({
+        valid: result.valid,
+        error: result.error,
+        warnings: result.warnings,
+        columns: result.columns,
+        tables: result.tables,
+      });
+      setSnackbar({
+        open: true,
+        message: result.valid ? 'SQL válida.' : 'SQL apresenta avisos.',
+        severity: result.valid ? 'success' : 'warning',
+      });
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || 'Erro ao validar SQL',
+        severity: 'error',
+      });
+    } finally {
+      setValidatingSql(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!editingQuery) {
+      setSnackbar({
+        open: true,
+        message: 'Salve a query antes de testar a conexão.',
+        severity: 'info',
+      });
+      return;
+    }
+
+    try {
+      setTestingConnection(true);
+      const result = await cronSqlApi.testConnection(editingQuery.query_id, editingQuery.provider);
+      setSnackbar({
+        open: true,
+        message: result.message || 'Teste de conexão executado.',
+        severity: result.success ? 'success' : 'warning',
+      });
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || 'Erro ao testar conexão',
+        severity: 'error',
+      });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const handleOpenScheduleDialog = (schedule?: ExportScheduleRecord) => {
     if (schedule) {
       setEditingSchedule(schedule);
       setScheduleForm({
@@ -253,28 +491,41 @@ const CronSQL: React.FC = () => {
         enabled: true,
       });
     }
+    setCronValidation(null);
     setScheduleDialogOpen(true);
   };
 
   const handleSaveSchedule = async () => {
     try {
-      setLoading(true);
+      setSavingSchedule(true);
       setError(null);
 
       if (editingSchedule) {
-        // Atualizar
-        await api.put(`/export-schedules/${editingSchedule.schedule_id}`, scheduleForm);
+        await cronSqlApi.updateSchedule(editingSchedule.schedule_id, {
+          name: scheduleForm.name,
+          description: scheduleForm.description,
+          queryId: scheduleForm.queryId,
+          cronExpression: scheduleForm.cronExpression,
+          enabled: scheduleForm.enabled,
+        });
+        setSnackbar({ open: true, message: 'Agendamento atualizado com sucesso.', severity: 'success' });
       } else {
-        // Criar
-        await api.post('/export-schedules', scheduleForm);
+        await cronSqlApi.createSchedule({
+          name: scheduleForm.name,
+          description: scheduleForm.description,
+          queryId: scheduleForm.queryId,
+          cronExpression: scheduleForm.cronExpression,
+          enabled: scheduleForm.enabled,
+        });
+        setSnackbar({ open: true, message: 'Agendamento criado com sucesso.', severity: 'success' });
       }
 
       setScheduleDialogOpen(false);
-      loadSchedules();
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Erro ao salvar agendamento');
+      loadSchedules({ page: schedulePagination.page, limit: schedulePagination.limit });
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erro ao salvar agendamento');
     } finally {
-      setLoading(false);
+      setSavingSchedule(false);
     }
   };
 
@@ -284,48 +535,97 @@ const CronSQL: React.FC = () => {
     }
 
     try {
-      setLoading(true);
-      await api.delete(`/export-schedules/${scheduleId}`);
-      loadSchedules();
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Erro ao excluir agendamento');
+      setSchedulesLoading(true);
+      await cronSqlApi.deleteSchedule(scheduleId);
+      setSnackbar({ open: true, message: 'Agendamento excluído com sucesso.', severity: 'success' });
+      loadSchedules({ page: 1, limit: schedulePagination.limit });
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erro ao excluir agendamento');
     } finally {
-      setLoading(false);
+      setSchedulesLoading(false);
     }
   };
 
   const handleExecuteSchedule = async (scheduleId: number) => {
     try {
-      setLoading(true);
-      await api.post(`/export-schedules/${scheduleId}/execute-now`);
-      alert('Execução iniciada com sucesso!');
-      loadSchedules();
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Erro ao executar agendamento');
-    } finally {
-      setLoading(false);
+      await cronSqlApi.executeScheduleNow(scheduleId);
+      setSnackbar({ open: true, message: 'Execução manual iniciada.', severity: 'success' });
+      loadSchedules({ page: schedulePagination.page, limit: schedulePagination.limit });
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erro ao executar agendamento');
     }
+  };
+
+  const handleValidateCron = async () => {
+    try {
+      const result = await cronSqlApi.validateCron(scheduleForm.cronExpression);
+      setCronValidation({
+        nextExecution: result.nextExecution,
+      });
+      setSnackbar({
+        open: true,
+        message: result.valid
+          ? `Próxima execução: ${formatDateTime(result.nextExecution)}`
+          : 'Expressão cron inválida.',
+        severity: result.valid ? 'success' : 'warning',
+      });
+    } catch (err: any) {
+      setCronValidation({
+        error: err.response?.data?.message || 'Erro ao validar cron',
+      });
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || 'Erro ao validar cron',
+        severity: 'error',
+      });
+    }
+  };
+
+  const handleDownloadExecution = async (execution: ExportExecutionRecord) => {
+    if (!execution.file_path || execution.status !== 'completed') {
+      return;
+    }
+    try {
+      const blob = await cronSqlApi.downloadExecution(execution.execution_id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const extension = execution.file_path.split('.').pop() || 'dat';
+      const fileName = `${execution.query_name || 'export'}_${execution.execution_id}.${extension}`;
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || 'Erro ao baixar arquivo',
+        severity: 'error',
+      });
+    }
+  };
+
+  const handleRefreshAll = () => {
+    loadQueries({ page: queryPagination.page, limit: queryPagination.limit });
+    loadSchedules({ page: schedulePagination.page, limit: schedulePagination.limit });
+    loadExecutions({ page: executionPagination.page, limit: executionPagination.limit });
   };
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 600 }}>
-          CronSQL - Exportação Agendada
-        </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={() => {
-              loadQueries();
-              loadSchedules();
-            }}
-            sx={{ mr: 2 }}
-          >
-            Atualizar
-          </Button>
+          <Typography variant="h4" sx={{ fontWeight: 600 }}>
+            CronSQL - Exportação Agendada
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Configure queries, agende execuções e acompanhe os resultados em tempo real.
+          </Typography>
         </Box>
+        <Button variant="outlined" startIcon={<RefreshIcon />} onClick={handleRefreshAll}>
+          Atualizar
+        </Button>
       </Box>
 
       {error && (
@@ -344,78 +644,127 @@ const CronSQL: React.FC = () => {
         >
           <Tab label="Queries SQL" />
           <Tab label="Agendamentos" />
+          <Tab label="Execuções" />
         </Tabs>
       </Paper>
 
       <TabPanel value={tabValue} index={0}>
         <Paper>
-          <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">Queries de Exportação</Typography>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => handleOpenQueryDialog()}
-            >
+          <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+            <Box>
+              <Typography variant="h6">Queries de Exportação</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Mantenha suas consultas organizadas e prontas para exportação.
+              </Typography>
+            </Box>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenQueryDialog()}>
               Nova Query
             </Button>
           </Box>
+
+          <Box sx={{ px: 2, pb: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={4} lg={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Provider</InputLabel>
+                  <Select
+                    value={queryFilters.provider}
+                    label="Provider"
+                    onChange={(e) => setQueryFilters((prev) => ({ ...prev, provider: e.target.value as QueryFilters['provider'] }))}
+                  >
+                    <MenuItem value="">Todos</MenuItem>
+                    {providerOptions.map((provider) => (
+                      <MenuItem key={provider} value={provider}>
+                        {provider}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={4} lg={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={queryFilters.enabled}
+                    label="Status"
+                    onChange={(e) => setQueryFilters((prev) => ({ ...prev, enabled: e.target.value as QueryEnabledFilter }))}
+                  >
+                    <MenuItem value="all">Todos</MenuItem>
+                    <MenuItem value="true">Ativos</MenuItem>
+                    <MenuItem value="false">Inativos</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={4} lg={6}>
+                <TextField
+                  label="Buscar por nome ou descrição"
+                  value={queryFilters.search}
+                  onChange={(e) => setQueryFilters((prev) => ({ ...prev, search: e.target.value }))}
+                  fullWidth
+                  size="small"
+                />
+              </Grid>
+            </Grid>
+          </Box>
+
           <TableContainer>
             <Table>
               <TableHead>
                 <TableRow>
                   <TableCell>Nome</TableCell>
                   <TableCell>Provider</TableCell>
+                  <TableCell>Formato</TableCell>
                   <TableCell>Status</TableCell>
-                  <TableCell>Criado em</TableCell>
+                  <TableCell>Atualizado em</TableCell>
                   <TableCell align="right">Ações</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {loading ? (
+                {queriesLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
+                    <TableCell colSpan={6} align="center">
                       <CircularProgress />
                     </TableCell>
                   </TableRow>
                 ) : queries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
-                      Nenhuma query encontrada
+                    <TableCell colSpan={6} align="center">
+                      Nenhuma query encontrada.
                     </TableCell>
                   </TableRow>
                 ) : (
                   queries.map((query) => (
-                    <TableRow key={query.query_id}>
-                      <TableCell>{query.name}</TableCell>
+                    <TableRow key={query.query_id} hover>
+                      <TableCell>
+                        <Typography variant="subtitle2">{query.name}</Typography>
+                        <Typography variant="body2" color="text.secondary" noWrap>
+                          {query.description || 'Sem descrição'}
+                        </Typography>
+                      </TableCell>
                       <TableCell>{query.provider}</TableCell>
+                      <TableCell>{(query.export_config?.format || 'xlsx').toUpperCase()}</TableCell>
                       <TableCell>
-                        <Chip
-                          label={query.enabled ? 'Ativo' : 'Inativo'}
-                          color={query.enabled ? 'success' : 'default'}
-                          size="small"
-                        />
+                        <Chip size="small" label={query.enabled ? 'Ativo' : 'Inativo'} color={query.enabled ? 'success' : 'default'} />
                       </TableCell>
-                      <TableCell>
-                        {new Date(query.created_at).toLocaleDateString('pt-BR')}
-                      </TableCell>
+                      <TableCell>{formatDateTime(query.updated_at)}</TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Editar">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleOpenQueryDialog(query)}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Excluir">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleDeleteQuery(query.query_id)}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <Tooltip title="Validar/Editar query">
+                            <IconButton size="small" onClick={() => handleOpenQueryDialog(query)}>
+                              <ValidateIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Editar">
+                            <IconButton size="small" onClick={() => handleOpenQueryDialog(query)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Excluir">
+                            <IconButton size="small" color="error" onClick={() => handleDeleteQuery(query.query_id)}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))
@@ -423,13 +772,35 @@ const CronSQL: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={queryPagination.total}
+            page={queryPagination.page - 1}
+            rowsPerPage={queryPagination.limit}
+            onPageChange={(_, newPage) => {
+              const page = newPage + 1;
+              setQueryPagination((prev) => ({ ...prev, page }));
+              loadQueries({ page, limit: queryPagination.limit });
+            }}
+            onRowsPerPageChange={(event) => {
+              const limit = parseInt(event.target.value, 10);
+              setQueryPagination((prev) => ({ ...prev, limit, page: 1 }));
+              loadQueries({ page: 1, limit });
+            }}
+            rowsPerPageOptions={rowsPerPageOptions}
+          />
         </Paper>
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
         <Paper>
-          <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">Agendamentos</Typography>
+          <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="h6">Agendamentos</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Defina as frequências de execução e acompanhe os resultados rapidamente.
+              </Typography>
+            </Box>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -439,6 +810,52 @@ const CronSQL: React.FC = () => {
               Novo Agendamento
             </Button>
           </Box>
+
+          <Box sx={{ px: 2, pb: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={4} lg={3}>
+                <FormControl fullWidth size="small" disabled={queries.length === 0}>
+                  <InputLabel>Query</InputLabel>
+                  <Select
+                    value={scheduleFilters.queryId}
+                    label="Query"
+                    onChange={(e) => setScheduleFilters((prev) => ({ ...prev, queryId: e.target.value as number | 'all' }))}
+                  >
+                    <MenuItem value="all">Todas</MenuItem>
+                    {queries.map((query) => (
+                      <MenuItem key={query.query_id} value={query.query_id}>
+                        {query.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={4} lg={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={scheduleFilters.enabled}
+                    label="Status"
+                    onChange={(e) => setScheduleFilters((prev) => ({ ...prev, enabled: e.target.value as ScheduleEnabledFilter }))}
+                  >
+                    <MenuItem value="all">Todos</MenuItem>
+                    <MenuItem value="true">Ativos</MenuItem>
+                    <MenuItem value="false">Inativos</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={4} lg={6}>
+                <TextField
+                  label="Buscar por nome ou descrição"
+                  value={scheduleFilters.search}
+                  onChange={(e) => setScheduleFilters((prev) => ({ ...prev, search: e.target.value }))}
+                  fullWidth
+                  size="small"
+                />
+              </Grid>
+            </Grid>
+          </Box>
+
           <TableContainer>
             <Table>
               <TableHead>
@@ -449,27 +866,28 @@ const CronSQL: React.FC = () => {
                   <TableCell>Status</TableCell>
                   <TableCell>Próxima Execução</TableCell>
                   <TableCell>Última Execução</TableCell>
+                  <TableCell>Execuções</TableCell>
                   <TableCell align="right">Ações</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {loading ? (
+                {schedulesLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">
+                    <TableCell colSpan={8} align="center">
                       <CircularProgress />
                     </TableCell>
                   </TableRow>
                 ) : schedules.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">
-                      Nenhum agendamento encontrado
+                    <TableCell colSpan={8} align="center">
+                      Nenhum agendamento encontrado.
                     </TableCell>
                   </TableRow>
                 ) : (
                   schedules.map((schedule) => {
-                    const query = queries.find(q => q.query_id === schedule.query_id);
+                    const query = queries.find((q) => q.query_id === schedule.query_id);
                     return (
-                      <TableRow key={schedule.schedule_id}>
+                      <TableRow key={schedule.schedule_id} hover>
                         <TableCell>{schedule.name}</TableCell>
                         <TableCell>{query?.name || `Query #${schedule.query_id}`}</TableCell>
                         <TableCell>
@@ -477,48 +895,49 @@ const CronSQL: React.FC = () => {
                         </TableCell>
                         <TableCell>
                           <Chip
+                            size="small"
                             label={schedule.enabled ? 'Ativo' : 'Inativo'}
                             color={schedule.enabled ? 'success' : 'default'}
-                            size="small"
                           />
                         </TableCell>
+                        <TableCell>{formatDateTime(schedule.next_execution)}</TableCell>
+                        <TableCell>{formatDateTime(schedule.last_execution)}</TableCell>
                         <TableCell>
-                          {schedule.next_execution
-                            ? new Date(schedule.next_execution).toLocaleString('pt-BR')
-                            : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {schedule.last_execution
-                            ? new Date(schedule.last_execution).toLocaleString('pt-BR')
-                            : '-'}
+                          <Typography variant="body2">
+                            {schedule.success_count}/{schedule.execution_count}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Falhas: {schedule.failure_count}
+                          </Typography>
                         </TableCell>
                         <TableCell align="right">
-                          <Tooltip title="Executar Agora">
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={() => handleExecuteSchedule(schedule.schedule_id)}
-                            >
-                              <PlayIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Editar">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleOpenScheduleDialog(schedule)}
-                            >
-                              <EditIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Excluir">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleDeleteSchedule(schedule.schedule_id)}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          </Tooltip>
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Tooltip title="Executar agora">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => handleExecuteSchedule(schedule.schedule_id)}
+                                >
+                                  <PlayIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                            <Tooltip title="Editar">
+                              <IconButton size="small" onClick={() => handleOpenScheduleDialog(schedule)}>
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Excluir">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleDeleteSchedule(schedule.schedule_id)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
                         </TableCell>
                       </TableRow>
                     );
@@ -527,19 +946,175 @@ const CronSQL: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={schedulePagination.total}
+            page={schedulePagination.page - 1}
+            rowsPerPage={schedulePagination.limit}
+            onPageChange={(_, newPage) => {
+              const page = newPage + 1;
+              setSchedulePagination((prev) => ({ ...prev, page }));
+              loadSchedules({ page, limit: schedulePagination.limit });
+            }}
+            onRowsPerPageChange={(event) => {
+              const limit = parseInt(event.target.value, 10);
+              setSchedulePagination((prev) => ({ ...prev, limit, page: 1 }));
+              loadSchedules({ page: 1, limit });
+            }}
+            rowsPerPageOptions={rowsPerPageOptions}
+          />
         </Paper>
       </TabPanel>
 
-      {/* Dialog de Query */}
-      <Dialog
-        open={queryDialogOpen}
-        onClose={() => setQueryDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          {editingQuery ? 'Editar Query' : 'Nova Query'}
-        </DialogTitle>
+      <TabPanel value={tabValue} index={2}>
+        <Paper>
+          <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="h6">Execuções</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Visualize o histórico, status e faça download dos arquivos gerados.
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ px: 2, pb: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={executionFilters.status}
+                    label="Status"
+                    onChange={(e) => setExecutionFilters((prev) => ({ ...prev, status: e.target.value as ExecutionStatusFilter }))}
+                  >
+                    <MenuItem value="all">Todos</MenuItem>
+                    <MenuItem value="pending">Pendente</MenuItem>
+                    <MenuItem value="running">Executando</MenuItem>
+                    <MenuItem value="completed">Concluído</MenuItem>
+                    <MenuItem value="failed">Falhou</MenuItem>
+                    <MenuItem value="cancelled">Cancelado</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  label="Buscar (query, agendamento ou log)"
+                  value={executionFilters.search}
+                  onChange={(e) => setExecutionFilters((prev) => ({ ...prev, search: e.target.value }))}
+                  fullWidth
+                  size="small"
+                />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  label="Início"
+                  type="date"
+                  value={executionFilters.startDate}
+                  onChange={(e) => setExecutionFilters((prev) => ({ ...prev, startDate: e.target.value }))}
+                  fullWidth
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  label="Fim"
+                  type="date"
+                  value={executionFilters.endDate}
+                  onChange={(e) => setExecutionFilters((prev) => ({ ...prev, endDate: e.target.value }))}
+                  fullWidth
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+            </Grid>
+          </Box>
+
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Query</TableCell>
+                  <TableCell>Agendamento</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Início</TableCell>
+                  <TableCell>Fim</TableCell>
+                  <TableCell>Registros</TableCell>
+                  <TableCell>Tamanho</TableCell>
+                  <TableCell align="right">Ações</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {executionsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center">
+                      <CircularProgress />
+                    </TableCell>
+                  </TableRow>
+                ) : executions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center">
+                      Nenhuma execução encontrada.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  executions.map((execution) => (
+                    <TableRow key={execution.execution_id} hover>
+                      <TableCell>
+                        <Typography variant="subtitle2">{execution.query_name || `Query #${execution.query_id}`}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          #{execution.execution_id}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{execution.schedule_name || 'Execução manual'}</TableCell>
+                      <TableCell>
+                        <Chip size="small" label={execution.status} color={statusColorMap[execution.status]} />
+                      </TableCell>
+                      <TableCell>{formatDateTime(execution.started_at)}</TableCell>
+                      <TableCell>{formatDateTime(execution.completed_at)}</TableCell>
+                      <TableCell>{execution.records_exported}</TableCell>
+                      <TableCell>{formatFileSize(execution.file_size)}</TableCell>
+                      <TableCell align="right">
+                        <Tooltip title={execution.file_path ? 'Baixar arquivo' : 'Arquivo não disponível'}>
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDownloadExecution(execution)}
+                              disabled={!execution.file_path || execution.status !== 'completed'}
+                            >
+                              <DownloadIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            component="div"
+            count={executionPagination.total}
+            page={executionPagination.page - 1}
+            rowsPerPage={executionPagination.limit}
+            onPageChange={(_, newPage) => {
+              const page = newPage + 1;
+              setExecutionPagination((prev) => ({ ...prev, page }));
+              loadExecutions({ page, limit: executionPagination.limit });
+            }}
+            onRowsPerPageChange={(event) => {
+              const limit = parseInt(event.target.value, 10);
+              setExecutionPagination((prev) => ({ ...prev, limit, page: 1 }));
+              loadExecutions({ page: 1, limit });
+            }}
+            rowsPerPageOptions={rowsPerPageOptions}
+          />
+        </Paper>
+      </TabPanel>
+
+      <Dialog open={queryDialogOpen} onClose={() => setQueryDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>{editingQuery ? 'Editar Query' : 'Nova Query'}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
             <TextField
@@ -561,13 +1136,14 @@ const CronSQL: React.FC = () => {
               <InputLabel>Provider</InputLabel>
               <Select
                 value={queryForm.provider}
-                onChange={(e) => setQueryForm({ ...queryForm, provider: e.target.value })}
                 label="Provider"
+                onChange={(e) => setQueryForm({ ...queryForm, provider: e.target.value as ExportProvider })}
               >
-                <MenuItem value="PostgreSQL">PostgreSQL</MenuItem>
-                <MenuItem value="SQLServer">SQL Server</MenuItem>
-                <MenuItem value="MySQL">MySQL</MenuItem>
-                <MenuItem value="SQLite">SQLite</MenuItem>
+                {providerOptions.map((provider) => (
+                  <MenuItem key={provider} value={provider}>
+                    {provider}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
             <TextField
@@ -580,19 +1156,61 @@ const CronSQL: React.FC = () => {
               required
               placeholder="SELECT * FROM totems WHERE active = true"
             />
-            <Alert severity="info" sx={{ mt: 2 }}>
-              A configuração do banco de dados será usada do sistema automaticamente.
+
+            <Alert severity="info">
+              A configuração de conexão usa automaticamente os parâmetros do sistema. Ajuste apenas os detalhes da exportação.
             </Alert>
-            <Typography variant="subtitle2" sx={{ mt: 2 }}>Configuração de Exportação</Typography>
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <Button
+                variant="outlined"
+                startIcon={<ValidateIcon />}
+                onClick={handleValidateSql}
+                disabled={validatingSql || !queryForm.sqlQuery.trim()}
+              >
+                {validatingSql ? 'Validando...' : 'Validar SQL'}
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<ConnectionIcon />}
+                onClick={handleTestConnection}
+                disabled={!editingQuery || testingConnection}
+              >
+                {testingConnection ? 'Testando...' : 'Testar Conexão'}
+              </Button>
+            </Stack>
+
+            {sqlValidation && (
+              <Alert severity={sqlValidation.valid ? 'success' : 'warning'}>
+                <Typography variant="subtitle2">
+                  {sqlValidation.valid ? 'SQL válida.' : sqlValidation.error || 'SQL com avisos.'}
+                </Typography>
+                {sqlValidation.warnings && sqlValidation.warnings.length > 0 && (
+                  <Box component="ul" sx={{ pl: 2, mt: 1 }}>
+                    {sqlValidation.warnings.map((warning, index) => (
+                      <li key={index}>
+                        <Typography variant="body2">{warning}</Typography>
+                      </li>
+                    ))}
+                  </Box>
+                )}
+              </Alert>
+            )}
+
+            <Typography variant="subtitle2" sx={{ mt: 2 }}>
+              Configuração de Exportação
+            </Typography>
             <FormControl fullWidth sx={{ mt: 2 }}>
               <InputLabel>Formato de Exportação</InputLabel>
               <Select
                 value={queryForm.exportConfig.format}
-                onChange={(e) => setQueryForm({
-                  ...queryForm,
-                  exportConfig: { ...queryForm.exportConfig, format: e.target.value as any }
-                })}
                 label="Formato de Exportação"
+                onChange={(e) =>
+                  setQueryForm({
+                    ...queryForm,
+                    exportConfig: { ...queryForm.exportConfig, format: e.target.value as 'xlsx' | 'pdf' | 'csv' },
+                  })
+                }
               >
                 <MenuItem value="xlsx">Excel (XLSX)</MenuItem>
                 <MenuItem value="pdf">PDF</MenuItem>
@@ -602,57 +1220,65 @@ const CronSQL: React.FC = () => {
             <TextField
               label="Diretório de Saída"
               value={queryForm.exportConfig.outputDirectory}
-              onChange={(e) => setQueryForm({
-                ...queryForm,
-                exportConfig: { ...queryForm.exportConfig, outputDirectory: e.target.value }
-              })}
+              onChange={(e) =>
+                setQueryForm({
+                  ...queryForm,
+                  exportConfig: { ...queryForm.exportConfig, outputDirectory: e.target.value },
+                })
+              }
               fullWidth
             />
             <TextField
               label="Nome do Arquivo"
               value={queryForm.exportConfig.fileName}
-              onChange={(e) => setQueryForm({
-                ...queryForm,
-                exportConfig: { ...queryForm.exportConfig, fileName: e.target.value }
-              })}
+              onChange={(e) =>
+                setQueryForm({
+                  ...queryForm,
+                  exportConfig: { ...queryForm.exportConfig, fileName: e.target.value },
+                })
+              }
               fullWidth
             />
             {queryForm.exportConfig.format === 'xlsx' && (
               <TextField
                 label="Nome da Planilha"
                 value={queryForm.exportConfig.sheetName}
-                onChange={(e) => setQueryForm({
-                  ...queryForm,
-                  exportConfig: { ...queryForm.exportConfig, sheetName: e.target.value }
-                })}
+                onChange={(e) =>
+                  setQueryForm({
+                    ...queryForm,
+                    exportConfig: { ...queryForm.exportConfig, sheetName: e.target.value },
+                  })
+                }
                 fullWidth
-                sx={{ mt: 2 }}
               />
             )}
             <FormControlLabel
               control={
                 <Switch
                   checked={queryForm.exportConfig.applyFormatting !== false}
-                  onChange={(e) => setQueryForm({
-                    ...queryForm,
-                    exportConfig: { ...queryForm.exportConfig, applyFormatting: e.target.checked }
-                  })}
+                  onChange={(e) =>
+                    setQueryForm({
+                      ...queryForm,
+                      exportConfig: { ...queryForm.exportConfig, applyFormatting: e.target.checked },
+                    })
+                  }
                 />
               }
-              label="Aplicar Formatação"
-              sx={{ mt: 2 }}
+              label="Aplicar formatação"
             />
             <FormControlLabel
               control={
                 <Switch
                   checked={queryForm.exportConfig.timestampSuffix !== false}
-                  onChange={(e) => setQueryForm({
-                    ...queryForm,
-                    exportConfig: { ...queryForm.exportConfig, timestampSuffix: e.target.checked }
-                  })}
+                  onChange={(e) =>
+                    setQueryForm({
+                      ...queryForm,
+                      exportConfig: { ...queryForm.exportConfig, timestampSuffix: e.target.checked },
+                    })
+                  }
                 />
               }
-              label="Adicionar Timestamp no Nome do Arquivo"
+              label="Adicionar timestamp ao nome do arquivo"
             />
             <FormControlLabel
               control={
@@ -670,23 +1296,15 @@ const CronSQL: React.FC = () => {
           <Button
             variant="contained"
             onClick={handleSaveQuery}
-            disabled={loading || !queryForm.name || !queryForm.sqlQuery}
+            disabled={savingQuery || !queryForm.name || !queryForm.sqlQuery}
           >
-            {loading ? <CircularProgress size={24} /> : 'Salvar'}
+            {savingQuery ? <CircularProgress size={24} /> : 'Salvar'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Dialog de Schedule */}
-      <Dialog
-        open={scheduleDialogOpen}
-        onClose={() => setScheduleDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          {editingSchedule ? 'Editar Agendamento' : 'Novo Agendamento'}
-        </DialogTitle>
+      <Dialog open={scheduleDialogOpen} onClose={() => setScheduleDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>{editingSchedule ? 'Editar Agendamento' : 'Novo Agendamento'}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
             <TextField
@@ -708,12 +1326,12 @@ const CronSQL: React.FC = () => {
               <InputLabel>Query</InputLabel>
               <Select
                 value={scheduleForm.queryId}
-                onChange={(e) => setScheduleForm({ ...scheduleForm, queryId: e.target.value as number })}
                 label="Query"
+                onChange={(e) => setScheduleForm({ ...scheduleForm, queryId: Number(e.target.value) })}
               >
                 {queries.map((query) => (
                   <MenuItem key={query.query_id} value={query.query_id}>
-                    {query.name} ({query.provider})
+                    {query.name}
                   </MenuItem>
                 ))}
               </Select>
@@ -724,8 +1342,7 @@ const CronSQL: React.FC = () => {
               onChange={(e) => setScheduleForm({ ...scheduleForm, cronExpression: e.target.value })}
               fullWidth
               required
-              placeholder="0 8 * * *"
-              helperText="Ex: 0 8 * * * (diário às 8h), 0 */6 * * * (a cada 6 horas)"
+              helperText="Exemplos: 0 8 * * * (diário às 8h) | 0 */6 * * * (a cada 6 horas)"
             />
             <FormControlLabel
               control={
@@ -736,6 +1353,21 @@ const CronSQL: React.FC = () => {
               }
               label="Habilitado"
             />
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Button variant="outlined" onClick={handleValidateCron}>
+                Validar Cron
+              </Button>
+              {cronValidation?.nextExecution && (
+                <Typography variant="body2" color="text.secondary">
+                  Próxima execução: {formatDateTime(cronValidation.nextExecution)}
+                </Typography>
+              )}
+              {cronValidation?.error && (
+                <Typography variant="body2" color="error">
+                  {cronValidation.error}
+                </Typography>
+              )}
+            </Stack>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -743,12 +1375,23 @@ const CronSQL: React.FC = () => {
           <Button
             variant="contained"
             onClick={handleSaveSchedule}
-            disabled={loading || !scheduleForm.name || !scheduleForm.cronExpression || scheduleForm.queryId === 0}
+            disabled={savingSchedule || !scheduleForm.name || !scheduleForm.cronExpression || scheduleForm.queryId === 0}
           >
-            {loading ? <CircularProgress size={24} /> : 'Salvar'}
+            {savingSchedule ? <CircularProgress size={24} /> : 'Salvar'}
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

@@ -1026,6 +1026,211 @@ export interface RotationResult {
   details: any;
 }
 
+// =============================================
+// CRONSQL API
+// =============================================
+
+export type ExportProvider = 'PostgreSQL' | 'Redis' | 'Grafana' | 'Prometheus';
+
+export interface ExportConfig {
+  outputDirectory: string;
+  fileName: string;
+  format: 'xlsx' | 'pdf' | 'csv';
+  sheetName?: string;
+  applyFormatting?: boolean;
+  timestampSuffix?: boolean;
+}
+
+export interface ExportQueryRecord {
+  query_id: number;
+  name: string;
+  description: string | null;
+  provider: ExportProvider;
+  sql_query: string;
+  database_config: Record<string, any>;
+  export_config: ExportConfig;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExportScheduleRecord {
+  schedule_id: number;
+  name: string;
+  description: string | null;
+  query_id: number;
+  cron_expression: string;
+  enabled: boolean;
+  last_execution: string | null;
+  next_execution: string | null;
+  execution_count: number;
+  success_count: number;
+  failure_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExportExecutionRecord {
+  execution_id: number;
+  schedule_id: number | null;
+  schedule_name?: string | null;
+  query_id: number;
+  query_name?: string | null;
+  job_id: string | null;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  started_at: string | null;
+  completed_at: string | null;
+  records_exported: number;
+  file_path: string | null;
+  file_size: number | null;
+  error_message: string | null;
+  execution_log: string | null;
+  created_at: string;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+  };
+}
+
+export const cronSqlApi = {
+  getQueries: async (
+    params: {
+      provider?: ExportProvider | '';
+      enabled?: 'true' | 'false';
+      search?: string;
+      page?: number;
+      limit?: number;
+    } = {}
+  ): Promise<PaginatedResponse<ExportQueryRecord>> => {
+    const response = await api.get('/export-queries', { params });
+    return {
+      data: response.data.data || [],
+      pagination: response.data.pagination
+    };
+  },
+
+  createQuery: async (payload: {
+    name: string;
+    description?: string;
+    provider: ExportProvider;
+    sqlQuery: string;
+    exportConfig: ExportConfig;
+    enabled?: boolean;
+  }): Promise<ExportQueryRecord> => {
+    const response = await api.post('/export-queries', payload);
+    return response.data.data;
+  },
+
+  updateQuery: async (id: number, payload: Partial<{
+    name: string;
+    description?: string | null;
+    provider: ExportProvider;
+    sqlQuery: string;
+    exportConfig: ExportConfig;
+    enabled: boolean;
+  }>): Promise<ExportQueryRecord> => {
+    const response = await api.put(`/export-queries/${id}`, payload);
+    return response.data.data;
+  },
+
+  deleteQuery: async (id: number): Promise<void> => {
+    await api.delete(`/export-queries/${id}`);
+  },
+
+  validateSql: async (payload: { sql: string; provider: ExportProvider }) => {
+    const response = await api.post('/export-queries/validate-sql', payload);
+    return response.data.data;
+  },
+
+  testConnection: async (id: number, provider?: ExportProvider) => {
+    const response = await api.post(`/export-queries/${id}/test-connection`, { provider });
+    return response.data;
+  },
+
+  getSchedules: async (
+    params: {
+      queryId?: number;
+      enabled?: 'true' | 'false';
+      search?: string;
+      page?: number;
+      limit?: number;
+    } = {}
+  ): Promise<PaginatedResponse<ExportScheduleRecord>> => {
+    const response = await api.get('/export-schedules', { params });
+    return {
+      data: response.data.data || [],
+      pagination: response.data.pagination
+    };
+  },
+
+  createSchedule: async (payload: {
+    name: string;
+    description?: string;
+    queryId: number;
+    cronExpression: string;
+    enabled?: boolean;
+  }): Promise<ExportScheduleRecord> => {
+    const response = await api.post('/export-schedules', payload);
+    return response.data.data;
+  },
+
+  updateSchedule: async (id: number, payload: Partial<{
+    name: string;
+    description?: string | null;
+    queryId: number;
+    cronExpression: string;
+    enabled: boolean;
+  }>): Promise<ExportScheduleRecord> => {
+    const response = await api.put(`/export-schedules/${id}`, payload);
+    return response.data.data;
+  },
+
+  deleteSchedule: async (id: number): Promise<void> => {
+    await api.delete(`/export-schedules/${id}`);
+  },
+
+  validateCron: async (cronExpression: string) => {
+    const response = await api.post('/export-schedules/validate-cron', { cronExpression });
+    return response.data.data;
+  },
+
+  executeScheduleNow: async (id: number) => {
+    const response = await api.post(`/export-schedules/${id}/execute-now`);
+    return response.data;
+  },
+
+  getExecutions: async (
+    params: {
+      scheduleId?: number;
+      queryId?: number;
+      status?: string;
+      search?: string;
+      startDate?: string;
+      endDate?: string;
+      page?: number;
+      limit?: number;
+    } = {}
+  ): Promise<PaginatedResponse<ExportExecutionRecord>> => {
+    const response = await api.get('/export-executions', { params });
+    return {
+      data: response.data.data || [],
+      pagination: response.data.pagination
+    };
+  },
+
+  downloadExecution: async (executionId: number): Promise<Blob> => {
+    const response = await api.get(`/export-executions/${executionId}/download`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  }
+};
+
 export const logsApi = {
   getConfig: async (): Promise<LogRotationConfig> => {
     const response = await api.get('/logs/config');
