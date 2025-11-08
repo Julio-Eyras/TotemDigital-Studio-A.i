@@ -55,12 +55,7 @@ CREATE TABLE IF NOT EXISTS export_executions (
     file_size BIGINT,
     error_message TEXT,
     execution_log TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    INDEX idx_export_executions_schedule_id (schedule_id),
-    INDEX idx_export_executions_query_id (query_id),
-    INDEX idx_export_executions_status (status),
-    INDEX idx_export_executions_created_at (created_at)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Índices para performance
@@ -69,6 +64,10 @@ CREATE INDEX IF NOT EXISTS idx_export_queries_enabled ON export_queries(enabled)
 CREATE INDEX IF NOT EXISTS idx_export_schedules_query_id ON export_schedules(query_id);
 CREATE INDEX IF NOT EXISTS idx_export_schedules_enabled ON export_schedules(enabled);
 CREATE INDEX IF NOT EXISTS idx_export_schedules_next_execution ON export_schedules(next_execution);
+CREATE INDEX IF NOT EXISTS idx_export_executions_schedule_id ON export_executions(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_export_executions_query_id ON export_executions(query_id);
+CREATE INDEX IF NOT EXISTS idx_export_executions_status ON export_executions(status);
+CREATE INDEX IF NOT EXISTS idx_export_executions_created_at ON export_executions(created_at);
 
 -- Triggers para updated_at
 CREATE OR REPLACE FUNCTION update_export_queries_timestamp()
