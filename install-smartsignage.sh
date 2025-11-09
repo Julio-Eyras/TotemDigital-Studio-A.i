@@ -3705,29 +3705,49 @@ setup_first_boot() {
     # Validar configurações de logs aplicadas pelo schema consolidado
     log "Validando configurações padrão de logs..."
     sleep 1  # Aguardar commit
-    LOGS_CONFIG_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
+    LOGS_CONFIG_COUNT=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
     
     if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
         log "✅ Configurações de logs criadas ($LOGS_CONFIG_COUNT configurações encontradas)"
         
         # Listar configurações criadas
         log "📋 Configurações de logs aplicadas:"
-        psql "$DATABASE_URL" -tAc "SELECT setting_key FROM system_settings WHERE setting_key LIKE 'log.%' ORDER BY setting_key;" 2>/dev/null | while read key; do
+        sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT setting_key FROM system_settings WHERE setting_key LIKE 'log.%' ORDER BY setting_key;" 2>/dev/null | while read key; do
             [[ -n "$key" ]] && log "   ✓ $key"
         done
     else
         error "❌ Configurações de logs NÃO foram criadas!"
         error "   Verificando se tabela system_settings existe..."
-        TABLE_EXISTS=$(psql "$DATABASE_URL" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='system_settings');" 2>/dev/null | tr -d ' ')
+        TABLE_EXISTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='system_settings');" 2>/dev/null | tr -d ' ')
         if [[ "$TABLE_EXISTS" == "t" ]]; then
             error "   Tabela system_settings existe, mas não há configurações de logs"
-            error "   Tentando aplicar novamente..."
-            psql "$DATABASE_URL" -f "$LOGS_CONFIG_SQL_FILE" 2>&1 | grep -v "NOTICE:" | grep -v "already exists" || true
+            error "   Tentando reaplicar schema consolidado para registros padrão..."
+            execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Reaplicação do schema consolidado SmartChannel (logs)"
+            LOGS_CONFIG_COUNT=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
+            if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
+                log "✅ Configurações de logs criadas após reaplicação ($LOGS_CONFIG_COUNT configurações encontradas)"
+            else
+                error "❌ Não foi possível inserir configurações de logs mesmo após reaplicação"
+                exit 1
+            fi
         else
             error "   Tabela system_settings NÃO existe!"
             error "   O schema de logs deve criar esta tabela primeiro"
+            error "   Reaplicando schema consolidado..."
+            execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Reaplicação do schema consolidado SmartChannel (recriar system_settings)"
+            TABLE_EXISTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='system_settings');" 2>/dev/null | tr -d ' ')
+            if [[ "$TABLE_EXISTS" != "t" ]]; then
+                error "❌ system_settings ainda não existe após reaplicação. Abortando."
+                exit 1
+            fi
+            LOGS_CONFIG_COUNT=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
+            if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
+                log "✅ Configurações de logs criadas após recriação ($LOGS_CONFIG_COUNT configurações encontradas)"
+            else
+                error "❌ Configurações de logs ainda ausentes após recriação do schema"
+                exit 1
+            fi
         fi
-        exit 1
     fi
     
     # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
