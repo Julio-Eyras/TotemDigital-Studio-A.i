@@ -3677,56 +3677,42 @@ setup_first_boot() {
     
     log "Schema completo: ${#ALL_TABLES[@]} tabelas projetadas para o sistema"
     
-    MISSING_TABLES=()
-    EXISTING_TABLES=()
-    
-    log "Verificando ${#ALL_TABLES[@]} tabelas do schema..."
-    for table in "${ALL_TABLES[@]}"; do
-        if psql "$DATABASE_URL" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '$table'" | grep -q 1; then
-            EXISTING_TABLES+=("$table")
-            log "✅ Tabela $table existe"
-        else
-            MISSING_TABLES+=("$table")
-            warn "⚠️ Tabela $table NÃO existe"
-        fi
-    done
-    
-    log "Resumo: ${#EXISTING_TABLES[@]} tabelas existem, ${#MISSING_TABLES[@]} faltando"
-    
-    if [[ ${#MISSING_TABLES[@]} -gt 0 ]]; then
-        warn "⚠️ Tabelas faltando: ${MISSING_TABLES[*]}"
-        log "Tentando criar todas as tabelas novamente com db push..."
+    local attempt=1
+    local MAX_ATTEMPTS=2
+    while true; do
+        MISSING_TABLES=()
+        EXISTING_TABLES=()
         
-        # Gerar Prisma Client novamente antes de db push
-        # Prisma removido: ignorar generate
-        
-        # Executar db push para criar todas as tabelas
-        if false; then # Prisma removido
-            log "✅ Tabelas criadas com sucesso"
-            
-            # Verificar novamente
-            for table in "${MISSING_TABLES[@]}"; do
-                if psql "$DATABASE_URL" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '$table'" | grep -q 1; then
-                    log "✅ Tabela $table criada"
-                else
-                    error "❌ Falha ao criar tabela $table"
-                fi
+        log "Verificando ${#ALL_TABLES[@]} tabelas do schema (tentativa ${attempt}/${MAX_ATTEMPTS})..."
+        for table in "${ALL_TABLES[@]}"; do
+            if psql "$DATABASE_URL" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '$table'" | grep -q 1; then
+                EXISTING_TABLES+=("$table")
+            else
+                MISSING_TABLES+=("$table")
+            fi
+        done
+
+        if [[ ${#MISSING_TABLES[@]} -eq 0 ]]; then
+            log "✅ Todas as ${#ALL_TABLES[@]} tabelas do schema existem"
+            log "Tabelas encontradas no banco:"
+            psql "$DATABASE_URL" -tAc "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name" | while read table; do
+                [[ -n "$table" ]] && log "  ✅ $table"
             done
-        else
+            break
+        fi
+
+        if [[ $attempt -ge $MAX_ATTEMPTS ]]; then
             error "❌ Falha crítica ao criar tabelas do banco de dados"
             error "Tabelas faltando: ${MISSING_TABLES[*]}"
             error "Use smartchannel-db.sql e init-data.sql para criar o schema"
             exit 1
         fi
-    else
-    log "✅ Todas as ${#ALL_TABLES[@]} tabelas do schema existem"
-        
-    # Listar todas as tabelas para confirmação
-    log "Tabelas encontradas no banco:"
-    psql "$DATABASE_URL" -tAc "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name" | while read table; do
-        [[ -n "$table" ]] && log "  ✅ $table"
+
+        warn "⚠️ Tabelas faltando após tentativa ${attempt}: ${MISSING_TABLES[*]}"
+        log "Reaplicando schema consolidado para garantir criação..."
+        execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Reaplicação do schema consolidado SmartChannel"
+        attempt=$((attempt+1))
     done
-    fi
     
     # Validar configurações de logs aplicadas pelo schema consolidado
     log "Validando configurações padrão de logs..."
