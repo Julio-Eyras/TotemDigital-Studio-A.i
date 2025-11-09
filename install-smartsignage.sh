@@ -1788,24 +1788,12 @@ setup_nginx() {
             
             # Gerar arquivo de configuração encriptado do player (se não existir)
             if [[ ! -f "/opt/smart-signage/player/config.json.enc" ]]; then
-                log "Gerando arquivo de configuração encriptado do player..."
                 if [[ -f "$INSTALL_DIR/scripts/generate-player-config.sh" ]]; then
                     chmod +x "$INSTALL_DIR/scripts/generate-player-config.sh"
-                    # Gerar configuração para totem 'default-demo' inicialmente
-                    # O usuário pode gerar configuração para outros totens depois usando o script manualmente
-                    if sudo "$INSTALL_DIR/scripts/generate-player-config.sh" "default-demo" "/opt/smart-signage/player" "$TOTEM_SECRET_KEY" 2>/dev/null; then
-                        # Ajustar permissões para que nginx possa ler
-                        if id www-data &>/dev/null; then
-                            sudo chown www-data:www-data /opt/smart-signage/player/config.json.enc 2>/dev/null || true
-                        else
-                            sudo chown nginx:nginx /opt/smart-signage/player/config.json.enc 2>/dev/null || true
-                        fi
-                        sudo chmod 644 /opt/smart-signage/player/config.json.enc 2>/dev/null || true
-                        log "✅ Arquivo de configuração encriptado gerado para totem 'default-demo'"
-                    else
-                        warn "⚠️ Não foi possível gerar arquivo de configuração encriptado automaticamente"
-                        warn "   Você pode gerar manualmente usando: sudo scripts/generate-player-config.sh <UIN> /opt/smart-signage/player"
-                    fi
+                    log "ℹ️ Nenhum arquivo de configuração encriptado encontrado."
+                    log "   O player permanecerá em modo demo local até que um UIN seja configurado."
+                    log "   Quando o totem for provisionado, execute:"
+                    log "   sudo $INSTALL_DIR/scripts/generate-player-config.sh <UIN> /opt/smart-signage/player"
                 else
                     warn "⚠️ Script de geração de configuração não encontrado"
                 fi
@@ -3801,70 +3789,6 @@ setup_first_boot() {
             log "  📋 Playlists: $SEED_PLAYLISTS"
             log "  📢 Campanhas: $SEED_CAMPAIGNS"
 
-            # Garantir totem demo 'default-demo' ativo e utilizável
-            log "Garantindo totem demo (uin=default-demo) e relacionamentos mínimos..."
-            sudo -u postgres psql -d "$TARGET_DB" -v ON_ERROR_STOP=1 <<'SQL'
-DO $$
-BEGIN
-  -- Cliente base se necessário
-  IF NOT EXISTS (SELECT 1 FROM clients WHERE client_id = 1) THEN
-    INSERT INTO clients (client_id, name) VALUES (1, 'Cliente Demo') ON CONFLICT DO NOTHING;
-  END IF;
-
-  -- Totem default-demo
-  IF NOT EXISTS (SELECT 1 FROM totems WHERE uin = 'default-demo') THEN
-    INSERT INTO totems (totem_id, client_id, identifier, uin, description, active, status)
-    VALUES (8, 1, 'TOTEM-DEFAULT-DEMO', 'default-demo', 'Totem de demonstração', true, 'online')
-    ON CONFLICT DO NOTHING;
-  ELSE
-    UPDATE totems SET active = true, status = 'online' WHERE uin = 'default-demo';
-  END IF;
-
-  -- Campanha 1 ativa
-  IF NOT EXISTS (SELECT 1 FROM campaigns WHERE campaign_id = 1) THEN
-    INSERT INTO campaigns (campaign_id, client_id, title, status, is_active)
-    VALUES (1, 1, 'Campanha Demo', 'active', true)
-    ON CONFLICT DO NOTHING;
-  ELSE
-    UPDATE campaigns SET is_active = true, status = 'active' WHERE campaign_id = 1;
-  END IF;
-
-  -- Playlist Demo (id=5)
-  -- Obter totem_id do totem default-demo usando subquery
-  IF NOT EXISTS (SELECT 1 FROM playlists WHERE playlist_id = 5) THEN
-    INSERT INTO playlists (
-      playlist_id, totem_id, campaign_id, name, description, is_active, loop, config, is_default
-    ) 
-    SELECT 
-      5,
-      COALESCE((SELECT totem_id FROM totems WHERE uin = 'default-demo' LIMIT 1), 1),
-      1,
-      'Playlist Demo',
-      'Demonstração comercial do Smart Signage-Pro',
-      true,
-      true,
-      '{"transition_duration":2000,"fade_effect":true}',
-      false
-    ON CONFLICT DO NOTHING;
-  ELSE
-    UPDATE playlists 
-    SET is_active = true, 
-        totem_id = COALESCE((SELECT totem_id FROM totems WHERE uin = 'default-demo' LIMIT 1), totem_id)
-    WHERE playlist_id = 5;
-  END IF;
-
-  -- Vincular campanha↔playlist
-  INSERT INTO campaign_playlists (campaign_id, playlist_id)
-  VALUES (1, 5) ON CONFLICT DO NOTHING;
-
-  -- Vincular campanha↔totem default-demo
-  INSERT INTO campaign_totems (campaign_id, totem_id)
-  SELECT 1, t.totem_id FROM totems t WHERE t.uin = 'default-demo'
-  ON CONFLICT DO NOTHING;
-END$$;
-SQL
-            log "✅ Totem demo garantido"
-            
             # Seed executado via SQL, não precisa executar seed.js
             return 0
         else
@@ -4119,7 +4043,7 @@ manage_demo_seed_strategy() {
         return 0
     fi
 
-    # Detectar marcadores de DEMO (default-demo, playlist demo, mídias demo) com timeout e tratamento de erro
+    # Detectar marcadores de DEMO legados (default-demo, playlist demo, mídias demo) com timeout e tratamento de erro
     DEMO_TOTEM_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems WHERE uin = 'default-demo';" 2>/dev/null | tr -d ' ' || echo "0")
     DEMO_PLAYLIST_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists WHERE name ILIKE 'Playlist Demo' OR playlist_id = 5;" 2>/dev/null | tr -d ' ' || echo "0")
     DEMO_MEDIA_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE title ILIKE 'Smart Signage-Pro %' OR file_path ILIKE '%smart-signage-pro-%' OR name ILIKE 'Smart Signage-Pro %' OR (tags::text ILIKE '%demo%');" 2>/dev/null | tr -d ' ' || echo "0")
@@ -4189,7 +4113,7 @@ DELETE FROM playlists WHERE playlist_id IN (
   SELECT playlist_id FROM playlists WHERE name ILIKE 'Playlist Demo' OR playlist_id = 5
 );
 
--- Totem default-demo e dependências (usando subqueries diretas)
+-- Legado: remover totem default-demo e dependências, se existirem
 DELETE FROM device_certificates WHERE totem_id IN (
   SELECT totem_id FROM totems WHERE uin = 'default-demo'
 );

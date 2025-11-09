@@ -76,8 +76,8 @@ LIMIT 100;
 ### **Problemas Identificados e Corrigidos:**
 
 #### **A. Validação de UIN**
-- ✅ **Antes**: Fallback automático para 'default-demo' quando UIN não encontrado
-- ✅ **Agora**: Mostra erro claro quando UIN não encontrado
+- ✅ **Antes**: Fallback automático para um totem estático `default-demo`
+- ✅ **Agora**: Ativa o modo demo local (vinheta offline) quando não há UIN válido
 - ✅ **Melhorias**: 
   - Validação de UIN vazio antes de tentar validar
   - Mensagens de erro mais descritivas

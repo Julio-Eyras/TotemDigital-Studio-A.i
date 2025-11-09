@@ -71,10 +71,6 @@ INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, description,
 (6, 'TOTEM-SUPER-001', 'UIN-SUPER-001-2024', 'DEVICE-006', 'SUPER-CENTRO-CAIXA', 'Totem Área Caixas', '{"resolution": "1920x1080", "orientation": "landscape", "brightness": 80}', 'online', '2.0.1', '1.2.3', '192.168.3.100', NOW(), NOW(), true, false),
 (7, 'TOTEM-SUPER-002', 'UIN-SUPER-002-2024', 'DEVICE-007', 'SUPER-CENTRO-ACOUGUE', 'Totem Seção Açougue', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 75}', 'offline', '2.0.0', '1.2.2', '192.168.3.101', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours', true, false);
 
--- Totem demo (fallback quando UIN não existe)
-INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, description, config, status, version, firmware_version, ip_address, last_seen, last_heartbeat, active, blocked) VALUES 
-(8, 'DEFAULT-DEMO', 'default-demo', 'DEMO-DEVICE', NULL, 'Totem de demonstração', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 80}', 'online', '2.1.0', '1.0.0', '127.0.0.1', NOW(), NOW(), true, false);
-
 -- =============================================
 -- DADOS DE EXEMPLO - SMART TVs
 -- =============================================
@@ -128,10 +124,6 @@ INSERT INTO playlists (playlist_id, totem_id, campaign_id, name, description, is
 (3, 4, 2, 'Playlist Medicamentos', 'Playlist promocional de medicamentos', true, '[]', true, '{"transition_duration": 3000, "fade_effect": false}', true),
 (4, 6, 3, 'Playlist Ofertas Supermercado', 'Playlist de ofertas do supermercado', true, '[]', true, '{"transition_duration": 2500, "fade_effect": true}', true);
 
--- Playlist de demonstração para o totem default-demo
-INSERT INTO playlists (playlist_id, totem_id, campaign_id, name, description, is_default, medias, loop, config, is_active) VALUES
-(5, 8, 1, 'Playlist Demo', 'Demonstração comercial do Smart Signage-Pro', true, '[]', true, '{"transition_duration": 2000, "fade_effect": true}', true);
-
 -- =============================================
 -- DADOS DE EXEMPLO - ITENS DE PLAYLIST
 -- =============================================
@@ -143,11 +135,6 @@ INSERT INTO playlist_items (item_id, playlist_id, media_id, order_index, display
 (4, 2, 2, 2, 30, 'slide', 0),
 (5, 3, 3, 1, 15, 'fade', 0),
 (6, 4, 4, 1, 12, 'fade', 0);
-
--- Itens de playlist demo
-INSERT INTO playlist_items (item_id, playlist_id, media_id, order_index, display_seconds, transition, start_time_offset_seconds) VALUES
-(7, 5, 8, 1, 12, 'fade', 0),
-(8, 5, 9, 2, 12, 'fade', 0);
 
 -- =============================================
 -- DADOS DE EXEMPLO - CAMPANHAS E PLAYLISTS
