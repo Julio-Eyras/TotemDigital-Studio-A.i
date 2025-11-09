@@ -63,7 +63,7 @@
 
 ### **Novos Arquivos**
 ```
-database/export-schema.sql
+database/smartchannel-db.sql    (seção CronSQL incluída)
 backend/src/config/redis.ts
 backend/src/config/queue.ts
 backend/src/services/exportQueryService.ts
@@ -115,7 +115,7 @@ frontend/src/pages/AdminTools/AdminTools.tsx  (nova aba CronSQL)
 
 2. **Executar schema SQL**
    ```sql
-   -- Executar database/export-schema.sql no PostgreSQL
+   -- Executar database/smartchannel-db.sql no PostgreSQL (módulo consolidado)
    ```
 
 3. **Configurar variáveis de ambiente** (se necessário)

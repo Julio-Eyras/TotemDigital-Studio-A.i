@@ -7,7 +7,7 @@
 
 ### **1. Schema de Configurações de Logs**
 
-O schema `database/logs-config-schema.sql` foi integrado no script de instalação:
+A seção de configurações de logs contida em `database/smartchannel-db.sql` (antigo `logs-config-schema.sql`) foi integrada ao script de instalação:
 
 - ✅ **Criação da tabela `system_settings`** (se não existir)
 - ✅ **Aplicação automática** após o schema principal
@@ -16,8 +16,8 @@ O schema `database/logs-config-schema.sql` foi integrado no script de instalaç�
 
 **Localização no script:**
 ```bash
-# Em setup_database(), após criação do schema principal
-# Linha ~3651 em install-smartsignage.sh
+# Em setup_first_boot(), aplicar smartchannel-db.sql (schema consolidado)
+# Linha ~3580 em install-smartsignage.sh
 ```
 
 ### **2. Instalação de Dependência**
@@ -58,20 +58,16 @@ npm install winston-daily-rotate-file --save
 ### **2. Setup do Banco de Dados (setup_database)**
 
 ```bash
-# Executar schema principal
-psql "$DATABASE_URL" -f "$INSTALL_DIR/database/schema-postgresql.sql"
-
-# Executar schema de configurações de logs
-psql "$DATABASE_URL" -f "$INSTALL_DIR/database/logs-config-schema.sql"
+# Executar schema consolidado (inclui configurações de logs)
+psql "$DATABASE_URL" -f "$INSTALL_DIR/database/smartchannel-db.sql"
 
 # Executar seed de dados
 psql "$DATABASE_URL" -f "$INSTALL_DIR/database/init-data.sql"
 ```
 
 **Ordem de execução:**
-1. Criar schema principal (schema-postgresql.sql)
-2. Aplicar schema de configurações de logs (logs-config-schema.sql)
-3. Executar seed de dados (init-data.sql)
+1. Criar schema consolidado (smartchannel-db.sql)
+2. Executar seed de dados (init-data.sql)
 
 ---
 
@@ -108,12 +104,12 @@ Após instalação, o script verifica:
    - Verificação de sucesso
    - Tratamento de erros
 
-2. **setup_database()** (linha ~3651)
-   - Adicionada execução de `logs-config-schema.sql`
+2. **setup_first_boot()** (linha ~3580)
+   - Execução única de `smartchannel-db.sql` (schema consolidado)
    - Verificação de configurações criadas
    - Tratamento de erros idempotente
 
-### **2. database/logs-config-schema.sql**
+### **2. database/smartchannel-db.sql**
 
 **Modificações:**
 

@@ -183,7 +183,7 @@ SELECT * FROM v_export_executions_complete ORDER BY started_at DESC LIMIT 10;
 database/
   ├── seeds-views-test.sql      # Seeds para testar views
   ├── init-data.sql              # Dados iniciais (já existente)
-  └── views-schema.sql           # Views (já criado)
+  └── smartchannel-db.sql        # Schema consolidado (inclui views)
 
 player/
   ├── index.html                 # Player com modo demo

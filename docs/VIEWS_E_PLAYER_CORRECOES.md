@@ -170,8 +170,8 @@ O IP `192.168.1.102` **não foi encontrado** no código do sistema. Possíveis c
 
 ### **VIEWs:**
 ```bash
-# Executar script SQL
-psql -U postgres -d smartsignage -f database/views-schema.sql
+# Executar schema consolidado (inclui views)
+psql -U postgres -d smartsignage -f database/smartchannel-db.sql
 ```
 
 ### **Player:**
@@ -194,7 +194,7 @@ psql -U postgres -d smartsignage -f database/views-schema.sql
 ---
 
 **Arquivos Criados/Modificados:**
-- `database/views-schema.sql` - Script completo de VIEWs
+- `database/smartchannel-db.sql` - Script consolidado com VIEWs e demais objetos
 - `player/index.html` - Correções de validação
 - `backend/src/routes/player.ts` - Melhorias na validação
 

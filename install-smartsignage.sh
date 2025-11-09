@@ -1167,18 +1167,12 @@ setup_database() {
 
         local DROP_DB=false
         if [[ "$DB_EXISTS" == true ]]; then
-            if [[ "$RESET_DATABASE" == "true" ]]; then
-                DROP_DB=true
-            else
-                echo
-                warn "⚠️  Banco de dados '${PG_DB}' já existe."
-                read -r -p "Deseja apagar e recriar o banco do zero? (s/N): " DROP_CONFIRM
-                if [[ "$DROP_CONFIRM" =~ ^([sSyY])$ ]]; then
-                    DROP_DB=true
-                else
-                    log "👉 Mantendo banco existente (nenhuma tabela será apagada automaticamente)."
-                fi
-            fi
+            warn "⚠️  Banco de dados '${PG_DB}' já existe - reinstalação limpa em andamento."
+            DROP_DB=true
+        fi
+
+        if [[ "$RESET_DATABASE" == "true" ]]; then
+            DROP_DB=true
         fi
 
         if [[ "$DROP_DB" == true ]]; then
@@ -1277,6 +1271,7 @@ setup_database() {
         # Exportar variáveis para as próximas etapas
         export DB_DRIVER="postgresql"
         export DATABASE_URL="postgresql://${PG_USER}:${PG_PASS}@localhost:5432/${PG_DB}"
+        export PRIMARY_DB_NAME="$PG_DB"
         log "✅ PostgreSQL configurado. DATABASE_URL=${DATABASE_URL}"
         log "✅ PostgreSQL acessível remotamente na rede local (porta 5432)"
         log "💡 Para acessar via pgAdmin:"
@@ -1332,34 +1327,6 @@ setup_redis_single_server() {
 }
 
 # Aplicar schemas adicionais (export/export views)
-apply_additional_schemas() {
-    if [[ "$INSTALL_MODE" != "single-server" ]]; then
-        return 0
-    fi
-
-    local SCHEMA_DIR="$INSTALL_DIR/database"
-    local PG_DB="smartsignage"
-
-    if [[ -f "$SCHEMA_DIR/export-schema.sql" ]]; then
-        log "Aplicando schema de exportações (export-schema.sql)..."
-        execute_psql_file "$PG_DB" "$SCHEMA_DIR/export-schema.sql" "Schema de exportações"
-
-        # Garantir que as tabelas críticas existem
-        local export_tables_count
-        export_tables_count=$(sudo -u postgres psql -d "$PG_DB" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('export_queries','export_schedules','export_executions');" 2>/dev/null | tr -d ' ')
-        if [[ "$export_tables_count" != "3" ]]; then
-            error "❌ As tabelas export_queries/export_schedules/export_executions não foram criadas corretamente (encontradas: ${export_tables_count:-0})"
-            exit 1
-        fi
-        log "✅ Tabelas de exportação verificadas"
-    fi
-
-    if [[ -f "$SCHEMA_DIR/views-schema.sql" ]]; then
-        log "Aplicando schema de views de leitura (views-schema.sql)..."
-        execute_psql_file "$PG_DB" "$SCHEMA_DIR/views-schema.sql" "Schema de views de leitura"
-    fi
-}
-
 # Configurar variáveis de ambiente
 setup_environment() {
     log "Configurando variáveis de ambiente..."
@@ -3610,130 +3577,22 @@ setup_first_boot() {
     # Executar migrations ou criar schema
     log "Criando schema do banco de dados..."
     
-    SCHEMA_SQL_SUCCESS=false
-    
-    # PRIORIDADE 1: Usar schema-postgresql.sql se existir (modelo E.R. completo)
-    SCHEMA_SQL_FILE="$INSTALL_DIR/database/schema-postgresql.sql"
-    ADVANCED_SCHEDULES_SCHEMA_FILE="$INSTALL_DIR/database/advanced-schedules-schema.sql"
-    if [[ -f "$SCHEMA_SQL_FILE" ]]; then
-        log "✅ Arquivo schema-postgresql.sql encontrado - usando modelo E.R. completo"
-        log "Executando schema SQL (todas as tabelas do modelo E.R.)..."
-        
-        # Executar schema SQL e capturar resultado
-        if psql "$DATABASE_URL" -f "$SCHEMA_SQL_FILE" 2>&1 | grep -v "already exists" | grep -v "NOTICE"; then
-            # Verificar se houve erro crítico (ignorando avisos de "already exists")
-            SCHEMA_SQL_EXIT_CODE=${PIPESTATUS[0]}
-            if [[ $SCHEMA_SQL_EXIT_CODE -eq 0 ]]; then
-                log "✅ Schema criado com sucesso usando schema-postgresql.sql"
-                SCHEMA_SQL_SUCCESS=true
-                
-                # Aplicar schema de agendamentos avançados se existir
-                if [[ -f "$ADVANCED_SCHEDULES_SCHEMA_FILE" ]]; then
-                    log "Aplicando schema de agendamentos avançados..."
-                    psql "$DATABASE_URL" -f "$ADVANCED_SCHEDULES_SCHEMA_FILE" 2>&1 | grep -v "already exists" | grep -v "NOTICE" || true
-                    log "✅ Schema de agendamentos avançados aplicado"
-                fi
-            else
-                warn "⚠️ Alguns erros ao executar schema-postgresql.sql (pode ser normal se tabelas já existem)"
-                # Verificar se pelo menos algumas tabelas foram criadas
-                TABLE_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ')
-                if [[ -n "$TABLE_COUNT" ]] && [[ "$TABLE_COUNT" -gt 5 ]]; then
-                    log "✅ Schema parcialmente criado ($TABLE_COUNT tabelas encontradas)"
-                    SCHEMA_SQL_SUCCESS=true
-                fi
-            fi
-        else
-            # Se o comando falhou completamente, verificar se tabelas existem
-            TABLE_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ')
-            if [[ -n "$TABLE_COUNT" ]] && [[ "$TABLE_COUNT" -gt 5 ]]; then
-                log "✅ Schema já existe ($TABLE_COUNT tabelas encontradas)"
-                SCHEMA_SQL_SUCCESS=true
-            else
-                warn "⚠️ Schema SQL falhou ou não criou tabelas suficientes"
-            fi
-        fi
+    local MASTER_SCHEMA_FILE="$INSTALL_DIR/database/smartchannel-db.sql"
+    if [[ ! -f "$MASTER_SCHEMA_FILE" ]]; then
+        error "Arquivo de schema consolidado não encontrado: $MASTER_SCHEMA_FILE"
+        exit 1
     fi
-    
-    # SÓ executar Prisma se o schema SQL NÃO foi executado com sucesso
-    if [[ "$SCHEMA_SQL_SUCCESS" != "true" ]]; then
-        # Verificar se existem migrations
-        if [[ -d "prisma/migrations" ]] && [[ -n "$(ls -A prisma/migrations 2>/dev/null)" ]]; then
-            log "Migrations encontradas - executando migrate deploy..."
-            if false; then # Prisma removido
-                log "✅ Migrations executadas com sucesso"
-            else
-                warn "⚠️ Migrate deploy falhou, tentando db push..."
-                if false; then # Prisma removido
-                    log "✅ Schema criado com sucesso (db push)"
-                else
-                    error "❌ Falha ao criar schema do banco de dados"
-                    exit 1
-                fi
-            fi
-        else
-            log "Nenhuma migration encontrada - usando db push para criar schema..."
-            log "Ignorando prisma db push (removido)"
-            if false; then # Prisma removido
-                log "✅ Schema criado com sucesso (db push)"
-            else
-                error "❌ Falha ao criar schema do banco de dados"
-                error "Verificando conexão com o banco..."
-                psql "$DATABASE_URL" -c "SELECT 1" || error "❌ Não foi possível conectar ao banco de dados!"
-                
-                # Tentar criar schema manualmente usando código do backend
-                log "Tentando criar schema manualmente..."
-                cd $INSTALL_DIR/backend
-                node -e "
-                const { PrismaClient } = require('@prisma/client');
-                const prisma = new PrismaClient();
-                (async () => {
-                    try {
-                        await prisma.\$connect();
-                        console.log('✅ Conectado ao banco');
-                        
-                        // Verificar se tabelas já existem
-                        const tables = await prisma.\$queryRaw\`
-                            SELECT table_name 
-                            FROM information_schema.tables 
-                            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-                        \`;
-                        console.log('Tabelas encontradas:', tables.length);
-                        
-                        if (tables.length === 0) {
-                            console.log('⚠️ Nenhuma tabela encontrada - executando db push...');
-                            const { execSync } = require('child_process');
-                            /* Prisma removido: db push não é mais utilizado */
-                                stdio: 'inherit',
-                                env: process.env
-                            });
-                            console.log('✅ Schema criado');
-                        } else {
-                            console.log('✅ Tabelas já existem no banco');
-                        }
-                        
-                        await prisma.\$disconnect();
-                        process.exit(0);
-                    } catch (e) {
-                        console.error('❌ Erro:', e.message);
-                        await prisma.\$disconnect();
-                        process.exit(1);
-                    }
-                })();
-                " || {
-                    error "❌ Falha crítica ao criar schema do banco de dados"
-                    error "Verifique os logs acima para mais detalhes"
-                    exit 1
-                }
-            fi
-        fi
-    fi
+
+    local TARGET_DB="${PRIMARY_DB_NAME:-smartsignage}"
+    log "Aplicando schema consolidado (${MASTER_SCHEMA_FILE}) no banco '${TARGET_DB}'..."
+    execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Schema consolidado SmartChannel"
     
     # Verificar se TODAS as tabelas do schema foram criadas corretamente
     log "Verificando se TODAS as tabelas do schema foram criadas..."
     cd $INSTALL_DIR/backend
     
     # Lista COMPLETA de TODAS as tabelas do schema E.R. (em ordem de dependência)
-    # Baseado em database/schema-postgresql.sql - TODAS as tabelas usadas em JOINs
+    # Baseado em database/smartchannel-db.sql - TODAS as tabelas usadas em JOINs
     # Ordem importa: tabelas sem foreign keys primeiro
     ALL_TABLES=(
         "clients"           # Client - Tabela base sem dependências (usada em JOINs)
@@ -3776,6 +3635,14 @@ setup_first_boot() {
         "audit_logs"       # AuditLog - Depende de users (usada em JOINs)
         "aggregated_metrics" # AggregatedMetric - Depende de totems, campaigns, medias
         "device_certificates" # DeviceCertificate - Depende de totems
+        "advanced_schedules" # Agendamentos avançados
+        "schedule_executions" # Histórico de execuções de agendamentos
+        "export_queries"     # CronSQL queries
+        "export_schedules"   # CronSQL schedules
+        "export_executions"  # CronSQL executions
+        "reports"            # Relatórios gerados
+        "report_templates"   # Templates de relatórios
+        "system_settings"    # Configurações do sistema/logs
     )
     
     log "Schema completo: ${#ALL_TABLES[@]} tabelas projetadas para o sistema"
@@ -3818,66 +3685,22 @@ setup_first_boot() {
         else
             error "❌ Falha crítica ao criar tabelas do banco de dados"
             error "Tabelas faltando: ${MISSING_TABLES[*]}"
-            error "Use schema-postgresql.sql e init-data.sql para criar o schema"
+            error "Use smartchannel-db.sql e init-data.sql para criar o schema"
             exit 1
         fi
     else
-        log "✅ Todas as ${#ALL_TABLES[@]} tabelas do schema existem"
+    log "✅ Todas as ${#ALL_TABLES[@]} tabelas do schema existem"
         
-        # Listar todas as tabelas para confirmação
-        log "Tabelas encontradas no banco:"
-        psql "$DATABASE_URL" -tAc "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name" | while read table; do
-            [[ -n "$table" ]] && log "  ✅ $table"
-        done
+    # Listar todas as tabelas para confirmação
+    log "Tabelas encontradas no banco:"
+    psql "$DATABASE_URL" -tAc "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name" | while read table; do
+        [[ -n "$table" ]] && log "  ✅ $table"
+    done
     fi
     
-    # Aplicar schemas complementares (exportações, views, etc.)
-    apply_additional_schemas
-    
-    # Executar schema de configurações de logs (após schema principal)
-    log "Aplicando schema de configurações de logs..."
-    LOGS_CONFIG_SQL_FILE="$INSTALL_DIR/database/logs-config-schema.sql"
-    
-    # Verificar se arquivo existe (tentar múltiplos caminhos)
-    if [[ ! -f "$LOGS_CONFIG_SQL_FILE" ]]; then
-        # Tentar caminhos alternativos
-        if [[ -f "database/logs-config-schema.sql" ]]; then
-            LOGS_CONFIG_SQL_FILE="database/logs-config-schema.sql"
-            log "📋 Arquivo encontrado em: $LOGS_CONFIG_SQL_FILE"
-        elif [[ -f "./database/logs-config-schema.sql" ]]; then
-            LOGS_CONFIG_SQL_FILE="./database/logs-config-schema.sql"
-            log "📋 Arquivo encontrado em: $LOGS_CONFIG_SQL_FILE"
-        else
-            error "❌ Arquivo logs-config-schema.sql não encontrado!"
-            error "   Procurado em: $INSTALL_DIR/database/logs-config-schema.sql"
-            error "   Procurado em: database/logs-config-schema.sql"
-            error "   Procurado em: ./database/logs-config-schema.sql"
-            error "   Diretório atual: $(pwd)"
-            error "   INSTALL_DIR: $INSTALL_DIR"
-            error "   Listando database/:"
-            ls -la "$INSTALL_DIR/database/" 2>/dev/null || ls -la "database/" 2>/dev/null || echo "   Diretório não encontrado"
-            exit 1
-        fi
-    else
-        log "📋 Arquivo encontrado: $LOGS_CONFIG_SQL_FILE"
-    fi
-    
-    # Executar schema de logs
-    log "Executando schema de configurações de logs..."
-    PSQL_OUTPUT=$(psql "$DATABASE_URL" -f "$LOGS_CONFIG_SQL_FILE" 2>&1)
-    PSQL_EXIT_CODE=$?
-    
-    # Filtrar NOTICE e avisos de "already exists" mas manter erros
-    if echo "$PSQL_OUTPUT" | grep -v "NOTICE:" | grep -v "already exists" | grep -i "error" >/dev/null; then
-        error "❌ Erros ao executar logs-config-schema.sql:"
-        echo "$PSQL_OUTPUT" | grep -v "NOTICE:" | grep -i "error"
-        exit 1
-    else
-        log "✅ Schema de configurações de logs executado"
-    fi
-    
-    # Sempre verificar se configurações foram criadas
-    sleep 1  # Aguardar um pouco para garantir que o commit foi feito
+    # Validar configurações de logs aplicadas pelo schema consolidado
+    log "Validando configurações padrão de logs..."
+    sleep 1  # Aguardar commit
     LOGS_CONFIG_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
     
     if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
@@ -4137,7 +3960,7 @@ SQL
                     \`);
                     
                     if (!tablesResult.rows || tablesResult.rows.length === 0) {
-                        console.error('❌ Tabela users não existe! Execute schema-postgresql.sql primeiro.');
+                        console.error('❌ Tabela users não existe! Execute smartchannel-db.sql primeiro.');
                         await pool.end();
                         process.exit(1);
                     }
@@ -4159,7 +3982,7 @@ SQL
                     console.error('❌ Erro ao criar admin:', e.message);
                     console.error('Stack:', e.stack);
                     if (e.message.includes('relation \"users\" does not exist')) {
-                        console.error('💡 A tabela users não existe! Execute o schema-postgresql.sql');
+                        console.error('💡 A tabela users não existe! Execute o smartchannel-db.sql');
                     }
                 } finally {
                     await pool.end();

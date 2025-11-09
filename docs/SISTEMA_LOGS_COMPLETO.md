@@ -256,8 +256,8 @@ Recarregar configurações do logger
 ### **1. Aplicar Schema de Configurações**
 
 ```bash
-# Executar schema de configurações de logs
-psql -U postgres -d smartsignage -f database/logs-config-schema.sql
+# Executar schema consolidado (inclui configurações de logs)
+psql -U postgres -d smartsignage -f database/smartchannel-db.sql
 ```
 
 ### **2. Instalar Dependências**
@@ -338,7 +338,7 @@ frontend/
               └── Settings.tsx        # Interface admin (aba Logs)
 
 database/
-  └── logs-config-schema.sql         # Schema de configurações
+  └── smartchannel-db.sql            # Schema consolidado (configurações inclusas)
 
 docs/
   └── SISTEMA_LOGS_COMPLETO.md      # Esta documentação
