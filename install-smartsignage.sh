@@ -120,12 +120,32 @@ execute_psql_file() {
     fi
 
     log_detailed "Executando ${description}: $schema_file"
+
+    # Copiar para /tmp com permissões acessíveis ao usuário postgres
+    local temp_schema
+    temp_schema=$(mktemp /tmp/smartchannel-schema-XXXX.sql) || {
+        error "❌ Falha ao criar arquivo temporário para ${description}"
+        exit 1
+    }
+
+    if ! cp "$schema_file" "$temp_schema"; then
+        rm -f "$temp_schema" 2>/dev/null || true
+        error "❌ Falha ao copiar ${schema_file} para ${temp_schema}"
+        exit 1
+    fi
+
+    chmod 644 "$temp_schema" 2>/dev/null || true
+
+    local schema_to_use="$temp_schema"
     local psql_output
-    if ! psql_output=$(sudo -u postgres psql -d "$database_name" -f "$schema_file" 2>&1); then
+    if ! psql_output=$(sudo -u postgres psql -d "$database_name" -f "$schema_to_use" 2>&1); then
+        rm -f "$schema_to_use" 2>/dev/null || true
         error "❌ Falha ao aplicar ${description}"
         echo "$psql_output"
         exit 1
     fi
+
+    rm -f "$schema_to_use" 2>/dev/null || true
 
     # Mostrar apenas mensagens relevantes (erros já capturados acima)
     if [[ -n "$psql_output" ]]; then
