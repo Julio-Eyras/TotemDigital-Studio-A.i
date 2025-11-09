@@ -1252,10 +1252,13 @@ setup_database() {
             # Configurar postgresql.conf para escutar em todas as interfaces
             PG_CONF="${PG_CONFIG_DIR}/postgresql.conf"
             if [[ -f "$PG_CONF" ]]; then
-                # Comentar listen_addresses se existir e não estiver como '*'
-                if grep -q "^listen_addresses" "$PG_CONF"; then
-                    sudo sed -i "s/^listen_addresses = .*/listen_addresses = '*'/" "$PG_CONF" || true
-                elif ! grep -q "^listen_addresses" "$PG_CONF"; then
+                # Ajustar listen_addresses para '*' apenas se necessário
+                if grep -q "^[[:space:]]*listen_addresses[[:space:]]*=" "$PG_CONF"; then
+                    if ! grep -q "^[[:space:]]*listen_addresses[[:space:]]*=[[:space:]]*'\\*'" "$PG_CONF"; then
+                        sudo sed -i "s/^[[:space:]]*listen_addresses[[:space:]]*=.*/listen_addresses = '*'/"
+ "$PG_CONF" || true
+                    fi
+                else
                     echo "listen_addresses = '*'" | sudo tee -a "$PG_CONF" > /dev/null
                 fi
                 log "✅ postgresql.conf configurado para aceitar conexões remotas"
@@ -1264,16 +1267,17 @@ setup_database() {
             # Configurar pg_hba.conf para permitir conexões da rede local
             PG_HBA="${PG_CONFIG_DIR}/pg_hba.conf"
             if [[ -f "$PG_HBA" ]]; then
-                # Verificar se já existe regra para rede local
-                if ! grep -q "^host.*${PG_DB}.*${PG_USER}.*192.168" "$PG_HBA"; then
-                    # Adicionar regra para rede local (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+                # Verificar se já existem regras específicas para o banco/usuário
+                if ! grep -q "^host[[:space:]]\+${PG_DB}[[:space:]]\+${PG_USER}[[:space:]]\+192\.168\.0\.0/16" "$PG_HBA"; then
                     echo "host    ${PG_DB}    ${PG_USER}    192.168.0.0/16    md5" | sudo tee -a "$PG_HBA" > /dev/null
-                    echo "host    ${PG_DB}    ${PG_USER}    10.0.0.0/8         md5" | sudo tee -a "$PG_HBA" > /dev/null
-                    echo "host    ${PG_DB}    ${PG_USER}    172.16.0.0/12      md5" | sudo tee -a "$PG_HBA" > /dev/null
-                    log "✅ pg_hba.conf configurado para aceitar conexões da rede local"
-                else
-                    log "✅ pg_hba.conf já tem regras para rede local"
                 fi
+                if ! grep -q "^host[[:space:]]\+${PG_DB}[[:space:]]\+${PG_USER}[[:space:]]\+10\.0\.0\.0/8" "$PG_HBA"; then
+                    echo "host    ${PG_DB}    ${PG_USER}    10.0.0.0/8         md5" | sudo tee -a "$PG_HBA" > /dev/null
+                fi
+                if ! grep -q "^host[[:space:]]\+${PG_DB}[[:space:]]\+${PG_USER}[[:space:]]\+172\.16\.0\.0/12" "$PG_HBA"; then
+                    echo "host    ${PG_DB}    ${PG_USER}    172.16.0.0/12      md5" | sudo tee -a "$PG_HBA" > /dev/null
+                fi
+                log "✅ pg_hba.conf atualizado para aceitar conexões da rede local (sem duplicar entradas)"
             fi
             
             # Reiniciar PostgreSQL para aplicar mudanças
