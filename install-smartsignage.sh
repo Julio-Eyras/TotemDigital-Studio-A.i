@@ -3772,10 +3772,12 @@ setup_first_boot() {
         
         # Executar init-data.sql (ignorar avisos de "already exists" e NOTICE)
         log "Executando init-data.sql..."
-        if sudo -u postgres psql -d "$TARGET_DB" -f "$INIT_DATA_SQL_FILE" 2>&1 | tee /tmp/init-data.log | grep -i "ERROR" >/dev/null; then
-            warn "⚠️ Alguns erros ao executar init-data.sql, mas continuando..."
-        else
+        INIT_LOG="/tmp/init-data.log"
+        log "Executando init-data.sql..."
+        if sudo -u postgres psql -v ON_ERROR_STOP=1 -d "$TARGET_DB" -f "$INIT_DATA_SQL_FILE" >"$INIT_LOG" 2>&1; then
             log "✅ Seeds executados usando init-data.sql"
+        else
+            warn "⚠️ Erros ao executar init-data.sql. Consulte $INIT_LOG para detalhes."
         fi
         
         # Verificar se dados foram inseridos (mesmo que haja avisos)
@@ -3868,7 +3870,7 @@ SQL
         else
             warn "⚠️ Poucas tabelas encontradas após seed. Verificando se dados foram inseridos..."
             # Verificar se pelo menos alguns dados foram inseridos
-            SEED_CLIENTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
+            SEED_CLIENTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
             if [[ "$SEED_CLIENTS" -gt 0 ]]; then
                 log "✅ Alguns dados foram inseridos, continuando..."
             else
