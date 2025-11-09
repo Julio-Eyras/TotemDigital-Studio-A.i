@@ -61,7 +61,8 @@ const HOST = process.env.HOST || '0.0.0.0';
 // =============================================
 
 // Nginx em frente ao Express
-app.set('trust proxy', true);
+// Confiar apenas em proxies locais (ex.: Nginx na mesma máquina)
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 
 // Security
 app.use(helmet({
@@ -126,6 +127,7 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  trustProxy: ['loopback', 'linklocal', 'uniquelocal'],
 });
 app.use('/api/', limiter);
 
