@@ -109,6 +109,16 @@ execute_psql_file() {
         exit 1
     fi
 
+    # Garantir que o usuário postgres consiga ler o arquivo
+    if [[ ! -r "$schema_file" ]]; then
+        sudo chmod 644 "$schema_file" 2>/dev/null || true
+    fi
+
+    if [[ ! -r "$schema_file" ]]; then
+        error "❌ Permissão de leitura negada para $schema_file"
+        exit 1
+    fi
+
     log_detailed "Executando ${description}: $schema_file"
     local psql_output
     if ! psql_output=$(sudo -u postgres psql -d "$database_name" -f "$schema_file" 2>&1); then
