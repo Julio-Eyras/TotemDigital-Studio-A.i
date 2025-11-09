@@ -3772,24 +3772,24 @@ setup_first_boot() {
         
         # Executar init-data.sql (ignorar avisos de "already exists" e NOTICE)
         log "Executando init-data.sql..."
-        if psql "$DATABASE_URL" -f "$INIT_DATA_SQL_FILE" 2>&1 | grep -v "NOTICE:" | grep -v "already exists" | grep -v "^$" | grep -i "error" >/dev/null; then
+        if sudo -u postgres psql -d "$TARGET_DB" -f "$INIT_DATA_SQL_FILE" 2>&1 | tee /tmp/init-data.log | grep -i "ERROR" >/dev/null; then
             warn "⚠️ Alguns erros ao executar init-data.sql, mas continuando..."
         else
             log "✅ Seeds executados usando init-data.sql"
         fi
         
         # Verificar se dados foram inseridos (mesmo que haja avisos)
-        TABLE_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ' || echo "0")
+        TABLE_COUNT=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ' || echo "0")
         if [[ -n "$TABLE_COUNT" ]] && [[ "$TABLE_COUNT" -gt 5 ]]; then
             
             # Verificar se dados foram inseridos
             log "Verificando dados inseridos pelo init-data.sql..."
-            SEED_CLIENTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
-            SEED_USERS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
-            SEED_TOTEMS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems" 2>/dev/null || echo "0")
-            SEED_MEDIA=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias" 2>/dev/null || echo "0")
-            SEED_PLAYLISTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists" 2>/dev/null || echo "0")
-            SEED_CAMPAIGNS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM campaigns" 2>/dev/null || echo "0")
+            SEED_CLIENTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
+            SEED_USERS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
+            SEED_TOTEMS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM totems" 2>/dev/null || echo "0")
+            SEED_MEDIA=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM medias" 2>/dev/null || echo "0")
+            SEED_PLAYLISTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM playlists" 2>/dev/null || echo "0")
+            SEED_CAMPAIGNS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM campaigns" 2>/dev/null || echo "0")
             
             log "Dados inseridos:"
             log "  📋 Clientes: $SEED_CLIENTS"
@@ -3801,7 +3801,7 @@ setup_first_boot() {
 
             # Garantir totem demo 'default-demo' ativo e utilizável
             log "Garantindo totem demo (uin=default-demo) e relacionamentos mínimos..."
-            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+            sudo -u postgres psql -d "$TARGET_DB" -v ON_ERROR_STOP=1 <<'SQL'
 DO $$
 BEGIN
   -- Cliente base se necessário
@@ -3878,6 +3878,43 @@ SQL
     else
         warn "⚠️ Arquivo init-data.sql não encontrado em $INSTALL_DIR/database/"
     fi
+    
+    # Garantir usuário admin padrão
+    log "Garantindo usuário admin padrão..."
+    cd $INSTALL_DIR/backend || {
+        error "Diretório backend não encontrado para criar usuário admin: $INSTALL_DIR/backend"
+        exit 1
+    }
+    node <<'NODE'
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage'
+});
+(async () => {
+  try {
+    const hash = await bcrypt.hash('admin123', 12);
+    await pool.query(`
+      INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      ON CONFLICT (username) DO UPDATE
+        SET password_hash = EXCLUDED.password_hash,
+            email = EXCLUDED.email,
+            name = EXCLUDED.name,
+            role = EXCLUDED.role,
+            is_active = true,
+            updated_at = CURRENT_TIMESTAMP
+    `, ['admin','admin@smart-signage.com',hash,'Administrator','admin']);
+    console.log('✅ Usuário admin (admin/admin123) garantido com sucesso');
+  } catch (error) {
+    console.error('⚠️ Falha ao garantir usuário admin automaticamente:', error.message);
+    process.exitCode = 1;
+  } finally {
+    await pool.end();
+  }
+})();
+NODE
+    cd $INSTALL_DIR || exit 1
     
     # PRIORIDADE 2: Fallback para seed.js do Prisma
     if false; then # Prisma removido
