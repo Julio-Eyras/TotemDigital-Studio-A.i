@@ -1358,6 +1358,63 @@ setup_redis_single_server() {
     fi
 }
 
+# Garantir criação/atualização do usuário admin com senha hash
+ensure_admin_user() {
+    log "Garantindo usuário admin padrão..."
+
+    cd "$INSTALL_DIR/backend" || {
+        error "Diretório backend não encontrado para garantir usuário admin: $INSTALL_DIR/backend"
+        return 1
+    }
+
+    node <<'NODE'
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+
+(async () => {
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL
+      || 'postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage'
+  });
+
+  try {
+    const hashedPassword = await bcrypt.hash('admin123', 12);
+    await pool.query(`
+      INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at)
+      VALUES ('admin', 'admin@smart-signage.com', $1, 'Administrator', 'admin', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT (username)
+      DO UPDATE SET
+        password_hash = EXCLUDED.password_hash,
+        role = 'admin',
+        is_active = true,
+        updated_at = CURRENT_TIMESTAMP
+    `, [hashedPassword]);
+    console.log('✅ Usuário admin garantido (admin/admin123)');
+  } catch (error) {
+    console.error('❌ Erro ao garantir usuário admin:', error.message);
+    process.exitCode = 1;
+  } finally {
+    await pool.end();
+  }
+})();
+NODE
+    local node_status=$?
+    cd "$INSTALL_DIR" || true
+
+    if [[ $node_status -ne 0 ]]; then
+        error "❌ Falha ao garantir usuário admin (verifique logs acima)"
+        return 1
+    fi
+
+    if psql "$DATABASE_URL" -tAc "SELECT password_hash FROM users WHERE username = 'admin'" | grep -q '\$'; then
+        log "✅ Usuário admin está presente com hash configurado"
+        return 0
+    fi
+
+    error "❌ Usuário admin ainda não foi encontrado após tentativa de criação"
+    return 1
+}
+
 # Aplicar schemas adicionais (export/export views)
 # Configurar variáveis de ambiente
 setup_environment() {
@@ -3606,6 +3663,11 @@ setup_first_boot() {
     local TARGET_DB="${PRIMARY_DB_NAME:-smartsignage}"
     log "Aplicando schema consolidado (${MASTER_SCHEMA_FILE}) no banco '${TARGET_DB}'..."
     execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Schema consolidado SmartChannel"
+
+    if ! ensure_admin_user; then
+        error "❌ Não foi possível garantir usuário admin após aplicação do schema"
+        exit 1
+    fi
     
     # Verificar se TODAS as tabelas do schema foram criadas corretamente
     log "Verificando se TODAS as tabelas do schema foram criadas..."
@@ -3789,8 +3851,7 @@ setup_first_boot() {
             log "  📋 Playlists: $SEED_PLAYLISTS"
             log "  📢 Campanhas: $SEED_CAMPAIGNS"
 
-            # Seed executado via SQL, não precisa executar seed.js
-            return 0
+            # Seed executado via SQL, prosseguindo para validação e criação do usuário admin
         else
             warn "⚠️ Poucas tabelas encontradas após seed. Verificando se dados foram inseridos..."
             # Verificar se pelo menos alguns dados foram inseridos
@@ -3911,110 +3972,6 @@ NODE
         fi
     else
         warn "⚠️ Seed do Prisma removido; usar init-data.sql"
-        # Criar usuário admin manualmente se necessário
-        log "Criando usuário admin padrão..."
-        cd $INSTALL_DIR/backend
-        
-        # Verificar se usuário já existe antes de criar
-        log "Verificando se usuário admin já existe..."
-        if psql "$DATABASE_URL" -tAc "SELECT 1 FROM users WHERE username = 'admin'" 2>/dev/null | grep -q 1; then
-            log "✅ Usuário admin já existe - atualizando senha..."
-            node -e "
-            const { Pool } = require('pg');
-            const bcrypt = require('bcryptjs');
-            const pool = new Pool({ connectionString: process.env.DATABASE_URL || '$DATABASE_URL' });
-            (async () => {
-                try {
-                    const hashedPassword = await bcrypt.hash('admin123', 12);
-                    await pool.query(\`
-                        UPDATE users 
-                        SET password_hash = \$1,
-                            role = 'admin',
-                            is_active = true,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE username = 'admin'
-                    \`, [hashedPassword]);
-                    console.log('✅ Senha do admin atualizada para admin123');
-                } catch (e) {
-                    console.error('Erro ao atualizar:', e.message);
-                } finally {
-                    await pool.end();
-                }
-            })();
-            " || warn "⚠️ Falha ao atualizar usuário admin"
-        else
-            log "Criando novo usuário admin..."
-            node -e "
-            const { Pool } = require('pg');
-            const bcrypt = require('bcryptjs');
-            const pool = new Pool({ connectionString: process.env.DATABASE_URL || '$DATABASE_URL' });
-            (async () => {
-                try {
-                    // Verificar se tabela users existe
-                    const tablesResult = await pool.query(\`
-                        SELECT table_name 
-                        FROM information_schema.tables 
-                        WHERE table_schema = 'public' AND table_name = 'users'
-                    \`);
-                    
-                    if (!tablesResult.rows || tablesResult.rows.length === 0) {
-                        console.error('❌ Tabela users não existe! Execute smartchannel-db.sql primeiro.');
-                        await pool.end();
-                        process.exit(1);
-                    }
-                    
-                    // Criar usuário admin
-                    const hashedPassword = await bcrypt.hash('admin123', 12);
-                    await pool.query(\`
-                        INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at)
-                        VALUES ('admin', 'admin@smart-signage.com', \$1, 'Administrator', 'admin', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        ON CONFLICT (username) 
-                        DO UPDATE SET 
-                            role = 'admin',
-                            is_active = true,
-                            password_hash = \$1,
-                            updated_at = CURRENT_TIMESTAMP
-                    \`, [hashedPassword]);
-                    console.log('✅ Usuário admin criado: admin@smart-signage.com / admin123');
-                } catch (e) {
-                    console.error('❌ Erro ao criar admin:', e.message);
-                    console.error('Stack:', e.stack);
-                    if (e.message.includes('relation \"users\" does not exist')) {
-                        console.error('💡 A tabela users não existe! Execute o smartchannel-db.sql');
-                    }
-                } finally {
-                    await pool.end();
-                }
-            })();
-            " || {
-                warn "⚠️ Falha ao criar usuário admin automaticamente"
-                warn "Você pode criar manualmente após verificar se o schema foi criado"
-            }
-        fi
-    fi
-    
-    # Verificar se o admin foi criado corretamente
-    log "Verificando se usuário admin foi criado corretamente..."
-    cd $INSTALL_DIR/backend
-    if psql "$DATABASE_URL" -tAc "SELECT 1 FROM users WHERE username = 'admin'" | grep -q 1; then
-        ADMIN_INFO=$(psql "$DATABASE_URL" -tAc "SELECT username, email, role, is_active FROM users WHERE username = 'admin'" 2>/dev/null || echo "")
-        if [[ -n "$ADMIN_INFO" ]]; then
-            log "✅ Usuário admin encontrado: $ADMIN_INFO"
-        else
-            warn "⚠️ Usuário admin existe mas não foi possível ler detalhes"
-        fi
-        
-        # Verificar se password_hash existe
-        if psql "$DATABASE_URL" -tAc "SELECT password_hash FROM users WHERE username = 'admin'" | grep -q '\$'; then
-            log "✅ Senha do admin está configurada (hash encontrado)"
-        else
-            warn "⚠️ Senha do admin pode não estar configurada corretamente"
-        fi
-    else
-        error "❌ ATENÇÃO: Usuário admin NÃO foi criado!"
-        error "Execute manualmente para criar o admin:"
-        error "cd $INSTALL_DIR/backend"
-        error "node -e \"const {Pool} = require('pg'); const bcrypt = require('bcryptjs'); const pool = new Pool({connectionString: '$DATABASE_URL'}); (async () => { const hash = await bcrypt.hash('admin123', 12); await pool.query('INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at) VALUES (\\\$1, \\\$2, \\\$3, \\\$4, \\\$5, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (username) DO UPDATE SET password_hash = \\\$3', ['admin', 'admin@smart-signage.com', hash, 'Administrator', 'admin']); await pool.end(); })();\""
     fi
     
     log "✅ Primeiro boot configurado!"

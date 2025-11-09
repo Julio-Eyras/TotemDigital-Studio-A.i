@@ -50,7 +50,6 @@ INSERT INTO locals (local_id, host_id, description, active) VALUES
 
 -- Hash da senha 'admin123' usando bcrypt
 INSERT INTO users (id, client_id, username, email, password_hash, name, role, is_active, last_login) VALUES 
-(1, NULL, 'admin', 'admin@smartsignage.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'Administrador', 'admin', true, NOW()),
 (2, 1, 'maria.silva', 'maria.silva@shoppingnorte.com.br', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'Maria Silva', 'manager', true, NOW()),
 (3, 2, 'joao.santos', 'joao.santos@farmaciapop.com.br', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'João Santos', 'manager', true, NOW()),
 (4, 3, 'ana.costa', 'ana.costa@restaurantebomgusto.com.br', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'Ana Costa', 'manager', true, NOW()),
