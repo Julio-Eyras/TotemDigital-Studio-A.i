@@ -4898,7 +4898,8 @@ show_menu() {
     echo -e "${GREEN}1)${NC} Single-Server (Appliance dedicado)"
     echo -e "${GREEN}2)${NC} Docker (Produção - PostgreSQL)"
     echo
-    read -p "Digite sua escolha (1-2): " choice
+    read -p "Digite sua escolha (1-2) [padrão: 1]: " choice
+    choice=${choice:-1}
     
     case $choice in
         1)
@@ -4937,7 +4938,8 @@ show_menu() {
         echo -e "${GREEN}✓${NC} Navegador inicia automaticamente com o sistema"
         echo -e "${GREEN}✓${NC} Tela em modo Portrait (vertical) por padrão"
         echo
-        read -p "Instalar modo Kiosk? (s/N): " kiosk_choice
+        read -p "Instalar modo Kiosk? (S/n): " kiosk_choice
+        kiosk_choice=${kiosk_choice:-s}
         if [[ "$kiosk_choice" =~ ^[Ss]$ ]]; then
             ENABLE_KIOSK_MODE=true
             log "Modo Kiosk será configurado após a instalação"
@@ -4950,16 +4952,19 @@ show_menu() {
             if [[ -n "$XRANDR_OUTPUTS" ]]; then
                 echo "Saídas detectadas:"
                 i=1
+                local default_selection=""
                 declare -a OUT_ARR
                 while read -r line; do
                   [[ -z "$line" ]] && continue
                   OUT_NAME=$(echo "$line" | awk '{print $1}')
+                  [[ -z "$default_selection" ]] && default_selection="$i"
                   OUT_ARR[$i]="$OUT_NAME"
                   echo "  $i) $line"
                   i=$((i+1))
                 done <<< "$XRANDR_OUTPUTS"
                 echo "  0) Auto (primária)"
-                read -p "Escolha a saída (0 para auto): " out_idx
+                read -p "Escolha a saída (0 para auto) [padrão: ${default_selection:-0}]: " out_idx
+                out_idx=${out_idx:-${default_selection:-0}}
                 if [[ "$out_idx" =~ ^[0-9]+$ ]] && [[ $out_idx -gt 0 ]] && [[ -n "${OUT_ARR[$out_idx]}" ]]; then
                   KIOSK_DISPLAY_SELECTED="${OUT_ARR[$out_idx]}"
                 else
