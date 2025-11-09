@@ -1362,51 +1362,26 @@ setup_redis_single_server() {
 ensure_admin_user() {
     log "Garantindo usuário admin padrão..."
 
-    cd "$INSTALL_DIR/backend" || {
-        error "Diretório backend não encontrado para garantir usuário admin: $INSTALL_DIR/backend"
-        return 1
-    }
+    local target_db="${PRIMARY_DB_NAME:-smartsignage}"
+    local admin_hash="\$2b\$12\$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2"
 
-    node <<'NODE'
-const { Pool } = require('pg');
-const bcrypt = require('bcryptjs');
-
-(async () => {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL
-      || 'postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage'
-  });
-
-  try {
-    const hashedPassword = await bcrypt.hash('admin123', 12);
-    await pool.query(`
-      INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at)
-      VALUES ('admin', 'admin@smart-signage.com', $1, 'Administrator', 'admin', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      ON CONFLICT (username)
-      DO UPDATE SET
-        password_hash = EXCLUDED.password_hash,
-        role = 'admin',
-        is_active = true,
-        updated_at = CURRENT_TIMESTAMP
-    `, [hashedPassword]);
-    console.log('✅ Usuário admin garantido (admin/admin123)');
-  } catch (error) {
-    console.error('❌ Erro ao garantir usuário admin:', error.message);
-    process.exitCode = 1;
-  } finally {
-    await pool.end();
-  }
-})();
-NODE
-    local node_status=$?
-    cd "$INSTALL_DIR" || true
-
-    if [[ $node_status -ne 0 ]]; then
-        error "❌ Falha ao garantir usuário admin (verifique logs acima)"
+    if ! sudo -u postgres psql -d "$target_db" -v ON_ERROR_STOP=1 <<SQL
+INSERT INTO users (client_id, username, email, password_hash, name, role, is_active, last_login, created_at, updated_at)
+VALUES (NULL, 'admin', 'admin@smart-signage.com', '${admin_hash}', 'Administrador', 'admin', true, NOW(), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT (username)
+DO UPDATE SET
+  password_hash = EXCLUDED.password_hash,
+  role = EXCLUDED.role,
+  is_active = EXCLUDED.is_active,
+  updated_at = CURRENT_TIMESTAMP,
+  last_login = NOW();
+SQL
+    then
+        error "❌ Falha ao garantir usuário admin via psql"
         return 1
     fi
 
-    if psql "$DATABASE_URL" -tAc "SELECT password_hash FROM users WHERE username = 'admin'" | grep -q '\$'; then
+    if sudo -u postgres psql -d "$target_db" -tAc "SELECT password_hash FROM users WHERE username = 'admin'" | grep -q '\$'; then
         log "✅ Usuário admin está presente com hash configurado"
         return 0
     fi
