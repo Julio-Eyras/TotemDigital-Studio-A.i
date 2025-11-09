@@ -1228,6 +1228,8 @@ setup_database() {
         sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO ${PG_USER};" >/dev/null 2>&1 || true
         sudo -u postgres psql -d ${PG_DB} -c "GRANT ALL ON SCHEMA public TO ${PG_USER};" >/dev/null 2>&1 || true
 
+        export PRIMARY_DB_USER="$PG_USER"
+
         # Configurar PostgreSQL para aceitar conexões da rede local
         log "Configurando PostgreSQL para acesso remoto (rede local)..."
         
@@ -3701,6 +3703,15 @@ setup_first_boot() {
     sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name" | while read table; do
         [[ -n "$table" ]] && log "  ✅ $table"
     done
+
+    # Garantir privilégios para o usuário da aplicação nas tabelas recém-criadas
+    if [[ -n "${PRIMARY_DB_USER}" ]]; then
+        log "Garantindo privilégios para o usuário ${PRIMARY_DB_USER}..."
+        sudo -u postgres psql -d "$TARGET_DB" -c "GRANT ALL ON ALL TABLES IN SCHEMA public TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+        sudo -u postgres psql -d "$TARGET_DB" -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+        sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+        sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    fi
     
     # Validar configurações de logs aplicadas pelo schema consolidado
     log "Validando configurações padrão de logs..."
