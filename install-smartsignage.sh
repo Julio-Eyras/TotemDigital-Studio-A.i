@@ -98,6 +98,33 @@ info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
 
+# Executa um arquivo SQL via psql garantindo falha imediata em caso de erro
+execute_psql_file() {
+    local database_name="$1"
+    local schema_file="$2"
+    local description="$3"
+
+    if [[ ! -f "$schema_file" ]]; then
+        error "❌ Arquivo SQL não encontrado: $schema_file"
+        exit 1
+    fi
+
+    log_detailed "Executando ${description}: $schema_file"
+    local psql_output
+    if ! psql_output=$(sudo -u postgres psql -d "$database_name" -f "$schema_file" 2>&1); then
+        error "❌ Falha ao aplicar ${description}"
+        echo "$psql_output"
+        exit 1
+    fi
+
+    # Mostrar apenas mensagens relevantes (erros já capturados acima)
+    if [[ -n "$psql_output" ]]; then
+        echo "$psql_output" | grep -v -E "^(SET|COMMENT|CREATE ROLE|CREATE EXTENSION)" || true
+    fi
+
+    log "✅ ${description} aplicado com sucesso"
+}
+
 # Retry genérico com backoff exponencial
 retry_with_backoff() {
     local max_attempts=$1
@@ -1315,20 +1342,21 @@ apply_additional_schemas() {
 
     if [[ -f "$SCHEMA_DIR/export-schema.sql" ]]; then
         log "Aplicando schema de exportações (export-schema.sql)..."
-        if sudo -u postgres psql -d "$PG_DB" -f "$SCHEMA_DIR/export-schema.sql" >/dev/null 2>&1; then
-            log "✅ Schema de exportações criado"
-        else
-            warn "⚠️ Falha ao aplicar export-schema.sql (verifique manualmente)"
+        execute_psql_file "$PG_DB" "$SCHEMA_DIR/export-schema.sql" "Schema de exportações"
+
+        # Garantir que as tabelas críticas existem
+        local export_tables_count
+        export_tables_count=$(sudo -u postgres psql -d "$PG_DB" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('export_queries','export_schedules','export_executions');" 2>/dev/null | tr -d ' ')
+        if [[ "$export_tables_count" != "3" ]]; then
+            error "❌ As tabelas export_queries/export_schedules/export_executions não foram criadas corretamente (encontradas: ${export_tables_count:-0})"
+            exit 1
         fi
+        log "✅ Tabelas de exportação verificadas"
     fi
 
     if [[ -f "$SCHEMA_DIR/views-schema.sql" ]]; then
         log "Aplicando schema de views de leitura (views-schema.sql)..."
-        if sudo -u postgres psql -d "$PG_DB" -f "$SCHEMA_DIR/views-schema.sql" >/dev/null 2>&1; then
-            log "✅ Views de leitura criadas"
-        else
-            warn "⚠️ Falha ao aplicar views-schema.sql (verifique manualmente)"
-        fi
+        execute_psql_file "$PG_DB" "$SCHEMA_DIR/views-schema.sql" "Schema de views de leitura"
     fi
 }
 
