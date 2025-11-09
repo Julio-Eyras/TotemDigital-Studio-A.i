@@ -138,7 +138,7 @@ execute_psql_file() {
 
     local schema_to_use="$temp_schema"
     local psql_output
-    if ! psql_output=$(sudo -u postgres psql -d "$database_name" -f "$schema_to_use" 2>&1); then
+    if ! psql_output=$(sudo -u postgres psql -v ON_ERROR_STOP=1 -d "$database_name" -f "$schema_to_use" 2>&1); then
         rm -f "$schema_to_use" 2>/dev/null || true
         error "❌ Falha ao aplicar ${description}"
         echo "$psql_output"
@@ -3677,41 +3677,29 @@ setup_first_boot() {
     
     log "Schema completo: ${#ALL_TABLES[@]} tabelas projetadas para o sistema"
     
-    local attempt=1
-    local MAX_ATTEMPTS=2
-    while true; do
-        MISSING_TABLES=()
-        EXISTING_TABLES=()
-        
-        log "Verificando ${#ALL_TABLES[@]} tabelas do schema (tentativa ${attempt}/${MAX_ATTEMPTS})..."
-        for table in "${ALL_TABLES[@]}"; do
-            if psql "$DATABASE_URL" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '$table'" | grep -q 1; then
-                EXISTING_TABLES+=("$table")
-            else
-                MISSING_TABLES+=("$table")
-            fi
-        done
-
-        if [[ ${#MISSING_TABLES[@]} -eq 0 ]]; then
-            log "✅ Todas as ${#ALL_TABLES[@]} tabelas do schema existem"
-            log "Tabelas encontradas no banco:"
-            psql "$DATABASE_URL" -tAc "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name" | while read table; do
-                [[ -n "$table" ]] && log "  ✅ $table"
-            done
-            break
+    MISSING_TABLES=()
+    EXISTING_TABLES=()
+    
+    log "Verificando ${#ALL_TABLES[@]} tabelas do schema..."
+    for table in "${ALL_TABLES[@]}"; do
+        if sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '$table'" | grep -q 1; then
+            EXISTING_TABLES+=("$table")
+        else
+            MISSING_TABLES+=("$table")
         fi
+    done
 
-        if [[ $attempt -ge $MAX_ATTEMPTS ]]; then
-            error "❌ Falha crítica ao criar tabelas do banco de dados"
-            error "Tabelas faltando: ${MISSING_TABLES[*]}"
-            error "Use smartchannel-db.sql e init-data.sql para criar o schema"
-            exit 1
-        fi
+    if [[ ${#MISSING_TABLES[@]} -gt 0 ]]; then
+        error "❌ Falha crítica ao criar tabelas do banco de dados"
+        error "Tabelas faltando: ${MISSING_TABLES[*]}"
+        error "Use smartchannel-db.sql e init-data.sql para criar o schema"
+        exit 1
+    fi
 
-        warn "⚠️ Tabelas faltando após tentativa ${attempt}: ${MISSING_TABLES[*]}"
-        log "Reaplicando schema consolidado para garantir criação..."
-        execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Reaplicação do schema consolidado SmartChannel"
-        attempt=$((attempt+1))
+    log "✅ Todas as ${#ALL_TABLES[@]} tabelas do schema existem"
+    log "Tabelas encontradas no banco:"
+    sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name" | while read table; do
+        [[ -n "$table" ]] && log "  ✅ $table"
     done
     
     # Validar configurações de logs aplicadas pelo schema consolidado
