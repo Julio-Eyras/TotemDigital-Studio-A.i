@@ -79,7 +79,7 @@ export class UserService {
       // Buscar usuários
       const users = await this.db.findMany(`
         SELECT 
-          u.user_id,
+          u.id as user_id,
           u.username,
           u.email,
           u.name,
@@ -136,7 +136,7 @@ export class UserService {
           c.name as client_name
         FROM users u
         LEFT JOIN clients c ON u.client_id = c.client_id
-        WHERE u.user_id = $1
+        WHERE u.id = $1
       `, [id]);
 
       return user;
@@ -155,7 +155,7 @@ export class UserService {
 
       // Verificar se username já existe
       const existingUser = await this.db.findFirst(`
-        SELECT user_id FROM users WHERE username = $1
+        SELECT id FROM users WHERE username = $1
       `, [username]);
 
       if (existingUser) {
@@ -170,7 +170,7 @@ export class UserService {
       const result = await this.db.executeRaw(`
         INSERT INTO users (username, email, password_hash, name, role, client_id, is_active, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        RETURNING user_id
+        RETURNING id as user_id
       `, [username, email, hashedPassword, name, role, clientId]);
 
       if (!result.rows || result.rows.length === 0) {
@@ -207,7 +207,7 @@ export class UserService {
       // Verificar se username já existe (se mudou)
       if (username && username !== existingUser.username) {
         const userWithSameUsername = await this.db.findFirst(`
-          SELECT user_id FROM users WHERE username = $1 AND user_id != $2
+          SELECT id FROM users WHERE username = $1 AND id != $2
         `, [username, id]);
 
         if (userWithSameUsername) {
@@ -270,7 +270,7 @@ export class UserService {
       await this.db.executeRaw(`
         UPDATE users 
         SET ${updateFields.join(', ')}
-        WHERE user_id = $${paramIndex}
+        WHERE id = $${paramIndex}
       `, [...updateParams, id]);
 
       const updatedUser = await this.getUserById(id);
@@ -300,7 +300,7 @@ export class UserService {
       await this.db.executeRaw(`
         UPDATE users 
         SET is_active = false, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = $1
+        WHERE id = $1
       `, [id]);
     } catch (error: any) {
       console.error('Erro ao excluir usuário:', error.message);
