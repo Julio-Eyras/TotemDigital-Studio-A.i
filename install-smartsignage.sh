@@ -42,6 +42,8 @@ DOMAIN_NAME=""
 SSL_EMAIL=""
 ENABLE_KIOSK_MODE=false
 RESET_DATABASE=false
+LOAD_SEEDS=false
+SEEDS_OPTION_FORCED=false
 
 # Cores para output
 RED='\033[0;31m'
@@ -238,6 +240,16 @@ parse_arguments() {
                 RESET_DATABASE=true
                 shift
                 ;;
+            --load-seeds|--with-seeds)
+                LOAD_SEEDS=true
+                SEEDS_OPTION_FORCED=true
+                shift
+                ;;
+            --skip-seeds|--no-seeds)
+                LOAD_SEEDS=false
+                SEEDS_OPTION_FORCED=true
+                shift
+                ;;
             --help|-h)
                 echo "Smart Signage Pro v2.0 - Script de Instalação"
                 echo ""
@@ -253,6 +265,8 @@ parse_arguments() {
                 echo "  --skip-menu          Pula menu (usa Docker)"
                 echo "  --https-self-signed  Habilita HTTPS autoassinado (single-server)"
                 echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir"
+                echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt)"
+                echo "  --no-seeds           Não carrega dados de demonstração"
                 echo "  --help               Mostra esta ajuda"
                 exit 0
                 ;;
@@ -3790,173 +3804,66 @@ setup_first_boot() {
         fi
     fi
     
-    # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
-    log "Executando seed completo do banco de dados com dados correlacionados..."
-    
-    # PRIORIDADE 1: Usar init-data.sql se existir (seeds de todas as tabelas com JOINs)
-    INIT_DATA_SQL_FILE="$INSTALL_DIR/database/init-data.sql"
-    if [[ -f "$INIT_DATA_SQL_FILE" ]]; then
-        log "✅ Arquivo init-data.sql encontrado - usando seeds completos do modelo E.R."
-        log "Executando init-data.sql (todas as tabelas usadas em JOINs serão populadas)..."
+    if [[ "$LOAD_SEEDS" == "true" ]]; then
+        # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
+        log "Executando seed completo do banco de dados com dados correlacionados..."
         
-        # Executar init-data.sql (ignorar avisos de "already exists" e NOTICE)
-        log "Executando init-data.sql..."
-        INIT_LOG="/tmp/init-data.log"
-        log "Executando init-data.sql..."
-        if sudo -u postgres psql -v ON_ERROR_STOP=1 -d "$TARGET_DB" -f "$INIT_DATA_SQL_FILE" >"$INIT_LOG" 2>&1; then
-            log "✅ Seeds executados usando init-data.sql"
-        else
-            warn "⚠️ Erros ao executar init-data.sql. Consulte $INIT_LOG para detalhes."
-        fi
-        
-        # Verificar se dados foram inseridos (mesmo que haja avisos)
-        TABLE_COUNT=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ' || echo "0")
-        if [[ -n "$TABLE_COUNT" ]] && [[ "$TABLE_COUNT" -gt 5 ]]; then
+        # PRIORIDADE 1: Usar init-data.sql se existir (seeds de todas as tabelas com JOINs)
+        INIT_DATA_SQL_FILE="$INSTALL_DIR/database/init-data.sql"
+        if [[ -f "$INIT_DATA_SQL_FILE" ]]; then
+            log "✅ Arquivo init-data.sql encontrado - usando seeds completos do modelo E.R."
+            log "Executando init-data.sql (todas as tabelas usadas em JOINs serão populadas)..."
             
-            # Verificar se dados foram inseridos
-            log "Verificando dados inseridos pelo init-data.sql..."
-            SEED_CLIENTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
-            SEED_USERS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
-            SEED_TOTEMS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM totems" 2>/dev/null || echo "0")
-            SEED_MEDIA=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM medias" 2>/dev/null || echo "0")
-            SEED_PLAYLISTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM playlists" 2>/dev/null || echo "0")
-            SEED_CAMPAIGNS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM campaigns" 2>/dev/null || echo "0")
+            # Executar init-data.sql (ignorar avisos de "already exists" e NOTICE)
+            log "Executando init-data.sql..."
+            INIT_LOG="/tmp/init-data.log"
+            log "Executando init-data.sql..."
+            if sudo -u postgres psql -v ON_ERROR_STOP=1 -d "$TARGET_DB" -f "$INIT_DATA_SQL_FILE" >"$INIT_LOG" 2>&1; then
+                log "✅ Seeds executados usando init-data.sql"
+            else
+                warn "⚠️ Erros ao executar init-data.sql. Consulte $INIT_LOG para detalhes."
+            fi
             
-            log "Dados inseridos:"
-            log "  📋 Clientes: $SEED_CLIENTS"
-            log "  👥 Usuários: $SEED_USERS"
-            log "  📺 Totens: $SEED_TOTEMS"
-            log "  🎬 Mídias: $SEED_MEDIA"
-            log "  📋 Playlists: $SEED_PLAYLISTS"
-            log "  📢 Campanhas: $SEED_CAMPAIGNS"
+            # Verificar se dados foram inseridos (mesmo que haja avisos)
+            TABLE_COUNT=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ' || echo "0")
+            if [[ -n "$TABLE_COUNT" ]] && [[ "$TABLE_COUNT" -gt 5 ]]; then
+                
+                # Verificar se dados foram inseridos
+                log "Verificando dados inseridos pelo init-data.sql..."
+                SEED_CLIENTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
+                SEED_USERS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
+                SEED_TOTEMS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM totems" 2>/dev/null || echo "0")
+                SEED_MEDIA=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM medias" 2>/dev/null || echo "0")
+                SEED_PLAYLISTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM playlists" 2>/dev/null || echo "0")
+                SEED_CAMPAIGNS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM campaigns" 2>/dev/null || echo "0")
+                
+                log "Dados inseridos:"
+                log "  📋 Clientes: $SEED_CLIENTS"
+                log "  👥 Usuários: $SEED_USERS"
+                log "  📺 Totens: $SEED_TOTEMS"
+                log "  🎬 Mídias: $SEED_MEDIA"
+                log "  📋 Playlists: $SEED_PLAYLISTS"
+                log "  📢 Campanhas: $SEED_CAMPAIGNS"
 
-            # Seed executado via SQL, prosseguindo para validação e criação do usuário admin
-        else
-            warn "⚠️ Poucas tabelas encontradas após seed. Verificando se dados foram inseridos..."
-            # Verificar se pelo menos alguns dados foram inseridos
-            SEED_CLIENTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
-            if [[ "$SEED_CLIENTS" -gt 0 ]]; then
-                log "✅ Alguns dados foram inseridos, continuando..."
+                # Seed executado via SQL, prosseguindo para validação e criação do usuário admin
             else
-                warn "⚠️ Nenhum dado encontrado. Verifique o arquivo init-data.sql"
+                warn "⚠️ Poucas tabelas encontradas após seed. Verificando se dados foram inseridos..."
+                # Verificar se pelo menos alguns dados foram inseridos
+                SEED_CLIENTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
+                if [[ "$SEED_CLIENTS" -gt 0 ]]; then
+                    log "✅ Alguns dados foram inseridos, continuando..."
+                else
+                    warn "⚠️ Nenhum dado encontrado. Verifique o arquivo init-data.sql"
+                fi
             fi
+        else
+            warn "⚠️ Arquivo init-data.sql não encontrado em $INSTALL_DIR/database/"
         fi
     else
-        warn "⚠️ Arquivo init-data.sql não encontrado em $INSTALL_DIR/database/"
+        log "Seeds de demonstração foram ignorados (opção selecionada)."
     fi
     
-    # Garantir usuário admin padrão
-    log "Garantindo usuário admin padrão..."
-    cd $INSTALL_DIR/backend || {
-        error "Diretório backend não encontrado para criar usuário admin: $INSTALL_DIR/backend"
-        exit 1
-    }
-    node <<'NODE'
-const { Pool } = require('pg');
-const bcrypt = require('bcryptjs');
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage'
-});
-(async () => {
-  try {
-    const hash = await bcrypt.hash('admin123', 12);
-    await pool.query(`
-      INSERT INTO users (username, email, password_hash, name, role, is_active, created_at, updated_at)
-      VALUES ($1,$2,$3,$4,$5,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-      ON CONFLICT (username) DO UPDATE
-        SET password_hash = EXCLUDED.password_hash,
-            email = EXCLUDED.email,
-            name = EXCLUDED.name,
-            role = EXCLUDED.role,
-            is_active = true,
-            updated_at = CURRENT_TIMESTAMP
-    `, ['admin','admin@smart-signage.com',hash,'Administrator','admin']);
-    console.log('✅ Usuário admin (admin/admin123) garantido com sucesso');
-  } catch (error) {
-    console.error('⚠️ Falha ao garantir usuário admin automaticamente:', error.message);
-    process.exitCode = 1;
-  } finally {
-    await pool.end();
-  }
-})();
-NODE
-    cd $INSTALL_DIR || exit 1
-    
-    # PRIORIDADE 2: Fallback para seed.js do Prisma
-    if false; then # Prisma removido
-        log "✅ Arquivo seed.js encontrado"
-        log "Executando seed completo (clientes, usuários, totens, mídias, playlists, campanhas, QR codes, analytics, etc.)..."
-        
-        # Tentar executar seed
-        if false; then # Prisma removido
-            log "✅ Seed executado com sucesso"
-            
-            # Verificar se dados foram inseridos (verificação COMPLETA de todos os dados correlacionados)
-            log "Verificando TODOS os dados inseridos pelo seed..."
-            SEED_CLIENTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
-            SEED_USERS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
-            SEED_TOTEMS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems" 2>/dev/null || echo "0")
-            SEED_MEDIA=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias" 2>/dev/null || echo "0")
-            SEED_PLAYLISTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists" 2>/dev/null || echo "0")
-            SEED_PLAYLIST_ITEMS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlist_items" 2>/dev/null || echo "0")
-            SEED_CAMPAIGNS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM campaigns" 2>/dev/null || echo "0")
-            SEED_QRCODES=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM qrcodes" 2>/dev/null || echo "0")
-            SEED_ANALYTICS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM analytics" 2>/dev/null || echo "0")
-            SEED_AUDITLOGS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM auditlogs" 2>/dev/null || echo "0")
-            SEED_SYSTEMLOGS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM systemlogs" 2>/dev/null || echo "0")
-            SEED_NOTIFICATIONS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM notifications" 2>/dev/null || echo "0")
-            SEED_SETTINGS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM settings" 2>/dev/null || echo "0")
-            SEED_REPORTS=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM reports" 2>/dev/null || echo "0")
-            SEED_BILLING=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM billing" 2>/dev/null || echo "0")
-            
-            log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            log "DADOS INSERIDOS PELO SEED (DADOS CORRELACIONADOS):"
-            log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            log "  📋 Clientes:            $SEED_CLIENTS"
-            log "  👥 Usuários:            $SEED_USERS"
-            log "  📺 Totens:              $SEED_TOTEMS"
-            log "  🎬 Mídias:              $SEED_MEDIA"
-            log "  📋 Playlists:           $SEED_PLAYLISTS"
-            log "  📋 Itens de Playlist:   $SEED_PLAYLIST_ITEMS"
-            log "  📢 Campanhas:           $SEED_CAMPAIGNS"
-            log "  📱 QR Codes:            $SEED_QRCODES"
-            log "  📊 Analytics:           $SEED_ANALYTICS"
-            log "  📝 Audit Logs:          $SEED_AUDITLOGS"
-            log "  📋 System Logs:         $SEED_SYSTEMLOGS"
-            log "  🔔 Notificações:        $SEED_NOTIFICATIONS"
-            log "  ⚙️  Configurações:      $SEED_SETTINGS"
-            log "  📄 Relatórios:          $SEED_REPORTS"
-            log "  💳 Faturamento:         $SEED_BILLING"
-            log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            
-            # Verificar se pelo menos os dados básicos foram inseridos
-            if [[ "$SEED_CLIENTS" == "0" ]] || [[ "$SEED_USERS" == "0" ]]; then
-                warn "⚠️ Seed pode não ter inserido todos os dados básicos"
-                warn "Verifique os logs acima para detalhes"
-            else
-                log "✅ Seed executado - dados correlacionados inseridos com sucesso"
-            fi
-        elif npm run seed 2>&1; then
-            log "✅ Seed executado via npm run seed"
-        else
-            warn "⚠️ Seed falhou ou não retornou sucesso"
-            warn "Verificando se seed.js está configurado em package.json..."
-            
-            if grep -q '"seed"' package.json; then
-                error "❌ Seed configurado mas falhou ao executar"
-                error "Use init-data.sql para popular os dados"
-            else
-                warn "⚠️ Seed não configurado em package.json"
-            fi
-        fi
-    else
-        warn "⚠️ Seed do Prisma removido; usar init-data.sql"
-    fi
-    
-    log "✅ Primeiro boot configurado!"
-    log "👤 Usuário admin padrão: admin"
-    log "🔑 Senha admin padrão: admin123"
-    warn "⚠️  IMPORTANTE: Altere a senha padrão após o primeiro login!"
+    # Usuário admin já é garantido pelo ensure_admin_user() após a aplicação do schema e opções de seed
 }
 
 # Detectar e tratar dados demo já existentes
@@ -4854,7 +4761,33 @@ show_menu() {
     
     echo
     log "Modo selecionado: $INSTALL_MODE"
-    
+
+    # Perguntar sobre carregamento de seeds (se não foi definido via argumento)
+    if [[ "$SEEDS_OPTION_FORCED" != "true" ]]; then
+        echo
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${CYAN}                    Dados de Demonstração (Seeds)${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo
+        echo -e "${YELLOW}Deseja carregar dados de demonstração (clientes, campanhas, mídias etc.)?${NC}"
+        echo -e "${YELLOW}Padrão: Não (apenas dados essenciais serão criados).${NC}"
+        read -p "Carregar dados seeds? (s/N): " seeds_choice
+        seeds_choice=${seeds_choice:-n}
+        if [[ "$seeds_choice" =~ ^[SsYy]$ ]]; then
+            LOAD_SEEDS=true
+            log "Dados de demonstração serão carregados."
+        else
+            LOAD_SEEDS=false
+            log "Dados de demonstração NÃO serão carregados."
+        fi
+    else
+        if [[ "$LOAD_SEEDS" == "true" ]]; then
+            log "Dados de demonstração serão carregados (definido via argumento)."
+        else
+            log "Dados de demonstração não serão carregados (definido via argumento)."
+        fi
+    fi
+
     # Perguntar sobre modo kiosk (apenas para single-server)
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
         echo
