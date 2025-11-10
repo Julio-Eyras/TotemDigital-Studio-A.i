@@ -1217,7 +1217,7 @@ SELECT
     c.name AS client_name,
     c.email AS client_email,
     c.phone AS client_phone,
-    c.active AS client_active,
+    c.is_active AS client_active,
     -- Contagem de roles e permissões
     COUNT(DISTINCT r.role_id) AS role_count,
     COUNT(DISTINCT p.permission_id) AS permission_count
@@ -1229,7 +1229,7 @@ LEFT JOIN role_permissions rp ON r.role_id = rp.role_id
 LEFT JOIN permissions p ON rp.permission_id = p.permission_id
 GROUP BY 
     u.id, u.username, u.email, u.name, u.role, u.is_active, u.last_login, u.created_at,
-    c.client_id, c.name, c.email, c.phone, c.active;
+    c.client_id, c.name, c.email, c.phone, c.is_active;
 
 COMMENT ON VIEW v_users_with_roles IS 'View com usuários e contagem de roles e permissões';
 
@@ -1424,7 +1424,7 @@ SELECT
     c.contact_name AS client_contact,
     c.email AS client_email,
     c.phone AS client_phone,
-    c.active AS client_active,
+    c.is_active AS client_active,
     -- Estatísticas
     COUNT(DISTINCT ct.totem_id) AS totem_count,
     COUNT(DISTINCT p.playlist_id) AS playlist_count,
@@ -1446,7 +1446,7 @@ GROUP BY
     camp.campaign_id, camp.title, camp.description, camp.campaign_type, camp.priority,
     camp.start_date, camp.end_date, camp.start_time, camp.end_time, camp.days_of_week,
     camp.status, camp.is_active, camp.created_at, camp.updated_at,
-    c.client_id, c.name, c.contact_name, c.email, c.phone, c.active;
+    c.client_id, c.name, c.contact_name, c.email, c.phone, c.is_active;
 
 COMMENT ON VIEW v_campaigns_complete IS 'View com campanhas incluindo cliente e estatísticas completas';
 
@@ -1479,7 +1479,7 @@ SELECT
     c.client_id,
     c.name AS client_name,
     c.email AS client_email,
-    c.active AS client_active,
+    c.is_active AS client_active,
     -- Criador
     u.id AS creator_id,
     u.username AS creator_username,
@@ -1510,7 +1510,7 @@ GROUP BY
     m.media_id, m.name, m.title, m.description, m.tags, m.version, m.checksum,
     m.preview_url, m.status, m.file_path, m.media_type, m.duration_seconds,
     m.size_bytes, m.mime_type, m.width, m.height, m.created_at, m.updated_at,
-    c.client_id, c.name, c.email, c.active,
+    c.client_id, c.name, c.email, c.is_active,
     u.id, u.username, u.name, u.role,
     aw.id, aw.status, aw.reviewed_at, aw.comment,
     reviewer.id, reviewer.username, reviewer.name;
