@@ -15,15 +15,15 @@
 -- DADOS DE EXEMPLO - CLIENTES
 -- =============================================
 
-INSERT INTO clients (client_id, name, contact_name, email, phone, wths, active) VALUES 
-(1, 'Shopping Center Norte', 'Maria Silva', 'maria.silva@shoppingnorte.com.br', '+55 11 3456-7890', '+55 11 98765-4321', true),
-(2, 'Rede de Farmácias Saúde+', 'João Santos', 'joao.santos@saudemais.com.br', '+55 11 2345-6789', '+55 11 87654-3210', true),
-(3, 'Supermercado Econômico', 'Ana Costa', 'ana.costa@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', true),
-(4, 'Restaurante Sabor & Arte', 'Carlos Oliveira', 'carlos.oliveira@saborearte.com.br', '+55 11 4567-8901', '+55 11 65432-1098', true),
-(5, 'Clínica Médica Vida Saudável', 'Dr. Roberto Lima', 'roberto.lima@vidasaudavel.com.br', '+55 11 5678-9012', '+55 11 54321-0987', true),
-(6, 'Academia FitLife', 'Patricia Mendes', 'patricia.mendes@fitlife.com.br', '+55 11 6789-0123', '+55 11 43210-9876', true),
-(7, 'Loja de Eletrônicos TechStore', 'Fernando Alves', 'fernando.alves@techstore.com.br', '+55 11 7890-1234', '+55 11 32109-8765', true),
-(8, 'Salão de Beleza Glamour', 'Lucia Ferreira', 'lucia.ferreira@glamour.com.br', '+55 11 8901-2345', '+55 11 21098-7654', true);
+INSERT INTO clients (client_id, name, contact_name, email, phone, wths, address, is_active) VALUES 
+(1, 'Shopping Center Norte', 'Maria Silva', 'maria.silva@shoppingnorte.com.br', '+55 11 3456-7890', '+55 11 98765-4321', 'Av. Cruzeiro do Sul, 1100 - Santana, São Paulo/SP', true),
+(2, 'Rede de Farmácias Saúde+', 'João Santos', 'joao.santos@saudemais.com.br', '+55 11 2345-6789', '+55 11 87654-3210', 'Rua XV de Novembro, 250 - Centro, São Paulo/SP', true),
+(3, 'Supermercado Econômico', 'Ana Costa', 'ana.costa@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', 'Av. Paulista, 1500 - Bela Vista, São Paulo/SP', true),
+(4, 'Restaurante Sabor & Arte', 'Carlos Oliveira', 'carlos.oliveira@saborearte.com.br', '+55 11 4567-8901', '+55 11 65432-1098', 'Rua Oscar Freire, 200 - Jardins, São Paulo/SP', true),
+(5, 'Clínica Médica Vida Saudável', 'Dr. Roberto Lima', 'roberto.lima@vidasaudavel.com.br', '+55 11 5678-9012', '+55 11 54321-0987', 'Rua do Carmo, 45 - Centro, São Paulo/SP', true),
+(6, 'Academia FitLife', 'Patricia Mendes', 'patricia.mendes@fitlife.com.br', '+55 11 6789-0123', '+55 11 43210-9876', 'Av. Brigadeiro Faria Lima, 2200 - Pinheiros, São Paulo/SP', true),
+(7, 'Loja de Eletrônicos TechStore', 'Fernando Alves', 'fernando.alves@techstore.com.br', '+55 11 7890-1234', '+55 11 32109-8765', 'Rua Santa Ifigênia, 320 - Centro, São Paulo/SP', true),
+(8, 'Salão de Beleza Glamour', 'Lucia Ferreira', 'lucia.ferreira@glamour.com.br', '+55 11 8901-2345', '+55 11 21098-7654', 'Rua Augusta, 980 - Consolação, São Paulo/SP', true);
 
 -- =============================================
 -- DADOS DE EXEMPLO - HOSTS E LOCAIS

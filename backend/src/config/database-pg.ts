@@ -136,6 +136,14 @@ class DatabaseWrapper {
    * Converte query com ? placeholders para $1, $2, etc.
    */
   private convertQuery(query: string, params: any[]): { text: string; values: any[] } {
+    // Se a query já utiliza placeholders $1, $2, etc., apenas repassar
+    if (/\$\d+/.test(query)) {
+      return {
+        text: query,
+        values: params ?? [],
+      };
+    }
+
     let convertedQuery = query;
     const values: any[] = [];
     let paramIndex = 1;

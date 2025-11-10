@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS clients (
     email TEXT UNIQUE,
     phone TEXT,
     wths TEXT,
-    active BOOLEAN DEFAULT true,
+    address TEXT,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
