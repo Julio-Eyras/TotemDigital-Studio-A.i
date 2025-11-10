@@ -1381,7 +1381,18 @@ ensure_admin_user() {
     log "Garantindo usuário admin padrão..."
 
     local target_db="${PRIMARY_DB_NAME:-smartsignage}"
-    local admin_hash="\$2b\$12\$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2"
+    local admin_password="admin123"
+    local admin_hash=""
+
+    if command -v openssl >/dev/null 2>&1; then
+        admin_hash=$(openssl passwd -bcrypt "$admin_password" | tr -d '\r')
+    fi
+
+    # Fallback caso openssl não esteja disponível ou retorne vazio
+    if [[ -z "$admin_hash" || ${#admin_hash} -ne 60 ]]; then
+        log "⚠️ openssl não disponível ou hash inválido. Usando hash padrão pré-calculado."
+        admin_hash="\$2a\$12\$8qqKvzz3fLvLY7hkVx1hG.lfdeQ1PRKO6NrSGHO93WWru9gYrVf.W"
+    fi
 
     if ! sudo -u postgres psql -d "$target_db" -v ON_ERROR_STOP=1 <<SQL
 INSERT INTO users (client_id, username, email, password_hash, name, role, is_active, last_login, created_at, updated_at)
@@ -1399,7 +1410,7 @@ SQL
         return 1
     fi
 
-    if sudo -u postgres psql -d "$target_db" -tAc "SELECT password_hash FROM users WHERE username = 'admin'" | grep -q '\$'; then
+    if sudo -u postgres psql -d "$target_db" -tAc "SELECT length(password_hash) FROM users WHERE username = 'admin'" | grep -q "60"; then
         log "✅ Usuário admin está presente com hash configurado"
         return 0
     fi
