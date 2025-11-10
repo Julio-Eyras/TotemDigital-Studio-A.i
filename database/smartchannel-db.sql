@@ -91,10 +91,12 @@ CREATE TABLE IF NOT EXISTS locals (
 -- Totems
 CREATE TABLE IF NOT EXISTS totems (
     totem_id SERIAL PRIMARY KEY,
+    name TEXT,
     identifier TEXT UNIQUE NOT NULL,
     uin TEXT UNIQUE, -- Unique Identifier Number (UIN) para validação do player
     device_id TEXT UNIQUE,
     local_id TEXT,
+    location TEXT,
     description TEXT,
     config TEXT, -- JSON
     status TEXT DEFAULT 'offline', -- online, offline, error, maintenance
@@ -104,11 +106,15 @@ CREATE TABLE IF NOT EXISTS totems (
     last_seen TIMESTAMP,
     last_heartbeat TIMESTAMP,
     active BOOLEAN DEFAULT true,
+    is_active BOOLEAN DEFAULT true,
+    client_id INTEGER,
+    current_playlist_id INTEGER,
     blocked BOOLEAN DEFAULT false, -- Bloqueio manual do totem
     blocked_until TIMESTAMP, -- Bloqueio temporário até data/hora
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (local_id) REFERENCES locals(local_id) ON DELETE SET NULL
+    FOREIGN KEY (local_id) REFERENCES locals(local_id) ON DELETE SET NULL,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL
 );
 
 -- Smart TVs
@@ -176,6 +182,7 @@ CREATE TABLE IF NOT EXISTS playlists (
     playlist_id SERIAL PRIMARY KEY,
     totem_id INTEGER NOT NULL,
     campaign_id INTEGER NOT NULL,
+    client_id INTEGER,
     name TEXT,
     description TEXT,
     is_default BOOLEAN DEFAULT false,
@@ -186,7 +193,8 @@ CREATE TABLE IF NOT EXISTS playlists (
     generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
-    FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE CASCADE
+    FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE CASCADE,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL
 );
 
 -- Playlist Items

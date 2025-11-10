@@ -96,9 +96,10 @@ router.get('/uin/:uin',
  * @access Private (Admin/Manager)
  */
 router.post('/',
-  body('name').isString().isLength({ min: 2, max: 100 }),
-  body('clientId').isInt({ min: 1 }),
-  body('location').isString().isLength({ min: 2, max: 200 }),
+  body('identifier').optional().isString().isLength({ min: 2, max: 100 }),
+  body('name').optional().isString().isLength({ min: 2, max: 100 }),
+  body('clientId').optional().isInt({ min: 1 }),
+  body('location').optional().isString().isLength({ min: 2, max: 200 }),
   body('description').optional().isString(),
   body('ipAddress').optional().isIP(),
   body('macAddress').optional().isMACAddress(),
@@ -109,7 +110,14 @@ router.post('/',
   validateRequest,
   async (req: Request, res: Response) => {
     try {
-      const totemData = req.body;
+      const { name, identifier, location, ...rest } = req.body;
+      const totemData = {
+        identifier: identifier || name,
+        name: name || identifier,
+        location,
+        ...rest,
+        description: rest.description || location
+      };
       const totem = await getTotemService().createTotem(totemData, 1); // Default user
       res.status(201).json(totem);
     } catch (error) {
@@ -125,6 +133,7 @@ router.post('/',
  */
 router.put('/:id',
   param('id').isInt({ min: 1 }),
+  body('identifier').optional().isString().isLength({ min: 2, max: 100 }),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
   body('clientId').optional().isInt({ min: 1 }),
   body('location').optional().isString().isLength({ min: 2, max: 200 }),
@@ -140,7 +149,14 @@ router.put('/:id',
   async (req: Request, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
-      const totemData = req.body;
+      const { name, identifier, location, ...rest } = req.body;
+      const totemData = {
+        identifier: identifier || name,
+        name,
+        location,
+        ...rest,
+        description: rest.description || location
+      };
       const totem = await getTotemService().updateTotem(totemId, totemData, 1); // Default user
       if (!totem) {
         return res.status(404).json({ error: 'Totem não encontrado' });

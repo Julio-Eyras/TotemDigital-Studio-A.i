@@ -165,11 +165,23 @@ export class PlayerService {
       }
 
       // Criar player
+      const identifier = name.trim();
+
       const result = await this.db.executeRaw(`
-        INSERT INTO totems (name, location, client_id, is_active, status, created_at, updated_at)
-        VALUES ($1, $2, $3, true, 'offline', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO totems (
+          name,
+          identifier,
+          location,
+          client_id,
+          is_active,
+          active,
+          status,
+          created_at,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, true, true, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING totem_id
-      `, [name, location, clientId]);
+      `, [name, identifier, location, clientId]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar player');
@@ -222,6 +234,10 @@ export class PlayerService {
         updateFields.push(`name = $${paramIndex}`);
         updateParams.push(name);
         paramIndex++;
+
+        updateFields.push(`identifier = $${paramIndex}`);
+        updateParams.push(name.trim());
+        paramIndex++;
       }
 
       if (location !== undefined) {
@@ -238,6 +254,10 @@ export class PlayerService {
 
       if (isActive !== undefined) {
         updateFields.push(`is_active = $${paramIndex}`);
+        updateParams.push(isActive);
+        paramIndex++;
+
+        updateFields.push(`active = $${paramIndex}`);
         updateParams.push(isActive);
         paramIndex++;
       }
@@ -277,7 +297,7 @@ export class PlayerService {
       // Soft delete - marcar como inativo
       await this.db.executeRaw(`
         UPDATE totems 
-        SET is_active = false, updated_at = CURRENT_TIMESTAMP
+        SET is_active = false, active = false, updated_at = CURRENT_TIMESTAMP
         WHERE totem_id = $1
       `, [id]);
     } catch (error: any) {

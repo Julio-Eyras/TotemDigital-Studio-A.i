@@ -61,14 +61,34 @@ INSERT INTO users (id, client_id, username, email, password_hash, name, role, is
 -- DADOS DE EXEMPLO - TOTEMS
 -- =============================================
 
-INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, description, config, status, version, firmware_version, ip_address, last_seen, last_heartbeat, active, blocked) VALUES 
-(1, 'TOTEM-SHOPPING-001', 'UIN-SHOPPING-001-2024', 'DEVICE-001', 'SHOPPING-NORTE-ENTRADA', 'Totem Entrada Principal', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 80}', 'online', '2.0.1', '1.2.3', '192.168.1.100', NOW(), NOW(), true, false),
-(2, 'TOTEM-SHOPPING-002', 'UIN-SHOPPING-002-2024', 'DEVICE-002', 'SHOPPING-NORTE-PRACA', 'Totem Praça Alimentação', '{"resolution": "1920x1080", "orientation": "landscape", "brightness": 75}', 'online', '2.0.1', '1.2.3', '192.168.1.101', NOW(), NOW(), true, false),
-(3, 'TOTEM-SHOPPING-003', 'UIN-SHOPPING-003-2024', 'DEVICE-003', 'SHOPPING-NORTE-CINEMA', 'Totem Área Cinema', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 70}', 'online', '2.0.1', '1.2.3', '192.168.1.102', NOW(), NOW(), true, false),
-(4, 'TOTEM-FARMACIA-001', 'UIN-FARMACIA-001-2024', 'DEVICE-004', 'FARMACIA-CENTRAL-MATRIZ', 'Totem Farmácia Matriz', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 85}', 'online', '2.0.1', '1.2.3', '192.168.2.100', NOW(), NOW(), true, false),
-(5, 'TOTEM-FARMACIA-002', 'UIN-FARMACIA-002-2024', 'DEVICE-005', 'FARMACIA-CENTRAL-FILIAL1', 'Totem Farmácia Filial Sul', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 85}', 'online', '2.0.1', '1.2.3', '192.168.2.101', NOW(), NOW(), true, false),
-(6, 'TOTEM-SUPER-001', 'UIN-SUPER-001-2024', 'DEVICE-006', 'SUPER-CENTRO-CAIXA', 'Totem Área Caixas', '{"resolution": "1920x1080", "orientation": "landscape", "brightness": 80}', 'online', '2.0.1', '1.2.3', '192.168.3.100', NOW(), NOW(), true, false),
-(7, 'TOTEM-SUPER-002', 'UIN-SUPER-002-2024', 'DEVICE-007', 'SUPER-CENTRO-ACOUGUE', 'Totem Seção Açougue', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 75}', 'offline', '2.0.0', '1.2.2', '192.168.3.101', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours', true, false);
+INSERT INTO totems (
+  totem_id,
+  name,
+  identifier,
+  uin,
+  device_id,
+  local_id,
+  location,
+  description,
+  config,
+  status,
+  version,
+  firmware_version,
+  ip_address,
+  last_seen,
+  last_heartbeat,
+  active,
+  is_active,
+  client_id,
+  blocked
+) VALUES 
+(1, 'Totem Shopping Entrada', 'TOTEM-SHOPPING-001', 'UIN-SHOPPING-001-2024', 'DEVICE-001', 'SHOPPING-NORTE-ENTRADA', 'Entrada principal do shopping', 'Totem Entrada Principal', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 80}', 'online', '2.0.1', '1.2.3', '192.168.1.100', NOW(), NOW(), true, true, 1, false),
+(2, 'Totem Shopping Praça', 'TOTEM-SHOPPING-002', 'UIN-SHOPPING-002-2024', 'DEVICE-002', 'SHOPPING-NORTE-PRACA', 'Praça de alimentação', 'Totem Praça Alimentação', '{"resolution": "1920x1080", "orientation": "landscape", "brightness": 75}', 'online', '2.0.1', '1.2.3', '192.168.1.101', NOW(), NOW(), true, true, 1, false),
+(3, 'Totem Shopping Cinema', 'TOTEM-SHOPPING-003', 'UIN-SHOPPING-003-2024', 'DEVICE-003', 'SHOPPING-NORTE-CINEMA', 'Área do cinema', 'Totem Área Cinema', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 70}', 'online', '2.0.1', '1.2.3', '192.168.1.102', NOW(), NOW(), true, true, 1, false),
+(4, 'Totem Farmácia Matriz', 'TOTEM-FARMACIA-001', 'UIN-FARMACIA-001-2024', 'DEVICE-004', 'FARMACIA-CENTRAL-MATRIZ', 'Farmácia matriz', 'Totem Farmácia Matriz', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 85}', 'online', '2.0.1', '1.2.3', '192.168.2.100', NOW(), NOW(), true, true, 2, false),
+(5, 'Totem Farmácia Filial Sul', 'TOTEM-FARMACIA-002', 'UIN-FARMACIA-002-2024', 'DEVICE-005', 'FARMACIA-CENTRAL-FILIAL1', 'Farmácia filial zona sul', 'Totem Farmácia Filial Sul', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 85}', 'online', '2.0.1', '1.2.3', '192.168.2.101', NOW(), NOW(), true, true, 2, false),
+(6, 'Totem Supermercado Caixas', 'TOTEM-SUPER-001', 'UIN-SUPER-001-2024', 'DEVICE-006', 'SUPER-CENTRO-CAIXA', 'Área dos caixas', 'Totem Área Caixas', '{"resolution": "1920x1080", "orientation": "landscape", "brightness": 80}', 'online', '2.0.1', '1.2.3', '192.168.3.100', NOW(), NOW(), true, true, 3, false),
+(7, 'Totem Supermercado Açougue', 'TOTEM-SUPER-002', 'UIN-SUPER-002-2024', 'DEVICE-007', 'SUPER-CENTRO-ACOUGUE', 'Seção de açougue', 'Totem Seção Açougue', '{"resolution": "1920x1080", "orientation": "portrait", "brightness": 75}', 'offline', '2.0.0', '1.2.2', '192.168.3.101', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours', true, false, 3, false);
 
 -- =============================================
 -- DADOS DE EXEMPLO - SMART TVs
@@ -117,11 +137,11 @@ INSERT INTO medias (media_id, client_id, name, title, description, tags, version
 -- DADOS DE EXEMPLO - PLAYLISTS
 -- =============================================
 
-INSERT INTO playlists (playlist_id, totem_id, campaign_id, name, description, is_default, medias, loop, config, is_active) VALUES 
-(1, 1, 1, 'Playlist Black Friday - Entrada', 'Playlist principal da Black Friday na entrada', true, '[]', true, '{"transition_duration": 2000, "fade_effect": true}', true),
-(2, 2, 1, 'Playlist Black Friday - Praça', 'Playlist da Black Friday na praça de alimentação', true, '[]', true, '{"transition_duration": 1500, "fade_effect": true}', true),
-(3, 4, 2, 'Playlist Medicamentos', 'Playlist promocional de medicamentos', true, '[]', true, '{"transition_duration": 3000, "fade_effect": false}', true),
-(4, 6, 3, 'Playlist Ofertas Supermercado', 'Playlist de ofertas do supermercado', true, '[]', true, '{"transition_duration": 2500, "fade_effect": true}', true);
+INSERT INTO playlists (playlist_id, totem_id, campaign_id, client_id, name, description, is_default, medias, loop, config, is_active) VALUES 
+(1, 1, 1, 1, 'Playlist Black Friday - Entrada', 'Playlist principal da Black Friday na entrada', true, '[]', true, '{"transition_duration": 2000, "fade_effect": true}', true),
+(2, 2, 1, 1, 'Playlist Black Friday - Praça', 'Playlist da Black Friday na praça de alimentação', true, '[]', true, '{"transition_duration": 1500, "fade_effect": true}', true),
+(3, 4, 2, 2, 'Playlist Medicamentos', 'Playlist promocional de medicamentos', true, '[]', true, '{"transition_duration": 3000, "fade_effect": false}', true),
+(4, 6, 3, 3, 'Playlist Ofertas Supermercado', 'Playlist de ofertas do supermercado', true, '[]', true, '{"transition_duration": 2500, "fade_effect": true}', true);
 
 -- =============================================
 -- DADOS DE EXEMPLO - ITENS DE PLAYLIST

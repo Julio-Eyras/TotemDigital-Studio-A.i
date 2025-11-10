@@ -123,7 +123,7 @@ export class UserService {
     try {
       const user = await this.db.findFirst(`
         SELECT 
-          u.user_id,
+          u.id as user_id,
           u.username,
           u.email,
           u.name,

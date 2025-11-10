@@ -116,7 +116,7 @@ export class AuditService {
           al.timestamp,
           u.username as user_name
         FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.user_id
+        LEFT JOIN users u ON al.user_id = u.id
         ${whereClause}
         ORDER BY al.timestamp DESC
         LIMIT ? OFFSET ?
@@ -154,7 +154,7 @@ export class AuditService {
           al.timestamp,
           u.username as user_name
         FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.user_id
+        LEFT JOIN users u ON al.user_id = u.id
         WHERE al.id = ?
       `, [logId]);
 
@@ -194,7 +194,7 @@ export class AuditService {
           al.timestamp,
           u.username as user_name
         FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.user_id
+        LEFT JOIN users u ON al.user_id = u.id
         WHERE al.user_id = ?
         ORDER BY al.timestamp DESC
         LIMIT ?
@@ -232,7 +232,7 @@ export class AuditService {
           al.timestamp,
           u.username as user_name
         FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.user_id
+        LEFT JOIN users u ON al.user_id = u.id
         WHERE al.entity = ? AND al.entity_id = ?
         ORDER BY al.timestamp DESC
         LIMIT ?
@@ -299,7 +299,7 @@ export class AuditService {
           u.username,
           COUNT(*) as count
         FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.user_id
+        LEFT JOIN users u ON al.user_id = u.id
         WHERE al.timestamp >= datetime('now', '-${days} days')
         GROUP BY al.user_id, u.username
         ORDER BY count DESC
@@ -403,7 +403,7 @@ export class AuditService {
           al.timestamp,
           u.username as user_name
         FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.user_id
+        LEFT JOIN users u ON al.user_id = u.id
         WHERE al.action IN (${placeholders})
         ORDER BY al.timestamp DESC
         LIMIT ?
@@ -441,7 +441,7 @@ export class AuditService {
           al.timestamp,
           u.username as user_name
         FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.user_id
+        LEFT JOIN users u ON al.user_id = u.id
         WHERE al.action = 'login_failed'
         AND al.timestamp >= datetime('now', '-${hours} hours')
         ORDER BY al.timestamp DESC
@@ -471,7 +471,7 @@ export class AuditService {
       const result = await this.db.findFirst(`
         SELECT COUNT(*) as count
         FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.user_id
+        LEFT JOIN users u ON al.user_id = u.id
         WHERE al.action = 'login_failed'
         AND (u.username = ? OR al.metadata LIKE ?)
         AND al.timestamp >= datetime('now', '-${hours} hours')

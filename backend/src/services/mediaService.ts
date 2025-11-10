@@ -178,7 +178,7 @@ export class MediaService {
           u.username as authorName
         FROM medias m
         LEFT JOIN clients c ON m.client_id = c.client_id
-        LEFT JOIN users u ON m.created_by = u.user_id
+        LEFT JOIN users u ON m.created_by = u.id
         ${whereClause}
         ORDER BY m.created_at DESC
         LIMIT ? OFFSET ?
@@ -244,7 +244,7 @@ export class MediaService {
           u.username as authorName
         FROM medias m
         LEFT JOIN clients c ON m.client_id = c.client_id
-        LEFT JOIN users u ON m.created_by = u.user_id
+        LEFT JOIN users u ON m.created_by = u.id
         WHERE m.media_id = ?
       `, [mediaId]);
 
@@ -977,7 +977,7 @@ export class MediaService {
           u.username as authorName
         FROM medias m
         LEFT JOIN clients c ON m.client_id = c.client_id
-        LEFT JOIN users u ON m.created_by = u.user_id
+        LEFT JOIN users u ON m.created_by = u.id
         ${whereClause}
         ORDER BY m.created_at DESC
       `, params);

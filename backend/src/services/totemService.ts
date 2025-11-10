@@ -7,35 +7,45 @@ import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 
 export interface CreateTotemRequest {
+  name?: string;
   identifier: string;
   deviceId?: string;
   localId?: string;
+  location?: string;
   description?: string;
   config?: any;
   version?: string;
   firmwareVersion?: string;
   ipAddress?: string;
+  clientId?: number;
+  isActive?: boolean;
   active?: boolean;
 }
 
 export interface UpdateTotemRequest {
+  name?: string;
   identifier?: string;
   deviceId?: string;
   localId?: string;
+  location?: string;
   description?: string;
   config?: any;
   version?: string;
   firmwareVersion?: string;
   ipAddress?: string;
+  clientId?: number;
+  isActive?: boolean;
   active?: boolean;
 }
 
 export interface TotemResponse {
   id: number;
+  name?: string;
   identifier: string;
   uin?: string;
   deviceId?: string;
   localId?: string;
+  location?: string;
   description?: string;
   config?: any;
   status: string;
@@ -45,6 +55,12 @@ export interface TotemResponse {
   lastSeen?: string;
   lastHeartbeat?: string;
   active: boolean;
+  is_active?: boolean;
+  isActive?: boolean;
+  client_id?: number;
+  clientId?: number;
+  current_playlist_id?: number;
+  currentPlaylistId?: number;
   createdAt: string;
   updatedAt: string;
   localName?: string;
@@ -110,7 +126,7 @@ export class TotemService {
       filters.page || 1,
       filters.limit || 1000,
       {
-        active: filters.status === 'active',
+        isActive: filters.status === 'active',
         search: filters.search
       }
     );
@@ -125,7 +141,7 @@ export class TotemService {
     limit: number = 20,
     filters: {
       status?: string;
-      active?: boolean;
+      isActive?: boolean;
       localId?: string;
       search?: string;
     } = {}
@@ -141,9 +157,9 @@ export class TotemService {
         params.push(filters.status);
       }
 
-      if (filters.active !== undefined) {
-        whereClause += ' AND t.active = ?';
-        params.push(filters.active ? 1 : 0);
+      if (filters.isActive !== undefined) {
+        whereClause += ' AND t.is_active = ?';
+        params.push(filters.isActive ? 1 : 0);
       }
 
       if (filters.localId) {
@@ -160,9 +176,11 @@ export class TotemService {
       const totems = await this.db.findMany(`
         SELECT 
           t.totem_id as id,
+          t.name,
           t.identifier,
           t.device_id as deviceId,
           t.local_id as localId,
+          t.location,
           t.description,
           t.config,
           t.status,
@@ -172,6 +190,9 @@ export class TotemService {
           t.last_seen as lastSeen,
           t.last_heartbeat as lastHeartbeat,
           t.active,
+          t.is_active as is_active,
+          t.client_id,
+          t.current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
@@ -223,18 +244,23 @@ export class TotemService {
       const totem = await this.db.findFirst(`
         SELECT
           t.totem_id as id,
+          t.name,
           t.identifier,
           t.uin,
+          t.location,
           t.description,
           t.local_id,
           t.status,
           t.active,
+          t.is_active as is_active,
+          t.client_id,
+          t.current_playlist_id,
           t.blocked,
           t.blocked_until,
           t.last_heartbeat as lastHeartbeat,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
-          c.client_id as clientId,
+          c.client_id as client_id,
           c.name as clientName,
           l.description as location,
           h.name as hostName
@@ -260,9 +286,11 @@ export class TotemService {
       const totem = await this.db.findFirst(`
         SELECT 
           t.totem_id as id,
+          t.name,
           t.identifier,
           t.device_id as deviceId,
           t.local_id as localId,
+          t.location,
           t.description,
           t.config,
           t.status,
@@ -272,6 +300,9 @@ export class TotemService {
           t.last_seen as lastSeen,
           t.last_heartbeat as lastHeartbeat,
           t.active,
+          t.is_active as is_active,
+          t.client_id,
+          t.current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
@@ -305,9 +336,11 @@ export class TotemService {
       const totem = await this.db.findFirst(`
         SELECT 
           t.totem_id as id,
+          t.name,
           t.identifier,
           t.device_id as deviceId,
           t.local_id as localId,
+          t.location,
           t.description,
           t.config,
           t.status,
@@ -317,6 +350,9 @@ export class TotemService {
           t.last_seen as lastSeen,
           t.last_heartbeat as lastHeartbeat,
           t.active,
+          t.is_active as is_active,
+          t.client_id,
+          t.current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
@@ -350,9 +386,11 @@ export class TotemService {
       const totem = await this.db.findFirst(`
         SELECT 
           t.totem_id as id,
+          t.name,
           t.identifier,
           t.device_id as deviceId,
           t.local_id as localId,
+          t.location,
           t.description,
           t.config,
           t.status,
@@ -362,6 +400,9 @@ export class TotemService {
           t.last_seen as lastSeen,
           t.last_heartbeat as lastHeartbeat,
           t.active,
+          t.is_active as is_active,
+          t.client_id,
+          t.current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
@@ -393,21 +434,31 @@ export class TotemService {
   async createTotem(data: CreateTotemRequest, createdBy: number): Promise<TotemResponse> {
     try {
       const { 
+        name,
         identifier, 
         deviceId, 
         localId, 
+        location,
         description, 
         config, 
         version, 
         firmwareVersion, 
         ipAddress, 
-        active = true 
+        clientId,
+        active = true,
+        isActive = true
       } = data;
+
+      const totemIdentifier = identifier || name;
+
+      if (!totemIdentifier) {
+        throw new Error('Identifier é obrigatório');
+      }
 
       // Verificar se identifier já existe
       const existingTotem = await this.db.findFirst(`
         SELECT totem_id FROM totems WHERE identifier = ?
-      `, [identifier]);
+      `, [totemIdentifier]);
 
       if (existingTotem) {
         throw new Error('Identifier já existe');
@@ -427,28 +478,48 @@ export class TotemService {
       // Criar totem
       const result = await this.db.executeRaw(`
         INSERT INTO totems (
-          identifier, device_id, local_id, description, config, 
-          version, firmware_version, ip_address, active, status
+          name,
+          identifier,
+          device_id,
+          local_id,
+          location,
+          description,
+          config,
+          version,
+          firmware_version,
+          ip_address,
+          client_id,
+          active,
+          is_active,
+          status,
+          created_at,
+          updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'offline')
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `, [
-        identifier, 
-        deviceId, 
-        localId, 
-        description, 
+        name || identifier,
+        totemIdentifier,
+        deviceId,
+        localId,
+        location || null,
+        description,
         config ? JSON.stringify(config) : null,
-        version, 
-        firmwareVersion, 
-        ipAddress, 
-        active ? 1 : 0
+        version,
+        firmwareVersion,
+        ipAddress,
+        clientId || null,
+        active ? 1 : 0,
+        isActive ? 1 : 0
       ]);
 
-      if (!result.lastInsertRowid) {
+      const insertedId = result?.rows?.[0]?.totem_id ?? result?.rows?.[0]?.id ?? result.lastInsertRowid;
+
+      if (!insertedId) {
         throw new Error('Erro ao criar totem');
       }
 
       // Buscar totem criado
-      const newTotem = await this.getTotemById(result.lastInsertRowid);
+      const newTotem = await this.getTotemById(insertedId);
       if (!newTotem) {
         throw new Error('Erro ao buscar totem criado');
       }
@@ -504,6 +575,11 @@ export class TotemService {
       const updates: string[] = [];
       const params: any[] = [];
 
+      if (data.name !== undefined) {
+        updates.push('name = ?');
+        params.push(data.name);
+      }
+
       if (data.identifier !== undefined) {
         updates.push('identifier = ?');
         params.push(data.identifier);
@@ -517,6 +593,11 @@ export class TotemService {
       if (data.localId !== undefined) {
         updates.push('local_id = ?');
         params.push(data.localId);
+      }
+
+      if (data.location !== undefined) {
+        updates.push('location = ?');
+        params.push(data.location);
       }
 
       if (data.description !== undefined) {
@@ -544,9 +625,27 @@ export class TotemService {
         params.push(data.ipAddress);
       }
 
+      if (data.clientId !== undefined) {
+        updates.push('client_id = ?');
+        params.push(data.clientId);
+      }
+
       if (data.active !== undefined) {
+        const value = data.active ? 1 : 0;
         updates.push('active = ?');
-        params.push(data.active ? 1 : 0);
+        params.push(value);
+        updates.push('is_active = ?');
+        params.push(value);
+      }
+
+      if (data.isActive !== undefined) {
+        const value = data.isActive ? 1 : 0;
+        updates.push('is_active = ?');
+        params.push(value);
+        if (data.active === undefined) {
+          updates.push('active = ?');
+          params.push(value);
+        }
       }
 
       if (updates.length === 0) {
