@@ -326,6 +326,7 @@ install_dependencies() {
         gnupg \
         lsb-release \
         build-essential \
+        openssl \
         python3 \
         python3-pip \
         postgresql-client \
@@ -1385,12 +1386,38 @@ ensure_admin_user() {
     local admin_hash=""
 
     if command -v openssl >/dev/null 2>&1; then
-        admin_hash=$(openssl passwd -bcrypt "$admin_password" | tr -d '\r')
+        if admin_hash=$(openssl passwd -bcrypt "$admin_password" 2>/dev/null | tr -d '\r'); then
+            if [[ ${#admin_hash} -ne 60 ]]; then
+                admin_hash=""
+            fi
+        fi
     fi
 
-    # Fallback caso openssl não esteja disponível ou retorne vazio
+    # Segunda tentativa utilizando Node + bcryptjs caso openssl não esteja disponível ou falhe
     if [[ -z "$admin_hash" || ${#admin_hash} -ne 60 ]]; then
-        log "⚠️ openssl não disponível ou hash inválido. Usando hash padrão pré-calculado."
+        if command -v node >/dev/null 2>&1; then
+            admin_hash=$(node - <<'NODE' 2>/dev/null
+const password = 'admin123';
+let hash = '';
+try {
+  const bcrypt = require('bcryptjs');
+  hash = bcrypt.hashSync(password, 12);
+} catch (err) {
+  process.stderr.write(err?.message || String(err));
+}
+if (hash) {
+  process.stdout.write(hash);
+}
+NODE
+)
+            # Normalizar hash (caso Node insira newline)
+            admin_hash=$(echo -n "$admin_hash" | tr -d '\r')
+        fi
+    fi
+
+    # Fallback final caso ainda não tenha hash válido
+    if [[ -z "$admin_hash" || ${#admin_hash} -ne 60 ]]; then
+        log "⚠️ Não foi possível gerar hash dinamicamente. Usando hash padrão pré-calculado."
         admin_hash="\$2a\$12\$8qqKvzz3fLvLY7hkVx1hG.lfdeQ1PRKO6NrSGHO93WWru9gYrVf.W"
     fi
 

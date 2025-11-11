@@ -239,6 +239,7 @@ app.use('/api/settings', authMiddleware, settingsRoutes);
 app.use('/api/reports', authMiddleware, reportsRoutes);
 app.use('/api/ai', authMiddleware, aiRoutes);
 app.use('/api/smart-playlist', authMiddleware, smartPlaylistRoutes);
+app.use('/api/dashboard', authMiddleware, dashboardRoutes);
 app.use('/api/export-queries', exportQueriesRoutes);
 app.use('/api/export-schedules', exportSchedulesRoutes);
 app.use('/api/export-executions', exportExecutionsRoutes);
