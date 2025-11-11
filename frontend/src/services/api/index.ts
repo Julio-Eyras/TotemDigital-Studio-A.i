@@ -659,7 +659,27 @@ export const analyticsApi = {
     clientId?: number;
   }): Promise<AnalyticsData> => {
     const response = await api.get('/analytics/overview', { params });
-    return response.data.data;
+    const payload = response.data.data;
+
+    return {
+      totalViews: payload.totalViews || 0,
+      totalDuration: payload.totalDuration || 0,
+      averageViewDuration: payload.averageViewDuration || 0,
+      uniqueViewers: payload.uniqueViewers || 0,
+      viewsByDate: Array.isArray(payload.viewingTrends)
+        ? payload.viewingTrends.map((trend: any) => ({
+            date: trend.date,
+            views: trend.views,
+          }))
+        : [],
+      viewsByMedia: Array.isArray(payload.mostViewedContent)
+        ? payload.mostViewedContent.map((item: any) => ({
+            mediaId: item.mediaId,
+            mediaName: item.title,
+            views: item.views,
+          }))
+        : [],
+    };
   },
 
   getMediaAnalytics: async (mediaId: number) => {

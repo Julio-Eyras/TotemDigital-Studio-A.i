@@ -124,6 +124,7 @@ export class ReportsService {
           template, custom_fields, ai_analysis, created_by
         )
         VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+        RETURNING report_id
       `, [
         request.type,
         request.title,
@@ -136,11 +137,11 @@ export class ReportsService {
         createdBy
       ]);
 
-      if (!result.lastInsertRowid) {
+      const reportId = result.rows?.[0]?.report_id;
+
+      if (!reportId) {
         throw new Error('Erro ao criar registro de relatório');
       }
-
-      const reportId = result.lastInsertRowid;
 
       // Atualizar status para gerando
       await this.db.executeRaw(`
@@ -1143,6 +1144,7 @@ export class ReportsService {
           is_default, is_public, created_by
         )
         VALUES (?, ?, ?, ?, ?, ?, ?)
+        RETURNING template_id
       `, [
         templateData.name,
         templateData.description || null,
@@ -1153,11 +1155,11 @@ export class ReportsService {
         createdBy
       ]);
 
-      if (!result.lastInsertRowid) {
+      const templateId = result.rows?.[0]?.template_id;
+
+      if (!templateId) {
         throw new Error('Erro ao criar template de relatório');
       }
-
-      const templateId = result.lastInsertRowid;
 
       // Buscar template criado
       const template = await this.db.findFirst(`
