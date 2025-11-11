@@ -29,7 +29,7 @@ export class DashboardService {
     try {
       // Contar mídia
       const mediaCount = await this.db.findFirst(`
-        SELECT COUNT(*) as total FROM medias WHERE status = 'active'
+        SELECT COUNT(*) as total FROM medias
       `);
 
       // Contar playlists
@@ -51,17 +51,19 @@ export class DashboardService {
       const activePlayerCount = await this.db.findFirst(`
         SELECT COUNT(*) as total 
         FROM totems 
-        WHERE is_active = true 
-        AND last_heartbeat IS NOT NULL 
-        AND last_heartbeat > NOW() - INTERVAL '5 minutes'
+        WHERE COALESCE(is_active, true) = true 
+        AND COALESCE(last_heartbeat, "lastHeartbeat") IS NOT NULL 
+        AND COALESCE(last_heartbeat, "lastHeartbeat") > NOW() - INTERVAL '5 minutes'
       `);
 
-      // Contar players offline
       const offlinePlayerCount = await this.db.findFirst(`
         SELECT COUNT(*) as total 
         FROM totems 
-        WHERE is_active = true 
-        AND (last_heartbeat IS NULL OR last_heartbeat <= NOW() - INTERVAL '5 minutes')
+        WHERE COALESCE(is_active, true) = true 
+        AND (
+          COALESCE(last_heartbeat, "lastHeartbeat") IS NULL 
+          OR COALESCE(last_heartbeat, "lastHeartbeat") <= NOW() - INTERVAL '5 minutes'
+        )
       `);
 
       return {
@@ -91,12 +93,11 @@ export class DashboardService {
         SELECT 
           'upload' as type,
           'Novo arquivo "' || name || '" enviado' as message,
-          created_at as timestamp,
+          COALESCE(created_at, "createdAt") as timestamp,
           'success' as status,
           media_id::text as id
         FROM medias 
-        WHERE status = 'active'
-        ORDER BY created_at DESC 
+        ORDER BY COALESCE(created_at, "createdAt") DESC 
         LIMIT $1
       `, [Math.floor(limit / 3)]);
 
@@ -108,15 +109,21 @@ export class DashboardService {
           'playlist' as type,
           'Playlist "' || name || '" ' || 
           CASE 
-            WHEN updated_at > created_at THEN 'atualizada'
+            WHEN COALESCE(updated_at, "updatedAt") > COALESCE(created_at, "createdAt") THEN 'atualizada'
             ELSE 'criada'
           END as message,
-          GREATEST(created_at, updated_at) as timestamp,
+          GREATEST(
+            COALESCE(created_at, "createdAt"),
+            COALESCE(updated_at, "updatedAt")
+          ) as timestamp,
           'success' as status,
           playlist_id::text as id
         FROM playlists 
-        WHERE is_active = true
-        ORDER BY GREATEST(created_at, updated_at) DESC 
+        WHERE COALESCE(is_active, true) = true
+        ORDER BY GREATEST(
+          COALESCE(created_at, "createdAt"),
+          COALESCE(updated_at, "updatedAt")
+        ) DESC 
         LIMIT $1
       `, [Math.floor(limit / 3)]);
 
@@ -126,20 +133,22 @@ export class DashboardService {
       const recentPlayers = await this.db.findMany(`
         SELECT 
           'player' as type,
-          'Player "' || name || '" ' ||
+          'Player "' || COALESCE(name, identifier, 'Totem ' || totem_id::text) || '" ' ||
           CASE 
-            WHEN last_heartbeat IS NULL OR last_heartbeat <= NOW() - INTERVAL '5 minutes' THEN 'ficou offline'
+            WHEN COALESCE(last_heartbeat, "lastHeartbeat") IS NULL 
+              OR COALESCE(last_heartbeat, "lastHeartbeat") <= NOW() - INTERVAL '5 minutes' THEN 'ficou offline'
             ELSE 'está online'
           END as message,
-          COALESCE(last_heartbeat, updated_at) as timestamp,
+          COALESCE(last_heartbeat, "lastHeartbeat", updated_at, "updatedAt") as timestamp,
           CASE 
-            WHEN last_heartbeat IS NULL OR last_heartbeat <= NOW() - INTERVAL '5 minutes' THEN 'warning'
+            WHEN COALESCE(last_heartbeat, "lastHeartbeat") IS NULL 
+              OR COALESCE(last_heartbeat, "lastHeartbeat") <= NOW() - INTERVAL '5 minutes' THEN 'warning'
             ELSE 'success'
           END as status,
           totem_id::text as id
         FROM totems 
-        WHERE is_active = true
-        ORDER BY COALESCE(last_heartbeat, updated_at) DESC 
+        WHERE COALESCE(is_active, true) = true
+        ORDER BY COALESCE(last_heartbeat, "lastHeartbeat", updated_at, "updatedAt") DESC 
         LIMIT $1
       `, [Math.floor(limit / 3)]);
 
@@ -217,39 +226,44 @@ export class DashboardService {
           media_type as type,
           COUNT(*) as count
         FROM medias 
-        WHERE status = 'active'
         GROUP BY media_type
         ORDER BY count DESC
       `);
 
-      // Players por status
       const playersByStatus = await this.db.findMany(`
         SELECT 
           CASE 
-            WHEN last_heartbeat IS NULL OR last_heartbeat <= NOW() - INTERVAL '5 minutes' THEN 'offline'
+            WHEN COALESCE(last_heartbeat, "lastHeartbeat") IS NULL 
+              OR COALESCE(last_heartbeat, "lastHeartbeat") <= NOW() - INTERVAL '5 minutes' THEN 'offline'
             ELSE 'online'
           END as status,
           COUNT(*) as count
         FROM totems 
-        WHERE is_active = true
+        WHERE COALESCE(is_active, true) = true
         GROUP BY 
           CASE 
-            WHEN last_heartbeat IS NULL OR last_heartbeat <= NOW() - INTERVAL '5 minutes' THEN 'offline'
+            WHEN COALESCE(last_heartbeat, "lastHeartbeat") IS NULL 
+              OR COALESCE(last_heartbeat, "lastHeartbeat") <= NOW() - INTERVAL '5 minutes' THEN 'offline'
             ELSE 'online'
           END
       `);
 
-      // Atividade por dia (últimos 7 dias)
       const activityByDay = await this.db.findMany(`
         SELECT 
           DATE(created_at) as date,
           COUNT(*) as count
         FROM (
-          SELECT created_at FROM medias WHERE created_at >= NOW() - INTERVAL '7 days'
+          SELECT COALESCE(created_at, "createdAt") as created_at 
+          FROM medias 
+          WHERE COALESCE(created_at, "createdAt") >= NOW() - INTERVAL '7 days'
           UNION ALL
-          SELECT created_at FROM playlists WHERE created_at >= NOW() - INTERVAL '7 days'
+          SELECT COALESCE(created_at, "createdAt") 
+          FROM playlists 
+          WHERE COALESCE(created_at, "createdAt") >= NOW() - INTERVAL '7 days'
           UNION ALL
-          SELECT created_at FROM users WHERE created_at >= NOW() - INTERVAL '7 days'
+          SELECT COALESCE(created_at, "createdAt") 
+          FROM users 
+          WHERE COALESCE(created_at, "createdAt") >= NOW() - INTERVAL '7 days'
         ) activities
         GROUP BY DATE(created_at)
         ORDER BY date DESC

@@ -59,7 +59,7 @@ export class PlaylistService {
       const { page = 1, limit = 10, search, clientId } = params;
       const offset = (page - 1) * limit;
 
-      let whereClause = 'WHERE p.is_active = true';
+      let whereClause = 'WHERE COALESCE(p.is_active, true) = true';
       const queryParams: any[] = [];
 
       if (search) {
@@ -79,9 +79,9 @@ export class PlaylistService {
           p.name,
           p.description,
           p.client_id,
-          p.is_active,
-          p.created_at,
-          p.updated_at,
+          COALESCE(p.is_active, true) as is_active,
+          COALESCE(p.created_at, p."createdAt") as created_at,
+          COALESCE(p.updated_at, p."updatedAt") as updated_at,
           c.name as client_name,
           COUNT(pi.item_id) as media_count,
           COALESCE(SUM(pi.duration), 0) as total_duration
@@ -89,8 +89,16 @@ export class PlaylistService {
         LEFT JOIN clients c ON p.client_id = c.client_id
         LEFT JOIN playlist_items pi ON p.playlist_id = pi.playlist_id
         ${whereClause}
-        GROUP BY p.playlist_id, p.name, p.description, p.client_id, p.is_active, p.created_at, p.updated_at, c.name
-        ORDER BY p.created_at DESC
+        GROUP BY 
+          p.playlist_id, 
+          p.name, 
+          p.description, 
+          p.client_id, 
+          COALESCE(p.is_active, true),
+          COALESCE(p.created_at, p."createdAt"),
+          COALESCE(p.updated_at, p."updatedAt"),
+          c.name
+        ORDER BY COALESCE(p.created_at, p."createdAt") DESC
         LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
       `, [...queryParams, limit, offset]);
 
@@ -124,9 +132,9 @@ export class PlaylistService {
           p.name,
           p.description,
           p.client_id,
-          p.is_active,
-          p.created_at,
-          p.updated_at,
+          COALESCE(p.is_active, true) as is_active,
+          COALESCE(p.created_at, p."createdAt") as created_at,
+          COALESCE(p.updated_at, p."updatedAt") as updated_at,
           c.name as client_name,
           COUNT(pi.item_id) as media_count,
           COALESCE(SUM(pi.duration), 0) as total_duration
@@ -134,7 +142,15 @@ export class PlaylistService {
         LEFT JOIN clients c ON p.client_id = c.client_id
         LEFT JOIN playlist_items pi ON p.playlist_id = pi.playlist_id
         WHERE p.playlist_id = $1
-        GROUP BY p.playlist_id, p.name, p.description, p.client_id, p.is_active, p.created_at, p.updated_at, c.name
+        GROUP BY 
+          p.playlist_id, 
+          p.name, 
+          p.description, 
+          p.client_id, 
+          COALESCE(p.is_active, true),
+          COALESCE(p.created_at, p."createdAt"),
+          COALESCE(p.updated_at, p."updatedAt"),
+          c.name
       `, [id]);
 
       return playlist;
@@ -162,8 +178,8 @@ export class PlaylistService {
 
       // Criar playlist
       const result = await this.db.executeRaw(`
-        INSERT INTO playlists (name, description, client_id, is_active, created_at, updated_at)
-        VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO playlists (name, description, client_id, is_active)
+        VALUES ($1, $2, $3, true)
         RETURNING playlist_id
       `, [name, description, clientId]);
 
