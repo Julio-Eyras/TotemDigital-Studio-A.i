@@ -684,6 +684,25 @@ install_project_dependencies() {
         fi
         
         log "✅ Arquivos compilados verificados (authService.js, database.js)"
+
+        # Sincronizar build compilado com diretório de deploy (single-server / development)
+        if [[ "$INSTALL_MODE" == "single-server" ]] || [[ "$INSTALL_MODE" == "development" ]]; then
+            local backend_dist_dir="$(pwd)/dist"
+            local backend_deploy_dir="/opt/smart-signage/backend"
+
+            log "Sincronizando build do backend para $backend_deploy_dir..."
+            sudo mkdir -p "$backend_deploy_dir/dist"
+            sudo rsync -a --delete "$backend_dist_dir/" "$backend_deploy_dir/dist/" || {
+                error "❌ Falha ao copiar build do backend para $backend_deploy_dir/dist"
+                exit 1
+            }
+            sudo rsync -a "$(pwd)/package.json" "$backend_deploy_dir/" || {
+                error "❌ Falha ao atualizar package.json em $backend_deploy_dir"
+                exit 1
+            }
+            sudo chmod -R 755 "$backend_deploy_dir/dist" 2>/dev/null || true
+            log "✅ Build do backend sincronizado em $backend_deploy_dir"
+        fi
         
         # Verificar se o serviço systemd existe e reiniciar se necessário
         if [[ -f "/etc/systemd/system/smart-signage.service" ]] && systemctl is-active --quiet smart-signage 2>/dev/null; then
