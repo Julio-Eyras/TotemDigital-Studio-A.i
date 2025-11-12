@@ -307,7 +307,7 @@ export class BillingService {
 
       // Verificar se cliente existe
       const client = await this.db.findFirst(`
-        SELECT client_id FROM clients WHERE client_id = ? AND active = 1
+        SELECT client_id FROM clients WHERE client_id = ? AND COALESCE(is_active, true) = true
       `, [clientId]);
 
       if (!client) {
@@ -344,6 +344,7 @@ export class BillingService {
           notes, metadata
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING billing_id
       `, [
         clientId,
         campaignId,
@@ -360,12 +361,13 @@ export class BillingService {
         metadata ? JSON.stringify(metadata) : null
       ]);
 
-      if (!result.lastInsertRowid) {
+      const billingRow = result.rows?.[0];
+      if (!billingRow || !billingRow.billing_id) {
         throw new Error('Erro ao criar fatura');
       }
 
       // Buscar fatura criada
-      const newBilling = await this.getBillingById(result.lastInsertRowid);
+      const newBilling = await this.getBillingById(billingRow.billing_id);
       if (!newBilling) {
         throw new Error('Erro ao buscar fatura criada');
       }
@@ -539,11 +541,12 @@ export class BillingService {
       }
 
       // Registrar pagamento
-      const result = await this.db.executeRaw(`
+      const insertResult = await this.db.executeRaw(`
         INSERT INTO payments (
           billing_id, amount, payment_method, payment_reference, notes, metadata
         )
         VALUES (?, ?, ?, ?, ?, ?)
+        RETURNING payment_id
       `, [
         billingId,
         amount,
@@ -553,7 +556,8 @@ export class BillingService {
         metadata ? JSON.stringify(metadata) : null
       ]);
 
-      if (!result.lastInsertRowid) {
+      const paymentRow = insertResult.rows?.[0];
+      if (!paymentRow || !paymentRow.payment_id) {
         throw new Error('Erro ao registrar pagamento');
       }
 
@@ -578,7 +582,7 @@ export class BillingService {
           'completed' as status
         FROM payments
         WHERE payment_id = ?
-      `, [result.lastInsertRowid]);
+      `, [paymentRow.payment_id]);
 
       if (!payment) {
         throw new Error('Erro ao buscar pagamento criado');
@@ -635,49 +639,49 @@ export class BillingService {
     try {
       // Total de faturas
       const totalResult = await this.db.findFirst(`
-        SELECT COUNT(*) as total FROM billing
+        SELECT COUNT(*)::int as total FROM billing
       `);
 
       // Por status
       const pendingResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM billing WHERE status = 'pending'
+        SELECT COUNT(*)::int as count FROM billing WHERE status = 'pending'
       `);
 
       const paidResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM billing WHERE status = 'paid'
+        SELECT COUNT(*)::int as count FROM billing WHERE status = 'paid'
       `);
 
       const overdueResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM billing WHERE status = 'overdue'
+        SELECT COUNT(*)::int as count FROM billing WHERE status = 'overdue'
       `);
 
       const cancelledResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM billing WHERE status = 'cancelled'
+        SELECT COUNT(*)::int as count FROM billing WHERE status = 'cancelled'
       `);
 
       // Valores por status
       const pendingAmountResult = await this.db.findFirst(`
-        SELECT SUM(amount) as total FROM billing WHERE status = 'pending'
+        SELECT COALESCE(SUM(amount), 0)::float as total FROM billing WHERE status = 'pending'
       `);
 
       const paidAmountResult = await this.db.findFirst(`
-        SELECT SUM(amount) as total FROM billing WHERE status = 'paid'
+        SELECT COALESCE(SUM(amount), 0)::float as total FROM billing WHERE status = 'paid'
       `);
 
       const overdueAmountResult = await this.db.findFirst(`
-        SELECT SUM(amount) as total FROM billing WHERE status = 'overdue'
+        SELECT COALESCE(SUM(amount), 0)::float as total FROM billing WHERE status = 'overdue'
       `);
 
       const totalAmountResult = await this.db.findFirst(`
-        SELECT SUM(amount) as total FROM billing
+        SELECT COALESCE(SUM(amount), 0)::float as total FROM billing
       `);
 
       // Por tipo
       const byType = await this.db.findMany(`
         SELECT 
           billing_type as type, 
-          COUNT(*) as count, 
-          SUM(amount) as amount
+          COUNT(*)::int as count, 
+          COALESCE(SUM(amount), 0)::float as amount
         FROM billing
         GROUP BY billing_type
         ORDER BY count DESC
@@ -688,8 +692,8 @@ export class BillingService {
         SELECT 
           b.client_id as clientId,
           cl.name as clientName,
-          COUNT(*) as count,
-          SUM(b.amount) as amount
+          COUNT(*)::int as count,
+          COALESCE(SUM(b.amount), 0)::float as amount
         FROM billing b
         LEFT JOIN clients cl ON b.client_id = cl.client_id
         GROUP BY b.client_id, cl.name
@@ -700,28 +704,28 @@ export class BillingService {
       // Por mês
       const byMonth = await this.db.findMany(`
         SELECT 
-          strftime('%Y-%m', created_at) as month,
-          COUNT(*) as count,
-          SUM(amount) as amount
+          TO_CHAR(created_at, 'YYYY-MM') as month,
+          COUNT(*)::int as count,
+          COALESCE(SUM(amount), 0)::float as amount
         FROM billing
-        WHERE created_at >= datetime('now', '-12 months')
-        GROUP BY strftime('%Y-%m', created_at)
+        WHERE created_at >= NOW() - INTERVAL '12 months'
+        GROUP BY TO_CHAR(created_at, 'YYYY-MM')
         ORDER BY month DESC
       `);
 
       // Atividade recente (últimos 7 dias)
       const newBillingsResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM billing WHERE created_at >= datetime('now', '-7 days')
+        SELECT COUNT(*)::int as count FROM billing WHERE created_at >= NOW() - INTERVAL '7 days'
       `);
 
       const paidBillingsResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM billing 
-        WHERE status = 'paid' AND paid_at >= datetime('now', '-7 days')
+        SELECT COUNT(*)::int as count FROM billing 
+        WHERE status = 'paid' AND paid_at >= NOW() - INTERVAL '7 days'
       `);
 
       const overdueBillingsResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM billing 
-        WHERE status = 'overdue' AND updated_at >= datetime('now', '-7 days')
+        SELECT COUNT(*)::int as count FROM billing 
+        WHERE status = 'overdue' AND updated_at >= NOW() - INTERVAL '7 days'
       `);
 
       return {
@@ -810,7 +814,7 @@ export class BillingService {
         WHERE status = 'pending' AND due_date < CURRENT_TIMESTAMP
       `);
 
-      return result.changes || 0;
+      return result.rowCount || 0;
 
     } catch (error: any) {
       console.error('❌ Erro ao marcar faturas como vencidas:', error.message);

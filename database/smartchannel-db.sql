@@ -294,6 +294,55 @@ CREATE TABLE IF NOT EXISTS remote_commands (
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
+-- Billing
+CREATE TABLE IF NOT EXISTS billing (
+    billing_id SERIAL PRIMARY KEY,
+    client_id INTEGER NOT NULL,
+    campaign_id INTEGER,
+    totem_id INTEGER,
+    billing_type TEXT NOT NULL,
+    amount NUMERIC(12, 2) NOT NULL,
+    currency TEXT DEFAULT 'BRL',
+    description TEXT,
+    due_date TIMESTAMP,
+    status TEXT DEFAULT 'pending',
+    payment_method TEXT,
+    payment_reference TEXT,
+    notes TEXT,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    paid_at TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE,
+    FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE SET NULL,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_billing_client_id ON billing(client_id);
+CREATE INDEX IF NOT EXISTS idx_billing_campaign_id ON billing(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_billing_totem_id ON billing(totem_id);
+CREATE INDEX IF NOT EXISTS idx_billing_status ON billing(status);
+CREATE INDEX IF NOT EXISTS idx_billing_due_date ON billing(due_date);
+
+-- Payments
+CREATE TABLE IF NOT EXISTS payments (
+    payment_id SERIAL PRIMARY KEY,
+    billing_id INTEGER NOT NULL,
+    amount NUMERIC(12, 2) NOT NULL,
+    currency TEXT DEFAULT 'BRL',
+    payment_method TEXT,
+    payment_reference TEXT,
+    notes TEXT,
+    metadata JSONB,
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'completed',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (billing_id) REFERENCES billing(billing_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_payments_billing_id ON payments(billing_id);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
+
 -- Analytics Sessions
 CREATE TABLE IF NOT EXISTS analytics_sessions (
     id SERIAL PRIMARY KEY,

@@ -59,6 +59,18 @@ export class SettingsService {
     return (global as any).auditServiceInstance;
   }
 
+  private tryParseJson(value?: string | null): any {
+    if (!value) {
+      return undefined;
+    }
+
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+
   /**
    * Busca todas as configurações organizadas por categoria
    */
@@ -113,7 +125,7 @@ export class SettingsService {
         categories[setting.category].settings.push({
           ...setting,
           value: convertedValue,
-          options: setting.options ? JSON.parse(setting.options) : undefined
+          options: this.tryParseJson(setting.options)
         });
       });
 
@@ -160,7 +172,7 @@ export class SettingsService {
       return {
         ...setting,
         value: this.convertSettingValue(setting.value, setting.type),
-        options: setting.options ? JSON.parse(setting.options) : undefined
+        options: this.tryParseJson(setting.options)
       };
 
     } catch (error: any) {

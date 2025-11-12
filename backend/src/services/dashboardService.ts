@@ -52,8 +52,8 @@ export class DashboardService {
         SELECT COUNT(*) as total 
         FROM totems 
         WHERE COALESCE(is_active, true) = true 
-        AND COALESCE(last_heartbeat, "lastHeartbeat") IS NOT NULL 
-        AND COALESCE(last_heartbeat, "lastHeartbeat") > NOW() - INTERVAL '5 minutes'
+        AND last_heartbeat IS NOT NULL 
+        AND last_heartbeat > NOW() - INTERVAL '5 minutes'
       `);
 
       const offlinePlayerCount = await this.db.findFirst(`
@@ -61,8 +61,8 @@ export class DashboardService {
         FROM totems 
         WHERE COALESCE(is_active, true) = true 
         AND (
-          COALESCE(last_heartbeat, "lastHeartbeat") IS NULL 
-          OR COALESCE(last_heartbeat, "lastHeartbeat") <= NOW() - INTERVAL '5 minutes'
+          last_heartbeat IS NULL 
+          OR last_heartbeat <= NOW() - INTERVAL '5 minutes'
         )
       `);
 
@@ -93,11 +93,11 @@ export class DashboardService {
         SELECT 
           'upload' as type,
           'Novo arquivo "' || name || '" enviado' as message,
-          COALESCE(created_at, "createdAt") as timestamp,
+          created_at as timestamp,
           'success' as status,
           media_id::text as id
         FROM medias 
-        ORDER BY COALESCE(created_at, "createdAt") DESC 
+        ORDER BY created_at DESC 
         LIMIT $1
       `, [Math.floor(limit / 3)]);
 
@@ -109,20 +109,20 @@ export class DashboardService {
           'playlist' as type,
           'Playlist "' || name || '" ' || 
           CASE 
-            WHEN COALESCE(updated_at, "updatedAt") > COALESCE(created_at, "createdAt") THEN 'atualizada'
+            WHEN updated_at > created_at THEN 'atualizada'
             ELSE 'criada'
           END as message,
           GREATEST(
-            COALESCE(created_at, "createdAt"),
-            COALESCE(updated_at, "updatedAt")
+            created_at,
+            updated_at
           ) as timestamp,
           'success' as status,
           playlist_id::text as id
         FROM playlists 
         WHERE COALESCE(is_active, true) = true
         ORDER BY GREATEST(
-          COALESCE(created_at, "createdAt"),
-          COALESCE(updated_at, "updatedAt")
+          created_at,
+          updated_at
         ) DESC 
         LIMIT $1
       `, [Math.floor(limit / 3)]);
@@ -135,20 +135,20 @@ export class DashboardService {
           'player' as type,
           'Player "' || COALESCE(name, identifier, 'Totem ' || totem_id::text) || '" ' ||
           CASE 
-            WHEN COALESCE(last_heartbeat, "lastHeartbeat") IS NULL 
-              OR COALESCE(last_heartbeat, "lastHeartbeat") <= NOW() - INTERVAL '5 minutes' THEN 'ficou offline'
+            WHEN last_heartbeat IS NULL 
+              OR last_heartbeat <= NOW() - INTERVAL '5 minutes' THEN 'ficou offline'
             ELSE 'está online'
           END as message,
-          COALESCE(last_heartbeat, "lastHeartbeat", updated_at, "updatedAt") as timestamp,
+          COALESCE(last_heartbeat, updated_at) as timestamp,
           CASE 
-            WHEN COALESCE(last_heartbeat, "lastHeartbeat") IS NULL 
-              OR COALESCE(last_heartbeat, "lastHeartbeat") <= NOW() - INTERVAL '5 minutes' THEN 'warning'
+            WHEN last_heartbeat IS NULL 
+              OR last_heartbeat <= NOW() - INTERVAL '5 minutes' THEN 'warning'
             ELSE 'success'
           END as status,
           totem_id::text as id
         FROM totems 
         WHERE COALESCE(is_active, true) = true
-        ORDER BY COALESCE(last_heartbeat, "lastHeartbeat", updated_at, "updatedAt") DESC 
+        ORDER BY COALESCE(last_heartbeat, updated_at) DESC 
         LIMIT $1
       `, [Math.floor(limit / 3)]);
 
@@ -233,8 +233,8 @@ export class DashboardService {
       const playersByStatus = await this.db.findMany(`
         SELECT 
           CASE 
-            WHEN COALESCE(last_heartbeat, "lastHeartbeat") IS NULL 
-              OR COALESCE(last_heartbeat, "lastHeartbeat") <= NOW() - INTERVAL '5 minutes' THEN 'offline'
+            WHEN last_heartbeat IS NULL 
+              OR last_heartbeat <= NOW() - INTERVAL '5 minutes' THEN 'offline'
             ELSE 'online'
           END as status,
           COUNT(*) as count
@@ -242,8 +242,8 @@ export class DashboardService {
         WHERE COALESCE(is_active, true) = true
         GROUP BY 
           CASE 
-            WHEN COALESCE(last_heartbeat, "lastHeartbeat") IS NULL 
-              OR COALESCE(last_heartbeat, "lastHeartbeat") <= NOW() - INTERVAL '5 minutes' THEN 'offline'
+            WHEN last_heartbeat IS NULL 
+              OR last_heartbeat <= NOW() - INTERVAL '5 minutes' THEN 'offline'
             ELSE 'online'
           END
       `);
@@ -253,17 +253,17 @@ export class DashboardService {
           DATE(created_at) as date,
           COUNT(*) as count
         FROM (
-          SELECT COALESCE(created_at, "createdAt") as created_at 
+          SELECT created_at 
           FROM medias 
-          WHERE COALESCE(created_at, "createdAt") >= NOW() - INTERVAL '7 days'
+          WHERE created_at >= NOW() - INTERVAL '7 days'
           UNION ALL
-          SELECT COALESCE(created_at, "createdAt") 
+          SELECT created_at 
           FROM playlists 
-          WHERE COALESCE(created_at, "createdAt") >= NOW() - INTERVAL '7 days'
+          WHERE created_at >= NOW() - INTERVAL '7 days'
           UNION ALL
-          SELECT COALESCE(created_at, "createdAt") 
+          SELECT created_at 
           FROM users 
-          WHERE COALESCE(created_at, "createdAt") >= NOW() - INTERVAL '7 days'
+          WHERE created_at >= NOW() - INTERVAL '7 days'
         ) activities
         GROUP BY DATE(created_at)
         ORDER BY date DESC
