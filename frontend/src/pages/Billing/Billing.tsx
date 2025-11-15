@@ -19,7 +19,13 @@ const Billing: React.FC = () => {
       setLoading(true);
       const resp = await billingApi.getAll();
       // billingApi.getAll() já retorna BillingItem[]
-      setItems(Array.isArray(resp) ? resp : []);
+      const itemsArray = Array.isArray(resp) ? resp : [];
+      // Garantir que amount seja sempre número
+      const normalizedItems = itemsArray.map(item => ({
+        ...item,
+        amount: typeof item.amount === 'number' ? item.amount : parseFloat(String(item.amount || 0))
+      }));
+      setItems(normalizedItems);
     } catch (e) {
       console.error('Erro ao carregar faturas:', e);
       setError('Erro ao carregar faturas');
@@ -72,7 +78,9 @@ const Billing: React.FC = () => {
             <Card>
               <CardContent>
                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>{b.billing_type}</Typography>
-                <Typography variant="body2" color="text.secondary">R$ {b.amount?.toFixed(2)}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  R$ {typeof b.amount === 'number' ? b.amount.toFixed(2) : parseFloat(String(b.amount || 0)).toFixed(2)}
+                </Typography>
                 <Typography variant="caption" color="text.secondary">Status: {b.status}</Typography>
                 {b.due_date && (
                   <Typography variant="caption" color="text.secondary" display="block">Vencimento: {new Date(b.due_date).toLocaleDateString('pt-BR')}</Typography>
