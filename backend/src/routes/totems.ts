@@ -39,7 +39,13 @@ router.get('/',
         status: status as string | undefined,
         clientId: clientId ? parseInt(clientId as string) : undefined
       });
-      res.json(result);
+      // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
+      res.json({
+        data: result.totems || [],
+        total: result.total || 0,
+        page: result.page || 1,
+        limit: result.limit || 10
+      });
     } catch (error: any) {
       console.error('❌ Erro ao listar totems:', error.message || error);
       res.status(500).json({ 
@@ -68,7 +74,13 @@ router.get('/pending',
         limit: parseInt(limit as string) || 10,
         status: 'pending_approval'
       });
-      res.json(result);
+      // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
+      res.json({
+        data: result.totems || [],
+        total: result.total || 0,
+        page: result.page || 1,
+        limit: result.limit || 10
+      });
     } catch (error: any) {
       console.error('❌ Erro ao listar totems pendentes:', error.message || error);
       res.status(500).json({ 
