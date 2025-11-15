@@ -328,12 +328,12 @@ export class SmartPlaylistService {
       } = data;
 
       // Validar campos obrigatórios
-      if (!clientId) {
-        throw new Error('clientId é obrigatório');
+      if (!clientId || (typeof clientId === 'number' && clientId <= 0)) {
+        throw new Error('clientId é obrigatório e deve ser um número válido');
       }
 
-      if (!name || name.trim() === '') {
-        throw new Error('name é obrigatório');
+      if (!name || (typeof name === 'string' && name.trim() === '')) {
+        throw new Error('name é obrigatório e não pode estar vazio');
       }
 
       // Verificar se cliente existe

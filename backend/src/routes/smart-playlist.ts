@@ -143,10 +143,23 @@ router.post('/', async (req: any, res) => {
   try {
     const playlistData = req.body;
 
+    // Remover campos undefined
+    Object.keys(playlistData).forEach(key => {
+      if (playlistData[key] === undefined) {
+        delete playlistData[key];
+      }
+    });
+
     // Se clientId não foi fornecido, usar o do usuário autenticado
     if (!playlistData.clientId) {
       if (req.user.role === 'client' && req.user.clientId) {
         playlistData.clientId = req.user.clientId;
+      } else if (req.user.role === 'admin' || req.user.role === 'manager') {
+        // Admin/Manager precisa fornecer clientId explicitamente
+        return res.status(400).json({
+          success: false,
+          message: 'clientId é obrigatório para criar smart playlist'
+        });
       } else {
         return res.status(400).json({
           success: false,

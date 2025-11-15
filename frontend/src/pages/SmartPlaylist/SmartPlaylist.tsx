@@ -31,12 +31,26 @@ const SmartPlaylist: React.FC = () => {
 
   const handleCreate = async () => {
     try {
-      await smartPlaylistApi.create(request);
+      // Remover campos undefined antes de enviar
+      const dataToSend: any = {
+        name: request.name,
+        description: request.description || '',
+        rules: request.rules || []
+      };
+      
+      // Só incluir clientId se estiver definido
+      if (request.clientId) {
+        dataToSend.clientId = request.clientId;
+      }
+      
+      await smartPlaylistApi.create(dataToSend);
       setCreateOpen(false);
       setRequest({ name: '', description: '', rules: [], clientId: undefined });
       loadAll();
-    } catch (e) {
-      setError('Erro ao criar Smart Playlist');
+    } catch (e: any) {
+      console.error('Erro ao criar Smart Playlist:', e);
+      const errorMessage = e?.response?.data?.message || e?.message || 'Erro ao criar Smart Playlist';
+      setError(errorMessage);
     }
   };
 
