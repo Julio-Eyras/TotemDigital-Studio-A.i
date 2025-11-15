@@ -840,8 +840,13 @@ export const smartPlaylistApi = {
   getAll: async (): Promise<SmartPlaylist[]> => {
     try {
       const response = await api.get('/smart-playlist');
-      const data = response.data?.data || response.data;
-      return Array.isArray(data) ? data : [];
+      const result = response.data?.data || response.data;
+      // Backend retorna { playlists: SmartPlaylist[], total, page, limit }
+      if (result && typeof result === 'object' && 'playlists' in result) {
+        return Array.isArray(result.playlists) ? result.playlists : [];
+      }
+      // Se for array direto, retornar
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error('Erro ao buscar smart playlists:', error);
       return [];
