@@ -935,8 +935,14 @@ export const billingApi = {
   }): Promise<BillingItem[]> => {
     try {
       const response = await api.get('/billing', { params });
-      const data = response.data?.data || response.data;
-      return Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+      // Backend retorna { success: true, data: result }
+      // onde result tem { billings: BillingItem[], total, page, limit }
+      const result = response.data?.data || response.data;
+      if (result && typeof result === 'object' && 'billings' in result) {
+        return Array.isArray(result.billings) ? result.billings : [];
+      }
+      // Se for array direto, retornar
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error('Erro ao buscar faturas:', error);
       return [];

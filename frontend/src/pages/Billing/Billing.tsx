@@ -18,8 +18,8 @@ const Billing: React.FC = () => {
     try {
       setLoading(true);
       const resp = await billingApi.getAll();
-      const data = Array.isArray(resp) ? resp : (resp?.data || []);
-      setItems(Array.isArray(data) ? data : []);
+      // billingApi.getAll() já retorna BillingItem[]
+      setItems(Array.isArray(resp) ? resp : []);
     } catch (e) {
       console.error('Erro ao carregar faturas:', e);
       setError('Erro ao carregar faturas');

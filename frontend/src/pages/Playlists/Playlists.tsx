@@ -107,9 +107,11 @@ const Playlists: React.FC = () => {
   const loadPlaylistMedia = async (playlistId: number) => {
     try {
       const media = await playlistApi.getMedia(playlistId);
-      setPlaylistMedia(media);
+      // playlistApi.getMedia() já retorna PlaylistMediaItem[]
+      setPlaylistMedia(Array.isArray(media) ? media : []);
     } catch (error) {
       console.error('Erro ao carregar mídia da playlist:', error);
+      setPlaylistMedia([]);
     }
   };
 
