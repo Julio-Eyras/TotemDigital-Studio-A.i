@@ -52,6 +52,73 @@ router.get('/',
 );
 
 /**
+ * @route GET /api/totems/pending
+ * @desc Listar totems pendentes de aprovação
+ * @access Private (Admin)
+ */
+router.get('/pending',
+  query('page').optional().isInt({ min: 1 }),
+  query('limit').optional().isInt({ min: 1, max: 100 }),
+  validateRequest,
+  async (req: Request, res: Response) => {
+    try {
+      const { page = 1, limit = 10 } = req.query;
+      const result = await getTotemService().getAllTotems({
+        page: parseInt(page as string) || 1,
+        limit: parseInt(limit as string) || 10,
+        status: 'pending_approval'
+      });
+      res.json(result);
+    } catch (error: any) {
+      console.error('❌ Erro ao listar totems pendentes:', error.message || error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Erro ao listar totems pendentes',
+        message: error.message || 'Erro interno do servidor'
+      });
+    }
+  }
+);
+
+/**
+ * @route GET /api/totems/stats/overview
+ * @desc Obter estatísticas de totems
+ * @access Private (Admin/Manager)
+ */
+router.get('/stats/overview', async (req: Request, res: Response) => {
+  try {
+    const stats = await getTotemService().getTotemStats(1); // Default totem
+    res.json(stats);
+  } catch (error: any) {
+    console.error('❌ Erro ao obter estatísticas:', error.message || error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Erro ao obter estatísticas',
+      message: error.message || 'Erro interno do servidor'
+    });
+  }
+});
+
+/**
+ * @route GET /api/totems/stats/offline
+ * @desc Obter totems offline
+ * @access Private (Admin/Manager)
+ */
+router.get('/stats/offline', async (req: Request, res: Response) => {
+  try {
+    const offlineTotems = await getTotemService().getOfflineTotems();
+    res.json(offlineTotems);
+  } catch (error: any) {
+    console.error('❌ Erro ao obter totems offline:', error.message || error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Erro ao obter totems offline',
+      message: error.message || 'Erro interno do servidor'
+    });
+  }
+});
+
+/**
  * @route GET /api/totems/:id
  * @desc Obter totem por ID
  * @access Private
@@ -316,34 +383,6 @@ router.get('/:id/analytics',
 );
 
 /**
- * @route GET /api/totems/stats/overview
- * @desc Obter estatísticas de totems
- * @access Private (Admin/Manager)
- */
-router.get('/stats/overview', async (req: Request, res: Response) => {
-  try {
-    const stats = await getTotemService().getTotemStats(1); // Default totem
-    res.json(stats);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao obter estatísticas' });
-  }
-});
-
-/**
- * @route GET /api/totems/stats/offline
- * @desc Obter totems offline
- * @access Private (Admin/Manager)
- */
-router.get('/stats/offline', async (req: Request, res: Response) => {
-  try {
-    const offlineTotems = await getTotemService().getOfflineTotems();
-    res.json(offlineTotems);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao obter totems offline' });
-  }
-});
-
-/**
  * @route PUT /api/totems/:id/approve
  * @desc Aprovar totem pendente de aprovação
  * @access Private (Admin)
@@ -438,30 +477,6 @@ router.put('/:id/approve',
     } catch (error: any) {
       console.error('❌ Erro ao aprovar totem:', error.message);
       res.status(500).json({ error: 'Erro ao aprovar totem', details: error.message });
-    }
-  }
-);
-
-/**
- * @route GET /api/totems/pending
- * @desc Listar totems pendentes de aprovação
- * @access Private (Admin)
- */
-router.get('/pending',
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  validateRequest,
-  async (req: Request, res: Response) => {
-    try {
-      const { page = 1, limit = 10 } = req.query;
-      const result = await getTotemService().getAllTotems({
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
-        status: 'pending_approval'
-      });
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({ error: 'Erro ao listar totems pendentes' });
     }
   }
 );
