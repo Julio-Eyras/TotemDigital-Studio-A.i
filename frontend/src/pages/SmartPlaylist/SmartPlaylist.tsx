@@ -18,9 +18,12 @@ const SmartPlaylist: React.FC = () => {
     try {
       setLoading(true);
       const resp = await smartPlaylistApi.getAll();
-      setItems(resp);
+      // Garantir que resp seja sempre um array
+      setItems(Array.isArray(resp) ? resp : []);
     } catch (e) {
+      console.error('Erro ao carregar Smart Playlists:', e);
       setError('Erro ao carregar Smart Playlists');
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -55,7 +58,7 @@ const SmartPlaylist: React.FC = () => {
       </Box>
 
       <Grid container spacing={3}>
-        {items.map((sp) => (
+        {Array.isArray(items) && items.map((sp) => (
           <Grid item xs={12} sm={6} md={4} key={sp.smart_playlist_id}>
             <Card>
               <CardContent>

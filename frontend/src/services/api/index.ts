@@ -838,8 +838,14 @@ export const smartPlaylistApi = {
   },
 
   getAll: async (): Promise<SmartPlaylist[]> => {
-    const response = await api.get('/smart-playlist');
-    return response.data.data;
+    try {
+      const response = await api.get('/smart-playlist');
+      const data = response.data?.data || response.data;
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Erro ao buscar smart playlists:', error);
+      return [];
+    }
   },
 
   getById: async (id: number): Promise<SmartPlaylist> => {
