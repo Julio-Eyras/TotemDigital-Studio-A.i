@@ -126,7 +126,8 @@ export class TotemService {
       filters.page || 1,
       filters.limit || 1000,
       {
-        isActive: filters.status === 'active',
+        status: filters.status,
+        isActive: filters.status === 'active' ? true : filters.status === 'inactive' ? false : undefined,
         search: filters.search
       }
     );

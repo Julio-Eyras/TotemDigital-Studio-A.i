@@ -150,13 +150,13 @@ class DatabaseWrapper {
 
     // Substituir ? por $1, $2, etc.
     convertedQuery = convertedQuery.replace(/\?/g, () => {
-      const index = paramIndex - 1;
+      const index = values.length;
       if (index < params.length) {
         values.push(params[index]);
         paramIndex++;
         return `$${paramIndex - 1}`;
       }
-      throw new Error(`Not enough parameters for query. Expected more than ${index}`);
+      throw new Error(`Not enough parameters for query. Expected ${index + 1} but got ${params.length}`);
     });
 
     return { text: convertedQuery, values };
