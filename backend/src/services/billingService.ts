@@ -318,6 +318,12 @@ export class BillingService {
         throw new Error('amount é obrigatório e deve ser maior que zero');
       }
 
+      // Gerar descrição padrão se não fornecida
+      const finalDescription = description || `Fatura ${billingType} - R$ ${amount.toFixed(2)}`;
+
+      // Gerar data de vencimento padrão se não fornecida (30 dias a partir de hoje)
+      const finalDueDate = dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
       // Verificar se cliente existe
       const client = await this.db.findFirst(`
         SELECT client_id FROM clients WHERE client_id = ? AND COALESCE(is_active, true) = true
@@ -365,8 +371,8 @@ export class BillingService {
         billingType,
         amount,
         currency,
-        description,
-        dueDate,
+        finalDescription,
+        finalDueDate,
         status,
         paymentMethod,
         paymentReference,
