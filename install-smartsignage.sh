@@ -1,12 +1,20 @@
 #!/bin/bash
 
 # =============================================================================
-# Smart Signage Pro v2.0 - Script de Auto-Instalação para Ubuntu
+# Smart Signage Pro - Script de Auto-Instalação para Ubuntu
+# =============================================================================
+# Versão do Sistema: 2.1.0
+# Versão do Script: 2.1.1
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta 3 modos: Single-Server, Docker, Desenvolvimento
 #
 # Uso: ./install-smartsignage.sh [OPÇÕES]
+# =============================================================================
+
+# Versões (podem ser diferentes)
+SYSTEM_VERSION="2.1.0"
+SCRIPT_VERSION="2.1.1"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (apaga TUDO, incluindo volumes)
@@ -184,9 +192,12 @@ show_banner() {
     clear
     echo -e "${PURPLE}"
     echo "╔══════════════════════════════════════════════════════════════╗"
-    echo "║                    Smart Signage Pro v2.0                   ║"
+    echo "║                    Smart Signage Pro                        ║"
     echo "║              Sistema de Sinalização Digital                 ║"
     echo "║                    Auto-Instalação Ubuntu                   ║"
+    echo "╠══════════════════════════════════════════════════════════════╣"
+    echo "║  Versão do Sistema: ${SYSTEM_VERSION}                                    ║"
+    echo "║  Versão do Script:  ${SCRIPT_VERSION}                                    ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
