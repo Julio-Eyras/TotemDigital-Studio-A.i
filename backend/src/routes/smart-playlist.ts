@@ -143,6 +143,18 @@ router.post('/', async (req: any, res) => {
   try {
     const playlistData = req.body;
 
+    // Se clientId não foi fornecido, usar o do usuário autenticado
+    if (!playlistData.clientId) {
+      if (req.user.role === 'client' && req.user.clientId) {
+        playlistData.clientId = req.user.clientId;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'clientId é obrigatório'
+        });
+      }
+    }
+
     // Verificar permissão
     if (req.user.role === 'client' && req.user.clientId !== playlistData.clientId) {
       return res.status(403).json({
@@ -160,11 +172,12 @@ router.post('/', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar smart playlist:', error.message);
+    console.error('❌ Erro ao criar smart playlist:', error.message || error);
+    console.error('❌ Stack trace:', error.stack);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar smart playlist',
-      error: error.message
+      error: error.message || 'Erro desconhecido'
     });
   }
 });

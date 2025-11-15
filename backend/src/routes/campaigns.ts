@@ -205,6 +205,18 @@ router.post('/', async (req: any, res) => {
   try {
     const campaignData = req.body;
 
+    // Se clientId não foi fornecido, usar o do usuário autenticado
+    if (!campaignData.clientId) {
+      if (req.user.role === 'client' && req.user.clientId) {
+        campaignData.clientId = req.user.clientId;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'clientId é obrigatório'
+        });
+      }
+    }
+
     // Verificar permissão
     if (req.user.role === 'client' && req.user.clientId !== campaignData.clientId) {
       return res.status(403).json({
@@ -222,11 +234,12 @@ router.post('/', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar campanha:', error.message);
+    console.error('❌ Erro ao criar campanha:', error.message || error);
+    console.error('❌ Stack trace:', error.stack);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar campanha',
-      error: error.message
+      error: error.message || 'Erro desconhecido'
     });
   }
 });

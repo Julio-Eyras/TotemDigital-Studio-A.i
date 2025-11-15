@@ -327,6 +327,15 @@ export class SmartPlaylistService {
         rules = []
       } = data;
 
+      // Validar campos obrigatórios
+      if (!clientId) {
+        throw new Error('clientId é obrigatório');
+      }
+
+      if (!name || name.trim() === '') {
+        throw new Error('name é obrigatório');
+      }
+
       // Verificar se cliente existe
       const client = await this.db.findFirst(`
         SELECT client_id FROM clients WHERE client_id = ? AND COALESCE(is_active, true) = true

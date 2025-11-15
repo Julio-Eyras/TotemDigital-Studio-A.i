@@ -263,6 +263,15 @@ export class CampaignService {
         isActive = true
       } = data;
 
+      // Validar campos obrigatórios
+      if (!clientId) {
+        throw new Error('clientId é obrigatório');
+      }
+
+      if (!title || title.trim() === '') {
+        throw new Error('title é obrigatório');
+      }
+
       // Verificar se cliente existe
       const client = await this.db.findFirst(`
         SELECT client_id FROM clients WHERE client_id = ? AND COALESCE(is_active, true) = true
