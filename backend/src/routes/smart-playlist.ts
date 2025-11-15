@@ -144,6 +144,18 @@ router.post('/', async (req: any, res) => {
   try {
     const playlistData = req.body;
 
+    // Log para debug
+    console.log('📝 [Smart Playlist] Dados recebidos:', JSON.stringify(playlistData, null, 2));
+    console.log('📝 [Smart Playlist] Usuário:', { userId: req.user?.userId, role: req.user?.role, clientId: req.user?.clientId });
+
+    // Validar campos obrigatórios básicos
+    if (!playlistData.name || (typeof playlistData.name === 'string' && playlistData.name.trim() === '')) {
+      return res.status(400).json({
+        success: false,
+        message: 'name é obrigatório e não pode estar vazio'
+      });
+    }
+
     // Remover campos undefined
     Object.keys(playlistData).forEach(key => {
       if (playlistData[key] === undefined) {
@@ -155,25 +167,31 @@ router.post('/', async (req: any, res) => {
     if (!playlistData.clientId) {
       if (req.user.role === 'client' && req.user.clientId) {
         playlistData.clientId = req.user.clientId;
+        console.log('📝 [Smart Playlist] Usando clientId do usuário:', playlistData.clientId);
       } else if (req.user.role === 'admin' || req.user.role === 'manager') {
         // Para admin/manager, buscar primeiro cliente ativo se não fornecido
         try {
+          console.log('📝 [Smart Playlist] Buscando primeiro cliente ativo...');
           const firstClient = await getSmartPlaylistService().getFirstActiveClient();
           if (firstClient) {
             playlistData.clientId = firstClient.client_id;
+            console.log('📝 [Smart Playlist] Cliente encontrado:', playlistData.clientId);
           } else {
+            console.error('❌ [Smart Playlist] Nenhum cliente ativo encontrado');
             return res.status(400).json({
               success: false,
               message: 'Nenhum cliente encontrado. É necessário criar um cliente antes de criar smart playlists.'
             });
           }
         } catch (error: any) {
+          console.error('❌ [Smart Playlist] Erro ao buscar primeiro cliente:', error.message);
           return res.status(400).json({
             success: false,
             message: 'clientId é obrigatório para criar smart playlist'
           });
         }
       } else {
+        console.error('❌ [Smart Playlist] Role inválido ou sem clientId:', req.user.role);
         return res.status(400).json({
           success: false,
           message: 'clientId é obrigatório'
@@ -188,6 +206,8 @@ router.post('/', async (req: any, res) => {
         message: 'Acesso negado: Você só pode criar smart playlists para seu próprio cliente'
       });
     }
+
+    console.log('📝 [Smart Playlist] Dados finais antes de criar:', JSON.stringify(playlistData, null, 2));
 
     const playlist = await getSmartPlaylistService().createSmartPlaylist(playlistData, req.user.userId);
 

@@ -31,10 +31,16 @@ const SmartPlaylist: React.FC = () => {
 
   const handleCreate = async () => {
     try {
+      // Validar nome antes de enviar
+      if (!request.name || request.name.trim() === '') {
+        setError('Nome é obrigatório');
+        return;
+      }
+
       // Remover campos undefined antes de enviar
       const dataToSend: any = {
-        name: request.name,
-        description: request.description || '',
+        name: request.name.trim(),
+        description: request.description?.trim() || '',
         rules: request.rules || []
       };
       
@@ -43,13 +49,17 @@ const SmartPlaylist: React.FC = () => {
         dataToSend.clientId = request.clientId;
       }
       
+      console.log('📝 [Frontend] Enviando dados:', dataToSend);
+      
       await smartPlaylistApi.create(dataToSend);
       setCreateOpen(false);
       setRequest({ name: '', description: '', rules: [], clientId: undefined });
+      setError(null);
       loadAll();
     } catch (e: any) {
       console.error('Erro ao criar Smart Playlist:', e);
-      const errorMessage = e?.response?.data?.message || e?.message || 'Erro ao criar Smart Playlist';
+      console.error('Resposta completa:', e?.response);
+      const errorMessage = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Erro ao criar Smart Playlist';
       setError(errorMessage);
     }
   };
