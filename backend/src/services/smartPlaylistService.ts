@@ -111,6 +111,25 @@ export class SmartPlaylistService {
   private get db() {
     return getDatabase();
   }
+
+  /**
+   * Busca o primeiro cliente ativo (para uso quando clientId não é fornecido)
+   */
+  async getFirstActiveClient(): Promise<{ client_id: number } | null> {
+    try {
+      const client = await this.db.findFirst(`
+        SELECT client_id 
+        FROM clients 
+        WHERE COALESCE(is_active, true) = true 
+        ORDER BY client_id ASC 
+        LIMIT 1
+      `);
+      return client;
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar primeiro cliente:', error.message);
+      return null;
+    }
+  }
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
