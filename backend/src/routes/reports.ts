@@ -446,11 +446,12 @@ router.get('/types', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar tipos de relatório:', error.message);
+    console.error('❌ Erro ao buscar tipos de relatório:', error.message || error);
+    console.error('❌ Stack trace:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
+      error: error.message || 'Erro desconhecido'
     });
   }
 });

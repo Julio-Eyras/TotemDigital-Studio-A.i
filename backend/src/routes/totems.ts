@@ -23,25 +23,30 @@ router.use(authMiddleware);
  * @access Private
  */
 router.get('/', 
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('search').optional().isString(),
-  query('status').optional().isString(),
-  query('clientId').optional().isInt({ min: 1 }),
+  query('page').optional().isInt({ min: 1 }).withMessage('page deve ser um número inteiro maior que 0'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit deve ser um número inteiro entre 1 e 100'),
+  query('search').optional().isString().withMessage('search deve ser uma string'),
+  query('status').optional().isString().withMessage('status deve ser uma string'),
+  query('clientId').optional().isInt({ min: 1 }).withMessage('clientId deve ser um número inteiro maior que 0'),
   validateRequest,
   async (req: Request, res: Response) => {
     try {
       const { page = 1, limit = 10, search, status, clientId } = req.query;
       const result = await getTotemService().getAllTotems({
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
-        search: search as string,
-        status: status as string,
+        page: parseInt(page as string) || 1,
+        limit: parseInt(limit as string) || 10,
+        search: search as string | undefined,
+        status: status as string | undefined,
         clientId: clientId ? parseInt(clientId as string) : undefined
       });
       res.json(result);
-    } catch (error) {
-      res.status(500).json({ error: 'Erro ao listar totems' });
+    } catch (error: any) {
+      console.error('❌ Erro ao listar totems:', error.message || error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Erro ao listar totems',
+        message: error.message || 'Erro interno do servidor'
+      });
     }
   }
 );
