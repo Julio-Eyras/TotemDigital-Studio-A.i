@@ -234,10 +234,28 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res) => {
       metadata: billingData.metadata
     };
 
-    // Se clientId não foi fornecido, usar o do usuário autenticado
+    // Se clientId não foi fornecido, usar o do usuário autenticado ou buscar primeiro cliente
     if (!mappedData.clientId) {
       if (req.user.role === 'client' && req.user.clientId) {
         mappedData.clientId = req.user.clientId;
+      } else if (req.user.role === 'admin' || req.user.role === 'manager') {
+        // Para admin/manager, buscar primeiro cliente ativo se não fornecido
+        try {
+          const firstClient = await getBillingService().getFirstActiveClient();
+          if (firstClient) {
+            mappedData.clientId = firstClient.client_id;
+          } else {
+            return res.status(400).json({
+              success: false,
+              message: 'Nenhum cliente encontrado. É necessário criar um cliente antes de criar faturas.'
+            });
+          }
+        } catch (error: any) {
+          return res.status(400).json({
+            success: false,
+            message: 'clientId é obrigatório para criar fatura'
+          });
+        }
       } else {
         return res.status(400).json({
           success: false,
