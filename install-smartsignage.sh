@@ -1101,10 +1101,58 @@ EOF
         fi
         
         log "Instalando dependências do frontend..."
+        
+        # Validar package.json antes de instalar
+        log "Validando package.json..."
+        if grep -q '"ajv":\s*"\^8\.17\.1"' package.json 2>/dev/null; then
+            warn "Corrigindo versão antiga do ajv no package.json..."
+            sed -i 's/"ajv":\s*"\^8\.17\.1"/"ajv": "^8.12.0"/g' package.json
+            sed -i 's/8\.17\.1/8.12.0/g' package.json
+        fi
+        if grep -q '"ajv-keywords":\s*"\^5\.' package.json 2>/dev/null; then
+            warn "Corrigindo versão do ajv-keywords no package.json..."
+            sed -i 's/"ajv-keywords":\s*"\^5\./"ajv-keywords": "^3.5./g' package.json
+            sed -i 's/5\.1\.0/3.5.2/g' package.json
+        fi
+        
+        # Limpar instalações anteriores
+        log "Limpando instalações anteriores..."
+        rm -rf node_modules package-lock.json 2>/dev/null || true
+        npm cache clean --force 2>/dev/null || true
+        
         # Instalar ajv e ajv-keywords explicitamente primeiro para resolver conflitos
         # Usar versões compatíveis: ajv@^8.12.0 e ajv-keywords@^3.5.2 (compatível com react-scripts 5.0.1)
-        npm install ajv@^8.12.0 ajv-keywords@^3.5.2 --legacy-peer-deps --save-dev || true
-        npm install --legacy-peer-deps
+        log "Instalando ajv e ajv-keywords explicitamente..."
+        if ! npm install ajv@^8.12.0 ajv-keywords@^3.5.2 --legacy-peer-deps --save-dev --no-audit --no-fund 2>&1 | tee /tmp/npm-install-ajv.log; then
+            error "Falha ao instalar ajv e ajv-keywords"
+            tail -20 /tmp/npm-install-ajv.log
+            exit 1
+        fi
+        
+        # Instalar todas as dependências
+        log "Instalando todas as dependências do frontend..."
+        if ! npm install --legacy-peer-deps --no-audit --no-fund 2>&1 | tee /tmp/npm-install-all.log; then
+            error "Falha ao instalar dependências do frontend"
+            tail -30 /tmp/npm-install-all.log
+            exit 1
+        fi
+        
+        # Validar instalação
+        log "Validando instalação..."
+        if [ ! -d "node_modules" ] || [ ! -d "node_modules/react-scripts" ]; then
+            error "Dependências não foram instaladas corretamente!"
+            exit 1
+        fi
+        
+        # Verificar versões instaladas
+        AJV_VER=$(npm list ajv --depth=0 2>/dev/null | grep ajv@ | head -1 || echo "")
+        if [ -n "$AJV_VER" ]; then
+            log "✅ Versão instalada: $AJV_VER"
+            if echo "$AJV_VER" | grep -q "8.17.1"; then
+                error "Versão incorreta do ajv instalada (8.17.1)!"
+                exit 1
+            fi
+        fi
         
         # Verificação final: garantir que o import NÃO tenha extensão .tsx
         # TypeScript/Webpack NÃO permite extensões em imports de arquivos TypeScript
