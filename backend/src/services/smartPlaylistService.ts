@@ -200,6 +200,7 @@ export class SmartPlaylistService {
       // Buscar smart playlists
       const playlists = await this.db.findMany(`
         SELECT 
+          sp.smart_playlist_id,
           sp.smart_playlist_id as id,
           sp.client_id as clientId,
           sp.campaign_id as campaignId,
@@ -291,6 +292,7 @@ export class SmartPlaylistService {
     try {
       const playlist = await this.db.findFirst(`
         SELECT 
+          sp.smart_playlist_id,
           sp.smart_playlist_id as id,
           sp.client_id as clientId,
           sp.campaign_id as campaignId,
