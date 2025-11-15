@@ -1102,18 +1102,43 @@ EOF
         
         log "Instalando dependências do frontend..."
         
-        # Validar package.json antes de instalar
-        log "Validando package.json..."
-        if grep -q '"ajv":\s*"\^8\.17\.1"' package.json 2>/dev/null; then
-            warn "Corrigindo versão antiga do ajv no package.json..."
-            sed -i 's/"ajv":\s*"\^8\.17\.1"/"ajv": "^8.12.0"/g' package.json
+        # Validar e corrigir package.json ANTES de instalar
+        log "Validando e corrigindo package.json..."
+        
+        # Verificar e corrigir TODAS as ocorrências de versões antigas
+        if grep -q "8\.17\.1" package.json 2>/dev/null; then
+            warn "Versão antiga do ajv (8.17.1) detectada - corrigindo..."
+            # Substituir todas as ocorrências de 8.17.1 por 8.12.0
             sed -i 's/8\.17\.1/8.12.0/g' package.json
+            log "✅ Versão corrigida para 8.12.0"
         fi
-        if grep -q '"ajv-keywords":\s*"\^5\.' package.json 2>/dev/null; then
-            warn "Corrigindo versão do ajv-keywords no package.json..."
-            sed -i 's/"ajv-keywords":\s*"\^5\./"ajv-keywords": "^3.5./g' package.json
+        
+        if grep -q '"ajv-keywords":\s*"\^5\.' package.json 2>/dev/null || grep -q "5\.1\.0" package.json 2>/dev/null; then
+            warn "Versão incompatível do ajv-keywords detectada - corrigindo..."
+            # Substituir todas as ocorrências de 5.1.0 por 3.5.2
             sed -i 's/5\.1\.0/3.5.2/g' package.json
+            # Corrigir também padrões como ^5.x
+            sed -i 's/"ajv-keywords":\s*"\^5\./"ajv-keywords": "^3.5./g' package.json
+            log "✅ Versão corrigida para 3.5.2"
         fi
+        
+        # Verificar se ainda há problemas
+        if grep -q "8\.17\.1" package.json 2>/dev/null; then
+            error "Falha ao corrigir package.json - ainda contém 8.17.1"
+            error "Conteúdo do package.json (overrides):"
+            grep -A 5 '"overrides"' package.json || true
+            exit 1
+        fi
+        
+        # Verificar se as versões corretas estão configuradas
+        log "Verificando versões configuradas..."
+        OVERRIDE_AJV=$(grep -A 3 '"overrides"' package.json | grep '"ajv"' | grep -oE '\^[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+        if [ -n "$OVERRIDE_AJV" ] && [[ "$OVERRIDE_AJV" == *"8.17.1"* ]]; then
+            error "Override ainda contém versão incorreta: $OVERRIDE_AJV"
+            exit 1
+        fi
+        
+        log "✅ package.json validado e corrigido"
         
         # Limpar instalações anteriores
         log "Limpando instalações anteriores..."
