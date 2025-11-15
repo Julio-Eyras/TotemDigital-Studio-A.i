@@ -110,9 +110,24 @@ app.use(cors(corsOptions));
 // Compression
 app.use(compression());
 
-// Body parsing - Aumentado para suportar uploads maiores
-app.use(express.json({ limit: '500mb' }));
-app.use(express.urlencoded({ extended: true, limit: '500mb' }));
+// Body parsing - Configuração dinâmica de mídia
+import { loadMediaConfig, getExpressLimit } from './config/mediaConfig';
+
+// Carregar configurações de mídia na inicialização
+loadMediaConfig().catch(err => {
+  console.error('❌ Erro ao carregar configurações de mídia na inicialização:', err);
+});
+
+// Middleware dinâmico para body parsing (lê configuração do banco em cada requisição)
+app.use((req, res, next) => {
+  const expressLimit = getExpressLimit();
+  express.json({ limit: expressLimit })(req, res, next);
+});
+
+app.use((req, res, next) => {
+  const expressLimit = getExpressLimit();
+  express.urlencoded({ extended: true, limit: expressLimit })(req, res, next);
+});
 
 // Logging
 app.use(morgan('combined'));

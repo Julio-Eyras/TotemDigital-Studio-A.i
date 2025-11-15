@@ -6,6 +6,7 @@ import { body, param, query } from 'express-validator';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { getMediaConfig, getMaxFileSize, getAllowedMimeTypes, getStoragePath } from '../config/mediaConfig';
 
 const router = Router();
 
@@ -20,34 +21,64 @@ function getMediaService(): MediaService {
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
 
-// Configuração do multer para upload de arquivos
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+// Função para criar configuração dinâmica do multer
+function createMulterConfig() {
+  const config = getMediaConfig();
+  const allowedMimeTypes = getAllowedMimeTypes();
+  const storagePath = getStoragePath();
+
+  // Criar diretório se não existir
+  if (!fs.existsSync(storagePath)) {
+    fs.mkdirSync(storagePath, { recursive: true });
   }
-});
 
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 500 * 1024 * 1024 // 500MB
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|mp4|avi|mov|wmv|flv|webm|mp3|wav|ogg/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Tipo de arquivo não permitido'));
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, storagePath);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
-  }
-});
+  });
+
+  // Criar regex dinâmico baseado nos tipos permitidos
+  const allowedExtensions = allowedMimeTypes.map(type => {
+    if (type.startsWith('image/')) return 'jpeg|jpg|png|gif|webp';
+    if (type.startsWith('video/')) return 'mp4|avi|mov|wmv|flv|webm|ogg';
+    if (type.startsWith('audio/')) return 'mp3|wav|ogg';
+    return '';
+  }).filter(Boolean).join('|');
+
+  const allowedTypesRegex = new RegExp(allowedExtensions, 'i');
+
+  return multer({
+    storage: storage,
+    limits: {
+      fileSize: config.maxSize
+    },
+    fileFilter: (req, file, cb) => {
+      const extname = allowedTypesRegex.test(path.extname(file.originalname).toLowerCase());
+      const mimetype = allowedMimeTypes.includes(file.mimetype);
+
+      if (mimetype && extname) {
+        return cb(null, true);
+      } else {
+        cb(new Error(`Tipo de arquivo não permitido. Tipos permitidos: ${allowedMimeTypes.join(', ')}`));
+      }
+    }
+  });
+}
+
+// Criar instância inicial do multer (será recriada quando configurações mudarem)
+let upload = createMulterConfig();
+
+// Função helper para obter instância atualizada do multer
+function getMulterUpload() {
+  // Recriar configuração para garantir que está atualizada
+  upload = createMulterConfig();
+  return upload;
+}
 
 /**
  * @route GET /api/media
@@ -106,7 +137,7 @@ router.get('/:id',
  * @access Private
  */
 router.post('/upload',
-  upload.single('file'),
+  (req, res, next) => getMulterUpload().single('file')(req, res, next),
   body('name').optional().isString().isLength({ min: 1, max: 100 }),
   body('description').optional().isString(),
   body('tags').optional().isString(),
@@ -159,7 +190,7 @@ router.post('/upload',
  * @access Private
  */
 router.post('/upload-multiple',
-  upload.array('files', 10), // Máximo 10 arquivos
+  (req, res, next) => getMulterUpload().array('files', 10)(req, res, next), // Máximo 10 arquivos
   body('clientId').optional().isInt({ min: 1 }),
   validateRequest,
   async (req: Request, res: Response) => {

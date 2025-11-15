@@ -1101,7 +1101,7 @@ EOF
         fi
         
         log "Instalando dependências do frontend..."
-        npm install
+        npm install --legacy-peer-deps
         
         # Verificação final: garantir que o import NÃO tenha extensão .tsx
         # TypeScript/Webpack NÃO permite extensões em imports de arquivos TypeScript
@@ -4185,7 +4185,7 @@ case "$1" in
     update)
         echo "Atualizando Smart Signage Pro (Development)..."
         cd $INSTALL_DIR/backend && npm install
-        cd $INSTALL_DIR/frontend && npm install
+        cd $INSTALL_DIR/frontend && npm install --legacy-peer-deps
         echo "Dependências atualizadas"
         ;;
     backup)

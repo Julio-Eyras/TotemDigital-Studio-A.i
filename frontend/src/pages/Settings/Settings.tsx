@@ -30,7 +30,9 @@ import {
   Storage,
   RotateRight,
   Refresh as ReloadIcon,
-  Warning
+  Warning,
+  VideoLibrary,
+  Build
 } from '@mui/icons-material';
 import { settingsApi, SystemSetting, logsApi, LogRotationConfig, LogFileInfo, DiskSpaceInfo, RotationStatus } from '../../services/api';
 
@@ -59,6 +61,7 @@ const Settings: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [settings, setSettings] = useState<SystemSetting[]>([]);
   const [logSettings, setLogSettings] = useState<SystemSetting[]>([]);
+  const [mediaSettings, setMediaSettings] = useState<SystemSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -68,6 +71,9 @@ const Settings: React.FC = () => {
   const [diskSpace, setDiskSpace] = useState<DiskSpaceInfo | null>(null);
   const [rotationStatus, setRotationStatus] = useState<RotationStatus | null>(null);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  
+  // Media config
+  const [applyingMediaConfig, setApplyingMediaConfig] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -75,6 +81,49 @@ const Settings: React.FC = () => {
       loadLogsInfo();
     }
   }, [tabValue]);
+  
+  const handleApplyMediaConfig = async (rebuild: boolean = false) => {
+    try {
+      setApplyingMediaConfig(true);
+      setError(null);
+      
+      const response = await fetch('/api/settings/media/apply', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          applyChanges: true,
+          rebuild
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        setError(result.message || 'Erro ao aplicar configurações');
+        return;
+      }
+      
+      alert('✅ Configurações de mídia aplicadas com sucesso!\n\n' +
+            'Mudanças aplicadas:\n' +
+            `- Nginx: ${result.data?.changes?.nginx ? 'Sim' : 'Não'}\n` +
+            `- Express: ${result.data?.changes?.express ? 'Sim' : 'Não'}\n` +
+            `- Multer: ${result.data?.changes?.multer ? 'Sim' : 'Não'}\n` +
+            `- Serviços reiniciados: ${result.data?.changes?.servicesRestarted ? 'Sim' : 'Não'}`);
+      
+      if (result.data?.errors && result.data.errors.length > 0) {
+        console.warn('Avisos ao aplicar configurações:', result.data.errors);
+      }
+      
+    } catch (e: any) {
+      console.error('Erro ao aplicar configurações de mídia:', e);
+      setError('Erro ao aplicar configurações: ' + (e.message || 'Erro desconhecido'));
+    } finally {
+      setApplyingMediaConfig(false);
+    }
+  };
 
   const loadSettings = async () => {
     try {
@@ -100,6 +149,10 @@ const Settings: React.FC = () => {
       // Separar configurações de logs
       const logs = allSettings.filter(s => s?.key?.startsWith('log.'));
       setLogSettings(Array.isArray(logs) ? logs : []);
+      
+      // Separar configurações de mídia
+      const media = allSettings.filter(s => s?.key?.startsWith('media.'));
+      setMediaSettings(Array.isArray(media) ? media : []);
     } catch (e) {
       console.error('Erro ao carregar configurações:', e);
       setError('Erro ao carregar configurações');
@@ -143,16 +196,33 @@ const Settings: React.FC = () => {
   const handleSave = async () => {
     try {
       setError(null);
-      const settingsToSave = tabValue === 0 
-        ? (Array.isArray(settings) ? settings.filter(s => s?.key && !s.key.startsWith('log.')) : [])
-        : (Array.isArray(logSettings) ? logSettings : []);
-      await settingsApi.updateMultiple(settingsToSave.map(s => ({ key: s.key, value: s.value })));
+      let settingsToSave: SystemSetting[] = [];
+      if (tabValue === 0) {
+        settingsToSave = Array.isArray(settings) 
+          ? settings.filter(s => s?.key && !s.key.startsWith('log.') && !s.key.startsWith('media.')) 
+          : [];
+      } else if (tabValue === 1) {
+        settingsToSave = Array.isArray(logSettings) ? logSettings : [];
+      } else if (tabValue === 2) {
+        settingsToSave = Array.isArray(mediaSettings) ? mediaSettings : [];
+      }
+      
+      // Converter para formato esperado pelo backend
+      const settingsObj: { [key: string]: any } = {};
+      settingsToSave.forEach(s => {
+        settingsObj[s.key] = s.value;
+      });
+      
+      await settingsApi.updateMultiple(settingsObj);
       
       // Recarregar logger se foram alteradas configurações de logs
       if (tabValue === 1) {
         await logsApi.reload();
         await loadLogsInfo();
       }
+      
+      // Recarregar configurações após salvar
+      await loadSettings();
     } catch (e) {
       setError('Erro ao salvar configurações');
     }
@@ -174,6 +244,9 @@ const Settings: React.FC = () => {
     setSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
     if (key.startsWith('log.')) {
       setLogSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
+    }
+    if (key.startsWith('media.')) {
+      setMediaSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
     }
   };
 
@@ -198,6 +271,7 @@ const Settings: React.FC = () => {
         >
           <Tab label="Geral" icon={<SettingsIcon />} iconPosition="start" />
           <Tab label="Logs" icon={<Storage />} iconPosition="start" />
+          <Tab label="Mídias" icon={<VideoLibrary />} iconPosition="start" />
         </Tabs>
       </Paper>
 
@@ -399,6 +473,100 @@ const Settings: React.FC = () => {
             </TableContainer>
           </CardContent>
         </Card>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={2}>
+        <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+          <Button startIcon={<Refresh />} variant="outlined" onClick={loadSettings}>
+            Recarregar
+          </Button>
+          <Button startIcon={<Save />} variant="contained" onClick={handleSave}>
+            Salvar Configurações
+          </Button>
+          <Button 
+            startIcon={<Build />} 
+            variant="contained" 
+            color="secondary"
+            onClick={() => handleApplyMediaConfig(false)}
+            disabled={applyingMediaConfig}
+          >
+            Aplicar Configurações (Nginx)
+          </Button>
+        </Box>
+
+        {applyingMediaConfig && <LinearProgress sx={{ mb: 2 }} />}
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            <strong>Como funciona:</strong> As configurações são aplicadas automaticamente ao salvar. 
+            O Express e Multer leem as configurações diretamente do banco de dados em tempo de execução.
+            Para aplicar mudanças no Nginx (que requer modificação de arquivo), clique em "Aplicar Configurações (Nginx)".
+            Isso atualizará o arquivo de configuração do Nginx e recarregará o serviço sem downtime.
+          </Typography>
+        </Alert>
+
+        <Grid container spacing={3}>
+          {Array.isArray(mediaSettings) && mediaSettings.map((s) => (
+            <Grid item xs={12} md={6} key={s.key}>
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    {s.description || s.key}
+                  </Typography>
+                  {s.type === 'boolean' ? (
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={s.value === 'true' || s.value === true}
+                          onChange={(e) => handleChange(s.key, e.target.checked.toString())}
+                        />
+                      }
+                      label={s.description || s.key}
+                    />
+                  ) : s.type === 'number' ? (
+                    <TextField
+                      fullWidth
+                      label={s.description || s.key}
+                      value={String(s.value ?? '')}
+                      onChange={(e) => handleChange(s.key, e.target.value)}
+                      type="number"
+                      helperText={s.validation ? `Validação: ${s.validation}` : undefined}
+                    />
+                  ) : (
+                    <TextField
+                      fullWidth
+                      label={s.description || s.key}
+                      value={String(s.value ?? '')}
+                      onChange={(e) => handleChange(s.key, e.target.value)}
+                      helperText={
+                        s.key.includes('size') || s.key.includes('quota')
+                          ? 'Formato: número seguido de unidade (ex: 500MB, 1GB)'
+                          : s.validation ? `Validação: ${s.validation}` : undefined
+                      }
+                    />
+                  )}
+                  {s.defaultValue && (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                      Valor padrão: {s.defaultValue}
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+
+        {mediaSettings.length === 0 && (
+          <Alert severity="warning">
+            Nenhuma configuração de mídia encontrada. Certifique-se de que as configurações foram inseridas no banco de dados.
+          </Alert>
+        )}
       </TabPanel>
     </Box>
   );

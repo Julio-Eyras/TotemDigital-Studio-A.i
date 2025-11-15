@@ -104,9 +104,9 @@ router.get('/:key', authorizeRole(['admin', 'manager']), async (req, res) => {
 /**
  * @route PUT /api/settings
  * @desc Atualiza configurações
- * @access Private (Admin, Manager)
+ * @access Private (Admin apenas - configurações parametrizáveis do sistema)
  */
-router.put('/', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.put('/', authorizeRole(['admin']), async (req, res) => {
   try {
     const settings = req.body;
 
@@ -118,6 +118,18 @@ router.put('/', authorizeRole(['admin', 'manager']), async (req, res) => {
         message: 'Erro de validação',
         data: validation
       });
+    }
+
+    // Se foram alteradas configurações de mídia, recarregar automaticamente
+    const mediaSettingsChanged = Object.keys(settings).some(key => key.startsWith('media.'));
+    if (mediaSettingsChanged) {
+      try {
+        const { reloadMediaConfig } = await import('../config/mediaConfig');
+        await reloadMediaConfig();
+        console.log('✅ Configurações de mídia recarregadas automaticamente após atualização');
+      } catch (reloadError: any) {
+        console.warn('⚠️ Erro ao recarregar configurações de mídia:', reloadError.message);
+      }
     }
 
     res.json({
@@ -447,6 +459,45 @@ router.put('/category/:category', authorizeRole(['admin', 'manager']), async (re
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar configurações da categoria',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/settings/media/apply
+ * @desc Aplica configurações de mídia ao sistema
+ * @access Private (Admin)
+ */
+router.post('/media/apply', authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { applyChanges = true } = req.body;
+
+    const { MediaConfigService } = await import('../services/mediaConfigService');
+    const mediaConfigService = new MediaConfigService();
+
+    // Aplicar configurações (Nginx + recarregar Express/Multer do banco)
+    const result = await mediaConfigService.applyMediaConfig(applyChanges);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message,
+        data: result
+      });
+    }
+
+    res.json({
+      success: true,
+      message: result.message,
+      data: result
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro ao aplicar configurações de mídia:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erro ao aplicar configurações de mídia',
       error: error.message
     });
   }

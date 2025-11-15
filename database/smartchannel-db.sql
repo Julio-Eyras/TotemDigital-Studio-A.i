@@ -2025,6 +2025,120 @@ ON CONFLICT (setting_key) DO UPDATE SET
   updated_at = CURRENT_TIMESTAMP;
 
 COMMENT ON TABLE system_settings IS 'Configurações do sistema (incluindo logs)';
-COMMENT ON COLUMN system_settings.category IS 'Categoria da configuração: logs, system, security, etc.';
+COMMENT ON COLUMN system_settings.category IS 'Categoria da configuração: logs, system, security, media, etc.';
+
+-- Inserir configurações de mídia (se não existirem)
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options) 
+VALUES
+  -- Configurações de upload de mídia
+  (
+    'media.upload.max_size',
+    '500MB',
+    'string',
+    'media',
+    'Tamanho máximo de arquivo para upload (ex: 100MB, 500MB, 1GB)',
+    false,
+    true,
+    '500MB',
+    '^\\d+(\\.\\d+)?\\s*(B|KB|MB|GB|TB)$',
+    NULL
+  ),
+  (
+    'media.upload.nginx_max_size',
+    '500M',
+    'string',
+    'media',
+    'Limite máximo do Nginx para upload (client_max_body_size)',
+    false,
+    true,
+    '500M',
+    '^\\d+(\\.\\d+)?\\s*(B|K|M|G|T)$',
+    NULL
+  ),
+  (
+    'media.upload.express_limit',
+    '500mb',
+    'string',
+    'media',
+    'Limite do Express body parser para upload',
+    false,
+    true,
+    '500mb',
+    '^\\d+(\\.\\d+)?\\s*(b|kb|mb|gb|tb)$',
+    NULL
+  ),
+  (
+    'media.upload.proxy_timeout',
+    '300',
+    'number',
+    'media',
+    'Timeout do proxy Nginx para uploads grandes (em segundos)',
+    false,
+    true,
+    '300',
+    '^\\d+$',
+    NULL
+  ),
+  (
+    'media.upload.allowed_types',
+    'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,audio/mp3,audio/wav,audio/ogg',
+    'string',
+    'media',
+    'Tipos MIME permitidos para upload (separados por vírgula)',
+    false,
+    true,
+    'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,audio/mp3,audio/wav,audio/ogg',
+    NULL,
+    NULL
+  ),
+  (
+    'media.storage.path',
+    '/opt/smart-signage/public/assets/uploads',
+    'string',
+    'media',
+    'Caminho do diretório de armazenamento de mídia',
+    false,
+    true,
+    '/opt/smart-signage/public/assets/uploads',
+    NULL,
+    NULL
+  ),
+  (
+    'media.storage.quota_per_client',
+    '5GB',
+    'string',
+    'media',
+    'Quota máxima de armazenamento por cliente',
+    false,
+    true,
+    '5GB',
+    '^\\d+(\\.\\d+)?\\s*(B|KB|MB|GB|TB)$',
+    NULL
+  ),
+  (
+    'media.storage.auto_cleanup',
+    'false',
+    'boolean',
+    'media',
+    'Limpar automaticamente mídias não utilizadas',
+    false,
+    true,
+    'false',
+    NULL,
+    NULL
+  ),
+  (
+    'media.storage.cleanup_days',
+    '90',
+    'number',
+    'media',
+    'Número de dias de inatividade antes de limpar mídia automaticamente',
+    false,
+    true,
+    '90',
+    '^\\d+$',
+    NULL
+  )
+ON CONFLICT (setting_key) DO NOTHING;
 
 
