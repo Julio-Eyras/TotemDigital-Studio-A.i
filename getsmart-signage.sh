@@ -31,15 +31,28 @@ for DIR in "$DIR1" "$DIR2"; do
     echo
 done
 
-# --- Baixar ou atualizar o repositório ---
+# --- Atualizar o repositório (sempre usa git pull, nunca clone) ---
 if [ -d "$DIR1/.git" ]; then
-    echo "→ Repositório já existe. Atualizando via git pull..."
+    echo "→ Repositório existe. Atualizando via git pull..."
     cd "$DIR1"
+    git fetch origin
     git pull origin main
+    echo "✅ Repositório atualizado"
+elif [ -d "$DIR1" ]; then
+    echo "→ Diretório existe mas não é um repositório Git."
+    echo "→ Convertendo para repositório Git..."
+    cd "$DIR1"
+    git init
+    git remote add origin https://julio-eyras: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@github.com/Julio-Eyras/smartsignage-pro.git 2>/dev/null || git remote set-url origin https://julio-eyras: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@github.com/Julio-Eyras/smartsignage-pro.git
+    git fetch origin
+    git checkout -b main origin/main 2>/dev/null || git pull origin main
+    echo "✅ Diretório convertido e atualizado"
 else
-    echo "→ Clonando o repositório SmartSignage-Pro..."
-    git clone https://julio-eyras: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@github.com/Julio-Eyras/smartsignage-pro.git  "$DIR1"
-
+    echo "❌ Erro: Diretório $DIR1 não existe!"
+    echo "→ Para primeira instalação, clone manualmente:"
+    echo "   git clone https://github.com/Julio-Eyras/smartsignage-pro.git $DIR1"
+    echo "→ Depois execute este script novamente para atualizar."
+    exit 1
 fi
 
 # --- Ajustar permissões ---
