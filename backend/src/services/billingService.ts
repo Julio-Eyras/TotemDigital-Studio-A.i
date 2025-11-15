@@ -305,6 +305,19 @@ export class BillingService {
         metadata
       } = data;
 
+      // Validar campos obrigatórios
+      if (!clientId || (typeof clientId === 'number' && clientId <= 0)) {
+        throw new Error('clientId é obrigatório e deve ser um número válido');
+      }
+
+      if (!billingType || (typeof billingType === 'string' && billingType.trim() === '')) {
+        throw new Error('billingType é obrigatório');
+      }
+
+      if (!amount || (typeof amount === 'number' && amount <= 0)) {
+        throw new Error('amount é obrigatório e deve ser maior que zero');
+      }
+
       // Verificar se cliente existe
       const client = await this.db.findFirst(`
         SELECT client_id FROM clients WHERE client_id = ? AND COALESCE(is_active, true) = true

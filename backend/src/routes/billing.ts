@@ -210,7 +210,43 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res) => {
   try {
     const billingData = req.body;
 
-    const billing = await getBillingService().createBilling(billingData, req.user.userId);
+    // Remover campos undefined
+    Object.keys(billingData).forEach(key => {
+      if (billingData[key] === undefined) {
+        delete billingData[key];
+      }
+    });
+
+    // Mapear campos do frontend para o backend
+    const mappedData: any = {
+      clientId: billingData.clientId,
+      campaignId: billingData.campaignId,
+      totemId: billingData.totemId,
+      billingType: billingData.billing_type || billingData.billingType,
+      amount: billingData.amount,
+      currency: billingData.currency || 'BRL',
+      description: billingData.description,
+      dueDate: billingData.due_date || billingData.dueDate,
+      status: billingData.status || 'pending',
+      paymentMethod: billingData.payment_method || billingData.paymentMethod,
+      paymentReference: billingData.payment_reference || billingData.paymentReference,
+      notes: billingData.notes,
+      metadata: billingData.metadata
+    };
+
+    // Se clientId não foi fornecido, usar o do usuário autenticado
+    if (!mappedData.clientId) {
+      if (req.user.role === 'client' && req.user.clientId) {
+        mappedData.clientId = req.user.clientId;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'clientId é obrigatório para criar fatura'
+        });
+      }
+    }
+
+    const billing = await getBillingService().createBilling(mappedData, req.user.userId);
 
     res.status(201).json({
       success: true,
@@ -219,11 +255,12 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar fatura:', error.message);
+    console.error('❌ Erro ao criar fatura:', error.message || error);
+    console.error('❌ Stack trace:', error.stack);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar fatura',
-      error: error.message
+      error: error.message || 'Erro desconhecido'
     });
   }
 });
