@@ -158,8 +158,8 @@ export class TotemService {
       }
 
       if (filters.isActive !== undefined) {
-        whereClause += ' AND t.is_active = ?';
-        params.push(filters.isActive ? 1 : 0);
+        whereClause += ' AND COALESCE(t.is_active, false) = ?';
+        params.push(filters.isActive);
       }
 
       if (filters.localId) {
@@ -798,7 +798,7 @@ export class TotemService {
         SELECT COUNT(*) as count
         FROM campaign_totems ct
         JOIN campaigns c ON ct.campaign_id = c.campaign_id
-        WHERE ct.totem_id = ? AND c.is_active = 1
+        WHERE ct.totem_id = ? AND COALESCE(c.is_active, true) = true
       `, [totemId]);
 
       // Contar playlists
@@ -806,7 +806,7 @@ export class TotemService {
         SELECT COUNT(*) as count
         FROM playlists p
         JOIN campaigns c ON p.campaign_id = c.campaign_id
-        WHERE p.totem_id = ? AND c.is_active = 1
+        WHERE p.totem_id = ? AND COALESCE(c.is_active, true) = true
       `, [totemId]);
 
       return {

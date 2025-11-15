@@ -93,11 +93,11 @@ export class DashboardService {
         SELECT 
           'upload' as type,
           'Novo arquivo "' || name || '" enviado' as message,
-          COALESCE(created_at, generated_at) as timestamp,
+          created_at as timestamp,
           'success' as status,
           media_id::text as id
         FROM medias 
-        ORDER BY COALESCE(created_at, generated_at) DESC 
+        ORDER BY created_at DESC 
         LIMIT $1
       `, [Math.floor(limit / 3)]);
 
@@ -109,21 +109,15 @@ export class DashboardService {
           'playlist' as type,
           'Playlist "' || name || '" ' || 
           CASE 
-            WHEN updated_at > COALESCE(created_at, generated_at) THEN 'atualizada'
+            WHEN updated_at > created_at THEN 'atualizada'
             ELSE 'criada'
           END as message,
-          GREATEST(
-            COALESCE(created_at, generated_at) as created_at,
-            updated_at
-          ) as timestamp,
+          GREATEST(created_at, updated_at) as timestamp,
           'success' as status,
           playlist_id::text as id
         FROM playlists 
         WHERE COALESCE(is_active, true) = true
-        ORDER BY GREATEST(
-          COALESCE(created_at, generated_at) as created_at,
-          updated_at
-        ) DESC 
+        ORDER BY GREATEST(created_at, updated_at) DESC 
         LIMIT $1
       `, [Math.floor(limit / 3)]);
 

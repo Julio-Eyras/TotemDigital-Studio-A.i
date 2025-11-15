@@ -233,6 +233,7 @@ app.use('/api/media', authMiddleware, mediaRoutes);
 app.use('/api/playlists', authMiddleware, playlistRoutes);
 app.use('/api/campaigns', authMiddleware, campaignRoutes);
 app.use('/api/qrcodes', authMiddleware, qrcodeRoutes);
+app.use('/api/qr-codes', authMiddleware, qrcodeRoutes); // Alias para compatibilidade com frontend
 app.use('/api/analytics', authMiddleware, analyticsRoutes);
 app.use('/api/billing', authMiddleware, billingRoutes);
 app.use('/api/settings', authMiddleware, settingsRoutes);
