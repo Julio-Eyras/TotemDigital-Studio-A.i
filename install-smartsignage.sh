@@ -1102,7 +1102,8 @@ EOF
         
         log "Instalando dependências do frontend..."
         # Instalar ajv e ajv-keywords explicitamente primeiro para resolver conflitos
-        npm install ajv@^8.17.1 ajv-keywords@^5.1.0 --legacy-peer-deps --save-dev || true
+        # Usar versões compatíveis: ajv@^8.12.0 e ajv-keywords@^3.5.2 (compatível com react-scripts 5.0.1)
+        npm install ajv@^8.12.0 ajv-keywords@^3.5.2 --legacy-peer-deps --save-dev || true
         npm install --legacy-peer-deps
         
         # Verificação final: garantir que o import NÃO tenha extensão .tsx
