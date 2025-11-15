@@ -247,10 +247,29 @@ export class SmartPlaylistService {
       const total = totalResult?.total || 0;
 
       // Processar playlists
-      const playlistsWithRules = playlists.map(playlist => ({
-        ...playlist,
-        rules: playlist.rules ? JSON.parse(playlist.rules) : []
-      }));
+      const playlistsWithRules = playlists.map(playlist => {
+        // Processar rules - pode ser string JSON, null, ou já ser um objeto
+        let parsedRules = [];
+        if (playlist.rules) {
+          if (typeof playlist.rules === 'string') {
+            try {
+              const trimmed = playlist.rules.trim();
+              if (trimmed && trimmed !== 'null' && trimmed !== '') {
+                parsedRules = JSON.parse(trimmed);
+              }
+            } catch (parseError: any) {
+              console.error('❌ Erro ao fazer parse de rules:', parseError.message);
+              parsedRules = [];
+            }
+          } else if (Array.isArray(playlist.rules)) {
+            parsedRules = playlist.rules;
+          }
+        }
+        return {
+          ...playlist,
+          rules: parsedRules
+        };
+      });
 
       return {
         playlists: playlistsWithRules,
@@ -311,13 +330,35 @@ export class SmartPlaylistService {
         return null;
       }
 
+      // Processar rules - pode ser string JSON, null, ou já ser um objeto
+      let parsedRules = [];
+      if (playlist.rules) {
+        if (typeof playlist.rules === 'string') {
+          try {
+            // Tentar fazer parse se for string
+            const trimmed = playlist.rules.trim();
+            if (trimmed && trimmed !== 'null' && trimmed !== '') {
+              parsedRules = JSON.parse(trimmed);
+            }
+          } catch (parseError: any) {
+            console.error('❌ Erro ao fazer parse de rules:', parseError.message);
+            console.error('❌ Rules value:', playlist.rules);
+            parsedRules = [];
+          }
+        } else if (Array.isArray(playlist.rules)) {
+          // Se já for array, usar diretamente
+          parsedRules = playlist.rules;
+        }
+      }
+
       return {
         ...playlist,
-        rules: playlist.rules ? JSON.parse(playlist.rules) : []
+        rules: parsedRules
       };
 
     } catch (error: any) {
       console.error('❌ Erro ao buscar smart playlist:', error.message);
+      console.error('❌ Stack trace:', error.stack);
       throw new Error('Erro interno do servidor');
     }
   }
