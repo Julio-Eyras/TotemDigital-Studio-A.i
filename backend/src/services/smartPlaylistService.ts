@@ -355,6 +355,8 @@ export class SmartPlaylistService {
 
       return {
         ...playlist,
+        smart_playlist_id: playlist.smart_playlist_id || playlist.id,
+        id: playlist.id || playlist.smart_playlist_id,
         rules: parsedRules
       };
 
