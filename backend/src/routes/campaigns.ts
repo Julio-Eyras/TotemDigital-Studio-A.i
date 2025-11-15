@@ -205,10 +205,22 @@ router.post('/', async (req: any, res) => {
   try {
     const campaignData = req.body;
 
+    // Mapear campos do frontend para o backend
+    const mappedData: any = {
+      clientId: campaignData.clientId,
+      title: campaignData.title,
+      description: campaignData.description,
+      campaignType: campaignData.campaign_type || campaignData.campaignType || 'general',
+      status: campaignData.status || 'draft',
+      startDate: campaignData.start_date || campaignData.startDate,
+      endDate: campaignData.end_date || campaignData.endDate,
+      isActive: campaignData.isActive !== undefined ? campaignData.isActive : true
+    };
+
     // Se clientId não foi fornecido, usar o do usuário autenticado
-    if (!campaignData.clientId) {
+    if (!mappedData.clientId) {
       if (req.user.role === 'client' && req.user.clientId) {
-        campaignData.clientId = req.user.clientId;
+        mappedData.clientId = req.user.clientId;
       } else {
         return res.status(400).json({
           success: false,
@@ -218,14 +230,14 @@ router.post('/', async (req: any, res) => {
     }
 
     // Verificar permissão
-    if (req.user.role === 'client' && req.user.clientId !== campaignData.clientId) {
+    if (req.user.role === 'client' && req.user.clientId !== mappedData.clientId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode criar campanhas para seu próprio cliente'
       });
     }
 
-    const campaign = await getCampaignService().createCampaign(campaignData, req.user.userId);
+    const campaign = await getCampaignService().createCampaign(mappedData, req.user.userId);
 
     res.status(201).json({
       success: true,
