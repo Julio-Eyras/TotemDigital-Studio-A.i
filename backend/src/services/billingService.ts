@@ -13,8 +13,8 @@ export interface CreateBillingRequest {
   billingType: 'subscription' | 'usage' | 'setup' | 'maintenance' | 'custom';
   amount: number;
   currency?: string;
-  description: string;
-  dueDate: string;
+  description?: string;
+  dueDate?: string;
   status?: 'pending' | 'paid' | 'overdue' | 'cancelled';
   paymentMethod?: string;
   paymentReference?: string;
