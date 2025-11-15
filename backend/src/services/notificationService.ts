@@ -65,7 +65,8 @@ export class NotificationService {
           type, title, message, user_id, client_id, 
           is_read, metadata, expires_at
         )
-        VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+        VALUES (?, ?, ?, ?, ?, false, ?, ?)
+        RETURNING notification_id
       `, [
         notification.type,
         notification.title,
@@ -76,11 +77,12 @@ export class NotificationService {
         notification.expiresAt
       ]);
 
-      if (!result.lastInsertRowid) {
+      const insertedNotification = result?.rows?.[0];
+      if (!insertedNotification?.notification_id) {
         throw new Error('Erro ao criar notificação');
       }
 
-      const newNotification = await this.getNotificationById(result.lastInsertRowid);
+      const newNotification = await this.getNotificationById(insertedNotification.notification_id);
       if (!newNotification) {
         throw new Error('Erro ao buscar notificação criada');
       }

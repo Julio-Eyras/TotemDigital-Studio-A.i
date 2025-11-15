@@ -3095,9 +3095,6 @@ diagnose_and_fix_backend() {
     docker logs smartsignage-backend --tail 20 2>/dev/null || echo "Não foi possível obter logs"
 }
 
-# Corrigir inicialização do Prisma
-# fix_prisma_initialization removido (Prisma não é mais utilizado)
-
 # Função para reconstruir container backend
 rebuild_backend_container() {
     log "🔄 Reconstruindo container backend..."
@@ -3695,8 +3692,7 @@ setup_first_boot() {
     export DATABASE_URL
     export NODE_ENV=production
     
-    # Gerar Prisma Client
-    log "Ignorando Prisma (não utilizado)"
+    # Prisma removido - usando PostgreSQL direto via pg
     
     # Gerenciar dados demo existentes antes de (re)criar/semear
     manage_demo_seed_strategy

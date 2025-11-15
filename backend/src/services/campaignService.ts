@@ -135,7 +135,7 @@ export class CampaignService {
 
       if (filters.isActive !== undefined) {
         whereClause += ' AND c.is_active = ?';
-        params.push(filters.isActive ? 1 : 0);
+        params.push(filters.isActive);
       }
 
       if (filters.search) {
@@ -265,7 +265,7 @@ export class CampaignService {
 
       // Verificar se cliente existe
       const client = await this.db.findFirst(`
-        SELECT client_id FROM clients WHERE client_id = ? AND active = 1
+        SELECT client_id FROM clients WHERE client_id = ? AND COALESCE(is_active, true) = true
       `, [clientId]);
 
       if (!client) {
@@ -280,6 +280,7 @@ export class CampaignService {
           status, is_active
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING campaign_id
       `, [
         clientId,
         title,
@@ -292,15 +293,16 @@ export class CampaignService {
         endTime,
         JSON.stringify(daysOfWeek),
         status,
-        isActive ? 1 : 0
+        isActive
       ]);
 
-      if (!result.lastInsertRowid) {
+      const insertedCampaign = result?.rows?.[0];
+      if (!insertedCampaign?.campaign_id) {
         throw new Error('Erro ao criar campanha');
       }
 
       // Buscar campanha criada
-      const newCampaign = await this.getCampaignById(result.lastInsertRowid);
+      const newCampaign = await this.getCampaignById(insertedCampaign.campaign_id);
       if (!newCampaign) {
         throw new Error('Erro ao buscar campanha criada');
       }
@@ -387,7 +389,7 @@ export class CampaignService {
 
       if (data.isActive !== undefined) {
         updates.push('is_active = ?');
-        params.push(data.isActive ? 1 : 0);
+        params.push(data.isActive);
       }
 
       if (updates.length === 0) {
@@ -479,7 +481,7 @@ export class CampaignService {
 
       // Verificar se totem existe
       const totem = await this.db.findFirst(`
-        SELECT totem_id FROM totems WHERE totem_id = ? AND active = 1
+        SELECT totem_id FROM totems WHERE totem_id = ? AND COALESCE(is_active, true) = true
       `, [data.totemId]);
 
       if (!totem) {
@@ -571,7 +573,7 @@ export class CampaignService {
       // Ativar campanha
       await this.db.executeRaw(`
         UPDATE campaigns 
-        SET is_active = 1, status = 'active', updated_at = CURRENT_TIMESTAMP 
+        SET is_active = true, status = 'active', updated_at = CURRENT_TIMESTAMP 
         WHERE campaign_id = ?
       `, [campaignId]);
 
@@ -605,7 +607,7 @@ export class CampaignService {
       // Pausar campanha
       await this.db.executeRaw(`
         UPDATE campaigns 
-        SET is_active = 0, status = 'paused', updated_at = CURRENT_TIMESTAMP 
+        SET is_active = false, status = 'paused', updated_at = CURRENT_TIMESTAMP 
         WHERE campaign_id = ?
       `, [campaignId]);
 
@@ -635,7 +637,7 @@ export class CampaignService {
       // Finalizar campanha
       await this.db.executeRaw(`
         UPDATE campaigns 
-        SET is_active = 0, status = 'finished', updated_at = CURRENT_TIMESTAMP 
+        SET is_active = false, status = 'finished', updated_at = CURRENT_TIMESTAMP 
         WHERE campaign_id = ?
       `, [campaignId]);
 
@@ -663,12 +665,12 @@ export class CampaignService {
     try {
       // Contar totems
       const totemCountResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM campaign_totems WHERE campaign_id = ? AND is_active = 1
+        SELECT COUNT(*) as count FROM campaign_totems WHERE campaign_id = ? AND is_active = true
       `, [campaignId]);
 
       // Contar playlists
       const playlistCountResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM playlists WHERE campaign_id = ? AND is_active = 1
+        SELECT COUNT(*) as count FROM playlists WHERE campaign_id = ? AND is_active = true
       `, [campaignId]);
 
       // Contar mídia (via playlists)
@@ -676,7 +678,7 @@ export class CampaignService {
         SELECT COUNT(DISTINCT pi.media_id) as count
         FROM playlist_items pi
         JOIN playlists p ON pi.playlist_id = p.playlist_id
-        WHERE p.campaign_id = ? AND p.is_active = 1
+        WHERE p.campaign_id = ? AND p.is_active = true
       `, [campaignId]);
 
       // Calcular duração total
@@ -685,7 +687,7 @@ export class CampaignService {
         FROM playlist_items pi
         JOIN playlists p ON pi.playlist_id = p.playlist_id
         JOIN medias m ON pi.media_id = m.media_id
-        WHERE p.campaign_id = ? AND p.is_active = 1
+        WHERE p.campaign_id = ? AND p.is_active = true
       `, [campaignId]);
 
       return {
@@ -753,7 +755,7 @@ export class CampaignService {
 
       // Contar por status
       const activeResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM campaigns WHERE status = 'active' AND is_active = 1
+        SELECT COUNT(*) as count FROM campaigns WHERE status = 'active' AND is_active = true
       `);
 
       const pausedResult = await this.db.findFirst(`
@@ -791,22 +793,22 @@ export class CampaignService {
 
       // Atividade recente (últimos 7 dias)
       const newCampaignsResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM campaigns WHERE created_at >= datetime('now', '-7 days')
+        SELECT COUNT(*) as count FROM campaigns WHERE created_at >= NOW() - INTERVAL '7 days'
       `);
 
       const activatedResult = await this.db.findFirst(`
         SELECT COUNT(*) as count FROM campaigns 
-        WHERE status = 'active' AND updated_at >= datetime('now', '-7 days')
+        WHERE status = 'active' AND updated_at >= NOW() - INTERVAL '7 days'
       `);
 
       const pausedResult2 = await this.db.findFirst(`
         SELECT COUNT(*) as count FROM campaigns 
-        WHERE status = 'paused' AND updated_at >= datetime('now', '-7 days')
+        WHERE status = 'paused' AND updated_at >= NOW() - INTERVAL '7 days'
       `);
 
       const finishedResult2 = await this.db.findFirst(`
         SELECT COUNT(*) as count FROM campaigns 
-        WHERE status = 'finished' AND updated_at >= datetime('now', '-7 days')
+        WHERE status = 'finished' AND updated_at >= NOW() - INTERVAL '7 days'
       `);
 
       return {
@@ -858,7 +860,7 @@ export class CampaignService {
         FROM campaigns c
         LEFT JOIN clients cl ON c.client_id = cl.client_id
         JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
-        WHERE ct.totem_id = ? AND c.is_active = 1 AND c.status = 'active'
+        WHERE ct.totem_id = ? AND c.is_active = true AND c.status = 'active'
         ORDER BY c.priority DESC, c.created_at DESC
       `, [totemId]);
 
@@ -909,7 +911,7 @@ export class CampaignService {
         LEFT JOIN clients cl ON c.client_id = cl.client_id
         WHERE c.status = 'draft' 
         AND c.start_date <= ? 
-        AND c.is_active = 0
+        AND c.is_active = false
       `, [now]);
 
       // Campanhas que devem ser pausadas
@@ -935,7 +937,7 @@ export class CampaignService {
         LEFT JOIN clients cl ON c.client_id = cl.client_id
         WHERE c.status = 'active' 
         AND c.end_date <= ? 
-        AND c.is_active = 1
+        AND c.is_active = true
       `, [now]);
 
       return [...toActivate, ...toPause];

@@ -93,11 +93,11 @@ export class DashboardService {
         SELECT 
           'upload' as type,
           'Novo arquivo "' || name || '" enviado' as message,
-          created_at as timestamp,
+          COALESCE(created_at, generated_at) as timestamp,
           'success' as status,
           media_id::text as id
         FROM medias 
-        ORDER BY created_at DESC 
+        ORDER BY COALESCE(created_at, generated_at) DESC 
         LIMIT $1
       `, [Math.floor(limit / 3)]);
 
@@ -109,11 +109,11 @@ export class DashboardService {
           'playlist' as type,
           'Playlist "' || name || '" ' || 
           CASE 
-            WHEN updated_at > created_at THEN 'atualizada'
+            WHEN updated_at > COALESCE(created_at, generated_at) THEN 'atualizada'
             ELSE 'criada'
           END as message,
           GREATEST(
-            created_at,
+            COALESCE(created_at, generated_at) as created_at,
             updated_at
           ) as timestamp,
           'success' as status,
@@ -121,7 +121,7 @@ export class DashboardService {
         FROM playlists 
         WHERE COALESCE(is_active, true) = true
         ORDER BY GREATEST(
-          created_at,
+          COALESCE(created_at, generated_at) as created_at,
           updated_at
         ) DESC 
         LIMIT $1
@@ -257,9 +257,9 @@ export class DashboardService {
           FROM medias 
           WHERE created_at >= NOW() - INTERVAL '7 days'
           UNION ALL
-          SELECT created_at 
+          SELECT COALESCE(created_at, generated_at) 
           FROM playlists 
-          WHERE created_at >= NOW() - INTERVAL '7 days'
+          WHERE COALESCE(created_at, generated_at) >= NOW() - INTERVAL '7 days'
           UNION ALL
           SELECT created_at 
           FROM users 

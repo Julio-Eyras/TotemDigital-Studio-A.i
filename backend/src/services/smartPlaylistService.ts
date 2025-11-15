@@ -170,7 +170,7 @@ export class SmartPlaylistService {
 
       if (filters.aiEnabled !== undefined) {
         whereClause += ' AND sp.ai_enabled = ?';
-        params.push(filters.aiEnabled ? 1 : 0);
+        params.push(filters.aiEnabled);
       }
 
       if (filters.search) {
@@ -329,7 +329,7 @@ export class SmartPlaylistService {
 
       // Verificar se cliente existe
       const client = await this.db.findFirst(`
-        SELECT client_id FROM clients WHERE client_id = ? AND active = 1
+        SELECT client_id FROM clients WHERE client_id = ? AND COALESCE(is_active, true) = true
       `, [clientId]);
 
       if (!client) {
@@ -366,6 +366,7 @@ export class SmartPlaylistService {
           duration, max_items, ai_enabled, rules, status
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING smart_playlist_id
       `, [
         clientId,
         campaignId,
@@ -381,17 +382,18 @@ export class SmartPlaylistService {
         contentType,
         duration,
         maxItems,
-        aiEnabled ? 1 : 0,
+        aiEnabled,
         JSON.stringify(rules),
         'inactive'
       ]);
 
-      if (!result.lastInsertRowid) {
+      const playlistRow = result?.rows?.[0];
+      if (!playlistRow?.smart_playlist_id) {
         throw new Error('Erro ao criar smart playlist');
       }
 
       // Buscar smart playlist criada
-      const newPlaylist = await this.getSmartPlaylistById(result.lastInsertRowid);
+      const newPlaylist = await this.getSmartPlaylistById(playlistRow.smart_playlist_id);
       if (!newPlaylist) {
         throw new Error('Erro ao buscar smart playlist criada');
       }
@@ -484,7 +486,7 @@ export class SmartPlaylistService {
 
       if (data.aiEnabled !== undefined) {
         updates.push('ai_enabled = ?');
-        params.push(data.aiEnabled ? 1 : 0);
+        params.push(data.aiEnabled);
       }
 
       if (data.rules !== undefined) {
@@ -592,7 +594,7 @@ export class SmartPlaylistService {
           SET 
             status = 'active',
             last_generated = CURRENT_TIMESTAMP,
-            next_generation = datetime('now', '+1 day'),
+            next_generation = NOW() + INTERVAL '1 day',
             generated_items = ?,
             total_duration = ?,
             effectiveness = ?,
@@ -641,15 +643,15 @@ export class SmartPlaylistService {
       const availableMedia = await this.db.findMany(`
         SELECT 
           m.media_id,
-          m.title,
-          m.duration_seconds,
-          m.view_count,
-          m.media_type,
-          m.tags,
+          COALESCE(m.title, m.name) AS title,
+          COALESCE(m.duration_seconds, 0) AS duration_seconds,
+          COALESCE(m.view_count, 0) AS view_count,
+          COALESCE(m.media_type, 'unknown') AS media_type,
+          COALESCE(m.tags, '[]') AS tags,
           m.metadata
         FROM medias m
-        WHERE m.active = 1 AND m.client_id = ?
-        ORDER BY m.view_count DESC
+        WHERE COALESCE(m.is_active, true) = true AND m.client_id = ?
+        ORDER BY COALESCE(m.view_count, 0) DESC
       `, [playlist.clientId]);
 
       // Construir prompt para IA
@@ -769,14 +771,14 @@ export class SmartPlaylistService {
       let query = `
         SELECT 
           m.media_id,
-          m.title,
-          m.duration_seconds,
-          m.view_count,
-          m.media_type,
-          m.tags,
+          COALESCE(m.title, m.name) AS title,
+          COALESCE(m.duration_seconds, 0) AS duration_seconds,
+          COALESCE(m.view_count, 0) AS view_count,
+          COALESCE(m.media_type, 'unknown') AS media_type,
+          COALESCE(m.tags, '[]') AS tags,
           m.metadata
         FROM medias m
-        WHERE m.active = 1 AND m.client_id = ?
+        WHERE COALESCE(m.is_active, true) = true AND m.client_id = ?
       `;
 
       const params = [playlist.clientId];
@@ -792,7 +794,7 @@ export class SmartPlaylistService {
         params.push(playlist.duration);
       }
 
-      query += ' ORDER BY m.view_count DESC';
+      query += ' ORDER BY COALESCE(m.view_count, 0) DESC';
 
       if (playlist.maxItems) {
         query += ' LIMIT ?';
@@ -1043,22 +1045,22 @@ export class SmartPlaylistService {
 
       // Atividade recente (últimos 7 dias)
       const newPlaylistsResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM smart_playlists WHERE created_at >= datetime('now', '-7 days')
+        SELECT COUNT(*) as count FROM smart_playlists WHERE created_at >= NOW() - INTERVAL '7 days'
       `);
 
       const generatedResult = await this.db.findFirst(`
         SELECT COUNT(*) as count FROM smart_playlists 
-        WHERE last_generated >= datetime('now', '-7 days')
+        WHERE last_generated >= NOW() - INTERVAL '7 days'
       `);
 
       const activatedResult = await this.db.findFirst(`
         SELECT COUNT(*) as count FROM smart_playlists 
-        WHERE status = 'active' AND updated_at >= datetime('now', '-7 days')
+        WHERE status = 'active' AND updated_at >= NOW() - INTERVAL '7 days'
       `);
 
       const deactivatedResult = await this.db.findFirst(`
         SELECT COUNT(*) as count FROM smart_playlists 
-        WHERE status = 'inactive' AND updated_at >= datetime('now', '-7 days')
+        WHERE status = 'inactive' AND updated_at >= NOW() - INTERVAL '7 days'
       `);
 
       return {

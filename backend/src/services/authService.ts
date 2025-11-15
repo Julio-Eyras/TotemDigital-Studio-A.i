@@ -194,10 +194,12 @@ export class AuthService {
       // Criar usuário
       const result = await this.db.executeRaw(`
         INSERT INTO users (username, password_hash, role, client_id, is_active)
-        VALUES (?, ?, ?, ?, 1)
+        VALUES (?, ?, ?, ?, true)
+        RETURNING id
       `, [username, passwordHash, role, clientId]);
 
-      if (!result.lastInsertRowid) {
+      const insertedUser = result?.rows?.[0];
+      if (!insertedUser?.id) {
         return { success: false, error: 'Erro ao criar usuário' };
       }
 
@@ -211,20 +213,20 @@ export class AuthService {
             FROM users u 
             LEFT JOIN clients c ON u.client_id = c.client_id 
             WHERE u.id = ?
-          `, [result.lastInsertRowid]);
+          `, [insertedUser.id]);
         } catch {
           newUser = await this.db.findFirst(`
             SELECT u.*
             FROM users u 
             WHERE u.id = ?
-          `, [result.lastInsertRowid]);
+          `, [insertedUser.id]);
         }
       } else {
         newUser = await this.db.findFirst(`
           SELECT u.*
           FROM users u 
           WHERE u.id = ?
-        `, [result.lastInsertRowid]);
+        `, [insertedUser.id]);
       }
 
       // Gerar tokens

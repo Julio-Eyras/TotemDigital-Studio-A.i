@@ -1,13 +1,15 @@
-# 🚀 Smart Signage Pro v2.0
+# 🚀 Smart Signage Pro v2.1
 
 **Sistema Completo de Sinalização Digital Profissional**  
-*Implementação 100% Real - Zero Mocks - Pronto para Produção*
+*Implementação 100% Real - Zero Mocks - PostgreSQL Direto - Pronto para Produção*
 
 ---
 
 ## 📋 **VISÃO GERAL**
 
-O **Smart Signage Pro v2.0** é um sistema completo e robusto de sinalização digital desenvolvido para empresas de todos os portes. Oferece funcionalidades profissionais para criar, gerenciar e exibir conteúdo digital de forma eficiente e escalável.
+O **Smart Signage Pro v2.1** é um sistema completo e robusto de sinalização digital desenvolvido para empresas de todos os portes. Oferece funcionalidades profissionais para criar, gerenciar e exibir conteúdo digital de forma eficiente e escalável.
+
+**v2.1:** Migração completa para PostgreSQL direto (Prisma removido) - Melhor performance e simplicidade.
 
 ### 🎯 **Características Principais**
 - ✅ **100% Implementado** - Nenhum mock ou simulação
@@ -23,7 +25,7 @@ O **Smart Signage Pro v2.0** é um sistema completo e robusto de sinalização d
 
 ## ✨ **FUNCIONALIDADES IMPLEMENTADAS**
 
-### 🏗️ **Backend (Node.js + TypeScript + Prisma)**
+### 🏗️ **Backend (Node.js + TypeScript + PostgreSQL direto)**
 - ✅ **Autenticação JWT** completa com refresh tokens
 - ✅ **Sistema RBAC** (Roles Based Access Control)
 - ✅ **CRUD Completo** - Usuários, Clientes, Mídias, Playlists, Players
@@ -302,7 +304,7 @@ HOST_OVERRIDE=SEU_HOST bash scripts/post-install-check.sh
 
 ```
 Frontend:     React 18 + TypeScript + Material-UI + Redux Toolkit
-Backend:      Node.js 18 + Express + TypeScript + Prisma ORM
+Backend:      Node.js 18 + Express + TypeScript + PostgreSQL direto (pg)
 Database:     PostgreSQL 15 (produção)
 Cache:        Redis 7
 Proxy:        Nginx (2 containers: frontend + reverse proxy)
@@ -689,10 +691,13 @@ Este projeto está licenciado sob a [MIT License](LICENSE).
 
 ## 🎉 **VERSÃO ATUAL**
 
-**Smart Signage Pro v2.0**  
+**Smart Signage Pro v2.1**  
 **Status**: ✅ **100% Funcional - Pronto para Produção**
 
-### **Últimas Melhorias (v2.0)**
+### **Últimas Melhorias (v2.1)**
+- ✅ Migração completa Prisma → PostgreSQL direto
+- ✅ Melhor performance com connection pooling nativo
+- ✅ Código mais simples e manutenível
 - ✅ Interface moderna completa (Material-UI)
 - ✅ Zero mocks - implementação 100% real
 - ✅ Arquitetura Nginx otimizada (2 containers)
@@ -704,7 +709,7 @@ Este projeto está licenciado sob a [MIT License](LICENSE).
 
 ---
 
-**📅 Última Atualização**: 29 de Outubro de 2025  
+**📅 Última Atualização**: 03 de Novembro de 2025  
 **👥 Desenvolvido por**: Julio Eyras  
 **🌐 Repositório**: [github.com/Julio-Eyras/smartsignage-pro](https://github.com/Julio-Eyras/smartsignage-pro)  
 **💬 Issues**: [github.com/Julio-Eyras/smartsignage-pro/issues](https://github.com/Julio-Eyras/smartsignage-pro/issues)

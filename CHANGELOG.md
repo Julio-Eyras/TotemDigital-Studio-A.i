@@ -5,9 +5,9 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
-## [2.1.0] - 2025-11-03 (Em Desenvolvimento)
+## [2.1.0] - 2025-11-03 ✅ CONCLUÍDA
 
-### 🚀 Migração Major: Remoção do Prisma
+### 🚀 Migração Major: Remoção do Prisma - COMPLETA
 
 #### Adicionado
 - Suporte direto ao PostgreSQL via `pg` client
@@ -17,12 +17,14 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Script de preparação para migração (`scripts/prepare-v2.1-migration.sh`)
 - Plano completo de migração documentado (`PLANO_MIGRACAO_V2.1.md`)
 
-#### Removido
-- Prisma ORM (`@prisma/client`, `prisma`)
-- Schema Prisma (`prisma/schema.prisma`)
-- Suporte ao SQLite completamente removido
-- DatabaseWrapper que convertia SQL para Prisma
-- Opção SQLite do instalador
+#### Removido ✅
+- ✅ Prisma ORM (`@prisma/client`, `prisma`) - **REMOVIDO COMPLETAMENTE**
+- ✅ Schema Prisma (`prisma/schema.prisma`) - **REMOVIDO**
+- ✅ Suporte ao SQLite completamente removido
+- ✅ DatabaseWrapper que convertia SQL para Prisma - **SUBSTITUÍDO**
+- ✅ Opção SQLite do instalador - **REMOVIDA**
+- ✅ Geração do Prisma Client no Dockerfile.backend - **REMOVIDA**
+- ✅ Referências ao Prisma em scripts de instalação - **LIMPA**
 
 #### Alterado
 - Todas as queries agora usam PostgreSQL diretamente

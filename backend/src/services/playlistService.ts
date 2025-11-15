@@ -80,7 +80,7 @@ export class PlaylistService {
           p.description,
           p.client_id,
           COALESCE(p.is_active, true) as is_active,
-          p.created_at as created_at,
+          COALESCE(p.created_at, p.generated_at) as created_at,
           p.updated_at as updated_at,
           c.name as client_name,
           COUNT(pi.item_id) as media_count,
@@ -95,10 +95,10 @@ export class PlaylistService {
           p.description, 
           p.client_id, 
           COALESCE(p.is_active, true),
-          p.created_at,
+          COALESCE(p.created_at, p.generated_at),
           p.updated_at,
           c.name
-        ORDER BY p.created_at DESC
+        ORDER BY COALESCE(p.created_at, p.generated_at) DESC
         LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
       `, [...queryParams, limit, offset]);
 
@@ -133,7 +133,7 @@ export class PlaylistService {
           p.description,
           p.client_id,
           COALESCE(p.is_active, true) as is_active,
-          p.created_at as created_at,
+          COALESCE(p.created_at, p.generated_at) as created_at,
           p.updated_at as updated_at,
           c.name as client_name,
           COUNT(pi.item_id) as media_count,
@@ -148,7 +148,7 @@ export class PlaylistService {
           p.description, 
           p.client_id, 
           COALESCE(p.is_active, true),
-          p.created_at,
+          COALESCE(p.created_at, p.generated_at),
           p.updated_at,
           c.name
       `, [id]);

@@ -157,7 +157,7 @@ export class QRCodeService {
 
       if (filters.isActive !== undefined) {
         whereClause += ' AND q.is_active = ?';
-        params.push(filters.isActive ? 1 : 0);
+        params.push(filters.isActive);
       }
 
       if (filters.search) {
@@ -353,6 +353,7 @@ export class QRCodeService {
           is_active, expires_at, max_scans, redirect_url, tracking_enabled
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING id
       `, [
         clientId,
         totemId,
@@ -366,19 +367,20 @@ export class QRCodeService {
         backgroundColor,
         errorCorrectionLevel,
         margin,
-        isActive ? 1 : 0,
+        isActive,
         expiresAt,
         maxScans,
         redirectUrl,
-        trackingEnabled ? 1 : 0
+        trackingEnabled
       ]);
 
-      if (!result.lastInsertRowid) {
+      const insertedQRCode = result?.rows?.[0];
+      if (!insertedQRCode?.id) {
         throw new Error('Erro ao criar QR Code');
       }
 
       // Buscar QR Code criado
-      const newQRCode = await this.getQRCodeById(result.lastInsertRowid);
+      const newQRCode = await this.getQRCodeById(insertedQRCode.id);
       if (!newQRCode) {
         throw new Error('Erro ao buscar QR Code criado');
       }
@@ -458,7 +460,7 @@ export class QRCodeService {
 
       if (data.isActive !== undefined) {
         updates.push('is_active = ?');
-        params.push(data.isActive ? 1 : 0);
+        params.push(data.isActive);
       }
 
       if (data.expiresAt !== undefined) {
@@ -478,7 +480,7 @@ export class QRCodeService {
 
       if (data.trackingEnabled !== undefined) {
         updates.push('tracking_enabled = ?');
-        params.push(data.trackingEnabled ? 1 : 0);
+        params.push(data.trackingEnabled);
       }
 
       if (updates.length === 0) {

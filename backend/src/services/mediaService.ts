@@ -330,6 +330,7 @@ export class MediaService {
           duration_seconds, size_bytes, mime_type, width, height
         )
         VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING media_id
       `, [
         clientId,
         name,
@@ -348,12 +349,13 @@ export class MediaService {
         metadata.height
       ]);
 
-      if (!result.lastInsertRowid) {
+      const insertedMedia = result?.rows?.[0];
+      if (!insertedMedia?.media_id) {
         throw new Error('Erro ao criar mídia');
       }
 
       // Buscar mídia criada
-      const newMedia = await this.getMediaById(result.lastInsertRowid);
+      const newMedia = await this.getMediaById(insertedMedia.media_id);
       if (!newMedia) {
         throw new Error('Erro ao buscar mídia criada');
       }

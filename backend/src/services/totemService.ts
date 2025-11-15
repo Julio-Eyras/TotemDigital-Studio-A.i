@@ -496,6 +496,7 @@ export class TotemService {
           updated_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        RETURNING totem_id
       `, [
         name || identifier,
         totemIdentifier,
@@ -508,11 +509,11 @@ export class TotemService {
         firmwareVersion,
         ipAddress,
         clientId || null,
-        active ? 1 : 0,
-        isActive ? 1 : 0
+        active,
+        isActive
       ]);
 
-      const insertedId = result?.rows?.[0]?.totem_id ?? result?.rows?.[0]?.id ?? result.lastInsertRowid;
+      const insertedId = result?.rows?.[0]?.totem_id;
 
       if (!insertedId) {
         throw new Error('Erro ao criar totem');
@@ -945,26 +946,26 @@ export class TotemService {
       const byStatus = await this.db.findMany(`
         SELECT status, COUNT(*) as count
         FROM totems
-        WHERE active = 1
+        WHERE active = true
         GROUP BY status
         ORDER BY count DESC
       `);
 
       // Contar por status
       const onlineResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM totems WHERE status = 'online' AND active = 1
+        SELECT COUNT(*) as count FROM totems WHERE status = 'online' AND active = true
       `);
 
       const offlineResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM totems WHERE status = 'offline' AND active = 1
+        SELECT COUNT(*) as count FROM totems WHERE status = 'offline' AND active = true
       `);
 
       const errorResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM totems WHERE status = 'error' AND active = 1
+        SELECT COUNT(*) as count FROM totems WHERE status = 'error' AND active = true
       `);
 
       const maintenanceResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM totems WHERE status = 'maintenance' AND active = 1
+        SELECT COUNT(*) as count FROM totems WHERE status = 'maintenance' AND active = true
       `);
 
       // Atividade recente (últimos 7 dias)
@@ -1018,7 +1019,7 @@ export class TotemService {
       // Desativar totem
       await this.db.executeRaw(`
         UPDATE totems 
-        SET active = 0, status = 'offline', updated_at = CURRENT_TIMESTAMP 
+        SET active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP 
         WHERE totem_id = ?
       `, [totemId]);
 
@@ -1052,7 +1053,7 @@ export class TotemService {
       // Ativar totem
       await this.db.executeRaw(`
         UPDATE totems 
-        SET active = 1, updated_at = CURRENT_TIMESTAMP 
+        SET active = true, updated_at = CURRENT_TIMESTAMP
         WHERE totem_id = ?
       `, [totemId]);
 
@@ -1095,7 +1096,7 @@ export class TotemService {
       // Desativar totem (soft delete)
       await this.db.executeRaw(`
         UPDATE totems 
-        SET active = 0, status = 'offline', updated_at = CURRENT_TIMESTAMP 
+        SET active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP
         WHERE totem_id = ?
       `, [totemId]);
 

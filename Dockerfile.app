@@ -1,4 +1,5 @@
-# Smart Signage Pro v2.0 - Dockerfile Monolito (Frontend + Backend)
+# Smart Signage Pro v2.1 - Dockerfile Monolito (Frontend + Backend)
+# PostgreSQL-only (Prisma removido)
 
 FROM node:18-alpine AS builder
 

@@ -163,6 +163,9 @@ CREATE TABLE IF NOT EXISTS medias (
     checksum TEXT,
     preview_url TEXT,
     status TEXT DEFAULT 'draft', -- draft, review, published, archived
+    is_active BOOLEAN DEFAULT true,
+    view_count INTEGER DEFAULT 0,
+    metadata JSONB DEFAULT '{}'::jsonb,
     created_by INTEGER,
     file_path TEXT NOT NULL,
     media_type TEXT NOT NULL, -- image, video, audio
@@ -190,6 +193,7 @@ CREATE TABLE IF NOT EXISTS playlists (
     loop BOOLEAN DEFAULT true,
     config TEXT, -- JSON
     is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
@@ -212,6 +216,48 @@ CREATE TABLE IF NOT EXISTS playlist_items (
     FOREIGN KEY (media_id) REFERENCES medias(media_id) ON DELETE CASCADE,
     UNIQUE(playlist_id, order_index)
 );
+
+-- Smart Playlists
+CREATE TABLE IF NOT EXISTS smart_playlists (
+    smart_playlist_id SERIAL PRIMARY KEY,
+    client_id INTEGER NOT NULL,
+    campaign_id INTEGER,
+    totem_id INTEGER,
+    name TEXT NOT NULL,
+    description TEXT,
+    target_audience TEXT,
+    time_of_day TEXT,
+    day_of_week TEXT,
+    season TEXT,
+    weather TEXT,
+    location TEXT,
+    content_type TEXT,
+    duration INTEGER,
+    max_items INTEGER,
+    ai_enabled BOOLEAN DEFAULT true,
+    rules JSONB DEFAULT '[]'::jsonb,
+    status TEXT DEFAULT 'inactive',
+    generated_items INTEGER DEFAULT 0,
+    total_duration INTEGER DEFAULT 0,
+    effectiveness REAL DEFAULT 0,
+    last_generated TIMESTAMP,
+    next_generation TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE,
+    FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE SET NULL,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_smart_playlists_client_id ON smart_playlists(client_id);
+CREATE INDEX IF NOT EXISTS idx_smart_playlists_campaign_id ON smart_playlists(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_smart_playlists_status ON smart_playlists(status);
+
+-- Ensure legacy databases have updated columns
+ALTER TABLE medias ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE medias ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0;
+ALTER TABLE medias ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE playlists ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
 -- Campaign Playlists
 CREATE TABLE IF NOT EXISTS campaign_playlists (

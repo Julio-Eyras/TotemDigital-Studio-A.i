@@ -325,20 +325,22 @@ export class SettingsService {
           is_public, is_editable, validation, options, default_value
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING setting_id
       `, [
         setting.key,
         this.convertValueToString(setting.value, setting.type),
         setting.type,
         setting.category,
         setting.description,
-        setting.isPublic ? 1 : 0,
-        setting.isEditable ? 1 : 0,
+        setting.isPublic,
+        setting.isEditable,
         setting.validation,
         setting.options ? JSON.stringify(setting.options) : null,
         setting.defaultValue
       ]);
 
-      if (!result.lastInsertRowid) {
+      const insertedSetting = result?.rows?.[0];
+      if (!insertedSetting?.setting_id) {
         throw new Error('Erro ao criar configuração');
       }
 

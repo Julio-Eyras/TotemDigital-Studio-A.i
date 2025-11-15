@@ -1,0 +1,126 @@
+# Smart Signage Pro v2.1 - Dockerfile Workers
+# Container especializado para processamento pesado (Bull Queue Workers)
+
+FROM node:18-alpine AS builder
+
+# Instalar dependências do sistema
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    curl \
+    bash \
+    openssl \
+    openssl-dev
+
+# Definir diretório de trabalho
+WORKDIR /app/backend
+
+# Copiar arquivos de dependências e configuração
+COPY backend/package.json ./package.json
+COPY backend/tsconfig.json ./tsconfig.json
+
+# Instalar dependências do backend (incluindo dev para build)
+RUN npm install --include=dev
+
+# Copiar código fonte do backend
+COPY backend/src ./src
+
+# Compilar TypeScript
+RUN npm run build
+
+# Estágio de produção
+FROM node:18-alpine AS production
+
+# Instalar dependências do sistema
+RUN apk add --no-cache \
+    curl \
+    bash \
+    tzdata \
+    openssl
+
+# Definir timezone
+ENV TZ=America/Sao_Paulo
+ENV NODE_ENV=production
+
+# Criar usuário não-root
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S smartsignage -u 1001
+
+# Definir diretório de trabalho
+WORKDIR /app
+
+# Copiar dependências compiladas do backend
+COPY --from=builder /app/backend/dist ./backend/dist
+COPY --from=builder /app/backend/package*.json ./backend/
+
+# Instalar apenas dependências de produção
+WORKDIR /app/backend
+RUN npm install --omit=dev
+WORKDIR /app
+
+# Criar diretórios necessários
+RUN mkdir -p /app/data /app/uploads /app/logs /app/backups && \
+    chown -R smartsignage:nodejs /app
+
+# Criar script de inicialização dos workers
+RUN cat > /app/start-workers.js << 'EOF'
+const { initializeDatabase } = require('./backend/dist/config/database');
+const { initializeRedis } = require('./backend/dist/config/redis');
+const { initializeExportQueue, initializeAdvancedScheduleQueue } = require('./backend/dist/config/queue');
+const { registerExportWorker } = require('./backend/dist/workers/exportWorker');
+const { registerAdvancedScheduleWorker } = require('./backend/dist/workers/advancedScheduleWorker');
+
+async function startWorkers() {
+  try {
+    console.log('🚀 Iniciando Workers do Smart Signage Pro...');
+    
+    // Inicializar banco de dados
+    await initializeDatabase();
+    console.log('✅ Banco de dados inicializado');
+    
+    // Inicializar Redis
+    await initializeRedis();
+    console.log('✅ Redis inicializado');
+    
+    // Inicializar filas
+    const exportQueue = await initializeExportQueue();
+    const advancedScheduleQueue = await initializeAdvancedScheduleQueue();
+    console.log('✅ Filas inicializadas');
+    
+    // Registrar workers
+    registerExportWorker(exportQueue);
+    registerAdvancedScheduleWorker(advancedScheduleQueue);
+    console.log('✅ Workers registrados');
+    
+    console.log('✅ Todos os workers iniciados com sucesso!');
+    console.log('📊 Workers ativos e processando jobs...');
+    
+    // Manter processo vivo
+    process.on('SIGTERM', async () => {
+      console.log('🛑 Recebido SIGTERM, encerrando workers...');
+      process.exit(0);
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro ao iniciar workers:', error);
+    process.exit(1);
+  }
+}
+
+startWorkers();
+EOF
+
+RUN chmod +x /app/start-workers.js && \
+    chown -R smartsignage:nodejs /app
+
+# Mudar para usuário não-root
+USER smartsignage
+
+# Health check (verificar se processo está rodando)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD pgrep -f "start-workers.js" || exit 1
+
+# Comando de inicialização
+CMD ["node", "/app/start-workers.js"]
+
