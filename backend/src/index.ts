@@ -110,9 +110,9 @@ app.use(cors(corsOptions));
 // Compression
 app.use(compression());
 
-// Body parsing
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Body parsing - Aumentado para suportar uploads maiores
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
 // Logging
 app.use(morgan('combined'));
