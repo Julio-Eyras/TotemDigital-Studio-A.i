@@ -82,10 +82,12 @@ const Playlists: React.FC = () => {
       const response = await playlistApi.getAll({
         search: searchTerm || undefined,
       });
-      setPlaylists(response.data);
+      const data = response?.data || response || [];
+      setPlaylists(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erro ao carregar playlists:', error);
       setError('Erro ao carregar lista de playlists');
+      setPlaylists([]);
     } finally {
       setLoading(false);
     }
@@ -94,9 +96,11 @@ const Playlists: React.FC = () => {
   const loadMediaItems = async () => {
     try {
       const response = await mediaApi.getAll();
-      setMediaItems(response.data);
+      const data = response?.data || response || [];
+      setMediaItems(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erro ao carregar mídia:', error);
+      setMediaItems([]);
     }
   };
 
@@ -275,7 +279,7 @@ const Playlists: React.FC = () => {
 
       {/* Playlists Grid */}
       <Grid container spacing={3}>
-        {playlists.map((playlist) => (
+        {Array.isArray(playlists) && playlists.map((playlist) => (
           <Grid item xs={12} sm={6} md={4} lg={3} key={playlist.playlist_id}>
             <Card sx={{ 
               height: '100%',
@@ -472,7 +476,7 @@ const Playlists: React.FC = () => {
                 Mídia Disponível
               </Typography>
               <List sx={{ maxHeight: 400, overflow: 'auto' }}>
-                {mediaItems.map((media) => (
+                {Array.isArray(mediaItems) && mediaItems.map((media) => (
                   <ListItem
                     key={media.media_id}
                     button
@@ -511,7 +515,7 @@ const Playlists: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {playlistMedia.map((item) => (
+                    {Array.isArray(playlistMedia) && playlistMedia.map((item) => (
                       <TableRow key={item.item_id}>
                         <TableCell>{item.order_index}</TableCell>
                         <TableCell>

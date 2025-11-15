@@ -80,13 +80,31 @@ const Settings: React.FC = () => {
     try {
       setLoading(true);
       const resp = await settingsApi.getAll();
-      setSettings(resp);
+      
+      // A API retorna um objeto com categories, precisamos extrair todas as settings
+      let allSettings: SystemSetting[] = [];
+      if (Array.isArray(resp)) {
+        // Se já for array, usar diretamente
+        allSettings = resp;
+      } else if (resp && typeof resp === 'object' && 'categories' in resp) {
+        // Se for objeto com categories, extrair todas as settings
+        const categories = (resp as any).categories || [];
+        allSettings = categories.flatMap((cat: any) => cat.settings || []);
+      } else if (resp && typeof resp === 'object') {
+        // Se for objeto simples, tentar converter
+        allSettings = Object.values(resp) as SystemSetting[];
+      }
+      
+      setSettings(Array.isArray(allSettings) ? allSettings : []);
       
       // Separar configurações de logs
-      const logs = resp.filter(s => s.key?.startsWith('log.'));
-      setLogSettings(logs);
+      const logs = allSettings.filter(s => s?.key?.startsWith('log.'));
+      setLogSettings(Array.isArray(logs) ? logs : []);
     } catch (e) {
+      console.error('Erro ao carregar configurações:', e);
       setError('Erro ao carregar configurações');
+      setSettings([]);
+      setLogSettings([]);
     } finally {
       setLoading(false);
     }
@@ -116,8 +134,8 @@ const Settings: React.FC = () => {
     try {
       setError(null);
       const settingsToSave = tabValue === 0 
-        ? settings.filter(s => !s.key?.startsWith('log.'))
-        : logSettings;
+        ? (Array.isArray(settings) ? settings.filter(s => s?.key && !s.key.startsWith('log.')) : [])
+        : (Array.isArray(logSettings) ? logSettings : []);
       await settingsApi.updateMultiple(settingsToSave.map(s => ({ key: s.key, value: s.value })));
       
       // Recarregar logger se foram alteradas configurações de logs
@@ -180,7 +198,7 @@ const Settings: React.FC = () => {
         </Box>
 
         <Grid container spacing={3}>
-          {settings.filter(s => !s.key?.startsWith('log.')).map((s) => (
+          {Array.isArray(settings) && settings.filter(s => s?.key && !s.key.startsWith('log.')).map((s) => (
             <Grid item xs={12} md={6} key={s.key}>
               <Card>
                 <CardContent>

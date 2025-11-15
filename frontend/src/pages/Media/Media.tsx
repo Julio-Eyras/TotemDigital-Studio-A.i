@@ -71,10 +71,12 @@ const Media: React.FC = () => {
         search: searchTerm || undefined,
         mediaType: mediaTypeFilter !== 'all' ? mediaTypeFilter : undefined,
       });
-      setMediaItems(response.data);
+      const data = response?.data || response || [];
+      setMediaItems(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erro ao carregar mídia:', error);
       setError('Erro ao carregar lista de mídia');
+      setMediaItems([]);
     } finally {
       setLoading(false);
     }
@@ -232,7 +234,7 @@ const Media: React.FC = () => {
 
       {/* Media Grid */}
       <Grid container spacing={3}>
-        {mediaItems.map((media) => (
+        {Array.isArray(mediaItems) && mediaItems.map((media) => (
           <Grid item xs={12} sm={6} md={4} lg={3} key={media.media_id}>
             <Card sx={{ 
               height: '100%',

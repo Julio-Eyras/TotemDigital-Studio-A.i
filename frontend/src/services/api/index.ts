@@ -59,8 +59,14 @@ export const dashboardApi = {
   },
 
   getRecentActivity: async (limit: number = 10): Promise<RecentActivity[]> => {
-    const response = await api.get(`/dashboard/activities?limit=${limit}`);
-    return response.data;
+    try {
+      const response = await api.get(`/dashboard/activities?limit=${limit}`);
+      const data = response.data.data || response.data;
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Erro ao buscar atividades recentes:', error);
+      return [];
+    }
   },
 
   getUsageCharts: async () => {
@@ -345,7 +351,20 @@ export const playlistApi = {
     clientId?: number;
   } = {}): Promise<PlaylistListResponse> => {
     const response = await api.get('/playlists', { params });
-    return response.data;
+    const data = response.data?.data || response.data;
+    // Garantir que data seja sempre um array
+    if (data && typeof data === 'object' && 'data' in data) {
+      return {
+        ...data,
+        data: Array.isArray(data.data) ? data.data : []
+      };
+    }
+    return {
+      data: Array.isArray(data) ? data : [],
+      total: data?.total || 0,
+      page: data?.page || 1,
+      limit: data?.limit || 10
+    };
   },
 
   getById: async (id: number): Promise<PlaylistItem> => {
@@ -438,7 +457,20 @@ export const mediaApi = {
     clientId?: number;
   } = {}): Promise<MediaListResponse> => {
     const response = await api.get('/media', { params });
-    return response.data;
+    const data = response.data?.data || response.data;
+    // Garantir que data seja sempre um array
+    if (data && typeof data === 'object' && 'data' in data) {
+      return {
+        ...data,
+        data: Array.isArray(data.data) ? data.data : []
+      };
+    }
+    return {
+      data: Array.isArray(data) ? data : [],
+      total: data?.total || 0,
+      page: data?.page || 1,
+      limit: data?.limit || 10
+    };
   },
 
   getById: async (id: number): Promise<MediaItem> => {
@@ -707,7 +739,16 @@ export interface SystemSetting {
 export const settingsApi = {
   getAll: async (): Promise<SystemSetting[]> => {
     const response = await api.get('/settings');
-    return response.data.data;
+    const data = response.data.data || response.data;
+    
+    // Se retornar objeto com categories, extrair todas as settings
+    if (data && typeof data === 'object' && 'categories' in data) {
+      const categories = data.categories || [];
+      return categories.flatMap((cat: any) => cat.settings || []);
+    }
+    
+    // Se já for array, retornar diretamente
+    return Array.isArray(data) ? data : [];
   },
 
   getPublic: async (): Promise<SystemSetting[]> => {
@@ -892,8 +933,14 @@ export const billingApi = {
     clientId?: number;
     status?: string;
   }): Promise<BillingItem[]> => {
-    const response = await api.get('/billing', { params });
-    return response.data.data || [];
+    try {
+      const response = await api.get('/billing', { params });
+      const data = response.data?.data || response.data;
+      return Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+    } catch (error) {
+      console.error('Erro ao buscar faturas:', error);
+      return [];
+    }
   },
 
   create: async (data: CreateBillingRequest): Promise<BillingItem> => {

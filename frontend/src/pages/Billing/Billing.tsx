@@ -18,9 +18,12 @@ const Billing: React.FC = () => {
     try {
       setLoading(true);
       const resp = await billingApi.getAll();
-      setItems(resp);
+      const data = Array.isArray(resp) ? resp : (resp?.data || []);
+      setItems(Array.isArray(data) ? data : []);
     } catch (e) {
+      console.error('Erro ao carregar faturas:', e);
       setError('Erro ao carregar faturas');
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -64,7 +67,7 @@ const Billing: React.FC = () => {
       </Box>
 
       <Grid container spacing={3}>
-        {items.map((b) => (
+        {Array.isArray(items) && items.map((b) => (
           <Grid item xs={12} sm={6} md={4} key={b.billing_id}>
             <Card>
               <CardContent>
