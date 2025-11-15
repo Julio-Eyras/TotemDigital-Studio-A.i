@@ -29,10 +29,12 @@
   },
   "overrides": {
     "react-dom": "^18.2.0",
-    "ajv": "^8.17.1"
+    "ajv": "^8.17.1",
+    "ajv-keywords": "^5.1.0"
   },
   "resolutions": {
-    "ajv": "^8.17.1"
+    "ajv": "^8.17.1",
+    "ajv-keywords": "^5.1.0"
   },
   "devDependencies": {
     "@types/node": "^16.18.68",
@@ -41,6 +43,7 @@
     "@typescript-eslint/eslint-plugin": "^6.13.1",
     "@typescript-eslint/parser": "^6.13.1",
     "ajv": "^8.17.1",
+    "ajv-keywords": "^5.1.0",
     "eslint": "^8.54.0",
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0"
