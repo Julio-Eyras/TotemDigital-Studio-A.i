@@ -121,7 +121,17 @@ const Settings: React.FC = () => {
       ]);
       setLogConfig(config);
       setLogFiles(files);
-      setDiskSpace(space);
+      // Garantir que percentUsed seja sempre número
+      if (space) {
+        setDiskSpace({
+          ...space,
+          percentUsed: typeof space.percentUsed === 'number' 
+            ? space.percentUsed 
+            : parseFloat(String(space.percentUsed || 0))
+        });
+      } else {
+        setDiskSpace(null);
+      }
       setRotationStatus(status);
     } catch (e: any) {
       console.error('Erro ao carregar informações de logs:', e);
@@ -273,7 +283,9 @@ const Settings: React.FC = () => {
                     sx={{ mt: 1 }}
                   />
                   <Typography variant="caption" color="text.secondary">
-                    {diskSpace.percentUsed.toFixed(2)}% usado
+                    {typeof diskSpace.percentUsed === 'number' 
+                      ? diskSpace.percentUsed.toFixed(2) 
+                      : parseFloat(String(diskSpace.percentUsed || 0)).toFixed(2)}% usado
                   </Typography>
                 </Grid>
                 <Grid item xs={12} md={4}>

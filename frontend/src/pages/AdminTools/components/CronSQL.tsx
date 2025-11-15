@@ -123,9 +123,11 @@ const formatDateTime = (value: string | null | undefined) => {
 const formatFileSize = (bytes?: number | null) => {
   if (!bytes || bytes <= 0) return '-';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const power = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const size = bytes / Math.pow(1024, power);
-  return `${size.toFixed(1)} ${units[power]}`;
+  const numBytes = typeof bytes === 'number' ? bytes : parseFloat(String(bytes || 0));
+  if (numBytes <= 0) return '-';
+  const power = Math.min(Math.floor(Math.log(numBytes) / Math.log(1024)), units.length - 1);
+  const size = numBytes / Math.pow(1024, power);
+  return `${typeof size === 'number' ? size.toFixed(1) : parseFloat(String(size)).toFixed(1)} ${units[power]}`;
 };
 
 const CronSQL: React.FC = () => {
