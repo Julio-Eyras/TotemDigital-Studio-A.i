@@ -1705,6 +1705,10 @@ server {
     }
     
     # Backend API
+    # Configurações de upload
+    client_max_body_size 500M;
+    client_body_buffer_size 512k;
+    
     location /api/ {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
@@ -1715,6 +1719,10 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
+        # Timeouts aumentados para uploads grandes
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
     }
     
     # Player
@@ -1791,6 +1799,10 @@ server {
     }
     
     # Backend API
+    # Configurações de upload
+    client_max_body_size 500M;
+    client_body_buffer_size 512k;
+    
     location /api/ {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
@@ -1801,6 +1813,10 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
+        # Timeouts aumentados para uploads grandes
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
     }
     
     # Player
@@ -1949,6 +1965,10 @@ server {
     }
 
     # Backend API
+    # Configurações de upload
+    client_max_body_size 500M;
+    client_body_buffer_size 512k;
+    
     location /api/ {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
@@ -1959,6 +1979,10 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
+        # Timeouts aumentados para uploads grandes
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
     }
 
     # Player
@@ -2060,6 +2084,10 @@ server {
         access_log off;
     }
     
+    # Configurações de upload (antes do location /api/)
+    client_max_body_size 500M;
+    client_body_buffer_size 512k;
+    
     # Backend API (DEVE vir antes de / para não interceptar)
     location /api/ {
         proxy_pass http://localhost:3000;
@@ -2071,9 +2099,10 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
+        # Timeouts aumentados para uploads grandes
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
     }
     
     # Assets
