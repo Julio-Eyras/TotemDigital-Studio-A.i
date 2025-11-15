@@ -1101,6 +1101,8 @@ EOF
         fi
         
         log "Instalando dependências do frontend..."
+        # Instalar ajv explicitamente primeiro para resolver conflitos
+        npm install ajv@^8.12.0 --legacy-peer-deps --save-dev || true
         npm install --legacy-peer-deps
         
         # Verificação final: garantir que o import NÃO tenha extensão .tsx
