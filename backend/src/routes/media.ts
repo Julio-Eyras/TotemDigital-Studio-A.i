@@ -136,8 +136,13 @@ router.get('/',
         clientId: clientId ? parseInt(clientId as string) : undefined
       });
       res.json(result);
-    } catch (error) {
-      res.status(500).json({ error: 'Erro ao listar mídia' });
+    } catch (error: any) {
+      console.error('❌ Erro ao listar mídia:', error.message);
+      console.error('❌ Stack trace:', error.stack);
+      res.status(500).json({ 
+        error: 'Erro ao listar mídia',
+        message: error.message || 'Erro desconhecido'
+      });
     }
   }
 );
@@ -170,24 +175,25 @@ router.get('/:id',
  * @access Private
  */
 router.post('/upload',
-  (req, res, next) => {
+  (req: AuthenticatedRequest, res: Response, next) => {
     // Tratar erros do multer antes de passar para validação
-    getMulterUpload().single('file')(req, res, (err: any) => {
+    getMulterUpload().single('file')(req as any, res, (err: any) => {
       if (err) {
         console.error('❌ Erro no multer:', err.message);
+        console.error('❌ Stack trace:', err.stack);
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({ 
             error: 'Arquivo muito grande',
             message: `Tamanho máximo permitido: ${err.limit} bytes`
           });
         }
-        if (err.message.includes('Tipo de arquivo não permitido')) {
+        if (err.message && err.message.includes('Tipo de arquivo não permitido')) {
           return res.status(400).json({ 
             error: 'Tipo de arquivo não permitido',
             message: err.message
           });
         }
-        if (err.message.includes('Diretório de uploads')) {
+        if (err.message && err.message.includes('Diretório de uploads')) {
           return res.status(500).json({ 
             error: 'Erro de configuração do servidor',
             message: 'Diretório de uploads não está configurado corretamente'
@@ -195,7 +201,7 @@ router.post('/upload',
         }
         return res.status(400).json({ 
           error: 'Erro ao processar arquivo',
-          message: err.message
+          message: err.message || 'Erro desconhecido no upload'
         });
       }
       next();
