@@ -4,7 +4,7 @@
 # Smart Signage Pro - Script de Auto-Instalação para Ubuntu
 # =============================================================================
 # Versão do Sistema: 2.1.0
-# Versão do Script: 2.1.4
+# Versão do Script: 2.1.5
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta 3 modos: Single-Server, Docker, Desenvolvimento
@@ -14,7 +14,7 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.4"
+SCRIPT_VERSION="2.1.5"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (apaga TUDO, incluindo volumes)
@@ -1739,14 +1739,106 @@ PYTHON_REMOVE_OVERRIDE_EOF
             exit 1
         fi
         
-        # Verificar versões instaladas
-        AJV_VER=$(npm list ajv --depth=0 2>/dev/null | grep ajv@ | head -1 || echo "")
+        # Verificar versões instaladas e CORRIGIR se necessário
+        log "Verificando versão do ajv instalada..."
+        AJV_VER=$(npm list ajv --depth=0 2>/dev/null | grep -oE "ajv@[0-9]+\.[0-9]+\.[0-9]+" | head -1 || echo "")
+        
         if [ -n "$AJV_VER" ]; then
-            log "✅ Versão instalada: $AJV_VER"
+            log "Versão do ajv instalada: $AJV_VER"
+            
             if echo "$AJV_VER" | grep -q "8.17.1"; then
-                error "Versão incorreta do ajv instalada (8.17.1)!"
-                exit 1
+                warn "❌ Versão incorreta do ajv instalada (8.17.1)!"
+                warn "Uma dependência transitiva está forçando ajv@8.17.1"
+                
+                # Identificar qual dependência está requerendo ajv@8.17.1
+                log "Identificando qual dependência está requerendo ajv@8.17.1..."
+                npm ls ajv 2>&1 | grep -E "ajv@8\.17\.1|└─|├─" | head -20 > /tmp/npm-ls-ajv.log 2>&1 || true
+                
+                if [[ -s /tmp/npm-ls-ajv.log ]]; then
+                    warn "Dependências que requerem ajv@8.17.1:"
+                    cat /tmp/npm-ls-ajv.log | head -10
+                fi
+                
+                # FORÇAR instalação da versão correta
+                warn "Forçando instalação de ajv@8.12.0..."
+                
+                # Remover ajv@8.17.1 e instalar 8.12.0
+                npm uninstall ajv 2>/dev/null || true
+                npm install ajv@8.12.0 --legacy-peer-deps --save-dev --no-audit --no-fund --force 2>&1 | tail -20 || {
+                    error "Falha ao forçar instalação de ajv@8.12.0"
+                    exit 1
+                }
+                
+                # Verificar novamente
+                AJV_VER_AFTER=$(npm list ajv --depth=0 2>/dev/null | grep -oE "ajv@[0-9]+\.[0-9]+\.[0-9]+" | head -1 || echo "")
+                if echo "$AJV_VER_AFTER" | grep -q "8.17.1"; then
+                    error "❌ IMPOSSÍVEL corrigir: ajv@8.17.1 ainda está instalado após tentativa de correção"
+                    error "Versão atual: $AJV_VER_AFTER"
+                    error "Possível causa: Uma dependência está fixando ajv@8.17.1 como dependência direta"
+                    error "Solução: Adicionar override específico para a dependência problemática"
+                    
+                    # Tentar adicionar override específico usando Python
+                    warn "Tentando adicionar override específico..."
+                    python3 << 'PYTHON_ADD_OVERRIDE_EOF'
+import json
+import sys
+
+try:
+    with open('package.json', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    # Adicionar override para forçar ajv@8.12.0 em TODAS as dependências
+    if 'overrides' not in data:
+        data['overrides'] = {}
+    
+    # Override global para ajv
+    data['overrides']['ajv'] = '8.12.0'  # Versão exata, sem ^
+    data['overrides']['ajv-keywords'] = '3.5.2'  # Versão exata
+    
+    # Override específico para dependências conhecidas que podem estar causando problema
+    # react-scripts e suas dependências
+    if 'react-scripts' in data.get('dependencies', {}):
+        if 'react-scripts' not in data['overrides']:
+            data['overrides']['react-scripts'] = {}
+        if isinstance(data['overrides']['react-scripts'], dict):
+            data['overrides']['react-scripts']['ajv'] = '8.12.0'
+    
+    with open('package.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    
+    print("✅ Override adicionado com versão exata (sem ^)", file=sys.stderr)
+    sys.exit(0)
+except Exception as e:
+    print(f"Erro ao adicionar override: {e}", file=sys.stderr)
+    sys.exit(1)
+PYTHON_ADD_OVERRIDE_EOF
+                    
+                    if [[ $? -eq 0 ]]; then
+                        log "Override adicionado. Tentando reinstalar ajv..."
+                        npm uninstall ajv 2>/dev/null || true
+                        npm install ajv@8.12.0 --legacy-peer-deps --save-dev --no-audit --no-fund --force 2>&1 | tail -20 || true
+                        
+                        # Verificar novamente
+                        AJV_VER_FINAL=$(npm list ajv --depth=0 2>/dev/null | grep -oE "ajv@[0-9]+\.[0-9]+\.[0-9]+" | head -1 || echo "")
+                        if echo "$AJV_VER_FINAL" | grep -q "8.17.1"; then
+                            error "❌ Ainda não foi possível corrigir. Versão atual: $AJV_VER_FINAL"
+                            error "O problema requer intervenção manual para identificar a dependência específica"
+                            exit 1
+                        else
+                            log "✅ Versão corrigida: $AJV_VER_FINAL"
+                        fi
+                    else
+                        error "Falha ao adicionar override"
+                        exit 1
+                    fi
+                else
+                    log "✅ Versão corrigida: $AJV_VER_AFTER"
+                fi
+            else
+                log "✅ Versão do ajv está correta: $AJV_VER"
             fi
+        else
+            warn "Não foi possível verificar versão do ajv instalada"
         fi
         
         # Verificação final: garantir que o import NÃO tenha extensão .tsx
