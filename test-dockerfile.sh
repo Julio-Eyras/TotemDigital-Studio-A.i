@@ -17,7 +17,7 @@ REQUIRED_FILES=(
     "docker/entrypoint.sh"
     "backend/package.json"
     "frontend/package.json"
-    "database/schema.sql"
+    "database/smartchannel-db.sql"
 )
 
 for file in "${REQUIRED_FILES[@]}"; do

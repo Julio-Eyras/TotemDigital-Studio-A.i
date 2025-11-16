@@ -30,9 +30,9 @@ else
 fi
 
 # Verificar se os arquivos foram copiados corretamente
-if [[ -f "$INSTALL_DIR/database/schema.sql" ]] && [[ -f "$INSTALL_DIR/database/init-data.sql" ]]; then
+if [[ -f "$INSTALL_DIR/database/smartchannel-db.sql" ]] && [[ -f "$INSTALL_DIR/database/init-data.sql" ]]; then
     echo "✅ Arquivos database verificados:"
-    echo "   - schema.sql: $(ls -lh "$INSTALL_DIR/database/schema.sql" | awk '{print $5}')"
+    echo "   - smartchannel-db.sql: $(ls -lh "$INSTALL_DIR/database/smartchannel-db.sql" | awk '{print $5}')"
     echo "   - init-data.sql: $(ls -lh "$INSTALL_DIR/database/init-data.sql" | awk '{print $5}')"
     echo ""
     echo "🎉 Correção concluída! Você pode continuar executando o script de instalação."

@@ -300,24 +300,24 @@ test_database() {
         return 1
     fi
     
-    # Verificar schema.sql
-    if [[ -f "database/schema.sql" ]]; then
+    # Verificar smartchannel-db.sql
+    if [[ -f "database/smartchannel-db.sql" ]]; then
         # Verificar se contém comandos SQL básicos
-        if grep -q "CREATE TABLE" database/schema.sql; then
-            log "schema.sql contém comandos CREATE TABLE"
+        if grep -q "CREATE TABLE" database/smartchannel-db.sql; then
+            log "smartchannel-db.sql contém comandos CREATE TABLE"
         else
-            warn "schema.sql pode não conter comandos CREATE TABLE"
+            warn "smartchannel-db.sql pode não conter comandos CREATE TABLE"
         fi
         
         # Verificar tamanho do arquivo
-        FILE_SIZE=$(stat -c%s database/schema.sql 2>/dev/null || stat -f%z database/schema.sql 2>/dev/null || echo "0")
+        FILE_SIZE=$(stat -c%s database/smartchannel-db.sql 2>/dev/null || stat -f%z database/smartchannel-db.sql 2>/dev/null || echo "0")
         if [[ $FILE_SIZE -lt 1000 ]]; then
-            warn "schema.sql muito pequeno ($FILE_SIZE bytes)"
+            warn "smartchannel-db.sql muito pequeno ($FILE_SIZE bytes)"
         fi
         
-        log "schema.sql verificado com sucesso! Tamanho: $FILE_SIZE bytes"
+        log "smartchannel-db.sql verificado com sucesso! Tamanho: $FILE_SIZE bytes"
     else
-        error "database/schema.sql não encontrado!"
+        error "database/smartchannel-db.sql não encontrado!"
         return 1
     fi
     
@@ -435,8 +435,8 @@ Configurações:
 - env.example: $([ -f "env.example" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
 
 Banco de Dados:
-- schema.sql: $([ -f "database/schema.sql" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
-- Tamanho: $([ -f "database/schema.sql" ] && echo "$(stat -c%s database/schema.sql 2>/dev/null || stat -f%z database/schema.sql 2>/dev/null || echo "0") bytes" || echo "N/A")
+- smartchannel-db.sql: $([ -f "database/smartchannel-db.sql" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
+- Tamanho: $([ -f "database/smartchannel-db.sql" ] && echo "$(stat -c%s database/smartchannel-db.sql 2>/dev/null || stat -f%z database/smartchannel-db.sql 2>/dev/null || echo "0") bytes" || echo "N/A")
 
 Scripts:
 - install.sh: $([ -f "scripts/install.sh" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
@@ -498,7 +498,7 @@ show_summary() {
     
     # Banco de dados
     TOTAL_COUNT=$((TOTAL_COUNT + 1))
-    if [[ -f "database/schema.sql" ]]; then
+    if [[ -f "database/smartchannel-db.sql" ]]; then
         echo -e "${GREEN}✅ Banco de Dados:${NC} Schema encontrado"
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
     else

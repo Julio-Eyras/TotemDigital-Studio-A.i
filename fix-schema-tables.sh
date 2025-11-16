@@ -10,14 +10,14 @@ echo "🔧 Corrigindo schema do banco de dados..."
 
 cd "$INSTALL_DIR" || exit 1
 
-# Verificar se o arquivo schema-postgresql.sql existe
-SCHEMA_SQL_FILE="$INSTALL_DIR/database/schema-postgresql.sql"
+# Verificar se o arquivo smartchannel-db.sql existe
+SCHEMA_SQL_FILE="$INSTALL_DIR/database/smartchannel-db.sql"
 if [[ ! -f "$SCHEMA_SQL_FILE" ]]; then
-    echo "❌ Arquivo schema-postgresql.sql não encontrado!"
+    echo "❌ Arquivo smartchannel-db.sql não encontrado!"
     exit 1
 fi
 
-echo "✅ Executando schema-postgresql.sql..."
+echo "✅ Executando smartchannel-db.sql..."
 
 # Executar schema SQL ignorando erros de "already exists"
 psql "$DATABASE_URL" -f "$SCHEMA_SQL_FILE" 2>&1 | grep -v "already exists" | grep -v "NOTICE" || true

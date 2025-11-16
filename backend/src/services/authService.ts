@@ -164,7 +164,7 @@ export class AuthService {
       
       if (error.message && error.message.includes('column') && error.message.includes('does not exist')) {
         console.error(`❌ [AUTH] ERRO CRÍTICO: Coluna não existe na tabela users! Erro: ${error.message}`);
-        return { success: false, error: 'Erro interno: Estrutura do banco de dados incorreta. Execute o schema-postgresql.sql para criar as tabelas.' };
+        return { success: false, error: 'Erro interno: Estrutura do banco de dados incorreta. Execute o smartchannel-db.sql para criar as tabelas.' };
       }
       
       return { success: false, error: `Erro interno do servidor: ${error.message}` };

@@ -12,21 +12,17 @@ DATABASE_URL="postgresql://smartsignage:smartsignage123@localhost:5432/smartsign
 echo "🔧 Aplicando configurações de logs..."
 
 # 1. Verificar se arquivo existe
-LOGS_CONFIG_SQL_FILE="$INSTALL_DIR/database/logs-config-schema.sql"
-if [[ ! -f "$LOGS_CONFIG_SQL_FILE" ]]; then
-    echo "❌ Arquivo não encontrado: $LOGS_CONFIG_SQL_FILE"
+# Nota: O schema de logs está consolidado em smartchannel-db.sql
+# Este script verifica apenas se as configurações existem no banco
+MASTER_SCHEMA_FILE="$INSTALL_DIR/database/smartchannel-db.sql"
+if [[ ! -f "$MASTER_SCHEMA_FILE" ]]; then
+    echo "❌ Arquivo não encontrado: $MASTER_SCHEMA_FILE"
+    echo "⚠️ O schema de logs está consolidado em smartchannel-db.sql"
     exit 1
 fi
 
-echo "✅ Arquivo encontrado: $LOGS_CONFIG_SQL_FILE"
-
-# 2. Aplicar schema de logs
-echo "📋 Aplicando schema de configurações de logs..."
-if psql "$DATABASE_URL" -f "$LOGS_CONFIG_SQL_FILE" 2>&1; then
-    echo "✅ Schema de configurações de logs aplicado com sucesso"
-else
-    echo "⚠️ Alguns avisos ao executar logs-config-schema.sql"
-fi
+echo "✅ Schema consolidado encontrado: $MASTER_SCHEMA_FILE"
+echo "ℹ️ As configurações de logs estão incluídas em smartchannel-db.sql"
 
 # 3. Verificar configurações criadas
 LOGS_CONFIG_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
