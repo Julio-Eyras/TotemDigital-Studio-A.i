@@ -4,7 +4,7 @@
 # Smart Signage Pro - Script de Auto-Instalação para Ubuntu
 # =============================================================================
 # Versão do Sistema: 2.1.0
-# Versão do Script: 2.1.2
+# Versão do Script: 2.1.3
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta 3 modos: Single-Server, Docker, Desenvolvimento
@@ -14,7 +14,7 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.2"
+SCRIPT_VERSION="2.1.3"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (apaga TUDO, incluindo volumes)
@@ -1216,12 +1216,12 @@ EOF
         log "Instalando dependências do frontend..."
         
         # CRÍTICO: Limpar COMPLETAMENTE instalações anteriores ANTES de validar package.json
-        log "Limpando COMPLETAMENTE instalações anteriores (node_modules, package-lock.json, cache)..."
-        rm -rf node_modules package-lock.json .npm 2>/dev/null || true
+        log "Limpando COMPLETAMENTE instalações anteriores (node_modules, package-lock.json, cache, .npm)..."
+        rm -rf node_modules package-lock.json .npm .cache 2>/dev/null || true
         npm cache clean --force 2>/dev/null || true
         
         # Validar e corrigir package.json ANTES de instalar (package.json vem do .zip)
-        log "Validando package.json (arquivo do .zip)..."
+        log "Validando e corrigindo package.json (arquivo do .zip)..."
         
         # Verificar se package.json existe
         if [[ ! -f "package.json" ]]; then
@@ -1230,35 +1230,192 @@ EOF
             exit 1
         fi
         
+        # Fazer backup do package.json original
+        cp package.json package.json.backup.$(date +%s) 2>/dev/null || true
+        
         # Verificar e corrigir TODAS as ocorrências de versões antigas/incompatíveis
         PACKAGE_JSON_FIXED=false
         
-        # Corrigir ajv 8.17.1 -> 8.12.0
-        if grep -q "8\.17\.1" package.json 2>/dev/null; then
-            warn "Versão antiga do ajv (8.17.1) detectada no package.json - corrigindo..."
+        # CORREÇÃO AGRESSIVA: Substituir TODAS as formas possíveis de 8.17.1 por 8.12.0
+        # Isso inclui: "8.17.1", "^8.17.1", "~8.17.1", "8.17.1", etc.
+        if grep -qE "(8\.17\.1|\"8\.17\.1\"|\^8\.17\.1|~8\.17\.1)" package.json 2>/dev/null; then
+            warn "Versão antiga do ajv (8.17.1) detectada no package.json - corrigindo AGressivamente..."
+            # Substituir todas as formas possíveis
             sed -i 's/8\.17\.1/8.12.0/g' package.json
+            sed -i 's/"8\.17\.1"/"8.12.0"/g' package.json
+            sed -i 's/\^8\.17\.1/\^8.12.0/g' package.json
+            sed -i 's/~8\.17\.1/~8.12.0/g' package.json
             PACKAGE_JSON_FIXED=true
-            log "✅ Versão do ajv corrigida para 8.12.0"
+            log "✅ Versão do ajv corrigida para 8.12.0 (todas as formas)"
         fi
         
-        # Corrigir ajv-keywords ^5.x ou 5.1.0 -> ^3.5.2
-        if grep -q '"ajv-keywords":\s*"\^5\.' package.json 2>/dev/null || grep -q "5\.1\.0" package.json 2>/dev/null; then
-            warn "Versão incompatível do ajv-keywords detectada no package.json - corrigindo..."
+        # CORREÇÃO AGRESSIVA: Substituir TODAS as formas possíveis de ajv-keywords ^5.x ou 5.1.0
+        if grep -qE '("ajv-keywords":\s*"\^5\.|5\.1\.0|"5\.1\.0"|\^5\.1\.0)' package.json 2>/dev/null; then
+            warn "Versão incompatível do ajv-keywords detectada no package.json - corrigindo AGressivamente..."
             sed -i 's/5\.1\.0/3.5.2/g' package.json
+            sed -i 's/"5\.1\.0"/"3.5.2"/g' package.json
+            sed -i 's/\^5\.1\.0/\^3.5.2/g' package.json
             sed -i 's/"ajv-keywords":\s*"\^5\./"ajv-keywords": "^3.5./g' package.json
             PACKAGE_JSON_FIXED=true
-            log "✅ Versão do ajv-keywords corrigida para ^3.5.2"
+            log "✅ Versão do ajv-keywords corrigida para ^3.5.2 (todas as formas)"
         fi
         
-        # Verificação final: garantir que não há mais versões problemáticas
-        if grep -q "8\.17\.1" package.json 2>/dev/null; then
+        # GARANTIR que overrides e resolutions estão corretos (forçar se necessário)
+        log "Garantindo que overrides e resolutions estão configurados corretamente..."
+        
+        # REMOVER completamente qualquer override com ajv@8.17.1 primeiro
+        if grep -qE '"overrides".*"ajv".*8\.17\.1' package.json 2>/dev/null || grep -qE '"ajv":\s*"[^"]*8\.17\.1' package.json 2>/dev/null; then
+            warn "Removendo override problemático com ajv@8.17.1..."
+            # Remover linha específica do ajv em overrides se contiver 8.17.1
+            sed -i '/"overrides"/,/}/ { /"ajv":\s*"[^"]*8\.17\.1/d; }' package.json 2>/dev/null || true
+            PACKAGE_JSON_FIXED=true
+        fi
+        
+        # Verificar se overrides existe e tem ajv correto
+        if ! grep -q '"overrides"' package.json 2>/dev/null; then
+            warn "Seção 'overrides' não encontrada - adicionando..."
+            # Adicionar overrides antes de devDependencies usando Python para garantir JSON válido
+            python3 << 'PYTHON_EOF'
+import json
+import sys
+
+try:
+    with open('package.json', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    # Garantir que overrides existe e está correto
+    if 'overrides' not in data:
+        data['overrides'] = {}
+    
+    # Forçar versões corretas
+    data['overrides']['react-dom'] = '^18.2.0'
+    data['overrides']['ajv'] = '^8.12.0'
+    data['overrides']['ajv-keywords'] = '^3.5.2'
+    
+    # Reordenar para colocar overrides antes de devDependencies
+    ordered_data = {}
+    for key in ['name', 'version', 'description', 'private', 'dependencies', 'overrides', 'resolutions', 'devDependencies', 'scripts', 'eslintConfig', 'browserslist', 'proxy']:
+        if key in data:
+            ordered_data[key] = data[key]
+    
+    # Adicionar qualquer chave restante
+    for key in data:
+        if key not in ordered_data:
+            ordered_data[key] = data[key]
+    
+    with open('package.json', 'w', encoding='utf-8') as f:
+        json.dump(ordered_data, f, indent=2, ensure_ascii=False)
+    
+    sys.exit(0)
+except Exception as e:
+    print(f"Erro ao processar package.json: {e}", file=sys.stderr)
+    sys.exit(1)
+PYTHON_EOF
+            if [[ $? -eq 0 ]]; then
+                PACKAGE_JSON_FIXED=true
+                log "✅ Seção 'overrides' adicionada/corrigida usando Python"
+            else
+                warn "Falha ao usar Python, tentando método sed..."
+                # Fallback para sed
+                if grep -q '"devDependencies"' package.json; then
+                    sed -i '/"devDependencies"/i\  "overrides": {\n    "react-dom": "^18.2.0",\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^3.5.2"\n  },' package.json
+                else
+                    sed -i '$ i\  "overrides": {\n    "react-dom": "^18.2.0",\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^3.5.2"\n  },' package.json
+                fi
+                PACKAGE_JSON_FIXED=true
+            fi
+        else
+            # Garantir que ajv em overrides está correto usando Python
+            python3 << 'PYTHON_EOF'
+import json
+import sys
+
+try:
+    with open('package.json', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    if 'overrides' in data:
+        # Forçar versões corretas em overrides
+        data['overrides']['react-dom'] = '^18.2.0'
+        data['overrides']['ajv'] = '^8.12.0'
+        data['overrides']['ajv-keywords'] = '^3.5.2'
+        
+        with open('package.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    
+    sys.exit(0)
+except Exception as e:
+    print(f"Erro ao processar package.json: {e}", file=sys.stderr)
+    sys.exit(1)
+PYTHON_EOF
+            if [[ $? -eq 0 ]]; then
+                PACKAGE_JSON_FIXED=true
+                log "✅ Overrides corrigido usando Python"
+            else
+                # Fallback: usar sed para corrigir
+                if grep -qE '"ajv":\s*"[^"]*8\.17\.1' package.json 2>/dev/null; then
+                    warn "Corrigindo ajv em overrides usando sed..."
+                    sed -i '/"overrides"/,/}/ s/"ajv":\s*"[^"]*8\.17\.1[^"]*"/"ajv": "^8.12.0"/g' package.json
+                    PACKAGE_JSON_FIXED=true
+                fi
+            fi
+        fi
+        
+        # Verificar se resolutions existe e tem ajv correto usando Python
+        python3 << 'PYTHON_RESOLUTIONS_EOF'
+import json
+import sys
+
+try:
+    with open('package.json', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    # Garantir que resolutions existe e está correto
+    if 'resolutions' not in data:
+        data['resolutions'] = {}
+    
+    # Forçar versões corretas
+    data['resolutions']['ajv'] = '^8.12.0'
+    data['resolutions']['ajv-keywords'] = '^3.5.2'
+    
+    with open('package.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    
+    sys.exit(0)
+except Exception as e:
+    print(f"Erro ao processar resolutions: {e}", file=sys.stderr)
+    sys.exit(1)
+PYTHON_RESOLUTIONS_EOF
+        if [[ $? -eq 0 ]]; then
+            PACKAGE_JSON_FIXED=true
+            log "✅ Resolutions garantido usando Python"
+        else
+            warn "Falha ao usar Python para resolutions, tentando método sed..."
+            # Fallback para sed
+            if ! grep -q '"resolutions"' package.json 2>/dev/null; then
+                if grep -q '"devDependencies"' package.json; then
+                    sed -i '/"devDependencies"/i\  "resolutions": {\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^3.5.2"\n  },' package.json
+                else
+                    sed -i '$ i\  "resolutions": {\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^3.5.2"\n  },' package.json
+                fi
+                PACKAGE_JSON_FIXED=true
+            else
+                # Garantir que ajv em resolutions está correto
+                if grep -qE '"ajv":\s*"[^"]*8\.17\.1' package.json 2>/dev/null; then
+                    warn "Corrigindo ajv em resolutions usando sed..."
+                    sed -i '/"resolutions"/,/}/ s/"ajv":\s*"[^"]*8\.17\.1[^"]*"/"ajv": "^8.12.0"/g' package.json
+                    PACKAGE_JSON_FIXED=true
+                fi
+            fi
+        fi
+        
+        # Verificação final: garantir que não há mais versões problemáticas em NENHUM lugar
+        if grep -qE "(8\.17\.1|\"8\.17\.1\"|\^8\.17\.1)" package.json 2>/dev/null; then
             error "❌ Falha ao corrigir package.json - ainda contém 8.17.1"
-            error "Conteúdo do package.json (overrides):"
-            grep -A 5 '"overrides"' package.json || true
-            error "Conteúdo do package.json (resolutions):"
-            grep -A 5 '"resolutions"' package.json || true
-            error "Conteúdo do package.json (devDependencies - ajv):"
-            grep -A 2 '"ajv"' package.json || true
+            error "Conteúdo completo do package.json:"
+            cat package.json
+            error "Tentando localizar ocorrências de 8.17.1:"
+            grep -n "8.17.1" package.json || true
             exit 1
         fi
         
@@ -1270,11 +1427,15 @@ EOF
         
         if [[ -n "$OVERRIDE_AJV" ]] && [[ "$OVERRIDE_AJV" == *"8.17.1"* ]]; then
             error "❌ Override ainda contém versão incorreta: $OVERRIDE_AJV"
+            error "Conteúdo do package.json (overrides):"
+            grep -A 5 '"overrides"' package.json || true
             exit 1
         fi
         
         if [[ -n "$RESOLUTION_AJV" ]] && [[ "$RESOLUTION_AJV" == *"8.17.1"* ]]; then
             error "❌ Resolution ainda contém versão incorreta: $RESOLUTION_AJV"
+            error "Conteúdo do package.json (resolutions):"
+            grep -A 5 '"resolutions"' package.json || true
             exit 1
         fi
         
@@ -1284,21 +1445,57 @@ EOF
             log "✅ package.json já está correto (sem versões problemáticas)"
         fi
         
+        # Mostrar conteúdo final do package.json para debug (apenas seções relevantes)
+        log "Conteúdo final do package.json (overrides, resolutions, devDependencies):"
+        grep -A 3 '"overrides"' package.json 2>/dev/null || true
+        grep -A 3 '"resolutions"' package.json 2>/dev/null || true
+        grep -A 2 '"ajv"' package.json 2>/dev/null | head -5 || true
+        
         # Instalar ajv e ajv-keywords explicitamente primeiro para resolver conflitos
         # Usar versões compatíveis: ajv@^8.12.0 e ajv-keywords@^3.5.2 (compatível com react-scripts 5.0.1)
-        log "Instalando ajv e ajv-keywords explicitamente..."
-        if ! npm install ajv@^8.12.0 ajv-keywords@^3.5.2 --legacy-peer-deps --save-dev --no-audit --no-fund 2>&1 | tee /tmp/npm-install-ajv.log; then
+        log "Instalando ajv@^8.12.0 e ajv-keywords@^3.5.2 explicitamente ANTES de outras dependências..."
+        if ! npm install ajv@^8.12.0 ajv-keywords@^3.5.2 --legacy-peer-deps --save-dev --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-ajv.log; then
             error "Falha ao instalar ajv e ajv-keywords"
-            tail -20 /tmp/npm-install-ajv.log
+            error "Log completo:"
+            cat /tmp/npm-install-ajv.log
             exit 1
         fi
         
-        # Instalar todas as dependências
-        log "Instalando todas as dependências do frontend..."
-        if ! npm install --legacy-peer-deps --no-audit --no-fund 2>&1 | tee /tmp/npm-install-all.log; then
+        # Verificar se foi instalado corretamente
+        AJV_INSTALLED=$(npm list ajv --depth=0 2>/dev/null | grep ajv@ | head -1 || echo "")
+        if [[ -n "$AJV_INSTALLED" ]]; then
+            log "✅ ajv instalado: $AJV_INSTALLED"
+            if echo "$AJV_INSTALLED" | grep -q "8.17.1"; then
+                error "❌ Versão incorreta do ajv instalada (8.17.1)!"
+                error "Tentando forçar instalação de 8.12.0..."
+                npm install ajv@8.12.0 --legacy-peer-deps --save-dev --no-audit --no-fund --force 2>&1 | tail -20 || true
+            fi
+        fi
+        
+        # Instalar todas as dependências com --force para garantir que overrides sejam respeitados
+        log "Instalando todas as dependências do frontend (com --force para garantir overrides)..."
+        if ! npm install --legacy-peer-deps --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-all.log; then
             error "Falha ao instalar dependências do frontend"
-            tail -30 /tmp/npm-install-all.log
-            exit 1
+            error "Verificando se o problema é com ajv..."
+            if grep -q "ajv.*8\.17\.1\|EOVERRIDE.*ajv" /tmp/npm-install-all.log; then
+                error "❌ Problema persistente com ajv@8.17.1"
+                error "Tentando solução alternativa: remover override e usar apenas resolutions..."
+                # Remover override temporariamente e usar apenas resolutions
+                sed -i '/"overrides"/,/},/d' package.json 2>/dev/null || true
+                # Garantir que resolutions está correto
+                if ! grep -q '"resolutions"' package.json; then
+                    sed -i '/"devDependencies"/i\  "resolutions": {\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^3.5.2"\n  },' package.json
+                fi
+                log "Tentando instalação novamente sem overrides..."
+                if ! npm install --legacy-peer-deps --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-retry.log; then
+                    error "Falha mesmo sem overrides"
+                    tail -50 /tmp/npm-install-retry.log
+                    exit 1
+                fi
+            else
+                tail -50 /tmp/npm-install-all.log
+                exit 1
+            fi
         fi
         
         # Validar instalação
