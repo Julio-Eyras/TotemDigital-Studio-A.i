@@ -292,21 +292,43 @@ CREATE TABLE IF NOT EXISTS campaign_totems (
 
 -- QR Codes
 CREATE TABLE IF NOT EXISTS qr_codes (
-    id SERIAL PRIMARY KEY,
-    campaign_id INTEGER NOT NULL,
+    qr_code_id SERIAL PRIMARY KEY,
+    client_id INTEGER,
+    totem_id INTEGER,
+    campaign_id INTEGER,
+    title TEXT NOT NULL,
+    description TEXT,
+    qr_type TEXT DEFAULT 'promotion', -- promotion, info, link, url, text, wifi, contact, sms, email, phone
     content TEXT NOT NULL,
-    qr_type TEXT DEFAULT 'promotion', -- promotion, info, link
+    size INTEGER DEFAULT 200,
+    color TEXT DEFAULT '#000000',
+    background_color TEXT DEFAULT '#FFFFFF',
+    error_correction_level TEXT DEFAULT 'M', -- L, M, Q, H
+    margin INTEGER DEFAULT 4,
+    is_active BOOLEAN DEFAULT true,
+    expires_at TIMESTAMP,
+    max_scans INTEGER,
+    redirect_url TEXT,
+    tracking_enabled BOOLEAN DEFAULT true,
+    scan_count INTEGER DEFAULT 0,
+    last_scanned_at TIMESTAMP,
     template TEXT,
     refresh_interval_ms INTEGER,
     deeplink_url TEXT,
     utm_params TEXT, -- JSON
-    expires_at TIMESTAMP,
-    max_scans INTEGER,
-    scan_count INTEGER DEFAULT 0,
-    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE CASCADE
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL,
+    FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE SET NULL
 );
+
+-- Criar índice para melhorar performance nas consultas
+CREATE INDEX IF NOT EXISTS idx_qr_codes_client_id ON qr_codes(client_id);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_totem_id ON qr_codes(totem_id);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_campaign_id ON qr_codes(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_is_active ON qr_codes(is_active);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_expires_at ON qr_codes(expires_at);
 
 -- Short Links
 CREATE TABLE IF NOT EXISTS short_links (
@@ -2255,5 +2277,119 @@ VALUES
     NULL
   )
 ON CONFLICT (setting_key) DO NOTHING;
+
+-- =============================================
+-- MIGRATIONS - QR Codes Table Update
+-- =============================================
+-- Migração para atualizar tabela qr_codes existente com novos campos
+-- Esta migração é idempotente e pode ser executada múltiplas vezes
+
+DO $$
+BEGIN
+    -- Verificar se a tabela qr_codes existe
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'qr_codes') THEN
+        -- Renomear coluna id para qr_code_id se ainda não foi renomeada
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'id') THEN
+            ALTER TABLE qr_codes RENAME COLUMN id TO qr_code_id;
+        END IF;
+
+        -- Adicionar coluna client_id se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'client_id') THEN
+            ALTER TABLE qr_codes ADD COLUMN client_id INTEGER;
+            ALTER TABLE qr_codes ADD CONSTRAINT fk_qr_codes_client FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL;
+        END IF;
+
+        -- Adicionar coluna totem_id se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'totem_id') THEN
+            ALTER TABLE qr_codes ADD COLUMN totem_id INTEGER;
+            ALTER TABLE qr_codes ADD CONSTRAINT fk_qr_codes_totem FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL;
+        END IF;
+
+        -- Tornar campaign_id opcional (remover NOT NULL se existir)
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'campaign_id' AND is_nullable = 'NO') THEN
+            ALTER TABLE qr_codes ALTER COLUMN campaign_id DROP NOT NULL;
+        END IF;
+
+        -- Adicionar coluna title se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'title') THEN
+            ALTER TABLE qr_codes ADD COLUMN title TEXT;
+            -- Se já existem registros, definir um título padrão baseado no content
+            UPDATE qr_codes SET title = COALESCE(SUBSTRING(content, 1, 100), 'QR Code') WHERE title IS NULL;
+            -- Agora tornar obrigatório
+            ALTER TABLE qr_codes ALTER COLUMN title SET NOT NULL;
+        END IF;
+
+        -- Adicionar coluna description se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'description') THEN
+            ALTER TABLE qr_codes ADD COLUMN description TEXT;
+        END IF;
+
+        -- Adicionar coluna size se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'size') THEN
+            ALTER TABLE qr_codes ADD COLUMN size INTEGER DEFAULT 200;
+        END IF;
+
+        -- Adicionar coluna color se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'color') THEN
+            ALTER TABLE qr_codes ADD COLUMN color TEXT DEFAULT '#000000';
+        END IF;
+
+        -- Adicionar coluna background_color se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'background_color') THEN
+            ALTER TABLE qr_codes ADD COLUMN background_color TEXT DEFAULT '#FFFFFF';
+        END IF;
+
+        -- Adicionar coluna error_correction_level se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'error_correction_level') THEN
+            ALTER TABLE qr_codes ADD COLUMN error_correction_level TEXT DEFAULT 'M';
+        END IF;
+
+        -- Adicionar coluna margin se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'margin') THEN
+            ALTER TABLE qr_codes ADD COLUMN margin INTEGER DEFAULT 4;
+        END IF;
+
+        -- Adicionar coluna redirect_url se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'redirect_url') THEN
+            ALTER TABLE qr_codes ADD COLUMN redirect_url TEXT;
+        END IF;
+
+        -- Adicionar coluna tracking_enabled se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'tracking_enabled') THEN
+            ALTER TABLE qr_codes ADD COLUMN tracking_enabled BOOLEAN DEFAULT true;
+        END IF;
+
+        -- Adicionar coluna last_scanned_at se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'last_scanned_at') THEN
+            ALTER TABLE qr_codes ADD COLUMN last_scanned_at TIMESTAMP;
+        END IF;
+
+        -- Adicionar coluna updated_at se não existir
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'updated_at') THEN
+            ALTER TABLE qr_codes ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        END IF;
+
+        -- Criar índices se não existirem
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_client_id') THEN
+            CREATE INDEX idx_qr_codes_client_id ON qr_codes(client_id);
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_totem_id') THEN
+            CREATE INDEX idx_qr_codes_totem_id ON qr_codes(totem_id);
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_campaign_id') THEN
+            CREATE INDEX idx_qr_codes_campaign_id ON qr_codes(campaign_id);
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_is_active') THEN
+            CREATE INDEX idx_qr_codes_is_active ON qr_codes(is_active);
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_expires_at') THEN
+            CREATE INDEX idx_qr_codes_expires_at ON qr_codes(expires_at);
+        END IF;
+    END IF;
+END $$;
 
 

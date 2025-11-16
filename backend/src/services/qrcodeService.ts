@@ -353,7 +353,7 @@ export class QRCodeService {
           is_active, expires_at, max_scans, redirect_url, tracking_enabled
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        RETURNING id
+        RETURNING qr_code_id
       `, [
         clientId,
         totemId,
@@ -375,12 +375,12 @@ export class QRCodeService {
       ]);
 
       const insertedQRCode = result?.rows?.[0];
-      if (!insertedQRCode?.id) {
+      if (!insertedQRCode?.qr_code_id) {
         throw new Error('Erro ao criar QR Code');
       }
 
       // Buscar QR Code criado
-      const newQRCode = await this.getQRCodeById(insertedQRCode.id);
+      const newQRCode = await this.getQRCodeById(insertedQRCode.qr_code_id);
       if (!newQRCode) {
         throw new Error('Erro ao buscar QR Code criado');
       }
