@@ -95,6 +95,74 @@ router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
 });
 
 /**
+ * @route GET /api/reports/types
+ * @desc Lista tipos de relatório disponíveis
+ * @access Private (Admin, Manager, Client)
+ */
+router.get('/types', async (req, res) => {
+  try {
+    const types = [
+      {
+        id: 'campaign',
+        name: 'Campanhas',
+        description: 'Relatório de performance de campanhas',
+        icon: 'campaign',
+        fields: ['title', 'status', 'start_date', 'end_date', 'playlist_count', 'totem_count']
+      },
+      {
+        id: 'totem',
+        name: 'Totems',
+        description: 'Relatório de status e performance de totems',
+        icon: 'tv',
+        fields: ['name', 'location', 'status', 'uptime_percentage', 'last_heartbeat']
+      },
+      {
+        id: 'client',
+        name: 'Clientes',
+        description: 'Relatório de clientes e suas atividades',
+        icon: 'person',
+        fields: ['name', 'email', 'campaign_count', 'totem_count', 'media_count']
+      },
+      {
+        id: 'media',
+        name: 'Mídia',
+        description: 'Relatório de mídia e visualizações',
+        icon: 'video_library',
+        fields: ['title', 'media_type', 'view_count', 'duration_seconds', 'file_size']
+      },
+      {
+        id: 'billing',
+        name: 'Faturamento',
+        description: 'Relatório de faturamento e pagamentos',
+        icon: 'payment',
+        fields: ['billing_type', 'amount', 'status', 'due_date', 'paid_at']
+      },
+      {
+        id: 'analytics',
+        name: 'Analytics',
+        description: 'Relatório de analytics e métricas',
+        icon: 'analytics',
+        fields: ['total_views', 'total_duration', 'average_view_duration', 'unique_viewers']
+      }
+    ];
+
+    res.json({
+      success: true,
+      data: types
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro ao buscar tipos de relatório:', error.message || error);
+    console.error('❌ Stack trace:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor',
+      error: error.message || 'Erro desconhecido'
+    });
+  }
+});
+
+/**
  * @route GET /api/reports/:id
  * @desc Busca relatório por ID
  * @access Private (Admin, Manager, Client)
@@ -384,74 +452,6 @@ router.post('/templates', authorizeRole(['admin']), async (req, res) => {
       success: false,
       message: error.message || 'Erro ao criar template',
       error: error.message
-    });
-  }
-});
-
-/**
- * @route GET /api/reports/types
- * @desc Lista tipos de relatório disponíveis
- * @access Private (Admin, Manager, Client)
- */
-router.get('/types', async (req, res) => {
-  try {
-    const types = [
-      {
-        id: 'campaign',
-        name: 'Campanhas',
-        description: 'Relatório de performance de campanhas',
-        icon: 'campaign',
-        fields: ['title', 'status', 'start_date', 'end_date', 'playlist_count', 'totem_count']
-      },
-      {
-        id: 'totem',
-        name: 'Totems',
-        description: 'Relatório de status e performance de totems',
-        icon: 'tv',
-        fields: ['name', 'location', 'status', 'uptime_percentage', 'last_heartbeat']
-      },
-      {
-        id: 'client',
-        name: 'Clientes',
-        description: 'Relatório de clientes e suas atividades',
-        icon: 'person',
-        fields: ['name', 'email', 'campaign_count', 'totem_count', 'media_count']
-      },
-      {
-        id: 'media',
-        name: 'Mídia',
-        description: 'Relatório de mídia e visualizações',
-        icon: 'video_library',
-        fields: ['title', 'media_type', 'view_count', 'duration_seconds', 'file_size']
-      },
-      {
-        id: 'billing',
-        name: 'Faturamento',
-        description: 'Relatório de faturamento e pagamentos',
-        icon: 'payment',
-        fields: ['billing_type', 'amount', 'status', 'due_date', 'paid_at']
-      },
-      {
-        id: 'analytics',
-        name: 'Analytics',
-        description: 'Relatório de analytics e métricas',
-        icon: 'analytics',
-        fields: ['total_views', 'total_duration', 'average_view_duration', 'unique_viewers']
-      }
-    ];
-
-    res.json({
-      success: true,
-      data: types
-    });
-
-  } catch (error: any) {
-    console.error('❌ Erro ao buscar tipos de relatório:', error.message || error);
-    console.error('❌ Stack trace:', error.stack);
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor',
-      error: error.message || 'Erro desconhecido'
     });
   }
 });
