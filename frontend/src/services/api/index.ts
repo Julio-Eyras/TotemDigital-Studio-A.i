@@ -491,11 +491,8 @@ export const mediaApi = {
     }
     if (data.clientId) formData.append('clientId', data.clientId.toString());
 
-    const response = await api.post('/media/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    // Não definir Content-Type manualmente - axios detecta FormData e adiciona boundary automaticamente
+    const response = await api.post('/media/upload', formData);
     // Backend retorna { success: true, data: media } ou apenas media diretamente
     return response.data.data || response.data;
   },
