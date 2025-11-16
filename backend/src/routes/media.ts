@@ -125,7 +125,7 @@ router.get('/',
   query('type').optional().isString().isIn(['image', 'video', 'audio']),
   query('clientId').optional().isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { page = 1, limit = 10, search, type, clientId } = req.query;
       const result = await getMediaService().getAllMedia({
@@ -150,7 +150,7 @@ router.get('/',
 router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       const media = await getMediaService().getMediaById(mediaId);
@@ -286,7 +286,7 @@ router.post('/upload-multiple',
   (req, res, next) => getMulterUpload().array('files', 10)(req, res, next), // Máximo 10 arquivos
   body('clientId').optional().isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) {
@@ -351,11 +351,13 @@ router.put('/:id',
   body('tags').optional().isString(),
   body('isActive').optional().isBoolean(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       const mediaData = req.body;
-      const media = await getMediaService().updateMedia(mediaId, mediaData, 1); // Default user
+      // Usar ID do usuário autenticado
+      const userId = req.user?.id || 1;
+      const media = await getMediaService().updateMedia(mediaId, mediaData, userId);
       if (!media) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
@@ -374,10 +376,12 @@ router.put('/:id',
 router.delete('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
-      await getMediaService().deleteMedia(mediaId, 1); // Default user
+      // Usar ID do usuário autenticado
+      const userId = req.user?.id || 1;
+      await getMediaService().deleteMedia(mediaId, userId);
       res.json({ message: 'Arquivo de mídia deletado com sucesso' });
     } catch (error) {
       res.status(500).json({ error: 'Erro ao deletar arquivo de mídia' });
@@ -393,7 +397,7 @@ router.delete('/:id',
 router.get('/:id/download',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       const media = await getMediaService().getMediaById(mediaId);
@@ -445,7 +449,7 @@ router.post('/:id/process',
   body('resize.height').optional().isInt({ min: 1 }),
   body('resize.fit').optional().isIn(['cover', 'contain', 'fill', 'inside', 'outside']),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       const processOptions = req.body;
@@ -487,7 +491,7 @@ router.post('/:id/process',
  * @desc Obter estatísticas de mídia
  * @access Private
  */
-router.get('/stats/overview', async (req: Request, res: Response) => {
+router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const stats = await getMediaService().getMediaStats();
     res.json(stats);
@@ -501,7 +505,7 @@ router.get('/stats/overview', async (req: Request, res: Response) => {
  * @desc Obter estatísticas de armazenamento
  * @access Private
  */
-router.get('/stats/storage', async (req: Request, res: Response) => {
+router.get('/stats/storage', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const stats = await getMediaService().getStorageStats();
     res.json(stats);
