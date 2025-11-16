@@ -176,11 +176,16 @@ router.get('/:id',
  */
 router.post('/upload',
   (req: AuthenticatedRequest, res: Response, next) => {
+    // Log detalhado antes do multer processar
+    console.log('📤 Upload recebido - Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('📤 Upload recebido - Body antes do multer:', JSON.stringify(req.body, null, 2));
+    
     // Tratar erros do multer antes de passar para validação
     getMulterUpload().single('file')(req as any, res, (err: any) => {
       if (err) {
         console.error('❌ Erro no multer:', err.message);
         console.error('❌ Stack trace:', err.stack);
+        console.error('❌ Código do erro:', err.code);
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({ 
             error: 'Arquivo muito grande',
@@ -204,6 +209,17 @@ router.post('/upload',
           message: err.message || 'Erro desconhecido no upload'
         });
       }
+      
+      // Log após multer processar
+      console.log('✅ Multer processou - Body após multer:', JSON.stringify(req.body, null, 2));
+      console.log('✅ Multer processou - File:', req.file ? {
+        fieldname: req.file.fieldname,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        filename: req.file.filename
+      } : 'Nenhum arquivo');
+      
       next();
     });
   },
