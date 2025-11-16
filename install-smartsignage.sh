@@ -50,6 +50,7 @@ DOMAIN_NAME=""
 SSL_EMAIL=""
 ENABLE_KIOSK_MODE=false
 RESET_DATABASE=false
+PRESERVE_DB=false
 LOAD_SEEDS=false
 SEEDS_OPTION_FORCED=false
 
@@ -253,6 +254,10 @@ parse_arguments() {
                 RESET_DATABASE=true
                 shift
                 ;;
+            --preserve-db)
+                PRESERVE_DB=true
+                shift
+                ;;
             --load-seeds|--with-seeds)
                 LOAD_SEEDS=true
                 SEEDS_OPTION_FORCED=true
@@ -278,6 +283,7 @@ parse_arguments() {
                 echo "  --skip-menu          Pula menu (usa Docker)"
                 echo "  --https-self-signed  Habilita HTTPS autoassinado (single-server)"
                 echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir"
+                echo "  --preserve-db         Preserva o banco de dados existente durante reinstalação"
                 echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt)"
                 echo "  --no-seeds           Não carrega dados de demonstração"
                 echo "  --help               Mostra esta ajuda"
@@ -514,6 +520,11 @@ detect_and_remove_previous_installation() {
                 echo "  ❌ Todos os node_modules (backend e frontend)"
                 echo "  ❌ Todos os builds compilados"
                 echo "  ❌ Configurações locais (.env será preservado se existir backup)"
+                if [[ "$PRESERVE_DB" == "true" ]]; then
+                    echo -e "  ${GREEN}✅ Banco de dados será PRESERVADO (--preserve-db ativo)${NC}"
+                else
+                    echo "  ❌ Banco de dados PostgreSQL (será recriado)"
+                fi
                 echo
                 echo -e "${RED}⚠️  ESTA AÇÃO É IRREVERSÍVEL!${NC}"
                 echo
@@ -543,6 +554,56 @@ detect_and_remove_previous_installation() {
                         BACKUP_ENV="$INSTALL_DIR_CHECK/.env.backup.$(date +%Y%m%d-%H%M%S)"
                         log "Fazendo backup do .env em: $BACKUP_ENV"
                         cp "$INSTALL_DIR_CHECK/.env" "$BACKUP_ENV" 2>/dev/null || true
+                    fi
+                    
+                    # Fazer backup do banco de dados se --preserve-db estiver ativo
+                    if [[ "$PRESERVE_DB" == "true" ]]; then
+                        log "🔄 Modo --preserve-db ativo: fazendo backup do banco de dados..."
+                        
+                        # Tentar ler configurações do banco do .env se existir
+                        local PG_DB="smartsignage"
+                        local PG_USER="smartsignage"
+                        local PG_HOST="localhost"
+                        local PG_PORT="5432"
+                        
+                        if [[ -f "$INSTALL_DIR_CHECK/.env" ]]; then
+                            # Tentar extrair configurações do .env
+                            if grep -q "DB_NAME=" "$INSTALL_DIR_CHECK/.env"; then
+                                PG_DB=$(grep "^DB_NAME=" "$INSTALL_DIR_CHECK/.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs)
+                            fi
+                            if grep -q "DB_USER=" "$INSTALL_DIR_CHECK/.env"; then
+                                PG_USER=$(grep "^DB_USER=" "$INSTALL_DIR_CHECK/.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs)
+                            fi
+                            if grep -q "DB_HOST=" "$INSTALL_DIR_CHECK/.env"; then
+                                PG_HOST=$(grep "^DB_HOST=" "$INSTALL_DIR_CHECK/.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs)
+                            fi
+                            if grep -q "DB_PORT=" "$INSTALL_DIR_CHECK/.env"; then
+                                PG_PORT=$(grep "^DB_PORT=" "$INSTALL_DIR_CHECK/.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs)
+                            fi
+                        fi
+                        
+                        # Criar diretório de backup temporário
+                        BACKUP_DIR="/tmp/smartsignage-db-backup-$(date +%Y%m%d-%H%M%S)"
+                        mkdir -p "$BACKUP_DIR"
+                        
+                        # Verificar se o banco existe antes de fazer backup
+                        if sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${PG_DB}'" | grep -q 1; then
+                            log "Fazendo backup do banco de dados '${PG_DB}'..."
+                            BACKUP_FILE="$BACKUP_DIR/${PG_DB}-backup-$(date +%Y%m%d-%H%M%S).sql"
+                            
+                            if sudo -u postgres pg_dump -Fc "${PG_DB}" > "$BACKUP_FILE" 2>/dev/null; then
+                                log "✅ Backup do banco de dados criado: $BACKUP_FILE"
+                                # Salvar localização do backup em arquivo temporário para uso posterior
+                                echo "$BACKUP_FILE" > /tmp/smartsignage-db-backup-path.txt
+                                echo "$PG_DB" > /tmp/smartsignage-db-backup-name.txt
+                            else
+                                warn "⚠️  Falha ao fazer backup do banco de dados. Continuando sem backup..."
+                                rm -rf "$BACKUP_DIR" 2>/dev/null || true
+                            fi
+                        else
+                            log "Banco de dados '${PG_DB}' não existe. Nenhum backup necessário."
+                            rm -rf "$BACKUP_DIR" 2>/dev/null || true
+                        fi
                     fi
                     
                     # Remover diretório completamente
@@ -1969,12 +2030,22 @@ setup_database() {
 
         local DROP_DB=false
         if [[ "$DB_EXISTS" == true ]]; then
-            warn "⚠️  Banco de dados '${PG_DB}' já existe - reinstalação limpa em andamento."
-            DROP_DB=true
+            if [[ "$PRESERVE_DB" == "true" ]]; then
+                log "🔄 Modo --preserve-db ativo: preservando banco de dados '${PG_DB}' existente"
+                DROP_DB=false
+            else
+                warn "⚠️  Banco de dados '${PG_DB}' já existe - reinstalação limpa em andamento."
+                DROP_DB=true
+            fi
         fi
 
         if [[ "$RESET_DATABASE" == "true" ]]; then
-            DROP_DB=true
+            if [[ "$PRESERVE_DB" == "true" ]]; then
+                warn "⚠️  --preserve-db e --reset-db são conflitantes. --preserve-db tem prioridade."
+                DROP_DB=false
+            else
+                DROP_DB=true
+            fi
         fi
 
         if [[ "$DROP_DB" == true ]]; then
@@ -1989,11 +2060,51 @@ setup_database() {
         fi
 
         if [[ "$DB_EXISTS" == false ]]; then
-            sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
-                error "❌ Falha ao criar banco de dados"
-                exit 1
-            }
-            log "✅ Banco de dados '${PG_DB}' criado com sucesso"
+            # Verificar se há backup para restaurar
+            if [[ "$PRESERVE_DB" == "true" && -f "/tmp/smartsignage-db-backup-path.txt" ]]; then
+                BACKUP_FILE=$(cat /tmp/smartsignage-db-backup-path.txt 2>/dev/null || echo "")
+                BACKUP_DB_NAME=$(cat /tmp/smartsignage-db-backup-name.txt 2>/dev/null || echo "")
+                
+                if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
+                    log "Criando banco de dados '${PG_DB}' para restaurar backup..."
+                    sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
+                        error "❌ Falha ao criar banco de dados para restauração"
+                        exit 1
+                    }
+                    log "✅ Banco de dados '${PG_DB}' criado"
+                    
+                    log "🔄 Restaurando backup do banco de dados..."
+                    if sudo -u postgres pg_restore -d "${PG_DB}" "$BACKUP_FILE" >/dev/null 2>&1; then
+                        log "✅ Backup do banco de dados restaurado com sucesso!"
+                        # Limpar arquivos temporários
+                        rm -f /tmp/smartsignage-db-backup-path.txt /tmp/smartsignage-db-backup-name.txt 2>/dev/null || true
+                        # Remover diretório de backup temporário
+                        BACKUP_DIR=$(dirname "$BACKUP_FILE" 2>/dev/null || echo "")
+                        if [[ -n "$BACKUP_DIR" && -d "$BACKUP_DIR" ]]; then
+                            rm -rf "$BACKUP_DIR" 2>/dev/null || true
+                        fi
+                    else
+                        warn "⚠️  Falha ao restaurar backup. Banco será criado vazio."
+                        warn "   Backup ainda disponível em: $BACKUP_FILE"
+                        warn "   Você pode restaurar manualmente com: sudo -u postgres pg_restore -d ${PG_DB} $BACKUP_FILE"
+                    fi
+                else
+                    log "Nenhum backup encontrado. Criando banco de dados novo..."
+                    sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
+                        error "❌ Falha ao criar banco de dados"
+                        exit 1
+                    }
+                    log "✅ Banco de dados '${PG_DB}' criado com sucesso"
+                fi
+            else
+                sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
+                    error "❌ Falha ao criar banco de dados"
+                    exit 1
+                }
+                log "✅ Banco de dados '${PG_DB}' criado com sucesso"
+            fi
+        elif [[ "$PRESERVE_DB" == "true" && "$DB_EXISTS" == true ]]; then
+            log "✅ Banco de dados '${PG_DB}' preservado (já existe e --preserve-db ativo)"
         fi
 
         # Garantir privilégios
