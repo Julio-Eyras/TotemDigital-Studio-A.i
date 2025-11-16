@@ -126,7 +126,7 @@ npm run build
 mkdir -p /opt/smart-signage/data
 
 # Inicializar banco SQLite
-sqlite3 /opt/smart-signage/data/smartsignage.db < /opt/smart-signage/database/schema.sql
+sqlite3 /opt/smart-signage/data/smartsignage.db < /opt/smart-signage/database/smartchannel-db.sql
 ```
 
 #### 7. Configurar Variáveis de Ambiente
@@ -499,7 +499,7 @@ sqlite3 /opt/smart-signage/data/smartsignage.db ".tables"
 
 # Recriar banco se necessário
 rm /opt/smart-signage/data/smartsignage.db
-sqlite3 /opt/smart-signage/data/smartsignage.db < /opt/smart-signage/database/schema.sql
+sqlite3 /opt/smart-signage/data/smartsignage.db < /opt/smart-signage/database/smartchannel-db.sql
 ```
 
 #### 4. Erro de Nginx
