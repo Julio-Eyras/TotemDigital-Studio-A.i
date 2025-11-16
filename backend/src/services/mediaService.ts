@@ -101,6 +101,9 @@ export class MediaService {
     type?: string;
     clientId?: number;
   }): Promise<any> {
+    if (!this.db) {
+      throw new Error('Database não inicializado. Chame initializeDatabase() primeiro.');
+    }
     const result = await this.getMedia(
       filters.page || 1,
       filters.limit || 1000,
@@ -126,6 +129,9 @@ export class MediaService {
       search?: string;
     } = {}
   ): Promise<{ media: MediaResponse[]; total: number; page: number; limit: number }> {
+    if (!this.db) {
+      throw new Error('Database não inicializado. Chame initializeDatabase() primeiro.');
+    }
     try {
       const offset = (page - 1) * limit;
       let whereClause = 'WHERE 1=1';
