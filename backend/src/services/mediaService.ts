@@ -203,8 +203,8 @@ export class MediaService {
       const processedMedia = media.map(item => ({
         ...item,
         tags: item.tags ? JSON.parse(item.tags) : [],
-        downloadUrl: this.getDownloadUrl(item.filePath),
-        thumbnailUrl: this.getThumbnailUrl(item.filePath, item.mediaType)
+        downloadUrl: item.filePath ? this.getDownloadUrl(item.filePath) : '',
+        thumbnailUrl: item.filePath ? this.getThumbnailUrl(item.filePath, item.mediaType) : ''
       }));
 
       return {
@@ -261,8 +261,8 @@ export class MediaService {
       return {
         ...media,
         tags: media.tags ? JSON.parse(media.tags) : [],
-        downloadUrl: this.getDownloadUrl(media.filePath),
-        thumbnailUrl: this.getThumbnailUrl(media.filePath, media.mediaType)
+        downloadUrl: media.filePath ? this.getDownloadUrl(media.filePath) : '',
+        thumbnailUrl: media.filePath ? this.getThumbnailUrl(media.filePath, media.mediaType) : ''
       };
 
     } catch (error: any) {
@@ -477,7 +477,9 @@ export class MediaService {
       }
 
       // Remover arquivo físico
-      await this.getStorageService().deleteMediaFile(media.filePath);
+      if (media.filePath) {
+        await this.getStorageService().deleteMediaFile(media.filePath);
+      }
 
       // Remover do banco
       await this.db.executeRaw(`
@@ -625,7 +627,10 @@ export class MediaService {
   /**
    * Gera URL de download
    */
-  private getDownloadUrl(filePath: string): string {
+  private getDownloadUrl(filePath: string | null | undefined): string {
+    if (!filePath) {
+      return '';
+    }
     const relativePath = filePath.replace('/opt/smart-signage/public/assets/', '');
     return `/assets/${relativePath}`;
   }
@@ -633,7 +638,10 @@ export class MediaService {
   /**
    * Gera URL de thumbnail
    */
-  private getThumbnailUrl(filePath: string, mediaType: string): string {
+  private getThumbnailUrl(filePath: string | null | undefined, mediaType: string): string {
+    if (!filePath) {
+      return '';
+    }
     if (mediaType === 'image') {
       const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
       return this.getDownloadUrl(thumbnailPath);
@@ -647,7 +655,7 @@ export class MediaService {
   async getThumbnail(mediaId: number): Promise<string | null> {
     try {
       const media = await this.getMediaById(mediaId);
-      if (!media) {
+      if (!media || !media.filePath) {
         return null;
       }
       
@@ -690,8 +698,8 @@ export class MediaService {
   }> {
     try {
       const media = await this.getMediaById(mediaId);
-      if (!media) {
-        throw new Error('Mídia não encontrada');
+      if (!media || !media.filePath) {
+        throw new Error('Mídia não encontrada ou sem caminho de arquivo');
       }
 
       // Verificar se arquivo existe
@@ -993,8 +1001,8 @@ export class MediaService {
       return media.map(item => ({
         ...item,
         tags: item.tags ? JSON.parse(item.tags) : [],
-        downloadUrl: this.getDownloadUrl(item.filePath),
-        thumbnailUrl: this.getThumbnailUrl(item.filePath, item.mediaType)
+        downloadUrl: item.filePath ? this.getDownloadUrl(item.filePath) : '',
+        thumbnailUrl: item.filePath ? this.getThumbnailUrl(item.filePath, item.mediaType) : ''
       }));
 
     } catch (error: any) {
