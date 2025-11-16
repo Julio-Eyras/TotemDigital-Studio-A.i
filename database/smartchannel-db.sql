@@ -2389,6 +2389,35 @@ BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_expires_at') THEN
             CREATE INDEX idx_qr_codes_expires_at ON qr_codes(expires_at);
         END IF;
+
+        -- Corrigir foreign key na tabela analytics_qr_scans se existir e referenciar coluna antiga
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'analytics_qr_scans') THEN
+            -- Verificar e corrigir foreign key se necessário
+            DO $$
+            DECLARE
+                fk_constraint_name TEXT;
+            BEGIN
+                -- Buscar nome da constraint que referencia qr_codes
+                SELECT tc.constraint_name INTO fk_constraint_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu 
+                    ON tc.constraint_schema = kcu.constraint_schema 
+                    AND tc.constraint_name = kcu.constraint_name
+                WHERE tc.table_name = 'analytics_qr_scans'
+                AND tc.constraint_type = 'FOREIGN KEY'
+                AND kcu.column_name = 'qr_code_id'
+                AND kcu.foreign_table_name = 'qr_codes'
+                LIMIT 1;
+                
+                -- Se encontrou constraint, remover e recriar com referência correta
+                IF fk_constraint_name IS NOT NULL THEN
+                    EXECUTE 'ALTER TABLE analytics_qr_scans DROP CONSTRAINT IF EXISTS ' || quote_ident(fk_constraint_name);
+                    ALTER TABLE analytics_qr_scans 
+                    ADD CONSTRAINT fk_analytics_qr_scans_qr_code 
+                    FOREIGN KEY (qr_code_id) REFERENCES qr_codes(qr_code_id) ON DELETE CASCADE;
+                END IF;
+            END $$;
+        END IF;
     END IF;
 END $$;
 
