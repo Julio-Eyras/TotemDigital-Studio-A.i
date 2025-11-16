@@ -1,6 +1,6 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { MediaService } from '../services/mediaService';
-import { authMiddleware } from '../middleware/auth.middleware';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import multer from 'multer';
@@ -206,7 +206,7 @@ router.post('/upload',
   body('tags').optional().isString(),
   body('clientId').optional().isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       if (!req.file) {
         return res.status(400).json({ 
@@ -253,7 +253,7 @@ router.post('/upload',
         description: mediaData.description,
         tags: mediaData.tags ? String(mediaData.tags).split(',').map(t => t.trim()).filter(Boolean) : [],
         clientId: finalClientId,
-        createdBy: req.user.id || req.user.userId, // Usar ID do usuário autenticado
+        createdBy: req.user.id, // Usar ID do usuário autenticado (userId é alias de id)
         file: {
           buffer,
           originalname: mediaData.originalName,
@@ -322,7 +322,7 @@ router.post('/upload-multiple',
           description: '',
           tags: [],
           clientId: finalClientId,
-          createdBy: req.user.id || req.user.userId, // Usar ID do usuário autenticado
+          createdBy: req.user.id, // Usar ID do usuário autenticado (userId é alias de id)
           file: {
             buffer,
             originalname: file.originalname,
