@@ -734,6 +734,11 @@ export interface SystemSetting {
   value: any;
   type: string;
   description?: string;
+  validation?: string;
+  defaultValue?: string;
+  options?: any;
+  isPublic?: boolean;
+  isEditable?: boolean;
 }
 
 export const settingsApi = {
