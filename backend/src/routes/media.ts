@@ -420,7 +420,7 @@ router.get('/:id/download',
 router.get('/:id/thumbnail',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       const thumbnail = await getMediaService().getThumbnail(mediaId);
