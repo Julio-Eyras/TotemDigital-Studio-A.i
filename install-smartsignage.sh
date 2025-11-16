@@ -6208,7 +6208,12 @@ main() {
         fi
     fi
     
-    check_startup_order
+    # Para single-server: iniciar serviços após setup completo
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        start_services_in_order
+    else
+        check_startup_order
+    fi
     test_endpoints
     
     # Para Docker: setup_first_boot é executado dentro do container
