@@ -177,12 +177,26 @@ export class PlaylistService {
         throw new Error('Playlist com este nome já existe para este cliente');
       }
 
+      // Buscar primeiro totem e campanha ativos para usar como padrão
+      // Se não existirem, usar NULL (mas o schema requer NOT NULL, então precisamos criar valores padrão)
+      const defaultTotem = await this.db.findFirst(`
+        SELECT totem_id FROM totems WHERE active = true LIMIT 1
+      `);
+      
+      const defaultCampaign = await this.db.findFirst(`
+        SELECT campaign_id FROM campaigns WHERE status = 'active' LIMIT 1
+      `);
+
+      if (!defaultTotem || !defaultCampaign) {
+        throw new Error('É necessário ter pelo menos um totem e uma campanha ativos para criar playlists');
+      }
+
       // Criar playlist
       const result = await this.db.executeRaw(`
-        INSERT INTO playlists (name, description, client_id, is_active)
-        VALUES ($1, $2, $3, true)
+        INSERT INTO playlists (name, description, client_id, totem_id, campaign_id, is_active)
+        VALUES ($1, $2, $3, $4, $5, true)
         RETURNING playlist_id
-      `, [name, description, clientId]);
+      `, [name, description, clientId, defaultTotem.totem_id, defaultCampaign.campaign_id]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar playlist');
