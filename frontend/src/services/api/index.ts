@@ -768,8 +768,11 @@ export const settingsApi = {
 
   updateMultiple: async (settings: { [key: string]: any } | Array<{ key: string; value: any }>) => {
     // Se for objeto, usar diretamente; se for array, converter
-    const settingsObj = Array.isArray(settings) 
-      ? settings.reduce((acc, s) => { acc[s.key] = s.value; return acc; }, {} as { [key: string]: any })
+    const settingsObj: { [key: string]: any } = Array.isArray(settings) 
+      ? settings.reduce<{ [key: string]: any }>((acc, s) => { 
+          acc[s.key] = s.value; 
+          return acc; 
+        }, {})
       : settings;
     const response = await api.put('/settings', settingsObj);
     return response.data.data;
