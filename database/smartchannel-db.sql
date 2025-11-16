@@ -1665,7 +1665,7 @@ SELECT
     COUNT(DISTINCT ct.totem_id) AS totem_count,
     COUNT(DISTINCT p.playlist_id) AS playlist_count,
     COUNT(DISTINCT cp.playlist_id) AS campaign_playlist_count,
-    COUNT(DISTINCT qr.id) AS qr_code_count,
+    COUNT(DISTINCT qr.qr_code_id) AS qr_code_count,
     COUNT(DISTINCT sl.short_id) AS short_link_count,
     COUNT(DISTINCT el.log_id) AS execution_count,
     COUNT(DISTINCT CASE WHEN el.play_success = true THEN el.log_id END) AS successful_executions,
