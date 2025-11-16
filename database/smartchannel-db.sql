@@ -2392,8 +2392,7 @@ BEGIN
 
         -- Corrigir foreign key na tabela analytics_qr_scans se existir e referenciar coluna antiga
         -- Nota: A foreign key já está correta no CREATE TABLE, mas se a tabela existir com constraint antiga, precisa ser corrigida
-        -- Como não podemos usar DO $$ aninhado, vamos usar uma abordagem mais simples:
-        -- Remover todas as constraints de foreign key relacionadas e recriar
+        -- Usar abordagem simples: remover constraints antigas e recriar com referência correta
         IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'analytics_qr_scans') THEN
             -- Remover constraint antiga se existir (usando nome padrão ou buscando dinamicamente)
             ALTER TABLE analytics_qr_scans DROP CONSTRAINT IF EXISTS analytics_qr_scans_qr_code_id_fkey;
