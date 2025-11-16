@@ -14,7 +14,7 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.5"
+SCRIPT_VERSION="2.1.6"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (apaga TUDO, incluindo volumes)
