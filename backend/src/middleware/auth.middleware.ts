@@ -10,6 +10,7 @@ import { getDatabase } from '../config/database';
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: number;
+    userId: number; // Alias para id (compatibilidade)
     username: string;
     email: string;
     role: string;
@@ -68,6 +69,7 @@ export const authMiddleware = async (
     // Adicionar dados do usuário à requisição
     req.user = {
       id: user.id,
+      userId: user.id, // Alias para compatibilidade com rotas que usam userId
       username: user.username,
       email: user.email || '',
       role: user.role,
@@ -272,6 +274,7 @@ export const optionalAuth = async (
     if (user) {
       req.user = {
         id: user.id,
+        userId: user.id, // Alias para compatibilidade
         username: user.username,
         email: user.email || '',
         role: user.role,
