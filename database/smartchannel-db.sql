@@ -758,60 +758,79 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_clients_timestamp ON clients;
 CREATE TRIGGER update_clients_timestamp BEFORE UPDATE ON clients
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_users_timestamp ON users;
 CREATE TRIGGER update_users_timestamp BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_hosts_timestamp ON hosts;
 CREATE TRIGGER update_hosts_timestamp BEFORE UPDATE ON hosts
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_locals_timestamp ON locals;
 CREATE TRIGGER update_locals_timestamp BEFORE UPDATE ON locals
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_totems_timestamp ON totems;
 CREATE TRIGGER update_totems_timestamp BEFORE UPDATE ON totems
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_smart_tvs_timestamp ON smart_tvs;
 CREATE TRIGGER update_smart_tvs_timestamp BEFORE UPDATE ON smart_tvs
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_campaigns_timestamp ON campaigns;
 CREATE TRIGGER update_campaigns_timestamp BEFORE UPDATE ON campaigns
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_medias_timestamp ON medias;
 CREATE TRIGGER update_medias_timestamp BEFORE UPDATE ON medias
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_playlists_timestamp ON playlists;
 CREATE TRIGGER update_playlists_timestamp BEFORE UPDATE ON playlists
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_playlist_items_timestamp ON playlist_items;
 CREATE TRIGGER update_playlist_items_timestamp BEFORE UPDATE ON playlist_items
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_campaign_playlists_timestamp ON campaign_playlists;
 CREATE TRIGGER update_campaign_playlists_timestamp BEFORE UPDATE ON campaign_playlists
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_campaign_totems_timestamp ON campaign_totems;
 CREATE TRIGGER update_campaign_totems_timestamp BEFORE UPDATE ON campaign_totems
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_webhook_configs_timestamp ON webhook_configs;
 CREATE TRIGGER update_webhook_configs_timestamp BEFORE UPDATE ON webhook_configs
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_alert_rules_timestamp ON alert_rules;
 CREATE TRIGGER update_alert_rules_timestamp BEFORE UPDATE ON alert_rules
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_roles_timestamp ON roles;
 CREATE TRIGGER update_roles_timestamp BEFORE UPDATE ON roles
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_approval_workflows_timestamp ON approval_workflows;
 CREATE TRIGGER update_approval_workflows_timestamp BEFORE UPDATE ON approval_workflows
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_ai_models_timestamp ON ai_models;
 CREATE TRIGGER update_ai_models_timestamp BEFORE UPDATE ON ai_models
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_ml_models_timestamp ON ml_models;
 CREATE TRIGGER update_ml_models_timestamp BEFORE UPDATE ON ml_models
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_totem_ml_config_timestamp ON totem_ml_config;
 CREATE TRIGGER update_totem_ml_config_timestamp BEFORE UPDATE ON totem_ml_config
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -860,6 +879,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_advanced_schedules_timestamp ON advanced_schedules;
 CREATE TRIGGER update_advanced_schedules_timestamp BEFORE UPDATE ON advanced_schedules
     FOR EACH ROW EXECUTE FUNCTION update_advanced_schedules_timestamp();
 
@@ -967,6 +987,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_export_queries_timestamp ON export_queries;
 CREATE TRIGGER update_export_queries_timestamp
     BEFORE UPDATE ON export_queries
     FOR EACH ROW
@@ -980,6 +1001,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_export_schedules_timestamp ON export_schedules;
 CREATE TRIGGER update_export_schedules_timestamp
     BEFORE UPDATE ON export_schedules
     FOR EACH ROW
