@@ -27,9 +27,30 @@ function createMulterConfig() {
   const allowedMimeTypes = getAllowedMimeTypes();
   const storagePath = getStoragePath();
 
-  // Criar diretório se não existir
+  // Criar diretório se não existir (com tratamento de erro de permissão)
   if (!fs.existsSync(storagePath)) {
-    fs.mkdirSync(storagePath, { recursive: true });
+    try {
+      fs.mkdirSync(storagePath, { recursive: true });
+      console.log(`✅ Diretório de uploads criado: ${storagePath}`);
+    } catch (error: any) {
+      if (error.code === 'EACCES') {
+        console.error(`❌ Erro de permissão ao criar diretório: ${storagePath}`);
+        console.error(`   O diretório deve ser criado durante a instalação com permissões corretas`);
+        console.error(`   Execute: sudo mkdir -p ${storagePath} && sudo chown -R $USER:$USER ${storagePath}`);
+        throw new Error(`Diretório de uploads não pode ser criado: ${error.message}`);
+      } else {
+        throw error;
+      }
+    }
+  }
+  
+  // Verificar se o diretório é gravável
+  try {
+    fs.accessSync(storagePath, fs.constants.W_OK);
+  } catch (error: any) {
+    console.error(`❌ Diretório de uploads não é gravável: ${storagePath}`);
+    console.error(`   Execute: sudo chown -R $USER:$USER ${storagePath} && sudo chmod -R 755 ${storagePath}`);
+    throw new Error(`Diretório de uploads não é gravável: ${error.message}`);
   }
 
   const storage = multer.diskStorage({

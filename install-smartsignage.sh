@@ -4624,6 +4624,50 @@ setup_first_boot() {
         fi
     fi
     
+    # Criar diretórios necessários para o backend (uploads, logs, etc.)
+    log "Criando diretórios necessários para o backend..."
+    UPLOADS_DIR="/opt/smart-signage/public/assets/uploads"
+    LOGS_DIR="/opt/smart-signage/Logs"
+    PUBLIC_DIR="/opt/smart-signage/public"
+    ASSETS_DIR="/opt/smart-signage/public/assets"
+    
+    # Criar estrutura de diretórios completa
+    log "Criando estrutura de diretórios para uploads e assets..."
+    for dir in "$PUBLIC_DIR" "$ASSETS_DIR" "$UPLOADS_DIR"; do
+        if [[ ! -d "$dir" ]]; then
+            log "Criando diretório: $dir"
+            sudo mkdir -p "$dir" 2>/dev/null || mkdir -p "$dir" 2>/dev/null || {
+                error "Falha ao criar diretório: $dir"
+                exit 1
+            }
+        fi
+    done
+    
+    # Criar diretório de logs se não existir
+    if [[ ! -d "$LOGS_DIR" ]]; then
+        log "Criando diretório de logs: $LOGS_DIR"
+        sudo mkdir -p "$LOGS_DIR" 2>/dev/null || mkdir -p "$LOGS_DIR" 2>/dev/null || true
+    fi
+    
+    # Ajustar permissões dos diretórios criados
+    # O usuário do serviço precisa ter acesso de escrita
+    log "Ajustando permissões dos diretórios criados..."
+    for dir in "$PUBLIC_DIR" "$ASSETS_DIR" "$UPLOADS_DIR"; do
+        if [[ -d "$dir" ]]; then
+            log "Ajustando permissões de: $dir"
+            sudo chown -R $USER:$USER "$dir" 2>/dev/null || chown -R $USER:$USER "$dir" 2>/dev/null || true
+            sudo chmod -R 755 "$dir" 2>/dev/null || chmod -R 755 "$dir" 2>/dev/null || true
+        fi
+    done
+    log "✅ Diretórios criados e configurados: $PUBLIC_DIR, $ASSETS_DIR, $UPLOADS_DIR"
+    
+    if [[ -d "$LOGS_DIR" ]]; then
+        log "Ajustando permissões do diretório de logs..."
+        sudo chown -R $USER:$USER "$LOGS_DIR" 2>/dev/null || chown -R $USER:$USER "$LOGS_DIR" 2>/dev/null || true
+        sudo chmod -R 755 "$LOGS_DIR" 2>/dev/null || chmod -R 755 "$LOGS_DIR" 2>/dev/null || true
+        log "✅ Diretório de logs criado e configurado: $LOGS_DIR"
+    fi
+    
     if [[ "$LOAD_SEEDS" == "true" ]]; then
         # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
         log "Executando seed completo do banco de dados com dados correlacionados..."

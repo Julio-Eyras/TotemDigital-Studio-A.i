@@ -111,21 +111,18 @@ app.use(cors(corsOptions));
 app.use(compression());
 
 // Body parsing - Configuração dinâmica de mídia
-import { loadMediaConfig, getExpressLimit } from './config/mediaConfig';
-
-// Carregar configurações de mídia na inicialização
-loadMediaConfig().catch(err => {
-  console.error('❌ Erro ao carregar configurações de mídia na inicialização:', err);
-});
+// NOTA: loadMediaConfig será chamado DEPOIS de initializeDatabase() na função startServer()
+import { getExpressLimit } from './config/mediaConfig';
 
 // Middleware dinâmico para body parsing (lê configuração do banco em cada requisição)
+// Usa valores padrão até que o banco seja inicializado
 app.use((req, res, next) => {
-  const expressLimit = getExpressLimit();
+  const expressLimit = getExpressLimit(); // Retorna padrão se banco não inicializado
   express.json({ limit: expressLimit })(req, res, next);
 });
 
 app.use((req, res, next) => {
-  const expressLimit = getExpressLimit();
+  const expressLimit = getExpressLimit(); // Retorna padrão se banco não inicializado
   express.urlencoded({ extended: true, limit: expressLimit })(req, res, next);
 });
 
@@ -374,9 +371,19 @@ async function startServer() {
   try {
     console.log('🚀 Iniciando Smart Signage v2.1...');
     
-    // Inicializar database
+    // Inicializar database PRIMEIRO (necessário para carregar configurações de mídia)
     console.log('📊 Conectando ao database...');
     await initializeDatabase();
+    
+    // Carregar configurações de mídia DEPOIS de inicializar o banco
+    console.log('📁 Carregando configurações de mídia do banco de dados...');
+    const { loadMediaConfig } = await import('./config/mediaConfig');
+    try {
+      await loadMediaConfig();
+      console.log('✅ Configurações de mídia carregadas do banco de dados');
+    } catch (err: any) {
+      console.warn('⚠️ Erro ao carregar configurações de mídia (usando padrões):', err.message);
+    }
     
     // Inicializar Redis
     console.log('🔴 Conectando ao Redis...');
