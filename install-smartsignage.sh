@@ -4,7 +4,7 @@
 # Smart Signage Pro - Script de Auto-Instalação para Ubuntu
 # =============================================================================
 # Versão do Sistema: 2.1.0
-# Versão do Script: 2.1.3
+# Versão do Script: 2.1.4
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta 3 modos: Single-Server, Docker, Desenvolvimento
@@ -14,7 +14,7 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.3"
+SCRIPT_VERSION="2.1.4"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (apaga TUDO, incluindo volumes)
@@ -1216,12 +1216,36 @@ EOF
         log "Instalando dependências do frontend..."
         
         # CRÍTICO: Limpar COMPLETAMENTE instalações anteriores ANTES de validar package.json
+        # IMPORTANTE: package-lock.json pode conter referências a versões antigas (ajv@8.17.1)
+        # Por isso, SEMPRE removemos antes de validar/instalar
         log "Limpando COMPLETAMENTE instalações anteriores (node_modules, package-lock.json, cache, .npm)..."
+        log "⚠️  REMOVENDO package-lock.json (pode conter referências a ajv@8.17.1)..."
         rm -rf node_modules package-lock.json .npm .cache 2>/dev/null || true
-        npm cache clean --force 2>/dev/null || true
         
-        # Validar e corrigir package.json ANTES de instalar (package.json vem do .zip)
-        log "Validando e corrigindo package.json (arquivo do .zip)..."
+        # Verificar se ainda existe package-lock.json (pode ter vindo do repositório)
+        if [[ -f "package-lock.json" ]]; then
+            warn "⚠️  package-lock.json ainda existe após remoção - forçando remoção..."
+            rm -f package-lock.json 2>/dev/null || sudo rm -f package-lock.json 2>/dev/null || true
+        fi
+        
+        npm cache clean --force 2>/dev/null || true
+        log "✅ Limpeza completa realizada (package-lock.json removido)"
+        
+        # Validar se Python está disponível (necessário para manipulação segura do JSON)
+        log "Validando Python (necessário para manipulação segura do package.json)..."
+        if ! command -v python3 &> /dev/null; then
+            warn "Python3 não encontrado - instalando..."
+            sudo apt install -y python3 python3-pip 2>/dev/null || {
+                error "Falha ao instalar Python3"
+                exit 1
+            }
+        fi
+        PYTHON_VERSION=$(python3 --version 2>&1 || echo "não disponível")
+        log "✅ Python disponível: $PYTHON_VERSION"
+        
+        # CRÍTICO: Garantir que estamos usando o package.json CORRETO do repositório
+        # Se o package.json no servidor foi modificado, substituir pelo do repositório
+        log "Garantindo que package.json está correto (usando versão do repositório)..."
         
         # Verificar se package.json existe
         if [[ ! -f "package.json" ]]; then
@@ -1230,8 +1254,67 @@ EOF
             exit 1
         fi
         
-        # Fazer backup do package.json original
-        cp package.json package.json.backup.$(date +%s) 2>/dev/null || true
+        # Fazer backup do package.json atual (caso tenha sido modificado)
+        PACKAGE_JSON_BACKUP="package.json.backup.$(date +%s)"
+        cp package.json "$PACKAGE_JSON_BACKUP" 2>/dev/null || true
+        log "Backup do package.json criado: $PACKAGE_JSON_BACKUP"
+        
+        # Verificar se há versões problemáticas no package.json atual
+        if grep -qE "(8\.17\.1|\"8\.17\.1\"|\^8\.17\.1)" package.json 2>/dev/null; then
+            warn "⚠️  package.json no servidor contém versões problemáticas (8.17.1)"
+            warn "Substituindo pelo package.json correto do repositório..."
+            
+            # Tentar restaurar do repositório Git se disponível
+            if command -v git &> /dev/null && [[ -d ".git" ]]; then
+                log "Restaurando package.json do repositório Git..."
+                git checkout HEAD -- package.json 2>/dev/null || {
+                    warn "Não foi possível restaurar do Git, usando correção manual..."
+                }
+            fi
+            
+            # Se ainda tiver problema, usar Python para corrigir
+            if grep -qE "(8\.17\.1|\"8\.17\.1\"|\^8\.17\.1)" package.json 2>/dev/null; then
+                warn "Corrigindo package.json usando Python..."
+                python3 << 'PYTHON_FIX_EOF'
+import json
+import sys
+
+try:
+    with open('package.json', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    # Forçar versões corretas em todas as seções
+    if 'overrides' not in data:
+        data['overrides'] = {}
+    data['overrides']['react-dom'] = '^18.2.0'
+    data['overrides']['ajv'] = '^8.12.0'
+    data['overrides']['ajv-keywords'] = '^3.5.2'
+    
+    if 'resolutions' not in data:
+        data['resolutions'] = {}
+    data['resolutions']['ajv'] = '^8.12.0'
+    data['resolutions']['ajv-keywords'] = '^3.5.2'
+    
+    if 'devDependencies' not in data:
+        data['devDependencies'] = {}
+    data['devDependencies']['ajv'] = '^8.12.0'
+    data['devDependencies']['ajv-keywords'] = '^3.5.2'
+    
+    with open('package.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    
+    sys.exit(0)
+except Exception as e:
+    print(f"Erro ao corrigir package.json: {e}", file=sys.stderr)
+    sys.exit(1)
+PYTHON_FIX_EOF
+                if [[ $? -ne 0 ]]; then
+                    error "Falha ao corrigir package.json com Python"
+                    exit 1
+                fi
+                log "✅ package.json corrigido usando Python"
+            fi
+        fi
         
         # Verificar e corrigir TODAS as ocorrências de versões antigas/incompatíveis
         PACKAGE_JSON_FIXED=false
@@ -1445,6 +1528,87 @@ PYTHON_RESOLUTIONS_EOF
             log "✅ package.json já está correto (sem versões problemáticas)"
         fi
         
+        # VALIDAÇÃO FINAL CRÍTICA: Garantir que NÃO há nenhuma referência a 8.17.1 em lugar nenhum
+        log "Validação final crítica: verificando se há alguma referência a ajv@8.17.1..."
+        
+        # Verificar TODAS as formas possíveis
+        AJV_8171_FOUND=false
+        if grep -qiE "(8\.17\.1|ajv.*8\.17\.1)" package.json 2>/dev/null; then
+            AJV_8171_FOUND=true
+            error "❌ CRÍTICO: Ainda há referências a ajv@8.17.1 no package.json!"
+            error "Localizando todas as ocorrências:"
+            grep -n -iE "(8\.17\.1|ajv.*8\.17\.1)" package.json || true
+            error "Corrigindo usando Python..."
+            
+            # Correção final usando Python
+            python3 << 'PYTHON_FINAL_FIX_EOF'
+import json
+import sys
+import re
+
+try:
+    with open('package.json', 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Verificar se há 8.17.1 em qualquer lugar
+    if '8.17.1' in content:
+        print("Encontrado 8.17.1 no package.json, corrigindo...", file=sys.stderr)
+        # Substituir todas as formas
+        content = re.sub(r'8\.17\.1', '8.12.0', content)
+        content = re.sub(r'"8\.17\.1"', '"8.12.0"', content)
+        content = re.sub(r'\^8\.17\.1', '^8.12.0', content)
+        content = re.sub(r'~8\.17\.1', '~8.12.0', content)
+        
+        # Re-carregar como JSON para garantir que está válido
+        data = json.loads(content)
+        
+        # Forçar versões corretas
+        if 'overrides' not in data:
+            data['overrides'] = {}
+        data['overrides']['ajv'] = '^8.12.0'
+        data['overrides']['ajv-keywords'] = '^3.5.2'
+        
+        if 'resolutions' not in data:
+            data['resolutions'] = {}
+        data['resolutions']['ajv'] = '^8.12.0'
+        data['resolutions']['ajv-keywords'] = '^3.5.2'
+        
+        if 'devDependencies' not in data:
+            data['devDependencies'] = {}
+        data['devDependencies']['ajv'] = '^8.12.0'
+        data['devDependencies']['ajv-keywords'] = '^3.5.2'
+        
+        with open('package.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        
+        print("✅ package.json corrigido completamente", file=sys.stderr)
+    else:
+        print("✅ Nenhuma referência a 8.17.1 encontrada", file=sys.stderr)
+    
+    sys.exit(0)
+except Exception as e:
+    print(f"Erro na correção final: {e}", file=sys.stderr)
+    sys.exit(1)
+PYTHON_FINAL_FIX_EOF
+            
+            if [[ $? -ne 0 ]]; then
+                error "Falha na correção final do package.json"
+                exit 1
+            fi
+            
+            # Verificar novamente
+            if grep -qiE "(8\.17\.1|ajv.*8\.17\.1)" package.json 2>/dev/null; then
+                error "❌ IMPOSSÍVEL corrigir package.json - ainda contém 8.17.1"
+                error "Conteúdo completo do package.json:"
+                cat package.json
+                exit 1
+            fi
+        fi
+        
+        if [[ "$AJV_8171_FOUND" == false ]]; then
+            log "✅ Nenhuma referência a ajv@8.17.1 encontrada no package.json"
+        fi
+        
         # Mostrar conteúdo final do package.json para debug (apenas seções relevantes)
         log "Conteúdo final do package.json (overrides, resolutions, devDependencies):"
         grep -A 3 '"overrides"' package.json 2>/dev/null || true
@@ -1472,27 +1636,97 @@ PYTHON_RESOLUTIONS_EOF
             fi
         fi
         
+        # Verificar se há dependências transitivas que podem estar forçando ajv@8.17.1
+        log "Verificando dependências transitivas que podem estar forçando ajv@8.17.1..."
+        
+        # Criar um package.json temporário apenas para verificar dependências transitivas
+        # (sem instalar, apenas para análise)
+        if command -v npm &> /dev/null; then
+            log "Analisando árvore de dependências para detectar conflitos..."
+            # Tentar instalação em modo dry-run primeiro para detectar problemas
+            npm install --dry-run --legacy-peer-deps --no-audit --no-fund 2>&1 | grep -i "ajv.*8\.17\.1\|EOVERRIDE.*ajv" > /tmp/npm-dry-run-ajv.log 2>&1 || true
+            
+            if [[ -s /tmp/npm-dry-run-ajv.log ]]; then
+                warn "⚠️  Possível conflito detectado na análise de dependências:"
+                cat /tmp/npm-dry-run-ajv.log | head -10
+            fi
+        fi
+        
         # Instalar todas as dependências com --force para garantir que overrides sejam respeitados
         log "Instalando todas as dependências do frontend (com --force para garantir overrides)..."
         if ! npm install --legacy-peer-deps --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-all.log; then
             error "Falha ao instalar dependências do frontend"
             error "Verificando se o problema é com ajv..."
-            if grep -q "ajv.*8\.17\.1\|EOVERRIDE.*ajv" /tmp/npm-install-all.log; then
-                error "❌ Problema persistente com ajv@8.17.1"
-                error "Tentando solução alternativa: remover override e usar apenas resolutions..."
-                # Remover override temporariamente e usar apenas resolutions
-                sed -i '/"overrides"/,/},/d' package.json 2>/dev/null || true
-                # Garantir que resolutions está correto
-                if ! grep -q '"resolutions"' package.json; then
-                    sed -i '/"devDependencies"/i\  "resolutions": {\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^3.5.2"\n  },' package.json
-                fi
-                log "Tentando instalação novamente sem overrides..."
-                if ! npm install --legacy-peer-deps --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-retry.log; then
-                    error "Falha mesmo sem overrides"
-                    tail -50 /tmp/npm-install-retry.log
+            
+            if grep -q "ajv.*8\.17\.1\|EOVERRIDE.*ajv\|conflicts with direct dependency" /tmp/npm-install-all.log; then
+                error "❌ Problema persistente com ajv@8.17.1 detectado"
+                error "Analisando log completo para identificar a causa..."
+                
+                # Mostrar contexto do erro
+                grep -B 5 -A 5 "ajv.*8\.17\.1\|EOVERRIDE.*ajv\|conflicts with direct dependency" /tmp/npm-install-all.log | head -30
+                
+                # ESTRATÉGIA ALTERNATIVA: Usar apenas resolutions (mais compatível com npm)
+                warn "Tentando solução alternativa: remover override e usar apenas resolutions..."
+                
+                # Usar Python para remover override e garantir apenas resolutions
+                python3 << 'PYTHON_REMOVE_OVERRIDE_EOF'
+import json
+import sys
+
+try:
+    with open('package.json', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    # Remover overrides completamente
+    if 'overrides' in data:
+        del data['overrides']
+        print("Removido 'overrides' do package.json", file=sys.stderr)
+    
+    # Garantir que resolutions existe e está correto
+    if 'resolutions' not in data:
+        data['resolutions'] = {}
+    data['resolutions']['ajv'] = '^8.12.0'
+    data['resolutions']['ajv-keywords'] = '^3.5.2'
+    
+    # Garantir devDependencies também está correto
+    if 'devDependencies' not in data:
+        data['devDependencies'] = {}
+    data['devDependencies']['ajv'] = '^8.12.0'
+    data['devDependencies']['ajv-keywords'] = '^3.5.2'
+    
+    with open('package.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    
+    sys.exit(0)
+except Exception as e:
+    print(f"Erro ao remover override: {e}", file=sys.stderr)
+    sys.exit(1)
+PYTHON_REMOVE_OVERRIDE_EOF
+                
+                if [[ $? -eq 0 ]]; then
+                    log "✅ Override removido, usando apenas resolutions"
+                    log "Tentando instalação novamente sem overrides..."
+                    
+                    # Limpar novamente antes de tentar
+                    rm -rf node_modules package-lock.json 2>/dev/null || true
+                    npm cache clean --force 2>/dev/null || true
+                    
+                    if ! npm install --legacy-peer-deps --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-retry.log; then
+                        error "❌ Falha mesmo sem overrides"
+                        error "Log completo da tentativa:"
+                        tail -100 /tmp/npm-install-retry.log
+                        error "Conteúdo atual do package.json:"
+                        cat package.json
+                        error "Possível causa: Uma dependência transitiva está forçando ajv@8.17.1"
+                        error "Solução manual: Verifique qual dependência está requerendo ajv@8.17.1"
+                        exit 1
+                    fi
+                else
+                    error "Falha ao remover override usando Python"
                     exit 1
                 fi
             else
+                error "Erro não relacionado ao ajv. Log completo:"
                 tail -50 /tmp/npm-install-all.log
                 exit 1
             fi
