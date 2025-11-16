@@ -230,7 +230,24 @@ router.post('/upload',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
+      // Log detalhado no handler principal
+      console.log('📥 Handler de upload - Body:', JSON.stringify(req.body, null, 2));
+      console.log('📥 Handler de upload - File:', req.file ? {
+        fieldname: req.file.fieldname,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        filename: req.file.filename,
+        path: req.file.path
+      } : 'Nenhum arquivo');
+      console.log('📥 Handler de upload - User:', req.user ? {
+        id: req.user.id,
+        username: req.user.username,
+        role: req.user.role
+      } : 'Usuário não autenticado');
+      
       if (!req.file) {
+        console.error('❌ Nenhum arquivo recebido no handler');
         return res.status(400).json({ 
           error: 'Nenhum arquivo enviado',
           message: 'É necessário enviar um arquivo'
