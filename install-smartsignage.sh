@@ -4,7 +4,7 @@
 # Smart Signage Pro - Script de Auto-Instalação para Ubuntu
 # =============================================================================
 # Versão do Sistema: 2.1.0
-# Versão do Script: 2.1.1
+# Versão do Script: 2.1.2
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta 3 modos: Single-Server, Docker, Desenvolvimento
@@ -14,7 +14,7 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.1"
+SCRIPT_VERSION="2.1.2"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (apaga TUDO, incluindo volumes)
@@ -200,6 +200,8 @@ show_banner() {
     echo "║  Versão do Script:  ${SCRIPT_VERSION}                                    ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
+    echo -e "${CYAN}ℹ️  Sistema v${SYSTEM_VERSION} | Script v${SCRIPT_VERSION}${NC}"
+    echo
 }
 
 # =============================================================================
@@ -477,6 +479,106 @@ configure_firewall() {
     
     sudo ufw --force enable
     log "Firewall configurado com sucesso!"
+}
+
+# Detectar e remover instalação anterior completamente
+detect_and_remove_previous_installation() {
+    log "Verificando instalação anterior..."
+    
+    # Diretórios que podem conter instalação anterior
+    POSSIBLE_INSTALL_DIRS=(
+        "/opt/smart-signage"
+        "$HOME/smartsignage-pro"
+        "$HOME/smart-signage"
+    )
+    
+    INSTALLATION_FOUND=false
+    
+    for INSTALL_DIR_CHECK in "${POSSIBLE_INSTALL_DIRS[@]}"; do
+        if [[ -d "$INSTALL_DIR_CHECK" ]]; then
+            # Verificar se é realmente uma instalação do Smart Signage
+            if [[ -d "$INSTALL_DIR_CHECK/backend" ]] || [[ -d "$INSTALL_DIR_CHECK/frontend" ]] || [[ -f "$INSTALL_DIR_CHECK/.env" ]]; then
+                INSTALLATION_FOUND=true
+                warn "⚠️  Instalação anterior detectada em: $INSTALL_DIR_CHECK"
+                
+                echo
+                echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+                echo -e "${YELLOW}                    Instalação Anterior Detectada${NC}"
+                echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+                echo
+                echo -e "${RED}⚠️  ATENÇÃO:${NC} Foi detectada uma instalação anterior em:"
+                echo -e "   ${YELLOW}$INSTALL_DIR_CHECK${NC}"
+                echo
+                echo -e "${YELLOW}Esta operação irá REMOVER COMPLETAMENTE:${NC}"
+                echo "  ❌ Todos os arquivos do projeto"
+                echo "  ❌ Todos os node_modules (backend e frontend)"
+                echo "  ❌ Todos os builds compilados"
+                echo "  ❌ Configurações locais (.env será preservado se existir backup)"
+                echo
+                echo -e "${RED}⚠️  ESTA AÇÃO É IRREVERSÍVEL!${NC}"
+                echo
+                read -p "Deseja REMOVER COMPLETAMENTE a instalação anterior? (s/N): " confirm_remove
+                
+                if [[ "$confirm_remove" =~ ^[Ss]$ ]]; then
+                    log "Removendo instalação anterior de $INSTALL_DIR_CHECK..."
+                    
+                    # Parar serviços se estiverem rodando
+                    if systemctl is-active --quiet smart-signage 2>/dev/null; then
+                        log "Parando serviço smart-signage..."
+                        sudo systemctl stop smart-signage 2>/dev/null || true
+                        sudo systemctl disable smart-signage 2>/dev/null || true
+                    fi
+                    
+                    # Remover serviço systemd
+                    if [[ -f "/etc/systemd/system/smart-signage.service" ]]; then
+                        log "Removendo serviço systemd..."
+                        sudo systemctl stop smart-signage 2>/dev/null || true
+                        sudo systemctl disable smart-signage 2>/dev/null || true
+                        sudo rm -f /etc/systemd/system/smart-signage.service
+                        sudo systemctl daemon-reload
+                    fi
+                    
+                    # Fazer backup do .env se existir
+                    if [[ -f "$INSTALL_DIR_CHECK/.env" ]]; then
+                        BACKUP_ENV="$INSTALL_DIR_CHECK/.env.backup.$(date +%Y%m%d-%H%M%S)"
+                        log "Fazendo backup do .env em: $BACKUP_ENV"
+                        cp "$INSTALL_DIR_CHECK/.env" "$BACKUP_ENV" 2>/dev/null || true
+                    fi
+                    
+                    # Remover diretório completamente
+                    log "Removendo diretório $INSTALL_DIR_CHECK..."
+                    sudo rm -rf "$INSTALL_DIR_CHECK" 2>/dev/null || rm -rf "$INSTALL_DIR_CHECK" 2>/dev/null || {
+                        error "Falha ao remover $INSTALL_DIR_CHECK"
+                        error "Verifique permissões e tente novamente"
+                        exit 1
+                    }
+                    
+                    log "✅ Instalação anterior removida com sucesso!"
+                    
+                    # Limpar também node_modules globais se existirem em locais comuns
+                    log "Limpando node_modules residuais..."
+                    find "$HOME" -maxdepth 3 -type d -name "node_modules" -path "*/smart-signage/*" -o -path "*/smartsignage-pro/*" 2>/dev/null | while read nm_dir; do
+                        if [[ -n "$nm_dir" ]]; then
+                            log "Removendo node_modules residual: $nm_dir"
+                            rm -rf "$nm_dir" 2>/dev/null || true
+                        fi
+                    done
+                    
+                    # Limpar cache npm relacionado
+                    log "Limpando cache npm..."
+                    npm cache clean --force 2>/dev/null || true
+                    
+                else
+                    log "Remoção cancelada pelo usuário."
+                    warn "⚠️  Continuando com instalação sobre instalação existente (pode causar conflitos)"
+                fi
+            fi
+        fi
+    done
+    
+    if [[ "$INSTALLATION_FOUND" == false ]]; then
+        log "✅ Nenhuma instalação anterior detectada"
+    fi
 }
 
 # Detectar diretório do projeto (apenas detecção, sem cópia)
@@ -1113,48 +1215,74 @@ EOF
         
         log "Instalando dependências do frontend..."
         
-        # Validar e corrigir package.json ANTES de instalar
-        log "Validando e corrigindo package.json..."
+        # CRÍTICO: Limpar COMPLETAMENTE instalações anteriores ANTES de validar package.json
+        log "Limpando COMPLETAMENTE instalações anteriores (node_modules, package-lock.json, cache)..."
+        rm -rf node_modules package-lock.json .npm 2>/dev/null || true
+        npm cache clean --force 2>/dev/null || true
         
-        # Verificar e corrigir TODAS as ocorrências de versões antigas
+        # Validar e corrigir package.json ANTES de instalar (package.json vem do .zip)
+        log "Validando package.json (arquivo do .zip)..."
+        
+        # Verificar se package.json existe
+        if [[ ! -f "package.json" ]]; then
+            error "❌ package.json não encontrado em $(pwd)"
+            error "O arquivo package.json deve vir no .zip do projeto"
+            exit 1
+        fi
+        
+        # Verificar e corrigir TODAS as ocorrências de versões antigas/incompatíveis
+        PACKAGE_JSON_FIXED=false
+        
+        # Corrigir ajv 8.17.1 -> 8.12.0
         if grep -q "8\.17\.1" package.json 2>/dev/null; then
-            warn "Versão antiga do ajv (8.17.1) detectada - corrigindo..."
-            # Substituir todas as ocorrências de 8.17.1 por 8.12.0
+            warn "Versão antiga do ajv (8.17.1) detectada no package.json - corrigindo..."
             sed -i 's/8\.17\.1/8.12.0/g' package.json
-            log "✅ Versão corrigida para 8.12.0"
+            PACKAGE_JSON_FIXED=true
+            log "✅ Versão do ajv corrigida para 8.12.0"
         fi
         
+        # Corrigir ajv-keywords ^5.x ou 5.1.0 -> ^3.5.2
         if grep -q '"ajv-keywords":\s*"\^5\.' package.json 2>/dev/null || grep -q "5\.1\.0" package.json 2>/dev/null; then
-            warn "Versão incompatível do ajv-keywords detectada - corrigindo..."
-            # Substituir todas as ocorrências de 5.1.0 por 3.5.2
+            warn "Versão incompatível do ajv-keywords detectada no package.json - corrigindo..."
             sed -i 's/5\.1\.0/3.5.2/g' package.json
-            # Corrigir também padrões como ^5.x
             sed -i 's/"ajv-keywords":\s*"\^5\./"ajv-keywords": "^3.5./g' package.json
-            log "✅ Versão corrigida para 3.5.2"
+            PACKAGE_JSON_FIXED=true
+            log "✅ Versão do ajv-keywords corrigida para ^3.5.2"
         fi
         
-        # Verificar se ainda há problemas
+        # Verificação final: garantir que não há mais versões problemáticas
         if grep -q "8\.17\.1" package.json 2>/dev/null; then
-            error "Falha ao corrigir package.json - ainda contém 8.17.1"
+            error "❌ Falha ao corrigir package.json - ainda contém 8.17.1"
             error "Conteúdo do package.json (overrides):"
             grep -A 5 '"overrides"' package.json || true
+            error "Conteúdo do package.json (resolutions):"
+            grep -A 5 '"resolutions"' package.json || true
+            error "Conteúdo do package.json (devDependencies - ajv):"
+            grep -A 2 '"ajv"' package.json || true
             exit 1
         fi
         
         # Verificar se as versões corretas estão configuradas
-        log "Verificando versões configuradas..."
-        OVERRIDE_AJV=$(grep -A 3 '"overrides"' package.json | grep '"ajv"' | grep -oE '\^[0-9]+\.[0-9]+\.[0-9]+' || echo "")
-        if [ -n "$OVERRIDE_AJV" ] && [[ "$OVERRIDE_AJV" == *"8.17.1"* ]]; then
-            error "Override ainda contém versão incorreta: $OVERRIDE_AJV"
+        log "Verificando versões configuradas no package.json..."
+        OVERRIDE_AJV=$(grep -A 3 '"overrides"' package.json 2>/dev/null | grep '"ajv"' | grep -oE '\^?[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "")
+        RESOLUTION_AJV=$(grep -A 3 '"resolutions"' package.json 2>/dev/null | grep '"ajv"' | grep -oE '\^?[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "")
+        DEVDEP_AJV=$(grep -A 2 '"ajv"' package.json 2>/dev/null | grep -oE '\^?[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "")
+        
+        if [[ -n "$OVERRIDE_AJV" ]] && [[ "$OVERRIDE_AJV" == *"8.17.1"* ]]; then
+            error "❌ Override ainda contém versão incorreta: $OVERRIDE_AJV"
             exit 1
         fi
         
-        log "✅ package.json validado e corrigido"
+        if [[ -n "$RESOLUTION_AJV" ]] && [[ "$RESOLUTION_AJV" == *"8.17.1"* ]]; then
+            error "❌ Resolution ainda contém versão incorreta: $RESOLUTION_AJV"
+            exit 1
+        fi
         
-        # Limpar instalações anteriores
-        log "Limpando instalações anteriores..."
-        rm -rf node_modules package-lock.json 2>/dev/null || true
-        npm cache clean --force 2>/dev/null || true
+        if [[ "$PACKAGE_JSON_FIXED" == true ]]; then
+            log "✅ package.json corrigido e validado"
+        else
+            log "✅ package.json já está correto (sem versões problemáticas)"
+        fi
         
         # Instalar ajv e ajv-keywords explicitamente primeiro para resolver conflitos
         # Usar versões compatíveis: ajv@^8.12.0 e ajv-keywords@^3.5.2 (compatível com react-scripts 5.0.1)
@@ -5301,6 +5429,10 @@ main() {
             exit 1
         fi
     fi
+    
+    # Detectar e remover instalação anterior (se existir e usuário confirmar)
+    # Isso deve ser feito ANTES de detectar o diretório do projeto para evitar conflitos
+    detect_and_remove_previous_installation
     
     # Detectar diretório do projeto PRIMEIRO (necessário para checksums)
     detect_project_directory
