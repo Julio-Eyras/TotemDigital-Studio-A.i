@@ -2391,32 +2391,17 @@ BEGIN
         END IF;
 
         -- Corrigir foreign key na tabela analytics_qr_scans se existir e referenciar coluna antiga
+        -- Nota: A foreign key já está correta no CREATE TABLE, mas se a tabela existir com constraint antiga, precisa ser corrigida
+        -- Como não podemos usar DO $$ aninhado, vamos usar uma abordagem mais simples:
+        -- Remover todas as constraints de foreign key relacionadas e recriar
         IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'analytics_qr_scans') THEN
-            -- Verificar e corrigir foreign key se necessário
-            DO $$
-            DECLARE
-                fk_constraint_name TEXT;
-            BEGIN
-                -- Buscar nome da constraint que referencia qr_codes
-                SELECT tc.constraint_name INTO fk_constraint_name
-                FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu 
-                    ON tc.constraint_schema = kcu.constraint_schema 
-                    AND tc.constraint_name = kcu.constraint_name
-                WHERE tc.table_name = 'analytics_qr_scans'
-                AND tc.constraint_type = 'FOREIGN KEY'
-                AND kcu.column_name = 'qr_code_id'
-                AND kcu.foreign_table_name = 'qr_codes'
-                LIMIT 1;
-                
-                -- Se encontrou constraint, remover e recriar com referência correta
-                IF fk_constraint_name IS NOT NULL THEN
-                    EXECUTE 'ALTER TABLE analytics_qr_scans DROP CONSTRAINT IF EXISTS ' || quote_ident(fk_constraint_name);
-                    ALTER TABLE analytics_qr_scans 
-                    ADD CONSTRAINT fk_analytics_qr_scans_qr_code 
-                    FOREIGN KEY (qr_code_id) REFERENCES qr_codes(qr_code_id) ON DELETE CASCADE;
-                END IF;
-            END $$;
+            -- Remover constraint antiga se existir (usando nome padrão ou buscando dinamicamente)
+            ALTER TABLE analytics_qr_scans DROP CONSTRAINT IF EXISTS analytics_qr_scans_qr_code_id_fkey;
+            ALTER TABLE analytics_qr_scans DROP CONSTRAINT IF EXISTS fk_analytics_qr_scans_qr_code;
+            -- Recriar com referência correta
+            ALTER TABLE analytics_qr_scans 
+            ADD CONSTRAINT fk_analytics_qr_scans_qr_code 
+            FOREIGN KEY (qr_code_id) REFERENCES qr_codes(qr_code_id) ON DELETE CASCADE;
         END IF;
     END IF;
 END $$;
