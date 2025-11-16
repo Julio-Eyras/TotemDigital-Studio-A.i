@@ -170,16 +170,57 @@ router.get('/:id',
  * @access Private
  */
 router.post('/upload',
-  (req, res, next) => getMulterUpload().single('file')(req, res, next),
+  (req, res, next) => {
+    // Tratar erros do multer antes de passar para validação
+    getMulterUpload().single('file')(req, res, (err: any) => {
+      if (err) {
+        console.error('❌ Erro no multer:', err.message);
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ 
+            error: 'Arquivo muito grande',
+            message: `Tamanho máximo permitido: ${err.limit} bytes`
+          });
+        }
+        if (err.message.includes('Tipo de arquivo não permitido')) {
+          return res.status(400).json({ 
+            error: 'Tipo de arquivo não permitido',
+            message: err.message
+          });
+        }
+        if (err.message.includes('Diretório de uploads')) {
+          return res.status(500).json({ 
+            error: 'Erro de configuração do servidor',
+            message: 'Diretório de uploads não está configurado corretamente'
+          });
+        }
+        return res.status(400).json({ 
+          error: 'Erro ao processar arquivo',
+          message: err.message
+        });
+      }
+      next();
+    });
+  },
   body('name').optional().isString().isLength({ min: 1, max: 100 }),
   body('description').optional().isString(),
   body('tags').optional().isString(),
   body('clientId').optional().isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: any, res: Response) => {
     try {
       if (!req.file) {
-        return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+        return res.status(400).json({ 
+          error: 'Nenhum arquivo enviado',
+          message: 'É necessário enviar um arquivo'
+        });
+      }
+
+      // Verificar se usuário está autenticado
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ 
+          error: 'Usuário não autenticado',
+          message: 'É necessário estar autenticado para fazer upload'
+        });
       }
 
       const mediaData = {
@@ -194,6 +235,16 @@ router.post('/upload',
         path: req.file.path
       };
 
+      // Se clientId não foi fornecido e usuário é client, usar clientId do usuário
+      let finalClientId = mediaData.clientId;
+      if (!finalClientId && req.user.role === 'client' && req.user.clientId) {
+        finalClientId = req.user.clientId;
+      }
+      // Se ainda não tem clientId, usar 1 como padrão (admin pode criar sem cliente específico)
+      if (!finalClientId) {
+        finalClientId = 1;
+      }
+
       const buffer = fs.readFileSync(req.file.path);
 
       const media = await getMediaService().createMedia({
@@ -201,8 +252,8 @@ router.post('/upload',
         title: mediaData.name,
         description: mediaData.description,
         tags: mediaData.tags ? String(mediaData.tags).split(',').map(t => t.trim()).filter(Boolean) : [],
-        clientId: mediaData.clientId || 1,
-        createdBy: 1,
+        clientId: finalClientId,
+        createdBy: req.user.id || req.user.userId, // Usar ID do usuário autenticado
         file: {
           buffer,
           originalname: mediaData.originalName,
@@ -210,9 +261,18 @@ router.post('/upload',
           size: mediaData.size,
         },
       });
-      res.status(201).json(media);
-    } catch (error) {
-      res.status(400).json({ error: 'Erro ao fazer upload do arquivo' });
+      
+      res.status(201).json({
+        success: true,
+        data: media
+      });
+    } catch (error: any) {
+      console.error('❌ Erro ao fazer upload do arquivo:', error.message);
+      console.error('❌ Stack trace:', error.stack);
+      res.status(400).json({ 
+        error: 'Erro ao fazer upload do arquivo',
+        message: error.message || 'Erro desconhecido ao processar upload'
+      });
     }
   }
 );
@@ -233,7 +293,26 @@ router.post('/upload-multiple',
         return res.status(400).json({ error: 'Nenhum arquivo enviado' });
       }
 
+      // Verificar se usuário está autenticado
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ 
+          error: 'Usuário não autenticado',
+          message: 'É necessário estar autenticado para fazer upload'
+        });
+      }
+
       const clientId = req.body.clientId ? parseInt(req.body.clientId) : undefined;
+      
+      // Se clientId não foi fornecido e usuário é client, usar clientId do usuário
+      let finalClientId = clientId;
+      if (!finalClientId && req.user.role === 'client' && req.user.clientId) {
+        finalClientId = req.user.clientId;
+      }
+      // Se ainda não tem clientId, usar 1 como padrão
+      if (!finalClientId) {
+        finalClientId = 1;
+      }
+
       const created: any[] = [];
       for (const file of files) {
         const buffer = fs.readFileSync(file.path);
@@ -242,8 +321,8 @@ router.post('/upload-multiple',
           title: file.originalname,
           description: '',
           tags: [],
-          clientId: clientId || 1,
-          createdBy: 1,
+          clientId: finalClientId,
+          createdBy: req.user.id || req.user.userId, // Usar ID do usuário autenticado
           file: {
             buffer,
             originalname: file.originalname,

@@ -484,7 +484,11 @@ export const mediaApi = {
     formData.append('name', data.name);
     if (data.title) formData.append('title', data.title);
     if (data.description) formData.append('description', data.description);
-    if (data.tags) formData.append('tags', JSON.stringify(data.tags));
+    if (data.tags) {
+      // Se tags é array, converter para string separada por vírgulas
+      const tagsStr = Array.isArray(data.tags) ? data.tags.join(',') : data.tags;
+      formData.append('tags', tagsStr);
+    }
     if (data.clientId) formData.append('clientId', data.clientId.toString());
 
     const response = await api.post('/media/upload', formData, {
@@ -492,7 +496,8 @@ export const mediaApi = {
         'Content-Type': 'multipart/form-data',
       },
     });
-    return response.data;
+    // Backend retorna { success: true, data: media } ou apenas media diretamente
+    return response.data.data || response.data;
   },
 
   update: async (id: number, data: UpdateMediaRequest): Promise<MediaItem> => {
