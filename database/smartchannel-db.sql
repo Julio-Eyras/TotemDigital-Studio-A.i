@@ -462,7 +462,7 @@ CREATE TABLE IF NOT EXISTS analytics_qr_scans (
     ip_address TEXT,
     location TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (qr_code_id) REFERENCES qr_codes(id) ON DELETE CASCADE,
+    FOREIGN KEY (qr_code_id) REFERENCES qr_codes(qr_code_id) ON DELETE CASCADE,
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
 );
 
