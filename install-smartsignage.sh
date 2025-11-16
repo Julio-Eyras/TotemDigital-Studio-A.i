@@ -2997,6 +2997,7 @@ User=$USER
 Group=$USER
 WorkingDirectory=$INSTALL_DIR/backend
 ExecStartPre=/usr/bin/env bash -lc 'pg_isready -h 127.0.0.1 -p 5432 -U smartsignage -d smartsignage -t 5 || exit 0'
+ExecStartPre=/usr/bin/env bash -c 'mkdir -p /opt/smart-signage/public/assets/uploads && chown -R $USER:$USER /opt/smart-signage/public/assets/uploads && chmod -R 755 /opt/smart-signage/public/assets/uploads || true'
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=5

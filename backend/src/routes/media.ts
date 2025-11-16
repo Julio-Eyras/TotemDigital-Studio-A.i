@@ -28,29 +28,32 @@ function createMulterConfig() {
   const storagePath = getStoragePath();
 
   // Criar diretório se não existir (com tratamento de erro de permissão)
+  // Se não conseguir criar, usar valores padrão e tentar novamente na próxima requisição
   if (!fs.existsSync(storagePath)) {
     try {
       fs.mkdirSync(storagePath, { recursive: true });
       console.log(`✅ Diretório de uploads criado: ${storagePath}`);
     } catch (error: any) {
       if (error.code === 'EACCES') {
-        console.error(`❌ Erro de permissão ao criar diretório: ${storagePath}`);
-        console.error(`   O diretório deve ser criado durante a instalação com permissões corretas`);
-        console.error(`   Execute: sudo mkdir -p ${storagePath} && sudo chown -R $USER:$USER ${storagePath}`);
-        throw new Error(`Diretório de uploads não pode ser criado: ${error.message}`);
+        console.warn(`⚠️ Erro de permissão ao criar diretório: ${storagePath}`);
+        console.warn(`   O diretório deve ser criado durante a instalação com permissões corretas`);
+        console.warn(`   Execute: sudo mkdir -p ${storagePath} && sudo chown -R $USER:$USER ${storagePath}`);
+        // Não falhar aqui - tentar usar o diretório mesmo assim (pode já existir)
+        // Se realmente não existir, o erro será capturado na verificação de escrita abaixo
       } else {
-        throw error;
+        console.warn(`⚠️ Erro ao criar diretório: ${error.message}`);
+        // Continuar mesmo assim - pode ser que o diretório já exista
       }
     }
   }
   
-  // Verificar se o diretório é gravável
+  // Verificar se o diretório é gravável (se não for, falhar aqui)
   try {
     fs.accessSync(storagePath, fs.constants.W_OK);
   } catch (error: any) {
     console.error(`❌ Diretório de uploads não é gravável: ${storagePath}`);
     console.error(`   Execute: sudo chown -R $USER:$USER ${storagePath} && sudo chmod -R 755 ${storagePath}`);
-    throw new Error(`Diretório de uploads não é gravável: ${error.message}`);
+    throw new Error(`Diretório de uploads não é gravável. Verifique permissões: ${error.message}`);
   }
 
   const storage = multer.diskStorage({
@@ -91,14 +94,23 @@ function createMulterConfig() {
   });
 }
 
-// Criar instância inicial do multer (será recriada quando configurações mudarem)
-let upload = createMulterConfig();
+// Instância lazy do multer (criada apenas quando necessário)
+let upload: multer.Multer | null = null;
 
-// Função helper para obter instância atualizada do multer
+// Função helper para obter instância atualizada do multer (lazy initialization)
 function getMulterUpload() {
-  // Recriar configuração para garantir que está atualizada
-  upload = createMulterConfig();
-  return upload;
+  // Criar configuração apenas quando necessário (não no carregamento do módulo)
+  // Isso evita erros de permissão e banco não inicializado durante o startup
+  try {
+    upload = createMulterConfig();
+    return upload;
+  } catch (error: any) {
+    // Se falhar, tentar novamente na próxima requisição
+    // Isso permite que o diretório seja criado durante a instalação
+    console.error('⚠️ Erro ao criar configuração do multer:', error.message);
+    console.error('   Tentando novamente na próxima requisição...');
+    throw error;
+  }
 }
 
 /**

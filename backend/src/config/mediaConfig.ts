@@ -4,6 +4,7 @@
  */
 
 import { SettingsService } from '../services/settingsService';
+import { getDatabase } from './database';
 
 let settingsServiceInstance: SettingsService | null = null;
 
@@ -107,6 +108,26 @@ function convertToExpressFormat(sizeStr: string): string {
 export async function loadMediaConfig(): Promise<void> {
   try {
     const settingsService = getSettingsService();
+    
+    // Verificar se o banco está inicializado antes de tentar buscar configurações
+    const db = getDatabase();
+    if (!db) {
+      console.warn('⚠️ Database não inicializado ainda - usando valores padrão para configurações de mídia');
+      // Usar valores padrão sem tentar acessar o banco
+      configCache = {
+        maxSize: 500 * 1024 * 1024,
+        nginxMaxSize: '500M',
+        expressLimit: '500mb',
+        proxyTimeout: 300,
+        allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'audio/mp3', 'audio/wav', 'audio/ogg'],
+        storagePath: '/opt/smart-signage/public/assets/uploads',
+        quotaPerClient: 5 * 1024 * 1024 * 1024,
+        autoCleanup: false,
+        cleanupDays: 90,
+        lastUpdated: Date.now()
+      };
+      return;
+    }
     
     const [
       maxSizeSetting,
