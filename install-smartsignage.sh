@@ -3107,8 +3107,7 @@ Type=simple
 User=$USER
 Group=$USER
 WorkingDirectory=$INSTALL_DIR/backend
-ExecStartPre=/usr/bin/env bash -lc 'until PGPASSWORD=smartsignage123 psql -h 127.0.0.1 -p 5432 -U smartsignage -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '\''smartsignage'\''" | grep -q 1; do echo "Aguardando banco de dados..."; sleep 2; done'
-ExecStartPre=/usr/bin/env bash -lc 'pg_isready -h 127.0.0.1 -p 5432 -U smartsignage -d smartsignage -t 5 || exit 0'
+ExecStartPre=/usr/bin/env bash -lc 'pg_isready -h 127.0.0.1 -p 5432 -U smartsignage -d smartsignage -t 10 || exit 0'
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=5
@@ -3677,7 +3676,7 @@ EOF
         
         # Garantir que o banco de dados existe antes de iniciar o serviço
         log "Verificando se banco de dados existe..."
-        if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'smartsignage'" | grep -q 1; then
+        if ! PGPASSWORD=smartsignage123 psql -h 127.0.0.1 -p 5432 -U smartsignage -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'smartsignage'" | grep -q 1; then
             error "❌ Banco de dados 'smartsignage' não existe! Execute setup_first_boot primeiro."
             exit 1
         fi
