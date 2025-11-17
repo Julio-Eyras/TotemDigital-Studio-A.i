@@ -437,6 +437,9 @@ export interface MediaItem {
   status: string;
   created_at: string;
   updated_at: string;
+  thumbnailUrl?: string;
+  downloadUrl?: string;
+  previewUrl?: string;
 }
 
 export interface CreateMediaRequest {
@@ -493,8 +496,8 @@ export const mediaApi = {
     }
     
     // Mapear campos do backend para o formato esperado pelo frontend
-    // Backend usa: id, sizeBytes, durationSeconds, mediaType
-    // Frontend espera: media_id, size_bytes, duration_seconds, media_type
+    // Backend usa: id, sizeBytes, durationSeconds, mediaType, thumbnailUrl, downloadUrl
+    // Frontend espera: media_id, size_bytes, duration_seconds, media_type, thumbnailUrl, downloadUrl
     const mappedMedia = mediaArray.map((item: any) => ({
       media_id: item.media_id || item.id,
       name: item.name || '',
@@ -510,6 +513,9 @@ export const mediaApi = {
       status: item.status || 'draft',
       created_at: item.created_at || item.createdAt || new Date().toISOString(),
       updated_at: item.updated_at || item.updatedAt || new Date().toISOString(),
+      thumbnailUrl: item.thumbnailUrl || item.thumbnail_url,
+      downloadUrl: item.downloadUrl || item.download_url,
+      previewUrl: item.previewUrl || item.preview_url,
     }));
     
     return {

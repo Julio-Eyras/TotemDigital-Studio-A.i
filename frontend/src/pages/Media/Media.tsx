@@ -248,49 +248,162 @@ const Media: React.FC = () => {
                 boxShadow: theme.shadows[8],
               }
             }}>
-              <Box sx={{ position: 'relative', height: 200, backgroundColor: theme.palette.grey[100] }}>
-                <Avatar
+              <Box sx={{ position: 'relative', height: 200, backgroundColor: theme.palette.grey[100], overflow: 'hidden' }}>
+                {/* Preview da Mídia */}
+                {(() => {
+                  // Construir URL do preview/thumbnail
+                  const previewUrl = media.thumbnailUrl || media.previewUrl || 
+                    (media.media_type === 'image' && media.file_path ? media.file_path.replace('/opt/smart-signage/public/assets/', '/assets/') : null);
+                  
+                  // Se for vídeo sem thumbnail, usar o próprio arquivo como preview
+                  const videoPreviewUrl = media.media_type === 'video' && !previewUrl && media.file_path
+                    ? media.file_path.replace('/opt/smart-signage/public/assets/', '/assets/')
+                    : null;
+
+                  const finalPreviewUrl = previewUrl || videoPreviewUrl;
+
+                  if (finalPreviewUrl) {
+                    return (
+                      <>
+                        {media.media_type === 'video' ? (
+                          <Box
+                            component="video"
+                            src={finalPreviewUrl}
+                            sx={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                            }}
+                            muted
+                            playsInline
+                            onError={(e: any) => {
+                              // Se o vídeo falhar, mostrar ícone
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <Box
+                            component="img"
+                            src={finalPreviewUrl}
+                            alt={media.name}
+                            sx={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                            }}
+                            onError={(e: any) => {
+                              // Se a imagem falhar ao carregar, ocultar e mostrar apenas o ícone
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        )}
+                      </>
+                    );
+                  }
+                  
+                  // Fallback: mostrar ícone centralizado quando não há preview
+                  return (
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '100%',
+                        width: '100%',
+                      }}
+                    >
+                      <Avatar
+                        sx={{
+                          width: 80,
+                          height: 80,
+                          backgroundColor: alpha(getMediaTypeColor(media.media_type), 0.1),
+                          color: getMediaTypeColor(media.media_type),
+                        }}
+                      >
+                        {getMediaIcon(media.media_type)}
+                      </Avatar>
+                    </Box>
+                  );
+                })()}
+                
+                {/* Overlay com informações */}
+                <Box
                   sx={{
                     position: 'absolute',
-                    top: 16,
-                    left: 16,
-                    backgroundColor: alpha(getMediaTypeColor(media.media_type), 0.1),
-                    color: getMediaTypeColor(media.media_type),
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: media.thumbnailUrl || media.previewUrl 
+                      ? 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)'
+                      : 'transparent',
                   }}
                 >
-                  {getMediaIcon(media.media_type)}
-                </Avatar>
-                
-                <Chip
-                  label={media.media_type ? media.media_type.toUpperCase() : 'MÍDIA'}
-                  size="small"
-                  sx={{
-                    position: 'absolute',
-                    top: 16,
-                    right: 16,
-                    backgroundColor: alpha(getMediaTypeColor(media.media_type), 0.1),
-                    color: getMediaTypeColor(media.media_type),
-                    fontWeight: 'bold',
-                  }}
-                />
+                  <Avatar
+                    sx={{
+                      position: 'absolute',
+                      top: 16,
+                      left: 16,
+                      backgroundColor: alpha(getMediaTypeColor(media.media_type), 0.8),
+                      color: 'white',
+                      width: 32,
+                      height: 32,
+                    }}
+                  >
+                    {getMediaIcon(media.media_type)}
+                  </Avatar>
+                  
+                  <Chip
+                    label={media.media_type ? media.media_type.toUpperCase() : 'MÍDIA'}
+                    size="small"
+                    sx={{
+                      position: 'absolute',
+                      top: 16,
+                      right: 16,
+                      backgroundColor: alpha(getMediaTypeColor(media.media_type), 0.9),
+                      color: 'white',
+                      fontWeight: 'bold',
+                    }}
+                  />
 
-                <Box sx={{ 
-                  position: 'absolute', 
-                  bottom: 16, 
-                  left: 16, 
-                  right: 16,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    {formatFileSize(media.size_bytes)}
-                  </Typography>
-                  {media.duration_seconds && (
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                      {formatDuration(media.duration_seconds)}
+                  <Box sx={{ 
+                    position: 'absolute', 
+                    bottom: 16, 
+                    left: 16, 
+                    right: 16,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        color: 'white',
+                        textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      {formatFileSize(media.size_bytes)}
                     </Typography>
-                  )}
+                    {media.duration_seconds && (
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: 'white',
+                          textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        {formatDuration(media.duration_seconds)}
+                      </Typography>
+                    )}
+                  </Box>
                 </Box>
               </Box>
 
