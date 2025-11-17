@@ -132,8 +132,8 @@ const Media: React.FC = () => {
     }
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
+  const formatFileSize = (bytes?: number | null) => {
+    if (!bytes || bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -307,7 +307,7 @@ const Media: React.FC = () => {
 
                 <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Chip
-                    label={media.status}
+                    label={media.status || 'draft'}
                     size="small"
                     color={media.status === 'active' ? 'success' : 'default'}
                     variant="outlined"

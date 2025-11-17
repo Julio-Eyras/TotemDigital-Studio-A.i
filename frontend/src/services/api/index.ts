@@ -475,42 +475,48 @@ export const mediaApi = {
     
     // Backend retorna { media: [...], total, page, limit }
     // Frontend espera { data: [...], total, page, limit }
+    let mediaArray: any[] = [];
+    
     if (backendData && typeof backendData === 'object') {
       // Se tem 'media', usar 'media' como 'data'
       if ('media' in backendData && Array.isArray(backendData.media)) {
-        return {
-          data: backendData.media,
-          total: backendData.total || 0,
-          page: backendData.page || 1,
-          limit: backendData.limit || 10
-        };
+        mediaArray = backendData.media;
       }
       // Se tem 'data', usar 'data'
-      if ('data' in backendData && Array.isArray(backendData.data)) {
-        return {
-          data: backendData.data,
-          total: backendData.total || 0,
-          page: backendData.page || 1,
-          limit: backendData.limit || 10
-        };
+      else if ('data' in backendData && Array.isArray(backendData.data)) {
+        mediaArray = backendData.data;
       }
       // Se é array direto
-      if (Array.isArray(backendData)) {
-        return {
-          data: backendData,
-          total: backendData.length,
-          page: 1,
-          limit: backendData.length
-        };
+      else if (Array.isArray(backendData)) {
+        mediaArray = backendData;
       }
     }
     
-    // Fallback: retornar vazio
+    // Mapear campos do backend para o formato esperado pelo frontend
+    // Backend usa: id, sizeBytes, durationSeconds, mediaType
+    // Frontend espera: media_id, size_bytes, duration_seconds, media_type
+    const mappedMedia = mediaArray.map((item: any) => ({
+      media_id: item.media_id || item.id,
+      name: item.name || '',
+      title: item.title,
+      description: item.description,
+      media_type: item.media_type || item.mediaType || 'video',
+      file_path: item.file_path || item.filePath || '',
+      mime_type: item.mime_type || item.mimeType || '',
+      duration_seconds: item.duration_seconds || item.durationSeconds,
+      size_bytes: item.size_bytes || item.sizeBytes || 0,
+      width: item.width,
+      height: item.height,
+      status: item.status || 'draft',
+      created_at: item.created_at || item.createdAt || new Date().toISOString(),
+      updated_at: item.updated_at || item.updatedAt || new Date().toISOString(),
+    }));
+    
     return {
-      data: [],
-      total: 0,
-      page: 1,
-      limit: 10
+      data: mappedMedia,
+      total: backendData?.total || mappedMedia.length,
+      page: backendData?.page || 1,
+      limit: backendData?.limit || 10
     };
   },
 
