@@ -252,15 +252,32 @@ const Media: React.FC = () => {
                 {/* Preview da Mídia */}
                 {(() => {
                   // Construir URL do preview/thumbnail
-                  const previewUrl = media.thumbnailUrl || media.previewUrl || 
-                    (media.media_type === 'image' && media.file_path ? media.file_path.replace('/opt/smart-signage/public/assets/', '/assets/') : null);
+                  let previewUrl = media.thumbnailUrl || media.previewUrl;
                   
-                  // Se for vídeo sem thumbnail, usar o próprio arquivo como preview
-                  const videoPreviewUrl = media.media_type === 'video' && !previewUrl && media.file_path
-                    ? media.file_path.replace('/opt/smart-signage/public/assets/', '/assets/')
-                    : null;
+                  // Se não houver thumbnailUrl, usar file_path
+                  if (!previewUrl && media.file_path) {
+                    // Garantir que file_path está no formato correto
+                    let filePath = media.file_path;
+                    if (filePath.startsWith('/opt/smart-signage/public/assets/')) {
+                      filePath = filePath.replace('/opt/smart-signage/public/assets/', '/assets/');
+                    }
+                    previewUrl = filePath;
+                  }
+                  
+                  // Debug: log para verificar URLs
+                  if (mediaItems.indexOf(media) === 0) {
+                    console.log('🔍 [Media Preview] Media:', {
+                      name: media.name,
+                      media_type: media.media_type,
+                      file_path: media.file_path,
+                      thumbnailUrl: media.thumbnailUrl,
+                      previewUrl: media.previewUrl,
+                      finalPreviewUrl: previewUrl,
+                      size_bytes: media.size_bytes
+                    });
+                  }
 
-                  const finalPreviewUrl = previewUrl || videoPreviewUrl;
+                  const finalPreviewUrl = previewUrl;
 
                   if (finalPreviewUrl) {
                     return (

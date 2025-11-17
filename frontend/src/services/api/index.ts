@@ -498,25 +498,51 @@ export const mediaApi = {
     // Mapear campos do backend para o formato esperado pelo frontend
     // Backend usa: id, sizeBytes, durationSeconds, mediaType, thumbnailUrl, downloadUrl
     // Frontend espera: media_id, size_bytes, duration_seconds, media_type, thumbnailUrl, downloadUrl
-    const mappedMedia = mediaArray.map((item: any) => ({
-      media_id: item.media_id || item.id,
-      name: item.name || '',
-      title: item.title,
-      description: item.description,
-      media_type: item.media_type || item.mediaType || 'video',
-      file_path: item.file_path || item.filePath || '',
-      mime_type: item.mime_type || item.mimeType || '',
-      duration_seconds: item.duration_seconds || item.durationSeconds,
-      size_bytes: item.size_bytes || item.sizeBytes || 0,
-      width: item.width,
-      height: item.height,
-      status: item.status || 'draft',
-      created_at: item.created_at || item.createdAt || new Date().toISOString(),
-      updated_at: item.updated_at || item.updatedAt || new Date().toISOString(),
-      thumbnailUrl: item.thumbnailUrl || item.thumbnail_url,
-      downloadUrl: item.downloadUrl || item.download_url,
-      previewUrl: item.previewUrl || item.preview_url,
-    }));
+    const mappedMedia = mediaArray.map((item: any) => {
+      // Debug: log primeiro item para verificar estrutura
+      if (mediaArray.indexOf(item) === 0) {
+        console.log('🔍 [Media API] Primeiro item do backend:', JSON.stringify(item, null, 2));
+      }
+      
+      // Construir URL do arquivo se necessário
+      let filePath = item.file_path || item.filePath || '';
+      if (filePath && !filePath.startsWith('/assets/') && !filePath.startsWith('http')) {
+        // Converter caminho absoluto para URL relativa
+        filePath = filePath.replace('/opt/smart-signage/public/assets/', '/assets/');
+      }
+      
+      // Construir thumbnailUrl se não existir
+      let thumbnailUrl = item.thumbnailUrl || item.thumbnail_url;
+      if (!thumbnailUrl && filePath) {
+        if (item.media_type === 'image' || item.mediaType === 'image') {
+          // Para imagens, tentar usar o próprio arquivo como thumbnail
+          thumbnailUrl = filePath;
+        } else if (item.media_type === 'video' || item.mediaType === 'video') {
+          // Para vídeos, usar o próprio arquivo como preview
+          thumbnailUrl = filePath;
+        }
+      }
+      
+      return {
+        media_id: item.media_id || item.id,
+        name: item.name || '',
+        title: item.title,
+        description: item.description,
+        media_type: item.media_type || item.mediaType || 'video',
+        file_path: filePath,
+        mime_type: item.mime_type || item.mimeType || '',
+        duration_seconds: item.duration_seconds || item.durationSeconds || null,
+        size_bytes: item.size_bytes || item.sizeBytes || (item.size || 0),
+        width: item.width,
+        height: item.height,
+        status: item.status || 'draft',
+        created_at: item.created_at || item.createdAt || new Date().toISOString(),
+        updated_at: item.updated_at || item.updatedAt || new Date().toISOString(),
+        thumbnailUrl: thumbnailUrl,
+        downloadUrl: item.downloadUrl || item.download_url || filePath,
+        previewUrl: item.previewUrl || item.preview_url || thumbnailUrl,
+      };
+    });
     
     return {
       data: mappedMedia,
