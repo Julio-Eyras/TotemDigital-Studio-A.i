@@ -4592,6 +4592,20 @@ setup_first_boot() {
     fi
 
     local TARGET_DB="${PRIMARY_DB_NAME:-smartsignage}"
+    
+    # Garantir que PRIMARY_DB_USER está definido (deve ter sido exportado em setup_database)
+    if [[ -z "${PRIMARY_DB_USER}" ]]; then
+        # Tentar obter do .env ou usar padrão
+        if [[ -f "$INSTALL_DIR/.env" ]]; then
+            source <(grep -E "^DB_USER=" "$INSTALL_DIR/.env" | sed 's/^/export /')
+            PRIMARY_DB_USER="${DB_USER:-smartsignage}"
+        else
+            PRIMARY_DB_USER="smartsignage"
+        fi
+        export PRIMARY_DB_USER
+        log "⚠️  PRIMARY_DB_USER não estava definido, usando: ${PRIMARY_DB_USER}"
+    fi
+    
     log "Aplicando schema consolidado (${MASTER_SCHEMA_FILE}) no banco '${TARGET_DB}'..."
     execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Schema consolidado SmartChannel"
 
@@ -4686,8 +4700,14 @@ setup_first_boot() {
     done
 
     # Garantir privilégios para o usuário da aplicação nas tabelas recém-criadas
-    if [[ -n "${PRIMARY_DB_USER}" ]]; then
-        log "Garantindo privilégios para o usuário ${PRIMARY_DB_USER}..."
+    # PRIMARY_DB_USER deve estar definido (exportado em setup_database ou definido acima)
+    if [[ -z "${PRIMARY_DB_USER}" ]]; then
+        error "❌ PRIMARY_DB_USER não está definido! Não é possível garantir permissões."
+        error "   Isso indica um problema na ordem de execução do script."
+        exit 1
+    fi
+    
+    log "Garantindo privilégios para o usuário ${PRIMARY_DB_USER}..."
         
         # Transferir ownership de todas as tabelas para o usuário da aplicação
         log "Transferindo ownership de todas as tabelas para ${PRIMARY_DB_USER}..."
