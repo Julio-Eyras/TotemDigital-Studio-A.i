@@ -1978,6 +1978,15 @@ setup_database() {
         else
             log "PostgreSQL já está instalado: $(psql --version)"
         fi
+        
+        # Instalar ffmpeg para processamento de vídeo (thumbnails)
+        if ! command -v ffmpeg &> /dev/null; then
+            log "Instalando ffmpeg para processamento de vídeo..."
+            sudo apt-get update -y
+            sudo apt-get install -y ffmpeg
+        else
+            log "ffmpeg já está instalado: $(ffmpeg -version | head -1)"
+        fi
 
         # Garantir serviço ativo
         sudo systemctl enable postgresql
