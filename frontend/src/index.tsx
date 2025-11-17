@@ -17,6 +17,14 @@ if (typeof window !== 'undefined') {
       // Silenciar este erro específico (causado por extensões do navegador)
       return;
     }
+    // Suprimir aviso de aria-hidden do Material-UI (aviso de acessibilidade, não crítico)
+    if (
+      errorMessage.includes('Blocked aria-hidden') ||
+      errorMessage.includes('aria-hidden on an element')
+    ) {
+      // Silenciar aviso de acessibilidade do Material-UI
+      return;
+    }
     // Manter outros erros
     originalError.apply(console, args);
   };
