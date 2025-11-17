@@ -200,12 +200,30 @@ export class MediaService {
       const total = totalResult?.total || 0;
 
       // Processar mídia
-      const processedMedia = media.map(item => ({
-        ...item,
-        tags: item.tags ? JSON.parse(item.tags) : [],
-        downloadUrl: item.filePath ? this.getDownloadUrl(item.filePath) : '',
-        thumbnailUrl: item.filePath ? this.getThumbnailUrl(item.filePath, item.mediaType) : ''
-      }));
+      const processedMedia = media.map(item => {
+        const downloadUrl = item.filePath ? this.getDownloadUrl(item.filePath) : '';
+        const thumbnailUrl = item.filePath ? this.getThumbnailUrl(item.filePath, item.mediaType) : '';
+        
+        // Debug: log primeiro item para verificar estrutura
+        if (media.indexOf(item) === 0) {
+          console.log('🔍 [MediaService] Primeiro item processado:', {
+            id: item.id,
+            name: item.name,
+            mediaType: item.mediaType,
+            sizeBytes: item.sizeBytes,
+            filePath: item.filePath,
+            downloadUrl,
+            thumbnailUrl
+          });
+        }
+        
+        return {
+          ...item,
+          tags: item.tags ? JSON.parse(item.tags) : [],
+          downloadUrl,
+          thumbnailUrl
+        };
+      });
 
       return {
         media: processedMedia,
