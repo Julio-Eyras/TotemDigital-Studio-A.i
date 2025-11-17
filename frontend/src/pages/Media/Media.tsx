@@ -71,8 +71,8 @@ const Media: React.FC = () => {
         search: searchTerm || undefined,
         mediaType: mediaTypeFilter !== 'all' ? mediaTypeFilter : undefined,
       });
-      const data = response?.data || response || [];
-      setMediaItems(Array.isArray(data) ? data : []);
+      // mediaApi.getAll já retorna { data: [...], total, page, limit }
+      setMediaItems(Array.isArray(response?.data) ? response.data : []);
     } catch (error) {
       console.error('Erro ao carregar mídia:', error);
       setError('Erro ao carregar lista de mídia');

@@ -461,19 +461,46 @@ export const mediaApi = {
     clientId?: number;
   } = {}): Promise<MediaListResponse> => {
     const response = await api.get('/media', { params });
-    const data = response.data?.data || response.data;
-    // Garantir que data seja sempre um array
-    if (data && typeof data === 'object' && 'data' in data) {
-      return {
-        ...data,
-        data: Array.isArray(data.data) ? data.data : []
-      };
+    const backendData = response.data;
+    
+    // Backend retorna { media: [...], total, page, limit }
+    // Frontend espera { data: [...], total, page, limit }
+    if (backendData && typeof backendData === 'object') {
+      // Se tem 'media', usar 'media' como 'data'
+      if ('media' in backendData && Array.isArray(backendData.media)) {
+        return {
+          data: backendData.media,
+          total: backendData.total || 0,
+          page: backendData.page || 1,
+          limit: backendData.limit || 10
+        };
+      }
+      // Se tem 'data', usar 'data'
+      if ('data' in backendData && Array.isArray(backendData.data)) {
+        return {
+          data: backendData.data,
+          total: backendData.total || 0,
+          page: backendData.page || 1,
+          limit: backendData.limit || 10
+        };
+      }
+      // Se é array direto
+      if (Array.isArray(backendData)) {
+        return {
+          data: backendData,
+          total: backendData.length,
+          page: 1,
+          limit: backendData.length
+        };
+      }
     }
+    
+    // Fallback: retornar vazio
     return {
-      data: Array.isArray(data) ? data : [],
-      total: data?.total || 0,
-      page: data?.page || 1,
-      limit: data?.limit || 10
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 10
     };
   },
 
