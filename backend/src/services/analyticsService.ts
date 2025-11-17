@@ -504,7 +504,7 @@ export class AnalyticsService {
           COALESCE(qc.content, 'QR Code') AS title,
           COUNT(*)::int AS scans
         FROM analytics_qr_scans qrs
-        LEFT JOIN qr_codes qc ON qc.id = qrs.qr_code_id
+        LEFT JOIN qr_codes qc ON qc.qr_code_id = qrs.qr_code_id
         LEFT JOIN totems t ON t.totem_id = qrs.totem_id
         ${qrWhere}
         GROUP BY qrs.qr_code_id, qc.content
@@ -1034,7 +1034,7 @@ export class AnalyticsService {
           COALESCE(qc.content, 'QR Code') AS title,
           COUNT(*)::int AS scans
         FROM analytics_qr_scans qrs
-        LEFT JOIN qr_codes qc ON qc.id = qrs.qr_code_id
+        LEFT JOIN qr_codes qc ON qc.qr_code_id = qrs.qr_code_id
         LEFT JOIN totems t ON t.totem_id = qrs.totem_id
         ${whereClause}
         GROUP BY qrs.qr_code_id, qc.content

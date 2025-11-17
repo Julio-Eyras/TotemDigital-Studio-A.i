@@ -204,6 +204,19 @@ router.get('/:id', async (req: any, res) => {
 router.post('/', async (req: any, res) => {
   try {
     const campaignData = req.body;
+    
+    console.log('📝 [Campaign] Dados recebidos:', JSON.stringify(campaignData, null, 2));
+    console.log('📝 [Campaign] Usuário:', { userId: req.user?.userId || req.user?.id, role: req.user?.role, clientId: req.user?.clientId });
+
+    // Validar campos obrigatórios
+    if (!campaignData.title) {
+      console.error('❌ Erro de validação: title é obrigatório');
+      return res.status(400).json({
+        success: false,
+        message: 'Título é obrigatório',
+        error: 'Campo title é obrigatório'
+      });
+    }
 
     // Mapear campos do frontend para o backend
     const mappedData: any = {
@@ -217,15 +230,34 @@ router.post('/', async (req: any, res) => {
       isActive: campaignData.isActive !== undefined ? campaignData.isActive : true
     };
 
-    // Se clientId não foi fornecido, usar o do usuário autenticado
+    // Se clientId não foi fornecido, usar o do usuário autenticado ou buscar primeiro cliente ativo
     if (!mappedData.clientId) {
       if (req.user.role === 'client' && req.user.clientId) {
         mappedData.clientId = req.user.clientId;
       } else {
-        return res.status(400).json({
-          success: false,
-          message: 'clientId é obrigatório'
-        });
+        // Para admin/manager, buscar primeiro cliente ativo
+        try {
+          const db = require('../config/database').getDatabase();
+          const firstClient = await db.findFirst(`
+            SELECT client_id FROM clients WHERE active = true LIMIT 1
+          `);
+          if (firstClient) {
+            mappedData.clientId = firstClient.client_id;
+            console.log('📝 [Campaign] Usando primeiro cliente ativo:', mappedData.clientId);
+          } else {
+            console.error('❌ Erro: Nenhum cliente ativo encontrado');
+            return res.status(400).json({
+              success: false,
+              message: 'É necessário ter pelo menos um cliente ativo para criar campanhas'
+            });
+          }
+        } catch (dbError: any) {
+          console.error('❌ Erro ao buscar cliente:', dbError.message);
+          return res.status(400).json({
+            success: false,
+            message: 'clientId é obrigatório'
+          });
+        }
       }
     }
 

@@ -18,9 +18,12 @@ const QRCodes: React.FC = () => {
     try {
       setLoading(true);
       const resp = await qrCodeApi.getAll();
-      setItems(resp);
+      // Garantir que resp seja sempre um array
+      setItems(Array.isArray(resp) ? resp : []);
     } catch (e) {
+      console.error('Erro ao carregar QR Codes:', e);
       setError('Erro ao carregar QR Codes');
+      setItems([]);
     } finally {
       setLoading(false);
     }

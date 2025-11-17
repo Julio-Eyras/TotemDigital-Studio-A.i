@@ -699,7 +699,8 @@ export interface ReportType {
 
 export const reportApi = {
   generate: async (data: ReportRequest) => {
-    const response = await api.post('/reports/generate', data);
+    // Backend usa POST /reports, não /reports/generate
+    const response = await api.post('/reports', data);
     return response.data;
   },
 
@@ -1049,7 +1050,9 @@ export interface CreateQRCodeRequest {
 export const qrCodeApi = {
   getAll: async (): Promise<QRCode[]> => {
     const response = await api.get('/qr-codes');
-    return response.data.data || [];
+    const data = response.data?.data || response.data;
+    // Garantir que sempre retorne um array
+    return Array.isArray(data) ? data : [];
   },
 
   create: async (data: CreateQRCodeRequest): Promise<QRCode> => {
