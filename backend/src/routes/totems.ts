@@ -1,6 +1,6 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { TotemService } from '../services/totemService';
-import { authMiddleware } from '../middleware/auth.middleware';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 
@@ -29,7 +29,7 @@ router.get('/',
   query('status').optional().isString().withMessage('status deve ser uma string'),
   query('clientId').optional().isInt({ min: 1 }).withMessage('clientId deve ser um número inteiro maior que 0'),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { page = 1, limit = 10, search, status, clientId } = req.query;
       const result = await getTotemService().getAllTotems({
@@ -138,7 +138,7 @@ router.get('/stats/offline', async (req: Request, res: Response) => {
 router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
       const totem = await getTotemService().getTotemById(totemId);
@@ -146,8 +146,9 @@ router.get('/:id',
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
       res.json(totem);
-    } catch (error) {
-      res.status(500).json({ error: 'Erro ao obter totem' });
+    } catch (error: any) {
+      console.error('❌ Erro ao obter totem:', error.message);
+      res.status(500).json({ error: 'Erro ao obter totem', message: error.message });
     }
   }
 );
@@ -192,9 +193,18 @@ router.post('/',
   body('resolution').optional().isString(),
   body('orientation').optional().isString().isIn(['portrait', 'landscape']),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { name, identifier, location, ...rest } = req.body;
+      
+      // Validar que name ou identifier foi fornecido
+      if (!name && !identifier) {
+        return res.status(400).json({ 
+          error: 'Nome ou identificador é obrigatório',
+          details: [{ msg: 'É necessário fornecer pelo menos um nome ou identificador para o totem' }]
+        });
+      }
+      
       const totemData = {
         identifier: identifier || name,
         name: name || identifier,
@@ -202,10 +212,22 @@ router.post('/',
         ...rest,
         description: rest.description || location
       };
-      const totem = await getTotemService().createTotem(totemData, 1); // Default user
+      
+      // Usar o ID do usuário autenticado
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+      
+      const totem = await getTotemService().createTotem(totemData, userId);
       res.status(201).json(totem);
-    } catch (error) {
-      res.status(400).json({ error: 'Erro ao criar totem' });
+    } catch (error: any) {
+      console.error('❌ Erro ao criar totem:', error.message);
+      console.error('❌ Stack trace:', error.stack);
+      res.status(400).json({ 
+        error: error.message || 'Erro ao criar totem',
+        details: error.message ? [{ msg: error.message }] : undefined
+      });
     }
   }
 );
