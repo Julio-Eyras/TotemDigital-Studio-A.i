@@ -96,8 +96,8 @@ const Playlists: React.FC = () => {
   const loadMediaItems = async () => {
     try {
       const response = await mediaApi.getAll();
-      const data = response?.data || response || [];
-      setMediaItems(Array.isArray(data) ? data : []);
+      // mediaApi.getAll já retorna { data: [...], total, page, limit }
+      setMediaItems(Array.isArray(response?.data) ? response.data : []);
     } catch (error) {
       console.error('Erro ao carregar mídia:', error);
       setMediaItems([]);
