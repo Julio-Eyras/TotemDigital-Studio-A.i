@@ -4708,46 +4708,45 @@ setup_first_boot() {
     fi
     
     log "Garantindo privilégios para o usuário ${PRIMARY_DB_USER}..."
-        
-        # Transferir ownership de todas as tabelas para o usuário da aplicação
-        log "Transferindo ownership de todas as tabelas para ${PRIMARY_DB_USER}..."
-        sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER TABLE ' || schemaname || '.' || tablename || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_tables WHERE schemaname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
-        
-        # Transferir ownership de todas as sequences
-        log "Transferindo ownership de todas as sequences para ${PRIMARY_DB_USER}..."
-        sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER SEQUENCE ' || schemaname || '.' || sequencename || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_sequences WHERE schemaname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
-        
-        # Transferir ownership de todas as views
-        log "Transferindo ownership de todas as views para ${PRIMARY_DB_USER}..."
-        sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER VIEW ' || schemaname || '.' || viewname || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_views WHERE schemaname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
-        
-        # Transferir ownership de todas as funções
-        log "Transferindo ownership de todas as funções para ${PRIMARY_DB_USER}..."
-        sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER FUNCTION ' || n.nspname || '.' || p.proname || '(' || pg_get_function_arguments(p.oid) || ') OWNER TO ${PRIMARY_DB_USER};' FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
-        
-        # Garantir privilégios explícitos em todas as tabelas (incluindo as criadas dentro de blocos DO $$)
-        log "Garantindo privilégios explícitos em todas as tabelas..."
-        sudo -u postgres psql -d "$TARGET_DB" -c "GRANT ALL ON ALL TABLES IN SCHEMA public TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-        sudo -u postgres psql -d "$TARGET_DB" -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-        sudo -u postgres psql -d "$TARGET_DB" -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-        
-        # Garantir privilégios para tabelas específicas que podem ter sido criadas dentro de blocos DO $$
-        log "Garantindo privilégios específicos em tabelas críticas..."
-        for table in system_settings export_schedules export_queries export_executions; do
-            if sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$table'" | grep -q 1; then
-                sudo -u postgres psql -d "$TARGET_DB" -c "ALTER TABLE $table OWNER TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-                sudo -u postgres psql -d "$TARGET_DB" -c "GRANT ALL ON TABLE $table TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-            fi
-        done
-        
-        # Configurar privilégios padrão para objetos futuros
-        log "Configurando privilégios padrão para objetos futuros..."
-        sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-        sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-        sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-        
-        log "✅ Privilégios garantidos para ${PRIMARY_DB_USER}"
-    fi
+    
+    # Transferir ownership de todas as tabelas para o usuário da aplicação
+    log "Transferindo ownership de todas as tabelas para ${PRIMARY_DB_USER}..."
+    sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER TABLE ' || schemaname || '.' || tablename || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_tables WHERE schemaname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
+    
+    # Transferir ownership de todas as sequences
+    log "Transferindo ownership de todas as sequences para ${PRIMARY_DB_USER}..."
+    sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER SEQUENCE ' || schemaname || '.' || sequencename || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_sequences WHERE schemaname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
+    
+    # Transferir ownership de todas as views
+    log "Transferindo ownership de todas as views para ${PRIMARY_DB_USER}..."
+    sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER VIEW ' || schemaname || '.' || viewname || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_views WHERE schemaname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
+    
+    # Transferir ownership de todas as funções
+    log "Transferindo ownership de todas as funções para ${PRIMARY_DB_USER}..."
+    sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER FUNCTION ' || n.nspname || '.' || p.proname || '(' || pg_get_function_arguments(p.oid) || ') OWNER TO ${PRIMARY_DB_USER};' FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
+    
+    # Garantir privilégios explícitos em todas as tabelas (incluindo as criadas dentro de blocos DO $$)
+    log "Garantindo privilégios explícitos em todas as tabelas..."
+    sudo -u postgres psql -d "$TARGET_DB" -c "GRANT ALL ON ALL TABLES IN SCHEMA public TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    sudo -u postgres psql -d "$TARGET_DB" -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    sudo -u postgres psql -d "$TARGET_DB" -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    
+    # Garantir privilégios para tabelas específicas que podem ter sido criadas dentro de blocos DO $$
+    log "Garantindo privilégios específicos em tabelas críticas..."
+    for table in system_settings export_schedules export_queries export_executions; do
+        if sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$table'" | grep -q 1; then
+            sudo -u postgres psql -d "$TARGET_DB" -c "ALTER TABLE $table OWNER TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+            sudo -u postgres psql -d "$TARGET_DB" -c "GRANT ALL ON TABLE $table TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+        fi
+    done
+    
+    # Configurar privilégios padrão para objetos futuros
+    log "Configurando privilégios padrão para objetos futuros..."
+    sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    
+    log "✅ Privilégios garantidos para ${PRIMARY_DB_USER}"
     
     # Validar configurações de logs aplicadas pelo schema consolidado
     log "Validando configurações padrão de logs..."
