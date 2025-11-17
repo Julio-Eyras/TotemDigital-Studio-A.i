@@ -429,7 +429,10 @@ router.put('/:id/approve',
     try {
       const totemId = parseInt(req.params.id);
       const { generateEncryptedConfig = false } = req.body;
-      const userId = (req as any).user?.id || 1; // Default user if not available
+      const userId = (req as AuthenticatedRequest).user?.id || (req as AuthenticatedRequest).user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
 
       // Buscar totem
       const totem = await getTotemService().getTotemById(totemId);

@@ -395,7 +395,10 @@ router.put('/:id',
       const mediaId = parseInt(req.params.id);
       const mediaData = req.body;
       // Usar ID do usuário autenticado
-      const userId = req.user?.id || 1;
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
       const media = await getMediaService().updateMedia(mediaId, mediaData, userId);
       if (!media) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
@@ -419,7 +422,10 @@ router.delete('/:id',
     try {
       const mediaId = parseInt(req.params.id);
       // Usar ID do usuário autenticado
-      const userId = req.user?.id || 1;
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
       await getMediaService().deleteMedia(mediaId, userId);
       res.json({ message: 'Arquivo de mídia deletado com sucesso' });
     } catch (error) {
