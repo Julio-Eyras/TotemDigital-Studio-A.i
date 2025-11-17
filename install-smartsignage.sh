@@ -353,7 +353,8 @@ install_dependencies() {
         ufw \
         htop \
         nano \
-        vim
+        vim \
+        ffmpeg
     
     log "Dependências básicas instaladas!"
 }
