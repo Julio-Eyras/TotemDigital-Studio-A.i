@@ -262,7 +262,7 @@ const Media: React.FC = () => {
                 </Avatar>
                 
                 <Chip
-                  label={media.media_type.toUpperCase()}
+                  label={media.media_type ? media.media_type.toUpperCase() : 'MÍDIA'}
                   size="small"
                   sx={{
                     position: 'absolute',

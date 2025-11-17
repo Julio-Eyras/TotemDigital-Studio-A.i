@@ -78,7 +78,36 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       onLoginSuccess(response.token, response.user);
     } catch (error: any) {
       console.error('Erro no login:', error);
-      setError(error.response?.data?.error || 'Erro ao fazer login. Verifique suas credenciais.');
+      
+      // Tratar erros de validação do backend
+      if (error.response?.status === 400) {
+        const errorData = error.response?.data;
+        
+        // Se houver detalhes de validação, usar a primeira mensagem
+        if (errorData?.details && Array.isArray(errorData.details) && errorData.details.length > 0) {
+          setError(errorData.details[0].msg || errorData.details[0].message);
+        } 
+        // Se houver mensagem de erro direta
+        else if (errorData?.message) {
+          setError(errorData.message);
+        }
+        // Se houver erro genérico
+        else if (errorData?.error) {
+          setError(errorData.error);
+        }
+        // Fallback
+        else {
+          setError('Erro ao fazer login. Verifique suas credenciais.');
+        }
+      } 
+      // Erro de autenticação (401)
+      else if (error.response?.status === 401) {
+        setError('Credenciais inválidas. Verifique seu usuário e senha.');
+      }
+      // Outros erros
+      else {
+        setError(error.response?.data?.error || error.response?.data?.message || 'Erro ao fazer login. Tente novamente.');
+      }
     } finally {
       setLoading(false);
     }
