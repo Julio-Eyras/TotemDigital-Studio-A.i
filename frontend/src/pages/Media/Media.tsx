@@ -104,7 +104,8 @@ const Media: React.FC = () => {
     }
   };
 
-  const getMediaIcon = (mediaType: string) => {
+  const getMediaIcon = (mediaType?: string) => {
+    if (!mediaType) return <VideoLibrary />;
     switch (mediaType.toLowerCase()) {
       case 'video':
         return <VideoLibrary />;
@@ -117,7 +118,8 @@ const Media: React.FC = () => {
     }
   };
 
-  const getMediaTypeColor = (mediaType: string) => {
+  const getMediaTypeColor = (mediaType?: string) => {
+    if (!mediaType) return theme.palette.primary.main;
     switch (mediaType.toLowerCase()) {
       case 'video':
         return theme.palette.error.main;

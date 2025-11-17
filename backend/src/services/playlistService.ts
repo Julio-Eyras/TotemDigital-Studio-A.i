@@ -179,17 +179,31 @@ export class PlaylistService {
 
       // Buscar primeiro totem e campanha ativos para usar como padrão
       // Se não existirem, usar NULL (mas o schema requer NOT NULL, então precisamos criar valores padrão)
+      // Buscar totem ativo (pode ter active ou is_active)
       const defaultTotem = await this.db.findFirst(`
-        SELECT totem_id FROM totems WHERE active = true LIMIT 1
+        SELECT totem_id FROM totems 
+        WHERE (active = true OR is_active = true) 
+        LIMIT 1
       `);
       
+      // Buscar campanha ativa (status = 'active')
       const defaultCampaign = await this.db.findFirst(`
-        SELECT campaign_id FROM campaigns WHERE status = 'active' LIMIT 1
+        SELECT campaign_id FROM campaigns 
+        WHERE status = 'active' 
+        LIMIT 1
       `);
 
       if (!defaultTotem || !defaultCampaign) {
+        console.error('❌ Erro ao criar playlist: Totem ou campanha não encontrados');
+        console.error('   Totem encontrado:', defaultTotem ? `ID ${defaultTotem.totem_id}` : 'Nenhum');
+        console.error('   Campanha encontrada:', defaultCampaign ? `ID ${defaultCampaign.campaign_id}` : 'Nenhuma');
         throw new Error('É necessário ter pelo menos um totem e uma campanha ativos para criar playlists');
       }
+      
+      console.log('✅ Totem e campanha encontrados para playlist:', {
+        totemId: defaultTotem.totem_id,
+        campaignId: defaultCampaign.campaign_id
+      });
 
       // Criar playlist
       const result = await this.db.executeRaw(`
