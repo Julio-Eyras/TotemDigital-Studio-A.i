@@ -430,7 +430,9 @@ const Media: React.FC = () => {
                       </Typography>
                     )}
                   </Box>
-                </Box>
+                    </Box>
+                  );
+                })()}
               </Box>
 
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
