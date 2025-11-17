@@ -29,7 +29,7 @@ RUN cd frontend && npm run build
 
 FROM nginx:alpine AS production
 
-RUN apk add --no-cache curl bash tzdata
+RUN apk add --no-cache curl bash tzdata ffmpeg
 ENV TZ=America/Sao_Paulo
 
 WORKDIR /app
