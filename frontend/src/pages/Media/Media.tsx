@@ -333,18 +333,27 @@ const Media: React.FC = () => {
                 })()}
                 
                 {/* Overlay com informações */}
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: media.thumbnailUrl || media.previewUrl 
-                      ? 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)'
-                      : 'transparent',
-                  }}
-                >
+                {(() => {
+                  const previewUrl = media.thumbnailUrl || media.previewUrl || 
+                    (media.media_type === 'image' && media.file_path ? media.file_path.replace('/opt/smart-signage/public/assets/', '/assets/') : null);
+                  const videoPreviewUrl = media.media_type === 'video' && !previewUrl && media.file_path
+                    ? media.file_path.replace('/opt/smart-signage/public/assets/', '/assets/')
+                    : null;
+                  const hasPreview = !!(previewUrl || videoPreviewUrl);
+                  
+                  return (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: hasPreview
+                          ? 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)'
+                          : 'transparent',
+                      }}
+                    >
                   <Avatar
                     sx={{
                       position: 'absolute',
