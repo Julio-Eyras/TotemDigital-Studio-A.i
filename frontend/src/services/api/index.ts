@@ -377,7 +377,17 @@ export const playlistApi = {
   },
 
   create: async (data: CreatePlaylistRequest): Promise<PlaylistItem> => {
-    const response = await api.post('/playlists', data);
+    // Remover campos undefined para evitar problemas de validação no backend
+    const cleanData: any = {
+      name: data.name,
+    };
+    if (data.description !== undefined && data.description !== null && data.description !== '') {
+      cleanData.description = data.description;
+    }
+    if (data.clientId !== undefined && data.clientId !== null) {
+      cleanData.clientId = data.clientId;
+    }
+    const response = await api.post('/playlists', cleanData);
     return response.data;
   },
 

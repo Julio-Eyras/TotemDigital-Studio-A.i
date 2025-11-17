@@ -12,8 +12,8 @@ router.use(authMiddleware);
 // Validações
 const createPlaylistValidator = [
   body('name').notEmpty().withMessage('Nome é obrigatório'),
-  body('description').optional().isString(),
-  body('clientId').optional().isInt({ min: 1 }),
+  body('description').optional({ nullable: true, checkFalsy: true }).isString(),
+  body('clientId').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1 }).withMessage('clientId deve ser um número inteiro maior que 0'),
 ];
 
 const updatePlaylistValidator = [
@@ -26,8 +26,11 @@ const updatePlaylistValidator = [
 const validateRequest = (req: any, res: any, next: any) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.error('❌ Erro de validação ao criar playlist:', errors.array());
+    console.error('❌ Body recebido:', JSON.stringify(req.body, null, 2));
     return res.status(400).json({
       error: 'Dados inválidos',
+      message: 'Verifique os dados enviados',
       details: errors.array()
     });
   }
