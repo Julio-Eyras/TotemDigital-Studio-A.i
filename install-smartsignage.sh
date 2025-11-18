@@ -3340,6 +3340,11 @@ setup_docker_compose() {
         # Criar diretórios necessários
         mkdir -p logs backups public/assets/uploads ml-models
         
+        # Validar e corrigir permissões dos diretórios de uploads
+        if [[ -n "$INSTALL_DIR" ]]; then
+            validate_and_fix_upload_permissions
+        fi
+        
         # Verificar se Docker está funcionando
         if ! systemctl is-active --quiet docker; then
             error "Docker não está funcionando!"
@@ -4047,6 +4052,115 @@ fix_database_initialization() {
     log "🔄 Reiniciando backend..."
     docker compose restart backend
     sleep 15
+}
+
+# Função para validar e corrigir permissões de uploads (evita erro 403)
+validate_and_fix_upload_permissions() {
+    log "🔍 Validando permissões dos diretórios de uploads..."
+    
+    # Diretórios que precisam ser acessíveis
+    UPLOADS_DIR="${INSTALL_DIR}/public/assets/uploads"
+    ASSETS_DIR="${INSTALL_DIR}/public/assets"
+    PUBLIC_DIR="${INSTALL_DIR}/public"
+    
+    # Detectar usuário do servidor web
+    WEB_USER=""
+    if command -v nginx &> /dev/null || systemctl is-active --quiet nginx 2>/dev/null; then
+        # Tentar detectar usuário do nginx
+        if id nginx &>/dev/null; then
+            WEB_USER="nginx"
+        elif id www-data &>/dev/null; then
+            WEB_USER="www-data"
+        fi
+    fi
+    
+    # Se não encontrou nginx, usar o usuário atual (para Node.js direto)
+    if [[ -z "$WEB_USER" ]]; then
+        WEB_USER="$USER"
+        log "Usando usuário atual ($USER) para permissões (modo Node.js direto)"
+    else
+        log "Usuário do servidor web detectado: $WEB_USER"
+    fi
+    
+    # Validar e corrigir cada diretório
+    for dir in "$PUBLIC_DIR" "$ASSETS_DIR" "$UPLOADS_DIR"; do
+        if [[ ! -d "$dir" ]]; then
+            warn "Diretório não existe: $dir - criando..."
+            sudo mkdir -p "$dir" 2>/dev/null || mkdir -p "$dir" 2>/dev/null || {
+                error "Falha ao criar diretório: $dir"
+                return 1
+            }
+        fi
+        
+        # Verificar permissões atuais
+        CURRENT_PERMS=$(stat -c "%a" "$dir" 2>/dev/null || stat -f "%OLp" "$dir" 2>/dev/null || echo "000")
+        CURRENT_OWNER=$(stat -c "%U:%G" "$dir" 2>/dev/null || stat -f "%Su:%Sg" "$dir" 2>/dev/null || echo "unknown:unknown")
+        
+        log_detailed "Diretório: $dir"
+        log_detailed "  Permissões atuais: $CURRENT_PERMS"
+        log_detailed "  Proprietário atual: $CURRENT_OWNER"
+        
+        # Corrigir permissões se necessário
+        # Diretórios: 755 (rwxr-xr-x) - permite leitura para todos, escrita para owner
+        # Arquivos: 644 (rw-r--r--) - permite leitura para todos, escrita para owner
+        
+        log "Ajustando permissões de: $dir"
+        
+        # Definir proprietário (usuário atual ou web user)
+        if [[ "$INSTALL_MODE" == "docker" ]]; then
+            # Em Docker, manter como usuário atual
+            sudo chown -R "$USER:$USER" "$dir" 2>/dev/null || chown -R "$USER:$USER" "$dir" 2>/dev/null || true
+        else
+            # Em single-server, garantir que web user pode ler
+            # Se web user existe, adicionar ao grupo do usuário atual
+            if [[ "$WEB_USER" != "$USER" ]] && id "$WEB_USER" &>/dev/null; then
+                # Garantir que o diretório pertence ao usuário atual, mas é legível pelo web user
+                sudo chown -R "$USER:$USER" "$dir" 2>/dev/null || chown -R "$USER:$USER" "$dir" 2>/dev/null || true
+                # Adicionar permissões de leitura para grupo e outros (755)
+                sudo chmod -R 755 "$dir" 2>/dev/null || chmod -R 755 "$dir" 2>/dev/null || true
+            else
+                # Caso padrão: usuário atual
+                sudo chown -R "$USER:$USER" "$dir" 2>/dev/null || chown -R "$USER:$USER" "$dir" 2>/dev/null || true
+                sudo chmod -R 755 "$dir" 2>/dev/null || chmod -R 755 "$dir" 2>/dev/null || true
+            fi
+        fi
+        
+        # Ajustar permissões de arquivos dentro do diretório
+        # Diretórios: 755, Arquivos: 644
+        sudo find "$dir" -type d -exec chmod 755 {} \; 2>/dev/null || find "$dir" -type d -exec chmod 755 {} \; 2>/dev/null || true
+        sudo find "$dir" -type f -exec chmod 644 {} \; 2>/dev/null || find "$dir" -type f -exec chmod 644 {} \; 2>/dev/null || true
+        
+        # Verificar se as permissões foram aplicadas corretamente
+        NEW_PERMS=$(stat -c "%a" "$dir" 2>/dev/null || stat -f "%OLp" "$dir" 2>/dev/null || echo "000")
+        NEW_OWNER=$(stat -c "%U:%G" "$dir" 2>/dev/null || stat -f "%Su:%Sg" "$dir" 2>/dev/null || echo "unknown:unknown")
+        
+        if [[ "$NEW_PERMS" == "755" ]] || [[ "$NEW_PERMS" == "775" ]]; then
+            log "✅ Permissões corrigidas: $dir (permissões: $NEW_PERMS, owner: $NEW_OWNER)"
+        else
+            warn "⚠️  Permissões podem estar incorretas: $dir (permissões: $NEW_PERMS, esperado: 755)"
+        fi
+        
+        # Testar se o diretório é acessível
+        if [[ -r "$dir" ]] && [[ -x "$dir" ]]; then
+            log "✅ Diretório é acessível para leitura: $dir"
+        else
+            error "❌ Diretório NÃO é acessível: $dir"
+            return 1
+        fi
+    done
+    
+    # Verificar se há arquivos existentes e testar acesso
+    if [[ -d "$UPLOADS_DIR" ]] && [[ -n "$(ls -A "$UPLOADS_DIR" 2>/dev/null)" ]]; then
+        log "Testando acesso a arquivos existentes em $UPLOADS_DIR..."
+        TEST_FILE=$(find "$UPLOADS_DIR" -type f | head -1)
+        if [[ -n "$TEST_FILE" ]] && [[ -r "$TEST_FILE" ]]; then
+            log "✅ Arquivo de teste é acessível: $TEST_FILE"
+        else
+            warn "⚠️  Alguns arquivos podem não ser acessíveis"
+        fi
+    fi
+    
+    log "✅ Validação de permissões de uploads concluída"
 }
 
 # Corrigir permissões do backend
@@ -4865,6 +4979,9 @@ setup_first_boot() {
         fi
     done
     log "✅ Diretórios criados e configurados: $PUBLIC_DIR, $ASSETS_DIR, $UPLOADS_DIR"
+    
+    # Validar e corrigir permissões para evitar erro 403
+    validate_and_fix_upload_permissions
     
     if [[ -d "$LOGS_DIR" ]]; then
         log "Ajustando permissões do diretório de logs..."

@@ -138,10 +138,11 @@ export class PlaylistService {
           p.updated_at as updated_at,
           c.name as client_name,
           COUNT(pi.item_id) as media_count,
-          COALESCE(SUM(pi.duration), 0) as total_duration
+          COALESCE(SUM(COALESCE(pi.display_seconds, m.duration_seconds, 0)), 0) as total_duration
         FROM playlists p
         LEFT JOIN clients c ON p.client_id = c.client_id
         LEFT JOIN playlist_items pi ON p.playlist_id = pi.playlist_id
+        LEFT JOIN medias m ON pi.media_id = m.media_id
         WHERE p.playlist_id = $1
         GROUP BY 
           p.playlist_id, 
@@ -344,7 +345,7 @@ export class PlaylistService {
           pi.playlist_id,
           pi.media_id,
           pi.order_index,
-          pi.duration,
+          pi.display_seconds as duration,
           m.media_id,
           m.name,
           m.media_type,
@@ -363,7 +364,7 @@ export class PlaylistService {
         playlist_id: item.playlist_id,
         media_id: item.media_id,
         order_index: item.order_index,
-        duration: item.duration,
+        duration: item.duration || item.display_seconds || 0,
         media: {
           media_id: item.media_id,
           name: item.name,
@@ -415,7 +416,7 @@ export class PlaylistService {
 
       // Adicionar mídia à playlist
       await this.db.executeRaw(`
-        INSERT INTO playlist_items (playlist_id, media_id, order_index, duration, created_at)
+        INSERT INTO playlist_items (playlist_id, media_id, order_index, display_seconds, created_at)
         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
       `, [playlistId, mediaId, orderIndex, duration]);
     } catch (error: any) {

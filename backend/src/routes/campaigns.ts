@@ -239,7 +239,7 @@ router.post('/', async (req: any, res) => {
         try {
           const db = require('../config/database').getDatabase();
           const firstClient = await db.findFirst(`
-            SELECT client_id FROM clients WHERE active = true LIMIT 1
+            SELECT client_id FROM clients WHERE is_active = true LIMIT 1
           `);
           if (firstClient) {
             mappedData.clientId = firstClient.client_id;

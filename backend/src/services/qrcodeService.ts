@@ -313,7 +313,7 @@ export class QRCodeService {
 
       // Verificar se cliente existe
       const client = await this.db.findFirst(`
-        SELECT client_id FROM clients WHERE client_id = ? AND active = 1
+        SELECT client_id FROM clients WHERE client_id = ? AND is_active = true
       `, [clientId]);
 
       if (!client) {
