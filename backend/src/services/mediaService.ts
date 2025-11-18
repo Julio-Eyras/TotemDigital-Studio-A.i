@@ -678,13 +678,74 @@ export class MediaService {
 
   /**
    * Gera URL de download
+   * Converte caminho absoluto para URL relativa que o Nginx pode servir
+   * Exemplos:
+   *   /opt/smart-signage/public/assets/uploads/file.jpg -> /assets/uploads/file.jpg
+   *   /home/user/project/public/assets/uploads/uploads/file.jpg -> /assets/uploads/file.jpg
+   *   /assets/uploads/file.jpg -> /assets/uploads/file.jpg (já está correto)
    */
   private getDownloadUrl(filePath: string | null | undefined): string {
     if (!filePath) {
       return '';
     }
-    const relativePath = filePath.replace('/opt/smart-signage/public/assets/', '');
-    return `/assets/${relativePath}`;
+    
+    // Se já começa com /assets/, limpar e retornar
+    if (filePath.startsWith('/assets/')) {
+      // Remover duplicações de /assets/ no início e normalizar
+      let cleaned = filePath.replace(/^\/assets+\//, '/assets/');
+      // Remover duplicações de uploads/ no caminho
+      cleaned = cleaned.replace(/uploads\/+/g, 'uploads/');
+      return cleaned;
+    }
+    
+    // Tentar extrair parte relativa após /public/assets/ ou /assets/
+    let relativePath = filePath;
+    
+    // Caso 1: Caminho contém /public/assets/ (ex: /opt/smart-signage/public/assets/uploads/...)
+    if (relativePath.includes('/public/assets/')) {
+      const parts = relativePath.split('/public/assets/');
+      if (parts.length > 1) {
+        relativePath = parts[1];
+      }
+    }
+    // Caso 2: Caminho contém /assets/ mas não /public/assets/ (ex: /home/user/project/assets/uploads/...)
+    else if (relativePath.includes('/assets/')) {
+      const parts = relativePath.split('/assets/');
+      if (parts.length > 1) {
+        relativePath = parts[1];
+      }
+    }
+    // Caso 3: Caminho absoluto sem /assets/ - manter apenas o nome do arquivo ou último diretório
+    else {
+      // Extrair apenas a parte final relevante (client-X/medias/filename)
+      const pathParts = relativePath.split('/');
+      const assetsIndex = pathParts.findIndex(part => part === 'assets' || part === 'uploads');
+      if (assetsIndex >= 0 && assetsIndex < pathParts.length - 1) {
+        relativePath = pathParts.slice(assetsIndex).join('/');
+      } else {
+        // Último recurso: extrair apenas após 'uploads'
+        const uploadsIndex = relativePath.indexOf('uploads');
+        if (uploadsIndex >= 0) {
+          relativePath = relativePath.substring(uploadsIndex);
+        }
+      }
+    }
+    
+    // Limpar o caminho: remover duplicações de uploads/ e barras duplas
+    relativePath = relativePath.replace(/uploads\/+/g, 'uploads/');
+    relativePath = relativePath.replace(/\/+/g, '/');
+    
+    // Garantir que comece com /assets/ e não tenha duplicações
+    if (!relativePath.startsWith('/assets/')) {
+      relativePath = `/assets/${relativePath}`;
+    }
+    
+    // Remover duplicações finais
+    relativePath = relativePath.replace(/^\/assets+\//, '/assets/');
+    relativePath = relativePath.replace(/uploads\/+/g, 'uploads/');
+    relativePath = relativePath.replace(/\/+/g, '/');
+    
+    return relativePath;
   }
 
   /**

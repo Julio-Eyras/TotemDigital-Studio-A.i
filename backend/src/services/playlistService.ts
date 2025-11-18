@@ -193,16 +193,22 @@ export class PlaylistService {
         LIMIT 1
       `);
 
-      if (!defaultTotem || !defaultCampaign) {
+      // Mapear campos do banco (PostgreSQL retorna snake_case)
+      const totemId = defaultTotem?.totem_id || defaultTotem?.totemId || null;
+      const campaignId = defaultCampaign?.campaign_id || defaultCampaign?.campaignId || null;
+
+      if (!totemId || !campaignId) {
         console.error('❌ Erro ao criar playlist: Totem ou campanha não encontrados');
-        console.error('   Totem encontrado:', defaultTotem ? `ID ${defaultTotem.totem_id}` : 'Nenhum');
-        console.error('   Campanha encontrada:', defaultCampaign ? `ID ${defaultCampaign.campaign_id}` : 'Nenhuma');
+        console.error('   Totem encontrado:', defaultTotem ? `ID ${totemId || 'N/A'}` : 'Nenhum');
+        console.error('   Campanha encontrada:', defaultCampaign ? `ID ${campaignId || 'N/A'}` : 'Nenhuma');
+        console.error('   Debug - defaultTotem:', JSON.stringify(defaultTotem));
+        console.error('   Debug - defaultCampaign:', JSON.stringify(defaultCampaign));
         throw new Error('É necessário ter pelo menos um totem e uma campanha ativos para criar playlists');
       }
       
       console.log('✅ Totem e campanha encontrados para playlist:', {
-        totemId: defaultTotem.totem_id,
-        campaignId: defaultCampaign.campaign_id
+        totemId,
+        campaignId
       });
 
       // Criar playlist
@@ -210,7 +216,7 @@ export class PlaylistService {
         INSERT INTO playlists (name, description, client_id, totem_id, campaign_id, is_active)
         VALUES ($1, $2, $3, $4, $5, true)
         RETURNING playlist_id
-      `, [name, description, clientId, defaultTotem.totem_id, defaultCampaign.campaign_id]);
+      `, [name, description, clientId, totemId, campaignId]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar playlist');
