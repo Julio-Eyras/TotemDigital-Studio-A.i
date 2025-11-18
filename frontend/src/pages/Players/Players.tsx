@@ -213,7 +213,7 @@ const Players: React.FC = () => {
             SmartvPlayer
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 0.5 }}>
-            SmartvPlayers -> Totem
+            SmartvPlayers {'->'} Totem
           </Typography>
           <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
             Gerencie seus players de sinalização digital
