@@ -19,8 +19,20 @@ export class StorageService {
   private uploadsPath: string;
 
   constructor() {
-    this.basePath = process.env.UPLOAD_PATH || '/opt/smart-signage/public/assets';
-    this.uploadsPath = path.join(this.basePath, 'uploads');
+    // Usar a mesma configuração do mediaConfig para garantir consistência
+    // Isso garante que o caminho seja o mesmo usado pelo multer
+    try {
+      const { getStoragePath } = require('../config/mediaConfig');
+      const storagePath = getStoragePath();
+      // getStoragePath retorna o caminho completo até uploads, então precisamos extrair o basePath
+      // Ex: /opt/smart-signage/public/assets/uploads -> /opt/smart-signage/public/assets
+      this.basePath = storagePath.replace(/\/uploads\/?$/, '') || '/opt/smart-signage/public/assets';
+      this.uploadsPath = path.join(this.basePath, 'uploads');
+    } catch (error) {
+      // Fallback se mediaConfig não estiver disponível
+      this.basePath = process.env.UPLOAD_PATH || '/opt/smart-signage/public/assets';
+      this.uploadsPath = path.join(this.basePath, 'uploads');
+    }
   }
 
   /**
@@ -52,8 +64,16 @@ export class StorageService {
       // Salvar arquivo
       fs.writeFileSync(filePath, file.buffer);
 
-      // Definir permissões
-      fs.chmodSync(filePath, 0o644);
+      // Definir permissões: arquivos 644 (rw-r--r--)
+      try {
+        fs.chmodSync(filePath, 0o644);
+      } catch (permError: any) {
+        console.warn(`⚠️ Não foi possível definir permissões do arquivo ${filePath}: ${permError.message}`);
+      }
+
+      // Log do caminho final para debug
+      console.log(`✅ Arquivo salvo em: ${filePath}`);
+      console.log(`   Caminho relativo esperado: /assets/uploads/${path.relative(this.uploadsPath, filePath).replace(/\\/g, '/')}`);
 
       return filePath;
 
@@ -261,8 +281,27 @@ export class StorageService {
     try {
       if (!fs.existsSync(directoryPath)) {
         fs.mkdirSync(directoryPath, { recursive: true });
-        fs.chmodSync(directoryPath, 0o755);
         console.log(`✅ Diretório criado: ${directoryPath}`);
+      }
+      
+      // Garantir que o diretório tem permissões corretas mesmo se já existir
+      try {
+        fs.chmodSync(directoryPath, 0o755);
+        // Garantir que todos os diretórios pais também têm permissões corretas
+        let currentPath = directoryPath;
+        while (currentPath !== path.dirname(currentPath)) {
+          if (fs.existsSync(currentPath)) {
+            fs.chmodSync(currentPath, 0o755);
+          }
+          currentPath = path.dirname(currentPath);
+          // Parar quando chegar na raiz do sistema ou no basePath
+          if (currentPath === '/' || currentPath === this.basePath || currentPath.length < this.basePath.length) {
+            break;
+          }
+        }
+      } catch (permError: any) {
+        // Se não conseguir alterar permissões, apenas logar (pode ser que não tenha permissão)
+        console.warn(`⚠️ Não foi possível ajustar permissões de ${directoryPath}: ${permError.message}`);
       }
     } catch (error: any) {
       console.error('❌ Erro ao criar diretório:', error.message);

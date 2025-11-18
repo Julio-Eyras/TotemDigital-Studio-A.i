@@ -2414,6 +2414,68 @@ RATE_LIMIT_MAX_REQUESTS=100
 EOF
 
     log "Variáveis de ambiente configuradas em $ENV_FILE"
+    
+    # Também criar .env no diretório backend para garantir que seja lido
+    BACKEND_ENV_FILE="$INSTALL_DIR/backend/.env"
+    if [[ -d "$INSTALL_DIR/backend" ]]; then
+        log "Criando .env no diretório backend: $BACKEND_ENV_FILE"
+        cp "$ENV_FILE" "$BACKEND_ENV_FILE" 2>/dev/null || {
+            # Se copiar falhar, criar novamente
+            cat > "$BACKEND_ENV_FILE" << EOF
+# Smart Signage Pro v2.0 - Configuração Backend
+# Gerado automaticamente em $(date)
+# Este arquivo é uma cópia de $INSTALL_DIR/.env
+
+# Modo de instalação
+INSTALL_MODE=$INSTALL_MODE
+
+# Identificação única do sistema
+UIN=$UIN
+
+# Banco de dados (PostgreSQL ou SQLite)
+DB_DRIVER=${DB_DRIVER:-postgresql}
+DATABASE_URL=${DATABASE_URL:-postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage}
+
+# Servidor
+NODE_ENV=production
+PORT=3000
+HOST=0.0.0.0
+
+# Autenticação
+JWT_SECRET=$JWT_SECRET
+JWT_EXPIRES_IN=24h
+JWT_REFRESH_EXPIRES_IN=7d
+
+# Player - Encriptação de configuração
+TOTEM_SECRET_KEY=$TOTEM_SECRET_KEY
+
+# Player
+PLAYER_ABANDON_PIN=1234
+
+# IA
+AI_PROVIDER=ollama
+AI_MODEL=llama3.2:3b
+OLLAMA_BASE_URL=http://localhost:11434
+
+# Upload - IMPORTANTE: usar caminho absoluto
+UPLOAD_MAX_SIZE=100MB
+UPLOAD_PATH=$INSTALL_DIR/public/assets/uploads
+MEDIA_QUOTA_PER_CLIENT=5GB
+
+# Logs
+LOG_LEVEL=info
+LOG_FILE=$INSTALL_DIR/logs/app.log
+
+# CORS
+CORS_ORIGIN=http://localhost:3000,http://localhost:3001
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+EOF
+        }
+        log "✅ .env criado no diretório backend: $BACKEND_ENV_FILE"
+    fi
 }
 
 # Perguntar sobre configuração HTTPS
