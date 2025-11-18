@@ -241,17 +241,17 @@ app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/clients', authMiddleware, clientRoutes);
 app.use('/api/totems', totemRoutes);
 app.use('/api/players', authMiddleware, playerRoutes);
-app.use('/api/media', authMiddleware, mediaRoutes);
-app.use('/api/playlists', authMiddleware, playlistRoutes);
-app.use('/api/campaigns', authMiddleware, campaignRoutes);
-app.use('/api/qrcodes', authMiddleware, qrcodeRoutes);
-app.use('/api/qr-codes', authMiddleware, qrcodeRoutes); // Alias para compatibilidade com frontend
-app.use('/api/analytics', authMiddleware, analyticsRoutes);
-app.use('/api/billing', authMiddleware, billingRoutes);
-app.use('/api/settings', authMiddleware, settingsRoutes);
-app.use('/api/reports', authMiddleware, reportsRoutes);
-app.use('/api/ai', authMiddleware, aiRoutes);
-app.use('/api/smart-playlist', authMiddleware, smartPlaylistRoutes);
+app.use('/api/media', mediaRoutes);
+app.use('/api/playlists', playlistRoutes);
+app.use('/api/campaigns', campaignRoutes);
+app.use('/api/qrcodes', qrcodeRoutes);
+app.use('/api/qr-codes', qrcodeRoutes); // Alias para compatibilidade com frontend
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/reports', reportsRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/smart-playlist', smartPlaylistRoutes);
 app.use('/api/dashboard', authMiddleware, dashboardRoutes);
 app.use('/api/export-queries', exportQueriesRoutes);
 app.use('/api/export-schedules', exportSchedulesRoutes);

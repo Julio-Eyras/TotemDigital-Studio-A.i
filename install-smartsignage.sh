@@ -3106,6 +3106,27 @@ create_systemd_service() {
         
         SERVICE_FILE="/etc/systemd/system/smart-signage.service"
         
+        # Verificar se .env existe antes de criar o serviço
+        ENV_FILE_PATH="$INSTALL_DIR/.env"
+        if [[ ! -f "$ENV_FILE_PATH" ]]; then
+            warn "⚠️  Arquivo .env não encontrado em $ENV_FILE_PATH"
+            warn "   Criando arquivo .env básico..."
+            # Criar .env básico se não existir
+            setup_environment 2>/dev/null || {
+                # Se setup_environment falhar, criar .env mínimo
+                cat > "$ENV_FILE_PATH" << ENV_EOF
+# Smart Signage Pro v2.0 - Configuração Básica
+NODE_ENV=production
+PORT=3000
+HOST=0.0.0.0
+DB_DRIVER=postgresql
+DATABASE_URL=postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage
+JWT_SECRET=$(openssl rand -base64 32)
+ENV_EOF
+            }
+            log "✅ Arquivo .env criado em $ENV_FILE_PATH"
+        fi
+        
         sudo tee $SERVICE_FILE > /dev/null << EOF
 [Unit]
 Description=Smart Signage Pro Backend
@@ -3117,14 +3138,16 @@ Type=simple
 User=$USER
 Group=$USER
 WorkingDirectory=$INSTALL_DIR/backend
-ExecStartPre=/usr/bin/env bash -lc 'pg_isready -h 127.0.0.1 -p 5432 -U smartsignage -d smartsignage -t 10 || exit 0'
+# Verificar se PostgreSQL está pronto (sem usar bash -lc que pode falhar)
+ExecStartPre=/bin/sh -c 'PGPASSWORD=smartsignage123 pg_isready -h 127.0.0.1 -p 5432 -U smartsignage -d smartsignage -t 10 || exit 0'
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
 Environment=NODE_ENV=production
-EnvironmentFile=$INSTALL_DIR/.env
+# Usar EnvironmentFile com fallback: se não existir, não falhar
+EnvironmentFile=-$INSTALL_DIR/.env
 
 # Limites de recursos
 LimitNOFILE=65536

@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Response, Request } from 'express';
 import { TotemService } from '../services/totemService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
@@ -66,7 +66,7 @@ router.get('/pending',
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { page = 1, limit = 10 } = req.query;
       const result = await getTotemService().getAllTotems({
@@ -97,7 +97,7 @@ router.get('/pending',
  * @desc Obter estatísticas de totems
  * @access Private (Admin/Manager)
  */
-router.get('/stats/overview', async (req: Request, res: Response) => {
+router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const stats = await getTotemService().getTotemStats(1); // Default totem
     res.json(stats);
@@ -116,7 +116,7 @@ router.get('/stats/overview', async (req: Request, res: Response) => {
  * @desc Obter totems offline
  * @access Private (Admin/Manager)
  */
-router.get('/stats/offline', async (req: Request, res: Response) => {
+router.get('/stats/offline', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const offlineTotems = await getTotemService().getOfflineTotems();
     res.json(offlineTotems);
@@ -161,7 +161,7 @@ router.get('/:id',
 router.get('/uin/:uin',
   param('uin').isString().isLength({ min: 10, max: 50 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const uin = req.params.uin;
       const totem = await getTotemService().getTotemByUin(uin);
@@ -252,7 +252,7 @@ router.put('/:id',
   body('orientation').optional().isString().isIn(['portrait', 'landscape']),
   body('isActive').optional().isBoolean(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
       const { name, identifier, location, ...rest } = req.body;
@@ -263,7 +263,11 @@ router.put('/:id',
         ...rest,
         description: rest.description || location
       };
-      const totem = await getTotemService().updateTotem(totemId, totemData, 1); // Default user
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+      const totem = await getTotemService().updateTotem(totemId, totemData, userId);
       if (!totem) {
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
@@ -282,10 +286,14 @@ router.put('/:id',
 router.delete('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
-      await getTotemService().deleteTotem(totemId, 1); // Default user
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+      await getTotemService().deleteTotem(totemId, userId);
       res.json({ message: 'Totem deletado com sucesso' });
     } catch (error) {
       res.status(500).json({ error: 'Erro ao deletar totem' });
@@ -302,14 +310,18 @@ router.put('/:id/activate',
   param('id').isInt({ min: 1 }),
   body('isActive').isBoolean(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
       const { isActive } = req.body;
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
       if (isActive) {
-        await getTotemService().activateTotem(totemId, 1);
+        await getTotemService().activateTotem(totemId, userId);
       } else {
-        await getTotemService().deactivateTotem(totemId, 1);
+        await getTotemService().deactivateTotem(totemId, userId);
       }
       res.json({ success: true });
     } catch (error) {
@@ -333,7 +345,7 @@ router.post('/:id/heartbeat',
   body('temperature').optional().isFloat(),
   body('lastPlaylistUpdate').optional().isISO8601(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
       const heartbeatData = req.body;
@@ -356,7 +368,7 @@ router.get('/:id/heartbeat',
   query('endDate').optional().isISO8601(),
   query('limit').optional().isInt({ min: 1, max: 1000 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
       const { startDate, endDate, limit = 100 } = req.query;
@@ -380,7 +392,7 @@ router.get('/:id/heartbeat',
 router.get('/:id/playlist',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
       const playlist = await getTotemService().getCurrentPlaylist(totemId);
@@ -401,7 +413,7 @@ router.get('/:id/analytics',
   query('startDate').optional().isISO8601(),
   query('endDate').optional().isISO8601(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
       const { startDate, endDate } = req.query;
@@ -425,11 +437,11 @@ router.put('/:id/approve',
   param('id').isInt({ min: 1 }),
   body('generateEncryptedConfig').optional().isBoolean(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
       const { generateEncryptedConfig = false } = req.body;
-      const userId = (req as AuthenticatedRequest).user?.id || (req as AuthenticatedRequest).user?.userId;
+      const userId = req.user?.id || req.user?.userId;
       if (!userId) {
         return res.status(401).json({ error: 'Usuário não autenticado' });
       }
