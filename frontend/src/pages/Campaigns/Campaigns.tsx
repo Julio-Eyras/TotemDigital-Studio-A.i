@@ -535,7 +535,7 @@ const Campaigns: React.FC = () => {
               setNewCampaign({ ...newCampaign, totemIds: newValue.map(p => p.totem_id) });
             }}
             renderInput={(params) => (
-              <TextField {...params} label="Players/Totems" margin="normal" />
+              <TextField {...params} label="SmartvPlayers -> Totem" margin="normal" />
             )}
           />
         </DialogContent>

@@ -210,9 +210,12 @@ const Players: React.FC = () => {
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            Players / Totems
+            SmartvPlayer
           </Typography>
-          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
+          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 0.5 }}>
+            SmartvPlayers -> Totem
+          </Typography>
+          <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
             Gerencie seus players de sinalização digital
           </Typography>
         </Box>

@@ -81,7 +81,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
     { text: 'Smart Playlist', icon: <SmartToy />, path: '/smart-playlist' },
     { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
-    { text: 'Players', icon: <Computer />, path: '/players' },
+    { text: 'SmartvPlayer', icon: <Computer />, path: '/players' },
     { text: 'Totems', icon: <Tv />, path: '/totems' },
     { text: 'Usuários', icon: <People />, path: '/users' },
     { text: 'Clientes', icon: <Business />, path: '/clients' },
