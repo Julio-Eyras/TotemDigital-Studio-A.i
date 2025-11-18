@@ -1,4 +1,4 @@
-import { Router, Response, Request } from 'express';
+import { Router, Response } from 'express';
 import { TotemService } from '../services/totemService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';

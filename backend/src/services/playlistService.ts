@@ -186,10 +186,10 @@ export class PlaylistService {
         LIMIT 1
       `);
       
-      // Buscar campanha ativa (status = 'active')
+      // Buscar campanha ativa (is_active = true ou status = 'active')
       const defaultCampaign = await this.db.findFirst(`
         SELECT campaign_id FROM campaigns 
-        WHERE status = 'active' 
+        WHERE (is_active = true OR status = 'active') 
         LIMIT 1
       `);
 

@@ -200,26 +200,60 @@ export class MediaService {
       const total = totalResult?.total || 0;
 
       // Processar mídia
+      // PostgreSQL retorna nomes de colunas em minúsculas mesmo com aliases
+      // Precisamos mapear manualmente de snake_case para camelCase
       const processedMedia = media.map(item => {
-        const downloadUrl = item.filePath ? this.getDownloadUrl(item.filePath) : '';
-        const thumbnailUrl = item.filePath ? this.getThumbnailUrl(item.filePath, item.mediaType) : '';
+        // Mapear campos do banco (snake_case) para camelCase esperado pelo frontend
+        const filePath = item.filepath || item.filePath || null;
+        const mediaType = item.mediatype || item.mediaType || null;
+        const sizeBytes = item.sizebytes || item.sizeBytes || null;
+        const durationSeconds = item.durationseconds || item.durationSeconds || null;
+        const mimeType = item.mimetype || item.mimeType || null;
+        const previewUrl = item.previewurl || item.previewUrl || null;
+        const createdAt = item.createdat || item.createdAt || null;
+        const updatedAt = item.updatedat || item.updatedAt || null;
+        const createdBy = item.createdby || item.createdBy || null;
+        const clientName = item.clientname || item.clientName || null;
+        const authorName = item.authorname || item.authorName || null;
+        
+        const downloadUrl = filePath ? this.getDownloadUrl(filePath) : '';
+        const thumbnailUrl = filePath ? this.getThumbnailUrl(filePath, mediaType) : '';
         
         // Debug: log primeiro item para verificar estrutura
         if (media.indexOf(item) === 0) {
           console.log('🔍 [MediaService] Primeiro item processado:', {
             id: item.id,
             name: item.name,
-            mediaType: item.mediaType,
-            sizeBytes: item.sizeBytes,
-            filePath: item.filePath,
+            mediaType,
+            sizeBytes,
+            filePath,
             downloadUrl,
             thumbnailUrl
           });
         }
         
         return {
-          ...item,
-          tags: item.tags ? JSON.parse(item.tags) : [],
+          id: item.id,
+          name: item.name,
+          title: item.title,
+          description: item.description,
+          tags: item.tags ? (typeof item.tags === 'string' ? JSON.parse(item.tags) : item.tags) : [],
+          version: item.version,
+          checksum: item.checksum,
+          previewUrl,
+          status: item.status,
+          createdBy,
+          filePath,
+          mediaType,
+          durationSeconds,
+          sizeBytes,
+          mimeType,
+          width: item.width,
+          height: item.height,
+          createdAt,
+          updatedAt,
+          clientName,
+          authorName,
           downloadUrl,
           thumbnailUrl
         };
