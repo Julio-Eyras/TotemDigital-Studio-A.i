@@ -2655,9 +2655,9 @@ server {
         try_files \$uri \$uri/ /player/index.html;
     }
     
-    # Assets
+    # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
     location /assets/ {
-        alias $INSTALL_DIR/public/assets/;
+        alias /opt/smart-signage/public/assets/;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -2749,9 +2749,9 @@ server {
         try_files \$uri \$uri/ /player/index.html;
     }
     
-    # Assets
+    # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
     location /assets/ {
-        alias $INSTALL_DIR/public/assets/;
+        alias /opt/smart-signage/public/assets/;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -2914,9 +2914,9 @@ server {
         try_files \$uri \$uri/ /player/index.html;
     }
 
-    # Assets
+    # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
     location /assets/ {
-        alias $INSTALL_DIR/public/assets/;
+        alias /opt/smart-signage/public/assets/;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -3026,9 +3026,9 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Assets
+    # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
     location /assets/ {
-        alias $INSTALL_DIR/public/assets/;
+        alias /opt/smart-signage/public/assets/;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
