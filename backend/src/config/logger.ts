@@ -14,12 +14,50 @@ import { NotificationService } from '../services/notificationService';
 
 // Diretório de instalação (padrão: /opt/smart-signage)
 const INSTALL_DIR = process.env.INSTALL_DIR || '/opt/smart-signage';
-const LOGS_DIR = path.join(INSTALL_DIR, 'Logs');
+let LOGS_DIR = path.join(INSTALL_DIR, 'Logs');
 
-// Garantir que o diretório de logs existe
-if (!fs.existsSync(LOGS_DIR)) {
-  fs.mkdirSync(LOGS_DIR, { recursive: true });
+// Garantir que o diretório de logs existe (com tratamento de erro de permissão)
+function ensureLogsDirectory(): string {
+  if (fs.existsSync(LOGS_DIR)) {
+    return LOGS_DIR;
+  }
+  
+  try {
+    fs.mkdirSync(LOGS_DIR, { recursive: true });
+    // Tentar ajustar permissões se possível
+    try {
+      fs.chmodSync(LOGS_DIR, 0o755);
+    } catch (permError) {
+      // Ignorar erro de permissão - diretório foi criado
+    }
+    return LOGS_DIR;
+  } catch (error: any) {
+    // Se não conseguir criar em /opt/smart-signage, usar diretório alternativo
+    if (error.code === 'EACCES' || error.code === 'EPERM') {
+      const fallbackLogsDir = path.join(os.homedir(), '.smart-signage', 'logs');
+      console.warn(`⚠️  Não foi possível criar diretório de logs em ${LOGS_DIR}`);
+      console.warn(`   Usando diretório alternativo: ${fallbackLogsDir}`);
+      try {
+        fs.mkdirSync(fallbackLogsDir, { recursive: true });
+        LOGS_DIR = fallbackLogsDir;
+        return LOGS_DIR;
+      } catch (fallbackError) {
+        console.error(`❌ Não foi possível criar diretório de logs alternativo: ${fallbackError}`);
+        // Usar diretório temporário como último recurso
+        const tempLogsDir = path.join(os.tmpdir(), 'smart-signage-logs');
+        fs.mkdirSync(tempLogsDir, { recursive: true });
+        console.warn(`   Usando diretório temporário: ${tempLogsDir}`);
+        LOGS_DIR = tempLogsDir;
+        return LOGS_DIR;
+      }
+    } else {
+      throw error;
+    }
+  }
 }
+
+// Garantir diretório na inicialização
+LOGS_DIR = ensureLogsDirectory();
 
 /**
  * Converter tamanho de string para bytes

@@ -19,20 +19,51 @@ export class StorageService {
   private uploadsPath: string;
 
   constructor() {
-    // Usar a mesma configuração do mediaConfig para garantir consistência
-    // Isso garante que o caminho seja o mesmo usado pelo multer
+    // SEMPRE usar /opt/smart-signage para garantir consistência
+    // Mesmo que INSTALL_DIR seja diferente, arquivos devem ser salvos em /opt/smart-signage
+    const DEFAULT_BASE_PATH = '/opt/smart-signage/public/assets';
+    
+    // Tentar obter do mediaConfig primeiro
     try {
       const { getStoragePath } = require('../config/mediaConfig');
       const storagePath = getStoragePath();
+      console.log(`📁 [StorageService] getStoragePath() retornou: ${storagePath}`);
+      
       // getStoragePath retorna o caminho completo até uploads, então precisamos extrair o basePath
       // Ex: /opt/smart-signage/public/assets/uploads -> /opt/smart-signage/public/assets
-      this.basePath = storagePath.replace(/\/uploads\/?$/, '') || '/opt/smart-signage/public/assets';
-      this.uploadsPath = path.join(this.basePath, 'uploads');
-    } catch (error) {
+      const extractedBasePath = storagePath.replace(/\/uploads\/?$/, '');
+      
+      // Validar se o caminho extraído é válido e aponta para /opt/smart-signage
+      if (extractedBasePath && extractedBasePath.startsWith('/opt/smart-signage')) {
+        this.basePath = extractedBasePath;
+        this.uploadsPath = path.join(this.basePath, 'uploads');
+        console.log(`✅ [StorageService] Usando caminho do mediaConfig: ${this.uploadsPath}`);
+      } else {
+        // Se não for /opt/smart-signage, forçar para o padrão
+        console.warn(`⚠️  [StorageService] Caminho do mediaConfig não é /opt/smart-signage: ${extractedBasePath}`);
+        console.warn(`   Forçando uso de: ${DEFAULT_BASE_PATH}`);
+        this.basePath = DEFAULT_BASE_PATH;
+        this.uploadsPath = path.join(this.basePath, 'uploads');
+      }
+    } catch (error: any) {
       // Fallback se mediaConfig não estiver disponível
-      this.basePath = process.env.UPLOAD_PATH || '/opt/smart-signage/public/assets';
+      console.warn(`⚠️  [StorageService] Erro ao obter getStoragePath(): ${error.message}`);
+      console.warn(`   Usando caminho padrão: ${DEFAULT_BASE_PATH}`);
+      this.basePath = process.env.UPLOAD_PATH || DEFAULT_BASE_PATH;
+      
+      // Garantir que sempre use /opt/smart-signage mesmo se UPLOAD_PATH estiver errado
+      if (!this.basePath.startsWith('/opt/smart-signage')) {
+        console.warn(`⚠️  [StorageService] UPLOAD_PATH não aponta para /opt/smart-signage: ${this.basePath}`);
+        console.warn(`   Forçando uso de: ${DEFAULT_BASE_PATH}`);
+        this.basePath = DEFAULT_BASE_PATH;
+      }
+      
       this.uploadsPath = path.join(this.basePath, 'uploads');
     }
+    
+    console.log(`📁 [StorageService] Caminho final configurado:`);
+    console.log(`   basePath: ${this.basePath}`);
+    console.log(`   uploadsPath: ${this.uploadsPath}`);
   }
 
   /**
