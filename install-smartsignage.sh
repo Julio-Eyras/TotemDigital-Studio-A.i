@@ -4818,6 +4818,36 @@ setup_first_boot() {
     log "Aplicando schema consolidado (${MASTER_SCHEMA_FILE}) no banco '${TARGET_DB}'..."
     execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Schema consolidado SmartChannel"
 
+    # Atualizar configuração media.storage.path para usar INSTALL_DIR correto
+    log "Configurando caminho de armazenamento de mídia para: ${INSTALL_DIR}/public/assets/uploads"
+    sudo -u postgres psql -d "$TARGET_DB" -c "
+        UPDATE system_settings 
+        SET setting_value = '${INSTALL_DIR}/public/assets/uploads',
+            default_value = '${INSTALL_DIR}/public/assets/uploads',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE setting_key = 'media.storage.path';
+        
+        -- Se não existir, criar
+        INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options)
+        SELECT 
+            'media.storage.path',
+            '${INSTALL_DIR}/public/assets/uploads',
+            'string',
+            'media',
+            'Caminho do diretório de armazenamento de mídia',
+            false,
+            true,
+            '${INSTALL_DIR}/public/assets/uploads',
+            NULL,
+            NULL
+        WHERE NOT EXISTS (
+            SELECT 1 FROM system_settings WHERE setting_key = 'media.storage.path'
+        );
+    " >/dev/null 2>&1 || {
+        warn "⚠️  Não foi possível atualizar configuração media.storage.path (pode não existir ainda)"
+    }
+    log "✅ Configuração media.storage.path atualizada"
+
     if ! ensure_admin_user; then
         error "❌ Não foi possível garantir usuário admin após aplicação do schema"
         exit 1
