@@ -2396,14 +2396,14 @@ AI_PROVIDER=ollama
 AI_MODEL=llama3.2:3b
 OLLAMA_BASE_URL=http://localhost:11434
 
-# Upload
+# Upload - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
 UPLOAD_MAX_SIZE=100MB
-UPLOAD_PATH=$INSTALL_DIR/public/assets/uploads
+UPLOAD_PATH=/opt/smart-signage/public/assets/uploads
 MEDIA_QUOTA_PER_CLIENT=5GB
 
-# Logs
+# Logs - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
 LOG_LEVEL=info
-LOG_FILE=$INSTALL_DIR/logs/app.log
+LOG_FILE=/opt/smart-signage/Logs/app.log
 
 # CORS
 CORS_ORIGIN=http://localhost:3000,http://localhost:3001
@@ -2457,14 +2457,14 @@ AI_PROVIDER=ollama
 AI_MODEL=llama3.2:3b
 OLLAMA_BASE_URL=http://localhost:11434
 
-# Upload - IMPORTANTE: usar caminho absoluto
+# Upload - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
 UPLOAD_MAX_SIZE=100MB
-UPLOAD_PATH=$INSTALL_DIR/public/assets/uploads
+UPLOAD_PATH=/opt/smart-signage/public/assets/uploads
 MEDIA_QUOTA_PER_CLIENT=5GB
 
-# Logs
+# Logs - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
 LOG_LEVEL=info
-LOG_FILE=$INSTALL_DIR/logs/app.log
+LOG_FILE=/opt/smart-signage/Logs/app.log
 
 # CORS
 CORS_ORIGIN=http://localhost:3000,http://localhost:3001
@@ -3399,13 +3399,18 @@ setup_docker_compose() {
         
         log "Confirmado: docker-compose.yml está em $(pwd)"
         
-        # Criar diretórios necessários
+        # Criar diretórios necessários no INSTALL_DIR (para Docker volumes)
         mkdir -p logs backups public/assets/uploads ml-models
         
+        # SEMPRE criar diretórios em /opt/smart-signage também (para consistência)
+        # mesmo em modo Docker, garantimos que os caminhos padrão existam
+        log "Criando diretórios padrão em /opt/smart-signage..."
+        sudo mkdir -p /opt/smart-signage/public/assets/uploads 2>/dev/null || mkdir -p /opt/smart-signage/public/assets/uploads 2>/dev/null || true
+        sudo mkdir -p /opt/smart-signage/Logs 2>/dev/null || mkdir -p /opt/smart-signage/Logs 2>/dev/null || true
+        
         # Validar e corrigir permissões dos diretórios de uploads
-        if [[ -n "$INSTALL_DIR" ]]; then
-            validate_and_fix_upload_permissions
-        fi
+        # Isso sempre usa /opt/smart-signage independente do INSTALL_DIR
+        validate_and_fix_upload_permissions
         
         # Verificar se Docker está funcionando
         if ! systemctl is-active --quiet docker; then
@@ -4120,10 +4125,11 @@ fix_database_initialization() {
 validate_and_fix_upload_permissions() {
     log "🔍 Validando permissões dos diretórios de uploads..."
     
-    # Diretórios que precisam ser acessíveis
-    UPLOADS_DIR="${INSTALL_DIR}/public/assets/uploads"
-    ASSETS_DIR="${INSTALL_DIR}/public/assets"
-    PUBLIC_DIR="${INSTALL_DIR}/public"
+    # Diretórios que precisam ser acessíveis - SEMPRE usar /opt/smart-signage
+    # independente do INSTALL_DIR para garantir consistência
+    UPLOADS_DIR="/opt/smart-signage/public/assets/uploads"
+    ASSETS_DIR="/opt/smart-signage/public/assets"
+    PUBLIC_DIR="/opt/smart-signage/public"
     
     # Detectar usuário do servidor web
     WEB_USER=""
@@ -4223,6 +4229,134 @@ validate_and_fix_upload_permissions() {
     fi
     
     log "✅ Validação de permissões de uploads concluída"
+}
+
+# Validação final completa da instalação - garante que tudo está configurado corretamente
+validate_complete_installation() {
+    log "🔍 Realizando validação final completa da instalação..."
+    
+    local ERRORS=0
+    local WARNINGS=0
+    
+    # 1. Verificar se diretórios padrão existem em /opt/smart-signage
+    log "Verificando diretórios padrão em /opt/smart-signage..."
+    REQUIRED_DIRS=(
+        "/opt/smart-signage/public"
+        "/opt/smart-signage/public/assets"
+        "/opt/smart-signage/public/assets/uploads"
+        "/opt/smart-signage/Logs"
+    )
+    
+    for dir in "${REQUIRED_DIRS[@]}"; do
+        if [[ ! -d "$dir" ]]; then
+            error "❌ Diretório obrigatório não existe: $dir"
+            log "Criando diretório: $dir"
+            sudo mkdir -p "$dir" 2>/dev/null || mkdir -p "$dir" 2>/dev/null || {
+                error "Falha ao criar diretório: $dir"
+                ((ERRORS++))
+                continue
+            }
+        fi
+        
+        # Verificar permissões
+        if [[ ! -r "$dir" ]] || [[ ! -x "$dir" ]]; then
+            warn "⚠️  Diretório não é acessível: $dir - corrigindo permissões..."
+            sudo chmod 755 "$dir" 2>/dev/null || chmod 755 "$dir" 2>/dev/null || {
+                error "Falha ao corrigir permissões: $dir"
+                ((ERRORS++))
+            }
+        fi
+    done
+    
+    # 2. Verificar configuração no banco de dados (se disponível)
+    if command -v psql &> /dev/null && [[ -n "$DATABASE_URL" ]]; then
+        log "Verificando configuração media.storage.path no banco de dados..."
+        EXPECTED_PATH="/opt/smart-signage/public/assets/uploads"
+        
+        # Tentar extrair informações do DATABASE_URL
+        if [[ "$DATABASE_URL" =~ postgresql://([^:]+):([^@]+)@([^:]+):([^/]+)/(.+) ]]; then
+            DB_USER="${BASH_REMATCH[1]}"
+            DB_PASS="${BASH_REMATCH[2]}"
+            DB_HOST="${BASH_REMATCH[3]}"
+            DB_PORT="${BASH_REMATCH[4]}"
+            DB_NAME="${BASH_REMATCH[5]}"
+            
+            ACTUAL_PATH=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT setting_value FROM system_settings WHERE setting_key = 'media.storage.path';" 2>/dev/null | xargs || echo "")
+            
+            if [[ -n "$ACTUAL_PATH" ]]; then
+                if [[ "$ACTUAL_PATH" != "$EXPECTED_PATH" ]]; then
+                    warn "⚠️  media.storage.path no banco está incorreto: $ACTUAL_PATH"
+                    warn "    Esperado: $EXPECTED_PATH"
+                    log "Corrigindo media.storage.path no banco de dados..."
+                    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "
+                        UPDATE system_settings 
+                        SET setting_value = '$EXPECTED_PATH',
+                            default_value = '$EXPECTED_PATH',
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE setting_key = 'media.storage.path';
+                    " >/dev/null 2>&1 && log "✅ media.storage.path corrigido" || {
+                        warn "⚠️  Não foi possível corrigir media.storage.path automaticamente"
+                        ((WARNINGS++))
+                    }
+                else
+                    log "✅ media.storage.path está correto no banco: $EXPECTED_PATH"
+                fi
+            else
+                warn "⚠️  Não foi possível verificar media.storage.path no banco"
+                ((WARNINGS++))
+            fi
+        fi
+    fi
+    
+    # 3. Verificar configuração do Nginx
+    if command -v nginx &> /dev/null && [[ -f "/etc/nginx/sites-enabled/smart-signage" ]]; then
+        log "Verificando configuração do Nginx..."
+        if grep -q "alias /opt/smart-signage/public/assets/;" /etc/nginx/sites-enabled/smart-signage 2>/dev/null; then
+            log "✅ Nginx configurado corretamente para /opt/smart-signage"
+        else
+            warn "⚠️  Nginx pode não estar configurado para /opt/smart-signage"
+            ((WARNINGS++))
+        fi
+    fi
+    
+    # 4. Verificar arquivo .env
+    if [[ -f "$INSTALL_DIR/.env" ]]; then
+        log "Verificando UPLOAD_PATH no .env..."
+        if grep -q "^UPLOAD_PATH=/opt/smart-signage/public/assets/uploads" "$INSTALL_DIR/.env" 2>/dev/null; then
+            log "✅ UPLOAD_PATH está correto no .env"
+        else
+            warn "⚠️  UPLOAD_PATH no .env pode estar incorreto"
+            if grep -q "^UPLOAD_PATH=" "$INSTALL_DIR/.env" 2>/dev/null; then
+                CURRENT_PATH=$(grep "^UPLOAD_PATH=" "$INSTALL_DIR/.env" | cut -d'=' -f2)
+                warn "    Valor atual: $CURRENT_PATH"
+                warn "    Esperado: /opt/smart-signage/public/assets/uploads"
+            fi
+            ((WARNINGS++))
+        fi
+    fi
+    
+    # 5. Verificar backend/.env também
+    if [[ -f "$INSTALL_DIR/backend/.env" ]]; then
+        log "Verificando UPLOAD_PATH no backend/.env..."
+        if grep -q "^UPLOAD_PATH=/opt/smart-signage/public/assets/uploads" "$INSTALL_DIR/backend/.env" 2>/dev/null; then
+            log "✅ UPLOAD_PATH está correto no backend/.env"
+        else
+            warn "⚠️  UPLOAD_PATH no backend/.env pode estar incorreto"
+            ((WARNINGS++))
+        fi
+    fi
+    
+    # Resumo final
+    if [[ $ERRORS -eq 0 ]] && [[ $WARNINGS -eq 0 ]]; then
+        log "✅ Validação completa: Tudo configurado corretamente!"
+        return 0
+    elif [[ $ERRORS -eq 0 ]]; then
+        warn "⚠️  Validação completa: $WARNINGS aviso(s) encontrado(s), mas sem erros críticos"
+        return 0
+    else
+        error "❌ Validação completa: $ERRORS erro(s) e $WARNINGS aviso(s) encontrado(s)"
+        return 1
+    fi
 }
 
 # Corrigir permissões do backend
@@ -5648,6 +5782,13 @@ show_final_info() {
         SERVER_IP="$LOCAL_IP"
         IP_TYPE="IP Local"
     fi
+    
+    # Validação final completa antes de concluir
+    log "Realizando validação final da instalação..."
+    validate_complete_installation || {
+        warn "⚠️  Alguns problemas foram detectados na validação, mas a instalação foi concluída"
+        warn "    Verifique os logs acima para detalhes"
+    }
     
     log "Instalação concluída com sucesso!"
     echo
