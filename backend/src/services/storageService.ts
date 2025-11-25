@@ -193,10 +193,10 @@ export class StorageService {
     try {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
-        console.log(`✅ Arquivo removido: ${filePath}`);
+        logInfoSync('Arquivo removido', { filePath });
       }
     } catch (error: any) {
-      console.error('❌ Erro ao remover arquivo:', error.message);
+      logErrorSync('Erro ao remover arquivo', error, { filePath });
       throw new Error('Erro ao remover arquivo');
     }
   }
@@ -212,10 +212,10 @@ export class StorageService {
 
       // Mover arquivo
       fs.renameSync(sourcePath, destinationPath);
-      console.log(`✅ Arquivo movido: ${sourcePath} → ${destinationPath}`);
+      logInfoSync('Arquivo movido', { sourcePath, destinationPath });
 
     } catch (error: any) {
-      console.error('❌ Erro ao mover arquivo:', error.message);
+      logErrorSync('Erro ao mover arquivo', error, { sourcePath, destinationPath });
       throw new Error('Erro ao mover arquivo');
     }
   }
@@ -231,10 +231,10 @@ export class StorageService {
 
       // Copiar arquivo
       fs.copyFileSync(sourcePath, destinationPath);
-      console.log(`✅ Arquivo copiado: ${sourcePath} → ${destinationPath}`);
+      logInfoSync('Arquivo copiado', { sourcePath, destinationPath });
 
     } catch (error: any) {
-      console.error('❌ Erro ao copiar arquivo:', error.message);
+      logErrorSync('Erro ao copiar arquivo', error, { sourcePath, destinationPath });
       throw new Error('Erro ao copiar arquivo');
     }
   }
@@ -246,7 +246,7 @@ export class StorageService {
     try {
       return fs.existsSync(filePath);
     } catch (error: any) {
-      console.error('❌ Erro ao verificar existência do arquivo:', error.message);
+      logErrorSync('Erro ao verificar existência do arquivo', error, { filePath });
       return false;
     }
   }
@@ -277,7 +277,7 @@ export class StorageService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao obter informações do arquivo:', error.message);
+      logErrorSync('Erro ao obter informações do arquivo', error, { filePath });
       return null;
     }
   }
@@ -309,7 +309,7 @@ export class StorageService {
       return files;
 
     } catch (error: any) {
-      console.error('❌ Erro ao listar arquivos:', error.message);
+      logErrorSync('Erro ao listar arquivos', error, { directoryPath });
       return [];
     }
   }
@@ -321,7 +321,7 @@ export class StorageService {
     try {
       if (!fs.existsSync(directoryPath)) {
         fs.mkdirSync(directoryPath, { recursive: true });
-        console.log(`✅ Diretório criado: ${directoryPath}`);
+        logInfoSync('Diretório criado', { directoryPath });
       }
       
       // Garantir que o diretório tem permissões corretas mesmo se já existir
@@ -341,10 +341,10 @@ export class StorageService {
         }
       } catch (permError: any) {
         // Se não conseguir alterar permissões, apenas logar (pode ser que não tenha permissão)
-        console.warn(`⚠️ Não foi possível ajustar permissões de ${directoryPath}: ${permError.message}`);
+        logWarnSync('Não foi possível ajustar permissões', { directoryPath, error: permError.message });
       }
     } catch (error: any) {
-      console.error('❌ Erro ao criar diretório:', error.message);
+      logErrorSync('Erro ao criar diretório', error, { directoryPath });
       throw new Error('Erro ao criar diretório');
     }
   }
@@ -356,10 +356,10 @@ export class StorageService {
     try {
       if (fs.existsSync(directoryPath)) {
         fs.rmSync(directoryPath, { recursive: true, force: true });
-        console.log(`✅ Diretório removido: ${directoryPath}`);
+        logInfoSync('Diretório removido', { directoryPath });
       }
     } catch (error: any) {
-      console.error('❌ Erro ao remover diretório:', error.message);
+      logErrorSync('Erro ao remover diretório', error, { directoryPath });
       throw new Error('Erro ao remover diretório');
     }
   }
@@ -384,7 +384,7 @@ export class StorageService {
       return totalSize;
 
     } catch (error: any) {
-      console.error('❌ Erro ao calcular tamanho do diretório:', error.message);
+      logErrorSync('Erro ao calcular tamanho do diretório', error, { directoryPath });
       return 0;
     }
   }
@@ -410,14 +410,14 @@ export class StorageService {
         if (stats.mtime.getTime() < cutoffTime) {
           fs.unlinkSync(file);
           removedCount++;
-          console.log(`✅ Arquivo antigo removido: ${file}`);
+          logInfoSync('Arquivo antigo removido', { file });
         }
       }
 
       return removedCount;
 
     } catch (error: any) {
-      console.error('❌ Erro ao limpar arquivos antigos:', error.message);
+      logErrorSync('Erro ao limpar arquivos antigos', error, { directoryPath, daysOld });
       return 0;
     }
   }
@@ -435,7 +435,7 @@ export class StorageService {
       return crypto.createHash('md5').update(buffer).digest('hex');
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar hash do arquivo:', error.message);
+      logErrorSync('Erro ao gerar hash do arquivo', error, { filePath });
       throw new Error('Erro ao gerar hash');
     }
   }
@@ -501,7 +501,7 @@ export class StorageService {
       // Por enquanto, retorna um valor alto
       return 1024 * 1024 * 1024; // 1GB
     } catch (error: any) {
-      console.error('❌ Erro ao verificar espaço disponível:', error.message);
+      logErrorSync('Erro ao verificar espaço disponível', error);
       return 0;
     }
   }
@@ -545,7 +545,7 @@ export class StorageService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao obter estatísticas de armazenamento:', error.message);
+      logErrorSync('Erro ao obter estatísticas de armazenamento', error);
       return {
         totalSize: 0,
         fileCount: 0,
