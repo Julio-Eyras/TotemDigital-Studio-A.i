@@ -354,7 +354,11 @@ router.put('/:id', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    await logError('Erro ao atualizar campanha', error, { id, updateData });
+    // Usar req.body diretamente, pois updateData pode não estar definido se erro ocorrer antes
+    await logError('Erro ao atualizar campanha', error, { 
+      id, 
+      updateData: req.body || null 
+    });
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar campanha',

@@ -3,7 +3,7 @@ import { MediaService } from '../services/mediaService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
-import { logError, logDebug, logWarn } from '../utils/loggerHelper';
+import { logError, logDebug, logWarn, logWarnSync } from '../utils/loggerHelper';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -105,7 +105,8 @@ function getMulterUpload() {
   } catch (error: any) {
     // Se falhar, tentar novamente na próxima requisição
     // Isso permite que o diretório seja criado durante a instalação
-    logWarn('Erro ao criar configuração do multer', { error: error.message }).catch(() => {});
+    // Usar versão síncrona pois esta função não é async
+    logWarnSync('Erro ao criar configuração do multer', { error: error.message });
     throw error;
   }
 }
@@ -171,16 +172,22 @@ router.get('/:id',
  * @access Private
  */
 router.post('/upload',
-  (req: AuthenticatedRequest, res: Response, next) => {
+  async (req: AuthenticatedRequest, res: Response, next) => {
     // Log detalhado antes do multer processar (apenas em desenvolvimento)
     if (process.env.NODE_ENV === 'development') {
-      logDebug('Upload recebido', { headers: req.headers, body: req.body }).catch(() => {});
+      await logDebug('Upload recebido', { headers: req.headers, body: req.body }).catch((logErr) => {
+        // Apenas suprime erros de logging, não erros de programação
+        console.warn('Failed to log upload debug:', logErr);
+      });
     }
     
     // Tratar erros do multer antes de passar para validação
-    getMulterUpload().single('file')(req as any, res, (err: any) => {
+    getMulterUpload().single('file')(req as any, res, async (err: any) => {
       if (err) {
-        logError('Erro no multer', err, { code: err.code }).catch(() => {});
+        await logError('Erro no multer', err, { code: err.code }).catch((logErr) => {
+          // Apenas suprime erros de logging, não erros de programação
+          console.error('Failed to log multer error:', logErr);
+        });
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({ 
             error: 'Arquivo muito grande',

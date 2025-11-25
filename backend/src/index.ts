@@ -319,47 +319,77 @@ app.use(errorHandler);
 // =============================================
 
 process.on('SIGTERM', async () => {
-  await logInfo('SIGTERM recebido. Iniciando shutdown graceful...').catch(() => {});
+  await logInfo('SIGTERM recebido. Iniciando shutdown graceful...').catch((logErr) => {
+    // Logar erros de logging em console para debugging, mas não bloquear shutdown
+    console.error('Failed to log SIGTERM:', logErr);
+  });
   
   try {
     await closeExportQueue();
-    await logInfo('Queue de exportação fechada').catch(() => {});
+    await logInfo('Queue de exportação fechada').catch((logErr) => {
+      console.error('Failed to log export queue closure:', logErr);
+    });
     
     await closeAdvancedScheduleQueue();
-    await logInfo('Queue de agendamento avançado fechada').catch(() => {});
+    await logInfo('Queue de agendamento avançado fechada').catch((logErr) => {
+      console.error('Failed to log schedule queue closure:', logErr);
+    });
     
     await closeRedis();
-    await logInfo('Redis desconectado').catch(() => {});
+    await logInfo('Redis desconectado').catch((logErr) => {
+      console.error('Failed to log Redis disconnection:', logErr);
+    });
     
     await closeDatabase();
-    await logInfo('Database desconectado').catch(() => {});
+    await logInfo('Database desconectado').catch((logErr) => {
+      console.error('Failed to log database disconnection:', logErr);
+    });
     
     process.exit(0);
   } catch (error) {
-    await logError('Erro durante shutdown', error).catch(() => {});
+    await logError('Erro durante shutdown', error).catch((logErr) => {
+      // Se até o logging de erro falhar, pelo menos logar no console
+      console.error('Failed to log shutdown error:', logErr);
+      console.error('Original shutdown error:', error);
+    });
     process.exit(1);
   }
 });
 
 process.on('SIGINT', async () => {
-  await logInfo('SIGINT recebido. Iniciando shutdown graceful...').catch(() => {});
+  await logInfo('SIGINT recebido. Iniciando shutdown graceful...').catch((logErr) => {
+    // Logar erros de logging em console para debugging, mas não bloquear shutdown
+    console.error('Failed to log SIGINT:', logErr);
+  });
   
   try {
     await closeExportQueue();
-    await logInfo('Queue de exportação fechada').catch(() => {});
+    await logInfo('Queue de exportação fechada').catch((logErr) => {
+      console.error('Failed to log export queue closure:', logErr);
+    });
     
     await closeAdvancedScheduleQueue();
-    await logInfo('Queue de agendamento avançado fechada').catch(() => {});
+    await logInfo('Queue de agendamento avançado fechada').catch((logErr) => {
+      console.error('Failed to log schedule queue closure:', logErr);
+    });
     
     await closeRedis();
-    await logInfo('Redis desconectado').catch(() => {});
+    await logInfo('Redis desconectado').catch((logErr) => {
+      console.error('Failed to log Redis disconnection:', logErr);
+    });
     
     await closeDatabase();
-    await logInfo('Database desconectado').catch(() => {});
+    await logInfo('Database desconectado').catch((logErr) => {
+      console.error('Failed to log database disconnection:', logErr);
+    });
     
     process.exit(0);
   } catch (error) {
-    await logError('Erro durante shutdown', error).catch(() => {});
+    await logError('Erro durante shutdown', error).catch((logErr) => {
+      // Se até o logging de erro falhar, pelo menos logar no console
+      console.error('Failed to log shutdown error:', logErr);
+      console.error('Original shutdown error:', error);
+    });
     process.exit(1);
   }
 });
