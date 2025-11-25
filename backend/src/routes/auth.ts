@@ -7,7 +7,7 @@ import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { AuthService } from '../services/authService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
-import { logInfo, logWarn, logError } from '../utils/loggerHelper';
+import { logInfo, logWarn, logError, sanitizeForLogging } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -207,7 +207,9 @@ router.post('/register', registerValidator, async (req: Request, res: Response) 
     });
 
   } catch (error: any) {
-    await logError('Erro no registro', error, { username: req.body?.username });
+    // Sanitizar dados antes de logar
+    const sanitizedBody = req.body ? sanitizeForLogging(req.body) : null;
+    await logError('Erro no registro', error, { username: sanitizedBody?.username });
     res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -438,7 +440,9 @@ router.post('/forgot-password', forgotPasswordValidator, async (req: Request, re
     });
 
   } catch (error: any) {
-    await logError('Erro ao solicitar recuperação de senha', error, { email: req.body?.email });
+    // Sanitizar dados antes de logar (email pode ser considerado sensível)
+    const sanitizedBody = req.body ? sanitizeForLogging(req.body) : null;
+    await logError('Erro ao solicitar recuperação de senha', error, { email: sanitizedBody?.email });
     res.status(500).json({
       error: 'Erro interno do servidor'
     });

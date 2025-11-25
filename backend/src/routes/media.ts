@@ -3,7 +3,7 @@ import { MediaService } from '../services/mediaService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
-import { logError, logDebug, logWarn, logWarnSync } from '../utils/loggerHelper';
+import { logError, logDebug, logWarn, logWarnSync, sanitizeForLogging } from '../utils/loggerHelper';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -175,7 +175,8 @@ router.post('/upload',
   async (req: AuthenticatedRequest, res: Response, next) => {
     // Log detalhado antes do multer processar (apenas em desenvolvimento)
     if (process.env.NODE_ENV === 'development') {
-      await logDebug('Upload recebido', { headers: req.headers, body: req.body }).catch((logErr) => {
+      const sanitizedBody = sanitizeForLogging(req.body);
+      await logDebug('Upload recebido', { headers: req.headers, body: sanitizedBody }).catch((logErr) => {
         // Apenas suprime erros de logging, não erros de programação
         console.warn('Failed to log upload debug:', logErr);
       });
@@ -232,7 +233,8 @@ router.post('/upload',
     try {
       // Log detalhado no handler principal (apenas em desenvolvimento)
       if (process.env.NODE_ENV === 'development') {
-        await logDebug('Handler de upload', { body: req.body, file: req.file, user: req.user });
+        const sanitizedBody = sanitizeForLogging(req.body);
+        await logDebug('Handler de upload', { body: sanitizedBody, file: req.file, user: req.user });
       }
       
       if (!req.file) {

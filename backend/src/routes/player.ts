@@ -4,7 +4,7 @@ import { TotemService } from '../services/totemService';
 import { getDatabase } from '../config/database';
 import { playerDebugService, PlayerDebugService } from '../services/playerDebugService';
 import { getEventLogService, EventType } from '../services/eventLogService';
-import { logError, logDebug } from '../utils/loggerHelper';
+import { logError, logDebug, sanitizeForLogging } from '../utils/loggerHelper';
 import crypto from 'crypto';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -650,12 +650,14 @@ router.post('/register',
     const startTime = Date.now();
     
     try {
-      await logDebug(`[${requestId}] Iniciando auto-registro de totem`, { requestId, uin: req.body.uin });
+      // Sanitizar dados antes de logar
+      const sanitizedBody = sanitizeForLogging(req.body);
+      await logDebug(`[${requestId}] Iniciando auto-registro de totem`, { requestId, uin: sanitizedBody.uin });
       await logDebug(`[${requestId}] Dados recebidos`, {
-        uin: req.body.uin,
+        uin: sanitizedBody.uin,
         hardware: {
-          ...req.body.hardware,
-          hardwareHash: req.body.hardware?.hardwareHash ? 'HASH_PRESENTE' : 'AUSENTE'
+          ...sanitizedBody.hardware,
+          hardwareHash: sanitizedBody.hardware?.hardwareHash ? 'HASH_PRESENTE' : 'AUSENTE'
         },
         ip: req.ip,
         userAgent: req.get('user-agent')

@@ -7,7 +7,7 @@ import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { emailService } from '../services/emailService';
-import { logError } from '../utils/loggerHelper';
+import { logError, sanitizeForLogging } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -97,7 +97,9 @@ router.post('/test',
         }
       });
     } catch (error: any) {
-      await logError('Erro ao enviar email de teste', error, { route: '/api/email/test', to: req.body.to });
+      // Sanitizar dados antes de logar (email pode ser considerado sensível)
+      const sanitizedBody = req.body ? sanitizeForLogging(req.body) : null;
+      await logError('Erro ao enviar email de teste', error, { route: '/api/email/test', to: sanitizedBody?.to });
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',

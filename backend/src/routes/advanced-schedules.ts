@@ -7,7 +7,7 @@ import { Router, Request, Response } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { advancedScheduleService } from '../services/advancedScheduleService';
-import { logError } from '../utils/loggerHelper';
+import { logError, sanitizeForLogging } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -136,7 +136,9 @@ router.post('/',
         data: schedule
       });
     } catch (error: any) {
-      await logError('Erro ao criar agendamento', error, { route: '/api/advanced-schedules', scheduleType: req.body.scheduleType });
+      // Sanitizar dados antes de logar
+      const sanitizedBody = req.body ? sanitizeForLogging(req.body) : null;
+      await logError('Erro ao criar agendamento', error, { route: '/api/advanced-schedules', scheduleType: sanitizedBody?.scheduleType });
       res.status(400).json({
         success: false,
         error: 'Erro ao criar agendamento',
@@ -234,7 +236,9 @@ router.post('/:id/validate',
         nextExecution: validation.nextExecution
       });
     } catch (error: any) {
-      await logError('Erro ao validar expressão cron', error, { route: '/api/advanced-schedules/:id/validate', cronExpression: req.body.cronExpression });
+      // Sanitizar dados antes de logar
+      const sanitizedBody = req.body ? sanitizeForLogging(req.body) : null;
+      await logError('Erro ao validar expressão cron', error, { route: '/api/advanced-schedules/:id/validate', cronExpression: sanitizedBody?.cronExpression });
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',
