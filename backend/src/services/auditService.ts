@@ -4,6 +4,7 @@
  */
 
 import { getDatabase } from '../config/database';
+import { logError, logInfo } from '../utils/loggerHelper';
 
 export interface AuditLogEntry {
   id?: number;
@@ -57,7 +58,7 @@ export class AuditService {
       ]);
 
     } catch (error: any) {
-      console.error('❌ Erro ao registrar log de auditoria:', error.message);
+      await logError('Erro ao registrar log de auditoria', error, { entity, action, entityId });
       // Não lançar erro para não quebrar o fluxo principal
     }
   }
@@ -133,7 +134,7 @@ export class AuditService {
       }));
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar logs de auditoria:', error.message);
+      await logError('Erro ao buscar logs de auditoria', error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -173,7 +174,7 @@ export class AuditService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar log de auditoria:', error.message);
+      await logError('Erro ao buscar log de auditoria', error, { logId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -211,7 +212,7 @@ export class AuditService {
       }));
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar logs do usuário:', error.message);
+      await logError('Erro ao buscar logs do usuário', error, { userId, limit });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -249,7 +250,7 @@ export class AuditService {
       }));
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar logs da entidade:', error.message);
+      await logError('Erro ao buscar logs da entidade', error, { entity, entityId, limit });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -326,7 +327,7 @@ export class AuditService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas de auditoria:', error.message);
+      await logError('Erro ao buscar estatísticas de auditoria', error, { days });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -341,11 +342,11 @@ export class AuditService {
         WHERE timestamp < datetime('now', '-${daysToKeep} days')
       `);
 
-      console.log(`✅ ${result.changes} logs de auditoria antigos removidos`);
+      await logInfo('Logs de auditoria antigos removidos', { count: result.changes, days });
       return result.changes;
 
     } catch (error: any) {
-      console.error('❌ Erro ao limpar logs antigos:', error.message);
+      await logError('Erro ao limpar logs antigos', error, { days });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -367,7 +368,7 @@ export class AuditService {
       return csv;
 
     } catch (error: any) {
-      console.error('❌ Erro ao exportar logs:', error.message);
+      await logError('Erro ao exportar logs', error, { filters, format });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -420,7 +421,7 @@ export class AuditService {
       }));
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar logs de segurança:', error.message);
+      await logError('Erro ao buscar logs de segurança', error, { days });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -458,7 +459,7 @@ export class AuditService {
       }));
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar tentativas de login falhadas:', error.message);
+      await logError('Erro ao buscar tentativas de login falhadas', error, { userId, hours });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -480,7 +481,7 @@ export class AuditService {
       return (result?.count || 0) >= maxAttempts;
 
     } catch (error: any) {
-      console.error('❌ Erro ao verificar tentativas de login falhadas:', error.message);
+      await logError('Erro ao verificar tentativas de login falhadas', error, { userId });
       return false;
     }
   }
@@ -499,7 +500,7 @@ export class AuditService {
       await this.log('system', eventType, null, { description, ...metadata });
 
     } catch (error: any) {
-      console.error('❌ Erro ao registrar evento do sistema:', error.message);
+      await logError('Erro ao registrar evento do sistema', error, { event, severity, metadata });
     }
   }
 
@@ -522,7 +523,7 @@ export class AuditService {
       return logs;
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar logs do sistema:', error.message);
+      await logError('Erro ao buscar logs do sistema', error, { severity, limit });
       throw new Error('Erro interno do servidor');
     }
   }
