@@ -105,7 +105,7 @@ function getMulterUpload() {
   } catch (error: any) {
     // Se falhar, tentar novamente na próxima requisição
     // Isso permite que o diretório seja criado durante a instalação
-    await logWarn('Erro ao criar configuração do multer', { error: error.message });
+    logWarn('Erro ao criar configuração do multer', { error: error.message }).catch(() => {});
     throw error;
   }
 }
@@ -174,7 +174,7 @@ router.post('/upload',
   (req: AuthenticatedRequest, res: Response, next) => {
     // Log detalhado antes do multer processar (apenas em desenvolvimento)
     if (process.env.NODE_ENV === 'development') {
-      await logDebug('Upload recebido', { headers: req.headers, body: req.body });
+      logDebug('Upload recebido', { headers: req.headers, body: req.body }).catch(() => {});
     }
     
     // Tratar erros do multer antes de passar para validação
@@ -209,12 +209,6 @@ router.post('/upload',
       if (process.env.NODE_ENV === 'development' && req.file) {
         logDebug('Multer processou', { file: { fieldname: req.file.fieldname, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size, filename: req.file.filename } }).catch(() => {});
       }
-        fieldname: req.file.fieldname,
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        filename: req.file.filename
-      } : 'Nenhum arquivo');
       
       next();
     });
