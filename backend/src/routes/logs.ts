@@ -12,7 +12,60 @@ import { logError } from '../utils/loggerHelper';
 const router = Router();
 const logRotationService = new LogRotationService();
 
-// Middleware de autenticação para todas as rotas
+/**
+ * @route POST /api/logs/frontend-error
+ * @desc Receber erros do frontend para logging
+ * @access Public (para permitir logging mesmo sem autenticação)
+ * 
+ * Esta rota deve estar ANTES do middleware de autenticação
+ */
+router.post('/frontend-error', async (req: Request, res: Response) => {
+  try {
+    const { error, errorInfo, context } = req.body;
+
+    if (!error || !error.message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Dados de erro inválidos'
+      });
+    }
+
+    // Logar erro usando o sistema de logging
+    const errorMessage = `[Frontend Error] ${error.name}: ${error.message}`;
+    const errorObj = new Error(errorMessage);
+    errorObj.stack = error.stack;
+
+    await logError(errorMessage, errorObj, {
+      source: 'frontend',
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: error.stack,
+      componentStack: errorInfo?.componentStack,
+      context: {
+        ...context,
+        url: context?.url,
+        userAgent: context?.userAgent,
+        timestamp: context?.timestamp,
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Erro registrado com sucesso'
+    });
+  } catch (logErr: any) {
+    // Não falhar se o logging falhar - tentar logar usando logger helper
+    await logError('Erro ao registrar erro do frontend', logErr, { route: '/api/logs/frontend-error' }).catch(() => {
+      // Se até o logger falhar, ignorar silenciosamente
+    });
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao registrar log'
+    });
+  }
+});
+
+// Middleware de autenticação para todas as rotas (exceto /frontend-error que está acima)
 router.use(authenticateToken);
 
 /**
@@ -168,57 +221,6 @@ router.post('/reload', authorizeRole(['admin']), async (req: Request, res: Respo
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
-    });
-  }
-});
-
-/**
- * @route POST /api/logs/frontend-error
- * @desc Receber erros do frontend para logging
- * @access Public (para permitir logging mesmo sem autenticação)
- */
-router.post('/frontend-error', async (req: Request, res: Response) => {
-  try {
-    const { error, errorInfo, context } = req.body;
-
-    if (!error || !error.message) {
-      return res.status(400).json({
-        success: false,
-        message: 'Dados de erro inválidos'
-      });
-    }
-
-    // Logar erro usando o sistema de logging
-    const errorMessage = `[Frontend Error] ${error.name}: ${error.message}`;
-    const errorObj = new Error(errorMessage);
-    errorObj.stack = error.stack;
-
-    await logError(errorMessage, errorObj, {
-      source: 'frontend',
-      errorName: error.name,
-      errorMessage: error.message,
-      errorStack: error.stack,
-      componentStack: errorInfo?.componentStack,
-      context: {
-        ...context,
-        url: context?.url,
-        userAgent: context?.userAgent,
-        timestamp: context?.timestamp,
-      }
-    });
-
-    res.json({
-      success: true,
-      message: 'Erro registrado com sucesso'
-    });
-  } catch (logErr: any) {
-    // Não falhar se o logging falhar - tentar logar usando logger helper
-    await logError('Erro ao registrar erro do frontend', logErr, { route: '/api/logs/frontend-error' }).catch(() => {
-      // Se até o logger falhar, ignorar silenciosamente
-    });
-    res.status(500).json({
-      success: false,
-      message: 'Erro ao registrar log'
     });
   }
 });

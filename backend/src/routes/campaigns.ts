@@ -633,7 +633,7 @@ router.post('/:id/totems', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    await logError('Erro ao adicionar totem à campanha', error, { campaignId: id, totemData });
+    await logError('Erro ao adicionar totem à campanha', error, { id, totemData });
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao adicionar totem à campanha',
@@ -696,7 +696,7 @@ router.delete('/:id/totems/:totemId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    await logError('Erro ao remover totem da campanha', error, { campaignId, totemId });
+    await logError('Erro ao remover totem da campanha', error, { id, totemId });
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover totem da campanha',
@@ -739,7 +739,7 @@ router.get('/:id/totems', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    await logError('Erro ao buscar totems da campanha', error, { campaignId });
+    await logError('Erro ao buscar totems da campanha', error, { id });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',

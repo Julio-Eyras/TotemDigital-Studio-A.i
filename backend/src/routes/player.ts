@@ -659,7 +659,7 @@ router.post('/register',
         },
         ip: req.ip,
         userAgent: req.get('user-agent')
-      }, null, 2));
+      });
       
       // Registrar transação de início
       await playerDebugService.logTransaction({
