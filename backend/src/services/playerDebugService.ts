@@ -1,4 +1,5 @@
 import { getDatabase } from '../config/database';
+import { logError } from '../utils/loggerHelper';
 
 export interface PlayerTransaction {
   transactionId: string;
@@ -75,7 +76,7 @@ export class PlayerDebugService {
 
     } catch (error: any) {
       // Não falhar silenciosamente, mas logar erro
-      console.error(`[PlayerDebug] Erro ao registrar transação: ${error.message}`);
+      await logError('[PlayerDebug] Erro ao registrar transação', error, { transaction });
     }
   }
 
@@ -172,7 +173,7 @@ export class PlayerDebugService {
       }));
 
     } catch (error: any) {
-      console.error(`[PlayerDebug] Erro ao buscar transações: ${error.message}`);
+      await logError('[PlayerDebug] Erro ao buscar transações', error, { filters });
       return [];
     }
   }
@@ -225,7 +226,7 @@ export class PlayerDebugService {
     } catch (error: any) {
       // Se a tabela já existe, ignora o erro
       if (!error.message?.includes('already exists')) {
-        console.error(`[PlayerDebug] Erro ao criar tabela: ${error.message}`);
+        await logError('[PlayerDebug] Erro ao criar tabela', error, {});
       }
     }
   }
@@ -244,7 +245,7 @@ export class PlayerDebugService {
 
       return (result as any).rowCount || 0;
     } catch (error: any) {
-      console.error(`[PlayerDebug] Erro ao limpar transações antigas: ${error.message}`);
+      await logError('[PlayerDebug] Erro ao limpar transações antigas', error, { daysToKeep });
       return 0;
     }
   }

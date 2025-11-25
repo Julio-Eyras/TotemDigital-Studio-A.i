@@ -1,4 +1,5 @@
 import { getDatabase } from '../config/database';
+import { logError } from '../utils/loggerHelper';
 
 export interface DashboardStats {
   totalMedia: number;
@@ -75,7 +76,7 @@ export class DashboardService {
         offlinePlayers: parseInt(offlinePlayerCount?.total || '0'),
       };
     } catch (error: any) {
-      console.error('Erro ao obter estatísticas do dashboard:', error.message);
+      await logError('Erro ao obter estatísticas do dashboard', error, {});
       throw new Error('Erro interno do servidor');
     }
   }
@@ -153,7 +154,7 @@ export class DashboardService {
       
       return activities.slice(0, limit);
     } catch (error: any) {
-      console.error('Erro ao obter atividades recentes:', error.message);
+      await logError('Erro ao obter atividades recentes', error, { limit });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -200,7 +201,7 @@ export class DashboardService {
         activePlayerCount: parseInt(activePlayerCount?.total || '0'),
       };
     } catch (error: any) {
-      console.error('Erro ao obter estatísticas por cliente:', error.message);
+      await logError('Erro ao obter estatísticas por cliente', error, { clientId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -270,7 +271,7 @@ export class DashboardService {
         activityByDay: activityByDay.map(item => ({ date: item.date, count: parseInt(item.count) })),
       };
     } catch (error: any) {
-      console.error('Erro ao obter gráficos de uso:', error.message);
+      await logError('Erro ao obter gráficos de uso', error, {});
       throw new Error('Erro interno do servidor');
     }
   }

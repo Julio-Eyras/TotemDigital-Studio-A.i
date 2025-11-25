@@ -1,4 +1,5 @@
 import { getDatabase } from '../config/database';
+import { logError } from '../utils/loggerHelper';
 
 export interface Client {
   client_id: number;
@@ -89,7 +90,7 @@ export class ClientService {
         limit,
       };
     } catch (error: any) {
-      console.error('Erro ao listar clientes:', error.message);
+      await logError('Erro ao listar clientes', error, { params });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -115,7 +116,7 @@ export class ClientService {
 
       return client;
     } catch (error: any) {
-      console.error('Erro ao obter cliente:', error.message);
+      await logError('Erro ao obter cliente', error, { id });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -156,7 +157,7 @@ export class ClientService {
 
       return newClient;
     } catch (error: any) {
-      console.error('Erro ao criar cliente:', error.message);
+      await logError('Erro ao criar cliente', error, { data });
       throw error;
     }
   }
@@ -236,7 +237,7 @@ export class ClientService {
 
       return updatedClient;
     } catch (error: any) {
-      console.error('Erro ao atualizar cliente:', error.message);
+      await logError('Erro ao atualizar cliente', error, { id, data });
       throw error;
     }
   }
@@ -259,7 +260,7 @@ export class ClientService {
         WHERE client_id = $1
       `, [id]);
     } catch (error: any) {
-      console.error('Erro ao excluir cliente:', error.message);
+      await logError('Erro ao excluir cliente', error, { id });
       throw error;
     }
   }

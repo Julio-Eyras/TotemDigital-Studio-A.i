@@ -1,4 +1,5 @@
 import { getDatabase } from '../config/database';
+import { logError } from '../utils/loggerHelper';
 
 export interface Player {
   totem_id: number;
@@ -109,7 +110,7 @@ export class PlayerService {
         limit,
       };
     } catch (error: any) {
-      console.error('Erro ao listar players:', error.message);
+      await logError('Erro ao listar players', error, { params });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -143,7 +144,7 @@ export class PlayerService {
 
       return player;
     } catch (error: any) {
-      console.error('Erro ao obter player:', error.message);
+      await logError('Erro ao obter player', error, { id });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -196,7 +197,7 @@ export class PlayerService {
 
       return newPlayer;
     } catch (error: any) {
-      console.error('Erro ao criar player:', error.message);
+      await logError('Erro ao criar player', error, { data });
       throw error;
     }
   }
@@ -278,7 +279,7 @@ export class PlayerService {
 
       return updatedPlayer;
     } catch (error: any) {
-      console.error('Erro ao atualizar player:', error.message);
+      await logError('Erro ao atualizar player', error, { id, data });
       throw error;
     }
   }
@@ -301,7 +302,7 @@ export class PlayerService {
         WHERE totem_id = $1
       `, [id]);
     } catch (error: any) {
-      console.error('Erro ao excluir player:', error.message);
+      await logError('Erro ao excluir player', error, { id });
       throw error;
     }
   }
@@ -333,7 +334,7 @@ export class PlayerService {
         WHERE totem_id = $2
       `, [playlistId, playerId]);
     } catch (error: any) {
-      console.error('Erro ao atribuir playlist:', error.message);
+      await logError('Erro ao atribuir playlist', error, { playerId, playlistId });
       throw error;
     }
   }
@@ -367,7 +368,7 @@ export class PlayerService {
         currentPlaylist,
       };
     } catch (error: any) {
-      console.error('Erro ao obter status do player:', error.message);
+      await logError('Erro ao obter status do player', error, { id });
       throw error;
     }
   }

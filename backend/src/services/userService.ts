@@ -1,4 +1,5 @@
 import { getDatabase } from '../config/database';
+import { logError } from '../utils/loggerHelper';
 
 export interface User {
   user_id: number;
@@ -111,7 +112,7 @@ export class UserService {
         limit,
       };
     } catch (error: any) {
-      console.error('Erro ao listar usuários:', error.message);
+      await logError('Erro ao listar usuários', error, { params });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -141,7 +142,7 @@ export class UserService {
 
       return user;
     } catch (error: any) {
-      console.error('Erro ao obter usuário:', error.message);
+      await logError('Erro ao obter usuário', error, { id });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -186,7 +187,7 @@ export class UserService {
 
       return newUser;
     } catch (error: any) {
-      console.error('Erro ao criar usuário:', error.message);
+      await logError('Erro ao criar usuário', error, { data });
       throw error;
     }
   }
@@ -280,7 +281,7 @@ export class UserService {
 
       return updatedUser;
     } catch (error: any) {
-      console.error('Erro ao atualizar usuário:', error.message);
+      await logError('Erro ao atualizar usuário', error, { id, data });
       throw error;
     }
   }
@@ -303,7 +304,7 @@ export class UserService {
         WHERE id = $1
       `, [id]);
     } catch (error: any) {
-      console.error('Erro ao excluir usuário:', error.message);
+      await logError('Erro ao excluir usuário', error, { id });
       throw error;
     }
   }

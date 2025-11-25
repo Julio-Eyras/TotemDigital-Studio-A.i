@@ -7,6 +7,7 @@ import { getDatabase } from '../config/database';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
+import { logError, logInfo } from '../utils/loggerHelper';
 
 export interface SystemHealth {
   status: 'healthy' | 'unhealthy' | 'degraded';
@@ -74,9 +75,9 @@ export class SystemService {
    */
   async initialize(): Promise<void> {
     try {
-      console.log('🔧 SystemService inicializado');
+      await logInfo('SystemService inicializado', {});
     } catch (error: any) {
-      console.error('❌ Erro ao inicializar SystemService:', error.message);
+      await logError('Erro ao inicializar SystemService', error, {});
       throw error;
     }
   }
@@ -136,7 +137,7 @@ export class SystemService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao verificar saúde do sistema:', error.message);
+      await logError('Erro ao verificar saúde do sistema', error, {});
       throw error;
     }
   }
@@ -201,7 +202,7 @@ export class SystemService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao obter informações do sistema:', error.message);
+      await logError('Erro ao obter informações do sistema', error, {});
       throw error;
     }
   }
@@ -223,7 +224,7 @@ export class SystemService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao obter configuração do player:', error.message);
+      await logError('Erro ao obter configuração do player', error, {});
       throw error;
     }
   }

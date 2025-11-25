@@ -1,4 +1,5 @@
 import { getDatabase } from '../config/database';
+import { logError } from '../utils/loggerHelper';
 
 export interface ExportExecution {
   execution_id: number;
@@ -127,7 +128,7 @@ export class ExportExecutionService {
         limit
       };
     } catch (error: any) {
-      console.error('❌ Erro ao listar execuções de exportação:', error.message);
+      await logError('Erro ao listar execuções de exportação', error, { filters });
       throw error;
     }
   }
@@ -151,7 +152,7 @@ export class ExportExecutionService {
 
       return this.mapToExecution(row);
     } catch (error: any) {
-      console.error('❌ Erro ao buscar execução:', error.message);
+      await logError('Erro ao buscar execução', error, { executionId });
       throw error;
     }
   }
@@ -180,7 +181,7 @@ export class ExportExecutionService {
         fileName
       };
     } catch (error: any) {
-      console.error('❌ Erro ao obter arquivo da execução:', error.message);
+      await logError('Erro ao obter arquivo da execução', error, { executionId });
       throw error;
     }
   }

@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
+import { logError } from '../utils/loggerHelper';
 
 export interface CreateExportQueryRequest {
   name: string;
@@ -105,11 +106,11 @@ export class ExportQueryService {
       await this.getAuditService().log('export', 'query_created', userId, {
         queryId: query.query_id,
         queryName: data.name
-      }).catch(e => console.error('Erro ao registrar log:', e.message));
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, { queryId: query.query_id || query.id }).catch(() => {}));
 
       return this.mapToExportQuery(query);
     } catch (error: any) {
-      console.error('❌ Erro ao criar query:', error.message);
+      await logError('Erro ao criar query', error, { data });
       throw error;
     }
   }
@@ -129,7 +130,7 @@ export class ExportQueryService {
 
       return this.mapToExportQuery(query);
     } catch (error: any) {
-      console.error('❌ Erro ao buscar query:', error.message);
+      await logError('Erro ao buscar query', error, { queryId });
       throw error;
     }
   }
@@ -200,7 +201,7 @@ export class ExportQueryService {
         limit
       };
     } catch (error: any) {
-      console.error('❌ Erro ao buscar queries:', error.message);
+      await logError('Erro ao buscar queries', error, { filters });
       throw error;
     }
   }
@@ -279,11 +280,11 @@ export class ExportQueryService {
       await this.getAuditService().log('export', 'query_updated', userId, {
         queryId: queryId,
         changes: Object.keys(data)
-      }).catch(e => console.error('Erro ao registrar log:', e.message));
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, { queryId: query.query_id }).catch(() => {}));
 
       return this.mapToExportQuery(query);
     } catch (error: any) {
-      console.error('❌ Erro ao atualizar query:', error.message);
+      await logError('Erro ao atualizar query', error, { queryId, data });
       throw error;
     }
   }
@@ -317,9 +318,9 @@ export class ExportQueryService {
       await this.getAuditService().log('export', 'query_deleted', userId, {
         queryId: queryId,
         queryName: existing.name
-      }).catch(e => console.error('Erro ao registrar log:', e.message));
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, { queryId }).catch(() => {}));
     } catch (error: any) {
-      console.error('❌ Erro ao excluir query:', error.message);
+      await logError('Erro ao excluir query', error, { queryId });
       throw error;
     }
   }
@@ -355,7 +356,7 @@ export class ExportQueryService {
           return false;
       }
     } catch (error: any) {
-      console.error('❌ Erro ao testar conexão:', error.message);
+      await logError('Erro ao testar conexão', error, { provider, databaseConfig });
       return false;
     }
   }
