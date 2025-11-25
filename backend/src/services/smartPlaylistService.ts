@@ -6,6 +6,7 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { AIService } from './aiService';
+import { logError } from '../utils/loggerHelper';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -126,7 +127,7 @@ export class SmartPlaylistService {
       `);
       return client;
     } catch (error: any) {
-      console.error('❌ Erro ao buscar primeiro cliente:', error.message);
+      await logError('Erro ao buscar primeiro cliente', error, { service: 'SmartPlaylistService' });
       return null;
     }
   }
@@ -259,7 +260,7 @@ export class SmartPlaylistService {
                 parsedRules = JSON.parse(trimmed);
               }
             } catch (parseError: any) {
-              console.error('❌ Erro ao fazer parse de rules:', parseError.message);
+              await logError('Erro ao fazer parse de rules', parseError, { playlistId: playlist.id || playlist.smart_playlist_id });
               parsedRules = [];
             }
           } else if (Array.isArray(playlist.rules)) {
@@ -282,7 +283,7 @@ export class SmartPlaylistService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar smart playlists:', error.message);
+      await logError('Erro ao buscar smart playlists', error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -345,8 +346,7 @@ export class SmartPlaylistService {
               parsedRules = JSON.parse(trimmed);
             }
           } catch (parseError: any) {
-            console.error('❌ Erro ao fazer parse de rules:', parseError.message);
-            console.error('❌ Rules value:', playlist.rules);
+            await logError('Erro ao fazer parse de rules', parseError, { playlistId, rulesValue: playlist.rules });
             parsedRules = [];
           }
         } else if (Array.isArray(playlist.rules)) {
@@ -363,8 +363,7 @@ export class SmartPlaylistService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar smart playlist:', error.message);
-      console.error('❌ Stack trace:', error.stack);
+      await logError('Erro ao buscar smart playlist', error, { playlistId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -484,7 +483,7 @@ export class SmartPlaylistService {
       return newPlaylist;
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar smart playlist:', error.message);
+      await logError('Erro ao criar smart playlist', error, { data });
       throw error;
     }
   }
@@ -598,7 +597,7 @@ export class SmartPlaylistService {
       return updatedPlaylist;
 
     } catch (error: any) {
-      console.error('❌ Erro ao atualizar smart playlist:', error.message);
+      await logError('Erro ao atualizar smart playlist', error, { playlistId, data });
       throw error;
     }
   }
@@ -627,7 +626,7 @@ export class SmartPlaylistService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao remover smart playlist:', error.message);
+      await logError('Erro ao remover smart playlist', error, { playlistId });
       throw error;
     }
   }
@@ -704,7 +703,7 @@ export class SmartPlaylistService {
       }
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar smart playlist:', error.message);
+      await logError('Erro ao gerar smart playlist', error, { playlistId });
       throw error;
     }
   }
@@ -757,7 +756,7 @@ export class SmartPlaylistService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar playlist com IA:', error.message);
+      await logError('Erro ao gerar playlist com IA', error, { playlistId, request });
       throw new Error('Erro ao gerar playlist com IA');
     }
   }
@@ -778,7 +777,7 @@ export class SmartPlaylistService {
       return await this.generateWithSimpleRules(playlist);
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar playlist com regras:', error.message);
+      await logError('Erro ao gerar playlist com regras', error, { playlistId, rules });
       throw new Error('Erro ao gerar playlist com regras');
     }
   }
@@ -919,7 +918,7 @@ export class SmartPlaylistService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar playlist com regras simples:', error.message);
+      await logError('Erro ao gerar playlist com regras simples', error, { playlistId });
       throw new Error('Erro ao gerar playlist com regras simples');
     }
   }
@@ -991,7 +990,7 @@ export class SmartPlaylistService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao processar resposta da IA:', error.message);
+      await logError('Erro ao processar resposta da IA', error, { aiResponse });
       return {
         items: [],
         effectiveness: 0
@@ -1157,7 +1156,7 @@ export class SmartPlaylistService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas de smart playlists:', error.message);
+      await logError('Erro ao buscar estatísticas de smart playlists', error);
       throw new Error('Erro interno do servidor');
     }
   }

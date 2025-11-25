@@ -8,6 +8,7 @@ import { AuditService } from './auditService';
 import { getExportQueue, ExportJobData } from '../config/queue';
 import { parseExpression } from 'cron-parser';
 import { exportQueryService } from './exportQueryService';
+import { logError, logInfo } from '../utils/loggerHelper';
 
 export interface CreateExportScheduleRequest {
   name: string;
@@ -146,11 +147,11 @@ export class ExportScheduleService {
         scheduleId: schedule.schedule_id,
         scheduleName: data.name,
         queryId: data.queryId
-      }).catch(e => console.error('Erro ao registrar log:', e.message));
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId: schedule.schedule_id }).catch(() => {}));
 
       return this.mapToExportSchedule(schedule);
     } catch (error: any) {
-      console.error('❌ Erro ao criar agendamento:', error.message);
+      await logError('Erro ao criar agendamento', error, { data });
       throw error;
     }
   }
@@ -170,7 +171,7 @@ export class ExportScheduleService {
 
       return this.mapToExportSchedule(schedule);
     } catch (error: any) {
-      console.error('❌ Erro ao buscar agendamento:', error.message);
+      await logError('Erro ao buscar agendamento', error, { scheduleId });
       throw error;
     }
   }
@@ -241,7 +242,7 @@ export class ExportScheduleService {
         limit
       };
     } catch (error: any) {
-      console.error('❌ Erro ao buscar agendamentos:', error.message);
+      await logError('Erro ao buscar agendamentos', error, { filters });
       throw error;
     }
   }
@@ -339,11 +340,11 @@ export class ExportScheduleService {
       await this.getAuditService().log('export', 'schedule_updated', userId, {
         scheduleId: scheduleId,
         changes: Object.keys(data)
-      }).catch(e => console.error('Erro ao registrar log:', e.message));
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId: schedule.schedule_id }).catch(() => {}));
 
       return this.mapToExportSchedule(schedule);
     } catch (error: any) {
-      console.error('❌ Erro ao atualizar agendamento:', error.message);
+      await logError('Erro ao atualizar agendamento', error, { scheduleId, data });
       throw error;
     }
   }
@@ -371,9 +372,9 @@ export class ExportScheduleService {
       await this.getAuditService().log('export', 'schedule_deleted', userId, {
         scheduleId: scheduleId,
         scheduleName: existing.name
-      }).catch(e => console.error('Erro ao registrar log:', e.message));
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId: schedule.schedule_id }).catch(() => {}));
     } catch (error: any) {
-      console.error('❌ Erro ao excluir agendamento:', error.message);
+      await logError('Erro ao excluir agendamento', error, { scheduleId });
       throw error;
     }
   }
@@ -402,9 +403,9 @@ export class ExportScheduleService {
         }
       );
 
-      console.log(`✅ Job registrado para agendamento ${scheduleId}`);
+        await logInfo(`Job registrado para agendamento`, { scheduleId });
     } catch (error: any) {
-      console.error(`❌ Erro ao registrar job para agendamento ${scheduleId}:`, error.message);
+        await logError('Erro ao registrar job para agendamento', error, { scheduleId });
       throw error;
     }
   }
@@ -424,7 +425,7 @@ export class ExportScheduleService {
         await this.registerScheduleJob(scheduleId, queryId, cronExpression);
       }
     } catch (error: any) {
-      console.error(`❌ Erro ao atualizar job para agendamento ${scheduleId}:`, error.message);
+      await logError('Erro ao atualizar job para agendamento', error, { scheduleId });
       throw error;
     }
   }
@@ -442,10 +443,10 @@ export class ExportScheduleService {
       
       if (job) {
         await job.remove();
-        console.log(`✅ Job removido para agendamento ${scheduleId}`);
+        await logInfo('Job removido para agendamento', { scheduleId });
       }
     } catch (error: any) {
-      console.error(`❌ Erro ao remover job para agendamento ${scheduleId}:`, error.message);
+      await logError('Erro ao remover job para agendamento', error, { scheduleId });
       // Não falhar se job não existir
     }
   }
@@ -476,9 +477,9 @@ export class ExportScheduleService {
         }
       );
 
-      console.log(`✅ Execução manual iniciada para agendamento ${scheduleId}`);
+      await logInfo('Execução manual iniciada para agendamento', { scheduleId });
     } catch (error: any) {
-      console.error(`❌ Erro ao executar agendamento ${scheduleId}:`, error.message);
+      await logError('Erro ao executar agendamento', error, { scheduleId });
       throw error;
     }
   }
@@ -499,13 +500,13 @@ export class ExportScheduleService {
             schedule.cron_expression
           );
         } catch (error: any) {
-          console.error(`❌ Erro ao carregar agendamento ${schedule.schedule_id}:`, error.message);
+          await logError('Erro ao carregar agendamento', error, { scheduleId: schedule.schedule_id });
         }
       }
 
-      console.log(`✅ ${schedules.length} agendamento(s) ativo(s) carregado(s) no Bull`);
+      await logInfo('Agendamentos ativos carregados no Bull', { count: schedules.length });
     } catch (error: any) {
-      console.error('❌ Erro ao carregar agendamentos:', error.message);
+      await logError('Erro ao carregar agendamentos', error);
       throw error;
     }
   }
