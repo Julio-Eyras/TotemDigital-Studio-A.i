@@ -907,6 +907,34 @@ router.post('/register',
         duration: `${duration}ms`
       };
       
+      // Registrar evento no EventLogService (não bloqueia o fluxo)
+      try {
+        const eventLogService = getEventLogService();
+        await eventLogService.logEvent({
+          eventType: EventType.SYSTEM_EVENT,
+          entityType: 'totem',
+          entityId: (newTotem as any).id || totemId,
+          totemId: (newTotem as any).id || totemId,
+          metadata: {
+            action: 'auto_register',
+            status: 'pending_approval',
+            ipAddress,
+            requestId,
+            hardware: {
+              mac: req.body.hardware?.macAddress,
+              hostname: req.body.hardware?.hostname,
+              platform: req.body.hardware?.platform,
+              arch: req.body.hardware?.arch
+            }
+          }
+        });
+      } catch (eventError: any) {
+        await logError(`[${requestId}] Erro ao registrar evento de auto-registro`, eventError, {
+          totemId,
+          requestId
+        });
+      }
+
       // Registrar transação de sucesso
       await playerDebugService.logTransaction({
         transactionId: requestId,
