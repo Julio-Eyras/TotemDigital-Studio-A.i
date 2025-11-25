@@ -200,7 +200,7 @@ export class PlaylistService {
       const campaignId = defaultCampaign?.campaign_id || defaultCampaign?.campaignId || null;
 
       if (!totemId || !campaignId) {
-        await logError('Erro ao criar playlist: Totem ou campanha não encontrados', null, {
+        await logError('Erro ao criar playlist: Totem ou campanha não encontrados', undefined, {
           totemId: defaultTotem ? totemId : null,
           campaignId: defaultCampaign ? campaignId : null,
           defaultTotem: defaultTotem ? 'encontrado' : 'não encontrado',

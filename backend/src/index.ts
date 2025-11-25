@@ -319,47 +319,47 @@ app.use(errorHandler);
 // =============================================
 
 process.on('SIGTERM', async () => {
-  logInfo('SIGTERM recebido. Iniciando shutdown graceful...').catch(() => {});
+  await logInfo('SIGTERM recebido. Iniciando shutdown graceful...').catch(() => {});
   
   try {
     await closeExportQueue();
-    logInfo('Queue de exportação fechada').catch(() => {});
+    await logInfo('Queue de exportação fechada').catch(() => {});
     
     await closeAdvancedScheduleQueue();
-    logInfo('Queue de agendamento avançado fechada').catch(() => {});
+    await logInfo('Queue de agendamento avançado fechada').catch(() => {});
     
     await closeRedis();
-    logInfo('Redis desconectado').catch(() => {});
+    await logInfo('Redis desconectado').catch(() => {});
     
     await closeDatabase();
-    logInfo('Database desconectado').catch(() => {});
+    await logInfo('Database desconectado').catch(() => {});
     
     process.exit(0);
   } catch (error) {
-    logError('Erro durante shutdown', error).catch(() => {});
+    await logError('Erro durante shutdown', error).catch(() => {});
     process.exit(1);
   }
 });
 
 process.on('SIGINT', async () => {
-  logInfo('SIGINT recebido. Iniciando shutdown graceful...').catch(() => {});
+  await logInfo('SIGINT recebido. Iniciando shutdown graceful...').catch(() => {});
   
   try {
     await closeExportQueue();
-    logInfo('Queue de exportação fechada').catch(() => {});
+    await logInfo('Queue de exportação fechada').catch(() => {});
     
     await closeAdvancedScheduleQueue();
-    logInfo('Queue de agendamento avançado fechada').catch(() => {});
+    await logInfo('Queue de agendamento avançado fechada').catch(() => {});
     
     await closeRedis();
-    logInfo('Redis desconectado').catch(() => {});
+    await logInfo('Redis desconectado').catch(() => {});
     
     await closeDatabase();
-    logInfo('Database desconectado').catch(() => {});
+    await logInfo('Database desconectado').catch(() => {});
     
     process.exit(0);
   } catch (error) {
-    logError('Erro durante shutdown', error).catch(() => {});
+    await logError('Erro durante shutdown', error).catch(() => {});
     process.exit(1);
   }
 });

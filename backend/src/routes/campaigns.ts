@@ -214,7 +214,7 @@ router.post('/', async (req: any, res) => {
 
     // Validar campos obrigatórios
     if (!campaignData.title) {
-      await logError('Erro de validação: title é obrigatório', null, { campaignData });
+      await logError('Erro de validação: title é obrigatório', undefined, { campaignData });
       return res.status(400).json({
         success: false,
         message: 'Título é obrigatório',
@@ -249,7 +249,7 @@ router.post('/', async (req: any, res) => {
             mappedData.clientId = firstClient.client_id;
             await logInfo('[Campaign] Usando primeiro cliente ativo', { clientId: mappedData.clientId });
           } else {
-            await logError('Erro: Nenhum cliente ativo encontrado', null);
+            await logError('Erro: Nenhum cliente ativo encontrado', undefined, {});
             return res.status(400).json({
               success: false,
               message: 'É necessário ter pelo menos um cliente ativo para criar campanhas'
