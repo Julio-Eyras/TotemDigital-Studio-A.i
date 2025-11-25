@@ -107,20 +107,56 @@
 - ✅ Contexto adicionado (entity, action, userId, filters, metadata)
 - ✅ Total: 14 substituições
 
+### 21. **StorageService** ✅
+- ✅ 20 substituições de `console.log/error/warn` por `logInfoSync/logErrorSync/logWarnSync`
+- ✅ Uso de helpers síncronos apropriado para operações de I/O
+- ✅ Contexto adicionado (filePath, directoryPath, daysOld)
+- ✅ Total: 20 substituições
+
+### 22. **EmailService** ✅
+- ✅ 14 substituições de `console.log/error/warn` por `logInfo/logError/logWarn`
+- ✅ Contexto adicionado (to, subject, messageId, email)
+- ✅ Total: 14 substituições
+
+### 23. **NotificationService** ✅
+- ✅ 13 substituições de `console.log/error` por `logInfo/logError`
+- ✅ Contexto adicionado (notificationId, userId, clientId, data)
+- ✅ Total: 13 substituições
+
+### 24. **AdvancedScheduleService** ✅
+- ✅ 12 substituições de `console.error/log` por `logError/logInfo`
+- ✅ Contexto adicionado (scheduleId, data, filters)
+- ✅ Total: 12 substituições
+
+### 25. **SettingsService** ✅
+- ✅ 10 substituições de `console.error` por `logError`
+- ✅ Contexto adicionado (key, category, updates, settings)
+- ✅ Total: 10 substituições
+
+### 26. **AIService** ✅
+- ✅ 10 substituições de `console.error` por `logError`
+- ✅ Contexto adicionado (request, prompt, model, campaignId, filters)
+- ✅ Total: 10 substituições
+
+### 27. **LogRotationService** ✅
+- ✅ 10 substituições de `console.error` por `logError`
+- ✅ Contexto adicionado (fileName, directoryPath, adminId)
+- ✅ Total: 10 substituições
+
 ---
 
 ## ⏳ **SERVIÇOS PENDENTES**
 
 ### Serviços com console.log:
-- ⏳ `storageService.ts` - ~20 ocorrências
-- ⏳ `emailService.ts` - ~14 ocorrências
-- ⏳ `notificationService.ts` - ~13 ocorrências
-- ⏳ `advancedScheduleService.ts` - ~12 ocorrências
-- ⏳ `settingsService.ts` - ~10 ocorrências
-- ⏳ `aiService.ts` - ~10 ocorrências
-- ⏳ `logRotationService.ts` - ~10 ocorrências
 - ⏳ `exportQueryService.ts` - ~9 ocorrências
-- ⏳ Outros serviços - ~55 ocorrências
+- ⏳ `exportExecutionService.ts` - ~3 ocorrências
+- ⏳ `userService.ts` - ~5 ocorrências
+- ⏳ `clientService.ts` - ~5 ocorrências
+- ⏳ `playerService.ts` - ~7 ocorrências
+- ⏳ `playerDebugService.ts` - ~4 ocorrências
+- ⏳ `systemService.ts` - ~5 ocorrências
+- ⏳ `dashboardService.ts` - ~4 ocorrências
+- ⏳ Outros serviços - ~30 ocorrências
 
 ### Rotas com console.log:
 - ✅ **TODAS AS ROTAS CONCLUÍDAS!** 🎉
@@ -129,9 +165,9 @@
 
 ## 📊 **ESTATÍSTICAS**
 
-- **Substituições Realizadas:** ~191
-- **Substituições Restantes:** ~689
-- **Progresso:** ~21.7%
+- **Substituições Realizadas:** ~280
+- **Substituições Restantes:** ~600
+- **Progresso:** ~31.8%
 
 ---
 
