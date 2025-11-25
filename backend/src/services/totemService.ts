@@ -6,6 +6,7 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError, logInfo, logDebug } from '../utils/loggerHelper';
+import { getEventLogService, EventType } from './eventLogService';
 
 export interface CreateTotemRequest {
   name?: string;
@@ -111,6 +112,10 @@ export class TotemService {
       (global as any).auditServiceInstance = new AuditService();
     }
     return (global as any).auditServiceInstance;
+  }
+
+  private get eventLogService() {
+    return getEventLogService();
   }
 
   /**
@@ -697,6 +702,7 @@ export class TotemService {
       if (!totem) {
         throw new Error('Totem não encontrado');
       }
+      const previousStatus = totem.status;
 
       // Atualizar dados do heartbeat
       const updates: string[] = [];
@@ -749,6 +755,17 @@ export class TotemService {
       if (!updatedTotem) {
         throw new Error('Erro ao buscar totem atualizado');
       }
+
+      await this.logTotemHeartbeatEvent({
+        totem: updatedTotem,
+        previousStatus,
+        status: status || updatedTotem.status,
+        ipAddress,
+        version,
+        firmwareVersion,
+        metrics,
+        source: 'processHeartbeat'
+      });
 
       return updatedTotem;
 
@@ -830,6 +847,12 @@ export class TotemService {
    */
   async registerHeartbeat(totemId: number, heartbeatData: any): Promise<any> {
     try {
+      const existingTotem = await this.getTotemById(totemId);
+      if (!existingTotem) {
+        throw new Error('Totem não encontrado');
+      }
+      const previousStatus = existingTotem.status;
+
       await this.db.executeRaw(`
         UPDATE totems 
         SET last_heartbeat = CURRENT_TIMESTAMP,
@@ -845,6 +868,20 @@ export class TotemService {
         JSON.stringify(heartbeatData.systemInfo),
         totemId
       ]);
+
+      const updatedTotem = await this.getTotemById(totemId);
+      if (updatedTotem) {
+        await this.logTotemHeartbeatEvent({
+          totem: updatedTotem,
+          previousStatus,
+          status: heartbeatData.status || updatedTotem.status,
+          ipAddress: heartbeatData.ipAddress,
+          version: updatedTotem.version,
+          firmwareVersion: updatedTotem.firmwareVersion,
+          metrics: heartbeatData.systemInfo,
+          source: 'registerHeartbeat'
+        });
+      }
 
       return { success: true, timestamp: new Date().toISOString() };
     } catch (error: any) {
@@ -931,6 +968,71 @@ export class TotemService {
     } catch (error: any) {
       await logError('Erro ao buscar analytics do totem', error);
       throw new Error('Erro interno do servidor');
+    }
+  }
+
+  private async logTotemHeartbeatEvent(options: {
+    totem: TotemResponse;
+    previousStatus?: string;
+    status?: string;
+    ipAddress?: string;
+    version?: string;
+    firmwareVersion?: string;
+    metrics?: HeartbeatData['metrics'];
+    source: string;
+  }): Promise<void> {
+    try {
+      const eventLogService = this.eventLogService;
+      const metadata = {
+        status: options.status,
+        previousStatus: options.previousStatus,
+        ipAddress: options.ipAddress,
+        version: options.version,
+        firmwareVersion: options.firmwareVersion,
+        metrics: options.metrics,
+        source: options.source
+      };
+
+      await eventLogService.logEvent({
+        eventType: EventType.TOTEM_HEARTBEAT,
+        entityType: 'totem',
+        entityId: options.totem.id,
+        totemId: options.totem.id,
+        campaignId: undefined,
+        metadata
+      });
+
+      if (options.status && options.status !== options.previousStatus) {
+        let statusEvent: EventType | null = null;
+        if (options.status === 'online') {
+          statusEvent = EventType.TOTEM_ONLINE;
+        } else if (options.status === 'offline') {
+          statusEvent = EventType.TOTEM_OFFLINE;
+        } else if (options.status === 'error') {
+          statusEvent = EventType.TOTEM_ERROR;
+        }
+
+        if (statusEvent) {
+          await eventLogService.logEvent({
+            eventType: statusEvent,
+            entityType: 'totem',
+            entityId: options.totem.id,
+            totemId: options.totem.id,
+            metadata: {
+              previousStatus: options.previousStatus,
+              newStatus: options.status,
+              ipAddress: options.ipAddress,
+              version: options.version,
+              firmwareVersion: options.firmwareVersion,
+              source: options.source
+            }
+          });
+        }
+      }
+    } catch (eventError: any) {
+      await logError('Erro ao registrar eventos do totem', eventError, {
+        totemId: options.totem.id
+      });
     }
   }
 

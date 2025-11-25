@@ -82,13 +82,21 @@
 - ✅ Cobre logs de registro, totem e informações do sistema
 - ✅ Total: 4 substituições
 
+### 16. **QRCodeService (Event Logs)** ✅
+- ✅ Registro automático no `EventLogService` para cada scan (`logQRCodeScan`)
+- ✅ Metadados adicionados (cliente, campanha, IP, device info)
+- ✅ Sem impacto no fluxo público de scans
+
+### 17. **TotemService (Heartbeat & Status)** ✅
+- ✅ `processHeartbeat` e `registerHeartbeat` registram `TOTEM_HEARTBEAT`
+- ✅ Transições de status geram eventos `TOTEM_ONLINE/OFFLINE/ERROR`
+- ✅ Metadados incluem IP, versão, firmware e métricas
+
 ---
 
 ## ⏳ **SERVIÇOS PENDENTES**
 
 ### Serviços com console.log:
-- ⏳ `qrcodeService.ts` - ~10 ocorrências
-- ⏳ `totemService.ts` - ~8 ocorrências
 - ⏳ `analyticsService.ts` - ~5 ocorrências
 - ⏳ Outros serviços - ~800 ocorrências
 

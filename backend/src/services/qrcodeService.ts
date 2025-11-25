@@ -6,6 +6,7 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
+import { getEventLogService } from './eventLogService';
 import * as QRCode from 'qrcode';
 
 export interface CreateQRCodeRequest {
@@ -113,6 +114,35 @@ export class QRCodeService {
       (global as any).auditServiceInstance = new AuditService();
     }
     return (global as any).auditServiceInstance;
+  }
+
+  /**
+   * Registra evento de scan no EventLogService (sem impactar fluxo principal)
+   */
+  private async logQRCodeScanEvent(
+    qrCode: QRCodeResponse,
+    scanData: {
+      ipAddress?: string;
+      userAgent?: string;
+      location?: string;
+      deviceInfo?: string;
+    }
+  ): Promise<void> {
+    try {
+      const eventLogService = getEventLogService();
+      await eventLogService.logQRCodeScan(qrCode.id, qrCode.totemId, {
+        clientId: qrCode.clientId,
+        campaignId: qrCode.campaignId,
+        ipAddress: scanData.ipAddress,
+        userAgent: scanData.userAgent,
+        location: scanData.location,
+        deviceInfo: scanData.deviceInfo
+      });
+    } catch (eventError: any) {
+      await logError('Erro ao registrar evento de scan de QR Code', eventError, {
+        qrCodeId: qrCode.id
+      });
+    }
   }
 
   /**
@@ -597,6 +627,9 @@ export class QRCodeService {
         SET scan_count = scan_count + 1, last_scanned_at = CURRENT_TIMESTAMP
         WHERE qr_code_id = ?
       `, [qrCodeId]);
+
+      // Registrar evento no EventLogService (não bloqueia fluxo)
+      await this.logQRCodeScanEvent(qrCode, scanData);
 
     } catch (error: any) {
       await logError('Erro ao registrar scan', error);
