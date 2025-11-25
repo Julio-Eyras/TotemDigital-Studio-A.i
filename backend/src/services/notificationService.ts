@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
+import { logError, logInfo } from '../utils/loggerHelper';
 
 export interface Notification {
   id: number;
@@ -48,9 +49,9 @@ export class NotificationService {
    */
   async initialize(): Promise<void> {
     try {
-      console.log('🔔 NotificationService inicializado');
+      await logInfo('NotificationService inicializado', {});
     } catch (error: any) {
-      console.error('❌ Erro ao inicializar NotificationService:', error.message);
+      await logError('Erro ao inicializar NotificationService', error, {});
       throw error;
     }
   }
@@ -114,7 +115,7 @@ export class NotificationService {
             }
           }
         } catch (emailError: any) {
-          console.error('❌ Erro ao enviar email de notificação:', emailError.message);
+          await logError('Erro ao enviar email de notificação', emailError, { notificationId: notification.id });
           // Não falhar a criação da notificação se o email falhar
         }
       }
@@ -122,7 +123,7 @@ export class NotificationService {
       return newNotification;
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar notificação:', error.message);
+      await logError('Erro ao criar notificação', error, { data });
       throw error;
     }
   }
@@ -158,7 +159,7 @@ export class NotificationService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar notificação:', error.message);
+      await logError('Erro ao buscar notificação', error, { notificationId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -245,7 +246,7 @@ export class NotificationService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar notificações:', error.message);
+      await logError('Erro ao buscar notificações', error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -267,7 +268,7 @@ export class NotificationService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao marcar notificação como lida:', error.message);
+      await logError('Erro ao marcar notificação como lida', error, { notificationId, userId });
       throw error;
     }
   }
@@ -289,7 +290,7 @@ export class NotificationService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao marcar todas as notificações como lidas:', error.message);
+      await logError('Erro ao marcar todas as notificações como lidas', error, { userId });
       throw error;
     }
   }
@@ -309,7 +310,7 @@ export class NotificationService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao remover notificação:', error.message);
+      await logError('Erro ao remover notificação', error, { notificationId, userId });
       throw error;
     }
   }
@@ -327,7 +328,7 @@ export class NotificationService {
       return result.changes || 0;
 
     } catch (error: any) {
-      console.error('❌ Erro ao limpar notificações expiradas:', error.message);
+      await logError('Erro ao limpar notificações expiradas', error, {});
       throw error;
     }
   }
@@ -350,7 +351,7 @@ export class NotificationService {
       }, 1); // ID do sistema
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar notificação de sistema:', error.message);
+      await logError('Erro ao criar notificação de sistema', error, { data });
     }
   }
 
@@ -374,7 +375,7 @@ export class NotificationService {
       }, 1); // ID do sistema
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar notificação para usuário:', error.message);
+      await logError('Erro ao criar notificação para usuário', error, { userId, data });
     }
   }
 
@@ -398,7 +399,7 @@ export class NotificationService {
       }, 1); // ID do sistema
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar notificação para cliente:', error.message);
+      await logError('Erro ao criar notificação para cliente', error, { clientId, data });
     }
   }
 }

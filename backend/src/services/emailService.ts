@@ -5,6 +5,7 @@
 
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+import { logError, logInfo, logWarn } from '../utils/loggerHelper';
 
 dotenv.config();
 
@@ -64,7 +65,7 @@ export class EmailService {
 
       // Verificar se credenciais estão configuradas
       if (!smtpConfig.auth.user || !smtpConfig.auth.pass) {
-        console.warn('⚠️ SMTP não configurado. Email desabilitado.');
+        logWarn('SMTP não configurado. Email desabilitado.', {});
         this.isEnabled = false;
         return;
       }
@@ -74,15 +75,15 @@ export class EmailService {
       // Verificar conexão
       this.transporter.verify((error, success) => {
         if (error) {
-          console.error('❌ Erro ao verificar conexão SMTP:', error.message);
+          logError('Erro ao verificar conexão SMTP', error, {}).catch(() => {});
           this.isEnabled = false;
         } else {
-          console.log('✅ Email Service configurado e pronto');
+          logInfo('Email Service configurado e pronto', {}).catch(() => {});
         }
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao inicializar Email Service:', error.message);
+      await logError('Erro ao inicializar Email Service', error, {});
       this.isEnabled = false;
     }
   }
@@ -94,10 +95,11 @@ export class EmailService {
     try {
       if (!this.isEnabled || !this.transporter) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('📧 [DEV MODE] Email não enviado (SMTP desabilitado):');
-          console.log('   Para:', options.to);
-          console.log('   Assunto:', options.subject);
-          console.log('   Conteúdo:', options.text || options.html?.substring(0, 100) + '...');
+          await logInfo('Email não enviado (SMTP desabilitado)', {
+            to: options.to,
+            subject: options.subject,
+            contentPreview: options.text || options.html?.substring(0, 100) + '...'
+          });
         }
         return {
           success: false,
@@ -118,7 +120,7 @@ export class EmailService {
 
       const info = await this.transporter.sendMail(mailOptions);
 
-      console.log(`✅ Email enviado: ${info.messageId}`);
+      await logInfo('Email enviado', { messageId: info.messageId, to: options.to, subject: options.subject });
 
       return {
         success: true,
@@ -126,7 +128,7 @@ export class EmailService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao enviar email:', error.message);
+      await logError('Erro ao enviar email', error, { to: options.to, subject: options.subject });
       return {
         success: false,
         error: error.message
@@ -152,7 +154,7 @@ export class EmailService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao enviar email de recuperação de senha:', error.message);
+      await logError('Erro ao enviar email de recuperação de senha', error, { email });
       return {
         success: false,
         error: error.message
@@ -176,7 +178,7 @@ export class EmailService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao enviar email de boas-vindas:', error.message);
+      await logError('Erro ao enviar email de boas-vindas', error, { email, username });
       return {
         success: false,
         error: error.message
@@ -199,7 +201,7 @@ export class EmailService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao enviar email de notificação:', error.message);
+      await logError('Erro ao enviar email de notificação', error, { to: options.to, subject: options.subject });
       return {
         success: false,
         error: error.message
@@ -442,7 +444,7 @@ Smart Signage Pro - Sistema de Sinalização Digital
       return true;
 
     } catch (error: any) {
-      console.error('❌ Erro ao testar conexão SMTP:', error.message);
+      await logError('Erro ao testar conexão SMTP', error, {});
       return false;
     }
   }
