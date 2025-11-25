@@ -8,7 +8,7 @@
 import { Router } from 'express';
 import { CampaignService } from '../services/campaignService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
-import { logError, logInfo, logDebug } from '../utils/loggerHelper';
+import { logError, logInfo, logDebug, sanitizeForLogging } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from '../services/eventLogService';
 
 const router = Router();
@@ -209,12 +209,14 @@ router.post('/', async (req: any, res) => {
   try {
     const campaignData = req.body;
     
-    await logDebug('[Campaign] Dados recebidos', { campaignData, user: { userId: req.user?.userId || req.user?.id, role: req.user?.role, clientId: req.user?.clientId } });
+    // Sanitizar dados antes de logar para evitar expor informações sensíveis
+    const sanitizedData = sanitizeForLogging(campaignData);
+    await logDebug('[Campaign] Dados recebidos', { campaignData: sanitizedData, user: { userId: req.user?.userId || req.user?.id, role: req.user?.role, clientId: req.user?.clientId } });
 
     // Validar campos obrigatórios
     if (!campaignData.title) {
       const validationError = new Error('Campo title é obrigatório');
-      await logError('Erro de validação: title é obrigatório', validationError, { campaignData });
+      await logError('Erro de validação: title é obrigatório', validationError, { campaignData: sanitizedData });
       return res.status(400).json({
         success: false,
         message: 'Título é obrigatório',
@@ -306,7 +308,9 @@ router.post('/', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    await logError('Erro ao criar campanha', error, { campaignData });
+    // Sanitizar dados antes de logar (campaignData pode não estar definido se erro ocorrer antes)
+    const sanitizedData = req.body ? sanitizeForLogging(req.body) : null;
+    await logError('Erro ao criar campanha', error, { campaignData: sanitizedData });
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar campanha',

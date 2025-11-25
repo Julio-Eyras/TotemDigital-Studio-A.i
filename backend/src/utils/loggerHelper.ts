@@ -9,6 +9,57 @@
 
 import { getLogger } from '../config/logger';
 
+/**
+ * Campos sensíveis que devem ser removidos dos logs
+ */
+const SENSITIVE_FIELDS = [
+  'password',
+  'token',
+  'apiKey',
+  'api_key',
+  'secret',
+  'secretKey',
+  'secret_key',
+  'authorization',
+  'auth',
+  'accessToken',
+  'access_token',
+  'refreshToken',
+  'refresh_token',
+  'privateKey',
+  'private_key',
+  'sessionId',
+  'session_id',
+  'cookie',
+  'cookies'
+];
+
+/**
+ * Sanitiza objeto removendo campos sensíveis antes de logar
+ */
+export function sanitizeForLogging(data: any): any {
+  if (!data || typeof data !== 'object') {
+    return data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeForLogging(item));
+  }
+
+  const sanitized: any = {};
+  for (const [key, value] of Object.entries(data)) {
+    const lowerKey = key.toLowerCase();
+    if (SENSITIVE_FIELDS.some(field => lowerKey.includes(field))) {
+      sanitized[key] = '[REDACTED]';
+    } else if (value && typeof value === 'object') {
+      sanitized[key] = sanitizeForLogging(value);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
 // Cache do logger para evitar múltiplas inicializações
 let loggerCache: Awaited<ReturnType<typeof getLogger>> | null = null;
 
