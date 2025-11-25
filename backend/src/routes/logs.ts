@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { LogRotationService } from '../services/logRotationService';
 import { getLogger, reloadLogger } from '../config/logger';
+import { logError } from '../utils/loggerHelper';
 
 const router = Router();
 const logRotationService = new LogRotationService();
@@ -32,7 +33,7 @@ router.get('/config', authorizeRole(['admin']), async (req: Request, res: Respon
       }
     });
   } catch (error: any) {
-    console.error('❌ Erro ao obter configurações de logs:', error.message);
+    await logError('Erro ao obter configurações de logs', error, { route: '/api/logs/config' });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -60,7 +61,7 @@ router.get('/files', authorizeRole(['admin']), async (req: Request, res: Respons
       }))
     });
   } catch (error: any) {
-    console.error('❌ Erro ao listar arquivos de log:', error.message);
+    await logError('Erro ao listar arquivos de log', error, { route: '/api/logs/files' });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -90,7 +91,7 @@ router.get('/disk-space', authorizeRole(['admin']), async (req: Request, res: Re
       }
     });
   } catch (error: any) {
-    console.error('❌ Erro ao obter espaço em disco:', error.message);
+    await logError('Erro ao obter espaço em disco', error, { route: '/api/logs/disk-space' });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -113,7 +114,7 @@ router.get('/rotation-status', authorizeRole(['admin']), async (req: Request, re
       data: rotationCheck
     });
   } catch (error: any) {
-    console.error('❌ Erro ao verificar rotação de logs:', error.message);
+    await logError('Erro ao verificar rotação de logs', error, { route: '/api/logs/rotation-status' });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -139,7 +140,7 @@ router.post('/rotate', authorizeRole(['admin']), async (req: Request, res: Respo
       data: result
     });
   } catch (error: any) {
-    console.error('❌ Erro ao rotacionar logs:', error.message);
+    await logError('Erro ao rotacionar logs', error, { route: '/api/logs/rotate' });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -162,11 +163,62 @@ router.post('/reload', authorizeRole(['admin']), async (req: Request, res: Respo
       message: 'Configurações do logger recarregadas com sucesso'
     });
   } catch (error: any) {
-    console.error('❌ Erro ao recarregar logger:', error.message);
+    await logError('Erro ao recarregar logger', error, { route: '/api/logs/reload' });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/logs/frontend-error
+ * @desc Receber erros do frontend para logging
+ * @access Public (para permitir logging mesmo sem autenticação)
+ */
+router.post('/frontend-error', async (req: Request, res: Response) => {
+  try {
+    const { error, errorInfo, context } = req.body;
+
+    if (!error || !error.message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Dados de erro inválidos'
+      });
+    }
+
+    // Logar erro usando o sistema de logging
+    const errorMessage = `[Frontend Error] ${error.name}: ${error.message}`;
+    const errorObj = new Error(errorMessage);
+    errorObj.stack = error.stack;
+
+    await logError(errorMessage, errorObj, {
+      source: 'frontend',
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: error.stack,
+      componentStack: errorInfo?.componentStack,
+      context: {
+        ...context,
+        url: context?.url,
+        userAgent: context?.userAgent,
+        timestamp: context?.timestamp,
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Erro registrado com sucesso'
+    });
+  } catch (logErr: any) {
+    // Não falhar se o logging falhar - tentar logar usando logger helper
+    await logError('Erro ao registrar erro do frontend', logErr, { route: '/api/logs/frontend-error' }).catch(() => {
+      // Se até o logger falhar, ignorar silenciosamente
+    });
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao registrar log'
     });
   }
 });

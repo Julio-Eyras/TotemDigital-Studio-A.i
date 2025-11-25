@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { SmartPlaylistService } from '../services/smartPlaylistService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
+import { logError, logInfo, logWarn, logDebug } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -60,8 +61,7 @@ router.get('/', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao listar smart playlists:', error.message || error);
-    console.error('❌ Stack trace:', error.stack);
+    await logError('Erro ao listar smart playlists', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -85,7 +85,7 @@ router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar estatísticas:', error.message);
+    await logError('Erro ao buscar estatísticas de smart playlists', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -126,7 +126,7 @@ router.get('/:id', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar smart playlist:', error.message);
+    await logError('Erro ao buscar smart playlist', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -145,8 +145,8 @@ router.post('/', async (req: any, res) => {
     const playlistData = req.body;
 
     // Log para debug
-    console.log('📝 [Smart Playlist] Dados recebidos:', JSON.stringify(playlistData, null, 2));
-    console.log('📝 [Smart Playlist] Usuário:', { userId: req.user?.userId, role: req.user?.role, clientId: req.user?.clientId });
+    await logDebug('[Smart Playlist] Dados recebidos', { playlistData });
+    await logDebug('[Smart Playlist] Usuário', { userId: req.user?.userId, role: req.user?.role, clientId: req.user?.clientId });
 
     // Validar campos obrigatórios básicos
     if (!playlistData.name || (typeof playlistData.name === 'string' && playlistData.name.trim() === '')) {
@@ -167,31 +167,31 @@ router.post('/', async (req: any, res) => {
     if (!playlistData.clientId) {
       if (req.user.role === 'client' && req.user.clientId) {
         playlistData.clientId = req.user.clientId;
-        console.log('📝 [Smart Playlist] Usando clientId do usuário:', playlistData.clientId);
+        await logDebug('[Smart Playlist] Usando clientId do usuário', { clientId: playlistData.clientId });
       } else if (req.user.role === 'admin' || req.user.role === 'manager') {
         // Para admin/manager, buscar primeiro cliente ativo se não fornecido
         try {
-          console.log('📝 [Smart Playlist] Buscando primeiro cliente ativo...');
+          await logDebug('[Smart Playlist] Buscando primeiro cliente ativo');
           const firstClient = await getSmartPlaylistService().getFirstActiveClient();
           if (firstClient) {
             playlistData.clientId = firstClient.client_id;
-            console.log('📝 [Smart Playlist] Cliente encontrado:', playlistData.clientId);
+            await logDebug('[Smart Playlist] Cliente encontrado', { clientId: playlistData.clientId });
           } else {
-            console.error('❌ [Smart Playlist] Nenhum cliente ativo encontrado');
+            await logError('[Smart Playlist] Nenhum cliente ativo encontrado');
             return res.status(400).json({
               success: false,
               message: 'Nenhum cliente encontrado. É necessário criar um cliente antes de criar smart playlists.'
             });
           }
         } catch (error: any) {
-          console.error('❌ [Smart Playlist] Erro ao buscar primeiro cliente:', error.message);
+          await logError('[Smart Playlist] Erro ao buscar primeiro cliente', error);
           return res.status(400).json({
             success: false,
             message: 'clientId é obrigatório para criar smart playlist'
           });
         }
       } else {
-        console.error('❌ [Smart Playlist] Role inválido ou sem clientId:', req.user.role);
+        await logError('[Smart Playlist] Role inválido ou sem clientId', undefined, { role: req.user.role });
         return res.status(400).json({
           success: false,
           message: 'clientId é obrigatório'
@@ -207,7 +207,7 @@ router.post('/', async (req: any, res) => {
       });
     }
 
-    console.log('📝 [Smart Playlist] Dados finais antes de criar:', JSON.stringify(playlistData, null, 2));
+    await logDebug('[Smart Playlist] Dados finais antes de criar', { playlistData });
 
     const playlist = await getSmartPlaylistService().createSmartPlaylist(playlistData, req.user.userId);
 
@@ -218,8 +218,7 @@ router.post('/', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar smart playlist:', error.message || error);
-    console.error('❌ Stack trace:', error.stack);
+    await logError('Erro ao criar smart playlist', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar smart playlist',
@@ -267,7 +266,7 @@ router.put('/:id', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao atualizar smart playlist:', error.message);
+    await logError('Erro ao atualizar smart playlist', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar smart playlist',
@@ -293,7 +292,7 @@ router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res)
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao remover smart playlist:', error.message);
+    await logError('Erro ao remover smart playlist', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover smart playlist',
@@ -336,7 +335,7 @@ router.post('/:id/generate', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao gerar smart playlist:', error.message);
+    await logError('Erro ao gerar smart playlist manualmente', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao gerar smart playlist',
@@ -378,7 +377,7 @@ router.post('/:id/activate', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao ativar smart playlist:', error.message);
+    await logError('Erro ao ativar smart playlist', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao ativar smart playlist',
@@ -420,7 +419,7 @@ router.post('/:id/deactivate', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao desativar smart playlist:', error.message);
+    await logError('Erro ao desativar smart playlist', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao desativar smart playlist',
@@ -459,7 +458,7 @@ router.get('/client/:clientId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar smart playlists do cliente:', error.message);
+    await logError('Erro ao buscar smart playlists do cliente', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -490,7 +489,7 @@ router.get('/campaign/:campaignId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar smart playlists da campanha:', error.message);
+    await logError('Erro ao buscar smart playlists da campanha', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -521,7 +520,7 @@ router.get('/totem/:totemId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar smart playlists do totem:', error.message);
+    await logError('Erro ao buscar smart playlists do totem', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -565,7 +564,7 @@ router.post('/:id/test', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao testar smart playlist:', error.message);
+    await logError('Erro ao testar smart playlist', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao testar smart playlist',
@@ -617,7 +616,7 @@ router.post('/bulk-generate', authorizeRole(['admin', 'manager']), async (req, r
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao gerar smart playlists em lote:', error.message);
+    await logError('Erro ao gerar smart playlists em lote', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',

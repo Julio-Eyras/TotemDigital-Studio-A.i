@@ -1,11 +1,15 @@
 /**
- * Campaign Routes - Smart Signage v2.0
+ * Campaign Routes - Smart Signage v2.1
  * Rotas para gerenciamento de campanhas
+ * 
+ * Logging: Usa arquivos locais para logs operacionais
  */
 
 import { Router } from 'express';
 import { CampaignService } from '../services/campaignService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
+import { logError, logInfo } from '../utils/loggerHelper';
+import { getEventLogService, EventType } from '../services/eventLogService';
 
 const router = Router();
 
@@ -58,7 +62,7 @@ router.get('/', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao listar campanhas:', error.message);
+    await logError('Erro ao listar campanhas', error, { filters: req.query });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -82,7 +86,7 @@ router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar estatísticas:', error.message);
+    await logError('Erro ao buscar estatísticas', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -120,7 +124,7 @@ router.get('/client/:clientId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar campanhas do cliente:', error.message);
+    await logError('Erro ao buscar campanhas do cliente', error, { clientId });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -146,7 +150,7 @@ router.get('/totem/:totemId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar campanhas do totem:', error.message);
+    await logError('Erro ao buscar campanhas do totem', error, { totemId });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -187,7 +191,7 @@ router.get('/:id', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar campanha:', error.message);
+    await logError('Erro ao buscar campanha', error, { id });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -205,12 +209,12 @@ router.post('/', async (req: any, res) => {
   try {
     const campaignData = req.body;
     
-    console.log('📝 [Campaign] Dados recebidos:', JSON.stringify(campaignData, null, 2));
-    console.log('📝 [Campaign] Usuário:', { userId: req.user?.userId || req.user?.id, role: req.user?.role, clientId: req.user?.clientId });
+    const { logDebug, logError, logInfo } = await import('../utils/loggerHelper');
+    await logDebug('[Campaign] Dados recebidos', { campaignData, user: { userId: req.user?.userId || req.user?.id, role: req.user?.role, clientId: req.user?.clientId } });
 
     // Validar campos obrigatórios
     if (!campaignData.title) {
-      console.error('❌ Erro de validação: title é obrigatório');
+      await logError('Erro de validação: title é obrigatório', null, { campaignData });
       return res.status(400).json({
         success: false,
         message: 'Título é obrigatório',
@@ -243,16 +247,16 @@ router.post('/', async (req: any, res) => {
           `);
           if (firstClient) {
             mappedData.clientId = firstClient.client_id;
-            console.log('📝 [Campaign] Usando primeiro cliente ativo:', mappedData.clientId);
+            await logInfo('[Campaign] Usando primeiro cliente ativo', { clientId: mappedData.clientId });
           } else {
-            console.error('❌ Erro: Nenhum cliente ativo encontrado');
+            await logError('Erro: Nenhum cliente ativo encontrado', null);
             return res.status(400).json({
               success: false,
               message: 'É necessário ter pelo menos um cliente ativo para criar campanhas'
             });
           }
         } catch (dbError: any) {
-          console.error('❌ Erro ao buscar cliente:', dbError.message);
+          await logError('Erro ao buscar cliente', dbError);
           return res.status(400).json({
             success: false,
             message: 'clientId é obrigatório'
@@ -271,6 +275,29 @@ router.post('/', async (req: any, res) => {
 
     const campaign = await getCampaignService().createCampaign(mappedData, req.user.userId);
 
+    // Registrar evento de criação de campanha (se ativa)
+    if (campaign.isActive && campaign.status === 'active') {
+      try {
+        const eventLogService = getEventLogService();
+        // Buscar totems associados à campanha para registrar eventos
+        const db = require('../config/database').getDatabase();
+        const totems = await db.findMany(`
+          SELECT totem_id FROM campaign_totems WHERE campaign_id = $1
+        `, [campaign.id]);
+        
+        for (const totem of totems) {
+          await eventLogService.logCampaignStart(
+            campaign.id,
+            totem.totem_id,
+            { createdBy: req.user.userId, title: campaign.title }
+          );
+        }
+      } catch (eventError: any) {
+        // Não falhar a criação se o log de evento falhar
+        await logError('Erro ao registrar evento de criação de campanha', eventError, { campaignId: campaign.id });
+      }
+    }
+
     res.status(201).json({
       success: true,
       message: 'Campanha criada com sucesso',
@@ -278,8 +305,8 @@ router.post('/', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar campanha:', error.message || error);
-    console.error('❌ Stack trace:', error.stack);
+    const { logError } = await import('../utils/loggerHelper');
+    await logError('Erro ao criar campanha', error, { campaignData });
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar campanha',
@@ -327,7 +354,7 @@ router.put('/:id', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao atualizar campanha:', error.message);
+    await logError('Erro ao atualizar campanha', error, { id, updateData });
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar campanha',
@@ -353,7 +380,7 @@ router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res)
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao remover campanha:', error.message);
+    await logError('Erro ao remover campanha', error, { id });
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover campanha',
@@ -389,13 +416,34 @@ router.post('/:id/activate', async (req: any, res) => {
 
     await getCampaignService().activateCampaign(parseInt(id), req.user.userId);
 
+    // Registrar evento de início de campanha para todos os totems associados
+    try {
+      const eventLogService = getEventLogService();
+      const db = require('../config/database').getDatabase();
+      const totems = await db.findMany(`
+        SELECT totem_id FROM campaign_totems WHERE campaign_id = $1
+      `, [id]);
+      
+      for (const totem of totems) {
+        await eventLogService.logCampaignStart(
+          parseInt(id),
+          totem.totem_id,
+          { activatedBy: req.user.userId, title: campaign.title }
+        );
+      }
+      
+      await logInfo('[Campaign] Eventos de início registrados', { campaignId: id, totemCount: totems.length });
+    } catch (eventError: any) {
+      await logError('Erro ao registrar eventos de início de campanha', eventError, { campaignId: id });
+    }
+
     res.json({
       success: true,
       message: 'Campanha ativada com sucesso'
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao ativar campanha:', error.message);
+    await logError('Erro ao ativar campanha', error, { id });
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao ativar campanha',
@@ -431,13 +479,35 @@ router.post('/:id/pause', async (req: any, res) => {
 
     await getCampaignService().pauseCampaign(parseInt(id), req.user.userId);
 
+    // Registrar evento de pausa de campanha
+    try {
+      const eventLogService = getEventLogService();
+      const db = require('../config/database').getDatabase();
+      const totems = await db.findMany(`
+        SELECT totem_id FROM campaign_totems WHERE campaign_id = $1
+      `, [id]);
+      
+      for (const totem of totems) {
+        await eventLogService.logEvent({
+          eventType: EventType.CAMPAIGN_PAUSE,
+          entityType: 'campaign',
+          entityId: parseInt(id),
+          campaignId: parseInt(id),
+          totemId: totem.totem_id,
+          metadata: { pausedBy: req.user.userId, title: campaign.title }
+        });
+      }
+    } catch (eventError: any) {
+      await logError('Erro ao registrar eventos de pausa de campanha', eventError, { campaignId: id });
+    }
+
     res.json({
       success: true,
       message: 'Campanha pausada com sucesso'
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao pausar campanha:', error.message);
+    await logError('Erro ao pausar campanha', error, { id });
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao pausar campanha',
@@ -473,13 +543,34 @@ router.post('/:id/finish', async (req: any, res) => {
 
     await getCampaignService().finishCampaign(parseInt(id), req.user.userId);
 
+    // Registrar evento de fim de campanha para todos os totems associados
+    try {
+      const eventLogService = getEventLogService();
+      const db = require('../config/database').getDatabase();
+      const totems = await db.findMany(`
+        SELECT totem_id FROM campaign_totems WHERE campaign_id = $1
+      `, [id]);
+      
+      for (const totem of totems) {
+        await eventLogService.logCampaignEnd(
+          parseInt(id),
+          totem.totem_id,
+          { finishedBy: req.user.userId, title: campaign.title }
+        );
+      }
+      
+      await logInfo('[Campaign] Eventos de fim registrados', { campaignId: id, totemCount: totems.length });
+    } catch (eventError: any) {
+      await logError('Erro ao registrar eventos de fim de campanha', eventError, { campaignId: id });
+    }
+
     res.json({
       success: true,
       message: 'Campanha finalizada com sucesso'
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao finalizar campanha:', error.message);
+    await logError('Erro ao finalizar campanha', error, { id });
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao finalizar campanha',
@@ -516,13 +607,33 @@ router.post('/:id/totems', async (req: any, res) => {
 
     await getCampaignService().addTotemToCampaign(parseInt(id), totemData, req.user.userId);
 
+    // Se a campanha estiver ativa, registrar evento de início para o totem
+    if (campaign.status === 'active' && campaign.isActive) {
+      try {
+        const eventLogService = getEventLogService();
+        const totemId = totemData.totemId || totemData.totem_id;
+        if (totemId) {
+          await eventLogService.logCampaignStart(
+            parseInt(id),
+            totemId,
+            { addedBy: req.user.userId, title: campaign.title }
+          );
+        }
+      } catch (eventError: any) {
+        await logError('Erro ao registrar evento de início de campanha para totem', eventError, {
+          campaignId: id,
+          totemId: totemData.totemId || totemData.totem_id
+        });
+      }
+    }
+
     res.json({
       success: true,
       message: 'Totem adicionado à campanha com sucesso'
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao adicionar totem à campanha:', error.message);
+    await logError('Erro ao adicionar totem à campanha', error, { campaignId: id, totemData });
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao adicionar totem à campanha',
@@ -562,13 +673,30 @@ router.delete('/:id/totems/:totemId', async (req: any, res) => {
       req.user.userId
     );
 
+    // Registrar evento de fim de campanha para o totem removido (se campanha estava ativa)
+    if (campaign.status === 'active' && campaign.isActive) {
+      try {
+        const eventLogService = getEventLogService();
+        await eventLogService.logCampaignEnd(
+          parseInt(id),
+          parseInt(totemId),
+          { removedBy: req.user.userId, title: campaign.title, reason: 'totem_removed' }
+        );
+      } catch (eventError: any) {
+        await logError('Erro ao registrar evento de fim de campanha para totem removido', eventError, {
+          campaignId: id,
+          totemId
+        });
+      }
+    }
+
     res.json({
       success: true,
       message: 'Totem removido da campanha com sucesso'
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao remover totem da campanha:', error.message);
+    await logError('Erro ao remover totem da campanha', error, { campaignId, totemId });
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover totem da campanha',
@@ -611,7 +739,7 @@ router.get('/:id/totems', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar totems da campanha:', error.message);
+    await logError('Erro ao buscar totems da campanha', error, { campaignId });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',

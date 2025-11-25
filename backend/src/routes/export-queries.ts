@@ -8,6 +8,7 @@ import { exportQueryService } from '../services/exportQueryService';
 import { sqlValidatorService } from '../services/sqlValidatorService';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { authorizeRole } from '../middleware/auth.middleware';
+import { logError } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -42,7 +43,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Respo
       }
     });
   } catch (error: any) {
-    console.error('❌ Erro ao listar queries:', error.message);
+    await logError('Erro ao listar queries de exportação', error, { filters: req.query });
     res.status(500).json({
       success: false,
       message: 'Erro ao listar queries',
@@ -81,7 +82,7 @@ router.get('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
       data: query
     });
   } catch (error: any) {
-    console.error('❌ Erro ao buscar query:', error.message);
+    await logError('Erro ao buscar query de exportação', error, { queryId: req.params.id });
     res.status(500).json({
       success: false,
       message: 'Erro ao buscar query',
@@ -132,7 +133,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Resp
       warnings: sqlValidation.warnings
     });
   } catch (error: any) {
-    console.error('❌ Erro ao criar query:', error.message);
+    await logError('Erro ao criar query de exportação', error, { userId: req.user?.id });
     res.status(500).json({
       success: false,
       message: 'Erro ao criar query',
@@ -189,7 +190,7 @@ router.put('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
       message: 'Query atualizada com sucesso'
     });
   } catch (error: any) {
-    console.error('❌ Erro ao atualizar query:', error.message);
+    await logError('Erro ao atualizar query de exportação', error, { queryId: req.params.id, userId: req.user?.id });
     res.status(500).json({
       success: false,
       message: 'Erro ao atualizar query',
@@ -223,7 +224,7 @@ router.delete('/:id', authorizeRole(['admin']), async (req: any, res: Response) 
       message: 'Query excluída com sucesso'
     });
   } catch (error: any) {
-    console.error('❌ Erro ao excluir query:', error.message);
+    await logError('Erro ao excluir query de exportação', error, { queryId: req.params.id, userId: req.user?.id });
     res.status(500).json({
       success: false,
       message: 'Erro ao excluir query',
@@ -270,7 +271,7 @@ router.post('/:id/test-connection', authorizeRole(['admin', 'manager']), async (
       message: connected ? 'Conexão estabelecida com sucesso' : 'Falha ao conectar ao banco de dados'
     });
   } catch (error: any) {
-    console.error('❌ Erro ao testar conexão:', error.message);
+    await logError('Erro ao testar conexão de export query', error, { queryId: req.params.id });
     res.status(500).json({
       success: false,
       message: 'Erro ao testar conexão',
@@ -309,7 +310,7 @@ router.post('/validate-sql', authorizeRole(['admin', 'manager']), async (req: an
       }
     });
   } catch (error: any) {
-    console.error('❌ Erro ao validar SQL:', error.message);
+    await logError('Erro ao validar SQL de export query', error);
     res.status(500).json({
       success: false,
       message: 'Erro ao validar SQL',

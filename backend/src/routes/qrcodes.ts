@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { QRCodeService } from '../services/qrcodeService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
+import { logError } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -60,8 +61,7 @@ router.get('/', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao listar QR Codes:', error.message || error);
-    console.error('❌ Stack trace:', error.stack);
+    await logError('Erro ao listar QR Codes', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -85,7 +85,7 @@ router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar estatísticas:', error.message);
+    await logError('Erro ao buscar estatísticas', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -123,7 +123,7 @@ router.get('/client/:clientId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar QR Codes do cliente:', error.message);
+    await logError('Erro ao buscar QR Codes do cliente', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -153,7 +153,7 @@ router.get('/totem/:totemId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar QR Codes do totem:', error.message);
+    await logError('Erro ao buscar QR Codes do totem', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -194,7 +194,7 @@ router.get('/:id', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar QR Code:', error.message);
+    await logError('Erro ao buscar QR Code', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -229,7 +229,7 @@ router.post('/', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar QR Code:', error.message);
+    await logError('Erro ao criar QR Code', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar QR Code',
@@ -277,7 +277,7 @@ router.put('/:id', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao atualizar QR Code:', error.message);
+    await logError('Erro ao atualizar QR Code', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar QR Code',
@@ -303,7 +303,7 @@ router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res)
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao remover QR Code:', error.message);
+    await logError('Erro ao remover QR Code', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover QR Code',
@@ -350,7 +350,7 @@ router.get('/:id/scans', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar scans do QR Code:', error.message);
+    await logError('Erro ao buscar scans do QR Code', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -403,7 +403,7 @@ router.post('/:id/scan', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao registrar scan:', error.message);
+    await logError('Erro ao registrar scan', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao registrar scan',
@@ -448,7 +448,7 @@ router.get('/:id/image', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao gerar imagem do QR Code:', error.message);
+    await logError('Erro ao gerar imagem do QR Code', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -490,7 +490,7 @@ router.post('/:id/activate', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao ativar QR Code:', error.message);
+    await logError('Erro ao ativar QR Code', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao ativar QR Code',
@@ -532,7 +532,7 @@ router.post('/:id/deactivate', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao desativar QR Code:', error.message);
+    await logError('Erro ao desativar QR Code', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao desativar QR Code',

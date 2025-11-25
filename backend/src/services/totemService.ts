@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
+import { logError, logInfo, logDebug } from '../utils/loggerHelper';
 
 export interface CreateTotemRequest {
   name?: string;
@@ -232,7 +233,7 @@ export class TotemService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar totems:', error.message);
+      await logError('Erro ao buscar totems', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -274,7 +275,7 @@ export class TotemService {
 
       return totem;
     } catch (error: any) {
-      console.error('❌ Erro ao buscar totem por UIN:', error.message);
+      await logError('Erro ao buscar totem por UIN', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -324,7 +325,7 @@ export class TotemService {
       return { ...totem, ...stats, uptime };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar totem:', error.message);
+      await logError('Erro ao buscar totem', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -374,7 +375,7 @@ export class TotemService {
       return { ...totem, ...stats, uptime };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar totem por identifier:', error.message);
+      await logError('Erro ao buscar totem por identifier', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -424,7 +425,7 @@ export class TotemService {
       return { ...totem, ...stats, uptime };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar totem por device ID:', error.message);
+      await logError('Erro ao buscar totem por device ID', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -535,7 +536,7 @@ export class TotemService {
       return newTotem;
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar totem:', error.message);
+      await logError('Erro ao criar totem', error);
       throw error;
     }
   }
@@ -679,7 +680,7 @@ export class TotemService {
       return updatedTotem;
 
     } catch (error: any) {
-      console.error('❌ Erro ao atualizar totem:', error.message);
+      await logError('Erro ao atualizar totem', error);
       throw error;
     }
   }
@@ -752,7 +753,7 @@ export class TotemService {
       return updatedTotem;
 
     } catch (error: any) {
-      console.error('❌ Erro ao processar heartbeat:', error.message);
+      await logError('Erro ao processar heartbeat', error);
       throw error;
     }
   }
@@ -764,9 +765,9 @@ export class TotemService {
     try {
       // Aqui você pode implementar o salvamento de métricas
       // Por exemplo, em uma tabela de métricas ou sistema de monitoramento
-      console.log(`Métricas do totem ${totemId}:`, metrics);
+      await logDebug(`Métricas do totem`, { totemId, metrics });
     } catch (error: any) {
-      console.error('❌ Erro ao salvar métricas:', error.message);
+      await logError('Erro ao salvar métricas', error);
     }
   }
 
@@ -816,7 +817,7 @@ export class TotemService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas do totem:', error.message);
+      await logError('Erro ao buscar estatísticas do totem', error);
       return {
         campaignCount: 0,
         playlistCount: 0
@@ -847,7 +848,7 @@ export class TotemService {
 
       return { success: true, timestamp: new Date().toISOString() };
     } catch (error: any) {
-      console.error('❌ Erro ao registrar heartbeat:', error.message);
+      await logError('Erro ao registrar heartbeat', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -875,7 +876,7 @@ export class TotemService {
 
       return heartbeats;
     } catch (error: any) {
-      console.error('❌ Erro ao buscar histórico de heartbeats:', error.message);
+      await logError('Erro ao buscar histórico de heartbeats', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -901,7 +902,7 @@ export class TotemService {
 
       return playlist;
     } catch (error: any) {
-      console.error('❌ Erro ao buscar playlist atual:', error.message);
+      await logError('Erro ao buscar playlist atual', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -928,7 +929,7 @@ export class TotemService {
         ...analytics
       };
     } catch (error: any) {
-      console.error('❌ Erro ao buscar analytics do totem:', error.message);
+      await logError('Erro ao buscar analytics do totem', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -997,7 +998,7 @@ export class TotemService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas gerais:', error.message);
+      await logError('Erro ao buscar estatísticas gerais', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1031,7 +1032,7 @@ export class TotemService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao desativar totem:', error.message);
+      await logError('Erro ao desativar totem', error);
       throw error;
     }
   }
@@ -1065,7 +1066,7 @@ export class TotemService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao ativar totem:', error.message);
+      await logError('Erro ao ativar totem', error);
       throw error;
     }
   }
@@ -1108,7 +1109,7 @@ export class TotemService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao remover totem:', error.message);
+      await logError('Erro ao remover totem', error);
       throw error;
     }
   }
@@ -1150,7 +1151,7 @@ export class TotemService {
       return totems;
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar totems offline:', error.message);
+      await logError('Erro ao buscar totems offline', error);
       throw new Error('Erro interno do servidor');
     }
   }

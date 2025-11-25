@@ -3,6 +3,7 @@ import { body, query, param } from 'express-validator';
 import { validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { getUserService } from '../services/userService';
+import { logError } from '../utils/loggerHelper';
 
 const router = express.Router();
 
@@ -55,7 +56,7 @@ router.get('/',
       
       res.json(result);
     } catch (error) {
-      console.error('Erro ao listar usuários:', error);
+      await logError('Erro ao listar usuários', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -80,7 +81,7 @@ router.get('/:id',
 
       res.json(user);
     } catch (error) {
-      console.error('Erro ao obter usuário:', error);
+      await logError('Erro ao obter usuário', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -108,7 +109,7 @@ router.post('/',
 
       res.status(201).json(newUser);
     } catch (error) {
-      console.error('Erro ao criar usuário:', error);
+      await logError('Erro ao criar usuário', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -143,7 +144,7 @@ router.put('/:id',
 
       res.json(updatedUser);
     } catch (error) {
-      console.error('Erro ao atualizar usuário:', error);
+      await logError('Erro ao atualizar usuário', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -162,7 +163,7 @@ router.delete('/:id',
       await getUserService().deleteUser(parseInt(id));
       res.status(204).send();
     } catch (error) {
-      console.error('Erro ao excluir usuário:', error);
+      await logError('Erro ao excluir usuário', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }

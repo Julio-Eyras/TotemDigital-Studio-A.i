@@ -3,6 +3,7 @@ import { query } from 'express-validator';
 import { validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { getDashboardService } from '../services/dashboardService';
+import { logError } from '../utils/loggerHelper';
 
 const router = express.Router();
 
@@ -29,7 +30,7 @@ router.get('/stats', async (req: any, res: any) => {
     const stats = await getDashboardService().getDashboardStats();
     res.json(stats);
   } catch (error) {
-    console.error('Erro ao obter estatísticas do dashboard:', error);
+    await logError('Erro ao obter estatísticas do dashboard', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
@@ -47,7 +48,7 @@ router.get('/activities',
       const activities = await getDashboardService().getRecentActivity(parseInt(limit));
       res.json(activities);
     } catch (error) {
-      console.error('Erro ao obter atividades recentes:', error);
+      await logError('Erro ao obter atividades recentes do dashboard', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -62,7 +63,7 @@ router.get('/charts', async (req: any, res: any) => {
     const charts = await getDashboardService().getUsageCharts();
     res.json(charts);
   } catch (error) {
-    console.error('Erro ao obter dados dos gráficos:', error);
+    await logError('Erro ao obter dados dos gráficos do dashboard', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
@@ -78,7 +79,7 @@ router.get('/client/:clientId/stats',
       const stats = await getDashboardService().getStatsByClient(parseInt(clientId));
       res.json(stats);
     } catch (error) {
-      console.error('Erro ao obter estatísticas do cliente:', error);
+      await logError('Erro ao obter estatísticas do cliente no dashboard', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }

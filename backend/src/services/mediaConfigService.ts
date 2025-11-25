@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { logError, logInfo, logWarn } from '../utils/loggerHelper';
 
 const execAsync = promisify(exec);
 
@@ -118,7 +119,7 @@ export class MediaConfigService {
       const nginxConfigPath = '/etc/nginx/sites-available/smart-signage';
       
       if (!fs.existsSync(nginxConfigPath)) {
-        console.warn('⚠️ Arquivo de configuração do Nginx não encontrado:', nginxConfigPath);
+        await logWarn('Arquivo de configuração do Nginx não encontrado', { nginxConfigPath });
         return false;
       }
 
@@ -156,17 +157,17 @@ export class MediaConfigService {
       // Testar configuração
       try {
         await execAsync('sudo nginx -t');
-        console.log('✅ Configuração do Nginx atualizada e validada');
+        await logInfo('Configuração do Nginx atualizada e validada');
         return true;
       } catch (error: any) {
         // Restaurar backup se teste falhar
         fs.writeFileSync(nginxConfigPath, fs.readFileSync(backupPath));
-        console.error('❌ Configuração do Nginx inválida, backup restaurado');
+        await logError('Configuração do Nginx inválida, backup restaurado', error, { nginxConfigPath });
         throw new Error(`Configuração do Nginx inválida: ${error.message}`);
       }
 
     } catch (error: any) {
-      console.error('❌ Erro ao atualizar configuração do Nginx:', error.message);
+      await logError('Erro ao atualizar configuração do Nginx', error);
       throw error;
     }
   }
@@ -183,10 +184,10 @@ export class MediaConfigService {
       
       // Recriar instância do multer nas rotas de mídia
       // Isso será feito automaticamente na próxima requisição
-      console.log('✅ Configurações do Express/Multer recarregadas do banco de dados');
+      await logInfo('Configurações do Express/Multer recarregadas do banco de dados');
       return true;
     } catch (error: any) {
-      console.error('❌ Erro ao recarregar configurações do Express/Multer:', error.message);
+      await logError('Erro ao recarregar configurações do Express/Multer', error);
       return false;
     }
   }
@@ -199,23 +200,23 @@ export class MediaConfigService {
       // Reiniciar backend
       try {
         await execAsync('sudo systemctl restart smart-signage');
-        console.log('✅ Serviço smart-signage reiniciado');
+        await logInfo('Serviço smart-signage reiniciado');
       } catch (error: any) {
-        console.warn('⚠️ Erro ao reiniciar smart-signage:', error.message);
+        await logWarn('Erro ao reiniciar smart-signage', { error: error.message });
       }
 
       // Recarregar Nginx (sem downtime)
       try {
         await execAsync('sudo systemctl reload nginx');
-        console.log('✅ Nginx recarregado');
+        await logInfo('Nginx recarregado');
       } catch (error: any) {
-        console.warn('⚠️ Erro ao recarregar Nginx:', error.message);
+        await logWarn('Erro ao recarregar Nginx', { error: error.message });
         // Tentar restart completo
         try {
           await execAsync('sudo systemctl restart nginx');
-          console.log('✅ Nginx reiniciado');
+          await logInfo('Nginx reiniciado');
         } catch (restartError: any) {
-          console.error('❌ Erro ao reiniciar Nginx:', restartError.message);
+          await logError('Erro ao reiniciar Nginx', restartError);
           return false;
         }
       }
@@ -223,7 +224,7 @@ export class MediaConfigService {
       return true;
 
     } catch (error: any) {
-      console.error('❌ Erro ao reiniciar serviços:', error.message);
+      await logError('Erro ao reiniciar serviços', error);
       return false;
     }
   }
@@ -280,14 +281,14 @@ export class MediaConfigService {
           // Recarregar Nginx (sem downtime)
           try {
             await execAsync('sudo systemctl reload nginx');
-            console.log('✅ Nginx recarregado');
+            await logInfo('Nginx recarregado');
             changes.servicesRestarted = true;
           } catch (error: any) {
-            console.warn('⚠️ Erro ao recarregar Nginx:', error.message);
+            await logWarn('Erro ao recarregar Nginx', { error: error.message });
             // Tentar restart completo
             try {
               await execAsync('sudo systemctl restart nginx');
-              console.log('✅ Nginx reiniciado');
+              await logInfo('Nginx reiniciado');
               changes.servicesRestarted = true;
             } catch (restartError: any) {
               errors.push('Falha ao reiniciar Nginx');
@@ -311,7 +312,7 @@ export class MediaConfigService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao aplicar configurações de mídia:', error.message);
+      await logError('Erro ao aplicar configurações de mídia', error);
       return {
         success: false,
         message: error.message || 'Erro ao aplicar configurações',
@@ -335,7 +336,7 @@ export class MediaConfigService {
         message: 'Configurações de mídia recarregadas do banco de dados'
       };
     } catch (error: any) {
-      console.error('❌ Erro ao recarregar configurações:', error.message);
+      await logError('Erro ao recarregar configurações de mídia', error);
       return {
         success: false,
         message: error.message || 'Erro ao recarregar configurações'

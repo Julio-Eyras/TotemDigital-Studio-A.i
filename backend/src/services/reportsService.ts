@@ -6,6 +6,7 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { AIService } from './aiService';
+import { logError } from '../utils/loggerHelper';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -214,7 +215,7 @@ export class ReportsService {
       }
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar relatório:', error.message);
+      await logError('Erro ao gerar relatório', error);
       throw error;
     }
   }
@@ -254,7 +255,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar relatório:', error.message);
+      await logError('Erro ao buscar relatório', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -354,7 +355,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar relatórios:', error.message);
+      await logError('Erro ao buscar relatórios', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -388,7 +389,7 @@ export class ReportsService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao remover relatório:', error.message);
+      await logError('Erro ao remover relatório', error);
       throw error;
     }
   }
@@ -442,7 +443,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar dados do relatório:', error.message);
+      await logError('Erro ao gerar dados do relatório', error);
       throw error;
     }
   }
@@ -511,7 +512,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar dados de relatório de campanha:', error.message);
+      await logError('Erro ao gerar dados de relatório de campanha', error);
       throw error;
     }
   }
@@ -566,7 +567,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar dados de relatório de totem:', error.message);
+      await logError('Erro ao gerar dados de relatório de totem', error);
       throw error;
     }
   }
@@ -616,7 +617,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar dados de relatório de cliente:', error.message);
+      await logError('Erro ao gerar dados de relatório de cliente', error);
       throw error;
     }
   }
@@ -674,7 +675,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar dados de relatório de mídia:', error.message);
+      await logError('Erro ao gerar dados de relatório de mídia', error);
       throw error;
     }
   }
@@ -734,7 +735,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar dados de relatório de faturamento:', error.message);
+      await logError('Erro ao gerar dados de relatório de faturamento', error);
       throw error;
     }
   }
@@ -859,7 +860,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar dados de relatório de analytics:', error.message);
+      await logError('Erro ao gerar dados de relatório de analytics', error);
       throw error;
     }
   }
@@ -878,7 +879,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar dados de relatório customizado:', error.message);
+      await logError('Erro ao gerar dados de relatório customizado', error);
       throw error;
     }
   }
@@ -932,7 +933,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar arquivo do relatório:', error.message);
+      await logError('Erro ao gerar arquivo do relatório', error);
       throw error;
     }
   }
@@ -957,7 +958,7 @@ export class ReportsService {
       return csvContent;
 
     } catch (error: any) {
-      console.error('❌ Erro ao converter para CSV:', error.message);
+      await logError('Erro ao converter para CSV', error);
       return 'Erro ao converter dados para CSV';
     }
   }
@@ -996,7 +997,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar análise com IA:', error.message);
+      await logError('Erro ao gerar análise com IA', error);
       return {
         analysis: 'Erro ao gerar análise com IA',
         error: error.message
@@ -1084,7 +1085,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas de relatórios:', error.message);
+      await logError('Erro ao buscar estatísticas de relatórios', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1108,7 +1109,7 @@ export class ReportsService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao incrementar contador de downloads:', error.message);
+      await logError('Erro ao incrementar contador de downloads', error);
       throw new Error('Erro ao incrementar contador de downloads');
     }
   }
@@ -1194,7 +1195,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar template de relatório:', error.message);
+      await logError('Erro ao criar template de relatório', error);
       throw new Error('Erro ao criar template de relatório');
     }
   }
@@ -1247,7 +1248,7 @@ export class ReportsService {
       }));
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar templates de relatório:', error.message);
+      await logError('Erro ao buscar templates de relatório', error);
       throw new Error('Erro ao buscar templates de relatório');
     }
   }
@@ -1282,7 +1283,7 @@ export class ReportsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar template de relatório:', error.message);
+      await logError('Erro ao buscar template de relatório', error);
       throw new Error('Erro ao buscar template de relatório');
     }
   }

@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
+import { logError } from '../utils/loggerHelper';
 
 export interface CreateBillingRequest {
   clientId: number;
@@ -119,7 +120,7 @@ export class BillingService {
       `);
       return client;
     } catch (error: any) {
-      console.error('❌ Erro ao buscar primeiro cliente:', error.message);
+      await logError('❌ Erro ao buscar primeiro cliente', error);
       return null;
     }
   }
@@ -251,7 +252,7 @@ export class BillingService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar faturas:', error.message);
+      await logError('❌ Erro ao buscar faturas', error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -298,7 +299,7 @@ export class BillingService {
       return { ...billing, ...info };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar fatura:', error.message);
+      await logError('❌ Erro ao buscar fatura', error, { billingId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -421,7 +422,7 @@ export class BillingService {
       return newBilling;
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar fatura:', error.message);
+      await logError('❌ Erro ao criar fatura', error, { clientId: data.clientId, billingType: data.billingType });
       throw error;
     }
   }
@@ -515,7 +516,7 @@ export class BillingService {
       return updatedBilling;
 
     } catch (error: any) {
-      console.error('❌ Erro ao atualizar fatura:', error.message);
+      await logError('❌ Erro ao atualizar fatura', error, { billingId });
       throw error;
     }
   }
@@ -549,7 +550,7 @@ export class BillingService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao remover fatura:', error.message);
+      await logError('❌ Erro ao remover fatura', error, { billingId });
       throw error;
     }
   }
@@ -637,7 +638,7 @@ export class BillingService {
       return payment;
 
     } catch (error: any) {
-      console.error('❌ Erro ao registrar pagamento:', error.message);
+      await logError('❌ Erro ao registrar pagamento', error, { billingId: paymentData.billingId, amount: paymentData.amount });
       throw error;
     }
   }
@@ -665,7 +666,7 @@ export class BillingService {
 
       return payments;
     } catch (error: any) {
-      console.error('❌ Erro ao buscar pagamentos:', error.message);
+      await logError('❌ Erro ao buscar pagamentos', error, { billingId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -787,7 +788,7 @@ export class BillingService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas de faturamento:', error.message);
+      await logError('❌ Erro ao buscar estatísticas de faturamento', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -836,7 +837,7 @@ export class BillingService {
       return billingsWithInfo;
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar faturas vencidas:', error.message);
+      await logError('❌ Erro ao buscar faturas vencidas', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -855,7 +856,7 @@ export class BillingService {
       return result.rowCount || 0;
 
     } catch (error: any) {
-      console.error('❌ Erro ao marcar faturas como vencidas:', error.message);
+      await logError('❌ Erro ao marcar faturas como vencidas', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -905,7 +906,7 @@ export class BillingService {
       return billingsWithInfo;
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar faturas por cliente:', error.message);
+      await logError('❌ Erro ao buscar faturas por cliente', error, { clientId, limit });
       throw new Error('Erro interno do servidor');
     }
   }

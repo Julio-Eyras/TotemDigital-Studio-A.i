@@ -1,6 +1,8 @@
 /**
- * Media Service - Smart Signage v2.0
+ * Media Service - Smart Signage v2.1
  * Serviço de gerenciamento de mídia
+ * 
+ * Logging: Usa arquivos locais para logs operacionais
  */
 
 import fs from 'fs';
@@ -9,6 +11,7 @@ import sharp from 'sharp';
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { StorageService } from './storageService';
+import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
 
 export interface CreateMediaRequest {
   name: string;
@@ -221,7 +224,7 @@ export class MediaService {
         
         // Debug: log primeiro item para verificar estrutura
         if (media.indexOf(item) === 0) {
-          console.log('🔍 [MediaService] Primeiro item processado:', {
+          logDebug('[MediaService] Primeiro item processado', {
             id: item.id,
             name: item.name,
             mediaType,
@@ -229,7 +232,7 @@ export class MediaService {
             filePath,
             downloadUrl,
             thumbnailUrl
-          });
+          }).catch(() => {});
         }
         
         return {
@@ -267,7 +270,7 @@ export class MediaService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar mídia:', error.message);
+      await logError('Erro ao buscar mídia', error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -318,7 +321,7 @@ export class MediaService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar mídia:', error.message);
+      await logError('Erro ao buscar mídia por ID', error, { mediaId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -347,7 +350,7 @@ export class MediaService {
       
       return results;
     } catch (error: any) {
-      console.error('❌ Erro ao criar múltiplas mídias:', error.message);
+      await logError('Erro ao criar múltiplas mídias', error, { count: requests.length });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -429,7 +432,7 @@ export class MediaService {
       return newMedia;
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar mídia:', error.message);
+      await logError('Erro ao criar mídia', error, { name: request.name, clientId: request.clientId });
       throw error;
     }
   }
@@ -503,7 +506,7 @@ export class MediaService {
       return updatedMedia;
 
     } catch (error: any) {
-      console.error('❌ Erro ao atualizar mídia:', error.message);
+      await logError('Erro ao atualizar mídia', error, { mediaId, updateData });
       throw error;
     }
   }
@@ -546,7 +549,7 @@ export class MediaService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao remover mídia:', error.message);
+      await logError('Erro ao remover mídia', error, { mediaId });
       throw error;
     }
   }
@@ -594,7 +597,7 @@ export class MediaService {
       return result;
 
     } catch (error: any) {
-      console.error('❌ Erro ao processar mídia:', error.message);
+      await logError('Erro ao processar mídia', error, { filePath, mimeType });
       return {};
     }
   }
@@ -614,7 +617,7 @@ export class MediaService {
       return thumbnailPath;
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar thumbnail:', error.message);
+      await logError('Erro ao gerar thumbnail', error, { filePath });
       return filePath;
     }
   }
@@ -643,8 +646,10 @@ export class MediaService {
         }
       } catch (ffmpegError: any) {
         // ffmpeg não disponível ou erro na execução
-        console.warn('⚠️ ffmpeg não disponível. Thumbnail de vídeo não pode ser gerado.');
-        console.warn('   Instale ffmpeg para suporte completo: sudo apt-get install ffmpeg');
+        await logWarn('ffmpeg não disponível. Thumbnail de vídeo não pode ser gerado', {
+          filePath,
+          suggestion: 'Instale ffmpeg para suporte completo: sudo apt-get install ffmpeg'
+        });
         
         // Retornar caminho original como fallback
         return filePath;
@@ -653,7 +658,7 @@ export class MediaService {
       return filePath;
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar thumbnail de vídeo:', error.message);
+      await logError('Erro ao gerar thumbnail de vídeo', error, { filePath });
       return filePath;
     }
   }
@@ -782,7 +787,7 @@ export class MediaService {
       
       return null;
     } catch (error: any) {
-      console.error('❌ Erro ao buscar thumbnail:', error.message);
+      await logError('Erro ao buscar thumbnail', error, { filePath });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -950,7 +955,7 @@ export class MediaService {
       }
 
     } catch (error: any) {
-      console.error('❌ Erro ao processar mídia:', error.message);
+      await logError('Erro ao processar mídia', error, { filePath, mimeType });
       return {
         success: false,
         message: `Erro ao processar mídia: ${error.message}`
@@ -981,7 +986,7 @@ export class MediaService {
         minSize: stats.minSize || 0
       };
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas de armazenamento:', error.message);
+      await logError('Erro ao buscar estatísticas de armazenamento', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1054,7 +1059,7 @@ export class MediaService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas de mídia:', error.message);
+      await logError('Erro ao buscar estatísticas de mídia', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1119,7 +1124,7 @@ export class MediaService {
       }));
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar mídia por tags:', error.message);
+      await logError('Erro ao buscar mídia por tags', error, { tags });
       throw new Error('Erro interno do servidor');
     }
   }

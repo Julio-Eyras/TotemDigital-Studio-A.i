@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { AnalyticsService } from '../services/analyticsService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
+import { logError } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -35,7 +36,7 @@ router.get('/dashboard', authorizeRole(['admin', 'manager']), async (req, res) =
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar estatísticas do dashboard:', error.message);
+    await logError('Erro ao buscar estatísticas do dashboard', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -78,7 +79,7 @@ router.get('/overview', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar análise:', error.message);
+    await logError('Erro ao buscar análise detalhada', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -121,7 +122,7 @@ router.get('/report', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao gerar relatório:', error.message);
+    await logError('Erro ao gerar relatório de analytics', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -171,7 +172,7 @@ router.get('/campaigns/:campaignId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar análise da campanha:', error.message);
+    await logError('Erro ao buscar análise da campanha', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -221,7 +222,7 @@ router.get('/totems/:totemId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar análise do totem:', error.message);
+    await logError('Erro ao buscar análise do totem', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -263,7 +264,7 @@ router.get('/clients/:clientId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar análise do cliente:', error.message);
+    await logError('Erro ao buscar análise do cliente', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -308,7 +309,7 @@ router.get('/performance', authorizeRole(['admin', 'manager']), async (req, res)
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar métricas de performance:', error.message);
+    await logError('Erro ao buscar métricas de performance', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -340,7 +341,7 @@ router.get('/revenue', authorizeRole(['admin', 'manager']), async (req, res) => 
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar métricas de receita:', error.message);
+    await logError('Erro ao buscar métricas de receita', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -387,7 +388,7 @@ router.get('/trends', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar tendências:', error.message);
+    await logError('Erro ao buscar tendências', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -441,7 +442,7 @@ router.get('/export', async (req: any, res) => {
     }
 
   } catch (error: any) {
-    console.error('❌ Erro ao exportar análise:', error.message);
+    await logError('Erro ao exportar análise', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -465,7 +466,7 @@ router.get('/alerts', authorizeRole(['admin', 'manager']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar alertas:', error.message);
+    await logError('Erro ao buscar alertas de analytics', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -494,7 +495,7 @@ function convertToCSV(report: any): string {
     return csvContent;
 
   } catch (error: any) {
-    console.error('❌ Erro ao converter para CSV:', error.message);
+    await logError('Erro ao converter análise para CSV', error);
     return 'Erro ao converter dados para CSV';
   }
 }

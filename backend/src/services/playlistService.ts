@@ -1,4 +1,5 @@
 import { getDatabase } from '../config/database';
+import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
 
 export interface PlaylistItem {
   playlist_id: number;
@@ -117,7 +118,7 @@ export class PlaylistService {
         limit,
       };
     } catch (error: any) {
-      console.error('Erro ao listar playlists:', error.message);
+      await logError('Erro ao listar playlists', error, { params });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -157,7 +158,7 @@ export class PlaylistService {
 
       return playlist;
     } catch (error: any) {
-      console.error('Erro ao obter playlist:', error.message);
+      await logError('Erro ao obter playlist', error, { id });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -199,15 +200,16 @@ export class PlaylistService {
       const campaignId = defaultCampaign?.campaign_id || defaultCampaign?.campaignId || null;
 
       if (!totemId || !campaignId) {
-        console.error('❌ Erro ao criar playlist: Totem ou campanha não encontrados');
-        console.error('   Totem encontrado:', defaultTotem ? `ID ${totemId || 'N/A'}` : 'Nenhum');
-        console.error('   Campanha encontrada:', defaultCampaign ? `ID ${campaignId || 'N/A'}` : 'Nenhuma');
-        console.error('   Debug - defaultTotem:', JSON.stringify(defaultTotem));
-        console.error('   Debug - defaultCampaign:', JSON.stringify(defaultCampaign));
+        await logError('Erro ao criar playlist: Totem ou campanha não encontrados', null, {
+          totemId: defaultTotem ? totemId : null,
+          campaignId: defaultCampaign ? campaignId : null,
+          defaultTotem: defaultTotem ? 'encontrado' : 'não encontrado',
+          defaultCampaign: defaultCampaign ? 'encontrada' : 'não encontrada'
+        });
         throw new Error('É necessário ter pelo menos um totem e uma campanha ativos para criar playlists');
       }
       
-      console.log('✅ Totem e campanha encontrados para playlist:', {
+      await logDebug('Totem e campanha encontrados para playlist', {
         totemId,
         campaignId
       });
@@ -232,7 +234,7 @@ export class PlaylistService {
 
       return newPlaylist;
     } catch (error: any) {
-      console.error('Erro ao criar playlist:', error.message);
+      await logError('Erro ao criar playlist', error, { name: request.name, clientId: request.clientId });
       throw error;
     }
   }
@@ -306,7 +308,7 @@ export class PlaylistService {
 
       return updatedPlaylist;
     } catch (error: any) {
-      console.error('Erro ao atualizar playlist:', error.message);
+      await logError('Erro ao atualizar playlist', error, { id, updateData: request });
       throw error;
     }
   }
@@ -329,7 +331,7 @@ export class PlaylistService {
         WHERE playlist_id = $1
       `, [id]);
     } catch (error: any) {
-      console.error('Erro ao excluir playlist:', error.message);
+      await logError('Erro ao excluir playlist', error, { id });
       throw error;
     }
   }
@@ -376,7 +378,7 @@ export class PlaylistService {
         }
       }));
     } catch (error: any) {
-      console.error('Erro ao obter mídia da playlist:', error.message);
+      await logError('Erro ao obter mídia da playlist', error, { playlistId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -420,7 +422,7 @@ export class PlaylistService {
         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
       `, [playlistId, mediaId, orderIndex, duration]);
     } catch (error: any) {
-      console.error('Erro ao adicionar mídia à playlist:', error.message);
+      await logError('Erro ao adicionar mídia à playlist', error, { playlistId, mediaId, orderIndex, duration });
       throw error;
     }
   }
@@ -444,7 +446,7 @@ export class PlaylistService {
         DELETE FROM playlist_items WHERE item_id = $1
       `, [itemId]);
     } catch (error: any) {
-      console.error('Erro ao remover mídia da playlist:', error.message);
+      await logError('Erro ao remover mídia da playlist', error, { itemId });
       throw error;
     }
   }
@@ -469,7 +471,7 @@ export class PlaylistService {
         `, [item.orderIndex, item.itemId, playlistId]);
       }
     } catch (error: any) {
-      console.error('Erro ao reordenar mídia da playlist:', error.message);
+      await logError('Erro ao reordenar mídia da playlist', error, { playlistId, items });
       throw error;
     }
   }

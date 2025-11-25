@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { BillingService } from '../services/billingService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
+import { logError } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -64,8 +65,7 @@ router.get('/', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao listar faturas:', error.message || error);
-    console.error('❌ Stack trace:', error.stack);
+    await logError('Erro ao listar faturas', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -89,7 +89,7 @@ router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar estatísticas:', error.message);
+    await logError('Erro ao buscar estatísticas de faturamento', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -113,7 +113,7 @@ router.get('/overdue', authorizeRole(['admin', 'manager']), async (req, res) => 
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar faturas vencidas:', error.message);
+    await logError('Erro ao buscar faturas vencidas', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -151,7 +151,7 @@ router.get('/client/:clientId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar faturas do cliente:', error.message);
+    await logError('Erro ao buscar faturas do cliente', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -192,7 +192,7 @@ router.get('/:id', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar fatura:', error.message);
+    await logError('Erro ao buscar fatura', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -273,8 +273,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar fatura:', error.message || error);
-    console.error('❌ Stack trace:', error.stack);
+    await logError('Erro ao criar fatura', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar fatura',
@@ -306,7 +305,7 @@ router.put('/:id', authorizeRole(['admin', 'manager']), async (req: any, res) =>
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao atualizar fatura:', error.message);
+    await logError('Erro ao atualizar fatura', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar fatura',
@@ -332,7 +331,7 @@ router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res)
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao remover fatura:', error.message);
+    await logError('Erro ao remover fatura', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover fatura',
@@ -379,7 +378,7 @@ router.post('/:id/payment', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao registrar pagamento:', error.message);
+    await logError('Erro ao registrar pagamento', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao registrar pagamento',
@@ -404,7 +403,7 @@ router.post('/mark-overdue', authorizeRole(['admin', 'manager']), async (req, re
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao marcar faturas como vencidas:', error.message);
+    await logError('Erro ao marcar faturas como vencidas', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -447,7 +446,7 @@ router.get('/:id/payments', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar pagamentos da fatura:', error.message);
+    await logError('Erro ao buscar pagamentos da fatura', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -493,7 +492,7 @@ router.post('/:id/cancel', authorizeRole(['admin', 'manager']), async (req: any,
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao cancelar fatura:', error.message);
+    await logError('Erro ao cancelar fatura', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao cancelar fatura',
@@ -557,7 +556,7 @@ router.get('/export', authorizeRole(['admin', 'manager']), async (req, res) => {
     }
 
   } catch (error: any) {
-    console.error('❌ Erro ao exportar faturas:', error.message);
+    await logError('Erro ao exportar faturas', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -589,7 +588,7 @@ function convertBillingsToCSV(billings: any[]): string {
     return csvContent;
 
   } catch (error: any) {
-    console.error('❌ Erro ao converter faturas para CSV:', error.message);
+    logError('Erro ao converter faturas para CSV', error).catch(() => {});
     return 'Erro ao converter dados para CSV';
   }
 }

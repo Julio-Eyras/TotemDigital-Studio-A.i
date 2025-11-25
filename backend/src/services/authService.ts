@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
+import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
 
 export interface LoginRequest {
   username: string;
@@ -60,11 +61,10 @@ export class AuthService {
     try {
       const { username, password } = credentials;
       
-      console.log(`[AUTH] Tentativa de login para usuário: ${username}`);
-      console.log(`[AUTH] Senha fornecida (tamanho): ${password ? password.length : 0} caracteres`);
+      await logDebug(`[AUTH] Tentativa de login`, { username, passwordLength: password ? password.length : 0 });
 
       // Buscar usuário
-      console.log(`[AUTH] Buscando usuário no banco de dados...`);
+      await logDebug(`[AUTH] Buscando usuário no banco de dados`, { username });
       
       // Verificar se tabela clients existe antes de fazer JOIN
       const clientsTableExists = await this.db.tableExists('clients');
@@ -81,7 +81,7 @@ export class AuthService {
           `, [username]);
         } catch (error: any) {
           // Se falhar mesmo com a tabela existindo, tentar sem JOIN
-          console.log(`[AUTH] ⚠️ Erro no JOIN com clients - buscando sem JOIN: ${error.message}`);
+          await logWarn(`[AUTH] Erro no JOIN com clients - buscando sem JOIN`, { error: error.message });
           user = await this.db.findFirst(`
             SELECT u.*
             FROM users u 
@@ -90,7 +90,7 @@ export class AuthService {
         }
       } else {
         // Buscar sem JOIN se a tabela não existir
-        console.log(`[AUTH] ⚠️ Tabela clients não existe - buscando usuário sem JOIN...`);
+        await logWarn(`[AUTH] Tabela clients não existe - buscando usuário sem JOIN`, { username });
         user = await this.db.findFirst(`
           SELECT u.*
           FROM users u 
@@ -98,46 +98,45 @@ export class AuthService {
         `, [username]);
       }
 
-      console.log(`[AUTH] Resultado da busca: ${user ? `Usuário encontrado (ID: ${user.id})` : 'Usuário NÃO encontrado'}`);
+      await logDebug(`[AUTH] Resultado da busca`, { username, found: !!user, userId: user?.id });
 
       if (!user) {
-        console.log(`[AUTH] ❌ Usuário '${username}' não encontrado ou inativo`);
-        await this.getAuditService().log('auth', 'login_failed', null, { username, reason: 'user_not_found' }).catch(e => console.error('[AUTH] Erro ao registrar log:', e.message));
+        await logWarn(`[AUTH] Usuário não encontrado ou inativo`, { username });
+        await this.getAuditService().log('auth', 'login_failed', null, { username, reason: 'user_not_found' }).catch(e => logError('[AUTH] Erro ao registrar log', e));
         return { success: false, error: 'Credenciais inválidas' };
       }
 
-      console.log(`[AUTH] Usuário encontrado: ${user.username}, Role: ${user.role}, Email: ${user.email || 'N/A'}`);
-      console.log(`[AUTH] Password hash do banco: ${user.password_hash ? `${user.password_hash.substring(0, 10)}...` : 'NÃO DEFINIDO'}`);
+      await logDebug(`[AUTH] Usuário encontrado`, { username: user.username, role: user.role, email: user.email || 'N/A' });
 
       // Verificar senha
-      console.log(`[AUTH] Verificando senha...`);
+      await logDebug(`[AUTH] Verificando senha`, { username });
       const isValidPassword = await bcrypt.compare(password, user.password_hash);
-      console.log(`[AUTH] Senha válida: ${isValidPassword ? 'SIM' : 'NÃO'}`);
+      await logDebug(`[AUTH] Validação de senha`, { username, isValid: isValidPassword });
 
       if (!isValidPassword) {
-        console.log(`[AUTH] ❌ Senha inválida para usuário '${username}'`);
-        await this.getAuditService().log('auth', 'login_failed', user.id, { username, reason: 'invalid_password' }).catch(e => console.error('[AUTH] Erro ao registrar log:', e.message));
+        await logWarn(`[AUTH] Senha inválida`, { username });
+        await this.getAuditService().log('auth', 'login_failed', user.id, { username, reason: 'invalid_password' }).catch(e => logError('[AUTH] Erro ao registrar log', e));
         return { success: false, error: 'Credenciais inválidas' };
       }
 
       // Atualizar último login
-      console.log(`[AUTH] Atualizando último login...`);
+      await logDebug(`[AUTH] Atualizando último login`, { userId: user.id });
       await this.db.executeRaw(`
         UPDATE users 
         SET last_login = CURRENT_TIMESTAMP 
         WHERE id = ?
-      `, [user.id]).catch(e => console.error('[AUTH] Erro ao atualizar last_login:', e.message));
+      `, [user.id]).catch(e => logError('[AUTH] Erro ao atualizar last_login', e));
 
       // Gerar tokens
-      console.log(`[AUTH] Gerando tokens JWT...`);
+      await logDebug(`[AUTH] Gerando tokens JWT`, { userId: user.id });
       const token = this.generateToken(user);
       const refreshToken = this.generateRefreshToken(user);
-      console.log(`[AUTH] Tokens gerados com sucesso`);
+      await logDebug(`[AUTH] Tokens gerados com sucesso`, { userId: user.id });
 
       // Log de sucesso
-      await this.getAuditService().log('auth', 'login_success', user.id, { username }).catch(e => console.error('[AUTH] Erro ao registrar log de sucesso:', e.message));
+      await this.getAuditService().log('auth', 'login_success', user.id, { username }).catch(e => logError('[AUTH] Erro ao registrar log de sucesso', e));
 
-      console.log(`[AUTH] ✅ Login bem-sucedido para '${username}'`);
+      await logInfo(`[AUTH] Login bem-sucedido`, { username, userId: user.id });
 
       return {
         success: true,
@@ -152,18 +151,16 @@ export class AuthService {
       };
 
     } catch (error: any) {
-      console.error('❌ [AUTH] Erro no login:', error.message);
-      console.error('❌ [AUTH] Stack trace:', error.stack);
-      console.error('❌ [AUTH] Erro completo:', JSON.stringify(error, null, 2));
+      await logError('[AUTH] Erro no login', error, { username: credentials.username });
       
       // Verificar se é erro de banco de dados
       if (error.message && error.message.includes('relation') && error.message.includes('does not exist')) {
-        console.error('❌ [AUTH] ERRO CRÍTICO: Tabela users não existe no banco de dados!');
+        await logError('[AUTH] ERRO CRÍTICO: Tabela users não existe no banco de dados', error);
         return { success: false, error: 'Erro interno: Tabela de usuários não encontrada. Verifique a instalação do banco de dados.' };
       }
       
       if (error.message && error.message.includes('column') && error.message.includes('does not exist')) {
-        console.error(`❌ [AUTH] ERRO CRÍTICO: Coluna não existe na tabela users! Erro: ${error.message}`);
+        await logError(`[AUTH] ERRO CRÍTICO: Coluna não existe na tabela users`, error);
         return { success: false, error: 'Erro interno: Estrutura do banco de dados incorreta. Execute o smartchannel-db.sql para criar as tabelas.' };
       }
       
@@ -249,7 +246,7 @@ export class AuthService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro no registro:', error.message);
+      await logError('Erro no registro', error);
       return { success: false, error: 'Erro interno do servidor' };
     }
   }
@@ -306,7 +303,7 @@ export class AuthService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro no refresh token:', error.message);
+      await logError('Erro no refresh token', error);
       return { success: false, error: 'Token inválido' };
     }
   }
@@ -351,7 +348,7 @@ export class AuthService {
       return { success: true };
 
     } catch (error: any) {
-      console.error('❌ Erro ao alterar senha:', error.message);
+      await logError('Erro ao alterar senha', error);
       return { success: false, error: 'Erro interno do servidor' };
     }
   }
@@ -429,7 +426,7 @@ export class AuthService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar dados do usuário:', error.message);
+      await logError('Erro ao buscar dados do usuário', error);
       return null;
     }
   }
@@ -445,7 +442,7 @@ export class AuthService {
       return { success: true };
 
     } catch (error: any) {
-      console.error('❌ Erro no logout:', error.message);
+      await logError('Erro no logout', error);
       return { success: false, error: 'Erro interno do servidor' };
     }
   }
@@ -503,7 +500,7 @@ export class AuthService {
       // Por segurança, sempre retornar sucesso mesmo se email não existir
       // Isso previne enumeração de emails
       if (!user) {
-        console.log(`[PASSWORD_RESET] Tentativa de recuperação para email não cadastrado: ${email}`);
+        await logWarn(`[PASSWORD_RESET] Tentativa de recuperação para email não cadastrado`, { email });
         return {
           success: true,
           message: 'Se o email estiver cadastrado, você receberá um link de recuperação.'
@@ -544,19 +541,15 @@ export class AuthService {
         );
 
         if (!emailResult.success && process.env.NODE_ENV === 'development') {
-          console.log(`\n🔐 [PASSWORD RESET] Token gerado para ${email}:`);
-          console.log(`   Token: ${token}`);
-          console.log(`   Expira em: ${expiresAt.toISOString()}`);
-          console.log(`   Link: ${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}\n`);
+          await logInfo(`[PASSWORD RESET] Token gerado`, { email, expiresAt: expiresAt.toISOString() });
+          await logDebug(`[PASSWORD RESET] Token details`, { token, link: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}` });
         }
       } catch (emailError: any) {
-        console.error('❌ Erro ao enviar email de recuperação de senha:', emailError.message);
-        // Em desenvolvimento, mostrar token no console
+        await logError('Erro ao enviar email de recuperação de senha', emailError, { email });
+        // Em desenvolvimento, mostrar token no log
         if (process.env.NODE_ENV === 'development') {
-          console.log(`\n🔐 [PASSWORD RESET] Token gerado para ${email}:`);
-          console.log(`   Token: ${token}`);
-          console.log(`   Expira em: ${expiresAt.toISOString()}`);
-          console.log(`   Link: ${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}\n`);
+          await logInfo(`[PASSWORD RESET] Token gerado (modo desenvolvimento)`, { email, expiresAt: expiresAt.toISOString() });
+          await logDebug(`[PASSWORD RESET] Token details`, { token, link: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}` });
         }
       }
 
@@ -567,7 +560,7 @@ export class AuthService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao solicitar recuperação de senha:', error.message);
+      await logError('Erro ao solicitar recuperação de senha', error);
       return {
         success: false,
         message: 'Erro ao processar solicitação de recuperação de senha'
@@ -636,7 +629,7 @@ export class AuthService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao redefinir senha:', error.message);
+      await logError('Erro ao redefinir senha', error);
       return {
         success: false,
         message: 'Erro ao processar redefinição de senha'
@@ -664,7 +657,7 @@ export class AuthService {
 
       return (result as any).rowCount || 0;
     } catch (error: any) {
-      console.error('❌ Erro ao limpar tokens expirados:', error.message);
+      await logError('Erro ao limpar tokens expirados', error);
       return 0;
     }
   }
@@ -679,7 +672,7 @@ export class AuthService {
       `);
 
       if (adminExists) {
-        console.log('✅ Usuário admin já existe');
+        await logInfo('Usuário admin já existe');
         return;
       }
 
@@ -691,10 +684,10 @@ export class AuthService {
         VALUES ('admin', ?, 'admin', 1)
       `, [passwordHash]);
 
-      console.log('✅ Usuário admin padrão criado (admin/admin)');
+      await logInfo('Usuário admin padrão criado (admin/admin)');
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar admin padrão:', error.message);
+      await logError('Erro ao criar admin padrão', error);
     }
   }
 }

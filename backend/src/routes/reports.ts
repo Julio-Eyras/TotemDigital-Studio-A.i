@@ -8,6 +8,7 @@ import { ReportsService } from '../services/reportsService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import * as fs from 'fs';
 import * as path from 'path';
+import { logError, logWarn } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -61,7 +62,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao listar relatórios:', error.message);
+    await logError('Erro ao listar relatórios', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -85,7 +86,7 @@ router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar estatísticas:', error.message);
+    await logError('Erro ao buscar estatísticas de relatórios', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -152,8 +153,7 @@ router.get('/types', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar tipos de relatório:', error.message || error);
-    console.error('❌ Stack trace:', error.stack);
+    await logError('Erro ao buscar tipos de relatório', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -194,7 +194,7 @@ router.get('/:id', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar relatório:', error.message);
+    await logError('Erro ao buscar relatório', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -229,7 +229,7 @@ router.post('/', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao gerar relatório:', error.message);
+    await logError('Erro ao gerar relatório', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao gerar relatório',
@@ -255,7 +255,7 @@ router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res)
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao remover relatório:', error.message);
+    await logError('Erro ao remover relatório', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover relatório',
@@ -327,12 +327,12 @@ router.get('/download/:id', async (req: any, res) => {
     try {
       await getReportsService().incrementDownloadCount(parseInt(id));
     } catch (error: any) {
-      console.warn('⚠️ Erro ao incrementar contador de downloads:', error.message);
+      await logWarn('Erro ao incrementar contador de downloads', { error: error.message });
       // Não falhar o download se o incremento falhar
     }
 
   } catch (error: any) {
-    console.error('❌ Erro ao baixar relatório:', error.message);
+    await logError('Erro ao baixar relatório', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -389,7 +389,7 @@ router.post('/:id/regenerate', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao regenerar relatório:', error.message);
+    await logError('Erro ao regenerar relatório', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao regenerar relatório',
@@ -413,7 +413,7 @@ router.get('/templates', authorizeRole(['admin', 'manager']), async (req, res) =
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar templates:', error.message);
+    await logError('Erro ao buscar templates de relatório', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -447,7 +447,7 @@ router.post('/templates', authorizeRole(['admin']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar template:', error.message);
+    await logError('Erro ao criar template de relatório', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar template',
@@ -500,7 +500,7 @@ router.get('/formats', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar formatos de relatório:', error.message);
+    await logError('Erro ao buscar formatos de relatório', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -552,7 +552,7 @@ router.post('/bulk-generate', authorizeRole(['admin', 'manager']), async (req, r
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao gerar relatórios em lote:', error.message);
+    await logError('Erro ao gerar relatórios em lote', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',

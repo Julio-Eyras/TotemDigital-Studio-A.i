@@ -3,6 +3,7 @@ import { MediaService } from '../services/mediaService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
+import { logError, logDebug, logWarn } from '../utils/loggerHelper';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -32,16 +33,14 @@ function createMulterConfig() {
   if (!fs.existsSync(storagePath)) {
     try {
       fs.mkdirSync(storagePath, { recursive: true });
-      console.log(`✅ Diretório de uploads criado: ${storagePath}`);
+      // Diretório criado - log será feito pelo StorageService
     } catch (error: any) {
       if (error.code === 'EACCES') {
-        console.warn(`⚠️ Erro de permissão ao criar diretório: ${storagePath}`);
-        console.warn(`   O diretório deve ser criado durante a instalação com permissões corretas`);
-        console.warn(`   Execute: sudo mkdir -p ${storagePath} && sudo chown -R $USER:$USER ${storagePath}`);
+        // Log será feito pelo StorageService
         // Não falhar aqui - tentar usar o diretório mesmo assim (pode já existir)
         // Se realmente não existir, o erro será capturado na verificação de escrita abaixo
       } else {
-        console.warn(`⚠️ Erro ao criar diretório: ${error.message}`);
+        // Log será feito pelo StorageService
         // Continuar mesmo assim - pode ser que o diretório já exista
       }
     }
@@ -51,8 +50,7 @@ function createMulterConfig() {
   try {
     fs.accessSync(storagePath, fs.constants.W_OK);
   } catch (error: any) {
-    console.error(`❌ Diretório de uploads não é gravável: ${storagePath}`);
-    console.error(`   Execute: sudo chown -R $USER:$USER ${storagePath} && sudo chmod -R 755 ${storagePath}`);
+    // Log será feito pelo StorageService
     throw new Error(`Diretório de uploads não é gravável. Verifique permissões: ${error.message}`);
   }
 
@@ -107,8 +105,7 @@ function getMulterUpload() {
   } catch (error: any) {
     // Se falhar, tentar novamente na próxima requisição
     // Isso permite que o diretório seja criado durante a instalação
-    console.error('⚠️ Erro ao criar configuração do multer:', error.message);
-    console.error('   Tentando novamente na próxima requisição...');
+    await logWarn('Erro ao criar configuração do multer', { error: error.message });
     throw error;
   }
 }
@@ -137,8 +134,7 @@ router.get('/',
       });
       res.json(result);
     } catch (error: any) {
-      console.error('❌ Erro ao listar mídia:', error.message);
-      console.error('❌ Stack trace:', error.stack);
+      await logError('Erro ao listar mídia', error);
       res.status(500).json({ 
         error: 'Erro ao listar mídia',
         message: error.message || 'Erro desconhecido'
@@ -176,16 +172,15 @@ router.get('/:id',
  */
 router.post('/upload',
   (req: AuthenticatedRequest, res: Response, next) => {
-    // Log detalhado antes do multer processar
-    console.log('📤 Upload recebido - Headers:', JSON.stringify(req.headers, null, 2));
-    console.log('📤 Upload recebido - Body antes do multer:', JSON.stringify(req.body, null, 2));
+    // Log detalhado antes do multer processar (apenas em desenvolvimento)
+    if (process.env.NODE_ENV === 'development') {
+      await logDebug('Upload recebido', { headers: req.headers, body: req.body });
+    }
     
     // Tratar erros do multer antes de passar para validação
     getMulterUpload().single('file')(req as any, res, (err: any) => {
       if (err) {
-        console.error('❌ Erro no multer:', err.message);
-        console.error('❌ Stack trace:', err.stack);
-        console.error('❌ Código do erro:', err.code);
+        logError('Erro no multer', err, { code: err.code }).catch(() => {});
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({ 
             error: 'Arquivo muito grande',
@@ -210,9 +205,10 @@ router.post('/upload',
         });
       }
       
-      // Log após multer processar
-      console.log('✅ Multer processou - Body após multer:', JSON.stringify(req.body, null, 2));
-      console.log('✅ Multer processou - File:', req.file ? {
+      // Log após multer processar (apenas em desenvolvimento)
+      if (process.env.NODE_ENV === 'development' && req.file) {
+        logDebug('Multer processou', { file: { fieldname: req.file.fieldname, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size, filename: req.file.filename } }).catch(() => {});
+      }
         fieldname: req.file.fieldname,
         originalname: req.file.originalname,
         mimetype: req.file.mimetype,
@@ -230,24 +226,13 @@ router.post('/upload',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      // Log detalhado no handler principal
-      console.log('📥 Handler de upload - Body:', JSON.stringify(req.body, null, 2));
-      console.log('📥 Handler de upload - File:', req.file ? {
-        fieldname: req.file.fieldname,
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        filename: req.file.filename,
-        path: req.file.path
-      } : 'Nenhum arquivo');
-      console.log('📥 Handler de upload - User:', req.user ? {
-        id: req.user.id,
-        username: req.user.username,
-        role: req.user.role
-      } : 'Usuário não autenticado');
+      // Log detalhado no handler principal (apenas em desenvolvimento)
+      if (process.env.NODE_ENV === 'development') {
+        await logDebug('Handler de upload', { body: req.body, file: req.file, user: req.user });
+      }
       
       if (!req.file) {
-        console.error('❌ Nenhum arquivo recebido no handler');
+        await logError('Nenhum arquivo recebido no handler', new Error('Nenhum arquivo enviado'));
         return res.status(400).json({ 
           error: 'Nenhum arquivo enviado',
           message: 'É necessário enviar um arquivo'
@@ -306,8 +291,7 @@ router.post('/upload',
         data: media
       });
     } catch (error: any) {
-      console.error('❌ Erro ao fazer upload do arquivo:', error.message);
-      console.error('❌ Stack trace:', error.stack);
+      await logError('Erro ao fazer upload do arquivo', error);
       res.status(400).json({ 
         error: 'Erro ao fazer upload do arquivo',
         message: error.message || 'Erro desconhecido ao processar upload'
@@ -521,7 +505,7 @@ router.post('/:id/process',
 
       res.json(result);
     } catch (error: any) {
-      console.error('❌ Erro ao processar mídia:', error.message);
+      await logError('Erro ao processar mídia', error);
       res.status(500).json({ 
         success: false,
         error: 'Erro ao processar arquivo de mídia',

@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
+import { logError } from '../utils/loggerHelper';
 
 export interface CreateCampaignRequest {
   clientId: number;
@@ -195,7 +196,7 @@ export class CampaignService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar campanhas:', error.message);
+      await logError('Erro ao buscar campanhas', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -238,7 +239,7 @@ export class CampaignService {
       return { ...campaign, ...stats, ...scheduleInfo };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar campanha:', error.message);
+      await logError('Erro ao buscar campanha', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -326,7 +327,7 @@ export class CampaignService {
       return newCampaign;
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar campanha:', error.message);
+      await logError('Erro ao criar campanha', error);
       throw error;
     }
   }
@@ -430,7 +431,7 @@ export class CampaignService {
       return updatedCampaign;
 
     } catch (error: any) {
-      console.error('❌ Erro ao atualizar campanha:', error.message);
+      await logError('Erro ao atualizar campanha', error);
       throw error;
     }
   }
@@ -472,7 +473,7 @@ export class CampaignService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao remover campanha:', error.message);
+      await logError('Erro ao remover campanha', error);
       throw error;
     }
   }
@@ -528,7 +529,7 @@ export class CampaignService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao adicionar totem à campanha:', error.message);
+      await logError('Erro ao adicionar totem à campanha', error);
       throw error;
     }
   }
@@ -559,7 +560,7 @@ export class CampaignService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao remover totem da campanha:', error.message);
+      await logError('Erro ao remover totem da campanha', error);
       throw error;
     }
   }
@@ -593,7 +594,7 @@ export class CampaignService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao ativar campanha:', error.message);
+      await logError('Erro ao ativar campanha', error);
       throw error;
     }
   }
@@ -627,7 +628,7 @@ export class CampaignService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao pausar campanha:', error.message);
+      await logError('Erro ao pausar campanha', error);
       throw error;
     }
   }
@@ -657,7 +658,7 @@ export class CampaignService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao finalizar campanha:', error.message);
+      await logError('Erro ao finalizar campanha', error);
       throw error;
     }
   }
@@ -707,7 +708,7 @@ export class CampaignService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas da campanha:', error.message);
+      await logError('Erro ao buscar estatísticas da campanha', error);
       return {
         totemCount: 0,
         playlistCount: 0,
@@ -739,7 +740,7 @@ export class CampaignService {
 
       return totems;
     } catch (error: any) {
-      console.error('❌ Erro ao buscar totems da campanha:', error.message);
+      await logError('Erro ao buscar totems da campanha', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -838,7 +839,7 @@ export class CampaignService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas gerais:', error.message);
+      await logError('Erro ao buscar estatísticas gerais', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -885,7 +886,7 @@ export class CampaignService {
       return campaignsWithStats;
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar campanhas ativas para totem:', error.message);
+      await logError('Erro ao buscar campanhas ativas para totem', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -952,7 +953,7 @@ export class CampaignService {
       return [...toActivate, ...toPause];
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar campanhas para atualizar:', error.message);
+      await logError('Erro ao buscar campanhas para atualizar', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1024,7 +1025,7 @@ export class CampaignService {
       return campaignsWithStats;
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar campanhas por cliente:', error.message);
+      await logError('Erro ao buscar campanhas por cliente', error);
       throw new Error('Erro interno do servidor');
     }
   }

@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
+import { logError, logWarn } from '../utils/loggerHelper';
 
 export interface AnalyticsFilters {
   clientId?: number;
@@ -311,7 +312,7 @@ export class AnalyticsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas do dashboard:', error.message);
+      await logError('Erro ao buscar estatísticas do dashboard', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -556,7 +557,7 @@ export class AnalyticsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar análise:', error.message);
+      await logError('Erro ao buscar análise', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -582,7 +583,7 @@ export class AnalyticsService {
 
       return campaign;
     } catch (error: any) {
-      console.error('❌ Erro ao buscar campanha:', error.message);
+      await logError('Erro ao buscar campanha', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -607,7 +608,7 @@ export class AnalyticsService {
 
       return totem;
     } catch (error: any) {
-      console.error('❌ Erro ao buscar totem:', error.message);
+      await logError('Erro ao buscar totem', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -639,7 +640,7 @@ export class AnalyticsService {
       return report;
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar relatório:', error.message);
+      await logError('Erro ao gerar relatório', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -658,7 +659,7 @@ export class AnalyticsService {
       return result?.peak_time || '14:00';
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar horário de pico:', error.message);
+      await logError('Erro ao buscar horário de pico', error);
       return '14:00';
     }
   }
@@ -764,7 +765,7 @@ export class AnalyticsService {
       return trends;
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar tendências:', error.message);
+      await logError('Erro ao buscar tendências', error);
       return [];
     }
   }
@@ -801,7 +802,7 @@ export class AnalyticsService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas de dispositivos:', error.message);
+      await logError('Erro ao buscar estatísticas de dispositivos', error);
       return [];
     }
   }
@@ -860,7 +861,7 @@ export class AnalyticsService {
       }));
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas de localização:', error.message);
+      await logError('Erro ao buscar estatísticas de localização', error);
       return [];
     }
   }
@@ -925,7 +926,7 @@ export class AnalyticsService {
       }));
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar performance de campanhas:', error.message);
+      await logError('Erro ao buscar performance de campanhas', error);
       return [];
     }
   }
@@ -993,7 +994,7 @@ export class AnalyticsService {
       }));
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar performance de totems:', error.message);
+      await logError('Erro ao buscar performance de totems', error);
       return [];
     }
   }
@@ -1050,7 +1051,7 @@ export class AnalyticsService {
       }));
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas de QR Codes:', error.message);
+      await logError('Erro ao buscar estatísticas de QR Codes', error);
       return [];
     }
   }
@@ -1078,7 +1079,7 @@ export class AnalyticsService {
         byCampaign: []
       };
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas de receita:', error.message);
+      await logError('Erro ao buscar estatísticas de receita', error);
       return {
         total: 0,
         byClient: [],
@@ -1144,7 +1145,7 @@ export class AnalyticsService {
       return alerts;
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar alertas:', error.message);
+      await logError('Erro ao buscar alertas', error);
       return [];
     }
   }
@@ -1175,7 +1176,7 @@ export class AnalyticsService {
         }
       } catch (dfError: any) {
         // Se df falhar, tentar calcular manualmente
-        console.warn('⚠️ Comando df não disponível, calculando uso manualmente');
+        await logWarn('Comando df não disponível, calculando uso manualmente');
       }
 
       // Fallback: calcular uso manualmente (Windows ou se df falhar)
@@ -1185,12 +1186,12 @@ export class AnalyticsService {
         // Por enquanto, retornar um valor baseado no espaço disponível
         return 50; // Valor padrão se não conseguir calcular
       } catch (statError: any) {
-        console.warn('⚠️ Não foi possível calcular uso de disco:', statError.message);
+        await logWarn('Não foi possível calcular uso de disco', { error: statError.message });
         return 0;
       }
 
     } catch (error: any) {
-      console.error('❌ Erro ao obter uso de disco:', error.message);
+      await logError('Erro ao obter uso de disco', error);
       return 0;
     }
   }

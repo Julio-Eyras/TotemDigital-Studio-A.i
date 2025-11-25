@@ -5017,6 +5017,7 @@ setup_first_boot() {
         "analytics_emotions" # AnalyticsEmotion - Depende de analytics_sessions
         "analytics_gestures" # AnalyticsGesture - Depende de analytics_sessions
         "analytics_qr_scans" # AnalyticsQRScan - Depende de qr_codes, totems
+        "event_logs"          # EventLog - Depende de totems, campaigns, playlists, medias (v2.1)
         "ai_models"        # AIModel - Sem dependências
         "execution_logs"   # ExecutionLog - Depende de totems, clients, campaigns, medias
         "system_logs"       # SystemLog - Sem dependências

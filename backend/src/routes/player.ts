@@ -3,6 +3,8 @@ import { param, query, body, validationResult } from 'express-validator';
 import { TotemService } from '../services/totemService';
 import { getDatabase } from '../config/database';
 import { playerDebugService, PlayerDebugService } from '../services/playerDebugService';
+import { getEventLogService, EventType } from '../services/eventLogService';
+import { logError, logDebug } from '../utils/loggerHelper';
 import crypto from 'crypto';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -89,7 +91,7 @@ router.get('/validate',
       const { uin, token } = req.query;
       const db = getDatabase();
       
-      console.log(`[${transactionId}] 🔍 Validando totem: ${uin}`);
+      await logDebug(`[${transactionId}] Validando totem`, { uin, transactionId });
 
       // Validar token se fornecido
       if (token && typeof token === 'string') {
@@ -111,7 +113,7 @@ router.get('/validate',
       const totem = await totemService.getTotemByUin(uin as string);
 
       if (!totem) {
-        console.warn(`[${transactionId}] ⚠️ UIN não encontrado: ${uin}`);
+        await logDebug(`[${transactionId}] UIN não encontrado`, { uin, transactionId });
         
         await playerDebugService.logTransaction({
           transactionId,
@@ -342,7 +344,7 @@ router.get('/validate',
         expiresIn: 3600, // 1 hora
       });
     } catch (error: any) {
-      console.error(`[${transactionId}] ❌ Erro ao validar totem:`, error.message);
+      await logError(`[${transactionId}] Erro ao validar totem`, error, { uin, transactionId });
       
       await playerDebugService.logTransaction({
         transactionId,
@@ -386,7 +388,7 @@ router.get('/token',
         expiresIn: 3600, // 1 hora
       });
     } catch (error: any) {
-      console.error('❌ Erro ao gerar token:', error.message);
+      await logError('Erro ao gerar token', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -470,7 +472,7 @@ router.post('/heartbeat',
         }))
       });
     } catch (error: any) {
-      console.error('❌ Erro ao processar heartbeat:', error.message);
+      await logError('Erro ao processar heartbeat', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -524,7 +526,7 @@ router.post('/decrypt-config',
         const normalizedServerMac = serverMacAddress.toLowerCase().replace(/[^0-9a-f:]/g, '');
         
         if (normalizedConfigMac !== normalizedServerMac) {
-          console.warn(`⚠️ MAC address não corresponde: config=${encryptedConfig.mac}, server=${serverMacAddress}`);
+          await logDebug(`MAC address não corresponde`, { configMac: encryptedConfig.mac, serverMac: serverMacAddress });
           // Por enquanto, apenas avisar mas não bloquear (pode ser servidor diferente)
           // Em produção, você pode querer bloquear aqui
         }
@@ -578,14 +580,14 @@ router.post('/decrypt-config',
           timestamp: timestamp ? parseInt(timestamp) : null
         });
       } catch (decryptError: any) {
-        console.error('❌ Erro ao desencriptar configuração:', decryptError.message);
+        await logError('Erro ao desencriptar configuração', decryptError);
         return res.status(400).json({ 
           valid: false,
           error: 'Falha ao desencriptar configuração. Verifique a chave secreta.' 
         });
       }
     } catch (error: any) {
-      console.error('❌ Erro ao processar configuração do player:', error.message);
+      await logError('Erro ao processar configuração do player', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -621,7 +623,7 @@ router.get('/hardware-info', async (req: Request, res: Response) => {
       arch: os.arch()
     });
   } catch (error: any) {
-    console.error('❌ Erro ao obter informações de hardware:', error.message);
+    await logError('Erro ao obter informações de hardware', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
@@ -644,8 +646,8 @@ router.post('/register',
     const startTime = Date.now();
     
     try {
-      console.log(`[${requestId}] 📡 Iniciando auto-registro de totem`);
-      console.log(`[${requestId}] 📋 Dados recebidos:`, JSON.stringify({
+      await logDebug(`[${requestId}] Iniciando auto-registro de totem`, { requestId, uin: req.body.uin });
+      await logDebug(`[${requestId}] Dados recebidos`, {
         uin: req.body.uin,
         hardware: {
           ...req.body.hardware,
@@ -677,7 +679,7 @@ router.post('/register',
 
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        console.error(`[${requestId}] ❌ Erros de validação:`, errors.array());
+        await logError(`[${requestId}] Erros de validação`, new Error('Validação falhou'), { errors: errors.array(), requestId });
         return res.status(400).json({ 
           error: 'Parâmetros inválidos', 
           details: errors.array(),
@@ -686,17 +688,17 @@ router.post('/register',
       }
 
       const { uin, hardware } = req.body;
-      console.log(`[${requestId}] ✅ Validação passou. UIN: ${uin}`);
+      await logDebug(`[${requestId}] Validação passou`, { uin, requestId });
       
       const db = getDatabase();
       const totemService = new TotemService();
       
-      console.log(`[${requestId}] 🔍 Verificando se UIN já existe...`);
+      await logDebug(`[${requestId}] Verificando se UIN já existe`, { uin, requestId });
 
       // Verificar se UIN já existe
       const existingTotem = await totemService.getTotemByUin(uin);
       if (existingTotem) {
-        console.warn(`[${requestId}] ⚠️ UIN já registrado: ${uin}`);
+        await logDebug(`[${requestId}] UIN já registrado`, { uin, requestId });
         return res.status(409).json({ 
           error: 'UIN já registrado',
           uin: uin,
@@ -704,11 +706,11 @@ router.post('/register',
           requestId: requestId
         });
       }
-      console.log(`[${requestId}] ✅ UIN não existe, pode prosseguir`);
+      await logDebug(`[${requestId}] UIN não existe, pode prosseguir`, { uin, requestId });
 
       // Verificar se hardware já está registrado (prevenção de clonagem)
       const hardwareHash = hardware.hardwareHash || (hardware.macAddress || '').toLowerCase();
-      console.log(`[${requestId}] 🔍 Verificando hardware duplicado. Hash: ${hardwareHash ? 'PRESENTE' : 'AUSENTE'}`);
+      await logDebug(`[${requestId}] Verificando hardware duplicado`, { hardwareHash: hardwareHash ? 'PRESENTE' : 'AUSENTE', requestId });
       
       if (hardwareHash && hardwareHash !== 'unknown') {
         try {
@@ -721,7 +723,7 @@ router.post('/register',
           `);
           
           if (existingHardware) {
-            console.warn(`[${requestId}] ⚠️ Hardware já registrado:`, existingHardware);
+            await logDebug(`[${requestId}] Hardware já registrado`, { existingHardware, requestId });
             return res.status(409).json({ 
               error: 'Hardware já registrado',
               message: 'Este hardware já está cadastrado com outro totem',
@@ -733,38 +735,38 @@ router.post('/register',
               requestId: requestId
             });
           }
-          console.log(`[${requestId}] ✅ Hardware não está duplicado`);
+          await logDebug(`[${requestId}] Hardware não está duplicado`, { requestId });
         } catch (hardwareCheckError: any) {
-          console.error(`[${requestId}] ⚠️ Erro ao verificar hardware duplicado:`, hardwareCheckError.message);
+          await logError(`[${requestId}] Erro ao verificar hardware duplicado`, hardwareCheckError, { requestId });
           // Continuar mesmo se houver erro na verificação de hardware
         }
       } else {
-        console.log(`[${requestId}] ⚠️ Hardware hash ausente, pulando verificação de duplicação`);
+        await logDebug(`[${requestId}] Hardware hash ausente, pulando verificação de duplicação`, { requestId });
       }
 
       // Obter próximo totem_id disponível
-      console.log(`[${requestId}] 🔢 Obtendo próximo totem_id...`);
+      await logDebug(`[${requestId}] Obtendo próximo totem_id`, { requestId });
       const nextTotemId = await db.findFirst(`
         SELECT COALESCE(MAX(totem_id), 0) + 1 as next_id FROM totems
       `);
       const totemId = (nextTotemId as any)?.next_id || 1;
-      console.log(`[${requestId}] ✅ Totem ID obtido: ${totemId}`);
+      await logDebug(`[${requestId}] Totem ID obtido`, { totemId, requestId });
 
       // Criar cliente padrão se não existir
-      console.log(`[${requestId}] 👤 Verificando cliente padrão...`);
+      await logDebug(`[${requestId}] Verificando cliente padrão`, { requestId });
       const clientExists = await db.findFirst(`
         SELECT client_id FROM clients WHERE client_id = 1
       `);
       if (!clientExists) {
-        console.log(`[${requestId}] 👤 Criando cliente padrão...`);
+        await logDebug(`[${requestId}] Criando cliente padrão`, { requestId });
         await db.executeRaw(`
           INSERT INTO clients (client_id, name) 
           VALUES (1, 'Cliente Padrão') 
           ON CONFLICT DO NOTHING
         `);
-        console.log(`[${requestId}] ✅ Cliente padrão criado`);
+        await logDebug(`[${requestId}] Cliente padrão criado`, { requestId });
       } else {
-        console.log(`[${requestId}] ✅ Cliente padrão já existe`);
+        await logDebug(`[${requestId}] Cliente padrão já existe`, { requestId });
       }
 
       // Preparar configuração com hardware info
@@ -790,8 +792,8 @@ router.post('/register',
       const description = `Totem auto-registrado - ${hardware.hostname || identifier}`;
       const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
       
-      console.log(`[${requestId}] 💾 Criando totem no banco de dados...`);
-      console.log(`[${requestId}] 📋 Dados do totem:`, {
+      await logDebug(`[${requestId}] Criando totem no banco de dados`, { requestId });
+      await logDebug(`[${requestId}] Dados do totem`, {
         totemId,
         identifier,
         uin,
@@ -849,25 +851,24 @@ router.post('/register',
           JSON.stringify(config),
           ipAddress
         ]);
-        console.log(`[${requestId}] ✅ Totem inserido no banco de dados`);
+        await logDebug(`[${requestId}] Totem inserido no banco de dados`, { totemId, requestId });
       } catch (insertError: any) {
-        console.error(`[${requestId}] ❌ Erro ao inserir totem:`, insertError.message);
-        console.error(`[${requestId}] ❌ Stack trace:`, insertError.stack);
+        await logError(`[${requestId}] Erro ao inserir totem`, insertError, { totemId, requestId });
         throw insertError;
       }
 
       // Buscar totem criado
-      console.log(`[${requestId}] 🔍 Buscando totem criado...`);
+      await logDebug(`[${requestId}] Buscando totem criado`, { totemId, requestId });
       const newTotem = await totemService.getTotemByUin(uin);
       if (!newTotem) {
-        console.error(`[${requestId}] ❌ Totem não encontrado após inserção!`);
+        await logError(`[${requestId}] Totem não encontrado após inserção`, new Error('Totem não encontrado'), { totemId, requestId });
         return res.status(500).json({ 
           error: 'Erro ao criar totem',
           message: 'Totem inserido mas não encontrado após criação',
           requestId: requestId
         });
       }
-      console.log(`[${requestId}] ✅ Totem encontrado após criação:`, {
+      await logDebug(`[${requestId}] Totem encontrado após criação`, {
         id: (newTotem as any).id || totemId,
         uin: newTotem.uin,
         identifier: (newTotem as any).identifier
@@ -877,7 +878,7 @@ router.post('/register',
       const token = generateTotemToken(uin);
       const duration = Date.now() - startTime;
       
-      console.log(`[${requestId}] ✅ Auto-registro concluído com sucesso em ${duration}ms`);
+      await logDebug(`[${requestId}] Auto-registro concluído com sucesso`, { duration, requestId });
       
       const responseData = {
         success: true,
@@ -929,9 +930,7 @@ router.post('/register',
       res.status(201).json(responseData);
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      console.error(`[${requestId}] ❌ Erro ao registrar totem após ${duration}ms:`, error.message);
-      console.error(`[${requestId}] ❌ Stack trace:`, error.stack);
-      console.error(`[${requestId}] ❌ Erro completo:`, JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      await logError(`[${requestId}] Erro ao registrar totem`, error, { duration, requestId });
       
       // Registrar transação de erro
       await playerDebugService.logTransaction({
@@ -962,6 +961,208 @@ router.post('/register',
         requestId: requestId,
         duration: `${duration}ms`,
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
+  }
+);
+
+/**
+ * @route POST /api/player/event
+ * @desc Registrar evento importante do player (playback, exibição, etc)
+ * @access Public (para totens com token válido)
+ */
+router.post('/event',
+  query('uin').isString().isLength({ min: 1, max: 100 }),
+  query('token').optional().isString(),
+  body('eventType').isString().isIn([
+    'video_playback_start',
+    'video_playback_end',
+    'video_playback_error',
+    'image_display',
+    'audio_playback',
+    'ad_display_start',
+    'ad_display_end',
+    'playlist_start',
+    'playlist_end',
+    'playlist_item_play'
+  ]),
+  body('mediaId').optional().isInt({ min: 1 }),
+  body('playlistId').optional().isInt({ min: 1 }),
+  body('campaignId').optional().isInt({ min: 1 }),
+  body('duration').optional().isInt({ min: 0 }),
+  body('completed').optional().isBoolean(),
+  body('metadata').optional().isObject(),
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ error: 'Dados inválidos', details: errors.array() });
+      }
+
+      const { uin, token } = req.query;
+      const { eventType, mediaId, playlistId, campaignId, duration, completed, metadata } = req.body;
+
+      // Validar token se fornecido
+      if (token && typeof token === 'string') {
+        if (!validateTotemToken(uin as string, token)) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+      }
+
+      // Buscar totem_id pelo UIN
+      const db = getDatabase();
+      const totem = await db.findFirst(`
+        SELECT totem_id FROM totems WHERE uin = $1 LIMIT 1
+      `, [uin]);
+
+      if (!totem) {
+        return res.status(404).json({ error: 'Totem não encontrado' });
+      }
+
+      const totemId = totem.totem_id;
+
+      // Registrar evento usando EventLogService
+      const eventLogService = getEventLogService();
+      
+      let eventId: number;
+      
+      switch (eventType) {
+        case 'video_playback_start':
+          if (!mediaId) {
+            return res.status(400).json({ error: 'mediaId é obrigatório para video_playback_start' });
+          }
+          eventId = await eventLogService.logVideoPlaybackStart(
+            mediaId,
+            totemId,
+            playlistId,
+            campaignId,
+            metadata
+          );
+          break;
+
+        case 'video_playback_end':
+          if (!mediaId) {
+            return res.status(400).json({ error: 'mediaId é obrigatório para video_playback_end' });
+          }
+          eventId = await eventLogService.logVideoPlaybackEnd(
+            mediaId,
+            totemId,
+            duration || 0,
+            completed !== false,
+            metadata
+          );
+          break;
+
+        case 'image_display':
+          if (!mediaId) {
+            return res.status(400).json({ error: 'mediaId é obrigatório para image_display' });
+          }
+          eventId = await eventLogService.logEvent({
+            eventType: EventType.IMAGE_DISPLAY,
+            entityType: 'media',
+            entityId: mediaId,
+            mediaId,
+            totemId,
+            playlistId,
+            campaignId,
+            metadata: {
+              ...metadata,
+              displayTime: new Date().toISOString()
+            }
+          });
+          break;
+
+        case 'ad_display_start':
+        case 'ad_display_end':
+          if (!mediaId || !campaignId) {
+            return res.status(400).json({ error: 'mediaId e campaignId são obrigatórios para ad_display' });
+          }
+          const startTime = new Date();
+          const endTime = eventType === 'ad_display_end' ? new Date() : undefined;
+          // logAdDisplay usa mediaId como adId (anúncio é uma mídia em uma campanha)
+          eventId = await eventLogService.logAdDisplay(
+            mediaId, // adId = mediaId (anúncio é uma mídia)
+            totemId,
+            campaignId,
+            startTime,
+            endTime,
+            metadata
+          );
+          break;
+
+        case 'playlist_start':
+          if (!playlistId) {
+            return res.status(400).json({ error: 'playlistId é obrigatório para playlist_start' });
+          }
+          eventId = await eventLogService.logEvent({
+            eventType: EventType.PLAYLIST_START,
+            entityType: 'playlist',
+            entityId: playlistId,
+            playlistId,
+            totemId,
+            campaignId,
+            metadata: {
+              ...metadata,
+              startTime: new Date().toISOString()
+            }
+          });
+          break;
+
+        case 'playlist_end':
+          if (!playlistId) {
+            return res.status(400).json({ error: 'playlistId é obrigatório para playlist_end' });
+          }
+          eventId = await eventLogService.logEvent({
+            eventType: EventType.PLAYLIST_END,
+            entityType: 'playlist',
+            entityId: playlistId,
+            playlistId,
+            totemId,
+            campaignId,
+            metadata: {
+              ...metadata,
+              endTime: new Date().toISOString()
+            }
+          });
+          break;
+
+        default:
+          // Evento genérico
+          eventId = await eventLogService.logEvent({
+            eventType: eventType as EventType,
+            entityType: mediaId ? 'media' : playlistId ? 'playlist' : 'totem',
+            entityId: mediaId || playlistId || totemId,
+            mediaId,
+            playlistId,
+            campaignId,
+            totemId,
+            metadata
+          });
+      }
+
+      await logDebug('[Player Event] Evento registrado', {
+        eventId,
+        eventType,
+        totemId,
+        mediaId,
+        playlistId,
+        campaignId
+      });
+
+      res.json({
+        success: true,
+        eventId,
+        message: 'Evento registrado com sucesso'
+      });
+
+    } catch (error: any) {
+      await logError('Erro ao registrar evento do player', error, {
+        uin: req.query.uin,
+        eventType: req.body.eventType
+      });
+      res.status(500).json({ 
+        error: 'Erro interno do servidor',
+        message: error.message
       });
     }
   }
@@ -1006,7 +1207,7 @@ router.post('/exit-kiosk',
         try {
           await execAsync(cmd, { timeout: 3000 });
           executed = true;
-          console.log(`✅ Comando executado para sair do kiosk: ${cmd}`);
+          await logDebug(`Comando executado para sair do kiosk`, { cmd });
           // Não parar aqui, tentar executar todos os comandos possíveis
         } catch (error: any) {
           // Continuar tentando outros comandos mesmo se este falhar
@@ -1028,7 +1229,7 @@ router.post('/exit-kiosk',
         });
       }
     } catch (error: any) {
-      console.error('❌ Erro ao executar saída do kiosk:', error.message);
+      await logError('Erro ao executar saída do kiosk', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }

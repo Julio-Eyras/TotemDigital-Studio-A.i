@@ -1008,25 +1008,102 @@
                 
                 const element = mediaData.element;
                 const duration = mediaData.duration || 10000;
+                const media = mediaData.media;
+                const mediaId = media?.id || media?.media_id;
+                const playlistId = this.playlist?.id || this.playlist?.playlist_id;
+                const campaignId = this.playlist?.campaign_id;
+
+                // Registrar início de playback/exibição
+                if (mediaId && this.uin && this.token) {
+                    this.logEvent({
+                        eventType: element.tagName === 'VIDEO' ? 'video_playback_start' : 'image_display',
+                        mediaId: mediaId,
+                        playlistId: playlistId,
+                        campaignId: campaignId,
+                        metadata: {
+                            mediaName: media?.name,
+                            mediaType: media?.media_type || (element.tagName === 'VIDEO' ? 'video' : 'image'),
+                            duration: duration
+                        }
+                    }).catch(err => {
+                        console.warn('⚠️ Erro ao registrar evento de início:', err);
+                    });
+                }
 
                 if (element.tagName === 'VIDEO') {
+                    const playbackStartTime = Date.now();
                     element.currentTime = 0;
                     element.play().then(() => {
                         console.log(`▶️ Reproduzindo vídeo: ${mediaData.media?.name || 'sem nome'}`);
                     }).catch(error => {
                         console.error('❌ Erro ao reproduzir vídeo:', error);
+                        
+                        // Registrar erro de playback
+                        if (mediaId && this.uin && this.token) {
+                            this.logEvent({
+                                eventType: 'video_playback_error',
+                                mediaId: mediaId,
+                                playlistId: playlistId,
+                                campaignId: campaignId,
+                                metadata: {
+                                    error: error.message,
+                                    mediaName: media?.name
+                                }
+                            }).catch(() => {});
+                        }
+                        
                         // Continuar para próxima mídia após duração
                         setTimeout(() => this.nextMedia(), duration);
                     });
 
                     // Avançar para próxima quando vídeo terminar ou após duração
-                    element.addEventListener('ended', () => {
+                    const onEnded = () => {
+                        const playbackDuration = Math.floor((Date.now() - playbackStartTime) / 1000);
+                        const videoDuration = element.duration || playbackDuration;
+                        
+                        // Registrar fim de playback
+                        if (mediaId && this.uin && this.token) {
+                            this.logEvent({
+                                eventType: 'video_playback_end',
+                                mediaId: mediaId,
+                                playlistId: playlistId,
+                                campaignId: campaignId,
+                                duration: playbackDuration,
+                                completed: true,
+                                metadata: {
+                                    videoDuration: videoDuration,
+                                    mediaName: media?.name
+                                }
+                            }).catch(() => {});
+                        }
+                        
                         this.nextMedia();
-                    });
+                    };
+                    
+                    element.addEventListener('ended', onEnded, { once: true });
 
                     const durationTimeout = setTimeout(() => {
                         if (!element.ended) {
                             element.pause();
+                            const playbackDuration = Math.floor((Date.now() - playbackStartTime) / 1000);
+                            
+                            // Registrar fim de playback (interrompido)
+                            if (mediaId && this.uin && this.token) {
+                                this.logEvent({
+                                    eventType: 'video_playback_end',
+                                    mediaId: mediaId,
+                                    playlistId: playlistId,
+                                    campaignId: campaignId,
+                                    duration: playbackDuration,
+                                    completed: false,
+                                    metadata: {
+                                        interrupted: true,
+                                        mediaName: media?.name
+                                    }
+                                }).catch(() => {});
+                            }
+                            
+                            element.removeEventListener('ended', onEnded);
                             this.nextMedia();
                         }
                     }, duration);
@@ -1038,16 +1115,60 @@
                     }, duration);
                 }
             }
+            
+            /**
+             * Registrar evento importante no backend
+             */
+            async logEvent(eventData) {
+                if (!this.uin || !this.token) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/player/event?uin=${encodeURIComponent(this.uin)}&token=${encodeURIComponent(this.token)}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(eventData)
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+                        throw new Error(errorData.error || `HTTP ${response.status}`);
+                    }
+                    
+                    return await response.json();
+                } catch (error) {
+                    // Não bloquear o player se o log falhar
+                    console.warn('⚠️ Erro ao registrar evento:', error);
+                    throw error;
+                }
+            }
 
             nextMedia() {
                 if (this.mediaElements.length === 0) {
                     return;
                 }
 
+                const previousIndex = this.currentMediaIndex;
                 this.currentMediaIndex = (this.currentMediaIndex + 1) % this.mediaElements.length;
                 
-                // Se voltou ao início, recarregar playlist para verificar atualizações
+                // Se voltou ao início, registrar fim de playlist e recarregar
                 if (this.currentMediaIndex === 0) {
+                    const playlistId = this.playlist?.id || this.playlist?.playlist_id;
+                    if (playlistId && this.uin && this.token) {
+                        this.logEvent({
+                            eventType: 'playlist_end',
+                            playlistId: playlistId,
+                            campaignId: this.playlist?.campaign_id,
+                            metadata: {
+                                playlistName: this.playlist?.name,
+                                completed: true
+                            }
+                        }).catch(() => {});
+                    }
+                    
                     this.checkPlaylistUpdates();
                 }
 

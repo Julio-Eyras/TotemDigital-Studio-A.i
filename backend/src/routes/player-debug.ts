@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import { query, param } from 'express-validator';
 import { playerDebugService } from '../services/playerDebugService';
+import { logError } from '../utils/loggerHelper';
 
 const router = express.Router();
 
@@ -54,7 +55,7 @@ router.get('/transactions',
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar transações de debug:', error.message);
+      await logError('Erro ao buscar transações de debug', error, { route: '/api/player/debug/transactions', filters });
       res.status(500).json({ 
         error: 'Erro interno do servidor',
         message: error.message
@@ -93,7 +94,7 @@ router.get('/transactions/:transactionId',
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar transação:', error.message);
+      await logError('Erro ao buscar transação', error, { route: '/api/player/debug/transactions/:transactionId', transactionId });
       res.status(500).json({ 
         error: 'Erro interno do servidor',
         message: error.message
@@ -122,7 +123,7 @@ router.post('/cleanup',
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao limpar transações:', error.message);
+      await logError('Erro ao limpar transações', error, { route: '/api/player/debug/cleanup', daysToKeep });
       res.status(500).json({ 
         error: 'Erro interno do servidor',
         message: error.message

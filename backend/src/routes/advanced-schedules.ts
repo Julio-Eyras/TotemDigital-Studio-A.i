@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { advancedScheduleService } from '../services/advancedScheduleService';
+import { logError } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -59,7 +60,7 @@ router.get('/',
         count: schedules.length
       });
     } catch (error: any) {
-      console.error('❌ Erro ao listar agendamentos:', error.message);
+      await logError('Erro ao listar agendamentos', error, { route: '/api/advanced-schedules', filters });
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',
@@ -94,7 +95,7 @@ router.get('/:id',
         data: schedule
       });
     } catch (error: any) {
-      console.error('❌ Erro ao buscar agendamento:', error.message);
+      await logError('Erro ao buscar agendamento', error, { route: '/api/advanced-schedules/:id', scheduleId: parseInt(req.params.id) });
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',
@@ -135,7 +136,7 @@ router.post('/',
         data: schedule
       });
     } catch (error: any) {
-      console.error('❌ Erro ao criar agendamento:', error.message);
+      await logError('Erro ao criar agendamento', error, { route: '/api/advanced-schedules', scheduleType: req.body.scheduleType });
       res.status(400).json({
         success: false,
         error: 'Erro ao criar agendamento',
@@ -174,7 +175,7 @@ router.put('/:id',
         data: schedule
       });
     } catch (error: any) {
-      console.error('❌ Erro ao atualizar agendamento:', error.message);
+      await logError('Erro ao atualizar agendamento', error, { route: '/api/advanced-schedules/:id', scheduleId });
       res.status(400).json({
         success: false,
         error: 'Erro ao atualizar agendamento',
@@ -202,7 +203,7 @@ router.delete('/:id',
         message: 'Agendamento excluído com sucesso'
       });
     } catch (error: any) {
-      console.error('❌ Erro ao excluir agendamento:', error.message);
+      await logError('Erro ao excluir agendamento', error, { route: '/api/advanced-schedules/:id', scheduleId });
       res.status(400).json({
         success: false,
         error: 'Erro ao excluir agendamento',
@@ -233,7 +234,7 @@ router.post('/:id/validate',
         nextExecution: validation.nextExecution
       });
     } catch (error: any) {
-      console.error('❌ Erro ao validar expressão cron:', error.message);
+      await logError('Erro ao validar expressão cron', error, { route: '/api/advanced-schedules/:id/validate', cronExpression: req.body.cronExpression });
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',

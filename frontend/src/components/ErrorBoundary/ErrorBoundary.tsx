@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Box, Button, Typography, Paper } from '@mui/material';
 import { ErrorOutline, Refresh } from '@mui/icons-material';
+import { logFrontendError } from '../../services/api/loggingApi';
 
 interface Props {
   children: ReactNode;
@@ -33,7 +34,15 @@ export class ErrorBoundary extends Component<Props, State> {
       console.error('ErrorBoundary caught an error:', error, errorInfo);
     }
 
-    // TODO: Send error to logging service in production
+    // Send error to logging service in production
+    if (process.env.NODE_ENV === 'production') {
+      logFrontendError(error, errorInfo, {
+        component: 'ErrorBoundary',
+        hasError: this.state.hasError,
+      }).catch(() => {
+        // Silenciosamente falhar - não queremos que o logging cause mais erros
+      });
+    }
   }
 
   handleReload = () => {

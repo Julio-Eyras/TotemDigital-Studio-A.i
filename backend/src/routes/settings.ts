@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { SettingsService } from '../services/settingsService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
+import { logError, logWarn, logInfo } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -35,7 +36,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar configurações:', error.message);
+    await logError('Erro ao buscar configurações', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -59,7 +60,7 @@ router.get('/public', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar configurações públicas:', error.message);
+    await logError('Erro ao buscar configurações públicas', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -92,7 +93,7 @@ router.get('/:key', authorizeRole(['admin', 'manager']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar configuração:', error.message);
+    await logError('Erro ao buscar configuração', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -126,9 +127,9 @@ router.put('/', authorizeRole(['admin']), async (req, res) => {
       try {
         const { reloadMediaConfig } = await import('../config/mediaConfig');
         await reloadMediaConfig();
-        console.log('✅ Configurações de mídia recarregadas automaticamente após atualização');
+        await logInfo('Configurações de mídia recarregadas automaticamente após atualização');
       } catch (reloadError: any) {
-        console.warn('⚠️ Erro ao recarregar configurações de mídia:', reloadError.message);
+        await logWarn('Erro ao recarregar configurações de mídia', { error: reloadError.message });
       }
     }
 
@@ -139,7 +140,7 @@ router.put('/', authorizeRole(['admin']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao atualizar configurações:', error.message);
+    await logError('Erro ao atualizar configurações', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar configurações',
@@ -165,7 +166,7 @@ router.post('/:key/reset', authorizeRole(['admin', 'manager']), async (req, res)
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao resetar configuração:', error.message);
+    await logError('Erro ao resetar configuração', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao resetar configuração',
@@ -189,7 +190,7 @@ router.post('/reset-all', authorizeRole(['admin']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao resetar todas as configurações:', error.message);
+    await logError('Erro ao resetar todas as configurações', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -216,7 +217,7 @@ router.post('/', authorizeRole(['admin']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar configuração:', error.message);
+    await logError('Erro ao criar configuração', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar configuração',
@@ -242,7 +243,7 @@ router.delete('/:key', authorizeRole(['admin']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao remover configuração:', error.message);
+    await logError('Erro ao remover configuração', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover configuração',
@@ -268,7 +269,7 @@ router.post('/validate', authorizeRole(['admin', 'manager']), async (req, res) =
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao validar configurações:', error.message);
+    await logError('Erro ao validar configurações', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -291,7 +292,7 @@ router.get('/export', authorizeRole(['admin', 'manager']), async (req, res) => {
     res.json(settings);
 
   } catch (error: any) {
-    console.error('❌ Erro ao exportar configurações:', error.message);
+    await logError('Erro ao exportar configurações', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -333,7 +334,7 @@ router.post('/import', authorizeRole(['admin']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao importar configurações:', error.message);
+    await logError('Erro ao importar configurações', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao importar configurações',
@@ -365,7 +366,7 @@ router.get('/categories', authorizeRole(['admin', 'manager']), async (req, res) 
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar categorias:', error.message);
+    await logError('Erro ao buscar categorias de configurações', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -399,7 +400,7 @@ router.get('/category/:category', authorizeRole(['admin', 'manager']), async (re
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar configurações da categoria:', error.message);
+    await logError('Erro ao buscar configurações da categoria', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -455,7 +456,7 @@ router.put('/category/:category', authorizeRole(['admin', 'manager']), async (re
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao atualizar configurações da categoria:', error.message);
+    await logError('Erro ao atualizar configurações da categoria', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar configurações da categoria',
@@ -494,7 +495,7 @@ router.post('/media/apply', authorizeRole(['admin']), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao aplicar configurações de mídia:', error.message);
+    await logError('Erro ao aplicar configurações de mídia', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Erro ao aplicar configurações de mídia',

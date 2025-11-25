@@ -3,6 +3,7 @@ import { TotemService } from '../services/totemService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
+import { logError, logWarn } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -47,7 +48,7 @@ router.get('/',
         limit: result.limit || 10
       });
     } catch (error: any) {
-      console.error('❌ Erro ao listar totems:', error.message || error);
+      await logError('Erro ao listar totems', error);
       res.status(500).json({ 
         success: false,
         error: 'Erro ao listar totems',
@@ -82,7 +83,7 @@ router.get('/pending',
         limit: result.limit || 10
       });
     } catch (error: any) {
-      console.error('❌ Erro ao listar totems pendentes:', error.message || error);
+      await logError('Erro ao listar totems pendentes', error);
       res.status(500).json({ 
         success: false,
         error: 'Erro ao listar totems pendentes',
@@ -102,7 +103,7 @@ router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) =
     const stats = await getTotemService().getTotemStats(1); // Default totem
     res.json(stats);
   } catch (error: any) {
-    console.error('❌ Erro ao obter estatísticas:', error.message || error);
+    await logError('Erro ao obter estatísticas', error);
     res.status(500).json({ 
       success: false,
       error: 'Erro ao obter estatísticas',
@@ -121,7 +122,7 @@ router.get('/stats/offline', async (req: AuthenticatedRequest, res: Response) =>
     const offlineTotems = await getTotemService().getOfflineTotems();
     res.json(offlineTotems);
   } catch (error: any) {
-    console.error('❌ Erro ao obter totems offline:', error.message || error);
+    await logError('Erro ao obter totems offline', error);
     res.status(500).json({ 
       success: false,
       error: 'Erro ao obter totems offline',
@@ -147,7 +148,7 @@ router.get('/:id',
       }
       res.json(totem);
     } catch (error: any) {
-      console.error('❌ Erro ao obter totem:', error.message);
+      await logError('Erro ao obter totem', error);
       res.status(500).json({ error: 'Erro ao obter totem', message: error.message });
     }
   }
@@ -222,8 +223,7 @@ router.post('/',
       const totem = await getTotemService().createTotem(totemData, userId);
       res.status(201).json(totem);
     } catch (error: any) {
-      console.error('❌ Erro ao criar totem:', error.message);
-      console.error('❌ Stack trace:', error.stack);
+      await logError('Erro ao criar totem', error);
       res.status(400).json({ 
         error: error.message || 'Erro ao criar totem',
         details: error.message ? [{ msg: error.message }] : undefined
@@ -497,7 +497,7 @@ router.put('/:id/approve',
           
           encryptedConfigPath = `${playerDir}/config.json.enc`;
         } catch (configError: any) {
-          console.warn('⚠️ Erro ao gerar config encriptado:', configError.message);
+          await logWarn('Erro ao gerar config encriptado', { error: configError.message });
           // Não falhar a aprovação se gerar config falhar
         }
       }
@@ -511,7 +511,7 @@ router.put('/:id/approve',
           identifier: totemFull.identifier
         });
       } catch (auditError) {
-        console.warn('⚠️ Erro ao registrar log de auditoria:', auditError);
+        await logWarn('Erro ao registrar log de auditoria', { error: auditError });
       }
 
       // Buscar totem atualizado
@@ -524,7 +524,7 @@ router.put('/:id/approve',
         encryptedConfigPath: encryptedConfigPath || undefined
       });
     } catch (error: any) {
-      console.error('❌ Erro ao aprovar totem:', error.message);
+      await logError('Erro ao aprovar totem', error);
       res.status(500).json({ error: 'Erro ao aprovar totem', details: error.message });
     }
   }

@@ -3,6 +3,7 @@ import { body, query, param } from 'express-validator';
 import { validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { getPlayerService } from '../services/playerService';
+import { logError } from '../utils/loggerHelper';
 
 const router = express.Router();
 
@@ -52,7 +53,7 @@ router.get('/',
       
       res.json(result);
     } catch (error) {
-      console.error('Erro ao listar players:', error);
+      await logError('Erro ao listar players', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -77,7 +78,7 @@ router.get('/:id',
 
       res.json(player);
     } catch (error) {
-      console.error('Erro ao obter player:', error);
+      await logError('Erro ao obter player', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -102,7 +103,7 @@ router.post('/',
 
       res.status(201).json(newPlayer);
     } catch (error: any) {
-      console.error('Erro ao criar player:', error);
+      await logError('Erro ao criar player', error);
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -132,7 +133,7 @@ router.put('/:id',
 
       res.json(updatedPlayer);
     } catch (error: any) {
-      console.error('Erro ao atualizar player:', error);
+      await logError('Erro ao atualizar player', error);
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -153,7 +154,7 @@ router.delete('/:id',
       
       res.status(204).send();
     } catch (error: any) {
-      console.error('Erro ao excluir player:', error);
+      await logError('Erro ao excluir player', error);
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -176,7 +177,7 @@ router.post('/:id/playlist',
       
       res.json({ message: 'Playlist atribuída com sucesso' });
     } catch (error: any) {
-      console.error('Erro ao atribuir playlist:', error);
+      await logError('Erro ao atribuir playlist ao player', error);
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -197,7 +198,7 @@ router.get('/:id/status',
       
       res.json(status);
     } catch (error: any) {
-      console.error('Erro ao obter status do player:', error);
+      await logError('Erro ao obter status do player', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }

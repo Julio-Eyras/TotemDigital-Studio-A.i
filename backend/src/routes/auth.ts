@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { AuthService } from '../services/authService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { logInfo, logWarn, logError } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -119,22 +120,36 @@ const resetPasswordValidator = [
  * Autentica usuário
  */
 router.post('/login', loginValidator, async (req: Request, res: Response) => {
+  const username = req.body?.username;
   try {
-    console.log(`[API] POST /api/auth/login - Recebendo requisição`);
-    console.log(`[API] Body recebido:`, JSON.stringify(req.body));
+    await logInfo('[Auth] POST /api/auth/login - Recebendo requisição', {
+      username,
+      ip: req.ip
+    });
+
+    await logInfo('[Auth] Payload recebido em /login', {
+      username,
+      hasPassword: Boolean(req.body?.password)
+    });
     
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log(`[API] ❌ Erros de validação:`, errors.array());
+      await logWarn('[Auth] Erros de validação em /login', {
+        username,
+        errors: errors.array()
+      });
       return res.status(400).json({
         error: 'Dados inválidos',
         details: errors.array()
       });
     }
 
-    console.log(`[API] Chamando AuthService.login()...`);
+    await logInfo('[Auth] Chamando AuthService.login()', { username });
     const result = await getAuthService().login(req.body);
-    console.log(`[API] Resultado do login:`, result.success ? 'SUCESSO' : `FALHA - ${result.error}`);
+    await logInfo('[Auth] Resultado do login', {
+      username,
+      success: result.success
+    });
     
     if (!result.success) {
       return res.status(401).json({
@@ -142,7 +157,10 @@ router.post('/login', loginValidator, async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`[API] ✅ Login bem-sucedido - retornando tokens e dados do usuário`);
+    await logInfo('[Auth] Login bem-sucedido - retornando tokens', {
+      username,
+      userId: result.user?.id
+    });
     res.json({
       message: 'Login realizado com sucesso',
       token: result.token,
@@ -151,8 +169,7 @@ router.post('/login', loginValidator, async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('❌ [API] Erro no endpoint /login:', error.message);
-    console.error('❌ [API] Stack trace:', error.stack);
+    await logError('Erro no endpoint /login', error, { username });
     res.status(500).json({
       error: `Erro interno do servidor: ${error.message}`,
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
@@ -190,7 +207,7 @@ router.post('/register', registerValidator, async (req: Request, res: Response) 
     });
 
   } catch (error: any) {
-    console.error('❌ Erro no registro:', error.message);
+    await logError('Erro no registro', error, { username: req.body?.username });
     res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -226,7 +243,7 @@ router.post('/refresh', refreshTokenValidator, async (req: Request, res: Respons
     });
 
   } catch (error: any) {
-    console.error('❌ Erro no refresh token:', error.message);
+    await logError('Erro no refresh token', error);
     res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -252,7 +269,7 @@ router.get('/me', authMiddleware, async (req: AuthenticatedRequest, res: Respons
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar dados do usuário:', error.message);
+    await logError('Erro ao buscar dados do usuário autenticado', error, { userId: req.user?.id });
     res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -286,7 +303,7 @@ router.post('/change-password', authMiddleware, changePasswordValidator, async (
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao alterar senha:', error.message);
+    await logError('Erro ao alterar senha', error, { userId: req.user?.id });
     res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -312,7 +329,7 @@ router.post('/logout', authMiddleware, async (req: AuthenticatedRequest, res: Re
     });
 
   } catch (error: any) {
-    console.error('❌ Erro no logout:', error.message);
+    await logError('Erro no logout', error, { userId: req.user?.id });
     res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -347,7 +364,9 @@ router.post('/verify-abandon-pin', abandonPinValidator, async (req: Request, res
     });
 
   } catch (error: any) {
-    console.error('❌ Erro na verificação do PIN:', error.message);
+    await logError('Erro na verificação do PIN de abandono', error, {
+      hasPin: Boolean(req.body?.pin)
+    });
     res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -380,7 +399,7 @@ router.get('/default-credentials', async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao verificar credenciais padrão:', error.message);
+    await logError('Erro ao verificar credenciais padrão', error);
     res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -419,7 +438,7 @@ router.post('/forgot-password', forgotPasswordValidator, async (req: Request, re
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao solicitar recuperação de senha:', error.message);
+    await logError('Erro ao solicitar recuperação de senha', error, { email: req.body?.email });
     res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -455,7 +474,9 @@ router.post('/reset-password', resetPasswordValidator, async (req: Request, res:
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao redefinir senha:', error.message);
+    await logError('Erro ao redefinir senha', error, {
+      tokenLength: req.body?.token ? String(req.body.token).length : 0
+    });
     res.status(500).json({
       error: 'Erro interno do servidor'
     });

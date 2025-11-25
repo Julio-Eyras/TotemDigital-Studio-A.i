@@ -3,6 +3,7 @@ import { body, query, param } from 'express-validator';
 import { validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { getClientService } from '../services/clientService';
+import { logError } from '../utils/loggerHelper';
 
 const router = express.Router();
 
@@ -49,7 +50,7 @@ router.get('/',
       
       res.json(result);
     } catch (error) {
-      console.error('Erro ao listar clientes:', error);
+      await logError('Erro ao listar clientes', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -74,7 +75,7 @@ router.get('/:id',
 
       res.json(client);
     } catch (error) {
-      console.error('Erro ao obter cliente:', error);
+      await logError('Erro ao obter cliente', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -100,7 +101,7 @@ router.post('/',
 
       res.status(201).json(newClient);
     } catch (error: any) {
-      console.error('Erro ao criar cliente:', error);
+      await logError('Erro ao criar cliente', error);
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -131,7 +132,7 @@ router.put('/:id',
 
       res.json(updatedClient);
     } catch (error: any) {
-      console.error('Erro ao atualizar cliente:', error);
+      await logError('Erro ao atualizar cliente', error);
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -152,7 +153,7 @@ router.delete('/:id',
       
       res.status(204).send();
     } catch (error: any) {
-      console.error('Erro ao excluir cliente:', error);
+      await logError('Erro ao excluir cliente', error);
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }

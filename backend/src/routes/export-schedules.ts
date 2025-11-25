@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { exportScheduleService } from '../services/exportScheduleService';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { authorizeRole } from '../middleware/auth.middleware';
+import { logError } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -41,7 +42,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Respo
       }
     });
   } catch (error: any) {
-    console.error('❌ Erro ao listar agendamentos:', error.message);
+    await logError('Erro ao listar agendamentos de exportação', error, { filters: req.query });
     res.status(500).json({
       success: false,
       message: 'Erro ao listar agendamentos',
@@ -80,7 +81,7 @@ router.get('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
       data: schedule
     });
   } catch (error: any) {
-    console.error('❌ Erro ao buscar agendamento:', error.message);
+    await logError('Erro ao buscar agendamento de exportação', error, { scheduleId: req.params.id });
     res.status(500).json({
       success: false,
       message: 'Erro ao buscar agendamento',
@@ -126,7 +127,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Resp
       nextExecution: cronValidation.nextExecution
     });
   } catch (error: any) {
-    console.error('❌ Erro ao criar agendamento:', error.message);
+    await logError('Erro ao criar agendamento de exportação', error, { userId: req.user?.id });
     res.status(500).json({
       success: false,
       message: 'Erro ao criar agendamento',
@@ -173,7 +174,7 @@ router.put('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
       message: 'Agendamento atualizado com sucesso'
     });
   } catch (error: any) {
-    console.error('❌ Erro ao atualizar agendamento:', error.message);
+    await logError('Erro ao atualizar agendamento de exportação', error, { scheduleId: req.params.id, userId: req.user?.id });
     res.status(500).json({
       success: false,
       message: 'Erro ao atualizar agendamento',
@@ -207,7 +208,7 @@ router.delete('/:id', authorizeRole(['admin']), async (req: any, res: Response) 
       message: 'Agendamento excluído com sucesso'
     });
   } catch (error: any) {
-    console.error('❌ Erro ao excluir agendamento:', error.message);
+    await logError('Erro ao excluir agendamento de exportação', error, { scheduleId: req.params.id, userId: req.user?.id });
     res.status(500).json({
       success: false,
       message: 'Erro ao excluir agendamento',
@@ -241,7 +242,7 @@ router.post('/:id/execute-now', authorizeRole(['admin', 'manager']), async (req:
       message: 'Execução manual iniciada com sucesso'
     });
   } catch (error: any) {
-    console.error('❌ Erro ao executar agendamento:', error.message);
+    await logError('Erro ao executar agendamento manualmente', error, { scheduleId: req.params.id, userId: req.user?.id });
     res.status(500).json({
       success: false,
       message: 'Erro ao executar agendamento',
@@ -278,7 +279,7 @@ router.post('/validate-cron', authorizeRole(['admin', 'manager']), async (req: a
       }
     });
   } catch (error: any) {
-    console.error('❌ Erro ao validar expressão cron:', error.message);
+    await logError('Erro ao validar expressão cron de exportação', error);
     res.status(500).json({
       success: false,
       message: 'Erro ao validar expressão cron',

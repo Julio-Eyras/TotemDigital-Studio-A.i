@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { emailService } from '../services/emailService';
+import { logError } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -44,7 +45,7 @@ router.get('/status', authorizeRole(['admin']), async (req: Request, res: Respon
       }
     });
   } catch (error: any) {
-    console.error('❌ Erro ao verificar status do email:', error.message);
+    await logError('Erro ao verificar status do email', error, { route: '/api/email/status' });
     res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -96,7 +97,7 @@ router.post('/test',
         }
       });
     } catch (error: any) {
-      console.error('❌ Erro ao enviar email de teste:', error.message);
+      await logError('Erro ao enviar email de teste', error, { route: '/api/email/test', to: req.body.to });
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',

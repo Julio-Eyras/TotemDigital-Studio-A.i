@@ -1,8 +1,8 @@
 import express from 'express';
-import { body, query, param } from 'express-validator';
-import { validationResult } from 'express-validator';
+import { body, query, param, validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { getPlaylistService } from '../services/playlistService';
+import { logError } from '../utils/loggerHelper';
 
 const router = express.Router();
 
@@ -26,8 +26,10 @@ const updatePlaylistValidator = [
 const validateRequest = (req: any, res: any, next: any) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    console.error('❌ Erro de validação ao criar playlist:', errors.array());
-    console.error('❌ Body recebido:', JSON.stringify(req.body, null, 2));
+    logError('Erro de validação ao criar playlist', undefined, {
+      errors: errors.array(),
+      body: req.body
+    }).catch(() => {});
     return res.status(400).json({
       error: 'Dados inválidos',
       message: 'Verifique os dados enviados',
@@ -60,7 +62,7 @@ router.get('/',
       
       res.json(result);
     } catch (error) {
-      console.error('Erro ao listar playlists:', error);
+      await logError('Erro ao listar playlists', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -85,7 +87,7 @@ router.get('/:id',
 
       res.json(playlist);
     } catch (error) {
-      console.error('Erro ao obter playlist:', error);
+      await logError('Erro ao obter playlist', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -110,7 +112,7 @@ router.post('/',
 
       res.status(201).json(newPlaylist);
     } catch (error: any) {
-      console.error('Erro ao criar playlist:', error);
+      await logError('Erro ao criar playlist', error);
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -137,7 +139,7 @@ router.put('/:id',
 
       res.json(updatedPlaylist);
     } catch (error: any) {
-      console.error('Erro ao atualizar playlist:', error);
+      await logError('Erro ao atualizar playlist', error);
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -158,7 +160,7 @@ router.delete('/:id',
       
       res.status(204).send();
     } catch (error: any) {
-      console.error('Erro ao excluir playlist:', error);
+      await logError('Erro ao excluir playlist', error);
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -179,7 +181,7 @@ router.get('/:id/media',
 
       res.json(playlistMedia);
     } catch (error) {
-      console.error('Erro ao obter mídia da playlist:', error);
+      await logError('Erro ao obter mídia da playlist', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -206,7 +208,7 @@ router.post('/:id/media',
         message: 'Mídia adicionada à playlist com sucesso'
       });
     } catch (error: any) {
-      console.error('Erro ao adicionar mídia à playlist:', error);
+      await logError('Erro ao adicionar mídia à playlist', error);
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -228,7 +230,7 @@ router.delete('/:id/media/:itemId',
       
       res.status(204).send();
     } catch (error: any) {
-      console.error('Erro ao remover mídia da playlist:', error);
+      await logError('Erro ao remover mídia da playlist', error);
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }

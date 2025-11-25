@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import * as fs from 'fs';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { exportExecutionService } from '../services/exportExecutionService';
+import { logError } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -42,7 +43,7 @@ router.get('/', authorizeRole(['admin', 'manager', 'auditor']), async (req: any,
       }
     });
   } catch (error: any) {
-    console.error('❌ Erro ao listar execuções:', error.message);
+    await logError('Erro ao listar execuções de exportação', error, { filters: req.query });
     res.status(500).json({
       success: false,
       message: 'Erro ao listar execuções',
@@ -76,7 +77,7 @@ router.get('/:id', authorizeRole(['admin', 'manager', 'auditor']), async (req: a
       data: execution
     });
   } catch (error: any) {
-    console.error('❌ Erro ao buscar execução:', error.message);
+    await logError('Erro ao buscar execução de exportação', error, { executionId: req.params.id });
     res.status(500).json({
       success: false,
       message: 'Erro ao buscar execução',
@@ -114,7 +115,7 @@ router.get('/:id/download', authorizeRole(['admin', 'manager']), async (req: any
 
     res.download(fileInfo.filePath, fileInfo.fileName);
   } catch (error: any) {
-    console.error('❌ Erro ao baixar arquivo de execução:', error.message);
+    await logError('Erro ao baixar arquivo de execução', error, { executionId: req.params.id });
     res.status(500).json({
       success: false,
       message: 'Erro ao baixar arquivo de execução',

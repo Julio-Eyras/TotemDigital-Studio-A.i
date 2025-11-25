@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
+import { logError } from '../utils/loggerHelper';
 import * as QRCode from 'qrcode';
 
 export interface CreateQRCodeRequest {
@@ -228,7 +229,7 @@ export class QRCodeService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar QR Codes:', error.message);
+      await logError('Erro ao buscar QR Codes', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -281,7 +282,7 @@ export class QRCodeService {
       return { ...qrCode, ...info, qrCodeImage };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar QR Code:', error.message);
+      await logError('Erro ao buscar QR Code', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -396,7 +397,7 @@ export class QRCodeService {
       return newQRCode;
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar QR Code:', error.message);
+      await logError('Erro ao criar QR Code', error);
       throw error;
     }
   }
@@ -512,7 +513,7 @@ export class QRCodeService {
       return updatedQRCode;
 
     } catch (error: any) {
-      console.error('❌ Erro ao atualizar QR Code:', error.message);
+      await logError('Erro ao atualizar QR Code', error);
       throw error;
     }
   }
@@ -541,7 +542,7 @@ export class QRCodeService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao remover QR Code:', error.message);
+      await logError('Erro ao remover QR Code', error);
       throw error;
     }
   }
@@ -598,7 +599,7 @@ export class QRCodeService {
       `, [qrCodeId]);
 
     } catch (error: any) {
-      console.error('❌ Erro ao registrar scan:', error.message);
+      await logError('Erro ao registrar scan', error);
       throw error;
     }
   }
@@ -690,7 +691,7 @@ export class QRCodeService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas:', error.message);
+      await logError('Erro ao buscar estatísticas', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -738,7 +739,7 @@ export class QRCodeService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar scans do QR Code:', error.message);
+      await logError('Erro ao buscar scans do QR Code', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -762,7 +763,7 @@ export class QRCodeService {
       return qrCodeDataURL;
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar imagem do QR Code:', error.message);
+      await logError('Erro ao gerar imagem do QR Code', error);
       return '';
     }
   }
@@ -895,7 +896,7 @@ export class QRCodeService {
       return qrCodesWithInfo;
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar QR Codes por cliente:', error.message);
+      await logError('Erro ao buscar QR Codes por cliente', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -953,7 +954,7 @@ export class QRCodeService {
       return qrCodesWithInfo;
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar QR Codes por totem:', error.message);
+      await logError('Erro ao buscar QR Codes por totem', error);
       throw new Error('Erro interno do servidor');
     }
   }

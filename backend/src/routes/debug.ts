@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getDatabase } from '../config/database';
 import fs from 'fs';
 import path from 'path';
+import { logError, logWarn } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -51,8 +52,8 @@ router.get('/player-registration-logs', async (req: Request, res: Response) => {
           systemLogs.push(...lines);
         }
       }
-    } catch (logError) {
-      console.warn('⚠️ Erro ao ler logs do sistema:', logError);
+    } catch (logErr: any) {
+      await logWarn('Erro ao ler logs do sistema', { route: '/api/debug/player-registration-logs', error: logErr });
     }
     
     res.json({
@@ -70,7 +71,7 @@ router.get('/player-registration-logs', async (req: Request, res: Response) => {
       count: totems.length
     });
   } catch (error: any) {
-    console.error('❌ Erro ao obter logs de registro:', error.message);
+    await logError('Erro ao obter logs de registro', error, { route: '/api/debug/player-registration-logs' });
     res.status(500).json({ 
       error: 'Erro ao obter logs',
       message: error.message 
@@ -107,7 +108,7 @@ router.get('/totem/:id', async (req: Request, res: Response) => {
       }
     });
   } catch (error: any) {
-    console.error('❌ Erro ao obter totem:', error.message);
+    await logError('Erro ao obter totem', error, { route: '/api/debug/totem/:id', totemId: req.params.id });
     res.status(500).json({ 
       error: 'Erro ao obter totem',
       message: error.message 
@@ -158,7 +159,7 @@ router.get('/system-info', async (req: Request, res: Response) => {
       }
     });
   } catch (error: any) {
-    console.error('❌ Erro ao obter informações do sistema:', error.message);
+    await logError('Erro ao obter informações do sistema', error, { route: '/api/debug/system-info' });
     res.status(500).json({ 
       error: 'Erro ao obter informações',
       message: error.message 

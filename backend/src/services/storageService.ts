@@ -1,11 +1,14 @@
 /**
- * Storage Service - Smart Signage v2.0
+ * Storage Service - Smart Signage v2.1
  * Serviço de gerenciamento de arquivos
+ * 
+ * Logging: Usa arquivos locais para logs operacionais (erro, debug, execução)
  */
 
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { logInfoSync, logWarnSync, logErrorSync, logDebugSync } from '../utils/loggerHelper';
 
 export interface FileInfo {
   buffer: Buffer;
@@ -23,11 +26,18 @@ export class StorageService {
     // Mesmo que INSTALL_DIR seja diferente, arquivos devem ser salvos em /opt/smart-signage
     const DEFAULT_BASE_PATH = '/opt/smart-signage/public/assets';
     
-    // Tentar obter do mediaConfig primeiro
+    // Inicializar paths
+    this.initializePaths(DEFAULT_BASE_PATH);
+  }
+
+  /**
+   * Inicializa os caminhos de armazenamento
+   */
+  private initializePaths(DEFAULT_BASE_PATH: string): void {
     try {
       const { getStoragePath } = require('../config/mediaConfig');
       const storagePath = getStoragePath();
-      console.log(`📁 [StorageService] getStoragePath() retornou: ${storagePath}`);
+      logDebugSync(`[StorageService] getStoragePath() retornou: ${storagePath}`);
       
       // getStoragePath retorna o caminho completo até uploads, então precisamos extrair o basePath
       // Ex: /opt/smart-signage/public/assets/uploads -> /opt/smart-signage/public/assets
@@ -37,33 +47,31 @@ export class StorageService {
       if (extractedBasePath && extractedBasePath.startsWith('/opt/smart-signage')) {
         this.basePath = extractedBasePath;
         this.uploadsPath = path.join(this.basePath, 'uploads');
-        console.log(`✅ [StorageService] Usando caminho do mediaConfig: ${this.uploadsPath}`);
+        logInfoSync(`[StorageService] Usando caminho do mediaConfig: ${this.uploadsPath}`);
       } else {
         // Se não for /opt/smart-signage, forçar para o padrão
-        console.warn(`⚠️  [StorageService] Caminho do mediaConfig não é /opt/smart-signage: ${extractedBasePath}`);
-        console.warn(`   Forçando uso de: ${DEFAULT_BASE_PATH}`);
+        logWarnSync(`[StorageService] Caminho do mediaConfig não é /opt/smart-signage: ${extractedBasePath}`);
+        logWarnSync(`   Forçando uso de: ${DEFAULT_BASE_PATH}`);
         this.basePath = DEFAULT_BASE_PATH;
         this.uploadsPath = path.join(this.basePath, 'uploads');
       }
     } catch (error: any) {
       // Fallback se mediaConfig não estiver disponível
-      console.warn(`⚠️  [StorageService] Erro ao obter getStoragePath(): ${error.message}`);
-      console.warn(`   Usando caminho padrão: ${DEFAULT_BASE_PATH}`);
+      logWarnSync(`[StorageService] Erro ao obter getStoragePath(): ${error.message}`);
+      logWarnSync(`   Usando caminho padrão: ${DEFAULT_BASE_PATH}`);
       this.basePath = process.env.UPLOAD_PATH || DEFAULT_BASE_PATH;
       
       // Garantir que sempre use /opt/smart-signage mesmo se UPLOAD_PATH estiver errado
       if (!this.basePath.startsWith('/opt/smart-signage')) {
-        console.warn(`⚠️  [StorageService] UPLOAD_PATH não aponta para /opt/smart-signage: ${this.basePath}`);
-        console.warn(`   Forçando uso de: ${DEFAULT_BASE_PATH}`);
+        logWarnSync(`[StorageService] UPLOAD_PATH não aponta para /opt/smart-signage: ${this.basePath}`);
+        logWarnSync(`   Forçando uso de: ${DEFAULT_BASE_PATH}`);
         this.basePath = DEFAULT_BASE_PATH;
       }
       
       this.uploadsPath = path.join(this.basePath, 'uploads');
     }
     
-    console.log(`📁 [StorageService] Caminho final configurado:`);
-    console.log(`   basePath: ${this.basePath}`);
-    console.log(`   uploadsPath: ${this.uploadsPath}`);
+    logInfoSync(`[StorageService] Caminho final configurado: basePath=${this.basePath}, uploadsPath=${this.uploadsPath}`);
   }
 
   /**
@@ -99,17 +107,18 @@ export class StorageService {
       try {
         fs.chmodSync(filePath, 0o644);
       } catch (permError: any) {
-        console.warn(`⚠️ Não foi possível definir permissões do arquivo ${filePath}: ${permError.message}`);
+        logWarnSync(`[StorageService] Não foi possível definir permissões do arquivo ${filePath}`, { error: permError.message });
       }
 
       // Log do caminho final para debug
-      console.log(`✅ Arquivo salvo em: ${filePath}`);
-      console.log(`   Caminho relativo esperado: /assets/uploads/${path.relative(this.uploadsPath, filePath).replace(/\\/g, '/')}`);
+      logDebugSync(`[StorageService] Arquivo salvo em: ${filePath}`, {
+        relativePath: `/assets/uploads/${path.relative(this.uploadsPath, filePath).replace(/\\/g, '/')}`
+      });
 
       return filePath;
 
     } catch (error: any) {
-      console.error('❌ Erro ao salvar arquivo de mídia:', error.message);
+      logErrorSync('Erro ao salvar arquivo de mídia', error, { clientId, mediaName });
       throw new Error('Erro ao salvar arquivo');
     }
   }
@@ -129,7 +138,7 @@ export class StorageService {
       return filePath;
 
     } catch (error: any) {
-      console.error('❌ Erro ao salvar arquivo de backup:', error.message);
+      logErrorSync('Erro ao salvar arquivo de backup', error, { fileName });
       throw new Error('Erro ao salvar backup');
     }
   }
@@ -149,7 +158,7 @@ export class StorageService {
       return filePath;
 
     } catch (error: any) {
-      console.error('❌ Erro ao salvar arquivo de log:', error.message);
+      logErrorSync('Erro ao salvar arquivo de log', error, { fileName });
       throw new Error('Erro ao salvar log');
     }
   }
@@ -161,18 +170,18 @@ export class StorageService {
     try {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
-        console.log(`✅ Arquivo removido: ${filePath}`);
+        logDebugSync(`[StorageService] Arquivo removido: ${filePath}`);
       }
 
       // Remover thumbnail se existir
       const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
       if (fs.existsSync(thumbnailPath)) {
         fs.unlinkSync(thumbnailPath);
-        console.log(`✅ Thumbnail removido: ${thumbnailPath}`);
+        logDebugSync(`[StorageService] Thumbnail removido: ${thumbnailPath}`);
       }
 
     } catch (error: any) {
-      console.error('❌ Erro ao remover arquivo:', error.message);
+      logErrorSync('Erro ao remover arquivo', error, { filePath });
       throw new Error('Erro ao remover arquivo');
     }
   }

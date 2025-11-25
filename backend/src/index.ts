@@ -20,6 +20,7 @@ import { requestLogger } from './middleware/logger.middleware';
 import { authMiddleware } from './middleware/auth.middleware';
 import { getLogger, reloadLogger } from './config/logger';
 import { LogRotationService } from './services/logRotationService';
+import { logInfo, logError, logWarn } from './utils/loggerHelper';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -318,47 +319,47 @@ app.use(errorHandler);
 // =============================================
 
 process.on('SIGTERM', async () => {
-  console.log('🔄 SIGTERM recebido. Iniciando shutdown graceful...');
+  logInfo('SIGTERM recebido. Iniciando shutdown graceful...').catch(() => {});
   
   try {
     await closeExportQueue();
-    console.log('✅ Queue de exportação fechada');
+    logInfo('Queue de exportação fechada').catch(() => {});
     
     await closeAdvancedScheduleQueue();
-    console.log('✅ Queue de agendamento avançado fechada');
+    logInfo('Queue de agendamento avançado fechada').catch(() => {});
     
     await closeRedis();
-    console.log('✅ Redis desconectado');
+    logInfo('Redis desconectado').catch(() => {});
     
     await closeDatabase();
-    console.log('✅ Database desconectado');
+    logInfo('Database desconectado').catch(() => {});
     
     process.exit(0);
   } catch (error) {
-    console.error('❌ Erro durante shutdown:', error);
+    logError('Erro durante shutdown', error).catch(() => {});
     process.exit(1);
   }
 });
 
 process.on('SIGINT', async () => {
-  console.log('🔄 SIGINT recebido. Iniciando shutdown graceful...');
+  logInfo('SIGINT recebido. Iniciando shutdown graceful...').catch(() => {});
   
   try {
     await closeExportQueue();
-    console.log('✅ Queue de exportação fechada');
+    logInfo('Queue de exportação fechada').catch(() => {});
     
     await closeAdvancedScheduleQueue();
-    console.log('✅ Queue de agendamento avançado fechada');
+    logInfo('Queue de agendamento avançado fechada').catch(() => {});
     
     await closeRedis();
-    console.log('✅ Redis desconectado');
+    logInfo('Redis desconectado').catch(() => {});
     
     await closeDatabase();
-    console.log('✅ Database desconectado');
+    logInfo('Database desconectado').catch(() => {});
     
     process.exit(0);
   } catch (error) {
-    console.error('❌ Erro durante shutdown:', error);
+    logError('Erro durante shutdown', error).catch(() => {});
     process.exit(1);
   }
 });
@@ -369,24 +370,24 @@ process.on('SIGINT', async () => {
 
 async function startServer() {
   try {
-    console.log('🚀 Iniciando Smart Signage v2.1...');
+    await logInfo('Iniciando Smart Signage v2.1...');
     
     // Inicializar database PRIMEIRO (necessário para carregar configurações de mídia)
-    console.log('📊 Conectando ao database...');
+    await logInfo('Conectando ao database...');
     await initializeDatabase();
     
     // Carregar configurações de mídia DEPOIS de inicializar o banco
-    console.log('📁 Carregando configurações de mídia do banco de dados...');
+    await logInfo('Carregando configurações de mídia do banco de dados...');
     const { loadMediaConfig } = await import('./config/mediaConfig');
     try {
       await loadMediaConfig();
-      console.log('✅ Configurações de mídia carregadas do banco de dados');
+      await logInfo('Configurações de mídia carregadas do banco de dados');
     } catch (err: any) {
-      console.warn('⚠️ Erro ao carregar configurações de mídia (usando padrões):', err.message);
+      await logWarn('Erro ao carregar configurações de mídia (usando padrões)', { error: err.message });
     }
     
     // Inicializar Redis
-    console.log('🔴 Conectando ao Redis...');
+    await logInfo('Conectando ao Redis...');
     await initializeRedis();
     const redisConnected = await testRedisConnection();
     if (!redisConnected) {
@@ -394,36 +395,36 @@ async function startServer() {
     }
     
     // Inicializar Bull Queue
-    console.log('📦 Inicializando Bull Queue...');
+    await logInfo('Inicializando Bull Queue...');
     initializeExportQueue();
     registerExportWorker();
     
     // Inicializar Bull Queue de Agendamento Avançado
-    console.log('📅 Inicializando Bull Queue de Agendamento Avançado...');
+    await logInfo('Inicializando Bull Queue de Agendamento Avançado...');
     initializeAdvancedScheduleQueue();
     registerAdvancedScheduleWorker();
     
     // Carregar agendamentos ativos
-    console.log('📅 Carregando agendamentos ativos...');
+    await logInfo('Carregando agendamentos ativos...');
     await exportScheduleService.loadAllActiveSchedules();
     
     // Inicializar logger
-    console.log('📋 Inicializando sistema de logs...');
+    await logInfo('Inicializando sistema de logs...');
     const logger = await getLogger();
     logger.info('Smart Signage v2.1 iniciando...');
     
     // Inicializar Email Service
-    console.log('📧 Inicializando Email Service...');
+    await logInfo('Inicializando Email Service...');
     const { emailService } = await import('./services/emailService');
     if (emailService.isServiceEnabled()) {
       const emailConnected = await emailService.testConnection();
       if (emailConnected) {
-        console.log('✅ Email Service configurado e conectado');
+        await logInfo('Email Service configurado e conectado');
       } else {
-        console.warn('⚠️ Email Service configurado mas não conectado');
+        await logWarn('Email Service configurado mas não conectado');
       }
     } else {
-      console.log('ℹ️ Email Service desabilitado (SMTP não configurado)');
+      await logInfo('Email Service desabilitado (SMTP não configurado)');
     }
     
     // Inicializar serviço de rotação de logs
@@ -438,7 +439,7 @@ async function startServer() {
     }, 60 * 60 * 1000); // 1 hora
     
     // Inicializar serviços
-    console.log('⚙️ Inicializando serviços...');
+    await logInfo('Inicializando serviços...');
     const systemService = new SystemService();
     await systemService.initialize();
     
@@ -463,7 +464,7 @@ async function startServer() {
     });
     
   } catch (error: any) {
-    console.error('❌ Erro ao iniciar servidor:', error.message);
+    await logError('Erro ao iniciar servidor', error);
     process.exit(1);
   }
 }

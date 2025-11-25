@@ -11,6 +11,19 @@ O **Smart Signage Pro v2.1** é um sistema completo e robusto de sinalização d
 
 **v2.1:** Migração completa para PostgreSQL direto (Prisma removido) - Melhor performance e simplicidade.
 
+### 🎯 **Status do Projeto**
+- ✅ **Funcionalidades:** 100% implementadas
+- ✅ **Serviços:** 20+ serviços completos
+- ✅ **API REST:** 100+ endpoints
+- ⚠️ **Qualidade:** Melhorias em andamento (logging, types, testes)
+
+### 📋 **Estratégia de Logging**
+O sistema utiliza uma estratégia híbrida de logging:
+- **Arquivos locais**: Logs operacionais (erro, debug, execução) - Performance otimizada
+- **Banco de dados**: Eventos importantes (playback, anúncios, BI, campanhas) - Auditoria completa
+
+📚 **Documentação completa:** Veja `DOCUMENTACAO_ESTRATEGIA_LOGGING.md`
+
 ### 🎯 **Características Principais**
 - ✅ **100% Implementado** - Nenhum mock ou simulação
 - ✅ **Interface Moderna** - Material-UI com design responsivo
