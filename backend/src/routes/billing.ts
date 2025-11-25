@@ -6,7 +6,7 @@
 import { Router } from 'express';
 import { BillingService } from '../services/billingService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
-import { logError } from '../utils/loggerHelper';
+import { logError, logErrorSync } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -588,7 +588,8 @@ function convertBillingsToCSV(billings: any[]): string {
     return csvContent;
 
   } catch (error: any) {
-    logError('Erro ao converter faturas para CSV', error).catch(() => {});
+    // Usar versão síncrona pois esta função não é async
+    logErrorSync('Erro ao converter faturas para CSV', error);
     return 'Erro ao converter dados para CSV';
   }
 }
