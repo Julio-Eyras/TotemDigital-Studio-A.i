@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as zlib from 'zlib';
 import { getDatabase } from '../config/database';
 import { NotificationService } from './notificationService';
+import { logError, logInfo, logWarn } from '../utils/loggerHelper';
 
 export interface LogRotationConfig {
   maxSize: number; // bytes
@@ -78,7 +79,7 @@ export class LogRotationService {
         logDirectory: config['log.directory'] || '/opt/smart-signage/Logs'
       };
     } catch (error: any) {
-      console.error('❌ Erro ao obter configurações de logs:', error.message);
+      await logError('Erro ao obter configurações de logs', error, {});
       // Retornar valores padrão
       return {
         maxSize: 100 * 1024 * 1024, // 100MB
@@ -146,7 +147,7 @@ export class LogRotationService {
         percentUsed: (usedSpace / totalSpace) * 100
       };
     } catch (error: any) {
-      console.error('❌ Erro ao obter espaço em disco:', error.message);
+      await logError('Erro ao obter espaço em disco', error, { path });
       return {
         total: 0,
         free: 0,
@@ -189,7 +190,7 @@ export class LogRotationService {
 
       return logFiles.sort((a, b) => b.modified.getTime() - a.modified.getTime());
     } catch (error: any) {
-      console.error('❌ Erro ao listar arquivos de log:', error.message);
+      await logError('Erro ao listar arquivos de log', error, { directoryPath });
       return [];
     }
   }
@@ -289,7 +290,7 @@ export class LogRotationService {
         details: { message: 'Não é necessário rotacionar logs' }
       };
     } catch (error: any) {
-      console.error('❌ Erro ao verificar rotação de logs:', error.message);
+      await logError('Erro ao verificar rotação de logs', error, {});
       return {
         needsRotation: false,
         reason: 'error',
@@ -332,13 +333,13 @@ export class LogRotationService {
                 fs.writeFileSync(gzPath, compressed);
                 fs.unlinkSync(newPath);
               } catch (zipError: any) {
-                console.error(`❌ Erro ao comprimir arquivo ${file.name}:`, zipError.message);
+                await logError('Erro ao comprimir arquivo', zipError, { fileName: file.name });
               }
             }
 
             filesRotated++;
           } catch (error: any) {
-            console.error(`❌ Erro ao rotacionar arquivo ${file.name}:`, error.message);
+            await logError('Erro ao rotacionar arquivo', error, { fileName: file.name });
           }
         }
       }
@@ -351,7 +352,7 @@ export class LogRotationService {
             fs.unlinkSync(file.path);
             filesDeleted++;
           } catch (error: any) {
-            console.error(`❌ Erro ao excluir arquivo ${file.name}:`, error.message);
+            await logError('Erro ao excluir arquivo', error, { fileName: file.name });
           }
         }
       }
@@ -374,7 +375,7 @@ export class LogRotationService {
         }
       };
     } catch (error: any) {
-      console.error('❌ Erro ao rotacionar logs:', error.message);
+      await logError('Erro ao rotacionar logs', error, {});
       return {
         success: false,
         filesRotated: 0,
@@ -450,7 +451,7 @@ export class LogRotationService {
             timestamp: new Date().toISOString()
           }
         }, 1).catch((error: any) => {
-          console.error(`❌ Erro ao criar notificação para admin ${admin.id}:`, error.message);
+          await logError('Erro ao criar notificação para admin', error, { adminId: admin.id });
         });
       }
 
@@ -462,7 +463,7 @@ export class LogRotationService {
         details: details
       }).catch(() => {});
     } catch (error: any) {
-      console.error('❌ Erro ao enviar alerta de rotação:', error.message);
+      await logError('Erro ao enviar alerta de rotação', error, {});
     }
   }
 

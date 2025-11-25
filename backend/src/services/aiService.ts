@@ -6,6 +6,7 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import axios from 'axios';
+import { logError } from '../utils/loggerHelper';
 
 export interface AIRequest {
   prompt: string;
@@ -174,7 +175,7 @@ export class AIService {
       return aiResponse;
 
     } catch (error: any) {
-      console.error('❌ Erro ao processar requisição de IA:', error.message);
+      await logError('Erro ao processar requisição de IA', error, { request });
       throw error;
     }
   }
@@ -205,7 +206,7 @@ export class AIService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro na requisição Ollama:', error.message);
+      await logError('Erro na requisição Ollama', error, { prompt, model });
       throw new Error('Erro ao processar requisição via Ollama');
     }
   }
@@ -250,7 +251,7 @@ export class AIService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro na requisição OpenAI:', error.message);
+      await logError('Erro na requisição OpenAI', error, { prompt, model });
       throw new Error('Erro ao processar requisição via OpenAI');
     }
   }
@@ -291,7 +292,7 @@ export class AIService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro na requisição Anthropic:', error.message);
+      await logError('Erro na requisição Anthropic', error, { prompt, model });
       throw new Error('Erro ao processar requisição via Anthropic');
     }
   }
@@ -321,7 +322,7 @@ export class AIService {
       ]);
 
     } catch (error: any) {
-      console.error('❌ Erro ao salvar requisição de IA:', error.message);
+      await logError('Erro ao salvar requisição de IA', error, { requestId });
       // Não falhar a requisição por erro de salvamento
     }
   }
@@ -405,7 +406,7 @@ export class AIService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar requisições de IA:', error.message);
+      await logError('Erro ao buscar requisições de IA', error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -488,7 +489,7 @@ export class AIService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar estatísticas de IA:', error.message);
+      await logError('Erro ao buscar estatísticas de IA', error, { days });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -516,7 +517,7 @@ export class AIService {
       return suggestions;
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar sugestões de conteúdo:', error.message);
+      await logError('Erro ao gerar sugestões de conteúdo', error, { context });
       throw new Error('Erro ao gerar sugestões de conteúdo');
     }
   }
@@ -544,7 +545,7 @@ export class AIService {
       return response.response;
 
     } catch (error: any) {
-      console.error('❌ Erro ao analisar performance da campanha:', error.message);
+      await logError('Erro ao analisar performance da campanha', error, { campaignId });
       throw new Error('Erro ao analisar performance da campanha');
     }
   }
@@ -574,7 +575,7 @@ export class AIService {
       return response.response;
 
     } catch (error: any) {
-      console.error('❌ Erro ao gerar relatório inteligente:', error.message);
+      await logError('Erro ao gerar relatório inteligente', error, { filters });
       throw new Error('Erro ao gerar relatório inteligente');
     }
   }

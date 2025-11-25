@@ -7,6 +7,7 @@ import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { getAdvancedScheduleQueue, AdvancedScheduleJobData } from '../config/queue';
 import { parseExpression } from 'cron-parser';
+import { logError, logInfo } from '../utils/loggerHelper';
 
 export interface CreateAdvancedScheduleRequest {
   name: string;
@@ -152,11 +153,11 @@ export class AdvancedScheduleService {
         scheduleName: data.name,
         scheduleType: data.scheduleType,
         targetId: data.targetId
-      }).catch(e => console.error('Erro ao registrar log:', e.message));
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId: schedule.schedule_id }).catch(() => {}));
 
       return this.mapToAdvancedSchedule(schedule);
     } catch (error: any) {
-      console.error('❌ Erro ao criar agendamento avançado:', error.message);
+      await logError('Erro ao criar agendamento avançado', error, { data });
       throw error;
     }
   }
@@ -223,9 +224,9 @@ export class AdvancedScheduleService {
         }
       );
 
-      console.log(`✅ Job registrado para agendamento ${scheduleId}`);
+      await logInfo('Job registrado para agendamento', { scheduleId });
     } catch (error: any) {
-      console.error('❌ Erro ao registrar job:', error.message);
+      await logError('Erro ao registrar job', error, { scheduleId });
       throw error;
     }
   }
@@ -265,7 +266,7 @@ export class AdvancedScheduleService {
 
       return schedules.map(s => this.mapToAdvancedSchedule(s));
     } catch (error: any) {
-      console.error('❌ Erro ao buscar agendamentos:', error.message);
+      await logError('Erro ao buscar agendamentos', error, { filters });
       throw error;
     }
   }
@@ -285,7 +286,7 @@ export class AdvancedScheduleService {
 
       return this.mapToAdvancedSchedule(schedule);
     } catch (error: any) {
-      console.error('❌ Erro ao buscar agendamento:', error.message);
+      await logError('Erro ao buscar agendamento', error, { scheduleId });
       throw error;
     }
   }
@@ -378,7 +379,7 @@ export class AdvancedScheduleService {
       await this.getAuditService().log('schedule', 'advanced_schedule_updated', userId, {
         scheduleId,
         changes: Object.keys(data)
-      }).catch(e => console.error('Erro ao registrar log:', e.message));
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId: schedule.schedule_id }).catch(() => {}));
 
       const updated = await this.getScheduleById(scheduleId);
       if (!updated) {
@@ -387,7 +388,7 @@ export class AdvancedScheduleService {
 
       return updated;
     } catch (error: any) {
-      console.error('❌ Erro ao atualizar agendamento:', error.message);
+      await logError('Erro ao atualizar agendamento', error, { scheduleId, data });
       throw error;
     }
   }
@@ -402,10 +403,10 @@ export class AdvancedScheduleService {
       
       if (job) {
         await job.remove();
-        console.log(`✅ Job removido para agendamento ${scheduleId}`);
+        await logInfo('Job removido para agendamento', { scheduleId });
       }
     } catch (error: any) {
-      console.error('❌ Erro ao remover job:', error.message);
+      await logError('Erro ao remover job', error, { scheduleId });
       // Não falhar se o job não existir
     }
   }
@@ -432,9 +433,9 @@ export class AdvancedScheduleService {
       await this.getAuditService().log('schedule', 'advanced_schedule_deleted', userId, {
         scheduleId,
         scheduleName: schedule.name
-      }).catch(e => console.error('Erro ao registrar log:', e.message));
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId: schedule.schedule_id }).catch(() => {}));
     } catch (error: any) {
-      console.error('❌ Erro ao excluir agendamento:', error.message);
+      await logError('Erro ao excluir agendamento', error, { scheduleId });
       throw error;
     }
   }

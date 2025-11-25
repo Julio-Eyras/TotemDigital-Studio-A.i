@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
+import { logError } from '../utils/loggerHelper';
 
 export interface SystemSetting {
   id: number;
@@ -136,7 +137,7 @@ export class SettingsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar configurações:', error.message);
+      await logError('Erro ao buscar configurações', error, { category });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -176,7 +177,7 @@ export class SettingsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao buscar configuração:', error.message);
+      await logError('Erro ao buscar configuração', error, { key });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -247,7 +248,7 @@ export class SettingsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao atualizar configurações:', error.message);
+      await logError('Erro ao atualizar configurações', error, { updates });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -280,7 +281,7 @@ export class SettingsService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao resetar configuração:', error.message);
+      await logError('Erro ao resetar configuração', error, { key });
       throw error;
     }
   }
@@ -302,7 +303,7 @@ export class SettingsService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao resetar todas as configurações:', error.message);
+      await logError('Erro ao resetar todas as configurações', error, {});
       throw new Error('Erro interno do servidor');
     }
   }
@@ -360,7 +361,7 @@ export class SettingsService {
       return newSetting;
 
     } catch (error: any) {
-      console.error('❌ Erro ao criar configuração:', error.message);
+      await logError('Erro ao criar configuração', error, { data });
       throw error;
     }
   }
@@ -387,7 +388,7 @@ export class SettingsService {
       });
 
     } catch (error: any) {
-      console.error('❌ Erro ao remover configuração:', error.message);
+      await logError('Erro ao remover configuração', error, { key });
       throw error;
     }
   }
@@ -443,7 +444,7 @@ export class SettingsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao validar configurações:', error.message);
+      await logError('Erro ao validar configurações', error, { settings });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -467,7 +468,7 @@ export class SettingsService {
       return exported;
 
     } catch (error: any) {
-      console.error('❌ Erro ao exportar configurações:', error.message);
+      await logError('Erro ao exportar configurações', error, { category });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -513,7 +514,7 @@ export class SettingsService {
       };
 
     } catch (error: any) {
-      console.error('❌ Erro ao importar configurações:', error.message);
+      await logError('Erro ao importar configurações', error, { settings });
       throw new Error('Erro interno do servidor');
     }
   }
