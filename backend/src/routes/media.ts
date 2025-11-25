@@ -214,7 +214,10 @@ router.post('/upload',
       
       // Log após multer processar (apenas em desenvolvimento)
       if (process.env.NODE_ENV === 'development' && req.file) {
-        logDebug('Multer processou', { file: { fieldname: req.file.fieldname, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size, filename: req.file.filename } }).catch(() => {});
+        await logDebug('Multer processou', { file: { fieldname: req.file.fieldname, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size, filename: req.file.filename } }).catch((logErr) => {
+          // Apenas suprime erros de logging, não erros de programação
+          console.warn('Failed to log multer processing:', logErr);
+        });
       }
       
       next();
