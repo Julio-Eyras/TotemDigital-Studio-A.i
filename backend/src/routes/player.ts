@@ -410,7 +410,7 @@ router.post('/heartbeat',
       }
 
       const { uin, token } = req.query;
-      const { executedCommands, metrics } = req.body;
+      const { executedCommands, metrics, status, version, firmwareVersion, ipAddress: heartbeatIp, config } = req.body || {};
 
       // Validar token
       if (!validateTotemToken(uin as string, token as string)) {
@@ -427,12 +427,16 @@ router.post('/heartbeat',
       const db = getDatabase();
       const totemId = (totem as any).id;
 
-      // Atualizar heartbeat
-      await db.executeRaw(`
-        UPDATE totems 
-        SET last_heartbeat = CURRENT_TIMESTAMP, last_seen = CURRENT_TIMESTAMP
-        WHERE totem_id = ?
-      `, [totemId]);
+      // Atualizar heartbeat via TotemService (registra eventos automaticamente)
+      await totemService.processHeartbeat({
+        totemId,
+        status: status || 'online',
+        version,
+        firmwareVersion,
+        ipAddress: heartbeatIp || req.ip || req.socket.remoteAddress || undefined,
+        config,
+        metrics
+      });
 
             // Marcar comandos como executados
             if (executedCommands && Array.isArray(executedCommands) && executedCommands.length > 0) {
