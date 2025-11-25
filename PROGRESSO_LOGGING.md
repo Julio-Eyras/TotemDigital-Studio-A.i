@@ -205,13 +205,30 @@
 
 ## 🎯 **PRÓXIMOS PASSOS**
 
-1. ✅ **Migração de console.log COMPLETA!**
-2. ⏳ Integrar EventLogService em mais pontos críticos (playback, campanhas)
-3. ⏳ Aplicar/validar migração do banco de dados `event_logs`
-4. ⏳ Testes e validação do sistema de logging
-5. ⏳ Documentação final do sistema de logging
+1. ✅ **Migração de console.log COMPLETA em serviços e rotas principais!**
+2. ✅ **Sanitização de dados sensíveis aplicada em todos os logs de user input**
+3. ✅ **Bugs críticos de logging corrigidos (race conditions, shutdown handlers)**
+4. ⏳ Aplicar/validar migração do banco de dados `event_logs`
+5. ⏳ Revisar console.log restantes em arquivos de configuração/middleware (108 ocorrências em 17 arquivos)
+6. ⏳ Testes e validação do sistema de logging
+7. ⏳ Documentação final do sistema de logging
 
 ---
 
-**Última atualização:** 2025-11-25
+## 🔒 **SEGURANÇA**
+
+### **Sanitização de Dados Sensíveis** ✅
+- ✅ Função `sanitizeForLogging()` criada em `loggerHelper.ts`
+- ✅ Aplicada em todos os logs que usam `req.body`:
+  - `campaigns.ts` (3 ocorrências)
+  - `media.ts` (2 ocorrências)
+  - `player.ts` (1 ocorrência)
+  - `auth.ts` (2 ocorrências)
+  - `advanced-schedules.ts` (2 ocorrências)
+  - `email.ts` (1 ocorrência)
+- ✅ Campos sensíveis removidos: password, token, apiKey, secret, authorization, etc.
+
+---
+
+**Última atualização:** 2025-01-XX
 
