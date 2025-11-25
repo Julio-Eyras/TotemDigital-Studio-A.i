@@ -92,13 +92,35 @@
 - ✅ Transições de status geram eventos `TOTEM_ONLINE/OFFLINE/ERROR`
 - ✅ Metadados incluem IP, versão, firmware e métricas
 
+### 18. **SmartPlaylistService** ✅
+- ✅ 16 substituições de `console.error` por `logError`
+- ✅ Contexto adicionado (playlistId, rules, filters, request)
+- ✅ Total: 16 substituições
+
+### 19. **ExportScheduleService** ✅
+- ✅ 18 substituições de `console.error/log` por `logError/logInfo`
+- ✅ Contexto adicionado (scheduleId, queryId, cronExpression, filters)
+- ✅ Total: 18 substituições
+
+### 20. **AuditService** ✅
+- ✅ 14 substituições de `console.error/log` por `logError/logInfo`
+- ✅ Contexto adicionado (entity, action, userId, filters, metadata)
+- ✅ Total: 14 substituições
+
 ---
 
 ## ⏳ **SERVIÇOS PENDENTES**
 
 ### Serviços com console.log:
-- ⏳ `analyticsService.ts` - ~5 ocorrências
-- ⏳ Outros serviços - ~800 ocorrências
+- ⏳ `storageService.ts` - ~20 ocorrências
+- ⏳ `emailService.ts` - ~14 ocorrências
+- ⏳ `notificationService.ts` - ~13 ocorrências
+- ⏳ `advancedScheduleService.ts` - ~12 ocorrências
+- ⏳ `settingsService.ts` - ~10 ocorrências
+- ⏳ `aiService.ts` - ~10 ocorrências
+- ⏳ `logRotationService.ts` - ~10 ocorrências
+- ⏳ `exportQueryService.ts` - ~9 ocorrências
+- ⏳ Outros serviços - ~55 ocorrências
 
 ### Rotas com console.log:
 - ✅ **TODAS AS ROTAS CONCLUÍDAS!** 🎉
@@ -107,9 +129,9 @@
 
 ## 📊 **ESTATÍSTICAS**
 
-- **Substituições Realizadas:** ~143
-- **Substituições Restantes:** ~737
-- **Progresso:** ~16.3%
+- **Substituições Realizadas:** ~191
+- **Substituições Restantes:** ~689
+- **Progresso:** ~21.7%
 
 ---
 
