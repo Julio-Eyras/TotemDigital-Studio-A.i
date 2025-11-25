@@ -8,7 +8,7 @@
 import { Router } from 'express';
 import { CampaignService } from '../services/campaignService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
-import { logError, logInfo } from '../utils/loggerHelper';
+import { logError, logInfo, logDebug } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from '../services/eventLogService';
 
 const router = Router();
@@ -209,7 +209,6 @@ router.post('/', async (req: any, res) => {
   try {
     const campaignData = req.body;
     
-    const { logDebug, logError, logInfo } = await import('../utils/loggerHelper');
     await logDebug('[Campaign] Dados recebidos', { campaignData, user: { userId: req.user?.userId || req.user?.id, role: req.user?.role, clientId: req.user?.clientId } });
 
     // Validar campos obrigatórios
@@ -307,7 +306,6 @@ router.post('/', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    const { logError } = await import('../utils/loggerHelper');
     await logError('Erro ao criar campanha', error, { campaignData });
     res.status(400).json({
       success: false,
