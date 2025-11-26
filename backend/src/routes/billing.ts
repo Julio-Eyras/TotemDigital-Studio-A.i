@@ -392,7 +392,7 @@ router.post('/:id/payment', async (req: any, res) => {
  * @desc Marca faturas como vencidas
  * @access Private (Admin, Manager)
  */
-router.post('/mark-overdue', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.post('/mark-overdue', authorizeRole(['admin', 'manager']), async (_req, res) => {
   try {
     const count = await getBillingService().markOverdueBillings();
 
@@ -506,7 +506,7 @@ router.post('/:id/cancel', authorizeRole(['admin', 'manager']), async (req: any,
  * @desc Exporta faturas
  * @access Private (Admin, Manager)
  */
-router.get('/export', authorizeRole(['admin', 'manager']), async (_req, res) => {
+router.get('/export', authorizeRole(['admin', 'manager']), async (req, res) => {
   try {
     const {
       clientId,

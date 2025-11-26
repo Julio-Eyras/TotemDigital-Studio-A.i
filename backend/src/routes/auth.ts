@@ -379,7 +379,7 @@ router.post('/verify-abandon-pin', abandonPinValidator, async (req: Request, res
  * GET /api/auth/default-credentials
  * Retorna credenciais padrão para primeira execução
  */
-router.get('/default-credentials', async (req: Request, res: Response) => {
+router.get('/default-credentials', async (_req: Request, res: Response) => {
   try {
     // Verificar se é primeira execução (sem usuários)
     const { getDatabase } = await import('../config/database');
