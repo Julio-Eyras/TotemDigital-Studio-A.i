@@ -5,6 +5,7 @@
 
 import Redis from 'ioredis';
 import dotenv from 'dotenv';
+import { logInfoSync, logErrorSync, logWarnSync } from '../utils/loggerHelper';
 
 dotenv.config();
 
@@ -39,19 +40,31 @@ export function initializeRedis(): Redis {
     redisClient = new Redis(redisConfig);
     
     redisClient.on('connect', () => {
-      console.log('✅ Redis conectado com sucesso');
+      logInfoSync('Redis conectado com sucesso', {
+        host: redisConfig.host,
+        port: redisConfig.port
+      });
     });
     
     redisClient.on('error', (err) => {
-      console.error('❌ Erro no Redis:', err.message);
+      logErrorSync('Erro no Redis', err, {
+        host: redisConfig.host,
+        port: redisConfig.port
+      });
     });
     
     redisClient.on('close', () => {
-      console.log('⚠️ Conexão Redis fechada');
+      logWarnSync('Conexão Redis fechada', {
+        host: redisConfig.host,
+        port: redisConfig.port
+      });
     });
     
     redisClient.on('reconnecting', () => {
-      console.log('🔄 Reconectando ao Redis...');
+      logInfoSync('Reconectando ao Redis', {
+        host: redisConfig.host,
+        port: redisConfig.port
+      });
     });
   }
   
@@ -75,7 +88,7 @@ export async function closeRedis(): Promise<void> {
   if (redisClient) {
     await redisClient.quit();
     redisClient = null;
-    console.log('✅ Redis desconectado');
+    logInfoSync('Redis desconectado', {});
   }
 }
 
@@ -88,7 +101,10 @@ export async function testRedisConnection(): Promise<boolean> {
     const result = await client.ping();
     return result === 'PONG';
   } catch (error) {
-    console.error('❌ Erro ao testar conexão Redis:', error);
+    logErrorSync('Erro ao testar conexão Redis', error, {
+      host: redisConfig.host,
+      port: redisConfig.port
+    });
     return false;
   }
 }

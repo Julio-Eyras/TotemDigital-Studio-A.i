@@ -5,6 +5,7 @@
 
 import Bull from 'bull';
 import { getRedisClient } from './redis';
+import { logInfoSync, logErrorSync, logWarnSync } from '../utils/loggerHelper';
 
 // Configuração do Redis para Bull
 const redisConfig = {
@@ -41,30 +42,39 @@ export function initializeExportQueue(): Bull.Queue {
     });
 
     exportQueue.on('error', (error) => {
-      console.error('❌ Erro na queue de exportação:', error);
+      logErrorSync('Erro na queue de exportação', error, {});
     });
 
     exportQueue.on('waiting', (jobId) => {
-      console.log(`⏳ Job ${jobId} aguardando processamento`);
+      logInfoSync('Job aguardando processamento', { jobId, queue: 'export' });
     });
 
     exportQueue.on('active', (job) => {
-      console.log(`🔄 Processando job ${job.id} - Exportação ${job.data.scheduleId}`);
+      logInfoSync('Processando job de exportação', { 
+        jobId: job.id, 
+        scheduleId: job.data.scheduleId 
+      });
     });
 
     exportQueue.on('completed', (job, result) => {
-      console.log(`✅ Job ${job.id} concluído - ${result.recordsExported} registros exportados`);
+      logInfoSync('Job de exportação concluído', { 
+        jobId: job.id, 
+        recordsExported: result.recordsExported 
+      });
     });
 
     exportQueue.on('failed', (job, err) => {
-      console.error(`❌ Job ${job?.id} falhou:`, err.message);
+      logErrorSync('Job de exportação falhou', err, { 
+        jobId: job?.id,
+        scheduleId: job?.data?.scheduleId 
+      });
     });
 
     exportQueue.on('stalled', (job) => {
-      console.warn(`⚠️ Job ${job.id} travado`);
+      logWarnSync('Job de exportação travado', { jobId: job.id });
     });
 
-    console.log('✅ Queue de exportação inicializada');
+    logInfoSync('Queue de exportação inicializada', {});
   }
 
   return exportQueue;
@@ -87,7 +97,7 @@ export async function closeExportQueue(): Promise<void> {
   if (exportQueue) {
     await exportQueue.close();
     exportQueue = null;
-    console.log('✅ Queue de exportação fechada');
+    logInfoSync('Queue de exportação fechada', {});
   }
 }
 
@@ -136,30 +146,42 @@ export function initializeAdvancedScheduleQueue(): Bull.Queue {
     });
 
     advancedScheduleQueue.on('error', (error) => {
-      console.error('❌ Erro na queue de agendamento avançado:', error);
+      logErrorSync('Erro na queue de agendamento avançado', error, {});
     });
 
     advancedScheduleQueue.on('waiting', (jobId) => {
-      console.log(`⏳ Job ${jobId} aguardando processamento (agendamento avançado)`);
+      logInfoSync('Job aguardando processamento (agendamento avançado)', { 
+        jobId, 
+        queue: 'advanced-schedule' 
+      });
     });
 
     advancedScheduleQueue.on('active', (job) => {
-      console.log(`🔄 Processando job ${job.id} - Agendamento ${job.data.scheduleId}`);
+      logInfoSync('Processando job de agendamento avançado', { 
+        jobId: job.id, 
+        scheduleId: job.data.scheduleId 
+      });
     });
 
     advancedScheduleQueue.on('completed', (job, result) => {
-      console.log(`✅ Job ${job.id} concluído - Agendamento ${job.data.scheduleId}`);
+      logInfoSync('Job de agendamento avançado concluído', { 
+        jobId: job.id, 
+        scheduleId: job.data.scheduleId 
+      });
     });
 
     advancedScheduleQueue.on('failed', (job, err) => {
-      console.error(`❌ Job ${job?.id} falhou:`, err.message);
+      logErrorSync('Job de agendamento avançado falhou', err, { 
+        jobId: job?.id,
+        scheduleId: job?.data?.scheduleId 
+      });
     });
 
     advancedScheduleQueue.on('stalled', (job) => {
-      console.warn(`⚠️ Job ${job.id} travado`);
+      logWarnSync('Job de agendamento avançado travado', { jobId: job.id });
     });
 
-    console.log('✅ Queue de agendamento avançado inicializada');
+    logInfoSync('Queue de agendamento avançado inicializada', {});
   }
 
   return advancedScheduleQueue;
@@ -182,7 +204,7 @@ export async function closeAdvancedScheduleQueue(): Promise<void> {
   if (advancedScheduleQueue) {
     await advancedScheduleQueue.close();
     advancedScheduleQueue = null;
-    console.log('✅ Queue de agendamento avançado fechada');
+    logInfoSync('Queue de agendamento avançado fechada', {});
   }
 }
 

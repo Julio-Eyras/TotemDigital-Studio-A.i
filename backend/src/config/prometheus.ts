@@ -132,7 +132,8 @@ function convertPrometheusResponseToTable(prometheusResponse: any): any[] {
     return results;
 
   } catch (error: any) {
-    console.error('❌ Erro ao converter resposta do Prometheus:', error.message);
+    const { logErrorSync } = require('../utils/loggerHelper');
+    logErrorSync('Erro ao converter resposta do Prometheus', error, {});
     return [];
   }
 }
@@ -174,7 +175,8 @@ function convertPrometheusInstantResponseToTable(prometheusResponse: any): any[]
     return results;
 
   } catch (error: any) {
-    console.error('❌ Erro ao converter resposta do Prometheus:', error.message);
+    const { logErrorSync } = require('../utils/loggerHelper');
+    logErrorSync('Erro ao converter resposta do Prometheus (instant)', error, {});
     return [];
   }
 }
@@ -196,7 +198,8 @@ export async function testPrometheusConnection(): Promise<boolean> {
     return response.status === 200;
 
   } catch (error) {
-    console.error('❌ Erro ao testar conexão Prometheus:', error);
+    const { logErrorSync } = require('../utils/loggerHelper');
+    logErrorSync('Erro ao testar conexão Prometheus', error, {});
     return false;
   }
 }

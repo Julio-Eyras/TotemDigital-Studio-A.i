@@ -122,7 +122,8 @@ function convertGrafanaResponseToTable(grafanaResponse: any): any[] {
     return results;
 
   } catch (error: any) {
-    console.error('❌ Erro ao converter resposta do Grafana:', error.message);
+    const { logErrorSync } = require('../utils/loggerHelper');
+    logErrorSync('Erro ao converter resposta do Grafana', error, {});
     return [];
   }
 }
@@ -147,7 +148,8 @@ export async function testGrafanaConnection(): Promise<boolean> {
     return response.status === 200;
 
   } catch (error) {
-    console.error('❌ Erro ao testar conexão Grafana:', error);
+    const { logErrorSync } = require('../utils/loggerHelper');
+    logErrorSync('Erro ao testar conexão Grafana', error, {});
     return false;
   }
 }

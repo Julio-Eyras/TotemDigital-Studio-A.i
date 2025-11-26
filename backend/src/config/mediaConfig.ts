@@ -112,7 +112,9 @@ export async function loadMediaConfig(): Promise<void> {
     // Verificar se o banco está inicializado antes de tentar buscar configurações
     const db = getDatabase();
     if (!db) {
-      console.warn('⚠️ Database não inicializado ainda - usando valores padrão para configurações de mídia');
+      // Usar logWarnSync pois o logger pode não estar disponível ainda
+      const { logWarnSync } = require('../utils/loggerHelper');
+      logWarnSync('Database não inicializado ainda - usando valores padrão para configurações de mídia', {});
       // Usar valores padrão sem tentar acessar o banco
       configCache = {
         maxSize: 500 * 1024 * 1024,
@@ -176,9 +178,11 @@ export async function loadMediaConfig(): Promise<void> {
       lastUpdated: Date.now()
     };
 
-    console.log('✅ Configurações de mídia carregadas do banco de dados');
+    const { logInfoSync } = require('../utils/loggerHelper');
+    logInfoSync('Configurações de mídia carregadas do banco de dados', {});
   } catch (error: any) {
-    console.error('❌ Erro ao carregar configurações de mídia:', error.message);
+    const { logErrorSync } = require('../utils/loggerHelper');
+    logErrorSync('Erro ao carregar configurações de mídia', error, {});
     // Usar valores padrão em caso de erro
     configCache = {
       maxSize: 500 * 1024 * 1024,
@@ -203,7 +207,8 @@ export function getMediaConfig() {
   if (!configCache || (Date.now() - configCache.lastUpdated) > CACHE_TTL) {
     // Carregar de forma assíncrona (não bloquear)
     loadMediaConfig().catch(err => {
-      console.error('❌ Erro ao recarregar configurações de mídia:', err);
+      const { logErrorSync } = require('../utils/loggerHelper');
+      logErrorSync('Erro ao recarregar configurações de mídia', err, {});
     });
   }
 
