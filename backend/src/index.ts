@@ -20,7 +20,7 @@ import { requestLogger } from './middleware/logger.middleware';
 import { authMiddleware } from './middleware/auth.middleware';
 import { getLogger, reloadLogger } from './config/logger';
 import { LogRotationService } from './services/logRotationService';
-import { logInfo, logError, logWarn } from './utils/loggerHelper';
+import { logInfo, logError, logWarn, logInfoSync } from './utils/loggerHelper';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -325,7 +325,7 @@ process.on('SIGTERM', async () => {
   try {
     await logInfo('SIGTERM recebido. Iniciando shutdown graceful...');
   } catch (logErr) {
-    console.error('Failed to log SIGTERM:', logErr);
+    // Silenciosamente falhar - logging não disponível
   }
   
   try {
@@ -333,52 +333,52 @@ process.on('SIGTERM', async () => {
       await closeExportQueue();
     } catch (err) {
       shutdownFailed = true;
-      console.error('Failed to close export queue:', err);
+      // Silenciosamente falhar - já marcado como failed
     }
     
     try {
       await logInfo('Queue de exportação fechada');
     } catch (logErr) {
-      console.error('Failed to log export queue closure:', logErr);
+      // Silenciosamente falhar - logging não disponível
     }
     
     try {
       await closeAdvancedScheduleQueue();
     } catch (err) {
       shutdownFailed = true;
-      console.error('Failed to close advanced schedule queue:', err);
+      // Silenciosamente falhar - já marcado como failed
     }
     
     try {
       await logInfo('Queue de agendamento avançado fechada');
     } catch (logErr) {
-      console.error('Failed to log schedule queue closure:', logErr);
+      // Silenciosamente falhar - logging não disponível
     }
     
     try {
       await closeRedis();
     } catch (err) {
       shutdownFailed = true;
-      console.error('Failed to close Redis:', err);
+      // Silenciosamente falhar - já marcado como failed
     }
     
     try {
       await logInfo('Redis desconectado');
     } catch (logErr) {
-      console.error('Failed to log Redis disconnection:', logErr);
+      // Silenciosamente falhar - logging não disponível
     }
     
     try {
       await closeDatabase();
     } catch (err) {
       shutdownFailed = true;
-      console.error('Failed to close database:', err);
+      // Silenciosamente falhar - já marcado como failed
     }
     
     try {
       await logInfo('Database desconectado');
     } catch (logErr) {
-      console.error('Failed to log database disconnection:', logErr);
+      // Silenciosamente falhar - logging não disponível
     }
     
     // Sair com código de erro se alguma operação falhou
@@ -387,9 +387,7 @@ process.on('SIGTERM', async () => {
     try {
       await logError('Erro durante shutdown', error);
     } catch (logErr) {
-      // Se até o logging de erro falhar, pelo menos logar no console
-      console.error('Failed to log shutdown error:', logErr);
-      console.error('Original shutdown error:', error);
+      // Silenciosamente falhar - logging não disponível
     }
     process.exit(1);
   }
@@ -402,7 +400,7 @@ process.on('SIGINT', async () => {
   try {
     await logInfo('SIGINT recebido. Iniciando shutdown graceful...');
   } catch (logErr) {
-    console.error('Failed to log SIGINT:', logErr);
+    // Silenciosamente falhar - logging não disponível
   }
   
   try {
@@ -410,52 +408,52 @@ process.on('SIGINT', async () => {
       await closeExportQueue();
     } catch (err) {
       shutdownFailed = true;
-      console.error('Failed to close export queue:', err);
+      // Silenciosamente falhar - já marcado como failed
     }
     
     try {
       await logInfo('Queue de exportação fechada');
     } catch (logErr) {
-      console.error('Failed to log export queue closure:', logErr);
+      // Silenciosamente falhar - logging não disponível
     }
     
     try {
       await closeAdvancedScheduleQueue();
     } catch (err) {
       shutdownFailed = true;
-      console.error('Failed to close advanced schedule queue:', err);
+      // Silenciosamente falhar - já marcado como failed
     }
     
     try {
       await logInfo('Queue de agendamento avançado fechada');
     } catch (logErr) {
-      console.error('Failed to log schedule queue closure:', logErr);
+      // Silenciosamente falhar - logging não disponível
     }
     
     try {
       await closeRedis();
     } catch (err) {
       shutdownFailed = true;
-      console.error('Failed to close Redis:', err);
+      // Silenciosamente falhar - já marcado como failed
     }
     
     try {
       await logInfo('Redis desconectado');
     } catch (logErr) {
-      console.error('Failed to log Redis disconnection:', logErr);
+      // Silenciosamente falhar - logging não disponível
     }
     
     try {
       await closeDatabase();
     } catch (err) {
       shutdownFailed = true;
-      console.error('Failed to close database:', err);
+      // Silenciosamente falhar - já marcado como failed
     }
     
     try {
       await logInfo('Database desconectado');
     } catch (logErr) {
-      console.error('Failed to log database disconnection:', logErr);
+      // Silenciosamente falhar - logging não disponível
     }
     
     // Sair com código de erro se alguma operação falhou
@@ -464,9 +462,7 @@ process.on('SIGINT', async () => {
     try {
       await logError('Erro durante shutdown', error);
     } catch (logErr) {
-      // Se até o logging de erro falhar, pelo menos logar no console
-      console.error('Failed to log shutdown error:', logErr);
-      console.error('Original shutdown error:', error);
+      // Silenciosamente falhar - logging não disponível
     }
     process.exit(1);
   }
@@ -558,17 +554,24 @@ async function startServer() {
     
     // Iniciar servidor
     app.listen(PORT, HOST, () => {
-      console.log('✅ Smart Signage v2.1 iniciado com sucesso!');
-      console.log(`🌐 Servidor rodando em http://${HOST}:${PORT}`);
-      console.log(`📱 Player: http://${HOST}:${PORT}/player`);
-      console.log(`🔧 Admin: http://${HOST}:${PORT}/admin`);
-      console.log(`📚 API Docs: http://${HOST}:${PORT}/api-docs`);
-      console.log(`💚 Health: http://${HOST}:${PORT}/health`);
-      console.log(`🗄️ Database: PostgreSQL`);
-      console.log(`🔴 Redis: Conectado`);
-      console.log(`📦 Bull Queue: Ativo`);
-      console.log(`🤖 AI Provider: ${process.env.AI_PROVIDER || 'ollama'}`);
-      console.log('=====================================');
+      logInfoSync('Smart Signage v2.1 iniciado com sucesso', {
+        host: HOST,
+        port: PORT,
+        environment: process.env.NODE_ENV || 'development'
+      });
+      logInfoSync('Servidor rodando', {
+        server: `http://${HOST}:${PORT}`,
+        player: `http://${HOST}:${PORT}/player`,
+        admin: `http://${HOST}:${PORT}/admin`,
+        apiDocs: `http://${HOST}:${PORT}/api-docs`,
+        health: `http://${HOST}:${PORT}/health`
+      });
+      logInfoSync('Configurações do sistema', {
+        database: 'PostgreSQL',
+        redis: 'Conectado',
+        bullQueue: 'Ativo',
+        aiProvider: process.env.AI_PROVIDER || 'ollama'
+      });
     });
     
   } catch (error: any) {
