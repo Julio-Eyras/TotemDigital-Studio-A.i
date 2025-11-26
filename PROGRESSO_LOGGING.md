@@ -212,9 +212,10 @@
 4. ✅ **Migração completa de console.log em middlewares, configs, workers e utils!**
 5. ✅ **Eliminação de console.error de fallback durante shutdown**
 6. ✅ **Substituição de mensagens de startup por logInfoSync estruturado**
-7. ⏳ Aplicar/validar migração do banco de dados `event_logs`
-8. ⏳ Testes e validação do sistema de logging
-9. ⏳ Documentação final do sistema de logging
+7. ✅ **Correção de bugs em middlewares async e parâmetros SQL**
+8. ⏳ Aplicar/validar migração do banco de dados `event_logs`
+9. ⏳ Testes e validação do sistema de logging
+10. ⏳ Documentação final do sistema de logging
 
 ---
 
