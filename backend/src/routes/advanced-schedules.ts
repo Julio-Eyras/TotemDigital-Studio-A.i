@@ -60,7 +60,7 @@ router.get('/',
         count: schedules.length
       });
     } catch (error: any) {
-      await logError('Erro ao listar agendamentos', error, { route: '/api/advanced-schedules', filters });
+      await logError('Erro ao listar agendamentos', error, { route: '/api/advanced-schedules', filters: req.query });
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',
@@ -161,8 +161,8 @@ router.put('/:id',
   body('enabled').optional().isBoolean(),
   validateRequest,
   async (req: Request, res: Response) => {
+    const scheduleId = parseInt(req.params.id);
     try {
-      const scheduleId = parseInt(req.params.id);
       const schedule = await advancedScheduleService.updateSchedule(scheduleId, {
         name: req.body.name,
         description: req.body.description,
@@ -196,8 +196,8 @@ router.delete('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
   async (req: Request, res: Response) => {
+    const scheduleId = parseInt(req.params.id);
     try {
-      const scheduleId = parseInt(req.params.id);
       await advancedScheduleService.deleteSchedule(scheduleId, req.user!.id);
 
       res.json({

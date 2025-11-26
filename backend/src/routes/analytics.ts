@@ -26,7 +26,7 @@ router.use(authenticateToken);
  * @desc Busca estatísticas do dashboard
  * @access Private (Admin, Manager)
  */
-router.get('/dashboard', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/dashboard', authorizeRole(['admin', 'manager']), async (_req, res) => {
   try {
     const stats = await getAnalyticsService().getDashboardStats();
 
@@ -456,7 +456,7 @@ router.get('/export', async (req: any, res) => {
  * @desc Busca alertas do sistema
  * @access Private (Admin, Manager)
  */
-router.get('/alerts', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/alerts', authorizeRole(['admin', 'manager']), async (_req, res) => {
   try {
     const stats = await getAnalyticsService().getDashboardStats();
 
@@ -495,7 +495,8 @@ function convertToCSV(report: any): string {
     return csvContent;
 
   } catch (error: any) {
-    await logError('Erro ao converter análise para CSV', error);
+    // Log error de forma síncrona (função não é async)
+    logError('Erro ao converter análise para CSV', error, {}).catch(() => {});
     return 'Erro ao converter dados para CSV';
   }
 }

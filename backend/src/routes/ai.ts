@@ -26,7 +26,7 @@ router.use(authenticateToken);
  * @desc Verifica status do serviço de IA
  * @access Private (Admin, Manager)
  */
-router.get('/status', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/status', authorizeRole(['admin', 'manager']), async (_req, res) => {
   try {
     const status = await getAIService().checkAIStatus();
 
@@ -136,7 +136,7 @@ router.get('/requests', authorizeRole(['admin', 'manager']), async (req, res) =>
  * @desc Busca estatísticas de uso de IA
  * @access Private (Admin, Manager)
  */
-router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/stats', authorizeRole(['admin', 'manager']), async (_req, res) => {
   try {
     const stats = await getAIService().getAIUsageStats();
 
@@ -409,7 +409,7 @@ router.post('/analyze-audience', async (req: any, res) => {
  * @desc Lista modelos disponíveis
  * @access Private (Admin, Manager)
  */
-router.get('/models', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/models', authorizeRole(['admin', 'manager']), async (_req, res) => {
   try {
     const models = {
       ollama: [

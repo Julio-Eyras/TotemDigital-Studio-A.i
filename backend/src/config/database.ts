@@ -10,7 +10,6 @@ export * from './database-pg';
 // Re-exportar para manter compatibilidade
 import { 
   initializeDatabase as initDB,
-  getDatabase as getDB,
   closeDatabase as closeDB,
   createDatabaseWrapper
 } from './database-pg';

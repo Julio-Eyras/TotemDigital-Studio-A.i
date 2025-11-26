@@ -76,7 +76,7 @@ router.get('/', async (req: any, res) => {
  * @desc Busca estatísticas gerais de campanhas
  * @access Private (Admin, Manager)
  */
-router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/stats', authorizeRole(['admin', 'manager']), async (_req, res) => {
   try {
     const stats = await getCampaignService().getCampaignsStats();
 
@@ -101,8 +101,8 @@ router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
  * @access Private (Admin, Manager, Client)
  */
 router.get('/client/:clientId', async (req: any, res) => {
+  const { clientId } = req.params;
   try {
-    const { clientId } = req.params;
     const { limit = 50 } = req.query;
 
     // Verificar permissão
@@ -124,7 +124,7 @@ router.get('/client/:clientId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    await logError('Erro ao buscar campanhas do cliente', error, { clientId });
+    await logError('Erro ao buscar campanhas do cliente', error, { clientId: parseInt(clientId) });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -139,9 +139,8 @@ router.get('/client/:clientId', async (req: any, res) => {
  * @access Private (Admin, Manager, Client)
  */
 router.get('/totem/:totemId', async (req: any, res) => {
+  const { totemId } = req.params;
   try {
-    const { totemId } = req.params;
-
     const campaigns = await getCampaignService().getActiveCampaignsForTotem(parseInt(totemId));
 
     res.json({
@@ -150,7 +149,7 @@ router.get('/totem/:totemId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    await logError('Erro ao buscar campanhas do totem', error, { totemId });
+    await logError('Erro ao buscar campanhas do totem', error, { totemId: parseInt(totemId) });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -165,9 +164,8 @@ router.get('/totem/:totemId', async (req: any, res) => {
  * @access Private (Admin, Manager, Client)
  */
 router.get('/:id', async (req: any, res) => {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
-
     const campaign = await getCampaignService().getCampaignById(parseInt(id));
 
     if (!campaign) {
@@ -191,7 +189,7 @@ router.get('/:id', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    await logError('Erro ao buscar campanha', error, { id });
+    await logError('Erro ao buscar campanha', error, { id: parseInt(id) });
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -325,8 +323,8 @@ router.post('/', async (req: any, res) => {
  * @access Private (Admin, Manager, Client)
  */
 router.put('/:id', async (req: any, res) => {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
     const updateData = req.body;
 
     // Verificar se campanha existe e permissão
@@ -377,9 +375,8 @@ router.put('/:id', async (req: any, res) => {
  * @access Private (Admin, Manager)
  */
 router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res) => {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
-
     await getCampaignService().deleteCampaign(parseInt(id), req.user.userId);
 
     res.json({
@@ -403,9 +400,8 @@ router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res)
  * @access Private (Admin, Manager, Client)
  */
 router.post('/:id/activate', async (req: any, res) => {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
-
     // Verificar se campanha existe e permissão
     const campaign = await getCampaignService().getCampaignById(parseInt(id));
     if (!campaign) {
@@ -466,9 +462,8 @@ router.post('/:id/activate', async (req: any, res) => {
  * @access Private (Admin, Manager, Client)
  */
 router.post('/:id/pause', async (req: any, res) => {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
-
     // Verificar se campanha existe e permissão
     const campaign = await getCampaignService().getCampaignById(parseInt(id));
     if (!campaign) {
@@ -530,9 +525,8 @@ router.post('/:id/pause', async (req: any, res) => {
  * @access Private (Admin, Manager, Client)
  */
 router.post('/:id/finish', async (req: any, res) => {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
-
     // Verificar se campanha existe e permissão
     const campaign = await getCampaignService().getCampaignById(parseInt(id));
     if (!campaign) {
@@ -593,9 +587,9 @@ router.post('/:id/finish', async (req: any, res) => {
  * @access Private (Admin, Manager, Client)
  */
 router.post('/:id/totems', async (req: any, res) => {
+  const { id } = req.params;
+  const totemData = req.body;
   try {
-    const { id } = req.params;
-    const totemData = req.body;
 
     // Verificar se campanha existe e permissão
     const campaign = await getCampaignService().getCampaignById(parseInt(id));
@@ -656,8 +650,8 @@ router.post('/:id/totems', async (req: any, res) => {
  * @access Private (Admin, Manager, Client)
  */
 router.delete('/:id/totems/:totemId', async (req: any, res) => {
+  const { id, totemId } = req.params;
   try {
-    const { id, totemId } = req.params;
 
     // Verificar se campanha existe e permissão
     const campaign = await getCampaignService().getCampaignById(parseInt(id));
@@ -719,8 +713,8 @@ router.delete('/:id/totems/:totemId', async (req: any, res) => {
  * @access Private (Admin, Manager, Client)
  */
 router.get('/:id/totems', async (req: any, res) => {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
 
     // Verificar se campanha existe e permissão
     const campaign = await getCampaignService().getCampaignById(parseInt(id));

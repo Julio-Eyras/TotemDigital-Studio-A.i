@@ -157,7 +157,7 @@ export const validateFileType = (allowedTypes: string[]) => {
 /**
  * Middleware para sanitizar entrada de dados
  */
-export const sanitizeInput = (req: Request, res: Response, next: NextFunction) => {
+export const sanitizeInput = (req: Request, _res: Response, next: NextFunction) => {
   // Sanitizar strings removendo caracteres perigosos
   const sanitizeString = (str: string): string => {
     return str

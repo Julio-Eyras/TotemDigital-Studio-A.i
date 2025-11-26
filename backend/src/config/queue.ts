@@ -4,7 +4,6 @@
  */
 
 import Bull from 'bull';
-import { getRedisClient } from './redis';
 import { logInfoSync, logErrorSync, logWarnSync } from '../utils/loggerHelper';
 
 // Configuração do Redis para Bull
@@ -163,7 +162,7 @@ export function initializeAdvancedScheduleQueue(): Bull.Queue {
       });
     });
 
-    advancedScheduleQueue.on('completed', (job, result) => {
+    advancedScheduleQueue.on('completed', (job, _result) => {
       logInfoSync('Job de agendamento avançado concluído', { 
         jobId: job.id, 
         scheduleId: job.data.scheduleId 

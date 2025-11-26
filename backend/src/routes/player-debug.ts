@@ -55,7 +55,7 @@ router.get('/transactions',
       });
 
     } catch (error: any) {
-      await logError('Erro ao buscar transações de debug', error, { route: '/api/player/debug/transactions', filters });
+      await logError('Erro ao buscar transações de debug', error, { route: '/api/player/debug/transactions', filters: req.query });
       res.status(500).json({ 
         error: 'Erro interno do servidor',
         message: error.message
@@ -111,8 +111,8 @@ router.get('/transactions/:transactionId',
 router.post('/cleanup',
   query('daysToKeep').optional().isInt({ min: 1, max: 365 }),
   async (req: Request, res: Response) => {
+    const daysToKeep = parseInt(req.query.daysToKeep as string) || 30;
     try {
-      const daysToKeep = parseInt(req.query.daysToKeep as string) || 30;
 
       const deletedCount = await playerDebugService.cleanupOldTransactions(daysToKeep);
 

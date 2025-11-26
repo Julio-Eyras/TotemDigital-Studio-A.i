@@ -29,7 +29,7 @@ export const errorHandler = async (
   err: AppError,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> => {
   try {
     const statusCode = err.statusCode || 500;
@@ -111,7 +111,7 @@ export const asyncHandler = (fn: Function) => {
   };
 };
 
-export const notFoundHandler = (req: Request, res: Response, next: NextFunction): void => {
+export const notFoundHandler = (req: Request, _res: Response, next: NextFunction): void => {
   const error = new CustomError(`Rota não encontrada: ${req.originalUrl}`, 404);
   next(error);
 };

@@ -58,7 +58,7 @@ export class AuditService {
       ]);
 
     } catch (error: any) {
-      await logError('Erro ao registrar log de auditoria', error, { entity, action, entityId });
+      await logError('Erro ao registrar log de auditoria', error, { entity, action, entityId: metadata?.entityId });
       // Não lançar erro para não quebrar o fluxo principal
     }
   }

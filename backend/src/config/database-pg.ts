@@ -51,7 +51,7 @@ export async function initializeDatabase(): Promise<pg.Pool> {
       });
 
       // Testar conexão
-      const result = await pool.query('SELECT NOW()');
+      await pool.query('SELECT NOW()');
       logInfoSync('PostgreSQL conectado com sucesso', {
         database: dbConfig.database,
         host: dbConfig.host,

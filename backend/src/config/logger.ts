@@ -139,7 +139,7 @@ function getFreeSpace(dir: string): number {
   try {
     // Verificar espaço livre do diretório pai
     // Em produção, usar statfs ou biblioteca como diskusage
-    const stats = fs.statSync(dir);
+    fs.statSync(dir); // Verificar se diretório existe
     
     // Calcular tamanho total dos arquivos de log
     let totalSize = 0;

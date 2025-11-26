@@ -253,7 +253,7 @@ export const requireClientAccess = (req: AuthenticatedRequest, res: Response, ne
  */
 export const optionalAuth = async (
   req: AuthenticatedRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {

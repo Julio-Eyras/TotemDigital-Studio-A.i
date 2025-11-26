@@ -79,7 +79,7 @@ router.get('/', async (req: any, res) => {
  * @desc Busca estatísticas de faturamento
  * @access Private (Admin, Manager)
  */
-router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/stats', authorizeRole(['admin', 'manager']), async (_req, res) => {
   try {
     const stats = await getBillingService().getBillingStats();
 
@@ -103,7 +103,7 @@ router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
  * @desc Lista faturas vencidas
  * @access Private (Admin, Manager)
  */
-router.get('/overdue', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/overdue', authorizeRole(['admin', 'manager']), async (_req, res) => {
   try {
     const overdueBillings = await getBillingService().getOverdueBillings();
 
@@ -506,7 +506,7 @@ router.post('/:id/cancel', authorizeRole(['admin', 'manager']), async (req: any,
  * @desc Exporta faturas
  * @access Private (Admin, Manager)
  */
-router.get('/export', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/export', authorizeRole(['admin', 'manager']), async (_req, res) => {
   try {
     const {
       clientId,

@@ -184,10 +184,11 @@ export class AIService {
    * Processa requisição via Ollama
    */
   private async processOllamaRequest(request: AIRequest, model: string): Promise<any> {
+    const prompt = request.prompt;
     try {
       const response = await axios.post(`${this.config.baseUrl}/api/generate`, {
         model,
-        prompt: request.prompt,
+        prompt,
         context: request.context,
         stream: false,
         options: {
@@ -215,6 +216,7 @@ export class AIService {
    * Processa requisição via OpenAI
    */
   private async processOpenAIRequest(request: AIRequest, model: string): Promise<any> {
+    const prompt = request.prompt;
     try {
       if (!this.config.apiKey) {
         throw new Error('API Key do OpenAI não configurada');
@@ -226,7 +228,7 @@ export class AIService {
         messages.push({ role: 'system', content: request.systemPrompt });
       }
       
-      messages.push({ role: 'user', content: request.prompt });
+      messages.push({ role: 'user', content: prompt });
 
       const response = await axios.post('https://api.openai.com/v1/chat/completions', {
         model,
@@ -260,6 +262,7 @@ export class AIService {
    * Processa requisição via Anthropic
    */
   private async processAnthropicRequest(request: AIRequest, model: string): Promise<any> {
+    const prompt = request.prompt;
     try {
       if (!this.config.apiKey) {
         throw new Error('API Key do Anthropic não configurada');
@@ -271,7 +274,7 @@ export class AIService {
         temperature: request.temperature || this.config.temperature,
         system: request.systemPrompt,
         messages: [
-          { role: 'user', content: request.prompt }
+          { role: 'user', content: prompt }
         ]
       }, {
         headers: {
@@ -322,7 +325,7 @@ export class AIService {
       ]);
 
     } catch (error: any) {
-      await logError('Erro ao salvar requisição de IA', error, { requestId });
+      await logError('Erro ao salvar requisição de IA', error, { requestId: aiResponse.id });
       // Não falhar a requisição por erro de salvamento
     }
   }

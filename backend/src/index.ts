@@ -9,7 +9,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
-import { initializeDatabase, closeDatabase, getDatabase } from './config/database';
+import { initializeDatabase, closeDatabase } from './config/database';
 import { initializeRedis, closeRedis, testRedisConnection } from './config/redis';
 import { initializeExportQueue, closeExportQueue, initializeAdvancedScheduleQueue, closeAdvancedScheduleQueue } from './config/queue';
 import { registerExportWorker } from './workers/exportWorker';
@@ -18,7 +18,7 @@ import { exportScheduleService } from './services/exportScheduleService';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
 import { authMiddleware } from './middleware/auth.middleware';
-import { getLogger, reloadLogger } from './config/logger';
+import { getLogger } from './config/logger';
 import { LogRotationService } from './services/logRotationService';
 import { logInfo, logError, logWarn, logInfoSync } from './utils/loggerHelper';
 
@@ -52,7 +52,6 @@ import { openApiSpec } from './config/swagger';
 // Services
 import { SystemService } from './services/systemService';
 import { NotificationService } from './services/notificationService';
-import { AuditService } from './services/auditService';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000');
@@ -153,7 +152,7 @@ app.use('/uploads', express.static('/opt/smart-signage/public/assets/uploads'));
 // =============================================
 
 // Root route - API information
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     name: 'Smart Signage Pro v2.0',
     version: '2.0.0',
@@ -178,7 +177,7 @@ app.get('/', (req, res) => {
 });
 
 // Health check
-app.get('/health', async (req, res) => {
+app.get('/health', async (_req, res) => {
   try {
     const systemService = new SystemService();
     const health = await systemService.getSystemHealth();
@@ -202,7 +201,7 @@ app.get('/health', async (req, res) => {
 });
 
 // System info
-app.get('/api/system/info', async (req, res) => {
+app.get('/api/system/info', async (_req, res) => {
   try {
     const systemService = new SystemService();
     const info = await systemService.getSystemInfo();
@@ -213,7 +212,7 @@ app.get('/api/system/info', async (req, res) => {
 });
 
 // API Health check
-app.get('/api/health', async (req, res) => {
+app.get('/api/health', async (_req, res) => {
   try {
     const systemService = new SystemService();
     const health = await systemService.getSystemHealth();
@@ -262,7 +261,7 @@ app.use('/api/advanced-schedules', advancedSchedulesRoutes);
 app.use('/api/email', emailRoutes);
 
 // Docs JSON (Swagger OpenAPI)
-app.get('/api/docs.json', (req, res) => {
+app.get('/api/docs.json', (_req, res) => {
   res.json(openApiSpec);
 });
 
@@ -270,7 +269,7 @@ app.get('/api/docs.json', (req, res) => {
 import playerValidationRoutes from './routes/player';
 
 // Servir player com suporte a UIN como parâmetro
-app.get('/player', (req, res) => {
+app.get('/player', (_req, res) => {
   const playerPath = process.env.PLAYER_PATH || '/opt/smart-signage/player/index.html';
   res.sendFile(playerPath);
 });
@@ -280,7 +279,7 @@ app.use('/api/player', playerValidationRoutes);
 app.use('/api/player/debug', authMiddleware, playerDebugRoutes); // Debug de transações do player (requer autenticação)
 app.use('/api/debug', debugRoutes); // Debug endpoints (logs, diagnóstico)
 
-app.get('/player/config', async (req, res) => {
+app.get('/player/config', async (_req, res) => {
   try {
     const systemService = new SystemService();
     const config = await systemService.getPlayerConfig();
@@ -291,7 +290,7 @@ app.get('/player/config', async (req, res) => {
 });
 
 // Admin routes
-app.get('/admin', (req, res) => {
+app.get('/admin', (_req, res) => {
   res.sendFile('/opt/smart-signage/frontend/index.html');
 });
 
