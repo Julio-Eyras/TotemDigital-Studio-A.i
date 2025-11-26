@@ -5,7 +5,7 @@ import { logError, sanitizeForLogging } from '../utils/loggerHelper';
 /**
  * Middleware para validar requisições usando express-validator
  */
-export const validateRequest = async (req: Request, res: Response, next: NextFunction) => {
+export const validateRequest = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const errors = validationResult(req);
   
   if (!errors.isEmpty()) {
@@ -16,7 +16,8 @@ export const validateRequest = async (req: Request, res: Response, next: NextFun
     const validationError = new Error('Erro de validação de entrada');
     validationError.name = 'ValidationError';
     
-    await logError('Erro de validação', validationError, {
+    // Logar erro de validação (não bloqueante)
+    logError('Erro de validação', validationError, {
       errors: errors.array(),
       body: sanitizedBody,
       file: req.file ? {
@@ -27,13 +28,16 @@ export const validateRequest = async (req: Request, res: Response, next: NextFun
       } : null,
       url: req.url,
       method: req.method
+    }).catch(() => {
+      // Fallback silencioso se logging falhar
     });
     
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Dados de entrada inválidos',
       message: 'Verifique os dados enviados',
       details: errors.array()
     });
+    return;
   }
   
   next();

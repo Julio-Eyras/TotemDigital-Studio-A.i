@@ -430,7 +430,7 @@ router.post('/:id/activate', async (req: any, res) => {
       const db = require('../config/database').getDatabase();
       const totems = await db.findMany(`
         SELECT totem_id FROM campaign_totems WHERE campaign_id = $1
-      `, [id]);
+      `, [parseInt(id)]);
       
       for (const totem of totems) {
         await eventLogService.logCampaignStart(
@@ -493,7 +493,7 @@ router.post('/:id/pause', async (req: any, res) => {
       const db = require('../config/database').getDatabase();
       const totems = await db.findMany(`
         SELECT totem_id FROM campaign_totems WHERE campaign_id = $1
-      `, [id]);
+      `, [parseInt(id)]);
       
       for (const totem of totems) {
         await eventLogService.logEvent({
@@ -557,7 +557,7 @@ router.post('/:id/finish', async (req: any, res) => {
       const db = require('../config/database').getDatabase();
       const totems = await db.findMany(`
         SELECT totem_id FROM campaign_totems WHERE campaign_id = $1
-      `, [id]);
+      `, [parseInt(id)]);
       
       for (const totem of totems) {
         await eventLogService.logCampaignEnd(

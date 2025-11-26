@@ -7,7 +7,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AuditService } from '../services/auditService';
 import { logInfo, logError } from '../utils/loggerHelper';
 
-export const requestLogger = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const requestLogger = (req: Request, res: Response, next: NextFunction): void => {
   const startTime = Date.now();
   const originalSend = res.send;
 
