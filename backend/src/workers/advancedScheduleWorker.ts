@@ -9,6 +9,7 @@ import { advancedScheduleService } from '../services/advancedScheduleService';
 import { getDatabase } from '../config/database';
 import { CampaignService } from '../services/campaignService';
 import { SmartPlaylistService } from '../services/smartPlaylistService';
+import { logInfo, logError, logInfoSync } from '../utils/loggerHelper';
 
 const getDb = () => getDatabase();
 const campaignService = new CampaignService();
@@ -24,7 +25,12 @@ export async function processAdvancedScheduleJob(job: Job<AdvancedScheduleJobDat
   let executionId: number | null = null;
 
   try {
-    console.log(`🔄 Processando agendamento: Schedule ${scheduleId}, Type ${scheduleType}, Target ${targetId}`);
+    await logInfo('Processando agendamento avançado', {
+      scheduleId,
+      scheduleType,
+      targetId,
+      jobId: job.id
+    });
 
     // Buscar agendamento
     const schedule = await advancedScheduleService.getScheduleById(scheduleId);
@@ -93,12 +99,24 @@ export async function processAdvancedScheduleJob(job: Job<AdvancedScheduleJobDat
       scheduleId
     ]);
 
-    console.log(`✅ Agendamento concluído: ${result.message}`);
+    await logInfo('Agendamento avançado concluído', {
+      scheduleId,
+      scheduleType,
+      targetId,
+      message: result.message,
+      executionId
+    });
 
     return result;
 
   } catch (error: any) {
-    console.error(`❌ Erro ao processar agendamento:`, error.message);
+    await logError('Erro ao processar agendamento avançado', error, {
+      scheduleId,
+      scheduleType,
+      targetId,
+      executionId,
+      jobId: job.id
+    });
 
     // Atualizar execução com erro
     if (executionId) {
@@ -353,6 +371,6 @@ export function registerAdvancedScheduleWorker(): void {
     return await processAdvancedScheduleJob(job);
   });
 
-  console.log('✅ Worker de agendamento avançado registrado');
+  logInfoSync('Worker de agendamento avançado registrado', {});
 }
 

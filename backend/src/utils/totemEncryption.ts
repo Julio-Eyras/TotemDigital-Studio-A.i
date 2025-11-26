@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { logErrorSync } from './loggerHelper';
 
 // Chave secreta para encriptação (deve estar no .env em produção)
 const TOTEM_SECRET_KEY = process.env.TOTEM_SECRET_KEY || 'smart-signage-totem-secret-key-2025-change-in-production';
@@ -37,7 +38,9 @@ export function decryptPlayerConfig(encryptedConfig: PlayerConfig, currentMacAdd
     
     return null; // Retornar null por enquanto - será implementado com OpenSSL via child_process
   } catch (error) {
-    console.error('❌ Erro ao desencriptar configuração do player:', error);
+    logErrorSync('Erro ao desencriptar configuração do player', error, {
+      currentMacAddress
+    });
     return null;
   }
 }

@@ -14,6 +14,7 @@ import { exportToExcel, exportToPDF, exportToCSV } from './exportFormats';
 import { getRedisClient } from '../config/redis';
 import { executeGrafanaQuery } from '../config/grafana';
 import { executePrometheusQuery, executePrometheusInstantQuery } from '../config/prometheus';
+import { logInfo, logError, logWarn, logInfoSync } from '../utils/loggerHelper';
 
 const getDb = () => getDatabase();
 
@@ -27,7 +28,12 @@ export async function processExportJob(job: Job<ExportJobData>): Promise<ExportJ
   let executionId: number | null = null;
 
   try {
-    console.log(`🔄 Processando exportação: Schedule ${scheduleId}, Query ${queryId}`);
+    await logInfo('Processando exportação', {
+      scheduleId,
+      queryId,
+      userId,
+      jobId: job.id
+    });
 
     // Criar registro de execução
     const executionResult = await db.executeRaw(`
@@ -50,7 +56,11 @@ export async function processExportJob(job: Job<ExportJobData>): Promise<ExportJ
     const data = await executeQuery(query.sql_query, query.database_config, query.provider);
 
     if (data.length === 0) {
-      console.log(`⚠️ Nenhum dado encontrado para exportação`);
+      await logWarn('Nenhum dado encontrado para exportação', {
+        scheduleId,
+        queryId,
+        executionId
+      });
       
       // Atualizar execução
       await db.executeRaw(`
@@ -140,7 +150,15 @@ export async function processExportJob(job: Job<ExportJobData>): Promise<ExportJ
       }
     }
 
-    console.log(`✅ Exportação concluída: ${data.length} registros em ${filePath}`);
+    await logInfo('Exportação concluída', {
+      scheduleId,
+      queryId,
+      executionId,
+      recordsExported: data.length,
+      filePath,
+      fileSize,
+      duration: `${duration.toFixed(2)}s`
+    });
 
     return {
       success: true,
@@ -151,7 +169,12 @@ export async function processExportJob(job: Job<ExportJobData>): Promise<ExportJ
     };
 
   } catch (error: any) {
-    console.error(`❌ Erro ao processar exportação:`, error.message);
+    await logError('Erro ao processar exportação', error, {
+      scheduleId,
+      queryId,
+      executionId,
+      jobId: job.id
+    });
 
     // Atualizar execução com erro
     if (executionId) {
@@ -449,6 +472,6 @@ export function registerExportWorker(): void {
     return await processExportJob(job);
   });
 
-  console.log('✅ Worker de exportação registrado');
+  logInfoSync('Worker de exportação registrado', {});
 }
 
