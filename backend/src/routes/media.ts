@@ -176,18 +176,16 @@ router.post('/upload',
     // Log detalhado antes do multer processar (apenas em desenvolvimento)
     if (process.env.NODE_ENV === 'development') {
       const sanitizedBody = sanitizeForLogging(req.body);
-      await logDebug('Upload recebido', { headers: req.headers, body: sanitizedBody }).catch((logErr) => {
-        // Apenas suprime erros de logging, não erros de programação
-        console.warn('Failed to log upload debug:', logErr);
+      await logDebug('Upload recebido', { headers: req.headers, body: sanitizedBody }).catch(() => {
+        // Silenciosamente falhar - logging não disponível
       });
     }
     
     // Tratar erros do multer antes de passar para validação
     getMulterUpload().single('file')(req as any, res, async (err: any) => {
       if (err) {
-        await logError('Erro no multer', err, { code: err.code }).catch((logErr) => {
-          // Apenas suprime erros de logging, não erros de programação
-          console.error('Failed to log multer error:', logErr);
+        await logError('Erro no multer', err, { code: err.code }).catch(() => {
+          // Silenciosamente falhar - logging não disponível
         });
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({ 
@@ -215,9 +213,8 @@ router.post('/upload',
       
       // Log após multer processar (apenas em desenvolvimento)
       if (process.env.NODE_ENV === 'development' && req.file) {
-        await logDebug('Multer processou', { file: { fieldname: req.file.fieldname, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size, filename: req.file.filename } }).catch((logErr) => {
-          // Apenas suprime erros de logging, não erros de programação
-          console.warn('Failed to log multer processing:', logErr);
+        await logDebug('Multer processou', { file: { fieldname: req.file.fieldname, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size, filename: req.file.filename } }).catch(() => {
+          // Silenciosamente falhar - logging não disponível
         });
       }
       
