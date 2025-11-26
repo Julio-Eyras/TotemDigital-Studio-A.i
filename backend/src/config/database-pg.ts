@@ -8,6 +8,7 @@
 
 import pg from 'pg';
 import dotenv from 'dotenv';
+import { logInfoSync, logErrorSync } from '../utils/loggerHelper';
 
 dotenv.config();
 
@@ -51,15 +52,22 @@ export async function initializeDatabase(): Promise<pg.Pool> {
 
       // Testar conexão
       const result = await pool.query('SELECT NOW()');
-      console.log('✅ PostgreSQL conectado com sucesso');
-      console.log(`   Database: ${dbConfig.database}@${dbConfig.host}:${dbConfig.port}`);
+      logInfoSync('PostgreSQL conectado com sucesso', {
+        database: dbConfig.database,
+        host: dbConfig.host,
+        port: dbConfig.port
+      });
       
       return pool;
     }
     
     return pool;
   } catch (error: any) {
-    console.error('❌ Erro ao conectar ao PostgreSQL:', error.message);
+    logErrorSync('Erro ao conectar ao PostgreSQL', error, {
+      host: dbConfig.host,
+      port: dbConfig.port,
+      database: dbConfig.database
+    });
     throw error;
   }
 }
@@ -81,7 +89,7 @@ export async function closeDatabase(): Promise<void> {
   if (pool) {
     await pool.end();
     pool = null;
-    console.log('✅ PostgreSQL desconectado');
+    logInfoSync('PostgreSQL desconectado', {});
   }
 }
 

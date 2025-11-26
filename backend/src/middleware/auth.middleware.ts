@@ -6,6 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { getDatabase } from '../config/database';
+import { logError } from '../utils/loggerHelper';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -95,7 +96,11 @@ export const authMiddleware = async (
       return;
     }
 
-    console.error('❌ Erro no middleware de auth:', error.message);
+    await logError('Erro no middleware de auth', error, {
+      errorName: error.name,
+      url: req.url,
+      method: req.method
+    });
     res.status(500).json({
       error: 'Erro interno do servidor',
       code: 'INTERNAL_ERROR'
@@ -196,7 +201,13 @@ export const requirePermission = (resource: string, action: string) => {
       next();
 
     } catch (error: any) {
-      console.error('❌ Erro no middleware de permissão:', error.message);
+      await logError('Erro no middleware de permissão', error, {
+        resource,
+        action,
+        userId: req.user?.id,
+        url: req.url,
+        method: req.method
+      });
       res.status(500).json({
         error: 'Erro interno do servidor',
         code: 'INTERNAL_ERROR'

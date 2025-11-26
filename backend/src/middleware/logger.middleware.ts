@@ -5,6 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { AuditService } from '../services/auditService';
+import { logInfo, logError } from '../utils/loggerHelper';
 
 export const requestLogger = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const startTime = Date.now();
@@ -14,26 +15,41 @@ export const requestLogger = async (req: Request, res: Response, next: NextFunct
   res.send = function(data) {
     const processingTime = Date.now() - startTime;
     
-    // Log da requisição
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - ${res.statusCode} - ${processingTime}ms`);
+    // Log da requisição (não bloqueante)
+    logInfo('Requisição processada', {
+      method: req.method,
+      url: req.url,
+      statusCode: res.statusCode,
+      processingTime,
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    }).catch(() => {
+      // Fallback silencioso se logging falhar
+    });
     
-    // Log de auditoria para requisições autenticadas
+    // Log de auditoria para requisições autenticadas (não bloqueante)
     if (req.user?.id && req.method !== 'GET') {
-      try {
-        const auditService = new AuditService();
-        auditService.log('request', req.method.toLowerCase(), req.user.id, {
-          url: req.url,
-          method: req.method,
-          statusCode: res.statusCode,
-          processingTime,
-          userAgent: req.get('User-Agent'),
-          ip: req.ip
-        }).catch(error => {
-          console.error('❌ Erro ao registrar auditoria:', error);
-        });
-      } catch (error) {
-        console.error('❌ Erro ao registrar auditoria:', error);
-      }
+      (async () => {
+        try {
+          const auditService = new AuditService();
+          await auditService.log('request', req.method.toLowerCase(), req.user.id, {
+            url: req.url,
+            method: req.method,
+            statusCode: res.statusCode,
+            processingTime,
+            userAgent: req.get('User-Agent'),
+            ip: req.ip
+          });
+        } catch (error) {
+          logError('Erro ao registrar auditoria no request logger', error, {
+            method: req.method,
+            url: req.url,
+            userId: req.user?.id
+          }).catch(() => {
+            // Fallback silencioso se logging falhar
+          });
+        }
+      })();
     }
 
     return originalSend.call(this, data);

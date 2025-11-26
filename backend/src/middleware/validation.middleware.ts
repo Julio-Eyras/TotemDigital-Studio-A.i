@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { validationResult } from 'express-validator';
+import { logError, sanitizeForLogging } from '../utils/loggerHelper';
 
 /**
  * Middleware para validar requisições usando express-validator
@@ -8,14 +9,20 @@ export const validateRequest = (req: Request, res: Response, next: NextFunction)
   const errors = validationResult(req);
   
   if (!errors.isEmpty()) {
-    console.error('❌ Erro de validação:', errors.array());
-    console.error('❌ Body recebido:', JSON.stringify(req.body, null, 2));
-    console.error('❌ File recebido:', req.file ? {
-      fieldname: req.file.fieldname,
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-    } : 'Nenhum arquivo');
+    // Sanitizar body antes de logar
+    const sanitizedBody = sanitizeForLogging(req.body);
+    await logError('Erro de validação', undefined, {
+      errors: errors.array(),
+      body: sanitizedBody,
+      file: req.file ? {
+        fieldname: req.file.fieldname,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      } : null,
+      url: req.url,
+      method: req.method
+    });
     return res.status(400).json({
       error: 'Dados de entrada inválidos',
       message: 'Verifique os dados enviados',

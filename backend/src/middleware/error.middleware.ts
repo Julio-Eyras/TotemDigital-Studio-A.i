@@ -5,6 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { AuditService } from '../services/auditService';
+import { logError } from '../utils/loggerHelper';
 
 export interface AppError extends Error {
   statusCode?: number;
@@ -35,10 +36,8 @@ export const errorHandler = async (
     const isOperational = err.isOperational !== false;
 
     // Log do erro
-    console.error('❌ Erro capturado:', {
-      message: err.message,
+    await logError('Erro capturado pelo error handler', err, {
       statusCode,
-      stack: err.stack,
       url: req.url,
       method: req.method,
       ip: req.ip,
@@ -57,7 +56,10 @@ export const errorHandler = async (
           method: req.method
         });
       } catch (auditError) {
-        console.error('❌ Erro ao registrar auditoria:', auditError);
+        await logError('Erro ao registrar auditoria no error handler', auditError, { 
+          originalError: err.message,
+          statusCode 
+        });
       }
     }
 
@@ -85,7 +87,13 @@ export const errorHandler = async (
     }
 
   } catch (error) {
-    console.error('❌ Erro no error handler:', error);
+    // Se o error handler falhar, usar console.error como último recurso
+    console.error('❌ Erro crítico no error handler:', error);
+    try {
+      await logError('Erro crítico no error handler', error, {});
+    } catch {
+      // Ignorar se até o log falhar
+    }
     res.status(500).json({
       success: false,
       error: {

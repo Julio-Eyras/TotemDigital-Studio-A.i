@@ -11,6 +11,7 @@ import fs from 'fs';
 import os from 'os';
 import { getDatabase } from './database';
 import { NotificationService } from '../services/notificationService';
+import { logWarnSync, logErrorSync, logInfoSync } from '../utils/loggerHelper';
 
 // Diretório de instalação (padrão: /opt/smart-signage)
 const INSTALL_DIR = process.env.INSTALL_DIR || '/opt/smart-signage';
@@ -35,18 +36,23 @@ function ensureLogsDirectory(): string {
     // Se não conseguir criar em /opt/smart-signage, usar diretório alternativo
     if (error.code === 'EACCES' || error.code === 'EPERM') {
       const fallbackLogsDir = path.join(os.homedir(), '.smart-signage', 'logs');
-      console.warn(`⚠️  Não foi possível criar diretório de logs em ${LOGS_DIR}`);
-      console.warn(`   Usando diretório alternativo: ${fallbackLogsDir}`);
+      logWarnSync('Não foi possível criar diretório de logs', { 
+        originalDir: LOGS_DIR, 
+        fallbackDir: fallbackLogsDir 
+      });
       try {
         fs.mkdirSync(fallbackLogsDir, { recursive: true });
         LOGS_DIR = fallbackLogsDir;
         return LOGS_DIR;
-      } catch (fallbackError) {
-        console.error(`❌ Não foi possível criar diretório de logs alternativo: ${fallbackError}`);
+      } catch (fallbackError: any) {
+        logErrorSync('Não foi possível criar diretório de logs alternativo', fallbackError, {
+          originalDir: LOGS_DIR,
+          fallbackDir: fallbackLogsDir
+        });
         // Usar diretório temporário como último recurso
         const tempLogsDir = path.join(os.tmpdir(), 'smart-signage-logs');
         fs.mkdirSync(tempLogsDir, { recursive: true });
-        console.warn(`   Usando diretório temporário: ${tempLogsDir}`);
+        logWarnSync('Usando diretório temporário para logs', { tempLogsDir });
         LOGS_DIR = tempLogsDir;
         return LOGS_DIR;
       }
@@ -193,7 +199,7 @@ async function checkLogRotation(): Promise<boolean> {
 
     return false;
   } catch (error) {
-    console.error('❌ Erro ao verificar rotação de logs:', error);
+    logErrorSync('Erro ao verificar rotação de logs', error, {});
     return false;
   }
 }
@@ -256,7 +262,7 @@ async function sendRotationAlert(type: string, details: any): Promise<void> {
       }
     }
   } catch (error) {
-    console.error('❌ Erro ao enviar alerta de rotação:', error);
+    logErrorSync('Erro ao enviar alerta de rotação', error, { type });
   }
 }
 
@@ -317,12 +323,12 @@ export async function createLogger(): Promise<winston.Logger> {
 
   // Evento de rotação
   fileTransport.on('rotate', async (oldFilename, newFilename) => {
-    console.log(`📋 Log rotacionado: ${oldFilename} -> ${newFilename}`);
+    logInfoSync('Log rotacionado', { oldFilename, newFilename });
     await checkLogRotation();
   });
 
   errorFileTransport.on('rotate', async (oldFilename, newFilename) => {
-    console.log(`📋 Log de erro rotacionado: ${oldFilename} -> ${newFilename}`);
+    logInfoSync('Log de erro rotacionado', { oldFilename, newFilename });
     await checkLogRotation();
   });
 
