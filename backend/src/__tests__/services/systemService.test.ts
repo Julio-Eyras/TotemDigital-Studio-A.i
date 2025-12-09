@@ -3,7 +3,6 @@
  */
 
 import os from 'os';
-import axios from 'axios';
 import { SystemService } from '../../services/systemService';
 import { getDatabase } from '../../config/database';
 

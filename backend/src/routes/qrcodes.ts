@@ -75,7 +75,7 @@ router.get('/', async (req: any, res) => {
  * @desc Busca estatísticas gerais de QR Codes
  * @access Private (Admin, Manager)
  */
-router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/stats', authorizeRole(['admin', 'gerente_marketing']), async (_req, res) => {
   try {
     const stats = await getQRCodeService().getQRCodeStats();
 
@@ -291,7 +291,7 @@ router.put('/:id', async (req: any, res) => {
  * @desc Remove QR Code
  * @access Private (Admin, Manager)
  */
-router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res) => {
+router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: any, res) => {
   try {
     const { id } = req.params;
 

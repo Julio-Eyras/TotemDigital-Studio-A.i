@@ -26,7 +26,7 @@ router.use(authenticateToken);
  * @desc Busca todas as configurações
  * @access Private (Admin, Manager)
  */
-router.get('/', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
   try {
     const settings = await getSettingsService().getSettings();
 
@@ -50,7 +50,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req, res) => {
  * @desc Busca configurações públicas
  * @access Private (Admin, Manager, Client)
  */
-router.get('/public', async (req, res) => {
+router.get('/public', async (_req, res) => {
   try {
     const settings = await getSettingsService().getSettings();
 
@@ -74,7 +74,7 @@ router.get('/public', async (req, res) => {
  * @desc Busca configuração específica
  * @access Private (Admin, Manager)
  */
-router.get('/:key', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/:key', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
   try {
     const { key } = req.params;
 
@@ -154,7 +154,7 @@ router.put('/', authorizeRole(['admin']), async (req, res) => {
  * @desc Reseta configuração para valor padrão
  * @access Private (Admin, Manager)
  */
-router.post('/:key/reset', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.post('/:key/reset', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
   try {
     const { key } = req.params;
 
@@ -257,7 +257,7 @@ router.delete('/:key', authorizeRole(['admin']), async (req, res) => {
  * @desc Valida configurações
  * @access Private (Admin, Manager)
  */
-router.post('/validate', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.post('/validate', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
   try {
     const settings = req.body;
 
@@ -283,7 +283,7 @@ router.post('/validate', authorizeRole(['admin', 'manager']), async (req, res) =
  * @desc Exporta configurações
  * @access Private (Admin, Manager)
  */
-router.get('/export', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/export', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
   try {
     const settings = await getSettingsService().exportSettings();
 
@@ -348,7 +348,7 @@ router.post('/import', authorizeRole(['admin']), async (req, res) => {
  * @desc Lista categorias de configurações
  * @access Private (Admin, Manager)
  */
-router.get('/categories', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/categories', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
   try {
     const settings = await getSettingsService().getSettings();
 
@@ -380,7 +380,7 @@ router.get('/categories', authorizeRole(['admin', 'manager']), async (req, res) 
  * @desc Busca configurações de uma categoria específica
  * @access Private (Admin, Manager)
  */
-router.get('/category/:category', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/category/:category', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
   try {
     const { category } = req.params;
 
@@ -414,7 +414,7 @@ router.get('/category/:category', authorizeRole(['admin', 'manager']), async (re
  * @desc Atualiza configurações de uma categoria específica
  * @access Private (Admin, Manager)
  */
-router.put('/category/:category', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.put('/category/:category', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
   try {
     const { category } = req.params;
     const settings = req.body;

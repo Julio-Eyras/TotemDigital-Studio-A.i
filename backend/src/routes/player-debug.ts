@@ -72,9 +72,8 @@ router.get('/transactions',
 router.get('/transactions/:transactionId',
   param('transactionId').isString(),
   async (req: Request, res: Response) => {
+    const { transactionId } = req.params;
     try {
-      const { transactionId } = req.params;
-
       const transactions = await playerDebugService.getTransactions({
         limit: 1000
       });

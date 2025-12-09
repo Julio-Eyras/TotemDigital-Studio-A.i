@@ -8,7 +8,7 @@ const router = Router();
 
 router.use(authMiddleware);
 
-router.get('/', authorizeRole(['admin', 'manager', 'auditor']), async (req: any, res: Response) => {
+router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const {
       scheduleId,
@@ -52,7 +52,7 @@ router.get('/', authorizeRole(['admin', 'manager', 'auditor']), async (req: any,
   }
 });
 
-router.get('/:id', authorizeRole(['admin', 'manager', 'auditor']), async (req: any, res: Response) => {
+router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const executionId = parseInt(req.params.id, 10);
 
@@ -86,7 +86,7 @@ router.get('/:id', authorizeRole(['admin', 'manager', 'auditor']), async (req: a
   }
 });
 
-router.get('/:id/download', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.get('/:id/download', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const executionId = parseInt(req.params.id, 10);
 

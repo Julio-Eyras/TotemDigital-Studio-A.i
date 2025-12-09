@@ -21,20 +21,8 @@ export function decryptPlayerConfig(encryptedConfig: PlayerConfig, currentMacAdd
       return null;
     }
 
-    // Desencriptar usando OpenSSL (AES-256-CBC)
-    const decrypted = crypto
-      .createDecipheriv('aes-256-cbc', crypto.scryptSync(TOTEM_SECRET_KEY, 'salt', 32), Buffer.alloc(16, 0))
-      .update(encryptedConfig.data, 'base64', 'utf8')
-      .concat(crypto.createDecipheriv('aes-256-cbc', crypto.scryptSync(TOTEM_SECRET_KEY, 'salt', 32), Buffer.alloc(16, 0)).final('utf8'));
-
-    // Tentar desencriptar com método alternativo (OpenSSL via child_process)
-    // Por enquanto, vamos usar uma abordagem mais simples: decodificar base64 e validar
-    const payload = Buffer.from(encryptedConfig.data, 'base64').toString('utf8');
-    
-    // Tentar extrair dados do payload (formato: UIN:MAC:TIMESTAMP)
-    // Se o payload estiver encriptado, precisamos usar OpenSSL via child_process
-    // Por ora, vamos assumir que o backend recebe o UIN já desencriptado do player
-    // e validamos apenas o MAC address
+    // TODO: Implementar desencriptação real usando OpenSSL via child_process
+    // Por ora, apenas validar estrutura básica no futuro
     
     return null; // Retornar null por enquanto - será implementado com OpenSSL via child_process
   } catch (error) {

@@ -8,10 +8,14 @@
 import { Router } from 'express';
 import { CampaignService } from '../services/campaignService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
+import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { logError, logInfo, logDebug, sanitizeForLogging } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from '../services/eventLogService';
 
 const router = Router();
+
+// Aplicar bloqueio de dados de clientes para OPERATOR
+router.use(blockClientDataAccess);
 
 // Lazy initialization - só criar quando necessário
 function getCampaignService(): CampaignService {
@@ -76,7 +80,7 @@ router.get('/', async (req: any, res) => {
  * @desc Busca estatísticas gerais de campanhas
  * @access Private (Admin, Manager)
  */
-router.get('/stats', authorizeRole(['admin', 'manager']), async (_req, res) => {
+router.get('/stats', authorizeRole(['admin', 'gerente_marketing', 'visualizador']), async (_req, res) => {
   try {
     const stats = await getCampaignService().getCampaignsStats();
 
@@ -201,9 +205,11 @@ router.get('/:id', async (req: any, res) => {
 /**
  * @route POST /api/campaigns
  * @desc Cria nova campanha
- * @access Private (Admin, Manager, Client)
+ * @access Private (Admin, Gerente Marketing)
  */
-router.post('/', async (req: any, res) => {
+router.post('/', 
+  authorizeRole(['admin', 'gerente_marketing']),
+  async (req: any, res) => {
   try {
     const campaignData = req.body;
     
@@ -320,9 +326,9 @@ router.post('/', async (req: any, res) => {
 /**
  * @route PUT /api/campaigns/:id
  * @desc Atualiza campanha
- * @access Private (Admin, Manager, Client)
+ * @access Private (Admin, Gerente Marketing)
  */
-router.put('/:id', async (req: any, res) => {
+router.put('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: any, res) => {
   const { id } = req.params;
   try {
     const updateData = req.body;
@@ -336,10 +342,11 @@ router.put('/:id', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== existingCampaign.clientId) {
+    // Verificar se usuário tem acesso ao cliente da campanha
+    if (req.user.role !== 'admin_sql' && req.user.clientId !== existingCampaign.clientId) {
       return res.status(403).json({
         success: false,
-        message: 'Acesso negado: Você só pode editar suas próprias campanhas'
+        message: 'Acesso negado: Você só pode editar campanhas do seu cliente'
       });
     }
 
@@ -374,7 +381,7 @@ router.put('/:id', async (req: any, res) => {
  * @desc Remove campanha
  * @access Private (Admin, Manager)
  */
-router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res) => {
+router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: any, res) => {
   const { id } = req.params;
   try {
     await getCampaignService().deleteCampaign(parseInt(id), req.user.userId);
@@ -397,9 +404,11 @@ router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res)
 /**
  * @route POST /api/campaigns/:id/activate
  * @desc Ativa campanha
- * @access Private (Admin, Manager, Client)
+ * @access Private (Admin, Gerente Marketing)
  */
-router.post('/:id/activate', async (req: any, res) => {
+router.post('/:id/activate', 
+  authorizeRole(['admin', 'gerente_marketing']),
+  async (req: any, res) => {
   const { id } = req.params;
   try {
     // Verificar se campanha existe e permissão
@@ -459,9 +468,11 @@ router.post('/:id/activate', async (req: any, res) => {
 /**
  * @route POST /api/campaigns/:id/pause
  * @desc Pausa campanha
- * @access Private (Admin, Manager, Client)
+ * @access Private (Admin, Gerente Marketing)
  */
-router.post('/:id/pause', async (req: any, res) => {
+router.post('/:id/pause', 
+  authorizeRole(['admin', 'gerente_marketing']),
+  async (req: any, res) => {
   const { id } = req.params;
   try {
     // Verificar se campanha existe e permissão
@@ -522,9 +533,11 @@ router.post('/:id/pause', async (req: any, res) => {
 /**
  * @route POST /api/campaigns/:id/finish
  * @desc Finaliza campanha
- * @access Private (Admin, Manager, Client)
+ * @access Private (Admin, Gerente Marketing)
  */
-router.post('/:id/finish', async (req: any, res) => {
+router.post('/:id/finish', 
+  authorizeRole(['admin', 'gerente_marketing']),
+  async (req: any, res) => {
   const { id } = req.params;
   try {
     // Verificar se campanha existe e permissão

@@ -6,12 +6,11 @@
  */
 
 import fs from 'fs';
-import path from 'path';
 import sharp from 'sharp';
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { StorageService } from './storageService';
-import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
+import { logError, logWarn, logDebug } from '../utils/loggerHelper';
 
 export interface CreateMediaRequest {
   name: string;
@@ -350,7 +349,7 @@ export class MediaService {
       
       return results;
     } catch (error: any) {
-      await logError('Erro ao criar múltiplas mídias', error, { count: requests.length });
+      await logError('Erro ao criar múltiplas mídias', error, { count: files.length });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -432,7 +431,7 @@ export class MediaService {
       return newMedia;
 
     } catch (error: any) {
-      await logError('Erro ao criar mídia', error, { name: request.name, clientId: request.clientId });
+      await logError('Erro ao criar mídia', error, { name: data.name, clientId: data.clientId });
       throw error;
     }
   }
@@ -506,7 +505,7 @@ export class MediaService {
       return updatedMedia;
 
     } catch (error: any) {
-      await logError('Erro ao atualizar mídia', error, { mediaId, updateData });
+      await logError('Erro ao atualizar mídia', error, { mediaId, updateData: data });
       throw error;
     }
   }
@@ -597,7 +596,7 @@ export class MediaService {
       return result;
 
     } catch (error: any) {
-      await logError('Erro ao processar mídia', error, { filePath, mimeType });
+      await logError('Erro ao processar mídia', error, { filePath, mimetype });
       return {};
     }
   }
@@ -626,7 +625,7 @@ export class MediaService {
    * Gera thumbnail de vídeo
    * Nota: Requer ffmpeg instalado no sistema para funcionar completamente
    */
-  private async generateVideoThumbnail(buffer: Buffer, filePath: string): Promise<string> {
+  private async generateVideoThumbnail(_buffer: Buffer, filePath: string): Promise<string> {
     try {
       const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
       
@@ -787,7 +786,7 @@ export class MediaService {
       
       return null;
     } catch (error: any) {
-      await logError('Erro ao buscar thumbnail', error, { filePath });
+      await logError('Erro ao buscar thumbnail', error, { mediaId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -955,7 +954,7 @@ export class MediaService {
       }
 
     } catch (error: any) {
-      await logError('Erro ao processar mídia', error, { filePath, mimeType });
+      await logError('Erro ao processar mídia', error, { mediaId });
       return {
         success: false,
         message: `Erro ao processar mídia: ${error.message}`

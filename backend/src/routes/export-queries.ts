@@ -3,7 +3,7 @@
  * Rotas CRUD para queries de exportação
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { exportQueryService } from '../services/exportQueryService';
 import { sqlValidatorService } from '../services/sqlValidatorService';
 import { authMiddleware } from '../middleware/auth.middleware';
@@ -20,7 +20,7 @@ router.use(authMiddleware);
  * @desc Lista todas as queries
  * @access Private (Admin, Manager)
  */
-router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const { provider, enabled, search, page, limit } = req.query;
 
@@ -57,7 +57,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Respo
  * @desc Busca query por ID
  * @access Private (Admin, Manager)
  */
-router.get('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const queryId = parseInt(req.params.id);
 
@@ -96,7 +96,7 @@ router.get('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
  * @desc Cria nova query
  * @access Private (Admin, Manager)
  */
-router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.post('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const data = req.body;
     const userId = req.user.id;
@@ -147,7 +147,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Resp
  * @desc Atualiza query
  * @access Private (Admin, Manager)
  */
-router.put('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const queryId = parseInt(req.params.id);
     const data = req.body;
@@ -238,7 +238,7 @@ router.delete('/:id', authorizeRole(['admin']), async (req: any, res: Response) 
  * @desc Testa conexão com banco de dados
  * @access Private (Admin, Manager)
  */
-router.post('/:id/test-connection', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.post('/:id/test-connection', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const queryId = parseInt(req.params.id);
 
@@ -285,7 +285,7 @@ router.post('/:id/test-connection', authorizeRole(['admin', 'manager']), async (
  * @desc Valida sintaxe SQL
  * @access Private (Admin, Manager)
  */
-router.post('/validate-sql', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.post('/validate-sql', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const { sql, provider } = req.body;
 

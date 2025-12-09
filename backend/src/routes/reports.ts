@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { ReportsService } from '../services/reportsService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
+import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import * as fs from 'fs';
 import * as path from 'path';
 import { logError, logWarn } from '../utils/loggerHelper';
@@ -23,12 +24,15 @@ function getReportsService(): ReportsService {
 // Middleware de autenticação para todas as rotas
 router.use(authenticateToken);
 
+// Aplicar bloqueio de dados de clientes para OPERATOR
+router.use(blockClientDataAccess);
+
 /**
  * @route GET /api/reports
  * @desc Lista relatórios com paginação e filtros
  * @access Private (Admin, Manager)
  */
-router.get('/', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/', authorizeRole(['admin', 'gerente_marketing', 'visualizador']), async (req, res) => {
   try {
     const {
       page = 1,
@@ -76,7 +80,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req, res) => {
  * @desc Busca estatísticas de relatórios
  * @access Private (Admin, Manager)
  */
-router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/stats', authorizeRole(['admin', 'gerente_marketing', 'visualizador']), async (_req, res) => {
   try {
     const stats = await getReportsService().getReportStats();
 
@@ -100,7 +104,7 @@ router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
  * @desc Lista tipos de relatório disponíveis
  * @access Private (Admin, Manager, Client)
  */
-router.get('/types', async (req, res) => {
+router.get('/types', async (_req, res) => {
   try {
     const types = [
       {
@@ -243,7 +247,7 @@ router.post('/', async (req: any, res) => {
  * @desc Remove relatório
  * @access Private (Admin, Manager)
  */
-router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res) => {
+router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: any, res) => {
   try {
     const { id } = req.params;
 
@@ -403,7 +407,7 @@ router.post('/:id/regenerate', async (req: any, res) => {
  * @desc Lista templates de relatório
  * @access Private (Admin, Manager)
  */
-router.get('/templates', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/templates', authorizeRole(['admin', 'gerente_marketing', 'visualizador']), async (_req, res) => {
   try {
     const templates = await getReportsService().getReportStats(); // Usando método existente
 
@@ -461,7 +465,7 @@ router.post('/templates', authorizeRole(['admin']), async (req, res) => {
  * @desc Lista formatos de relatório disponíveis
  * @access Private (Admin, Manager, Client)
  */
-router.get('/formats', async (req, res) => {
+router.get('/formats', async (_req, res) => {
   try {
     const formats = [
       {
@@ -514,7 +518,7 @@ router.get('/formats', async (req, res) => {
  * @desc Gera múltiplos relatórios
  * @access Private (Admin, Manager)
  */
-router.post('/bulk-generate', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.post('/bulk-generate', authorizeRole(['admin', 'gerente_marketing']), async (req, res) => {
   try {
     const { reports } = req.body;
 
@@ -562,17 +566,137 @@ router.post('/bulk-generate', authorizeRole(['admin', 'manager']), async (req, r
 });
 
 /**
- * Obtém tipo de conteúdo baseado no formato
+ * @route POST /api/reports/export/excel
+ * @desc Exporta dados diretamente para Excel (sem salvar relatório)
+ * @access Private (Admin, Manager, Client)
  */
-function getContentType(format: string): string {
-  const contentTypes: { [key: string]: string } = {
-    'pdf': 'application/pdf',
-    'excel': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'csv': 'text/csv',
-    'json': 'application/json'
-  };
+router.post('/export/excel', async (req: any, res) => {
+  try {
+    const { type, filters, title, description } = req.body;
 
-  return contentTypes[format] || 'application/octet-stream';
-}
+    // Verificar permissão para clientes
+    if (req.user.role === 'client' && filters?.clientId !== req.user.clientId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado: Você só pode exportar dados do seu próprio cliente'
+      });
+    }
+
+    const reportRequest = {
+      type: type || 'analytics',
+      title: title || 'Export Excel',
+      description: description || '',
+      filters: filters || {},
+      template: undefined,
+      customFields: undefined,
+      aiAnalysis: false
+    };
+
+    // Gerar dados do relatório
+    const reportData = await getReportsService().generateReportData(reportRequest);
+
+    // Gerar arquivo Excel temporário
+    const tempDir = path.join(process.cwd(), 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const fileName = `export_${Date.now()}.xlsx`;
+    const filePath = path.join(tempDir, fileName);
+
+    await getReportsService().convertToExcel(reportData, filePath);
+
+    // Enviar arquivo
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    // Limpar arquivo após envio
+    fileStream.on('end', () => {
+      setTimeout(() => {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }, 1000);
+    });
+
+  } catch (error: any) {
+    await logError('Erro ao exportar para Excel', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao exportar para Excel',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/reports/export/pdf
+ * @desc Exporta dados diretamente para PDF (sem salvar relatório)
+ * @access Private (Admin, Manager, Client)
+ */
+router.post('/export/pdf', async (req: any, res) => {
+  try {
+    const { type, filters, title, description } = req.body;
+
+    // Verificar permissão para clientes
+    if (req.user.role === 'client' && filters?.clientId !== req.user.clientId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado: Você só pode exportar dados do seu próprio cliente'
+      });
+    }
+
+    const reportRequest = {
+      type: type || 'analytics',
+      title: title || 'Export PDF',
+      description: description || '',
+      filters: filters || {},
+      template: undefined,
+      customFields: undefined,
+      aiAnalysis: false
+    };
+
+    // Gerar dados do relatório
+    const reportData = await getReportsService().generateReportData(reportRequest);
+
+    // Gerar arquivo PDF temporário
+    const tempDir = path.join(process.cwd(), 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const fileName = `export_${Date.now()}.pdf`;
+    const filePath = path.join(tempDir, fileName);
+
+    await getReportsService().convertToPDF(reportData, filePath, reportRequest);
+
+    // Enviar arquivo
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    // Limpar arquivo após envio
+    fileStream.on('end', () => {
+      setTimeout(() => {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }, 1000);
+    });
+
+  } catch (error: any) {
+    await logError('Erro ao exportar para PDF', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao exportar para PDF',
+      error: error.message
+    });
+  }
+});
 
 export default router;

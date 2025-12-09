@@ -20,11 +20,11 @@ const validateRequest = (req: Request, res: Response, next: any) => {
       details: errors.array()
     });
   }
-  next();
+  return next();
 };
 
 // Aplicar autenticação em todas as rotas
-router.use(authMiddleware);
+router.use(authMiddleware as any);
 
 /**
  * @route GET /api/advanced-schedules
@@ -90,13 +90,13 @@ router.get('/:id',
         });
       }
 
-      res.json({
+      return res.json({
         success: true,
         data: schedule
       });
     } catch (error: any) {
       await logError('Erro ao buscar agendamento', error, { route: '/api/advanced-schedules/:id', scheduleId: parseInt(req.params.id) });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',
         message: error.message

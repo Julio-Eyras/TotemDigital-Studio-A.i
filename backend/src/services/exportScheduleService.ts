@@ -372,7 +372,7 @@ export class ExportScheduleService {
       await this.getAuditService().log('export', 'schedule_deleted', userId, {
         scheduleId: scheduleId,
         scheduleName: existing.name
-      }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId: schedule.schedule_id }).catch(() => {}));
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId }).catch(() => {}));
     } catch (error: any) {
       await logError('Erro ao excluir agendamento', error, { scheduleId });
       throw error;
@@ -415,8 +415,6 @@ export class ExportScheduleService {
    */
   private async updateScheduleJob(scheduleId: number, queryId: number, cronExpression: string, enabled: boolean): Promise<void> {
     try {
-      const queue = getExportQueue();
-      
       // Remover job antigo
       await this.removeScheduleJob(scheduleId);
 

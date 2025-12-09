@@ -42,8 +42,8 @@ export class AuditService {
     action: string,
     userId?: number,
     metadata?: any,
-    userAgent?: string,
-    ipAddress?: string
+    _userAgent?: string,
+    _ipAddress?: string
   ): Promise<void> {
     try {
       await this.db.executeRaw(`
@@ -342,11 +342,11 @@ export class AuditService {
         WHERE timestamp < datetime('now', '-${daysToKeep} days')
       `);
 
-      await logInfo('Logs de auditoria antigos removidos', { count: result.changes, days });
+      await logInfo('Logs de auditoria antigos removidos', { count: result.changes, days: daysToKeep });
       return result.changes;
 
     } catch (error: any) {
-      await logError('Erro ao limpar logs antigos', error, { days });
+      await logError('Erro ao limpar logs antigos', error, { days: daysToKeep });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -368,7 +368,7 @@ export class AuditService {
       return csv;
 
     } catch (error: any) {
-      await logError('Erro ao exportar logs', error, { filters, format });
+      await logError('Erro ao exportar logs', error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -421,7 +421,7 @@ export class AuditService {
       }));
 
     } catch (error: any) {
-      await logError('Erro ao buscar logs de segurança', error, { days });
+      await logError('Erro ao buscar logs de segurança', error, {});
       throw new Error('Erro interno do servidor');
     }
   }
@@ -459,7 +459,7 @@ export class AuditService {
       }));
 
     } catch (error: any) {
-      await logError('Erro ao buscar tentativas de login falhadas', error, { userId, hours });
+      await logError('Erro ao buscar tentativas de login falhadas', error, { hours });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -481,7 +481,7 @@ export class AuditService {
       return (result?.count || 0) >= maxAttempts;
 
     } catch (error: any) {
-      await logError('Erro ao verificar tentativas de login falhadas', error, { userId });
+      await logError('Erro ao verificar tentativas de login falhadas', error, { username, hours });
       return false;
     }
   }
@@ -497,10 +497,10 @@ export class AuditService {
       `, [eventType, description]);
 
       // Também registrar no audit_logs para consistência
-      await this.log('system', eventType, null, { description, ...metadata });
+      await this.log('system', eventType, undefined, { description, ...metadata });
 
     } catch (error: any) {
-      await logError('Erro ao registrar evento do sistema', error, { event, severity, metadata });
+      await logError('Erro ao registrar evento do sistema', error, { eventType, metadata });
     }
   }
 
@@ -523,7 +523,7 @@ export class AuditService {
       return logs;
 
     } catch (error: any) {
-      await logError('Erro ao buscar logs do sistema', error, { severity, limit });
+      await logError('Erro ao buscar logs do sistema', error, { limit });
       throw new Error('Erro interno do servidor');
     }
   }

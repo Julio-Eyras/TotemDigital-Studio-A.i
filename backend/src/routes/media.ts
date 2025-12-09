@@ -1,13 +1,15 @@
 import { Router, Response } from 'express';
 import { MediaService } from '../services/mediaService';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
+import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
-import { logError, logDebug, logWarn, logWarnSync, sanitizeForLogging } from '../utils/loggerHelper';
+import { logError, logDebug, logWarnSync, sanitizeForLogging } from '../utils/loggerHelper';
+import { uploadLimiter } from '../middleware/security.middleware';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { getMediaConfig, getMaxFileSize, getAllowedMimeTypes, getStoragePath } from '../config/mediaConfig';
+import { getMediaConfig, getAllowedMimeTypes, getStoragePath } from '../config/mediaConfig';
 
 const router = Router();
 
@@ -21,6 +23,9 @@ function getMediaService(): MediaService {
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
+
+// Aplicar bloqueio de dados de clientes para OPERATOR
+router.use(blockClientDataAccess);
 
 // Função para criar configuração dinâmica do multer
 function createMulterConfig() {
@@ -54,11 +59,11 @@ function createMulterConfig() {
     throw new Error(`Diretório de uploads não é gravável. Verifique permissões: ${error.message}`);
   }
 
-  const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
+    const storage = multer.diskStorage({
+    destination: (_req, _file, cb) => {
       cb(null, storagePath);
     },
-    filename: (req, file, cb) => {
+    filename: (_req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
       cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
@@ -79,7 +84,7 @@ function createMulterConfig() {
     limits: {
       fileSize: config.maxSize
     },
-    fileFilter: (req, file, cb) => {
+    fileFilter: (_req, file, cb) => {
       const extname = allowedTypesRegex.test(path.extname(file.originalname).toLowerCase());
       const mimetype = allowedMimeTypes.includes(file.mimetype);
 
@@ -171,7 +176,7 @@ router.get('/:id',
  * @desc Upload de arquivo de mídia
  * @access Private
  */
-router.post('/upload',
+router.post('/upload', uploadLimiter,
   async (req: AuthenticatedRequest, res: Response, next) => {
     // Log detalhado antes do multer processar (apenas em desenvolvimento)
     if (process.env.NODE_ENV === 'development') {
@@ -308,7 +313,9 @@ router.post('/upload',
  * @desc Upload múltiplo de arquivos de mídia
  * @access Private
  */
-router.post('/upload-multiple',
+router.post('/upload-multiple', 
+  authorizeRole(['admin', 'gerente_marketing', 'editoracao']),
+  uploadLimiter,
   (req, res, next) => getMulterUpload().array('files', 10)(req, res, next), // Máximo 10 arquivos
   body('clientId').optional().isInt({ min: 1 }),
   validateRequest,
@@ -368,9 +375,10 @@ router.post('/upload-multiple',
 /**
  * @route PUT /api/media/:id
  * @desc Atualizar arquivo de mídia
- * @access Private
+ * @access Private (Admin, Gerente Marketing, Editoração)
  */
 router.put('/:id',
+  authorizeRole(['admin', 'gerente_marketing', 'editoracao']),
   param('id').isInt({ min: 1 }),
   body('name').optional().isString().isLength({ min: 1, max: 100 }),
   body('description').optional().isString(),
@@ -400,9 +408,10 @@ router.put('/:id',
 /**
  * @route DELETE /api/media/:id
  * @desc Deletar arquivo de mídia
- * @access Private
+ * @access Private (Admin, Gerente Marketing, Editoração)
  */
 router.delete('/:id',
+  authorizeRole(['admin', 'gerente_marketing', 'editoracao']),
   param('id').isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -523,7 +532,7 @@ router.post('/:id/process',
  * @desc Obter estatísticas de mídia
  * @access Private
  */
-router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/stats/overview', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const stats = await getMediaService().getMediaStats();
     res.json(stats);
@@ -537,7 +546,7 @@ router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) =
  * @desc Obter estatísticas de armazenamento
  * @access Private
  */
-router.get('/stats/storage', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/stats/storage', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const stats = await getMediaService().getStorageStats();
     res.json(stats);

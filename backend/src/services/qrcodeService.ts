@@ -118,6 +118,7 @@ export class QRCodeService {
 
   /**
    * Registra evento de scan no EventLogService (sem impactar fluxo principal)
+   * Alinhado com o padrão conceitual do RESUMO_CONCEITOS_DOMINIO.md
    */
   private async logQRCodeScanEvent(
     qrCode: QRCodeResponse,
@@ -131,11 +132,15 @@ export class QRCodeService {
     try {
       const eventLogService = getEventLogService();
       await eventLogService.logQRCodeScan(qrCode.id, qrCode.totemId, {
-        clientId: qrCode.clientId,
-        campaignId: qrCode.campaignId,
-        ipAddress: scanData.ipAddress,
-        userAgent: scanData.userAgent,
+        qrCodeId: qrCode.id, // Padrão conceitual
+        totemId: qrCode.totemId, // Padrão conceitual
         location: scanData.location,
+        userAgent: scanData.userAgent,
+        ipAddress: scanData.ipAddress,
+        campaignId: qrCode.campaignId,
+        clientId: qrCode.clientId,
+        redirectUrl: qrCode.redirectUrl, // Padrão conceitual
+        scanResult: 'success', // Padrão conceitual: 'success' | 'failure'
         deviceInfo: scanData.deviceInfo
       });
     } catch (eventError: any) {

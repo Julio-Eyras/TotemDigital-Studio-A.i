@@ -121,7 +121,7 @@ router.get('/totem/:id', async (req: Request, res: Response) => {
  * @desc Obter informações do sistema
  * @access Private (Admin) ou Public para debug
  */
-router.get('/system-info', async (req: Request, res: Response) => {
+router.get('/system-info', async (_req: Request, res: Response) => {
   try {
     const db = getDatabase();
     

@@ -40,9 +40,17 @@ import {
   Payment,
   Tv,
   Build,
+  CloudUpload,
+  AutoAwesome,
+  DarkMode,
+  LightMode,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authApi } from '../../services/api';
+import { filterMenuItemsByRole, UserRole } from '../../utils/rolePermissions';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { setTheme } from '../../store/slices/uiSlice';
+import { useSystemAlerts } from '../../services/api/queries';
 
 const drawerWidth = 280;
 
@@ -62,10 +70,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useAppDispatch();
+  const themeMode = useAppSelector((state) => state.ui.theme);
   
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [user, setUser] = useState<any>(null);
+  const [alertsAnchorEl, setAlertsAnchorEl] = useState<null | HTMLElement>(null);
+  const { data: alerts = [] } = useSystemAlerts(10);
 
   useEffect(() => {
     // Load user from localStorage
@@ -75,7 +87,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, []);
 
-  const menuItems: MenuItem[] = [
+  const allMenuItems: MenuItem[] = [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
     { text: 'Mídia', icon: <VideoLibrary />, path: '/media' },
     { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
@@ -91,8 +103,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'Faturamento', icon: <Payment />, path: '/billing' },
     { text: 'IA', icon: <SmartToy />, path: '/ai' },
     { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
+    { text: 'Atualizações OTA', icon: <CloudUpload />, path: '/ota-updates' },
+    { text: 'Tags', icon: <QrCode />, path: '/tags' },
+    { text: 'SmartDisplayFX', icon: <AutoAwesome />, path: '/smartdisplayfx' },
     { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
+
+  // Filtrar menu items baseado na role do usuário
+  const menuItems = user?.role 
+    ? filterMenuItemsByRole(allMenuItems, user.role as UserRole)
+    : allMenuItems;
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -122,6 +142,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     navigate(path);
     if (isMobile) {
       setMobileOpen(false);
+    }
+  };
+
+  const handleAlertsOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAlertsAnchorEl(event.currentTarget);
+  };
+
+  const handleAlertsClose = () => {
+    setAlertsAnchorEl(null);
+  };
+
+  const handleToggleTheme = () => {
+    const next = themeMode === 'light' ? 'dark' : 'light';
+    dispatch(setTheme(next));
+    try {
+      localStorage.setItem('theme', next);
+    } catch {
+      // ignore storage errors
     }
   };
 
@@ -225,7 +263,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
           ml: { md: `${drawerWidth}px` },
-          backgroundColor: 'white',
+          backgroundColor: theme.palette.background.paper,
           color: theme.palette.text.primary,
           boxShadow: theme.shadows[1],
           borderBottom: `1px solid ${theme.palette.divider}`,
@@ -247,10 +285,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </Typography>
 
           {/* Notifications */}
-          <IconButton color="inherit" sx={{ mr: 1 }}>
-            <Badge badgeContent={0} color="error">
+          <IconButton color="inherit" sx={{ mr: 1 }} onClick={handleAlertsOpen}>
+            <Badge badgeContent={alerts.length} color="error">
               <Notifications />
             </Badge>
+          </IconButton>
+
+          {/* Theme Toggle */}
+          <IconButton
+            color="inherit"
+            onClick={handleToggleTheme}
+            sx={{ mr: 1 }}
+            aria-label="Alternar tema claro/escuro"
+          >
+            {themeMode === 'dark' ? (
+              <LightMode fontSize="small" />
+            ) : (
+              <DarkMode fontSize="small" />
+            )}
           </IconButton>
 
           {/* User Menu */}
@@ -307,6 +359,39 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </Menu>
         </Toolbar>
       </AppBar>
+
+      {/* Alerts Menu */}
+      <Menu
+        anchorEl={alertsAnchorEl}
+        open={Boolean(alertsAnchorEl)}
+        onClose={handleAlertsClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        PaperProps={{
+          sx: { minWidth: 320, maxWidth: 400, maxHeight: 400 },
+        }}
+      >
+        {alerts.length === 0 ? (
+          <MenuItem disabled>
+            <ListItemText primary="Nenhum alerta ativo" />
+          </MenuItem>
+        ) : (
+          alerts.map((alert) => (
+            <MenuItem key={alert.id}>
+              <ListItemText
+                primary={alert.message}
+                secondary={new Date(alert.timestamp).toLocaleString()}
+              />
+            </MenuItem>
+          ))
+        )}
+      </Menu>
 
       {/* Drawer */}
       <Box

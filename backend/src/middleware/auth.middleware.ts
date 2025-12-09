@@ -7,6 +7,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { config } from '../config/env';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -49,7 +50,7 @@ export const authMiddleware = async (
     }
 
     // Verificar token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, config.jwt.secret) as any;
     
     // Verificar se usuário ainda existe e está ativo
     const db = getDatabase();
@@ -228,13 +229,26 @@ export const requireClientAccess = (req: AuthenticatedRequest, res: Response, ne
     return;
   }
 
-  // Admin pode acessar qualquer cliente
+  // ADMIN_SQL pode acessar qualquer cliente (com restrições de privacidade)
+  if (req.user.role === 'admin_sql') {
+    next();
+    return;
+  }
+
+  // OPERATOR não pode acessar dados de clientes (bloqueado pelo blockClientDataAccess)
+  // Mas se chegou aqui, pode continuar (para rotas técnicas)
+  if (req.user.role === 'operator') {
+    next();
+    return;
+  }
+
+  // ADMIN do cliente pode acessar qualquer cliente (próprio cliente)
   if (req.user.role === 'admin') {
     next();
     return;
   }
 
-  // Outros usuários só podem acessar dados do próprio cliente
+  // Outros usuários (gerente_marketing, editoracao, visualizador) só podem acessar dados do próprio cliente
   const clientId = req.params.clientId || req.body.clientId || req.query.clientId;
   
   if (clientId && req.user.clientId !== parseInt(clientId)) {
@@ -272,7 +286,7 @@ export const optionalAuth = async (
     }
 
     // Verificar token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, config.jwt.secret) as any;
     
     // Verificar se usuário ainda existe e está ativo
     const db = getDatabase();
@@ -306,7 +320,7 @@ export const optionalAuth = async (
  */
 export const verifyAbandonPin = (req: Request, res: Response, next: NextFunction): void => {
   const { pin } = req.body;
-  const correctPin = process.env.PLAYER_ABANDON_PIN || '1234';
+  const correctPin = config.security.playerAbandonPin;
 
   if (!pin) {
     res.status(400).json({

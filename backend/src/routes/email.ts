@@ -31,7 +31,7 @@ router.use(authMiddleware);
  * @desc Verifica status do Email Service
  * @access Private (Admin)
  */
-router.get('/status', authorizeRole(['admin']), async (req: Request, res: Response) => {
+router.get('/status', authorizeRole(['admin']), async (_req: Request, res: Response) => {
   try {
     const isEnabled = emailService.isServiceEnabled();
     const isConnected = await emailService.testConnection();

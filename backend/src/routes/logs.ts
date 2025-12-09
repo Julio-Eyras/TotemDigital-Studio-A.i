@@ -6,7 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { LogRotationService } from '../services/logRotationService';
-import { getLogger, reloadLogger } from '../config/logger';
+import { reloadLogger } from '../config/logger';
 import { logError } from '../utils/loggerHelper';
 
 const router = Router();
@@ -73,7 +73,7 @@ router.use(authenticateToken);
  * @desc Obter configurações de logs
  * @access Private (Admin)
  */
-router.get('/config', authorizeRole(['admin']), async (req: Request, res: Response) => {
+router.get('/config', authorizeRole(['admin']), async (_req: Request, res: Response) => {
   try {
     const config = await logRotationService.getConfig();
     
@@ -100,7 +100,7 @@ router.get('/config', authorizeRole(['admin']), async (req: Request, res: Respon
  * @desc Listar arquivos de log
  * @access Private (Admin)
  */
-router.get('/files', authorizeRole(['admin']), async (req: Request, res: Response) => {
+router.get('/files', authorizeRole(['admin']), async (_req: Request, res: Response) => {
   try {
     const config = await logRotationService.getConfig();
     const files = await logRotationService.listLogFiles(config.logDirectory);
@@ -128,7 +128,7 @@ router.get('/files', authorizeRole(['admin']), async (req: Request, res: Respons
  * @desc Obter informações de espaço em disco
  * @access Private (Admin)
  */
-router.get('/disk-space', authorizeRole(['admin']), async (req: Request, res: Response) => {
+router.get('/disk-space', authorizeRole(['admin']), async (_req: Request, res: Response) => {
   try {
     const config = await logRotationService.getConfig();
     const diskSpace = await logRotationService.getDiskSpace(config.logDirectory);
@@ -158,7 +158,7 @@ router.get('/disk-space', authorizeRole(['admin']), async (req: Request, res: Re
  * @desc Verificar status de rotação de logs
  * @access Private (Admin)
  */
-router.get('/rotation-status', authorizeRole(['admin']), async (req: Request, res: Response) => {
+router.get('/rotation-status', authorizeRole(['admin']), async (_req: Request, res: Response) => {
   try {
     const rotationCheck = await logRotationService.checkRotation();
     
@@ -181,7 +181,7 @@ router.get('/rotation-status', authorizeRole(['admin']), async (req: Request, re
  * @desc Rotacionar logs manualmente
  * @access Private (Admin)
  */
-router.post('/rotate', authorizeRole(['admin']), async (req: Request, res: Response) => {
+router.post('/rotate', authorizeRole(['admin']), async (_req: Request, res: Response) => {
   try {
     const result = await logRotationService.rotateLogs();
     
@@ -207,7 +207,7 @@ router.post('/rotate', authorizeRole(['admin']), async (req: Request, res: Respo
  * @desc Recarregar configurações do logger
  * @access Private (Admin)
  */
-router.post('/reload', authorizeRole(['admin']), async (req: Request, res: Response) => {
+router.post('/reload', authorizeRole(['admin']), async (_req: Request, res: Response) => {
   try {
     await reloadLogger();
     

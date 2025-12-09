@@ -32,7 +32,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
       (async () => {
         try {
           const auditService = new AuditService();
-          await auditService.log('request', req.method.toLowerCase(), req.user.id, {
+          await auditService.log('request', req.method.toLowerCase(), req.user?.id || undefined, {
             url: req.url,
             method: req.method,
             statusCode: res.statusCode,

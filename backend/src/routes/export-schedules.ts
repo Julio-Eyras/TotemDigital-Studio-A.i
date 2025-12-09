@@ -3,7 +3,7 @@
  * Rotas CRUD para agendamentos de exportação
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { exportScheduleService } from '../services/exportScheduleService';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { authorizeRole } from '../middleware/auth.middleware';
@@ -19,7 +19,7 @@ router.use(authMiddleware);
  * @desc Lista todos os agendamentos
  * @access Private (Admin, Manager)
  */
-router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const { queryId, enabled, search, page, limit } = req.query;
 
@@ -56,7 +56,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Respo
  * @desc Busca agendamento por ID
  * @access Private (Admin, Manager)
  */
-router.get('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const scheduleId = parseInt(req.params.id);
 
@@ -95,7 +95,7 @@ router.get('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
  * @desc Cria novo agendamento
  * @access Private (Admin, Manager)
  */
-router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.post('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const data = req.body;
     const userId = req.user.id;
@@ -141,7 +141,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Resp
  * @desc Atualiza agendamento
  * @access Private (Admin, Manager)
  */
-router.put('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const scheduleId = parseInt(req.params.id);
     const data = req.body;
@@ -222,7 +222,7 @@ router.delete('/:id', authorizeRole(['admin']), async (req: any, res: Response) 
  * @desc Executa agendamento manualmente
  * @access Private (Admin, Manager)
  */
-router.post('/:id/execute-now', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.post('/:id/execute-now', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const scheduleId = parseInt(req.params.id);
     const userId = req.user.id;
@@ -256,7 +256,7 @@ router.post('/:id/execute-now', authorizeRole(['admin', 'manager']), async (req:
  * @desc Valida expressão cron
  * @access Private (Admin, Manager)
  */
-router.post('/validate-cron', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.post('/validate-cron', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const { cronExpression } = req.body;
 

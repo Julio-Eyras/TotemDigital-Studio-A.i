@@ -7,31 +7,28 @@
  */
 
 import pg from 'pg';
-import dotenv from 'dotenv';
 import { logInfoSync, logErrorSync } from '../utils/loggerHelper';
-
-dotenv.config();
+import { databaseConfig as config } from './env';
 
 const { Pool } = pg;
 
 // Pool de conexões PostgreSQL
 let pool: pg.Pool | null = null;
 
-// Database configuration
+// Database configuration usando sistema centralizado
 export const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'smartsignage',
-  user: process.env.DB_USER || 'smartsignage',
-  password: process.env.DB_PASSWORD || 'smartsignage123',
-  max: 20, // máximo de conexões no pool
+  host: config.host,
+  port: config.port,
+  database: config.database,
+  user: config.user,
+  password: config.password,
+  max: config.poolSize,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: config.connectionTimeout,
 };
 
 // DATABASE_URL para compatibilidade
-export const DATABASE_URL = process.env.DATABASE_URL || 
-  `postgresql://${dbConfig.user}:${dbConfig.password}@${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`;
+export const DATABASE_URL = config.url;
 
 /**
  * Inicializa a conexão com o PostgreSQL
@@ -98,9 +95,9 @@ export async function closeDatabase(): Promise<void> {
  * @param text SQL query com placeholders $1, $2, etc.
  * @param params Array de parâmetros
  */
-export async function query<T = any>(
+export async function query<T extends pg.QueryResultRow = Record<string, unknown>>(
   text: string,
-  params?: any[]
+  params?: unknown[]
 ): Promise<pg.QueryResult<T>> {
   const db = getDatabase();
   return db.query<T>(text, params);

@@ -1,0 +1,18 @@
+[Unit]
+Description=Smart Signage Player (C++)
+After=network.target
+
+[Service]
+Type=simple
+User=smartsignage
+WorkingDirectory=/opt/smartsignage-player
+ExecStart=/usr/local/bin/smartsignage-player
+Restart=always
+RestartSec=10
+Environment="API_BASE_URL=http://localhost:3000"
+Environment="TOTEM_UIN="
+Environment="TOTEM_SECRET="
+
+[Install]
+WantedBy=multi-user.target
+

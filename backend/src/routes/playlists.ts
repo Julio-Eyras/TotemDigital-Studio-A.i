@@ -1,6 +1,7 @@
 import express from 'express';
 import { body, query, param, validationResult } from 'express-validator';
-import { authMiddleware } from '../middleware/auth.middleware';
+import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
+import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { getPlaylistService } from '../services/playlistService';
 import { logError } from '../utils/loggerHelper';
 
@@ -8,6 +9,9 @@ const router = express.Router();
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
+
+// Aplicar bloqueio de dados de clientes para OPERATOR
+router.use(blockClientDataAccess);
 
 // Validações
 const createPlaylistValidator = [
@@ -96,8 +100,10 @@ router.get('/:id',
 /**
  * @route POST /api/playlists
  * @desc Criar nova playlist
+ * @access Private (Admin, Gerente Marketing)
  */
 router.post('/',
+  authorizeRole(['admin', 'gerente_marketing']),
   createPlaylistValidator,
   validateRequest,
   async (req: any, res: any) => {
@@ -121,8 +127,10 @@ router.post('/',
 /**
  * @route PUT /api/playlists/:id
  * @desc Atualizar playlist
+ * @access Private (Admin, Gerente Marketing)
  */
 router.put('/:id',
+  authorizeRole(['admin', 'gerente_marketing']),
   updatePlaylistValidator,
   validateRequest,
   async (req: any, res: any) => {
@@ -148,8 +156,10 @@ router.put('/:id',
 /**
  * @route DELETE /api/playlists/:id
  * @desc Excluir playlist
+ * @access Private (Admin, Gerente Marketing)
  */
 router.delete('/:id',
+  authorizeRole(['admin', 'gerente_marketing']),
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
   async (req: any, res: any) => {

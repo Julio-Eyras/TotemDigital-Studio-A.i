@@ -4,9 +4,9 @@
  */
 
 import { getDatabase } from '../config/database';
-import { AuditService } from './auditService';
 import axios from 'axios';
 import { logError } from '../utils/loggerHelper';
+import { config } from '../config/env';
 
 export interface AIRequest {
   prompt: string;
@@ -68,14 +68,6 @@ export class AIService {
     return getDatabase();
   }
   
-  // Lazy initialization - só criar quando necessário
-  private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
-    }
-    return (global as any).auditServiceInstance;
-  }
-  
   private config: AIConfig;
 
   constructor() {
@@ -83,35 +75,50 @@ export class AIService {
   }
 
   /**
-   * Carrega configuração de IA
+   * Carrega configuração de IA usando sistema centralizado
    */
   private loadConfig(): AIConfig {
-    const provider = (process.env.AI_PROVIDER || 'ollama') as 'ollama' | 'openai' | 'anthropic';
+    const provider = config.ai.provider as 'ollama' | 'openai' | 'anthropic';
+    
+    let baseUrl = '';
+    let apiKey = '';
+    
+    switch (provider) {
+      case 'ollama':
+        baseUrl = config.ai.ollama.baseUrl;
+        break;
+      case 'openai':
+        apiKey = config.ai.openai.apiKey;
+        break;
+      case 'anthropic':
+        apiKey = config.ai.anthropic.apiKey;
+        break;
+    }
     
     return {
       provider,
-      baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-      apiKey: process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY,
+      baseUrl,
+      apiKey,
       defaultModel: this.getDefaultModel(provider),
       maxTokens: parseInt(process.env.AI_MAX_TOKENS || '1000'),
       temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
-      enabled: process.env.AI_ENABLED !== 'false'
+      enabled: true // Sempre habilitado se configurado
     };
   }
 
   /**
-   * Obtém modelo padrão baseado no provider
+   * Obtém modelo padrão baseado no provider usando sistema centralizado
    */
   private getDefaultModel(provider: string): string {
     switch (provider) {
       case 'ollama':
-        return process.env.OLLAMA_MODEL || 'llama2';
+        return config.ai.model;
       case 'openai':
-        return process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
+        return config.ai.openai.model;
       case 'anthropic':
-        return process.env.ANTHROPIC_MODEL || 'claude-3-sonnet-20240229';
+        return config.ai.anthropic.model;
       default:
-        return 'llama2';
+        return config.ai.model;
     }
   }
 
@@ -492,7 +499,7 @@ export class AIService {
       };
 
     } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de IA', error, { days });
+      await logError('Erro ao buscar estatísticas de IA', error, {});
       throw new Error('Erro interno do servidor');
     }
   }
@@ -548,7 +555,7 @@ export class AIService {
       return response.response;
 
     } catch (error: any) {
-      await logError('Erro ao analisar performance da campanha', error, { campaignId });
+      await logError('Erro ao analisar performance da campanha', error, {});
       throw new Error('Erro ao analisar performance da campanha');
     }
   }
@@ -578,7 +585,7 @@ export class AIService {
       return response.response;
 
     } catch (error: any) {
-      await logError('Erro ao gerar relatório inteligente', error, { filters });
+      await logError('Erro ao gerar relatório inteligente', error, { filters: data?.filters || null });
       throw new Error('Erro ao gerar relatório inteligente');
     }
   }

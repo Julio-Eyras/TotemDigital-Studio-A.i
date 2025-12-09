@@ -42,7 +42,16 @@ curl -fsS -X POST "$API/api/campaigns" \
   -d '{"clientId":1,"title":"Campanha Teste","description":"Demo","campaignType":"general","isActive":true}' \
   | jq '.id,.title' || true
 
-echo "===> 7) Players e heartbeat"
+echo "===> 7) MQTT Broker (SmartDisplayFX)"
+if command -v mosquitto_sub &> /dev/null; then
+  timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 >/dev/null 2>&1 && echo "MQTT Broker OK" || echo "MQTT Broker não respondeu"
+elif docker ps | grep -q smartsignage-mqtt; then
+  echo "MQTT Broker (Docker) está rodando"
+else
+  echo "MQTT Broker não encontrado (opcional para SmartDisplayFX)"
+fi
+
+echo "===> 8) Players e heartbeat"
 PID=$(curl -fsS -X POST "$API/api/players" \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"name":"Totem 1","location":"Loja Central","clientId":1}' | jq -r '.id' || echo "")
@@ -54,21 +63,22 @@ else
   echo "Falha ao criar player - pulando heartbeat"
 fi
 
-echo "===> 8) Grafana e Prometheus"
+echo "===> 9) Grafana e Prometheus"
 curl -fsS "$PROM/-/healthy" && echo "Prometheus OK" || echo "Prometheus não respondeu"
 curl -fsS "$GRAFANA/login" >/dev/null && echo "Grafana UP" || echo "Grafana não respondeu"
 echo "Acesse $GRAFANA (admin/admin) e verifique dashboard 'SmartSignage – Operação'"
 
-echo "===> 9) HTTPS (se habilitado)"
+echo "===> 10) HTTPS (se habilitado)"
 if curl -fsS "https://$HOST/health" -k >/dev/null 2>&1; then
   echo "HTTPS OK (cert autoassinado ou Let's Encrypt)"
 else
   echo "HTTPS não ativo (ok se você escolheu HTTP)."
 fi
 
-echo "===> 10) Logs rápidos"
+echo "===> 11) Logs rápidos"
 docker compose logs --tail 20 backend | tail -n +1 || true
 docker compose logs --tail 20 nginx | tail -n +1 || true
+docker compose logs --tail 20 mqtt | tail -n +1 || true
 docker compose logs --tail 20 prometheus | tail -n +1 || true
 docker compose logs --tail 20 grafana | tail -n +1 || true
 

@@ -6,7 +6,8 @@
 import { Router } from 'express';
 import { BillingService } from '../services/billingService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
-import { logError, logErrorSync } from '../utils/loggerHelper';
+import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
+import { logError } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -21,12 +22,15 @@ function getBillingService(): BillingService {
 // Middleware de autenticação para todas as rotas
 router.use(authenticateToken);
 
+// Aplicar bloqueio de dados de clientes para OPERATOR
+router.use(blockClientDataAccess);
+
 /**
  * @route GET /api/billing
  * @desc Lista faturas com paginação e filtros
- * @access Private (Admin, Manager, Client)
+ * @access Private (Admin apenas - billing é restrito)
  */
-router.get('/', async (req: any, res) => {
+router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
   try {
     const {
       page = 1,
@@ -77,9 +81,9 @@ router.get('/', async (req: any, res) => {
 /**
  * @route GET /api/billing/stats
  * @desc Busca estatísticas de faturamento
- * @access Private (Admin, Manager)
+ * @access Private (Admin apenas - billing é restrito)
  */
-router.get('/stats', authorizeRole(['admin', 'manager']), async (_req, res) => {
+router.get('/stats', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
   try {
     const stats = await getBillingService().getBillingStats();
 
@@ -101,9 +105,9 @@ router.get('/stats', authorizeRole(['admin', 'manager']), async (_req, res) => {
 /**
  * @route GET /api/billing/overdue
  * @desc Lista faturas vencidas
- * @access Private (Admin, Manager)
+ * @access Private (Admin apenas - billing é restrito)
  */
-router.get('/overdue', authorizeRole(['admin', 'manager']), async (_req, res) => {
+router.get('/overdue', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
   try {
     const overdueBillings = await getBillingService().getOverdueBillings();
 
@@ -125,9 +129,9 @@ router.get('/overdue', authorizeRole(['admin', 'manager']), async (_req, res) =>
 /**
  * @route GET /api/billing/client/:clientId
  * @desc Lista faturas de um cliente específico
- * @access Private (Admin, Manager, Client)
+ * @access Private (Admin apenas - billing é restrito)
  */
-router.get('/client/:clientId', async (req: any, res) => {
+router.get('/client/:clientId', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
   try {
     const { clientId } = req.params;
     const { limit = 50 } = req.query;
@@ -163,9 +167,9 @@ router.get('/client/:clientId', async (req: any, res) => {
 /**
  * @route GET /api/billing/:id
  * @desc Busca fatura por ID
- * @access Private (Admin, Manager, Client)
+ * @access Private (Admin apenas - billing é restrito)
  */
-router.get('/:id', async (req: any, res) => {
+router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
   try {
     const { id } = req.params;
 
@@ -206,7 +210,7 @@ router.get('/:id', async (req: any, res) => {
  * @desc Cria nova fatura
  * @access Private (Admin, Manager)
  */
-router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res) => {
+router.post('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
   try {
     const billingData = req.body;
 
@@ -238,7 +242,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res) => {
     if (!mappedData.clientId) {
       if (req.user.role === 'client' && req.user.clientId) {
         mappedData.clientId = req.user.clientId;
-      } else if (req.user.role === 'admin' || req.user.role === 'manager') {
+      } else if (req.user.role === 'admin' || req.user.role === 'admin_sql') {
         // Para admin/manager, buscar primeiro cliente ativo se não fornecido
         try {
           const firstClient = await getBillingService().getFirstActiveClient();
@@ -287,7 +291,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res) => {
  * @desc Atualiza fatura
  * @access Private (Admin, Manager)
  */
-router.put('/:id', authorizeRole(['admin', 'manager']), async (req: any, res) => {
+router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -319,7 +323,7 @@ router.put('/:id', authorizeRole(['admin', 'manager']), async (req: any, res) =>
  * @desc Remove fatura
  * @access Private (Admin, Manager)
  */
-router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res) => {
+router.delete('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
   try {
     const { id } = req.params;
 
@@ -392,7 +396,7 @@ router.post('/:id/payment', async (req: any, res) => {
  * @desc Marca faturas como vencidas
  * @access Private (Admin, Manager)
  */
-router.post('/mark-overdue', authorizeRole(['admin', 'manager']), async (_req, res) => {
+router.post('/mark-overdue', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
   try {
     const count = await getBillingService().markOverdueBillings();
 
@@ -460,7 +464,7 @@ router.get('/:id/payments', async (req: any, res) => {
  * @desc Cancela fatura
  * @access Private (Admin, Manager)
  */
-router.post('/:id/cancel', authorizeRole(['admin', 'manager']), async (req: any, res) => {
+router.post('/:id/cancel', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
@@ -506,7 +510,7 @@ router.post('/:id/cancel', authorizeRole(['admin', 'manager']), async (req: any,
  * @desc Exporta faturas
  * @access Private (Admin, Manager)
  */
-router.get('/export', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/export', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
   try {
     const {
       clientId,
@@ -564,34 +568,5 @@ router.get('/export', authorizeRole(['admin', 'manager']), async (req, res) => {
     });
   }
 });
-
-/**
- * Converte faturas para CSV (implementação simplificada)
- */
-function convertBillingsToCSV(billings: any[]): string {
-  try {
-    const headers = ['ID', 'Cliente', 'Tipo', 'Valor', 'Status', 'Vencimento', 'Descrição'];
-    const rows = billings.map(billing => [
-      billing.id,
-      billing.clientName,
-      billing.billingType,
-      billing.amount,
-      billing.status,
-      billing.dueDate,
-      billing.description
-    ]);
-
-    const csvContent = [headers, ...rows]
-      .map(row => row.map(cell => `"${cell}"`).join(','))
-      .join('\n');
-
-    return csvContent;
-
-  } catch (error: any) {
-    // Usar versão síncrona pois esta função não é async
-    logErrorSync('Erro ao converter faturas para CSV', error);
-    return 'Erro ao converter dados para CSV';
-  }
-}
 
 export default router;

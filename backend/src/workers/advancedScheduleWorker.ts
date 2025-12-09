@@ -162,7 +162,7 @@ export async function processAdvancedScheduleJob(job: Job<AdvancedScheduleJobDat
 /**
  * Processa ativação de campanha
  */
-async function processCampaignActivation(campaignId: number, config: any): Promise<AdvancedScheduleJobResult> {
+async function processCampaignActivation(campaignId: number, _config: any): Promise<AdvancedScheduleJobResult> {
   try {
     const campaign = await campaignService.getCampaignById(campaignId);
     if (!campaign) {

@@ -5,13 +5,14 @@
 
 import Bull from 'bull';
 import { logInfoSync, logErrorSync, logWarnSync } from '../utils/loggerHelper';
+import { redisConfig as config } from './env';
 
-// Configuração do Redis para Bull
+// Configuração do Redis para Bull usando sistema centralizado
 const redisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD || undefined,
-  db: parseInt(process.env.REDIS_DB || '0'),
+  host: config.host,
+  port: config.port,
+  password: config.password || undefined,
+  db: config.db,
 };
 
 // Queue de exportação

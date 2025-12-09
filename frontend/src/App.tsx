@@ -1,84 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { CssBaseline, Box } from '@mui/material';
+import { CssBaseline, Box, CircularProgress } from '@mui/material';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { Provider } from 'react-redux';
+import { queryClient } from './config/queryClient';
+import { store } from './store/store';
+import Notification from './components/Notification/Notification';
+import { useRateLimit } from './hooks/useRateLimit';
+import { useAppSelector } from './store/hooks';
 
 // Pages
 import LoginPage from './pages/Auth/LoginPage';
 import ForgotPassword from './pages/Auth/ForgotPassword';
 import ResetPassword from './pages/Auth/ResetPassword';
-import Dashboard from './pages/Dashboard/Dashboard';
-import Media from './pages/Media/Media';
-import Playlists from './pages/Playlists/Playlists';
-import Players from './pages/Players/Players';
-import Users from './pages/Users/Users';
-import Clients from './pages/Clients/Clients';
-import Campaigns from './pages/Campaigns/Campaigns';
-import Reports from './pages/Reports/Reports';
-import Analytics from './pages/Analytics/Analytics';
-import Settings from './pages/Settings/Settings';
-import AI from './pages/AI/AI';
-import SmartPlaylist from './pages/SmartPlaylist/SmartPlaylist';
-import Totems from './pages/Totems/Totems';
-import Billing from './pages/Billing/Billing';
-import QRCodes from './pages/QRCodes/QRCodes';
-import AdminTools from './pages/AdminTools/AdminTools';
+
+// Lazy-loaded pages (code splitting)
+const Dashboard = React.lazy(() => import('./pages/Dashboard/Dashboard'));
+const Media = React.lazy(() => import('./pages/Media/Media'));
+const Playlists = React.lazy(() => import('./pages/Playlists/Playlists'));
+const Players = React.lazy(() => import('./pages/Players/Players'));
+const Users = React.lazy(() => import('./pages/Users/Users'));
+const Clients = React.lazy(() => import('./pages/Clients/Clients'));
+const Campaigns = React.lazy(() => import('./pages/Campaigns/Campaigns'));
+const Reports = React.lazy(() => import('./pages/Reports/Reports'));
+const Analytics = React.lazy(() => import('./pages/Analytics/Analytics'));
+const Settings = React.lazy(() => import('./pages/Settings/Settings'));
+const AI = React.lazy(() => import('./pages/AI/AI'));
+const SmartPlaylist = React.lazy(() => import('./pages/SmartPlaylist/SmartPlaylist'));
+const Totems = React.lazy(() => import('./pages/Totems/Totems'));
+const Billing = React.lazy(() => import('./pages/Billing/Billing'));
+const QRCodes = React.lazy(() => import('./pages/QRCodes/QRCodes'));
+const AdminTools = React.lazy(() => import('./pages/AdminTools/AdminTools'));
+const OTAUpdates = React.lazy(() => import('./components/OTAUpdates/OTAUpdates'));
+const TagsManager = React.lazy(() => import('./components/TagsManager/TagsManager'));
+const SmartDisplayFx = React.lazy(() => import('./pages/SmartDisplayFx/SmartDisplayFx'));
 
 // Components
 import Layout from './components/Layout/Layout';
 
-// Create theme
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#1976d2',
-      dark: '#1565c0',
-      light: '#42a5f5',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-    background: {
-      default: '#f5f5f5',
-    },
-  },
-  typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-    h4: {
-      fontWeight: 600,
-    },
-    h6: {
-      fontWeight: 600,
-    },
-  },
-  shape: {
-    borderRadius: 8,
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: 'none',
-          fontWeight: 600,
-        },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          '&:hover': {
-            boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-          },
-        },
-      },
-    },
-  },
-});
-
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // Hook para lidar com rate limiting
+  useRateLimit();
 
   useEffect(() => {
     // Check if user is authenticated
@@ -115,28 +81,22 @@ const App: React.FC = () => {
     return isAuthenticated ? <Layout>{children}</Layout> : <Navigate to="/login" />;
   };
 
-  if (loading) {
-    return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '100vh',
-          }}
-        >
-          Carregando aplicação...
-        </Box>
-      </ThemeProvider>
-    );
-  }
-
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Router>
+    <Router>
+      <Suspense
+        fallback={
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              minHeight: '100vh',
+            }}
+          >
+            <CircularProgress />
+          </Box>
+        }
+      >
         <Routes>
           {/* Public Routes */}
           <Route
@@ -299,6 +259,30 @@ const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/ota-updates"
+            element={
+              <ProtectedRoute>
+                <OTAUpdates />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tags"
+            element={
+              <ProtectedRoute>
+                <TagsManager />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/smartdisplayfx"
+            element={
+              <ProtectedRoute>
+                <SmartDisplayFx />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Default redirect */}
           <Route
@@ -312,8 +296,87 @@ const App: React.FC = () => {
             element={<Navigate to="/dashboard" />}
           />
         </Routes>
-      </Router>
+      </Suspense>
+    </Router>
+  );
+};
+
+const ThemedApp: React.FC = () => {
+  const themeMode = useAppSelector((state) => state.ui.theme);
+
+  const theme = useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode: themeMode,
+          primary: {
+            main: '#1976d2',
+            dark: '#1565c0',
+            light: '#42a5f5',
+          },
+          secondary: {
+            main: '#dc004e',
+          },
+          background: {
+            default: themeMode === 'dark' ? '#121212' : '#f5f5f5',
+          },
+        },
+        typography: {
+          fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+          h4: {
+            fontWeight: 600,
+          },
+          h6: {
+            fontWeight: 600,
+          },
+        },
+        shape: {
+          borderRadius: 8,
+        },
+        components: {
+          MuiButton: {
+            styleOverrides: {
+              root: {
+                textTransform: 'none',
+                fontWeight: 600,
+              },
+            },
+          },
+          MuiCard: {
+            styleOverrides: {
+              root: {
+                boxShadow: themeMode === 'dark'
+                  ? '0 2px 8px rgba(0,0,0,0.7)'
+                  : '0 2px 8px rgba(0,0,0,0.1)',
+                '&:hover': {
+                  boxShadow: themeMode === 'dark'
+                    ? '0 4px 16px rgba(0,0,0,0.9)'
+                    : '0 4px 16px rgba(0,0,0,0.15)',
+                },
+              },
+            },
+          },
+        },
+      }),
+    [themeMode]
+  );
+
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Notification />
+      <AppContent />
     </ThemeProvider>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <Provider store={store}>
+      <QueryClientProvider client={queryClient}>
+        <ThemedApp />
+      </QueryClientProvider>
+    </Provider>
   );
 };
 

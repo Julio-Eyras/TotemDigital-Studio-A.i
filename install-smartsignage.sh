@@ -2411,6 +2411,14 @@ CORS_ORIGIN=http://localhost:3000,http://localhost:3001
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
+
+# SmartDisplayFX / MQTT
+SMARTDISPLAYFX_MQTT_ENABLED=true
+SMARTDISPLAYFX_MQTT_URL=mqtt://localhost:1883
+SMARTDISPLAYFX_MQTT_WS_URL=ws://localhost:9001
+SMARTDISPLAYFX_MQTT_USERNAME=
+SMARTDISPLAYFX_MQTT_PASSWORD=
+SMARTDISPLAYFX_MQTT_PREFIX=smartdisplay
 EOF
 
     log "Variáveis de ambiente configuradas em $ENV_FILE"
@@ -2472,6 +2480,14 @@ CORS_ORIGIN=http://localhost:3000,http://localhost:3001
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
+
+# SmartDisplayFX / MQTT
+SMARTDISPLAYFX_MQTT_ENABLED=true
+SMARTDISPLAYFX_MQTT_URL=mqtt://localhost:1883
+SMARTDISPLAYFX_MQTT_WS_URL=ws://localhost:9001
+SMARTDISPLAYFX_MQTT_USERNAME=
+SMARTDISPLAYFX_MQTT_PASSWORD=
+SMARTDISPLAYFX_MQTT_PREFIX=smartdisplay
 EOF
         }
         log "✅ .env criado no diretório backend: $BACKEND_ENV_FILE"
@@ -3599,6 +3615,8 @@ test_endpoints() {
             ["Player"]="http://$SERVER_IP:80/player"
             ["Prometheus"]="http://$SERVER_IP:9090"
             ["Grafana"]="http://$SERVER_IP:3002"
+            ["MQTT Broker"]="mqtt://$SERVER_IP:1883"
+            ["MQTT WebSocket"]="ws://$SERVER_IP:9001"
         )
         
     elif [[ "$INSTALL_MODE" == "single-server" ]]; then
@@ -3625,11 +3643,30 @@ test_endpoints() {
         url="${ENDPOINTS[$service]}"
         log "Testando $service: $url"
         
-        # Tentar conectar com timeout
-        if curl -s --max-time 10 "$url" > /dev/null 2>&1; then
-            log "✅ $service: OK"
+        # Teste especial para MQTT
+        if [[ "$service" == "MQTT Broker" ]] || [[ "$service" == "MQTT WebSocket" ]]; then
+            # Para MQTT, usar mosquitto_sub se disponível
+            if command -v mosquitto_sub &> /dev/null; then
+                if timeout 2 mosquitto_sub -h "$SERVER_IP" -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
+                    log "✅ $service: OK"
+                else
+                    warning "⚠️  $service: Não respondeu ao teste"
+                fi
+            else
+                # Se mosquitto_sub não estiver disponível, verificar se container está rodando (Docker)
+                if [[ "$INSTALL_MODE" == "docker" ]] && $COMPOSE_CMD ps | grep -q smartsignage-mqtt; then
+                    log "✅ $service: Container rodando (teste detalhado requer mosquitto_sub)"
+                else
+                    warning "⚠️  $service: Não foi possível verificar (mosquitto_sub não disponível)"
+                fi
+            fi
         else
-            warning "❌ $service: FALHOU - $url"
+            # Para outros endpoints, usar curl
+            if curl -s --max-time 10 "$url" > /dev/null 2>&1; then
+                log "✅ $service: OK"
+            else
+                warning "❌ $service: FALHOU - $url"
+            fi
         fi
     done
     
@@ -3689,13 +3726,17 @@ start_services_in_order() {
         retry_with_backoff 3 2 $COMPOSE_CMD up -d redis || true
         wait_for_redis
         
+        log "Iniciando MQTT Broker..."
+        retry_with_backoff 3 2 $COMPOSE_CMD up -d mqtt || true
+        wait_for_mqtt
+        
         log "Iniciando Ollama..."
         retry_with_backoff 3 2 $COMPOSE_CMD up -d ollama || true
         wait_for_ollama
         
         log "Iniciando App (monolito)..."
         # Retry leve para imagens que podem falhar por rede
-        for i in {1..3}; do $COMPOSE_CMD up -d postgres redis ollama prometheus grafana && break || sleep 5; done
+        for i in {1..3}; do $COMPOSE_CMD up -d postgres redis mqtt ollama prometheus grafana && break || sleep 5; done
         retry_with_backoff 3 3 $COMPOSE_CMD up -d app || true
         # Aguarde estabilização
         sleep 5
@@ -3846,6 +3887,9 @@ check_startup_order() {
                 "redis")
                     wait_for_redis
                     ;;
+                "mqtt")
+                    wait_for_mqtt
+                    ;;
                 "ollama")
                     wait_for_ollama
                     ;;
@@ -3936,6 +3980,54 @@ wait_for_redis() {
         if [[ $delay -lt 10 ]]; then delay=$((delay+1)); fi
     done
     warning "❌ Redis: Timeout"
+}
+
+wait_for_mqtt() {
+    log "Aguardando MQTT Broker..."
+    local attempts=0
+    local delay=2
+    
+    # Em Docker, verificar se container está rodando
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        while [[ $attempts -lt 15 ]]; do
+            if $COMPOSE_CMD ps | grep -q smartsignage-mqtt; then
+                # Tentar conectar via mosquitto_sub se disponível
+                if command -v mosquitto_sub &> /dev/null; then
+                    if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
+                        log "✅ MQTT Broker: Pronto"
+                        return 0
+                    fi
+                else
+                    # Se mosquitto_sub não estiver disponível, apenas verificar container
+                    log "✅ MQTT Broker: Container rodando"
+                    return 0
+                fi
+            fi
+            attempts=$((attempts+1))
+            sleep "$delay"
+            if [[ $delay -lt 10 ]]; then delay=$((delay+1)); fi
+        done
+        warning "❌ MQTT Broker: Timeout"
+        return 1
+    fi
+    
+    # Instalação local - verificar se mosquitto está respondendo
+    if command -v mosquitto_sub &> /dev/null; then
+        while [[ $attempts -lt 15 ]]; do
+            if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
+                log "✅ MQTT Broker: Pronto"
+                return 0
+            fi
+            attempts=$((attempts+1))
+            sleep "$delay"
+            if [[ $delay -lt 10 ]]; then delay=$((delay+1)); fi
+        done
+        warning "❌ MQTT Broker: Timeout"
+        return 1
+    else
+        warning "⚠️  mosquitto_sub não encontrado, pulando verificação detalhada"
+        return 0
+    fi
 }
 
 wait_for_ollama() {
@@ -6668,10 +6760,71 @@ main() {
         setup_kiosk_mode
     fi
     
-    # Executar checklist pós-instalação (não bloqueante)
-    if [[ -f "$INSTALL_DIR/scripts/post-install-check.sh" ]]; then
-        chmod +x "$INSTALL_DIR/scripts/post-install-check.sh" 2>/dev/null || true
-        (HOST_OVERRIDE="${PUBLIC_DOMAIN:-localhost}" bash "$INSTALL_DIR/scripts/post-install-check.sh") || true
+    # Verificações finais integradas (não bloqueantes)
+    log "Realizando verificações finais integradas..."
+    
+    # Verificar containers Docker
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        log "Verificando status dos containers..."
+        $COMPOSE_CMD ps
+        
+        # Verificar MQTT Broker
+        if $COMPOSE_CMD ps | grep -q smartsignage-mqtt; then
+            log "✅ MQTT Broker: Container rodando"
+            if command -v mosquitto_sub &> /dev/null; then
+                if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
+                    log "✅ MQTT Broker: Conectado e respondendo"
+                else
+                    warning "⚠️  MQTT Broker: Container rodando mas não respondeu ao teste"
+                fi
+            else
+                log "ℹ️  MQTT Broker: Container rodando (teste detalhado requer mosquitto_sub)"
+            fi
+        else
+            warning "⚠️  MQTT Broker: Container não encontrado"
+        fi
+        
+        # Verificar outros serviços essenciais
+        if $COMPOSE_CMD ps | grep -q smartsignage-postgres; then
+            log "✅ PostgreSQL: Container rodando"
+        else
+            warning "⚠️  PostgreSQL: Container não encontrado"
+        fi
+        
+        if $COMPOSE_CMD ps | grep -q smartsignage-redis; then
+            log "✅ Redis: Container rodando"
+        else
+            warning "⚠️  Redis: Container não encontrado"
+        fi
+        
+        if $COMPOSE_CMD ps | grep -q smartsignage-app; then
+            log "✅ App (Backend+Frontend): Container rodando"
+        else
+            warning "⚠️  App: Container não encontrado"
+        fi
+    fi
+    
+    # Verificar serviços systemd (single-server)
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        log "Verificando serviços systemd..."
+        if systemctl is-active --quiet smartsignage-backend; then
+            log "✅ Backend: Serviço ativo"
+        else
+            warning "⚠️  Backend: Serviço não está ativo"
+        fi
+        
+        if systemctl is-active --quiet nginx; then
+            log "✅ Nginx: Serviço ativo"
+        else
+            warning "⚠️  Nginx: Serviço não está ativo"
+        fi
+        
+        if systemctl is-active --quiet postgresql; then
+            log "✅ PostgreSQL: Serviço ativo"
+        else
+            warning "⚠️  PostgreSQL: Serviço não está ativo"
+        fi
+    fi
     fi
     
     # Salvar informações da build após instalação bem-sucedida

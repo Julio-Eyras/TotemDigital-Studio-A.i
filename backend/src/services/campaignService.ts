@@ -6,6 +6,7 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
+import { getCacheService } from './cacheService';
 
 export interface CreateCampaignRequest {
   clientId: number;
@@ -89,6 +90,10 @@ export interface CampaignTotemRequest {
 export class CampaignService {
   private get db() {
     return getDatabase();
+  }
+
+  private get cache() {
+    return getCacheService();
   }
   
   // Lazy initialization - só criar quando necessário
@@ -324,6 +329,9 @@ export class CampaignService {
         clientId: newCampaign.clientId
       });
 
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('campaign', newCampaign.id).catch(() => {});
+
       return newCampaign;
 
     } catch (error: any) {
@@ -428,6 +436,9 @@ export class CampaignService {
         changes: data
       });
 
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('campaign', campaignId).catch(() => {});
+
       return updatedCampaign;
 
     } catch (error: any) {
@@ -471,6 +482,9 @@ export class CampaignService {
         title: campaign.title,
         clientId: campaign.clientId
       });
+
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('campaign', campaignId).catch(() => {});
 
     } catch (error: any) {
       await logError('Erro ao remover campanha', error);
@@ -664,7 +678,7 @@ export class CampaignService {
   }
 
   /**
-   * Busca estatísticas de uma campanha
+   * Busca estatísticas de uma campanha (com cache de 2 minutos)
    */
   async getCampaignStats(campaignId: number): Promise<{
     totemCount: number;
@@ -672,50 +686,58 @@ export class CampaignService {
     mediaCount: number;
     totalDuration: number;
   }> {
-    try {
-      // Contar totems
-      const totemCountResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM campaign_totems WHERE campaign_id = ? AND is_active = true
-      `, [campaignId]);
+    const cacheKey = this.cache.generateKey('stats', 'campaign', campaignId.toString());
+    
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        try {
+          // Contar totems
+          const totemCountResult = await this.db.findFirst(`
+            SELECT COUNT(*) as count FROM campaign_totems WHERE campaign_id = ? AND is_active = true
+          `, [campaignId]);
 
-      // Contar playlists
-      const playlistCountResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM playlists WHERE campaign_id = ? AND is_active = true
-      `, [campaignId]);
+          // Contar playlists
+          const playlistCountResult = await this.db.findFirst(`
+            SELECT COUNT(*) as count FROM playlists WHERE campaign_id = ? AND is_active = true
+          `, [campaignId]);
 
-      // Contar mídia (via playlists)
-      const mediaCountResult = await this.db.findFirst(`
-        SELECT COUNT(DISTINCT pi.media_id) as count
-        FROM playlist_items pi
-        JOIN playlists p ON pi.playlist_id = p.playlist_id
-        WHERE p.campaign_id = ? AND p.is_active = true
-      `, [campaignId]);
+          // Contar mídia (via playlists)
+          const mediaCountResult = await this.db.findFirst(`
+            SELECT COUNT(DISTINCT pi.media_id) as count
+            FROM playlist_items pi
+            JOIN playlists p ON pi.playlist_id = p.playlist_id
+            WHERE p.campaign_id = ? AND p.is_active = true
+          `, [campaignId]);
 
-      // Calcular duração total
-      const durationResult = await this.db.findFirst(`
-        SELECT SUM(COALESCE(pi.display_seconds, m.duration_seconds, 0)) as total
-        FROM playlist_items pi
-        JOIN playlists p ON pi.playlist_id = p.playlist_id
-        JOIN medias m ON pi.media_id = m.media_id
-        WHERE p.campaign_id = ? AND p.is_active = true
-      `, [campaignId]);
+          // Calcular duração total
+          const durationResult = await this.db.findFirst(`
+            SELECT SUM(COALESCE(pi.display_seconds, m.duration_seconds, 0)) as total
+            FROM playlist_items pi
+            JOIN playlists p ON pi.playlist_id = p.playlist_id
+            JOIN medias m ON pi.media_id = m.media_id
+            WHERE p.campaign_id = ? AND p.is_active = true
+          `, [campaignId]);
 
-      return {
-        totemCount: totemCountResult?.count || 0,
-        playlistCount: playlistCountResult?.count || 0,
-        mediaCount: mediaCountResult?.count || 0,
-        totalDuration: durationResult?.total || 0
-      };
+          return {
+            totemCount: totemCountResult?.count || 0,
+            playlistCount: playlistCountResult?.count || 0,
+            mediaCount: mediaCountResult?.count || 0,
+            totalDuration: durationResult?.total || 0
+          };
 
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas da campanha', error);
-      return {
-        totemCount: 0,
-        playlistCount: 0,
-        mediaCount: 0,
-        totalDuration: 0
-      };
-    }
+        } catch (error: any) {
+          await logError('Erro ao buscar estatísticas da campanha', error);
+          return {
+            totemCount: 0,
+            playlistCount: 0,
+            mediaCount: 0,
+            totalDuration: 0
+          };
+        }
+      },
+      120 // Cache por 2 minutos
+    );
   }
 
   /**

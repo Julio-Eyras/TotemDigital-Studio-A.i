@@ -1,11 +1,19 @@
 import { Router, Response } from 'express';
 import { TotemService } from '../services/totemService';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { getRemoteCommandService } from '../services/remoteCommandService';
+import { getTotemLogService } from '../services/totemLogService';
+import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
+import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
-import { logError, logWarn } from '../utils/loggerHelper';
+import { logError, logWarn, logInfo } from '../utils/loggerHelper';
+import { getDatabase } from '../config/database';
 
 const router = Router();
+
+// Aplicar bloqueio de dados de clientes para OPERATOR
+// OPERATOR pode acessar apenas dados técnicos (restart, screenshot, logs, status)
+router.use(blockClientDataAccess);
 
 // Lazy initialization - só criar quando necessário
 function getTotemService(): TotemService {
@@ -98,7 +106,7 @@ router.get('/pending',
  * @desc Obter estatísticas de totems
  * @access Private (Admin/Manager)
  */
-router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/stats/overview', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const stats = await getTotemService().getTotemStats(1); // Default totem
     res.json(stats);
@@ -117,7 +125,7 @@ router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) =
  * @desc Obter totems offline
  * @access Private (Admin/Manager)
  */
-router.get('/stats/offline', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/stats/offline', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const offlineTotems = await getTotemService().getOfflineTotems();
     res.json(offlineTotems);
@@ -526,6 +534,336 @@ router.put('/:id/approve',
     } catch (error: any) {
       await logError('Erro ao aprovar totem', error);
       res.status(500).json({ error: 'Erro ao aprovar totem', details: error.message });
+    }
+  }
+);
+
+// =============================================
+// REMOTE CONTROL ROUTES
+// =============================================
+
+/**
+ * @route POST /api/totems/:id/restart
+ * @desc Envia comando de reinício remoto ao totem
+ * @access Private (Admin, Manager)
+ */
+router.post('/:id/restart',
+  param('id').isInt({ min: 1 }).withMessage('ID do totem inválido'),
+  validateRequest,
+  authorizeRole(['admin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id);
+      const userId = req.user.id;
+
+      await logInfo('Solicitando reinício remoto', { totemId, userId });
+
+      const remoteCommandService = getRemoteCommandService();
+      const command = await remoteCommandService.createCommand({
+        totemId,
+        commandType: 'restart',
+        commandData: {
+          reason: 'Manual restart requested',
+          requestedBy: userId
+        }
+      }, userId);
+
+      res.json({
+        success: true,
+        message: 'Comando de reinício enviado ao totem',
+        command: {
+          id: command.id,
+          status: command.status,
+          createdAt: command.createdAt
+        }
+      });
+
+    } catch (error: any) {
+      await logError('Erro ao enviar comando de reinício', error, {
+        totemId: req.params.id
+      });
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Erro ao enviar comando de reinício'
+      });
+    }
+  }
+);
+
+/**
+ * @route POST /api/totems/:id/screenshot
+ * @desc Solicita captura de screenshot remoto
+ * @access Private (Admin, Manager)
+ */
+router.post('/:id/screenshot',
+  param('id').isInt({ min: 1 }).withMessage('ID do totem inválido'),
+  validateRequest,
+  authorizeRole(['admin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id);
+      const userId = req.user.id;
+
+      await logInfo('Solicitando screenshot remoto', { totemId, userId });
+
+      const remoteCommandService = getRemoteCommandService();
+      const command = await remoteCommandService.createCommand({
+        totemId,
+        commandType: 'screenshot',
+        commandData: {
+          format: 'png',
+          quality: 90
+        }
+      }, userId);
+
+      res.json({
+        success: true,
+        message: 'Comando de screenshot enviado ao totem',
+        command: {
+          id: command.id,
+          status: command.status,
+          createdAt: command.createdAt
+        }
+      });
+
+    } catch (error: any) {
+      await logError('Erro ao enviar comando de screenshot', error, {
+        totemId: req.params.id
+      });
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Erro ao enviar comando de screenshot'
+      });
+    }
+  }
+);
+
+/**
+ * @route GET /api/totems/:id/commands
+ * @desc Obtém histórico de comandos remotos do totem
+ * @access Private (Admin, Manager)
+ */
+router.get('/:id/commands',
+  param('id').isInt({ min: 1 }).withMessage('ID do totem inválido'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit deve ser entre 1 e 100'),
+  validateRequest,
+  authorizeRole(['admin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id);
+      const limit = parseInt(req.query.limit as string) || 50;
+
+      const remoteCommandService = getRemoteCommandService();
+      const commands = await remoteCommandService.getCommandHistory(totemId, limit);
+
+      res.json({
+        success: true,
+        data: commands
+      });
+
+    } catch (error: any) {
+      await logError('Erro ao obter histórico de comandos', error, {
+        totemId: req.params.id
+      });
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao obter histórico de comandos'
+      });
+    }
+  }
+);
+
+/**
+ * @route GET /api/totems/:id/screenshots
+ * @desc Obtém screenshots capturados do totem
+ * @access Private (Admin, Manager)
+ */
+router.get('/:id/screenshots',
+  param('id').isInt({ min: 1 }).withMessage('ID do totem inválido'),
+  query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('limit deve ser entre 1 e 50'),
+  validateRequest,
+  authorizeRole(['admin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id);
+      const limit = parseInt(req.query.limit as string) || 20;
+
+      const remoteCommandService = getRemoteCommandService();
+      const screenshots = await remoteCommandService.getScreenshots(totemId, limit);
+
+      res.json({
+        success: true,
+        data: screenshots
+      });
+
+    } catch (error: any) {
+      await logError('Erro ao obter screenshots', error, {
+        totemId: req.params.id
+      });
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao obter screenshots'
+      });
+    }
+  }
+);
+
+/**
+ * @route GET /api/totems/:id/screenshots/:screenshotId/download
+ * @desc Download de screenshot
+ * @access Private (Admin, Manager)
+ */
+router.get('/:id/screenshots/:screenshotId/download',
+  param('id').isInt({ min: 1 }),
+  param('screenshotId').isInt({ min: 1 }),
+  validateRequest,
+  authorizeRole(['admin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const screenshotId = parseInt(req.params.screenshotId);
+      const db = getDatabase();
+
+      const screenshot = await db.findFirst(`
+        SELECT file_path, format, totem_id
+        FROM remote_screenshots
+        WHERE id = $1 AND totem_id = $2
+      `, [screenshotId, parseInt(req.params.id)]);
+
+      if (!screenshot) {
+        return res.status(404).json({
+          success: false,
+          error: 'Screenshot não encontrado'
+        });
+      }
+
+      const fs = require('fs');
+
+      if (!fs.existsSync(screenshot.file_path)) {
+        return res.status(404).json({
+          success: false,
+          error: 'Arquivo de screenshot não encontrado'
+        });
+      }
+
+      const fileName = `screenshot_${screenshotId}.${screenshot.format || 'png'}`;
+      res.setHeader('Content-Type', `image/${screenshot.format || 'png'}`);
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+      const fileStream = fs.createReadStream(screenshot.file_path);
+      fileStream.pipe(res);
+
+    } catch (error: any) {
+      await logError('Erro ao fazer download de screenshot', error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao fazer download de screenshot'
+      });
+    }
+  }
+);
+
+/**
+ * @route GET /api/totems/:id/logs
+ * @desc Obtém logs de um totem
+ * @access Private (Admin, Manager)
+ */
+router.get('/:id/logs',
+  param('id').isInt({ min: 1 }).withMessage('ID do totem inválido'),
+  query('level').optional().isIn(['info', 'warn', 'error', 'debug']).withMessage('level inválido'),
+  query('startDate').optional().isISO8601().withMessage('startDate deve ser uma data válida'),
+  query('endDate').optional().isISO8601().withMessage('endDate deve ser uma data válida'),
+  query('search').optional().isString().withMessage('search deve ser uma string'),
+  query('limit').optional().isInt({ min: 1, max: 10000 }).withMessage('limit deve ser entre 1 e 10000'),
+  validateRequest,
+  authorizeRole(['admin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id);
+      const { level, startDate, endDate, search, limit } = req.query;
+
+      const totemLogService = getTotemLogService();
+      const logs = await totemLogService.getTotemLogs({
+        totemId,
+        level: level as any,
+        startDate: startDate as string,
+        endDate: endDate as string,
+        search: search as string,
+        limit: limit ? parseInt(limit as string) : undefined
+      });
+
+      res.json({
+        success: true,
+        data: logs,
+        count: logs.length
+      });
+
+    } catch (error: any) {
+      await logError('Erro ao obter logs do totem', error, {
+        totemId: req.params.id
+      });
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao obter logs do totem'
+      });
+    }
+  }
+);
+
+/**
+ * @route GET /api/totems/:id/logs/download
+ * @desc Download de logs de um totem
+ * @access Private (Admin, Manager)
+ */
+router.get('/:id/logs/download',
+  param('id').isInt({ min: 1 }).withMessage('ID do totem inválido'),
+  query('level').optional().isIn(['info', 'warn', 'error', 'debug']),
+  query('startDate').optional().isISO8601(),
+  query('endDate').optional().isISO8601(),
+  query('search').optional().isString(),
+  validateRequest,
+  authorizeRole(['admin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id);
+      const { level, startDate, endDate, search } = req.query;
+
+      const totemLogService = getTotemLogService();
+      const { filePath, fileName } = await totemLogService.downloadLogs({
+        totemId,
+        level: level as any,
+        startDate: startDate as string,
+        endDate: endDate as string,
+        search: search as string
+      });
+
+      const fs = require('fs');
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({
+          success: false,
+          error: 'Arquivo de log não encontrado'
+        });
+      }
+
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+
+      fileStream.on('close', () => {
+        fs.unlink(filePath, (err: any) => {
+          if (err) logError('Erro ao remover arquivo temporário de log', err, { filePath });
+        });
+      });
+
+    } catch (error: any) {
+      await logError('Erro ao fazer download de logs', error, {
+        totemId: req.params.id
+      });
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao fazer download de logs'
+      });
     }
   }
 );

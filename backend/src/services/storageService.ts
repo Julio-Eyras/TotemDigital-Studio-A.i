@@ -18,8 +18,8 @@ export interface FileInfo {
 }
 
 export class StorageService {
-  private basePath: string;
-  private uploadsPath: string;
+  private basePath: string = '';
+  private uploadsPath: string = '';
 
   constructor() {
     // SEMPRE usar /opt/smart-signage para garantir consistência
@@ -417,7 +417,7 @@ export class StorageService {
       return removedCount;
 
     } catch (error: any) {
-      logErrorSync('Erro ao limpar arquivos antigos', error, { directoryPath, daysOld });
+      logErrorSync('Erro ao limpar arquivos antigos', error, { directoryPath, maxAgeDays });
       return 0;
     }
   }

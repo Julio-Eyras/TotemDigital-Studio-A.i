@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartDisplayFX Plus Player</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+
+    #smartdisplayfx-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    #status-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 1000;
+      font-size: 12px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #f00;
+    }
+
+    .status-indicator.connected {
+      background: #0f0;
+    }
+
+    #debug-panel {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.9);
+      color: #0f0;
+      padding: 10px 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+      z-index: 1000;
+    }
+
+    #debug-panel.active {
+      display: block;
+    }
+
+    .debug-log {
+      margin: 2px 0;
+    }
+
+    .debug-log.error {
+      color: #f00;
+    }
+
+    .debug-log.warn {
+      color: #ff0;
+    }
+  </style>
+</head>
+<body>
+  <div id="status-bar">
+    <div class="status-item">
+      <div class="status-indicator" id="connection-status"></div>
+      <span>MQTT: <span id="mqtt-status">Desconectado</span></span>
+    </div>
+    <div class="status-item">
+      <span>Totem: <span id="totem-id">-</span></span>
+    </div>
+    <div class="status-item">
+      <span>Site: <span id="site-id">-</span></span>
+    </div>
+    <div class="status-item">
+      <span>Efeitos Ativos: <span id="active-effects">0</span></span>
+    </div>
+    <div class="status-item">
+      <span>Offset: <span id="time-offset">0ms</span></span>
+    </div>
+  </div>
+
+  <div id="smartdisplayfx-container"></div>
+
+  <div id="debug-panel"></div>
+
+  <script type="module" src="/src/index.ts"></script>
+</body>
+</html>
+

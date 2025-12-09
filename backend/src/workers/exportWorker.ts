@@ -9,7 +9,6 @@ import { exportQueryService } from '../services/exportQueryService';
 import { exportScheduleService } from '../services/exportScheduleService';
 import { getDatabase } from '../config/database';
 import * as fs from 'fs';
-import * as path from 'path';
 import { exportToExcel, exportToPDF, exportToCSV } from './exportFormats';
 import { getRedisClient } from '../config/redis';
 import { executeGrafanaQuery } from '../config/grafana';
@@ -256,7 +255,7 @@ async function executeQuery(
 /**
  * Executa query Redis
  */
-async function executeRedisQuery(query: string, databaseConfig: any): Promise<any[]> {
+async function executeRedisQuery(query: string, _databaseConfig: any): Promise<any[]> {
   try {
     const redis = getRedisClient();
     const results: any[] = [];

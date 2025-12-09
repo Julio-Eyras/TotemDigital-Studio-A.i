@@ -1,5 +1,5 @@
 import { getDatabase } from '../config/database';
-import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
+import { logError, logDebug } from '../utils/loggerHelper';
 
 export interface PlaylistItem {
   playlist_id: number;
@@ -234,7 +234,7 @@ export class PlaylistService {
 
       return newPlaylist;
     } catch (error: any) {
-      await logError('Erro ao criar playlist', error, { name: request.name, clientId: request.clientId });
+      await logError('Erro ao criar playlist', error, { name: data.name, clientId: data.clientId });
       throw error;
     }
   }
@@ -308,7 +308,7 @@ export class PlaylistService {
 
       return updatedPlaylist;
     } catch (error: any) {
-      await logError('Erro ao atualizar playlist', error, { id, updateData: request });
+      await logError('Erro ao atualizar playlist', error, { id, updateData: data });
       throw error;
     }
   }

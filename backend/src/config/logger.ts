@@ -243,12 +243,12 @@ async function sendRotationAlert(type: string, details: any): Promise<void> {
         title: title,
         message: message,
         userId: admin.id,
-        metadata: {
+        data: {
           alertType: type,
           details: details,
           timestamp: new Date().toISOString()
         }
-      }, 1); // Sistema (ID 1)
+      }); // Sistema
 
       // Log no banco de auditoria
       const auditService = (global as any).auditServiceInstance || 

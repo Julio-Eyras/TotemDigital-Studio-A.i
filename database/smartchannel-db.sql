@@ -1,6 +1,7 @@
 -- SmartChannel DB Schema
 -- Consolidated schema including base tables, advanced schedules, exports, reports, views and log settings
 -- Generated on 2025-11-08 21:17:19
+-- Updated: 2025-01-XX - Integrated all migrations (2FA, Plans, OTA Updates, Interactive Features, Remote Commands, v3.1 Features)
 
 
 -- =============================================
@@ -760,8 +761,14 @@ CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_id ON playlist_items(play
 CREATE INDEX IF NOT EXISTS idx_playlist_items_order ON playlist_items(playlist_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_analytics_sessions_totem_id ON analytics_sessions(totem_id);
 CREATE INDEX IF NOT EXISTS idx_analytics_sessions_start ON analytics_sessions(session_start);
+CREATE INDEX IF NOT EXISTS idx_analytics_qr_scans_qr_code_id ON analytics_qr_scans(qr_code_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_qr_scans_totem_id ON analytics_qr_scans(totem_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_qr_scans_scan_timestamp ON analytics_qr_scans(scan_timestamp);
 CREATE INDEX IF NOT EXISTS idx_execution_logs_totem_id ON execution_logs(totem_id);
 CREATE INDEX IF NOT EXISTS idx_execution_logs_executed_at ON execution_logs(executed_at);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_client_id ON execution_logs(client_id);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_campaign_id ON execution_logs(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_media_id ON execution_logs(media_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);
 CREATE INDEX IF NOT EXISTS idx_aggregated_metrics_date ON aggregated_metrics(date);
@@ -2445,5 +2452,919 @@ COMMENT ON TABLE event_logs IS 'Registra eventos importantes do sistema para BI,
 COMMENT ON COLUMN event_logs.event_type IS 'Tipo do evento (video_playback_start, ad_display_start, campaign_start, etc)';
 COMMENT ON COLUMN event_logs.entity_type IS 'Tipo da entidade relacionada (media, campaign, totem, playlist, etc)';
 COMMENT ON COLUMN event_logs.metadata IS 'Dados adicionais do evento em formato JSON';
+
+-- =============================================
+-- 2FA/MFA SUPPORT (v2.1)
+-- =============================================
+-- Migration: 2FA/MFA Support
+-- Adiciona suporte para autenticação de dois fatores (TOTP)
+
+-- Tabela para armazenar configurações de 2FA dos usuários
+CREATE TABLE IF NOT EXISTS user_two_factor (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL UNIQUE,
+    secret TEXT NOT NULL, -- Secret TOTP (criptografado)
+    enabled BOOLEAN DEFAULT false,
+    backup_codes TEXT[], -- Array de backup codes (criptografados)
+    last_used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Tabela para rastrear tentativas de verificação 2FA
+CREATE TABLE IF NOT EXISTS two_factor_attempts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    code TEXT NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    success BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Índices para performance
+CREATE INDEX IF NOT EXISTS idx_user_two_factor_user_id ON user_two_factor(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_two_factor_enabled ON user_two_factor(enabled);
+CREATE INDEX IF NOT EXISTS idx_two_factor_attempts_user_id ON two_factor_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_two_factor_attempts_created_at ON two_factor_attempts(created_at);
+CREATE INDEX IF NOT EXISTS idx_two_factor_attempts_success ON two_factor_attempts(success);
+
+-- Comentários
+COMMENT ON TABLE user_two_factor IS 'Configurações de autenticação de dois fatores (TOTP) por usuário';
+COMMENT ON TABLE two_factor_attempts IS 'Histórico de tentativas de verificação 2FA para auditoria e segurança';
+COMMENT ON COLUMN user_two_factor.secret IS 'Secret TOTP criptografado usando AES-256';
+COMMENT ON COLUMN user_two_factor.backup_codes IS 'Códigos de backup criptografados (hash SHA-256)';
+
+-- =============================================
+-- PLANS AND SUBSCRIPTIONS (v2.1)
+-- =============================================
+-- Migration: Add Plans and Subscriptions Tables
+-- Adiciona tabelas para sistema de planos e assinaturas com integração Stripe
+
+-- Plans Table
+CREATE TABLE IF NOT EXISTS plans (
+    plan_id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    description TEXT,
+    price_monthly NUMERIC(12, 2) NOT NULL,
+    price_yearly NUMERIC(12, 2),
+    currency TEXT DEFAULT 'BRL',
+    billing_interval TEXT DEFAULT 'month', -- month, year
+    stripe_price_id_monthly TEXT,
+    stripe_price_id_yearly TEXT,
+    stripe_product_id TEXT,
+    features JSONB DEFAULT '{}'::jsonb, -- Limites e features do plano
+    limits JSONB DEFAULT '{}'::jsonb, -- Ex: { totems: 10, campaigns: 50, storage_gb: 100 }
+    is_active BOOLEAN DEFAULT true,
+    is_popular BOOLEAN DEFAULT false,
+    sort_order INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_plans_slug ON plans(slug);
+CREATE INDEX IF NOT EXISTS idx_plans_is_active ON plans(is_active);
+
+-- Subscriptions Table
+CREATE TABLE IF NOT EXISTS subscriptions (
+    subscription_id SERIAL PRIMARY KEY,
+    client_id INTEGER NOT NULL,
+    plan_id INTEGER NOT NULL,
+    stripe_subscription_id TEXT UNIQUE,
+    stripe_customer_id TEXT,
+    status TEXT DEFAULT 'active', -- active, canceled, past_due, unpaid, trialing, incomplete
+    billing_interval TEXT DEFAULT 'month', -- month, year
+    current_period_start TIMESTAMP,
+    current_period_end TIMESTAMP,
+    cancel_at_period_end BOOLEAN DEFAULT false,
+    canceled_at TIMESTAMP,
+    trial_start TIMESTAMP,
+    trial_end TIMESTAMP,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE,
+    FOREIGN KEY (plan_id) REFERENCES plans(plan_id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_client_id ON subscriptions(client_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_plan_id ON subscriptions(plan_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription_id ON subscriptions(stripe_subscription_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+
+-- Stripe Customers Table (para armazenar IDs do Stripe)
+CREATE TABLE IF NOT EXISTS stripe_customers (
+    id SERIAL PRIMARY KEY,
+    client_id INTEGER NOT NULL UNIQUE,
+    stripe_customer_id TEXT UNIQUE NOT NULL,
+    email TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_stripe_customers_client_id ON stripe_customers(client_id);
+CREATE INDEX IF NOT EXISTS idx_stripe_customers_stripe_customer_id ON stripe_customers(stripe_customer_id);
+
+-- Adicionar colunas ao billing para integração Stripe
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billing' AND column_name = 'stripe_invoice_id') THEN
+        ALTER TABLE billing ADD COLUMN stripe_invoice_id TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billing' AND column_name = 'stripe_payment_intent_id') THEN
+        ALTER TABLE billing ADD COLUMN stripe_payment_intent_id TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billing' AND column_name = 'subscription_id') THEN
+        ALTER TABLE billing ADD COLUMN subscription_id INTEGER;
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_billing_stripe_invoice_id ON billing(stripe_invoice_id);
+CREATE INDEX IF NOT EXISTS idx_billing_subscription_id ON billing(subscription_id);
+
+-- Adicionar foreign key para subscription_id
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'billing_subscription_id_fkey'
+    ) THEN
+        ALTER TABLE billing 
+        ADD CONSTRAINT billing_subscription_id_fkey 
+        FOREIGN KEY (subscription_id) REFERENCES subscriptions(subscription_id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
+-- Inserir planos padrão
+INSERT INTO plans (name, slug, description, price_monthly, price_yearly, billing_interval, features, limits, is_active, is_popular, sort_order)
+VALUES 
+    ('Básico', 'basic', 'Plano básico para pequenos negócios', 99.00, 990.00, 'month', 
+     '{"totems": 5, "campaigns": 10, "storage_gb": 10, "support": "email"}',
+     '{"max_totems": 5, "max_campaigns": 10, "storage_gb": 10, "support_level": "email"}',
+     true, false, 1),
+    ('Profissional', 'professional', 'Plano profissional para empresas', 299.00, 2990.00, 'month',
+     '{"totems": 20, "campaigns": 50, "storage_gb": 100, "support": "priority", "analytics": true, "api_access": true}',
+     '{"max_totems": 20, "max_campaigns": 50, "storage_gb": 100, "support_level": "priority", "analytics": true, "api_access": true}',
+     true, true, 2),
+    ('Enterprise', 'enterprise', 'Plano enterprise com recursos ilimitados', 999.00, 9990.00, 'month',
+     '{"totems": -1, "campaigns": -1, "storage_gb": 1000, "support": "dedicated", "analytics": true, "api_access": true, "custom_integrations": true}',
+     '{"max_totems": -1, "max_campaigns": -1, "storage_gb": 1000, "support_level": "dedicated", "analytics": true, "api_access": true, "custom_integrations": true}',
+     true, false, 3)
+ON CONFLICT (slug) DO NOTHING;
+
+-- =============================================
+-- REMOTE COMMANDS ENHANCEMENTS (v2.1)
+-- =============================================
+-- Migration: Remote Commands System - Enhancements
+-- Adiciona colunas adicionais à tabela remote_commands existente
+
+-- Adicionar colunas que faltam (se não existirem)
+DO $$ 
+BEGIN
+    -- Adicionar sent_at se não existir
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'remote_commands' AND column_name = 'sent_at') THEN
+        ALTER TABLE remote_commands ADD COLUMN sent_at TIMESTAMP;
+    END IF;
+
+    -- Adicionar completed_at se não existir
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'remote_commands' AND column_name = 'completed_at') THEN
+        ALTER TABLE remote_commands ADD COLUMN completed_at TIMESTAMP;
+    END IF;
+
+    -- Adicionar error_message se não existir
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'remote_commands' AND column_name = 'error_message') THEN
+        ALTER TABLE remote_commands ADD COLUMN error_message TEXT;
+    END IF;
+
+    -- Adicionar updated_at se não existir
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'remote_commands' AND column_name = 'updated_at') THEN
+        ALTER TABLE remote_commands ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+END $$;
+
+-- Tabela para armazenar screenshots capturados remotamente
+CREATE TABLE IF NOT EXISTS remote_screenshots (
+    id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL,
+    command_id INTEGER, -- Referência ao comando que gerou o screenshot
+    file_path TEXT NOT NULL,
+    file_size INTEGER,
+    width INTEGER,
+    height INTEGER,
+    format TEXT DEFAULT 'png',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
+    FOREIGN KEY (command_id) REFERENCES remote_commands(id) ON DELETE SET NULL
+);
+
+-- Índices adicionais para performance
+CREATE INDEX IF NOT EXISTS idx_remote_commands_totem_id ON remote_commands(totem_id);
+CREATE INDEX IF NOT EXISTS idx_remote_commands_status ON remote_commands(status);
+CREATE INDEX IF NOT EXISTS idx_remote_commands_created_at ON remote_commands(created_at);
+CREATE INDEX IF NOT EXISTS idx_remote_commands_command_type ON remote_commands(command_type);
+CREATE INDEX IF NOT EXISTS idx_remote_screenshots_totem_id ON remote_screenshots(totem_id);
+CREATE INDEX IF NOT EXISTS idx_remote_screenshots_created_at ON remote_screenshots(created_at);
+
+-- Comentários
+COMMENT ON TABLE remote_commands IS 'Comandos remotos enviados aos totens para controle e manutenção';
+COMMENT ON TABLE remote_screenshots IS 'Screenshots capturados remotamente dos totens';
+COMMENT ON COLUMN remote_commands.command_type IS 'Tipo de comando: restart, screenshot, update, config, custom';
+COMMENT ON COLUMN remote_commands.status IS 'Status: pending, sent, executing, completed, failed, timeout';
+
+-- =============================================
+-- OTA UPDATES SYSTEM (v2.1)
+-- =============================================
+-- Migration: OTA Updates System
+-- Adiciona suporte para atualizações Over-The-Air dos players
+
+-- Tabela para armazenar atualizações OTA
+CREATE TABLE IF NOT EXISTS ota_updates (
+    id SERIAL PRIMARY KEY,
+    version TEXT NOT NULL, -- Versão da atualização (ex: "2.1.0")
+    platform TEXT NOT NULL, -- 'webos', 'tizen', 'android', 'linux', 'windows', 'all'
+    file_path TEXT NOT NULL, -- Caminho do arquivo de atualização
+    file_size BIGINT NOT NULL, -- Tamanho do arquivo em bytes
+    checksum TEXT NOT NULL, -- SHA256 do arquivo
+    description TEXT, -- Descrição da atualização
+    changelog TEXT, -- Changelog detalhado
+    is_mandatory BOOLEAN DEFAULT false, -- Se a atualização é obrigatória
+    min_version TEXT, -- Versão mínima necessária para atualizar
+    max_version TEXT, -- Versão máxima que pode atualizar
+    rollout_percentage INTEGER DEFAULT 100, -- Porcentagem de rollout (0-100)
+    status TEXT NOT NULL DEFAULT 'draft', -- 'draft', 'testing', 'active', 'paused', 'completed', 'cancelled'
+    created_by INTEGER, -- ID do usuário que criou
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    released_at TIMESTAMP, -- Data de lançamento
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Tabela para rastrear status de atualização de cada totem
+CREATE TABLE IF NOT EXISTS totem_update_status (
+    totem_id INTEGER PRIMARY KEY,
+    current_version TEXT NOT NULL, -- Versão atual do totem
+    available_version TEXT, -- Versão disponível para atualização
+    update_status TEXT NOT NULL DEFAULT 'up_to_date', -- 'up_to_date', 'update_available', 'downloading', 'installing', 'failed', 'rollback'
+    last_check TIMESTAMP, -- Última vez que verificou atualizações
+    last_update TIMESTAMP, -- Última vez que foi atualizado
+    error_message TEXT, -- Mensagem de erro se falhou
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
+);
+
+-- Índices para performance
+CREATE INDEX IF NOT EXISTS idx_ota_updates_platform ON ota_updates(platform);
+CREATE INDEX IF NOT EXISTS idx_ota_updates_status ON ota_updates(status);
+CREATE INDEX IF NOT EXISTS idx_ota_updates_version ON ota_updates(version);
+CREATE INDEX IF NOT EXISTS idx_ota_updates_created_at ON ota_updates(created_at);
+CREATE INDEX IF NOT EXISTS idx_totem_update_status_status ON totem_update_status(update_status);
+CREATE INDEX IF NOT EXISTS idx_totem_update_status_last_check ON totem_update_status(last_check);
+
+-- Comentários
+COMMENT ON TABLE ota_updates IS 'Atualizações Over-The-Air disponíveis para players';
+COMMENT ON TABLE totem_update_status IS 'Status de atualização de cada totem';
+COMMENT ON COLUMN ota_updates.rollout_percentage IS 'Porcentagem de rollout gradual (0-100)';
+COMMENT ON COLUMN ota_updates.status IS 'Status: draft, testing, active, paused, completed, cancelled';
+
+-- =============================================
+-- INTERACTIVE FEATURES (v2.1)
+-- =============================================
+-- Migration: Interactive Features
+-- Adiciona suporte para tags, reconhecimento facial e rede visual
+
+-- Tabela para armazenar tags e suas associações
+CREATE TABLE IF NOT EXISTS tags (
+    id SERIAL PRIMARY KEY,
+    tag_id TEXT UNIQUE NOT NULL, -- ID único da tag (RFID/NFC/QR)
+    tag_type TEXT NOT NULL, -- 'rfid', 'nfc', 'qr_code', 'barcode'
+    name TEXT,
+    description TEXT,
+    content_id INTEGER, -- ID do conteúdo associado
+    metadata JSONB DEFAULT '{}', -- Metadados flexíveis em formato JSONB
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (content_id) REFERENCES medias(media_id) ON DELETE SET NULL
+);
+
+-- Índice GIN para busca eficiente em metadata
+CREATE INDEX IF NOT EXISTS idx_tags_metadata ON tags USING GIN (metadata);
+
+-- Tabela para armazenar pessoas reconhecidas (opcional)
+CREATE TABLE IF NOT EXISTS recognized_persons (
+    id SERIAL PRIMARY KEY,
+    person_id TEXT UNIQUE NOT NULL, -- ID único da pessoa
+    name TEXT,
+    features TEXT, -- Características faciais (JSON)
+    content_id INTEGER, -- Conteúdo personalizado
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (content_id) REFERENCES medias(media_id) ON DELETE SET NULL
+);
+
+-- Tabela para histórico de interações
+CREATE TABLE IF NOT EXISTS interaction_logs (
+    id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL,
+    interaction_type TEXT NOT NULL, -- 'facial_recognition', 'tag_id', 'touch', 'gesture'
+    interaction_data JSONB, -- Dados da interação
+    content_id INTEGER, -- Conteúdo exibido
+    person_id TEXT, -- ID da pessoa (se reconhecida)
+    tag_id TEXT, -- ID da tag (se aplicável)
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
+    FOREIGN KEY (content_id) REFERENCES medias(media_id) ON DELETE SET NULL
+);
+
+-- Tabela para rede visual (totens interconectados)
+CREATE TABLE IF NOT EXISTS totem_network (
+    id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL,
+    network_id TEXT NOT NULL, -- ID da rede/grupo
+    nearby_totems INTEGER[], -- Array de IDs de totens próximos
+    is_active BOOLEAN DEFAULT true,
+    last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
+);
+
+-- =============================================
+-- SMARTDISPLAYFX PLUS - TABELAS FX
+-- =============================================
+
+-- Tabela para armazenar efeitos FX disponíveis
+CREATE TABLE IF NOT EXISTS fx_effects (
+    effect_id SERIAL PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    effect_type TEXT NOT NULL, -- 'neon_warp', 'ripple_sync', 'liquid_flow', 'holographic_swipe', 'matrix_data_flow', 'particle_burst'
+    description TEXT,
+    default_params JSONB DEFAULT '{}'::jsonb,
+    preview_url TEXT, -- URL de preview/animação
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela para regras inteligentes de acionamento
+CREATE TABLE IF NOT EXISTS fx_rules (
+    rule_id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    site_id TEXT, -- Opcional: regra específica de site (FK para fx_sites)
+    conditions JSONB NOT NULL, -- Condições (idade, humor, tag, hora, etc.)
+    actions JSONB NOT NULL, -- Ações (efeito, conteúdo, totens, prioridade)
+    priority INTEGER DEFAULT 0, -- Prioridade da regra (maior = mais importante)
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela para timelines FX globais
+CREATE TABLE IF NOT EXISTS fx_timelines (
+    timeline_id SERIAL PRIMARY KEY,
+    site_id TEXT NOT NULL, -- FK para fx_sites
+    name TEXT,
+    version INTEGER DEFAULT 1,
+    events JSONB NOT NULL, -- Array de eventos FX
+    generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    starts_at TIMESTAMP,
+    ends_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela para telemetria de execução de efeitos
+CREATE TABLE IF NOT EXISTS fx_telemetry (
+    id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL,
+    effect_id TEXT NOT NULL, -- Nome do efeito executado
+    event_id TEXT, -- ID do evento da timeline
+    content_id INTEGER, -- ID do conteúdo exibido
+    planned_start_ts TIMESTAMP, -- Quando deveria começar
+    actual_start_ts TIMESTAMP, -- Quando realmente começou
+    ended_at TIMESTAMP, -- Quando terminou
+    duration_ms INTEGER, -- Duração real em ms
+    avg_fps DECIMAL(5,2), -- FPS médio durante execução
+    status TEXT DEFAULT 'success', -- 'success', 'failed', 'timeout', 'cancelled'
+    error_message TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb, -- Dados adicionais
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
+);
+
+-- Tabela para configurações de sites/rede estrela
+CREATE TABLE IF NOT EXISTS fx_sites (
+    site_id TEXT PRIMARY KEY, -- ID único do site (ex: 'site-01', 'loja-centro')
+    name TEXT NOT NULL,
+    description TEXT,
+    client_id INTEGER, -- Cliente dono do site
+    broker_url TEXT, -- URL do broker MQTT local (ex: 'ws://localhost:9001')
+    broker_type TEXT DEFAULT 'mqtt', -- 'mqtt', 'websocket', 'hybrid'
+    broker_config JSONB DEFAULT '{}'::jsonb, -- Configurações do broker (auth, topics, etc.)
+    sync_interval_ms INTEGER DEFAULT 2000, -- Intervalo de sincronização em ms
+    time_sync_enabled BOOLEAN DEFAULT true, -- Habilitar sincronização de tempo
+    config JSONB DEFAULT '{}'::jsonb, -- Configurações gerais do site
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL
+);
+
+-- Relação totens com sites FX
+CREATE TABLE IF NOT EXISTS fx_totem_sites (
+    id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL,
+    site_id TEXT NOT NULL,
+    role TEXT DEFAULT 'participant', -- 'master', 'participant', 'observer'
+    position_x INTEGER, -- Posição X na rede (para visualização)
+    position_y INTEGER, -- Posição Y na rede (para visualização)
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
+    FOREIGN KEY (site_id) REFERENCES fx_sites(site_id) ON DELETE CASCADE,
+    UNIQUE(totem_id, site_id)
+);
+
+-- Índices para performance
+CREATE INDEX IF NOT EXISTS idx_tags_tag_id ON tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_tags_tag_type ON tags(tag_type);
+CREATE INDEX IF NOT EXISTS idx_tags_content_id ON tags(content_id);
+CREATE INDEX IF NOT EXISTS idx_recognized_persons_person_id ON recognized_persons(person_id);
+CREATE INDEX IF NOT EXISTS idx_recognized_persons_content_id ON recognized_persons(content_id);
+CREATE INDEX IF NOT EXISTS idx_interaction_logs_totem_id ON interaction_logs(totem_id);
+CREATE INDEX IF NOT EXISTS idx_interaction_logs_type ON interaction_logs(interaction_type);
+CREATE INDEX IF NOT EXISTS idx_interaction_logs_timestamp ON interaction_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_totem_network_totem_id ON totem_network(totem_id);
+CREATE INDEX IF NOT EXISTS idx_totem_network_network_id ON totem_network(network_id);
+
+-- Índices para tabelas FX
+CREATE INDEX IF NOT EXISTS idx_fx_effects_effect_type ON fx_effects(effect_type);
+CREATE INDEX IF NOT EXISTS idx_fx_effects_is_active ON fx_effects(is_active);
+CREATE INDEX IF NOT EXISTS idx_fx_rules_site_id ON fx_rules(site_id);
+CREATE INDEX IF NOT EXISTS idx_fx_rules_is_active ON fx_rules(is_active);
+CREATE INDEX IF NOT EXISTS idx_fx_rules_priority ON fx_rules(priority DESC);
+CREATE INDEX IF NOT EXISTS idx_fx_timelines_site_id ON fx_timelines(site_id);
+CREATE INDEX IF NOT EXISTS idx_fx_timelines_starts_at ON fx_timelines(starts_at);
+CREATE INDEX IF NOT EXISTS idx_fx_timelines_is_active ON fx_timelines(is_active);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_totem_id ON fx_telemetry(totem_id);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_effect_id ON fx_telemetry(effect_id);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_created_at ON fx_telemetry(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_status ON fx_telemetry(status);
+CREATE INDEX IF NOT EXISTS idx_fx_sites_client_id ON fx_sites(client_id);
+CREATE INDEX IF NOT EXISTS idx_fx_sites_is_active ON fx_sites(is_active);
+CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_totem_id ON fx_totem_sites(totem_id);
+CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_site_id ON fx_totem_sites(site_id);
+CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_role ON fx_totem_sites(role);
+
+-- Índices para webhooks (v3.1)
+CREATE INDEX IF NOT EXISTS idx_webhooks_enabled ON webhooks(enabled);
+CREATE INDEX IF NOT EXISTS idx_webhooks_channels ON webhooks USING GIN(channels);
+CREATE INDEX IF NOT EXISTS idx_webhooks_events ON webhooks USING GIN(events);
+
+-- Índices para dashboard_layouts (v3.1)
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_user_id ON dashboard_layouts(user_id);
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_is_default ON dashboard_layouts(user_id, is_default) WHERE is_default = true;
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_is_shared ON dashboard_layouts(is_shared) WHERE is_shared = true;
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_data ON dashboard_layouts USING GIN (layout_data);
+
+-- Índices para backups (v3.1)
+CREATE INDEX IF NOT EXISTS idx_backups_backup_id ON backups(backup_id);
+CREATE INDEX IF NOT EXISTS idx_backups_type ON backups(backup_type);
+CREATE INDEX IF NOT EXISTS idx_backups_status ON backups(status);
+CREATE INDEX IF NOT EXISTS idx_backups_created_at ON backups(created_at DESC);
+
+-- Índices para notifications (v3.1)
+CREATE INDEX IF NOT EXISTS idx_notifications_notification_id ON notifications(notification_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_client_id ON notifications(client_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, read, created_at DESC) WHERE user_id IS NOT NULL;
+
+-- Tabela para webhooks configuráveis (v3.1)
+CREATE TABLE IF NOT EXISTS webhooks (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    secret TEXT,
+    channels TEXT[] DEFAULT ARRAY[]::TEXT[],
+    events TEXT[] DEFAULT ARRAY[]::TEXT[],
+    enabled BOOLEAN DEFAULT true,
+    retry_count INTEGER DEFAULT 3,
+    timeout_ms INTEGER DEFAULT 5000,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela para layouts customizáveis de dashboard (v3.1)
+CREATE TABLE IF NOT EXISTS dashboard_layouts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    layout_data JSONB NOT NULL DEFAULT '{}',
+    is_default BOOLEAN DEFAULT false,
+    is_shared BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Tabela para backups do sistema (v3.1)
+CREATE TABLE IF NOT EXISTS backups (
+    id SERIAL PRIMARY KEY,
+    backup_id TEXT UNIQUE NOT NULL,
+    backup_type TEXT NOT NULL, -- 'full', 'database', 'uploads', 'config'
+    file_path TEXT NOT NULL,
+    file_size BIGINT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status TEXT NOT NULL DEFAULT 'in_progress', -- 'completed', 'failed', 'in_progress'
+    metadata JSONB DEFAULT '{}',
+    created_by INTEGER,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Comentários
+COMMENT ON TABLE tags IS 'Tags (RFID/NFC/QR) e suas associações com conteúdo';
+COMMENT ON TABLE recognized_persons IS 'Pessoas reconhecidas para personalização';
+COMMENT ON TABLE interaction_logs IS 'Histórico de interações dos totens';
+COMMENT ON TABLE totem_network IS 'Rede de totens interconectados';
+COMMENT ON TABLE fx_effects IS 'Catálogo de efeitos FX disponíveis no sistema SmartDisplayFX Plus';
+COMMENT ON TABLE fx_rules IS 'Regras inteligentes para acionamento de efeitos FX';
+COMMENT ON TABLE fx_timelines IS 'Timelines globais de efeitos FX para sites';
+COMMENT ON TABLE fx_telemetry IS 'Telemetria de execução de efeitos FX nos totens';
+COMMENT ON TABLE fx_sites IS 'Configuração de sites/rede estrela para SmartDisplayFX Plus';
+COMMENT ON TABLE fx_totem_sites IS 'Relação entre totens e sites FX';
+COMMENT ON TABLE webhooks IS 'Webhooks configuráveis para notificações de eventos';
+COMMENT ON COLUMN webhooks.channels IS 'Canais suportados: alerts, events, telemetry, etc';
+COMMENT ON COLUMN webhooks.events IS 'Eventos específicos a serem enviados';
+COMMENT ON TABLE dashboard_layouts IS 'Layouts customizáveis de dashboard por usuário';
+COMMENT ON COLUMN dashboard_layouts.layout_data IS 'JSON com configuração de widgets, posições e tamanhos';
+COMMENT ON TABLE backups IS 'Registro de backups automáticos do sistema';
+COMMENT ON COLUMN backups.backup_type IS 'Tipo: full, database, uploads, config';
+COMMENT ON COLUMN backups.status IS 'Status: completed, failed, in_progress';
+COMMENT ON TABLE notifications IS 'Notificações em tempo real para usuários';
+COMMENT ON COLUMN notifications.notification_type IS 'Tipo: info, success, warning, error';
+
+-- =============================================
+-- ÍNDICES ADICIONAIS PARA PERFORMANCE (v2.1 + v3.1)
+-- =============================================
+-- Índices adicionais para otimizar queries comuns
+
+-- Índices para tabela users (v3.1)
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
+
+-- Índices para tabela totems (v3.1)
+CREATE INDEX IF NOT EXISTS idx_totems_client_id ON totems(client_id);
+CREATE INDEX IF NOT EXISTS idx_totems_is_active ON totems(is_active);
+
+-- Índices para tabela medias (v3.1)
+CREATE INDEX IF NOT EXISTS idx_media_client_id ON medias(client_id);
+CREATE INDEX IF NOT EXISTS idx_media_type ON medias(type);
+CREATE INDEX IF NOT EXISTS idx_media_created_at ON medias(created_at);
+CREATE INDEX IF NOT EXISTS idx_media_is_active ON medias(is_active);
+
+-- Índices para tabela playlists (v3.1)
+CREATE INDEX IF NOT EXISTS idx_playlists_client_id ON playlists(client_id);
+CREATE INDEX IF NOT EXISTS idx_playlists_is_active ON playlists(is_active);
+CREATE INDEX IF NOT EXISTS idx_playlists_created_at ON playlists(created_at);
+
+-- Índices para tabela campaigns (v3.1)
+CREATE INDEX IF NOT EXISTS idx_campaigns_client_id ON campaigns(client_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_start_date ON campaigns(start_date);
+CREATE INDEX IF NOT EXISTS idx_campaigns_end_date ON campaigns(end_date);
+CREATE INDEX IF NOT EXISTS idx_campaigns_is_active ON campaigns(is_active);
+
+-- Índices para execution_logs (analytics) (v3.1)
+CREATE INDEX IF NOT EXISTS idx_execution_logs_media_id ON execution_logs(media_id);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_play_success ON execution_logs(play_success);
+
+-- Índices para fx_telemetry (v3.1)
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_site_id ON fx_telemetry(site_id);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_logged_at ON fx_telemetry(logged_at);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_success ON fx_telemetry(success);
+
+-- Índices para event_logs (v3.1)
+CREATE INDEX IF NOT EXISTS idx_event_logs_event_type ON event_logs(event_type);
+CREATE INDEX IF NOT EXISTS idx_event_logs_logged_at ON event_logs(logged_at);
+
+-- Índices compostos para queries frequentes (v3.1)
+CREATE INDEX IF NOT EXISTS idx_campaigns_active_dates ON campaigns(client_id, is_active, start_date, end_date) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_totems_active_status ON totems(client_id, is_active, status) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_media_client_type ON medias(client_id, type, is_active);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_totem_executed ON execution_logs(totem_id, executed_at, play_success);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_site_logged ON fx_telemetry(site_id, logged_at, success);
+CREATE INDEX IF NOT EXISTS idx_event_logs_totem_type ON event_logs(totem_id, event_type, logged_at);
+
+-- Índices compostos para queries frequentes
+CREATE INDEX IF NOT EXISTS idx_campaign_totems_campaign_status ON campaign_totems(campaign_id, status);
+CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_order ON playlist_items(playlist_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_totem_campaign ON execution_logs(totem_id, campaign_id);
+CREATE INDEX IF NOT EXISTS idx_event_logs_totem_timestamp ON event_logs(totem_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_interaction_logs_totem_type_timestamp ON interaction_logs(totem_id, interaction_type, timestamp);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_client_status ON subscriptions(client_id, status);
+CREATE INDEX IF NOT EXISTS idx_billing_client_status_due ON billing(client_id, status, due_date);
+CREATE INDEX IF NOT EXISTS idx_remote_commands_totem_status_created ON remote_commands(totem_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_analytics_sessions_totem_start ON analytics_sessions(totem_id, session_start);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_client_active_expires ON qr_codes(client_id, is_active, expires_at);
+
+-- Índices para campos frequentemente usados em WHERE
+CREATE INDEX IF NOT EXISTS idx_users_email_active ON users(email, is_active);
+CREATE INDEX IF NOT EXISTS idx_totems_client_status ON totems(client_id, status);
+CREATE INDEX IF NOT EXISTS idx_campaigns_client_status_dates ON campaigns(client_id, status, start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_medias_client_status_type ON medias(client_id, status, media_type);
+CREATE INDEX IF NOT EXISTS idx_playlists_totem_campaign ON playlists(totem_id, campaign_id);
+
+-- Índices para ordenação e paginação
+CREATE INDEX IF NOT EXISTS idx_event_logs_timestamp_desc ON event_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp_desc ON audit_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_executed_desc ON execution_logs(executed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_interaction_logs_timestamp_desc ON interaction_logs(timestamp DESC);
+
+-- =============================================
+-- ROLES E PERMISSÕES - HIERARQUIA COMPLETA
+-- =============================================
+
+-- Inserir Roles (Hierarquia: admin_sql > operator > admin > gerente_marketing > editoracao > visualizador > client)
+INSERT INTO roles (name, description, is_active) VALUES
+  ('admin_sql', 'Administrador SQL - Acesso total ao sistema e dados gerais da base de dados', true),
+  ('operator', 'Operador do Sistema - Acesso a funcionalidades administrativas e manutenção, SEM dados de clientes', true),
+  ('admin', 'Administrador do Cliente - Administra parâmetros administrativos e configurações do próprio cliente', true),
+  ('gerente_marketing', 'Gerente de Marketing - Gerencia/cria/analisa campanhas, mídias, playlists. Total acesso à parte de marketing', true),
+  ('editoracao', 'Editoração - Acesso a suprir informações relevantes e mídias. Upload e edição de conteúdo', true),
+  ('visualizador', 'Visualizador - Acesso a dados e relatórios, apenas leitura', true),
+  ('client', 'Cliente Final (Player) - Acesso apenas via API do player', true)
+ON CONFLICT (name) DO UPDATE SET
+  description = EXCLUDED.description,
+  is_active = EXCLUDED.is_active;
+
+-- Inserir Permissões
+INSERT INTO permissions (name, resource, action, description) VALUES
+  -- Sistema
+  ('system.read', 'system', 'read', 'Ler configurações do sistema'),
+  ('system.update', 'system', 'update', 'Atualizar configurações do sistema'),
+  ('system.maintenance', 'system', 'maintenance', 'Manutenção do sistema'),
+  
+  -- Banco de Dados
+  ('database.read', 'database', 'read', 'Ler dados gerais da base de dados'),
+  ('database.write', 'database', 'write', 'Escrever na base de dados'),
+  ('database.backup', 'database', 'backup', 'Criar backups'),
+  ('database.restore', 'database', 'restore', 'Restaurar backups'),
+  ('database.migrate', 'database', 'migrate', 'Executar migrações'),
+  
+  -- Usuários
+  ('users.read', 'users', 'read', 'Ler usuários'),
+  ('users.create', 'users', 'create', 'Criar usuários'),
+  ('users.update', 'users', 'update', 'Atualizar usuários'),
+  ('users.delete', 'users', 'delete', 'Deletar usuários'),
+  
+  -- Roles
+  ('roles.read', 'roles', 'read', 'Ler roles'),
+  ('roles.create', 'roles', 'create', 'Criar roles'),
+  ('roles.update', 'roles', 'update', 'Atualizar roles'),
+  ('roles.delete', 'roles', 'delete', 'Deletar roles'),
+  
+  -- Permissões
+  ('permissions.read', 'permissions', 'read', 'Ler permissões'),
+  ('permissions.create', 'permissions', 'create', 'Criar permissões'),
+  ('permissions.update', 'permissions', 'update', 'Atualizar permissões'),
+  ('permissions.delete', 'permissions', 'delete', 'Deletar permissões'),
+  
+  -- Clientes
+  ('clients.read', 'clients', 'read', 'Ler clientes'),
+  ('clients.create', 'clients', 'create', 'Criar clientes'),
+  ('clients.update', 'clients', 'update', 'Atualizar clientes'),
+  ('clients.delete', 'clients', 'delete', 'Deletar clientes'),
+  
+  -- Campanhas
+  ('campaigns.read', 'campaigns', 'read', 'Ler campanhas'),
+  ('campaigns.create', 'campaigns', 'create', 'Criar campanhas'),
+  ('campaigns.update', 'campaigns', 'update', 'Atualizar campanhas'),
+  ('campaigns.delete', 'campaigns', 'delete', 'Deletar campanhas'),
+  
+  -- Mídia
+  ('medias.read', 'medias', 'read', 'Ler mídia'),
+  ('medias.create', 'medias', 'create', 'Criar mídia'),
+  ('medias.update', 'medias', 'update', 'Atualizar mídia'),
+  ('medias.delete', 'medias', 'delete', 'Deletar mídia'),
+  ('medias.download', 'medias', 'download', 'Download de mídia'),
+  
+  -- Playlists
+  ('playlists.read', 'playlists', 'read', 'Ler playlists'),
+  ('playlists.create', 'playlists', 'create', 'Criar playlists'),
+  ('playlists.update', 'playlists', 'update', 'Atualizar playlists'),
+  ('playlists.delete', 'playlists', 'delete', 'Deletar playlists'),
+  ('playlists.download', 'playlists', 'download', 'Download de playlists'),
+  
+  -- Totens
+  ('totems.read', 'totems', 'read', 'Ler totens'),
+  ('totems.create', 'totems', 'create', 'Criar totens'),
+  ('totems.update', 'totems', 'update', 'Atualizar totens'),
+  ('totems.delete', 'totems', 'delete', 'Deletar totens'),
+  ('totems.restart', 'totems', 'restart', 'Reiniciar totem'),
+  ('totems.screenshot', 'totems', 'screenshot', 'Capturar screenshot'),
+  ('totems.logs', 'totems', 'logs', 'Acessar logs do totem'),
+  
+  -- Relatórios
+  ('reports.read', 'reports', 'read', 'Ler relatórios'),
+  ('reports.create', 'reports', 'create', 'Criar relatórios'),
+  ('reports.update', 'reports', 'update', 'Atualizar relatórios'),
+  ('reports.delete', 'reports', 'delete', 'Deletar relatórios'),
+  ('reports.export', 'reports', 'export', 'Exportar relatórios'),
+  
+  -- Analytics
+  ('analytics.read', 'analytics', 'read', 'Ler analytics'),
+  ('analytics.export', 'analytics', 'export', 'Exportar analytics'),
+  
+  -- Billing
+  ('billing.read', 'billing', 'read', 'Ler dados de billing'),
+  ('billing.create', 'billing', 'create', 'Criar dados de billing'),
+  ('billing.update', 'billing', 'update', 'Atualizar dados de billing'),
+  ('billing.delete', 'billing', 'delete', 'Deletar dados de billing'),
+  
+  -- Configurações
+  ('settings.read', 'settings', 'read', 'Ler configurações'),
+  ('settings.update', 'settings', 'update', 'Atualizar configurações'),
+  
+  -- Logs
+  ('logs.read', 'logs', 'read', 'Ler logs'),
+  ('logs.export', 'logs', 'export', 'Exportar logs'),
+  
+  -- OTA Updates
+  ('ota.read', 'ota', 'read', 'Ler atualizações OTA'),
+  ('ota.create', 'ota', 'create', 'Criar atualizações OTA'),
+  ('ota.update', 'ota', 'update', 'Atualizar atualizações OTA'),
+  ('ota.delete', 'ota', 'delete', 'Deletar atualizações OTA'),
+  
+  -- SmartDisplayFX
+  ('smartdisplayfx.read', 'smartdisplayfx', 'read', 'Ler SmartDisplayFX'),
+  ('smartdisplayfx.update', 'smartdisplayfx', 'update', 'Atualizar SmartDisplayFX'),
+  ('smartdisplayfx.config', 'smartdisplayfx', 'config', 'Configurar SmartDisplayFX'),
+  ('smartdisplayfx.logs', 'smartdisplayfx', 'logs', 'Acessar logs do SmartDisplayFX'),
+  
+  -- Auditoria
+  ('audit.read', 'audit', 'read', 'Ler logs de auditoria'),
+  ('audit.export', 'audit', 'export', 'Exportar logs de auditoria'),
+  
+  -- Backup
+  ('backup.read', 'backup', 'read', 'Ler backups'),
+  ('backup.create', 'backup', 'create', 'Criar backups'),
+  ('backup.restore', 'backup', 'restore', 'Restaurar backups'),
+  
+  -- Monitoramento
+  ('monitoring.read', 'monitoring', 'read', 'Ler monitoramento'),
+  ('monitoring.update', 'monitoring', 'update', 'Atualizar monitoramento'),
+  
+  -- Player
+  ('player.authenticate', 'player', 'authenticate', 'Autenticar player'),
+  ('player.heartbeat', 'player', 'heartbeat', 'Enviar heartbeat'),
+  ('player.playlist.download', 'player', 'playlist.download', 'Download de playlist'),
+  ('player.media.download', 'player', 'media.download', 'Download de mídia'),
+  ('player.logs.upload', 'player', 'logs.upload', 'Upload de logs'),
+  ('player.screenshot.upload', 'player', 'screenshot.upload', 'Upload de screenshot')
+ON CONFLICT (name) DO NOTHING;
+
+-- Atribuir Permissões às Roles
+
+-- ADMIN_SQL: Todas as permissões
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'admin_sql'
+ON CONFLICT DO NOTHING;
+
+-- OPERATOR: Apenas permissões do sistema (SEM dados de clientes)
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'operator'
+  AND (
+    p.resource IN ('system', 'settings', 'logs', 'ota', 'smartdisplayfx', 'monitoring', 'backup')
+    OR (p.resource = 'totems' AND p.action IN ('read', 'update', 'restart', 'screenshot', 'logs'))
+    OR (p.resource = 'smartdisplayfx' AND p.action IN ('config', 'logs'))
+  )
+ON CONFLICT DO NOTHING;
+
+-- ADMIN: Permissões do cliente (próprio cliente) - Administra parâmetros administrativos e configurações
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'admin'
+  AND p.resource IN ('clients', 'users', 'campaigns', 'medias', 'playlists', 'totems', 'reports', 'analytics', 'billing', 'smartdisplayfx', 'audit', 'settings', 'qr-codes', 'tags', 'ai')
+  AND p.resource NOT IN ('system', 'database', 'roles', 'permissions')
+ON CONFLICT DO NOTHING;
+
+-- GERENTE_MARKETING: Total acesso à parte de marketing (campanhas, mídias, playlists)
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'gerente_marketing'
+  AND (
+    -- Marketing completo
+    (p.resource IN ('campaigns', 'medias', 'playlists', 'smart-playlist', 'qr-codes', 'tags', 'smartdisplayfx', 'ai') AND p.action IN ('read', 'create', 'update', 'delete'))
+    OR
+    -- Analytics e relatórios (leitura e criação)
+    (p.resource IN ('analytics', 'reports') AND p.action IN ('read', 'create'))
+    OR
+    -- Totens (apenas leitura)
+    (p.resource = 'totems' AND p.action = 'read')
+  )
+  AND p.resource NOT IN ('users', 'billing', 'clients', 'settings')
+ON CONFLICT DO NOTHING;
+
+-- EDITORACAO: Acesso a suprir informações relevantes e mídias
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'editoracao'
+  AND (
+    -- Mídias (total acesso)
+    (p.resource = 'medias' AND p.action IN ('read', 'create', 'update', 'delete'))
+    OR
+    -- Tags (leitura e criação)
+    (p.resource = 'tags' AND p.action IN ('read', 'create'))
+    OR
+    -- Campanhas e playlists (apenas leitura para contexto)
+    (p.resource IN ('campaigns', 'playlists') AND p.action = 'read')
+  )
+ON CONFLICT DO NOTHING;
+
+-- VISUALIZADOR: Apenas leitura de dados e relatórios
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'visualizador'
+  AND p.action = 'read'
+  AND p.resource IN ('campaigns', 'medias', 'playlists', 'totems', 'reports', 'analytics', 'smartdisplayfx', 'dashboard')
+ON CONFLICT DO NOTHING;
+
+-- CLIENT: Apenas permissões do player
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'client'
+  AND p.resource = 'player'
+ON CONFLICT DO NOTHING;
+
+-- =============================================
+-- SMARTDISPLAYFX PLUS - DADOS INICIAIS
+-- =============================================
+
+-- Dados iniciais: Efeitos padrão
+INSERT INTO fx_effects (name, effect_type, description, default_params, is_active) VALUES
+  ('Neon Warp Flow', 'neon_warp', 'Efeito de propagandas fluindo entre totens com rastro neon', 
+   '{"color_a": "#00ffd5", "color_b": "#6b00ff", "intensity": 0.8, "trail_particles": 32, "duration_ms": 1600}'::jsonb, true),
+  ('Ripple Sync Flow', 'ripple_sync', 'Efeito de ondas sincronizadas entre totens', 
+   '{"wave_count": 3, "wave_speed": 1.0, "color": "#00ffff", "duration_ms": 2000}'::jsonb, true),
+  ('Liquid Flow', 'liquid_flow', 'Efeito de fluxo líquido entre telas', 
+   '{"viscosity": 0.5, "color": "#ff00ff", "duration_ms": 1800}'::jsonb, true),
+  ('Holographic Swipe', 'holographic_swipe', 'Efeito de deslize holográfico', 
+   '{"glow_intensity": 0.9, "color": "#ffffff", "duration_ms": 1500}'::jsonb, true),
+  ('Matrix Data Flow', 'matrix_data_flow', 'Efeito estilo Matrix com dados fluindo', 
+   '{"characters": "01", "speed": 1.0, "color": "#00ff00", "duration_ms": 2200}'::jsonb, true),
+  ('Particle Burst', 'particle_burst', 'Efeito de explosão de partículas', 
+   '{"particle_count": 50, "color": "#ffff00", "duration_ms": 1200}'::jsonb, true)
+ON CONFLICT (name) DO UPDATE SET
+  effect_type = EXCLUDED.effect_type,
+  description = EXCLUDED.description,
+  default_params = EXCLUDED.default_params,
+  updated_at = CURRENT_TIMESTAMP;
+
+-- Dados iniciais: Regras padrão (exemplos)
+INSERT INTO fx_rules (name, description, conditions, actions, priority, is_active) VALUES
+  ('Jovem - Promo Games', 'Mostrar promo de games para jovens', 
+   '{"age_bucket": ["14-25", "18-25"], "mood": ["happy", "neutral"]}'::jsonb,
+   '{"effect_type": "neon_warp", "content_category": "games", "priority": "high"}'::jsonb,
+   10, true),
+  ('Atenção Alta - Produto Premium', 'Mostrar produto premium quando atenção alta', 
+   '{"attention_ms": {"min": 2000}, "mood": ["happy", "surprised"]}'::jsonb,
+   '{"effect_type": "holographic_swipe", "content_category": "premium", "priority": "high"}'::jsonb,
+   15, true),
+  ('Tag Específica - Conteúdo Personalizado', 'Mostrar conteúdo baseado em tag', 
+   '{"interaction_type": "tag_id", "tag_category": ["vip", "premium"]}'::jsonb,
+   '{"effect_type": "particle_burst", "use_tag_content": true, "priority": "critical"}'::jsonb,
+   20, true)
+ON CONFLICT DO NOTHING;
 
 

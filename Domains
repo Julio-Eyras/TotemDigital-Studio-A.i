@@ -1,0 +1,452 @@
+/******************************************************************************/
+/****                               Domains                                ****/
+/******************************************************************************/
+
+CREATE DOMAIN DM_BDAPEMP AS 
+VARCHAR(20) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDAPEPLANO AS 
+VARCHAR(50) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDBAIRRO AS 
+VARCHAR(50) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDCLASSCONFMTE AS 
+VARCHAR(10) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDCODEMPBANCO AS 
+VARCHAR(12) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDCOMPENDERECO AS 
+VARCHAR(60) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDCOMPLEMENTOONLINE AS 
+VARCHAR(1000) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDCONVENIO AS 
+VARCHAR(20) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDCTPS AS 
+VARCHAR(11) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDDCTO AS 
+VARCHAR(15) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDDESCCONFMTE AS 
+VARCHAR(70) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDDESCCONTA AS 
+VARCHAR(200) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDDESCQH AS 
+VARCHAR(999) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDDESCREC AS 
+VARCHAR(150) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDDESCSINTRAB AS 
+VARCHAR(60) CHARACTER SET WIN1252
+COLLATE WIN_PTBR;
+
+CREATE DOMAIN DM_BDEMAIL AS 
+VARCHAR(200) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDENDERECO AS 
+VARCHAR(60) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDENDERECO_NR AS 
+VARCHAR(10) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDISPB AS 
+VARCHAR(8) CHARACTER SET WIN1252
+COLLATE WIN_PTBR;
+
+CREATE DOMAIN DM_BDMATRICULACOL AS 
+VARCHAR(30) CHARACTER SET WIN1252
+COLLATE WIN_PTBR;
+
+CREATE DOMAIN DM_BDNOMCOL AS 
+VARCHAR(70) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDNOMDPN AS 
+VARCHAR(68) CHARACTER SET WIN1252
+COLLATE WIN_PTBR;
+
+CREATE DOMAIN DM_BDNOMEMP AS 
+VARCHAR(100) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDNOMEPLANO AS 
+VARCHAR(100) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDNOMREDUZEMP AS 
+VARCHAR(40) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDNOMRESPDIRETO AS 
+VARCHAR(200) CHARACTER SET WIN1252
+COLLATE WIN_PTBR;
+
+CREATE DOMAIN DM_BDNOMTER AS 
+VARCHAR(100) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDNUMPROCJUD AS 
+VARCHAR(25) CHARACTER SET WIN1252
+COLLATE WIN_PTBR;
+
+CREATE DOMAIN DM_BDRAZAOCC AS 
+VARCHAR(5) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BDTELEFONE AS 
+VARCHAR(15) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_BOOLEAN AS 
+VARCHAR(5) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_CAMINHOARQ AS 
+VARCHAR(250) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_CEP AS 
+VARCHAR(9) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_CHAVENFE AS 
+VARCHAR(60) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_CLASSCONTAS AS 
+VARCHAR(40) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_CNPJ_CPF AS 
+VARCHAR(18) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_CODRECOF AS 
+VARCHAR(6) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_COMP_8 AS 
+VARCHAR(8) CHARACTER SET WIN1252
+COLLATE WIN_PTBR;
+
+CREATE DOMAIN DM_CTACORRENTE AS 
+VARCHAR(15) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_CXPOSTAL AS 
+VARCHAR(15) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_DESC_WINPTBR AS 
+VARCHAR(200) CHARACTER SET WIN1252
+COLLATE WIN_PTBR;
+
+CREATE DOMAIN DM_DIGCTACORRENTE AS 
+VARCHAR(2) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_DIGSERIECTPS AS 
+VARCHAR(1) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_ESPECIEDOC AS 
+VARCHAR(5) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_GERADOR AS 
+VARCHAR(1024) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_INCONSISTENCIA AS 
+VARCHAR(500) CHARACTER SET WIN1252
+NOT NULL
+COLLATE WIN_PTBR;
+
+CREATE DOMAIN DM_LISTA AS 
+VARCHAR(5000) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_LOGRADOURO AS 
+VARCHAR(15) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_MAXVARCHAR AS 
+VARCHAR(32765) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_NUMEND AS 
+VARCHAR(11) CHARACTER SET WIN1252
+COLLATE WIN_PTBR;
+
+CREATE DOMAIN DM_NUMERIC_15_2 AS 
+NUMERIC(15,2);
+
+CREATE DOMAIN DM_NUMERIC_17_4 AS 
+NUMERIC(17,4);
+
+CREATE DOMAIN DM_NUMERIC_18_3 AS 
+NUMERIC(18,3);
+
+CREATE DOMAIN DM_NUMERIC_20MILHOES_2CASAS AS 
+NUMERIC(9,2);
+
+CREATE DOMAIN DM_NUMERIC_213MIL_4CASAS AS 
+NUMERIC(9,4);
+
+CREATE DOMAIN DM_NUMERIC_326_2CASAS AS 
+NUMERIC(4,2);
+
+CREATE DOMAIN DM_NUMERIC_7_4_ALIQ AS 
+NUMERIC(7,4);
+
+CREATE DOMAIN DM_NUMEROCHEQUE AS 
+VARCHAR(20) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_OBSERVACAO_LAN AS 
+VARCHAR(100) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_ORGAOEMISSOR AS 
+VARCHAR(20) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_SERIECTPS AS 
+VARCHAR(11) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_SERIEDOC AS 
+VARCHAR(6) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_SISTEMAS AS 
+VARCHAR(250) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN DM_SUBSERIEDOC AS 
+VARCHAR(6) CHARACTER SET WIN1252
+COLLATE WIN1252;
+
+CREATE DOMAIN MON$IDLE_TIMEOUT AS 
+INTEGER
+NOT NULL;
+
+CREATE DOMAIN MON$IDLE_TIMER AS 
+UNKNOWN;
+
+CREATE DOMAIN MON$SEC_DATABASE AS 
+CHAR(7) CHARACTER SET ASCII
+NOT NULL
+COLLATE ASCII;
+
+CREATE DOMAIN MON$STATEMENT_TIMEOUT AS 
+INTEGER
+NOT NULL;
+
+CREATE DOMAIN MON$STATEMENT_TIMER AS 
+UNKNOWN;
+
+CREATE DOMAIN MON$WIRE_CRYPT_PLUGIN AS 
+VARCHAR(63) CHARACTER SET UTF8
+COLLATE UTF8;
+
+CREATE DOMAIN SEC$KEY AS 
+VARCHAR(63) CHARACTER SET UTF8
+COLLATE UTF8;
+
+CREATE DOMAIN SEC$NAME_PART AS 
+VARCHAR(32) CHARACTER SET UTF8
+COLLATE UTF8;
+
+CREATE DOMAIN SEC$USER_NAME AS 
+VARCHAR(63) CHARACTER SET UTF8
+COLLATE UTF8;
+
+CREATE DOMAIN SEC$VALUE AS 
+VARCHAR(255) CHARACTER SET UTF8
+COLLATE UTF8;
+
+
+
+/******************************************************************************/
+/****                              Generators                              ****/
+/******************************************************************************/
+
+CREATE GENERATOR ESOCIALALT;
+
+
+/******************************************************************************/
+/****                              Exceptions                              ****/
+/******************************************************************************/
+
+CREATE EXCEPTION ALT_PARTICIPANTE 'Importação não conseguiu trocar os códigos dos participantes';
+
+CREATE EXCEPTION ERRO_CERTIFICADO 'O sistema não está conseguindo excluir o vinculo de empresas na tabela de certificados, por favor entre em contato com a SCI';
+
+CREATE EXCEPTION EX_BLOQLAN 'Você não tem permissão para gerar lançamento nesse período, verifique o bloqueio de lançamentos.';
+
+CREATE EXCEPTION EX_BLOQZER 'Bloqueado pelo zeramento';
+
+CREATE EXCEPTION EX_CHAVEINCORRETA 'Entre em contato com a SCI. EX_CHAVEINCORRETA';
+
+CREATE EXCEPTION EX_CHAVE_EM_USO 'Não foi possível salvar o lançamento, essa chave já está em uso!';
+
+CREATE EXCEPTION EX_CHAVE_ESTRANGEIRA 'Tabela: ''@1''. O valor ''@2'' para o campo ''@3'' não existe na tabela ''@4''';
+
+CREATE EXCEPTION EX_CID_ISSLEGAL 'Cidade não está preparada para a integração via ISS Legal.';
+
+CREATE EXCEPTION EX_CUSTOM '';
+
+CREATE EXCEPTION EX_DATAVAZIA 'A data de pagamento não pode ser vazia';
+
+CREATE EXCEPTION EX_DATE 'Data Inválida';
+
+CREATE EXCEPTION EX_DELETE 'Não é possível excluir dados, verifique dependências.';
+
+CREATE EXCEPTION EX_DELETE_REINF_RECIBO 'Evento possui recibo vinculado e não pode ser excluído.';
+
+CREATE EXCEPTION EX_EXCLUSAO_IC 'Não é possível excluir dados padrões do Integra Contador.';
+
+CREATE EXCEPTION EX_GETCHAVELAN 'Não foi informado a chave para o lançamento contábil.';
+
+CREATE EXCEPTION EX_LAN_COMPL_VAZIO 'Não é permitido inserir lançamentos sem histórico ou completo informado!';
+
+CREATE EXCEPTION EX_LAN_DEBCRE_VAZIO 'Não é permitido inserir lançamentos sem débito ou crédito informado!';
+
+CREATE EXCEPTION EX_LAN_SEM_DATA_HORA 'Está sendo importado/alterado um lançamento sem data e hora de inclusão';
+
+CREATE EXCEPTION EX_LAN_VALORZERADO 'Não é permitido inserir lançamentos com valor zerado!';
+
+CREATE EXCEPTION EX_NATOP_ALT 'Não é possível alterar os dados da CFOP pelo banco, a alteração deve ser feita via sistema.';
+
+CREATE EXCEPTION EX_PERSONALIZACAO 'Não é possível limpar esse campo, pois poderá haver um problema de corrupção em sua base!';
+
+CREATE EXCEPTION EX_PLANOTROCA_CONDPGTO 'Não é permitido cadastrar um "Pagamento" diferente de 2-Prazo, com "Plano pagamento" informado.';
+
+CREATE EXCEPTION EX_REINF_ENVIO 'Evento está em processo de envio, sendo assim não pode ter o status alterado para excluído.';
+
+CREATE EXCEPTION EX_REINF_R2099 'Evento R2099 está em processamento na Reinf, não é permitido excluir antes de ter o retorno da RFB.';
+
+CREATE EXCEPTION EX_REINF_RCB_VINC 'Evento possui recibo vinculado e não pode ter o status alterado para excluído.';
+
+CREATE EXCEPTION EX_TAMANHOCHAVE 'Tamanho do código excedido';
+
+CREATE EXCEPTION EX_TEMPORIZADOR_ATIVIDADES 'parallel time chronometer';
+
+CREATE EXCEPTION EX_TRANSFERENCIA 'Não é possível transferir colaborador/contribuinte com o mesmo código para a mesma empresa';
+
+CREATE EXCEPTION EX_TTERCEIRO_DEL 'Exclusão dos dados de referência do participante não é permitida.';
+
+CREATE EXCEPTION EX_USR_INV_INTEGR 'Não é possível utilizar o usuário do sistema com o usuário atual do banco!';
+
+CREATE EXCEPTION NAO_EXCLUIR_TITULO 'Conta título não pode ser excluida por ter contas analíticas usadas em outros processos.';
+
+CREATE EXCEPTION ODSERROR 'ODS Error 11.2';
+
+CREATE EXCEPTION SALDO 'Erro';
+
+/******************************************************************************/
+/****                              Procedures                              ****/
+/******************************************************************************/
+
+SET TERM ^ ;
+
+SET TERM ; ^
+
+
+
+/******************************************************************************/
+/****                           Tables and Views                           ****/
+/******************************************************************************/
+
+
+
+/******************************************************************************/
+/****                             Primary keys                             ****/
+/******************************************************************************/
+
+
+
+/******************************************************************************/
+/****                          Unique constraints                          ****/
+/******************************************************************************/
+
+
+
+/******************************************************************************/
+/****                             Foreign keys                             ****/
+/******************************************************************************/
+
+
+
+/******************************************************************************/
+/****                          Check constraints                           ****/
+/******************************************************************************/
+
+
+
+/******************************************************************************/
+/****                               Indices                                ****/
+/******************************************************************************/
+
+
+
+/******************************************************************************/
+/****                               Triggers                               ****/
+/******************************************************************************/
+
+SET TERM ^ ;
+
+SET TERM ; ^
+
+/******************************************************************************/
+/****                              Procedures                              ****/
+/******************************************************************************/
+
+SET TERM ^ ;
+
+SET TERM ; ^
+
+
+
+/******************************************************************************/
+/****                         Object descriptions                          ****/
+/******************************************************************************/
+
+DESCRIBE EXCEPTION ERRO_CERTIFICADO
+'SolicitaÃ§Ã£o #176365';
+
+DESCRIBE EXCEPTION EX_CUSTOM
+'Erro customizado com exeÃ§Ã£o no banco.';
+
+DESCRIBE EXCEPTION EX_TEMPORIZADOR_ATIVIDADES
+'O sistema estÃ¡ tentado registrar atividades com tempos paralelos para o mesmo usuÃ¡rio, isso causarÃ¡ uma divergÃªncia no resultado final do temporizador.';
+
+DESCRIBE EXCEPTION EX_TRANSFERENCIA
+'Erro customizado para impedir que seja incluÃ­da transferÃªncia em que o cÃ³digo da empresa origem e o cÃ³digo do colaborador/contribuinte seja iguais aos cÃ³digos da empresa destino';
+

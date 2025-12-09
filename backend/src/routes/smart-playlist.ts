@@ -6,7 +6,8 @@
 import { Router } from 'express';
 import { SmartPlaylistService } from '../services/smartPlaylistService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
-import { logError, logInfo, logWarn, logDebug } from '../utils/loggerHelper';
+import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
+import { logError, logDebug } from '../utils/loggerHelper';
 
 const router = Router();
 
@@ -20,6 +21,9 @@ function getSmartPlaylistService(): SmartPlaylistService {
 
 // Middleware de autenticação para todas as rotas
 router.use(authenticateToken);
+
+// Aplicar bloqueio de dados de clientes para OPERATOR
+router.use(blockClientDataAccess);
 
 /**
  * @route GET /api/smart-playlist
@@ -75,7 +79,7 @@ router.get('/', async (req: any, res) => {
  * @desc Busca estatísticas de smart playlists
  * @access Private (Admin, Manager)
  */
-router.get('/stats', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/stats', authorizeRole(['admin', 'gerente_marketing']), async (_req, res) => {
   try {
     const stats = await getSmartPlaylistService().getSmartPlaylistStats();
 
@@ -168,7 +172,7 @@ router.post('/', async (req: any, res) => {
       if (req.user.role === 'client' && req.user.clientId) {
         playlistData.clientId = req.user.clientId;
         await logDebug('[Smart Playlist] Usando clientId do usuário', { clientId: playlistData.clientId });
-      } else if (req.user.role === 'admin' || req.user.role === 'manager') {
+      } else if (req.user.role === 'admin' || req.user.role === 'admin_sql' || req.user.role === 'gerente_marketing') {
         // Para admin/manager, buscar primeiro cliente ativo se não fornecido
         try {
           await logDebug('[Smart Playlist] Buscando primeiro cliente ativo');
@@ -280,7 +284,7 @@ router.put('/:id', async (req: any, res) => {
  * @desc Remove smart playlist
  * @access Private (Admin, Manager)
  */
-router.delete('/:id', authorizeRole(['admin', 'manager']), async (req: any, res) => {
+router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: any, res) => {
   try {
     const { id } = req.params;
 
@@ -578,7 +582,7 @@ router.post('/:id/test', async (req: any, res) => {
  * @desc Gera múltiplas smart playlists
  * @access Private (Admin, Manager)
  */
-router.post('/bulk-generate', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.post('/bulk-generate', authorizeRole(['admin', 'gerente_marketing']), async (req, res) => {
   try {
     const { playlistIds } = req.body;
 

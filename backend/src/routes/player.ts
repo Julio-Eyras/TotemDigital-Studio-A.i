@@ -1,10 +1,12 @@
 import express, { Request, Response } from 'express';
-import { param, query, body, validationResult } from 'express-validator';
+import { query, body, validationResult } from 'express-validator';
 import { TotemService } from '../services/totemService';
 import { getDatabase } from '../config/database';
 import { playerDebugService, PlayerDebugService } from '../services/playerDebugService';
 import { getEventLogService, EventType } from '../services/eventLogService';
-import { logError, logDebug, sanitizeForLogging } from '../utils/loggerHelper';
+import { getRemoteCommandService } from '../services/remoteCommandService';
+import { validateRequest } from '../middleware/validation.middleware';
+import { logError, logDebug, sanitizeForLogging, logWarn, logInfo } from '../utils/loggerHelper';
 import crypto from 'crypto';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -286,6 +288,39 @@ router.get('/validate',
         `, [playlist.playlist_id]);
       }
 
+      // Verificar atualização OTA disponível
+      let otaUpdate = null;
+      if (totemId) {
+        try {
+          const { getOTAUpdateService } = await import('../services/otaUpdateService');
+          const otaService = getOTAUpdateService();
+          const currentVersion = (totemFull?.config as any)?.version || '1.0.0';
+          const platform = (totemFull?.config as any)?.platform || 'linux';
+          otaUpdate = await otaService.getAvailableUpdate(totemId, currentVersion, platform);
+          
+          // Atualizar status de atualização do totem
+          if (otaUpdate) {
+            await otaService.updateTotemStatus(totemId, {
+              totemId,
+              currentVersion,
+              availableVersion: otaUpdate.version,
+              updateStatus: 'update_available',
+              lastCheck: new Date()
+            });
+          } else {
+            await otaService.updateTotemStatus(totemId, {
+              totemId,
+              currentVersion,
+              updateStatus: 'up_to_date',
+              lastCheck: new Date()
+            });
+          }
+        } catch (error: any) {
+          // Não falhar o heartbeat se OTA falhar
+          await logError('Erro ao verificar atualização OTA', error, { totemId });
+        }
+      }
+
       // Gerar novo token para resposta
       const newToken = generateTotemToken(uin as string);
 
@@ -340,11 +375,22 @@ router.get('/validate',
             }
           }))
         } : null,
+        otaUpdate: otaUpdate ? {
+          id: otaUpdate.id,
+          version: otaUpdate.version,
+          platform: otaUpdate.platform,
+          fileSize: otaUpdate.fileSize,
+          checksum: otaUpdate.checksum,
+          description: otaUpdate.description,
+          changelog: otaUpdate.changelog,
+          isMandatory: otaUpdate.isMandatory,
+          downloadUrl: `/api/ota-updates/${otaUpdate.id}/download`
+        } : null,
         token: newToken,
         expiresIn: 3600, // 1 hora
       });
     } catch (error: any) {
-      await logError(`[${transactionId}] Erro ao validar totem`, error, { uin, transactionId });
+      await logError(`[${transactionId}] Erro ao validar totem`, error, { uin: req.query.uin as string, transactionId });
       
       await playerDebugService.logTransaction({
         transactionId,
@@ -602,7 +648,7 @@ router.post('/decrypt-config',
  * @desc Obter informações de hardware do servidor (MAC address)
  * @access Public (para totens)
  */
-router.get('/hardware-info', async (req: Request, res: Response) => {
+router.get('/hardware-info', async (_req: Request, res: Response) => {
   try {
     let macAddress: string | null = null;
     
@@ -1265,6 +1311,109 @@ router.post('/exit-kiosk',
     } catch (error: any) {
       await logError('Erro ao executar saída do kiosk', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route POST /api/player/command-result
+ * @desc Reporta resultado de execução de comando remoto
+ * @access Public (para totens autenticados)
+ */
+router.post('/command-result',
+  body('uin').isString().notEmpty().withMessage('UIN é obrigatório'),
+  body('token').isString().notEmpty().withMessage('Token é obrigatório'),
+  body('requestId').isString().notEmpty().withMessage('requestId é obrigatório'),
+  body('status').isIn(['completed', 'failed']).withMessage('status deve ser completed ou failed'),
+  body('result').optional(),
+  body('error').optional().isString(),
+  validateRequest,
+  async (req: Request, res: Response) => {
+    try {
+      const { uin, token, requestId, status, result, error } = req.body;
+
+      // Validar token
+      if (!validateTotemToken(uin, token)) {
+        return res.status(401).json({ error: 'Token inválido ou expirado' });
+      }
+
+      // Buscar totem
+      const db = getDatabase();
+      const totem = await db.findFirst(`
+        SELECT totem_id, identifier
+        FROM totems
+        WHERE uin = $1
+      `, [uin]);
+
+      if (!totem) {
+        return res.status(404).json({ error: 'Totem não encontrado' });
+      }
+
+      // Buscar comando pelo request_id
+      const command = await db.findFirst(`
+        SELECT id, totem_id, command_type, status
+        FROM remote_commands
+        WHERE request_id = $1 AND totem_id = $2
+      `, [requestId, totem.totem_id]);
+
+      if (!command) {
+        return res.status(404).json({ error: 'Comando não encontrado' });
+      }
+
+      // Atualizar status do comando
+      const remoteCommandService = getRemoteCommandService();
+      
+      if (status === 'completed') {
+        await remoteCommandService.markCommandAsCompleted(command.id, result);
+        
+        // Se for screenshot, salvar arquivo se fornecido
+        if (command.command_type === 'screenshot' && result?.filePath) {
+          await remoteCommandService.saveScreenshot(
+            totem.totem_id,
+            result.filePath,
+            result.fileSize || 0,
+            result.width || 0,
+            result.height || 0,
+            result.format || 'png',
+            command.id
+          );
+        }
+      } else {
+        await remoteCommandService.markCommandAsFailed(command.id, error || 'Comando falhou');
+      }
+
+      // Registrar evento
+      const eventLogService = getEventLogService();
+      await eventLogService.logEvent({
+        eventType: status === 'completed' ? EventType.TOTEM_COMMAND_COMPLETED : EventType.TOTEM_COMMAND_FAILED,
+        entityType: 'totem',
+        entityId: totem.totem_id,
+        totemId: totem.totem_id,
+        metadata: {
+          commandType: command.command_type,
+          requestId,
+          result,
+          error
+        }
+      }).catch(e => logWarn('Erro ao registrar evento de comando', { error: e.message }));
+
+      await logInfo('Resultado de comando reportado', {
+        requestId,
+        totemId: totem.totem_id,
+        status
+      });
+
+      res.json({
+        success: true,
+        message: 'Resultado do comando registrado com sucesso'
+      });
+
+    } catch (error: any) {
+      await logError('Erro ao processar resultado de comando', error);
+      res.status(500).json({
+        error: 'Erro ao processar resultado do comando',
+        details: error.message
+      });
     }
   }
 );

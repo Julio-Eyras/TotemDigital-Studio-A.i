@@ -5,8 +5,9 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
-import { logError, logInfo, logDebug } from '../utils/loggerHelper';
+import { logError, logDebug } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from './eventLogService';
+import { getCacheService } from './cacheService';
 
 export interface CreateTotemRequest {
   name?: string;
@@ -116,6 +117,10 @@ export class TotemService {
 
   private get eventLogService() {
     return getEventLogService();
+  }
+
+  private get cache() {
+    return getCacheService();
   }
 
   /**
@@ -538,6 +543,9 @@ export class TotemService {
         identifier: newTotem.identifier
       });
 
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('totem', newTotem.id).catch(() => {});
+
       return newTotem;
 
     } catch (error: any) {
@@ -682,6 +690,9 @@ export class TotemService {
         changes: data
       });
 
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('totem', totemId).catch(() => {});
+
       return updatedTotem;
 
     } catch (error: any) {
@@ -767,6 +778,9 @@ export class TotemService {
         source: 'processHeartbeat'
       });
 
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('totem', totemId).catch(() => {});
+
       return updatedTotem;
 
     } catch (error: any) {
@@ -805,41 +819,49 @@ export class TotemService {
   }
 
   /**
-   * Busca estatísticas de um totem
+   * Busca estatísticas de um totem (com cache de 2 minutos)
    */
   async getTotemStats(totemId: number): Promise<{
     campaignCount: number;
     playlistCount: number;
   }> {
-    try {
-      // Contar campanhas
-      const campaignCountResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count
-        FROM campaign_totems ct
-        JOIN campaigns c ON ct.campaign_id = c.campaign_id
-        WHERE ct.totem_id = ? AND COALESCE(c.is_active, true) = true
-      `, [totemId]);
+    const cacheKey = this.cache.generateKey('stats', 'totem', totemId.toString());
+    
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        try {
+          // Contar campanhas
+          const campaignCountResult = await this.db.findFirst(`
+            SELECT COUNT(*) as count
+            FROM campaign_totems ct
+            JOIN campaigns c ON ct.campaign_id = c.campaign_id
+            WHERE ct.totem_id = ? AND COALESCE(c.is_active, true) = true
+          `, [totemId]);
 
-      // Contar playlists
-      const playlistCountResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count
-        FROM playlists p
-        JOIN campaigns c ON p.campaign_id = c.campaign_id
-        WHERE p.totem_id = ? AND COALESCE(c.is_active, true) = true
-      `, [totemId]);
+          // Contar playlists
+          const playlistCountResult = await this.db.findFirst(`
+            SELECT COUNT(*) as count
+            FROM playlists p
+            JOIN campaigns c ON p.campaign_id = c.campaign_id
+            WHERE p.totem_id = ? AND COALESCE(c.is_active, true) = true
+          `, [totemId]);
 
-      return {
-        campaignCount: campaignCountResult?.count || 0,
-        playlistCount: playlistCountResult?.count || 0
-      };
+          return {
+            campaignCount: campaignCountResult?.count || 0,
+            playlistCount: playlistCountResult?.count || 0
+          };
 
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas do totem', error);
-      return {
-        campaignCount: 0,
-        playlistCount: 0
-      };
-    }
+        } catch (error: any) {
+          await logError('Erro ao buscar estatísticas do totem', error);
+          return {
+            campaignCount: 0,
+            playlistCount: 0
+          };
+        }
+      },
+      120 // Cache por 2 minutos
+    );
   }
 
   /**
@@ -1024,7 +1046,8 @@ export class TotemService {
               ipAddress: options.ipAddress,
               version: options.version,
               firmwareVersion: options.firmwareVersion,
-              source: options.source
+              source: options.source,
+              errorMessage: statusEvent === EventType.TOTEM_ERROR ? 'Erro detectado no totem' : undefined // Padrão conceitual
             }
           });
         }
@@ -1210,7 +1233,10 @@ export class TotemService {
         identifier: totem.identifier
       });
 
-    } catch (error: any) {
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('totem', totemId).catch(() => {});
+
+      } catch (error: any) {
       await logError('Erro ao remover totem', error);
       throw error;
     }

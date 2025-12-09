@@ -1,0 +1,345 @@
+/**
+ * Remote Command Service - Smart Signage v2.1
+ * Serviço para gerenciar comandos remotos aos totens
+ */
+
+import { getDatabase } from '../config/database';
+import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
+import { getEventLogService, EventType } from './eventLogService';
+
+export type CommandType = 'restart' | 'screenshot' | 'update' | 'config' | 'custom';
+
+export interface RemoteCommand {
+  id: number;
+  totemId: number;
+  commandType: CommandType;
+  commandData?: any;
+  status: 'pending' | 'sent' | 'executing' | 'completed' | 'failed' | 'timeout';
+  result?: any;
+  errorMessage?: string;
+  sentAt?: Date;
+  executedAt?: Date;
+  completedAt?: Date;
+  createdBy?: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateCommandRequest {
+  totemId: number;
+  commandType: CommandType;
+  commandData?: any;
+}
+
+export class RemoteCommandService {
+  private get db() {
+    return getDatabase();
+  }
+
+  private getEventLogService() {
+    return getEventLogService();
+  }
+
+  /**
+   * Cria um novo comando remoto
+   */
+  async createCommand(request: CreateCommandRequest, userId: number): Promise<RemoteCommand> {
+    try {
+      await logInfo('Criando comando remoto', {
+        totemId: request.totemId,
+        commandType: request.commandType,
+        userId
+      });
+
+      // Verificar se totem existe e está ativo
+      const totem = await this.db.findFirst(`
+        SELECT totem_id, identifier, status, active
+        FROM totems
+        WHERE totem_id = $1
+      `, [request.totemId]);
+
+      if (!totem) {
+        throw new Error('Totem não encontrado');
+      }
+
+      if (!totem.active) {
+        throw new Error('Totem não está ativo');
+      }
+
+      // Gerar request_id único
+      const requestId = `cmd_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+      // Inserir comando
+      const result = await this.db.executeRaw(`
+        INSERT INTO remote_commands (
+          totem_id, request_id, command_type, command_data, status, priority, created_by
+        )
+        VALUES ($1, $2, $3, $4, 'pending', 1, $5)
+        RETURNING *
+      `, [
+        request.totemId,
+        requestId,
+        request.commandType,
+        request.commandData ? JSON.stringify(request.commandData) : null,
+        userId
+      ]);
+
+      const command = result.rows[0];
+
+      // Registrar evento
+      await this.getEventLogService().logEvent({
+        eventType: EventType.TOTEM_COMMAND_SENT,
+        entityType: 'remote_command',
+        entityId: command.id,
+        totemId: request.totemId,
+        metadata: {
+          commandType: request.commandType,
+          commandId: command.id,
+          commandData: request.commandData,
+          userId
+        }
+      }).catch(e => logWarn('Erro ao registrar evento de comando', { error: e.message }));
+
+      await logInfo('Comando remoto criado', {
+        commandId: command.id,
+        totemId: request.totemId
+      });
+
+      return this.mapToRemoteCommand(command);
+    } catch (error: any) {
+      await logError('Erro ao criar comando remoto', error, {
+        totemId: request.totemId,
+        commandType: request.commandType
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Obtém comandos pendentes para um totem
+   */
+  async getPendingCommands(totemId: number): Promise<RemoteCommand[]> {
+    try {
+      const commands = await this.db.findMany(`
+        SELECT *
+        FROM remote_commands
+        WHERE totem_id = $1 AND status = 'pending'
+        ORDER BY created_at ASC
+      `, [totemId]);
+
+      return commands.map(cmd => this.mapToRemoteCommand(cmd));
+    } catch (error: any) {
+      await logError('Erro ao obter comandos pendentes', error, { totemId });
+      throw error;
+    }
+  }
+
+  /**
+   * Marca comando como enviado
+   */
+  async markCommandAsSent(commandId: number): Promise<void> {
+    try {
+      await this.db.executeRaw(`
+        UPDATE remote_commands
+        SET status = 'executing', sent_at = CURRENT_TIMESTAMP, executed_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `, [commandId]);
+
+      await logDebug('Comando marcado como enviado', { commandId });
+    } catch (error: any) {
+      await logError('Erro ao marcar comando como enviado', error, { commandId });
+      throw error;
+    }
+  }
+
+  /**
+   * Marca comando como executando
+   */
+  async markCommandAsExecuting(commandId: number): Promise<void> {
+    try {
+      await this.db.executeRaw(`
+        UPDATE remote_commands
+        SET status = 'executing', executed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `, [commandId]);
+
+      await logDebug('Comando marcado como executando', { commandId });
+    } catch (error: any) {
+      await logError('Erro ao marcar comando como executando', error, { commandId });
+      throw error;
+    }
+  }
+
+  /**
+   * Marca comando como completado
+   */
+  async markCommandAsCompleted(commandId: number, result?: any): Promise<void> {
+    try {
+      await this.db.executeRaw(`
+        UPDATE remote_commands
+        SET status = 'completed',
+            completed_at = CURRENT_TIMESTAMP,
+            result = $1
+        WHERE id = $2
+      `, [result ? JSON.stringify(result) : null, commandId]);
+
+      await logInfo('Comando marcado como completado', { commandId });
+    } catch (error: any) {
+      await logError('Erro ao marcar comando como completado', error, { commandId });
+      throw error;
+    }
+  }
+
+  /**
+   * Marca comando como falhado
+   */
+  async markCommandAsFailed(commandId: number, errorMessage: string): Promise<void> {
+    try {
+      await this.db.executeRaw(`
+        UPDATE remote_commands
+        SET status = 'failed',
+            error_message = $1,
+            completed_at = CURRENT_TIMESTAMP,
+            result = $1
+        WHERE id = $2
+      `, [errorMessage, commandId]);
+
+      await logWarn('Comando marcado como falhado', { commandId, errorMessage });
+    } catch (error: any) {
+      await logError('Erro ao marcar comando como falhado', error, { commandId });
+      throw error;
+    }
+  }
+
+  /**
+   * Obtém histórico de comandos de um totem
+   */
+  async getCommandHistory(totemId: number, limit: number = 50): Promise<RemoteCommand[]> {
+    try {
+      const commands = await this.db.findMany(`
+        SELECT *
+        FROM remote_commands
+        WHERE totem_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2
+      `, [totemId, limit]);
+
+      return commands.map(cmd => this.mapToRemoteCommand(cmd));
+    } catch (error: any) {
+      await logError('Erro ao obter histórico de comandos', error, { totemId });
+      throw error;
+    }
+  }
+
+  /**
+   * Salva screenshot remoto
+   */
+  async saveScreenshot(
+    totemId: number,
+    filePath: string,
+    fileSize: number,
+    width: number,
+    height: number,
+    format: string = 'png',
+    commandId?: number
+  ): Promise<number> {
+    try {
+      const result = await this.db.executeRaw(`
+        INSERT INTO remote_screenshots (
+          totem_id, command_id, file_path, file_size, width, height, format
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id
+      `, [totemId, commandId || null, filePath, fileSize, width, height, format]);
+
+      const screenshotId = result.rows[0].id;
+
+      await logInfo('Screenshot salvo', {
+        screenshotId,
+        totemId,
+        filePath
+      });
+
+      return screenshotId;
+    } catch (error: any) {
+      await logError('Erro ao salvar screenshot', error, { totemId, filePath });
+      throw error;
+    }
+  }
+
+  /**
+   * Obtém screenshots de um totem
+   */
+  async getScreenshots(totemId: number, limit: number = 20): Promise<any[]> {
+    try {
+      const screenshots = await this.db.findMany(`
+        SELECT *
+        FROM remote_screenshots
+        WHERE totem_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2
+      `, [totemId, limit]);
+
+      return screenshots;
+    } catch (error: any) {
+      await logError('Erro ao obter screenshots', error, { totemId });
+      throw error;
+    }
+  }
+
+  /**
+   * Limpa comandos antigos (mais de 30 dias)
+   */
+  async cleanupOldCommands(): Promise<number> {
+    try {
+      const result = await this.db.executeRaw(`
+        DELETE FROM remote_commands
+        WHERE created_at < NOW() - INTERVAL '30 days'
+          AND status IN ('completed', 'failed', 'timeout')
+      `);
+
+      const deletedCount = result.rowCount || 0;
+
+      if (deletedCount > 0) {
+        await logInfo('Comandos antigos limpos', { deletedCount });
+      }
+
+      return deletedCount;
+    } catch (error: any) {
+      await logError('Erro ao limpar comandos antigos', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Mapeia resultado do banco para RemoteCommand
+   */
+  private mapToRemoteCommand(row: any): RemoteCommand {
+    return {
+      id: row.id,
+      totemId: row.totem_id,
+      commandType: row.command_type,
+      commandData: row.command_data ? (typeof row.command_data === 'string' ? JSON.parse(row.command_data) : row.command_data) : undefined,
+      status: row.status === 'executing' ? 'executing' : (row.status === 'sent' ? 'sent' : row.status),
+      result: row.result ? (typeof row.result === 'string' ? (row.result.startsWith('{') || row.result.startsWith('[') ? JSON.parse(row.result) : row.result) : row.result) : undefined,
+      errorMessage: row.error_message || (row.result && row.status === 'failed' ? row.result : undefined),
+      sentAt: row.sent_at ? new Date(row.sent_at) : (row.executed_at ? new Date(row.executed_at) : undefined),
+      executedAt: row.executed_at ? new Date(row.executed_at) : undefined,
+      completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+      createdBy: row.created_by,
+      createdAt: new Date(row.created_at),
+      updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(row.created_at)
+    };
+  }
+}
+
+// Singleton instance
+let remoteCommandServiceInstance: RemoteCommandService | null = null;
+
+export function getRemoteCommandService(): RemoteCommandService {
+  if (!remoteCommandServiceInstance) {
+    remoteCommandServiceInstance = new RemoteCommandService();
+  }
+  return remoteCommandServiceInstance;
+}
+

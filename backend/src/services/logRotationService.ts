@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as zlib from 'zlib';
 import { getDatabase } from '../config/database';
 import { NotificationService } from './notificationService';
-import { logError, logInfo, logWarn } from '../utils/loggerHelper';
+import { logError } from '../utils/loggerHelper';
 
 export interface LogRotationConfig {
   maxSize: number; // bytes
@@ -147,7 +147,7 @@ export class LogRotationService {
         percentUsed: (usedSpace / totalSpace) * 100
       };
     } catch (error: any) {
-      await logError('Erro ao obter espaço em disco', error, { path });
+      await logError('Erro ao obter espaço em disco', error, { logDir });
       return {
         total: 0,
         free: 0,
@@ -190,7 +190,7 @@ export class LogRotationService {
 
       return logFiles.sort((a, b) => b.modified.getTime() - a.modified.getTime());
     } catch (error: any) {
-      await logError('Erro ao listar arquivos de log', error, { directoryPath });
+      await logError('Erro ao listar arquivos de log', error, { logDir });
       return [];
     }
   }
@@ -444,14 +444,15 @@ export class LogRotationService {
           title: title,
           message: message,
           userId: admin.id,
-          priority: type === 'low_disk_space' ? 'high' : 'medium',
-          metadata: {
+          data: {
             alertType: type,
+            priority: type === 'low_disk_space' ? 'high' : 'medium',
             details: details,
             timestamp: new Date().toISOString()
           }
-        }, 1).catch((error: any) => {
-          await logError('Erro ao criar notificação para admin', error, { adminId: admin.id });
+        }).catch((error: any) => {
+          // Não podemos usar await aqui; logar de forma assíncrona
+          logError('Erro ao criar notificação para admin', error, { adminId: admin.id }).catch(() => {});
         });
       }
 

@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { Role } from '../types/roles';
 
 export interface User {
   user_id: number;
@@ -43,6 +44,100 @@ export interface UserListResponse {
 export class UserService {
   private get db() {
     return getDatabase();
+  }
+
+  /**
+   * Obter roles de um usuário
+   */
+  async getUserRoles(userId: number): Promise<Role[]> {
+    try {
+      const roles = await this.db.findMany(`
+        SELECT 
+          r.role_id,
+          r.name,
+          r.description,
+          r.is_active,
+          ur.created_at as assigned_at,
+          ur.granted_by
+        FROM user_roles ur
+        JOIN roles r ON ur.role_id = r.role_id
+        WHERE ur.user_id = ?
+        ORDER BY r.name
+      `, [userId]);
+
+      return roles;
+    } catch (error: any) {
+      await logError('Erro ao buscar roles do usuário', error, { userId });
+      throw error;
+    }
+  }
+
+  /**
+   * Atribuir role a usuário
+   */
+  async assignRoleToUser(userId: number, roleId: number, grantedBy: number): Promise<void> {
+    try {
+      // Verificar se já existe
+      const existing = await this.db.findFirst(`
+        SELECT id
+        FROM user_roles
+        WHERE user_id = ? AND role_id = ?
+      `, [userId, roleId]);
+
+      if (existing) {
+        return; // Já existe, não precisa fazer nada
+      }
+
+      await this.db.executeRaw(`
+        INSERT INTO user_roles (user_id, role_id, granted_by)
+        VALUES (?, ?, ?)
+      `, [userId, roleId, grantedBy]);
+    } catch (error: any) {
+      await logError('Erro ao atribuir role ao usuário', error, { userId, roleId });
+      throw error;
+    }
+  }
+
+  /**
+   * Remover role de usuário
+   */
+  async removeRoleFromUser(userId: number, roleId: number): Promise<void> {
+    try {
+      await this.db.executeRaw(`
+        DELETE FROM user_roles
+        WHERE user_id = ? AND role_id = ?
+      `, [userId, roleId]);
+    } catch (error: any) {
+      await logError('Erro ao remover role do usuário', error, { userId, roleId });
+      throw error;
+    }
+  }
+
+  /**
+   * Definir roles de usuário (substitui todas as existentes)
+   */
+  async setUserRoles(userId: number, roleIds: number[], grantedBy: number): Promise<void> {
+    try {
+      // Remover todas as roles existentes
+      await this.db.executeRaw(`
+        DELETE FROM user_roles
+        WHERE user_id = ?
+      `, [userId]);
+
+      // Adicionar novas roles
+      if (roleIds.length > 0) {
+        const values = roleIds.map(() => '(?, ?, ?)').join(', ');
+        const params = roleIds.flatMap(id => [userId, id, grantedBy]);
+        
+        await this.db.executeRaw(`
+          INSERT INTO user_roles (user_id, role_id, granted_by)
+          VALUES ${values}
+        `, params);
+      }
+    } catch (error: any) {
+      await logError('Erro ao definir roles do usuário', error, { userId, roleIds });
+      throw error;
+    }
   }
 
   /**
