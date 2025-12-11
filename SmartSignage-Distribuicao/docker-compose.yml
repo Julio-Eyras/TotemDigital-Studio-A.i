@@ -1,0 +1,228 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: smartsignage-postgres
+    environment:
+      POSTGRES_DB: smartsignage
+      POSTGRES_USER: smartsignage
+      POSTGRES_PASSWORD: smartsignage123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/smartchannel-db.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/init-data.sql:/docker-entrypoint-initdb.d/02-init-data.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:${POSTGRES_INTERNAL_PORT:-5432}"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartsignage -d smartsignage"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartsignage-network
+
+  # Aplicação monolito (Frontend + Backend)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    container_name: smartsignage-app
+    environment:
+      - NODE_ENV=production
+      - PORT=${BACKEND_INTERNAL_PORT:-3000}
+      - HOST=0.0.0.0
+      - DB_DRIVER=postgres
+      - DATABASE_URL=postgresql://smartsignage:smartsignage123@postgres:${POSTGRES_INTERNAL_PORT:-5432}/smartsignage
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
+      - JWT_EXPIRES_IN=24h
+      - JWT_REFRESH_EXPIRES_IN=7d
+      - PLAYER_ABANDON_PIN=${PLAYER_ABANDON_PIN:-1234}
+      - AI_PROVIDER=ollama
+      - AI_MODEL=llama3.2:3b
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - UPLOAD_MAX_SIZE=100MB
+      - UPLOAD_PATH=/app/uploads
+      - MEDIA_QUOTA_PER_CLIENT=5GB
+      - LOG_LEVEL=info
+      - LOG_FILE=/app/logs/app.log
+      - CORS_ORIGIN=http://localhost
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX_REQUESTS=100
+      - SMARTDISPLAYFX_MQTT_ENABLED=${SMARTDISPLAYFX_MQTT_ENABLED:-true}
+      - SMARTDISPLAYFX_MQTT_URL=${SMARTDISPLAYFX_MQTT_URL:-mqtt://mqtt:1883}
+      - SMARTDISPLAYFX_MQTT_USERNAME=${SMARTDISPLAYFX_MQTT_USERNAME:-}
+      - SMARTDISPLAYFX_MQTT_PASSWORD=${SMARTDISPLAYFX_MQTT_PASSWORD:-}
+      - SMARTDISPLAYFX_MQTT_PREFIX=${SMARTDISPLAYFX_MQTT_PREFIX:-smartdisplay}
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+      - "${BACKEND_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      mqtt:
+        condition: service_started
+    restart: unless-stopped
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
+      - backend_backups:/app/backups
+      - backend_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - smartsignage-network
+
+  # AI Service (Ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: smartsignage-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:${OLLAMA_INTERNAL_PORT:-11434}"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - smartsignage-network
+
+  # Redis Cache (opcional)
+  redis:
+    image: redis:7-alpine
+    container_name: smartsignage-redis
+    ports:
+      - "${REDIS_PORT:-6379}:${REDIS_INTERNAL_PORT:-6379}"
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - smartsignage-network
+
+  # Monitoring (Prometheus)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: smartsignage-prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:${PROMETHEUS_INTERNAL_PORT:-9090}"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - smartsignage-network
+
+  # Monitoring (Grafana)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: smartsignage-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_HTTP_PORT=${GRAFANA_INTERNAL_PORT:-3002}
+    ports:
+      - "${GRAFANA_PORT:-3002}:${GRAFANA_INTERNAL_PORT:-3002}"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./monitoring/grafana/alerts:/etc/grafana/provisioning/alerting
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - smartsignage-network
+
+  # MQTT Broker (Mosquitto) - Para SmartDisplayFX
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    container_name: smartsignage-mqtt
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+      - "${MQTT_WS_PORT:-9001}:9001"
+    volumes:
+      - mqtt_data:/mosquitto/data
+      - mqtt_logs:/mosquitto/log
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$$SYS/health", "-C", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - smartsignage-network
+
+volumes:
+  # Database volumes
+  postgres_data:
+    driver: local
+  
+  # Backend volumes
+  backend_uploads:
+    driver: local
+  backend_logs:
+    driver: local
+  backend_backups:
+    driver: local
+  backend_data:
+    driver: local
+  
+  
+  # AI Service volumes
+  ollama_data:
+    driver: local
+  
+  # Cache volumes
+  redis_data:
+    driver: local
+  
+  # Monitoring volumes
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  
+  # MQTT volumes
+  mqtt_data:
+    driver: local
+  mqtt_logs:
+    driver: local
+
+networks:
+  smartsignage-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

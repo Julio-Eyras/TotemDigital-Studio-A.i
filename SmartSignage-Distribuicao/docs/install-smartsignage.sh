@@ -54,17 +54,6 @@ PRESERVE_DB=false
 LOAD_SEEDS=false
 SEEDS_OPTION_FORCED=false
 
-# Variáveis para seleção de players
-INSTALL_PLAYER_WEBOS=false
-INSTALL_PLAYER_ANDROID=false
-INSTALL_PLAYER_LINUX_ELECTRON=false
-INSTALL_PLAYER_LINUX_CPP=false
-INSTALL_PLAYER_WINDOWS_ELECTRON=false
-INSTALL_PLAYER_TIZEN=false
-INSTALL_PLAYER_SMARTDISPLAYFX=false
-INSTALL_PLAYER_FX_INTERFACE=false
-INSTALL_ALL_PLAYERS=false
-
 # Cores para output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -752,15 +741,6 @@ setup_project() {
                 [[ -d "$SOURCE_DIR/database" ]] && rm -rf "$INSTALL_DIR/database" && cp -a "$SOURCE_DIR/database" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/docker" ]] && cp -a "$SOURCE_DIR/docker" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/nginx" ]] && cp -a "$SOURCE_DIR/nginx" "$INSTALL_DIR/"
-                
-                # Copiar players selecionados (se houver seleção)
-                if [[ "$INSTALL_ALL_PLAYERS" == "true" ]] || [[ "$INSTALL_PLAYER_WEBOS" == "true" ]] || \
-                   [[ "$INSTALL_PLAYER_ANDROID" == "true" ]] || [[ "$INSTALL_PLAYER_LINUX_ELECTRON" == "true" ]] || \
-                   [[ "$INSTALL_PLAYER_LINUX_CPP" == "true" ]] || [[ "$INSTALL_PLAYER_WINDOWS_ELECTRON" == "true" ]] || \
-                   [[ "$INSTALL_PLAYER_TIZEN" == "true" ]] || [[ "$INSTALL_PLAYER_SMARTDISPLAYFX" == "true" ]] || \
-                   [[ "$INSTALL_PLAYER_FX_INTERFACE" == "true" ]]; then
-                    copy_selected_players
-                fi
                 
                 log "✅ Cópia recursiva completa com cp -a concluída"
             fi
@@ -2431,14 +2411,6 @@ CORS_ORIGIN=http://localhost:3000,http://localhost:3001
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
-
-# SmartDisplayFX / MQTT
-SMARTDISPLAYFX_MQTT_ENABLED=true
-SMARTDISPLAYFX_MQTT_URL=mqtt://localhost:1883
-SMARTDISPLAYFX_MQTT_WS_URL=ws://localhost:9001
-SMARTDISPLAYFX_MQTT_USERNAME=
-SMARTDISPLAYFX_MQTT_PASSWORD=
-SMARTDISPLAYFX_MQTT_PREFIX=smartdisplay
 EOF
 
     log "Variáveis de ambiente configuradas em $ENV_FILE"
@@ -2500,14 +2472,6 @@ CORS_ORIGIN=http://localhost:3000,http://localhost:3001
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
-
-# SmartDisplayFX / MQTT
-SMARTDISPLAYFX_MQTT_ENABLED=true
-SMARTDISPLAYFX_MQTT_URL=mqtt://localhost:1883
-SMARTDISPLAYFX_MQTT_WS_URL=ws://localhost:9001
-SMARTDISPLAYFX_MQTT_USERNAME=
-SMARTDISPLAYFX_MQTT_PASSWORD=
-SMARTDISPLAYFX_MQTT_PREFIX=smartdisplay
 EOF
         }
         log "✅ .env criado no diretório backend: $BACKEND_ENV_FILE"
@@ -3622,9 +3586,6 @@ test_endpoints() {
     
     # Obter IP do servidor
     SERVER_IP=$(hostname -I | awk '{print $1}')
-    API="http://$SERVER_IP:3000"
-    GRAFANA="http://$SERVER_IP:3002"
-    PROM="http://$SERVER_IP:9090"
     
     # Lista de endpoints para testar baseada no modo
     declare -A ENDPOINTS
@@ -3638,8 +3599,6 @@ test_endpoints() {
             ["Player"]="http://$SERVER_IP:80/player"
             ["Prometheus"]="http://$SERVER_IP:9090"
             ["Grafana"]="http://$SERVER_IP:3002"
-            ["MQTT Broker"]="mqtt://$SERVER_IP:1883"
-            ["MQTT WebSocket"]="ws://$SERVER_IP:9001"
         )
         
     elif [[ "$INSTALL_MODE" == "single-server" ]]; then
@@ -3661,221 +3620,18 @@ test_endpoints() {
         )
     fi
     
-    # Testar cada endpoint básico
+    # Testar cada endpoint
     for service in "${!ENDPOINTS[@]}"; do
         url="${ENDPOINTS[$service]}"
         log "Testando $service: $url"
         
-        # Teste especial para MQTT
-        if [[ "$service" == "MQTT Broker" ]] || [[ "$service" == "MQTT WebSocket" ]]; then
-            # Para MQTT, usar mosquitto_sub se disponível
-            if command -v mosquitto_sub &> /dev/null; then
-                if timeout 2 mosquitto_sub -h "$SERVER_IP" -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
-                    log "✅ $service: OK"
-                else
-                    warning "⚠️  $service: Não respondeu ao teste"
-                fi
-            else
-                # Se mosquitto_sub não estiver disponível, verificar se container está rodando (Docker)
-                if [[ "$INSTALL_MODE" == "docker" ]] && $COMPOSE_CMD ps | grep -q smartsignage-mosquitto; then
-                    log "✅ $service: Container rodando (teste detalhado requer mosquitto_sub)"
-                else
-                    warning "⚠️  $service: Não foi possível verificar (mosquitto_sub não disponível)"
-                fi
-            fi
+        # Tentar conectar com timeout
+        if curl -s --max-time 10 "$url" > /dev/null 2>&1; then
+            log "✅ $service: OK"
         else
-            # Para outros endpoints, usar curl
-            if curl -s --max-time 10 "$url" > /dev/null 2>&1; then
-                log "✅ $service: OK"
-            else
-                warning "❌ $service: FALHOU - $url"
-            fi
+            warning "❌ $service: FALHOU - $url"
         fi
     done
-    
-    # Verificações adicionais integradas do post-install-check
-    echo
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${CYAN}                    Verificação Pós-Instalação Completa${NC}"
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo
-    
-    # 1) Containers e portas (apenas Docker)
-    if [[ "$INSTALL_MODE" == "docker" ]]; then
-        log "===> 1) Containers e portas"
-        if command -v docker &> /dev/null; then
-            docker compose ps 2>/dev/null || docker-compose ps 2>/dev/null || true
-            log "Portas em uso:"
-            ss -tulpen 2>/dev/null | grep -E ":3000|:3002|:9090|:80|:443|:1883|:9001" || netstat -tulpen 2>/dev/null | grep -E ":3000|:3002|:9090|:80|:443|:1883|:9001" || true
-        fi
-    fi
-    
-    # 2) Health e OpenAPI
-    log "===> 2) Health e OpenAPI"
-    if curl -fsS "$API/health" 2>/dev/null | jq . > /dev/null 2>&1; then
-        log "✅ Backend Health: OK"
-        curl -fsS "$API/health" 2>/dev/null | jq . || true
-    else
-        warning "⚠️  Backend Health: Não respondeu"
-    fi
-    
-    if curl -fsS "$API/api/docs.json" 2>/dev/null | jq '.info,.paths | keys | length' > /dev/null 2>&1; then
-        log "✅ OpenAPI Docs: OK"
-        curl -fsS "$API/api/docs.json" 2>/dev/null | jq '.info,.paths | keys | length' || true
-    else
-        warning "⚠️  OpenAPI Docs: Não disponível"
-    fi
-    
-    # 3) Login admin e token
-    log "===> 3) Login admin e token"
-    TOKEN=$(curl -fsS -X POST "$API/api/auth/login" \
-      -H "Content-Type: application/json" \
-      -d '{"username":"admin","password":"admin123"}' 2>/dev/null | jq -r '.token' 2>/dev/null || echo "")
-    if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
-        log "✅ Token de autenticação: OK"
-    else
-        warning "⚠️  Token de autenticação: FALHOU (verifique credenciais admin/admin123)"
-    fi
-    
-    # 4) CRUD rápido - criar cliente e checar lista (apenas se token OK)
-    if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
-        log "===> 4) CRUD rápido - criar cliente e checar lista"
-        CLIENT_RESULT=$(curl -fsS -X POST "$API/api/clients" \
-          -H "Authorization: Bearer $TOKEN" \
-          -H "Content-Type: application/json" \
-          -d '{"name":"Cliente Teste","email":"cliente@teste.com"}' 2>/dev/null | jq -r '.id,.name' 2>/dev/null || echo "")
-        if [[ -n "$CLIENT_RESULT" ]]; then
-            log "✅ Cliente criado: $CLIENT_RESULT"
-        else
-            warning "⚠️  Falha ao criar cliente (pode já existir)"
-        fi
-        
-        CLIENT_COUNT=$(curl -fsS -X GET "$API/api/clients?page=1&limit=5" \
-          -H "Authorization: Bearer $TOKEN" 2>/dev/null | jq '.items | length' 2>/dev/null || echo "0")
-        log "✅ Clientes na lista: $CLIENT_COUNT"
-    else
-        log "===> 4) CRUD rápido - pulado (token inválido)"
-    fi
-    
-    # 5) Upload de mídia (se houver arquivo de teste)
-    if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
-        log "===> 5) Upload de mídia (teste)"
-        if [[ -f "./banner.jpg" ]] || [[ -f "$INSTALL_DIR/banner.jpg" ]]; then
-            TEST_FILE="./banner.jpg"
-            [[ ! -f "$TEST_FILE" ]] && TEST_FILE="$INSTALL_DIR/banner.jpg"
-            UPLOAD_RESULT=$(curl -fsS -X POST "$API/api/media/upload" \
-              -H "Authorization: Bearer $TOKEN" \
-              -F "file=@$TEST_FILE" \
-              -F "name=banner_loja" 2>/dev/null | jq -r '.id,.name' 2>/dev/null || echo "")
-            if [[ -n "$UPLOAD_RESULT" ]]; then
-                log "✅ Upload de mídia: OK - $UPLOAD_RESULT"
-            else
-                warning "⚠️  Upload de mídia: Falhou"
-            fi
-        else
-            log "ℹ️  Upload de mídia: Arquivo de teste não encontrado (pulando)"
-        fi
-    else
-        log "===> 5) Upload de mídia - pulado (token inválido)"
-    fi
-    
-    # 6) Campanha simples
-    if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
-        log "===> 6) Campanha simples"
-        CAMPAIGN_RESULT=$(curl -fsS -X POST "$API/api/campaigns" \
-          -H "Authorization: Bearer $TOKEN" \
-          -H "Content-Type: application/json" \
-          -d '{"clientId":1,"title":"Campanha Teste","description":"Demo","campaignType":"general","isActive":true}' 2>/dev/null | jq -r '.id,.title' 2>/dev/null || echo "")
-        if [[ -n "$CAMPAIGN_RESULT" ]]; then
-            log "✅ Campanha criada: $CAMPAIGN_RESULT"
-        else
-            warning "⚠️  Falha ao criar campanha (pode já existir ou clientId inválido)"
-        fi
-    else
-        log "===> 6) Campanha simples - pulado (token inválido)"
-    fi
-    
-    # 7) MQTT Broker (SmartDisplayFX) - já testado acima, mas detalhar aqui
-    log "===> 7) MQTT Broker (SmartDisplayFX)"
-    if command -v mosquitto_sub &> /dev/null; then
-        if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 >/dev/null 2>&1; then
-            log "✅ MQTT Broker: OK"
-        else
-            warning "⚠️  MQTT Broker: Não respondeu"
-        fi
-    elif [[ "$INSTALL_MODE" == "docker" ]] && command -v docker &> /dev/null; then
-        if docker ps 2>/dev/null | grep -q smartsignage-mosquitto || docker ps 2>/dev/null | grep -q mosquitto; then
-            log "✅ MQTT Broker (Docker): Container rodando"
-        else
-            warning "⚠️  MQTT Broker: Não encontrado (opcional para SmartDisplayFX)"
-        fi
-    else
-        log "ℹ️  MQTT Broker: Não foi possível verificar (mosquitto_sub não disponível)"
-    fi
-    
-    # 8) Players e heartbeat
-    if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
-        log "===> 8) Players e heartbeat"
-        PID=$(curl -fsS -X POST "$API/api/players" \
-          -H "Authorization: Bearer $TOKEN" \
-          -H "Content-Type: application/json" \
-          -d '{"name":"Totem 1","location":"Loja Central","clientId":1}' 2>/dev/null | jq -r '.id' 2>/dev/null || echo "")
-        if [[ -n "$PID" ]] && [[ "$PID" != "null" ]] && [[ "$PID" != "" ]]; then
-            HEARTBEAT_RESULT=$(curl -fsS -X POST "$API/api/totems/$PID/heartbeat" \
-              -H "Authorization: Bearer $TOKEN" \
-              -H "Content-Type: application/json" \
-              -d '{"status":"online","uptime":120,"memoryUsage":30.5}' 2>/dev/null | jq . 2>/dev/null || echo "")
-            if [[ -n "$HEARTBEAT_RESULT" ]]; then
-                log "✅ Player criado e heartbeat: OK (Player ID: $PID)"
-            else
-                warning "⚠️  Heartbeat: Falhou"
-            fi
-        else
-            warning "⚠️  Falha ao criar player - pulando heartbeat"
-        fi
-    else
-        log "===> 8) Players e heartbeat - pulado (token inválido)"
-    fi
-    
-    # 9) Grafana e Prometheus (apenas Docker)
-    if [[ "$INSTALL_MODE" == "docker" ]]; then
-        log "===> 9) Grafana e Prometheus"
-        if curl -fsS "$PROM/-/healthy" >/dev/null 2>&1; then
-            log "✅ Prometheus: OK"
-        else
-            warning "⚠️  Prometheus: Não respondeu"
-        fi
-        
-        if curl -fsS "$GRAFANA/login" >/dev/null 2>&1; then
-            log "✅ Grafana: OK"
-            log "💡 Acesse $GRAFANA (admin/admin) e verifique dashboard 'SmartSignage – Operação'"
-        else
-            warning "⚠️  Grafana: Não respondeu"
-        fi
-    fi
-    
-    # 10) HTTPS (se habilitado)
-    log "===> 10) HTTPS (se habilitado)"
-    if curl -fsS "https://$SERVER_IP/health" -k >/dev/null 2>&1; then
-        log "✅ HTTPS: OK (cert autoassinado ou Let's Encrypt)"
-    else
-        log "ℹ️  HTTPS: Não ativo (ok se você escolheu HTTP)"
-    fi
-    
-    # 11) Logs rápidos (apenas Docker)
-    if [[ "$INSTALL_MODE" == "docker" ]] && command -v docker &> /dev/null; then
-        log "===> 11) Logs rápidos"
-        log "Últimas linhas dos logs:"
-        docker compose logs --tail 20 backend 2>/dev/null | tail -n +1 || docker-compose logs --tail 20 backend 2>/dev/null | tail -n +1 || true
-        docker compose logs --tail 10 nginx 2>/dev/null | tail -n +1 || docker-compose logs --tail 10 nginx 2>/dev/null | tail -n +1 || true
-        docker compose logs --tail 10 mosquitto 2>/dev/null | tail -n +1 || docker-compose logs --tail 10 mosquitto 2>/dev/null | tail -n +1 || true
-    fi
-    
-    echo
-    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    log "✅ Verificação pós-instalação concluída"
-    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo
     
     log "Teste de endpoints concluído!"
 }
@@ -3933,17 +3689,13 @@ start_services_in_order() {
         retry_with_backoff 3 2 $COMPOSE_CMD up -d redis || true
         wait_for_redis
         
-        log "Iniciando MQTT Broker..."
-        retry_with_backoff 3 2 $COMPOSE_CMD up -d mqtt || true
-        wait_for_mqtt
-        
         log "Iniciando Ollama..."
         retry_with_backoff 3 2 $COMPOSE_CMD up -d ollama || true
         wait_for_ollama
         
         log "Iniciando App (monolito)..."
         # Retry leve para imagens que podem falhar por rede
-        for i in {1..3}; do $COMPOSE_CMD up -d postgres redis mqtt ollama prometheus grafana && break || sleep 5; done
+        for i in {1..3}; do $COMPOSE_CMD up -d postgres redis ollama prometheus grafana && break || sleep 5; done
         retry_with_backoff 3 3 $COMPOSE_CMD up -d app || true
         # Aguarde estabilização
         sleep 5
@@ -4094,9 +3846,6 @@ check_startup_order() {
                 "redis")
                     wait_for_redis
                     ;;
-                "mqtt")
-                    wait_for_mqtt
-                    ;;
                 "ollama")
                     wait_for_ollama
                     ;;
@@ -4187,54 +3936,6 @@ wait_for_redis() {
         if [[ $delay -lt 10 ]]; then delay=$((delay+1)); fi
     done
     warning "❌ Redis: Timeout"
-}
-
-wait_for_mqtt() {
-    log "Aguardando MQTT Broker..."
-    local attempts=0
-    local delay=2
-    
-    # Em Docker, verificar se container está rodando
-    if [[ "$INSTALL_MODE" == "docker" ]]; then
-        while [[ $attempts -lt 15 ]]; do
-            if $COMPOSE_CMD ps | grep -q smartsignage-mqtt; then
-                # Tentar conectar via mosquitto_sub se disponível
-                if command -v mosquitto_sub &> /dev/null; then
-                    if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
-                        log "✅ MQTT Broker: Pronto"
-                        return 0
-                    fi
-                else
-                    # Se mosquitto_sub não estiver disponível, apenas verificar container
-                    log "✅ MQTT Broker: Container rodando"
-                    return 0
-                fi
-            fi
-            attempts=$((attempts+1))
-            sleep "$delay"
-            if [[ $delay -lt 10 ]]; then delay=$((delay+1)); fi
-        done
-        warning "❌ MQTT Broker: Timeout"
-        return 1
-    fi
-    
-    # Instalação local - verificar se mosquitto está respondendo
-    if command -v mosquitto_sub &> /dev/null; then
-        while [[ $attempts -lt 15 ]]; do
-            if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
-                log "✅ MQTT Broker: Pronto"
-                return 0
-            fi
-            attempts=$((attempts+1))
-            sleep "$delay"
-            if [[ $delay -lt 10 ]]; then delay=$((delay+1)); fi
-        done
-        warning "❌ MQTT Broker: Timeout"
-        return 1
-    else
-        warning "⚠️  mosquitto_sub não encontrado, pulando verificação detalhada"
-        return 0
-    fi
 }
 
 wait_for_ollama() {
@@ -6483,228 +6184,7 @@ show_menu() {
     
     echo
     log "Modo selecionado: $INSTALL_MODE"
-}
 
-# Menu de seleção de players
-show_players_menu() {
-    echo
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${CYAN}                    Seleção de Players para Instalação${NC}"
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo
-    echo -e "${YELLOW}Selecione quais players deseja instalar/complementar:${NC}"
-    echo
-    echo -e "${GREEN}[ ]${NC} 1) webOS (LG) - Player para TVs LG webOS"
-    echo -e "${GREEN}[ ]${NC} 2) Android TV - Player para dispositivos Android TV"
-    echo -e "${GREEN}[ ]${NC} 3) Linux Electron - Player para Linux usando Electron"
-    echo -e "${GREEN}[ ]${NC} 4) Linux C++ - Player nativo C++ para Linux"
-    echo -e "${GREEN}[ ]${NC} 5) Windows Electron - Player para Windows usando Electron"
-    echo -e "${GREEN}[ ]${NC} 6) Tizen (Samsung) - Player para TVs Samsung Tizen"
-    echo -e "${GREEN}[ ]${NC} 7) SmartDisplayFX Client - Cliente para efeitos visuais"
-    echo -e "${GREEN}[ ]${NC} 8) Smart FX Interface - Interface e protótipos"
-    echo
-    echo -e "${GREEN}[ ]${NC} 9) Instalar TODOS os players (recomendado para desenvolvimento)"
-    echo -e "${GREEN}[ ]${NC} 0) Não instalar players (apenas servidor)"
-    echo
-    read -p "Digite os números separados por vírgula (ex: 1,3,5) ou 9 para todos [padrão: 0]: " players_choice
-    players_choice=${players_choice:-0}
-    
-    # Limpar seleções anteriores
-    INSTALL_PLAYER_WEBOS=false
-    INSTALL_PLAYER_ANDROID=false
-    INSTALL_PLAYER_LINUX_ELECTRON=false
-    INSTALL_PLAYER_LINUX_CPP=false
-    INSTALL_PLAYER_WINDOWS_ELECTRON=false
-    INSTALL_PLAYER_TIZEN=false
-    INSTALL_PLAYER_SMARTDISPLAYFX=false
-    INSTALL_PLAYER_FX_INTERFACE=false
-    INSTALL_ALL_PLAYERS=false
-    
-    # Processar escolha
-    if [[ "$players_choice" == "9" ]]; then
-        INSTALL_ALL_PLAYERS=true
-        INSTALL_PLAYER_WEBOS=true
-        INSTALL_PLAYER_ANDROID=true
-        INSTALL_PLAYER_LINUX_ELECTRON=true
-        INSTALL_PLAYER_LINUX_CPP=true
-        INSTALL_PLAYER_WINDOWS_ELECTRON=true
-        INSTALL_PLAYER_TIZEN=true
-        INSTALL_PLAYER_SMARTDISPLAYFX=true
-        INSTALL_PLAYER_FX_INTERFACE=true
-        log "✅ Todos os players serão instalados"
-    elif [[ "$players_choice" == "0" ]]; then
-        log "ℹ️  Nenhum player será instalado (apenas servidor)"
-    else
-        # Processar escolhas múltiplas
-        IFS=',' read -ra PLAYER_CHOICES <<< "$players_choice"
-        for choice in "${PLAYER_CHOICES[@]}"; do
-            choice=$(echo "$choice" | xargs) # Trim whitespace
-            case $choice in
-                1)
-                    INSTALL_PLAYER_WEBOS=true
-                    log "✅ webOS player selecionado"
-                    ;;
-                2)
-                    INSTALL_PLAYER_ANDROID=true
-                    log "✅ Android TV player selecionado"
-                    ;;
-                3)
-                    INSTALL_PLAYER_LINUX_ELECTRON=true
-                    log "✅ Linux Electron player selecionado"
-                    ;;
-                4)
-                    INSTALL_PLAYER_LINUX_CPP=true
-                    log "✅ Linux C++ player selecionado"
-                    ;;
-                5)
-                    INSTALL_PLAYER_WINDOWS_ELECTRON=true
-                    log "✅ Windows Electron player selecionado"
-                    ;;
-                6)
-                    INSTALL_PLAYER_TIZEN=true
-                    log "✅ Tizen player selecionado"
-                    ;;
-                7)
-                    INSTALL_PLAYER_SMARTDISPLAYFX=true
-                    log "✅ SmartDisplayFX Client selecionado"
-                    ;;
-                8)
-                    INSTALL_PLAYER_FX_INTERFACE=true
-                    log "✅ Smart FX Interface selecionado"
-                    ;;
-                *)
-                    warn "⚠️  Opção '$choice' ignorada (inválida)"
-                    ;;
-            esac
-        done
-    fi
-    
-    echo
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo
-}
-
-# Copiar players selecionados para diretório de instalação
-copy_selected_players() {
-    log "Copiando players selecionados..."
-    
-    if [[ "$INSTALL_ALL_PLAYERS" == "true" ]]; then
-        log "Instalando todos os players..."
-        if [[ -d "$SOURCE_DIR/player-client" ]]; then
-            log "Copiando player-client completo..."
-            cp -r "$SOURCE_DIR/player-client" "$INSTALL_DIR/" 2>/dev/null || {
-                warn "Falha ao copiar player-client, continuando..."
-            }
-        fi
-        if [[ -d "$SOURCE_DIR/Player-SmartDisplayFX-client" ]]; then
-            log "Copiando Player-SmartDisplayFX-client..."
-            cp -r "$SOURCE_DIR/Player-SmartDisplayFX-client" "$INSTALL_DIR/" 2>/dev/null || {
-                warn "Falha ao copiar Player-SmartDisplayFX-client, continuando..."
-            }
-        fi
-        if [[ -d "$SOURCE_DIR/Player-Smart-FX-Interface" ]]; then
-            log "Copiando Player-Smart-FX-Interface..."
-            cp -r "$SOURCE_DIR/Player-Smart-FX-Interface" "$INSTALL_DIR/" 2>/dev/null || {
-                warn "Falha ao copiar Player-Smart-FX-Interface, continuando..."
-            }
-        fi
-        log "✅ Todos os players copiados"
-        return
-    fi
-    
-    # Criar diretório base para players se não existir
-    mkdir -p "$INSTALL_DIR/player-client" "$INSTALL_DIR/Player-SmartDisplayFX-client" "$INSTALL_DIR/Player-Smart-FX-Interface"
-    
-    # Copiar estrutura base do player-client (core, shared, docs) se pelo menos uma plataforma foi selecionada
-    if [[ "$INSTALL_PLAYER_WEBOS" == "true" ]] || [[ "$INSTALL_PLAYER_ANDROID" == "true" ]] || \
-       [[ "$INSTALL_PLAYER_LINUX_ELECTRON" == "true" ]] || [[ "$INSTALL_PLAYER_LINUX_CPP" == "true" ]] || \
-       [[ "$INSTALL_PLAYER_WINDOWS_ELECTRON" == "true" ]] || [[ "$INSTALL_PLAYER_TIZEN" == "true" ]]; then
-        if [[ -d "$SOURCE_DIR/player-client" ]]; then
-            log "Copiando estrutura base do player-client (core, shared, docs)..."
-            if [[ -d "$SOURCE_DIR/player-client/core" ]]; then
-                cp -r "$SOURCE_DIR/player-client/core" "$INSTALL_DIR/player-client/" 2>/dev/null || true
-            fi
-            if [[ -d "$SOURCE_DIR/player-client/shared" ]]; then
-                cp -r "$SOURCE_DIR/player-client/shared" "$INSTALL_DIR/player-client/" 2>/dev/null || true
-            fi
-            if [[ -d "$SOURCE_DIR/player-client/docs" ]]; then
-                cp -r "$SOURCE_DIR/player-client/docs" "$INSTALL_DIR/player-client/" 2>/dev/null || true
-            fi
-            # Copiar arquivos README e documentação
-            cp "$SOURCE_DIR/player-client/README.md" "$INSTALL_DIR/player-client/" 2>/dev/null || true
-        fi
-    fi
-    
-    # Copiar plataformas específicas
-    if [[ "$INSTALL_PLAYER_WEBOS" == "true" ]] && [[ -d "$SOURCE_DIR/player-client/platforms/webos" ]]; then
-        log "Copiando player webOS..."
-        mkdir -p "$INSTALL_DIR/player-client/platforms"
-        cp -r "$SOURCE_DIR/player-client/platforms/webos" "$INSTALL_DIR/player-client/platforms/" 2>/dev/null || {
-            warn "Falha ao copiar player webOS"
-        }
-    fi
-    
-    if [[ "$INSTALL_PLAYER_ANDROID" == "true" ]] && [[ -d "$SOURCE_DIR/player-client/platforms/android" ]]; then
-        log "Copiando player Android TV..."
-        mkdir -p "$INSTALL_DIR/player-client/platforms"
-        cp -r "$SOURCE_DIR/player-client/platforms/android" "$INSTALL_DIR/player-client/platforms/" 2>/dev/null || {
-            warn "Falha ao copiar player Android TV"
-        }
-    fi
-    
-    if [[ "$INSTALL_PLAYER_LINUX_ELECTRON" == "true" ]] && [[ -d "$SOURCE_DIR/player-client/platforms/linux-electron" ]]; then
-        log "Copiando player Linux Electron..."
-        mkdir -p "$INSTALL_DIR/player-client/platforms"
-        cp -r "$SOURCE_DIR/player-client/platforms/linux-electron" "$INSTALL_DIR/player-client/platforms/" 2>/dev/null || {
-            warn "Falha ao copiar player Linux Electron"
-        }
-    fi
-    
-    if [[ "$INSTALL_PLAYER_LINUX_CPP" == "true" ]] && [[ -d "$SOURCE_DIR/player-client/platforms/linux-cpp" ]]; then
-        log "Copiando player Linux C++..."
-        mkdir -p "$INSTALL_DIR/player-client/platforms"
-        cp -r "$SOURCE_DIR/player-client/platforms/linux-cpp" "$INSTALL_DIR/player-client/platforms/" 2>/dev/null || {
-            warn "Falha ao copiar player Linux C++"
-        }
-    fi
-    
-    if [[ "$INSTALL_PLAYER_WINDOWS_ELECTRON" == "true" ]] && [[ -d "$SOURCE_DIR/player-client/platforms/windows-electron" ]]; then
-        log "Copiando player Windows Electron..."
-        mkdir -p "$INSTALL_DIR/player-client/platforms"
-        cp -r "$SOURCE_DIR/player-client/platforms/windows-electron" "$INSTALL_DIR/player-client/platforms/" 2>/dev/null || {
-            warn "Falha ao copiar player Windows Electron"
-        }
-    fi
-    
-    if [[ "$INSTALL_PLAYER_TIZEN" == "true" ]] && [[ -d "$SOURCE_DIR/player-client/platforms/tizen" ]]; then
-        log "Copiando player Tizen..."
-        mkdir -p "$INSTALL_DIR/player-client/platforms"
-        cp -r "$SOURCE_DIR/player-client/platforms/tizen" "$INSTALL_DIR/player-client/platforms/" 2>/dev/null || {
-            warn "Falha ao copiar player Tizen"
-        }
-    fi
-    
-    # Copiar SmartDisplayFX Client
-    if [[ "$INSTALL_PLAYER_SMARTDISPLAYFX" == "true" ]] && [[ -d "$SOURCE_DIR/Player-SmartDisplayFX-client" ]]; then
-        log "Copiando SmartDisplayFX Client..."
-        cp -r "$SOURCE_DIR/Player-SmartDisplayFX-client" "$INSTALL_DIR/" 2>/dev/null || {
-            warn "Falha ao copiar SmartDisplayFX Client"
-        }
-    fi
-    
-    # Copiar Smart FX Interface
-    if [[ "$INSTALL_PLAYER_FX_INTERFACE" == "true" ]] && [[ -d "$SOURCE_DIR/Player-Smart-FX-Interface" ]]; then
-        log "Copiando Smart FX Interface..."
-        cp -r "$SOURCE_DIR/Player-Smart-FX-Interface" "$INSTALL_DIR/" 2>/dev/null || {
-            warn "Falha ao copiar Smart FX Interface"
-        }
-    fi
-    
-    log "✅ Players selecionados copiados"
-}
-
-# Continuar função show_menu (seeds e kiosk)
-show_menu_continuation() {
     # Perguntar sobre carregamento de seeds (se não foi definido via argumento)
     if [[ "$SEEDS_OPTION_FORCED" != "true" ]]; then
         echo
@@ -7043,7 +6523,6 @@ KIOSK_MANAGE_EOF
     # Criar variável global para usar em show_final_info
     export KIOSK_URL
     export KIOSK_ENABLED=true
-    fi
 }
 
 # Função principal
@@ -7122,9 +6601,6 @@ main() {
     # AGORA definir INSTALL_DIR baseado no modo escolhido
     setup_project
     
-    # Perguntar sobre players (após definir INSTALL_DIR)
-    show_players_menu
-    
     # Perguntar sobre HTTPS (após menu, antes da instalação)
     ask_https_configuration
     
@@ -7192,71 +6668,10 @@ main() {
         setup_kiosk_mode
     fi
     
-    # Verificações finais integradas (não bloqueantes)
-    log "Realizando verificações finais integradas..."
-    
-    # Verificar containers Docker
-    if [[ "$INSTALL_MODE" == "docker" ]]; then
-        log "Verificando status dos containers..."
-        $COMPOSE_CMD ps
-        
-        # Verificar MQTT Broker
-        if $COMPOSE_CMD ps | grep -q smartsignage-mqtt; then
-            log "✅ MQTT Broker: Container rodando"
-            if command -v mosquitto_sub &> /dev/null; then
-                if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
-                    log "✅ MQTT Broker: Conectado e respondendo"
-                else
-                    warning "⚠️  MQTT Broker: Container rodando mas não respondeu ao teste"
-                fi
-            else
-                log "ℹ️  MQTT Broker: Container rodando (teste detalhado requer mosquitto_sub)"
-            fi
-        else
-            warning "⚠️  MQTT Broker: Container não encontrado"
-        fi
-        
-        # Verificar outros serviços essenciais
-        if $COMPOSE_CMD ps | grep -q smartsignage-postgres; then
-            log "✅ PostgreSQL: Container rodando"
-        else
-            warning "⚠️  PostgreSQL: Container não encontrado"
-        fi
-        
-        if $COMPOSE_CMD ps | grep -q smartsignage-redis; then
-            log "✅ Redis: Container rodando"
-        else
-            warning "⚠️  Redis: Container não encontrado"
-        fi
-        
-        if $COMPOSE_CMD ps | grep -q smartsignage-app; then
-            log "✅ App (Backend+Frontend): Container rodando"
-        else
-            warning "⚠️  App: Container não encontrado"
-        fi
-    fi
-    
-    # Verificar serviços systemd (single-server)
-    if [[ "$INSTALL_MODE" == "single-server" ]]; then
-        log "Verificando serviços systemd..."
-        if systemctl is-active --quiet smartsignage-backend; then
-            log "✅ Backend: Serviço ativo"
-        else
-            warning "⚠️  Backend: Serviço não está ativo"
-        fi
-        
-        if systemctl is-active --quiet nginx; then
-            log "✅ Nginx: Serviço ativo"
-        else
-            warning "⚠️  Nginx: Serviço não está ativo"
-        fi
-        
-        if systemctl is-active --quiet postgresql; then
-            log "✅ PostgreSQL: Serviço ativo"
-        else
-            warning "⚠️  PostgreSQL: Serviço não está ativo"
-        fi
-    fi
+    # Executar checklist pós-instalação (não bloqueante)
+    if [[ -f "$INSTALL_DIR/scripts/post-install-check.sh" ]]; then
+        chmod +x "$INSTALL_DIR/scripts/post-install-check.sh" 2>/dev/null || true
+        (HOST_OVERRIDE="${PUBLIC_DOMAIN:-localhost}" bash "$INSTALL_DIR/scripts/post-install-check.sh") || true
     fi
     
     # Salvar informações da build após instalação bem-sucedida
