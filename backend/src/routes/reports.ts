@@ -60,14 +60,14 @@ router.get('/', authorizeRole(['admin', 'gerente_marketing', 'visualizador']), a
       filters
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: result
     });
 
   } catch (error: any) {
     await logError('Erro ao listar relatórios', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -84,14 +84,14 @@ router.get('/stats', authorizeRole(['admin', 'gerente_marketing', 'visualizador'
   try {
     const stats = await getReportsService().getReportStats();
 
-    res.json({
+    return res.json({
       success: true,
       data: stats
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar estatísticas de relatórios', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -151,14 +151,14 @@ router.get('/types', async (_req, res) => {
       }
     ];
 
-    res.json({
+    return res.json({
       success: true,
       data: types
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar tipos de relatório', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message || 'Erro desconhecido'
@@ -192,14 +192,14 @@ router.get('/:id', async (req: any, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: report
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar relatório', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -226,7 +226,7 @@ router.post('/', async (req: any, res) => {
 
     const report = await getReportsService().generateReport(reportRequest, req.user.userId);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Relatório gerado com sucesso',
       data: report
@@ -234,7 +234,7 @@ router.post('/', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao gerar relatório', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao gerar relatório',
       error: error.message
@@ -253,14 +253,14 @@ router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req:
 
     await getReportsService().deleteReport(parseInt(id), req.user.userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Relatório removido com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao remover relatório', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover relatório',
       error: error.message
@@ -321,11 +321,14 @@ router.get('/download/:id', async (req: any, res) => {
     
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.setHeader('Content-Type', report.format === 'pdf' ? 'application/pdf' : 'application/json');
-    res.setHeader('Content-Length', report.fileSize);
+    if (report.fileSize !== undefined) {
+      res.setHeader('Content-Length', report.fileSize);
+    }
 
     // Enviar arquivo
     const fileStream = fs.createReadStream(report.filePath);
     fileStream.pipe(res);
+    return;
 
     // Incrementar contador de downloads
     try {
@@ -337,7 +340,7 @@ router.get('/download/:id', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao baixar relatório', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -384,9 +387,9 @@ router.post('/:id/regenerate', async (req: any, res) => {
     const newReport = await getReportsService().generateReport({
       ...reportRequest,
       type: reportRequest.type as 'client' | 'totem' | 'media' | 'campaign' | 'custom' | 'billing' | 'analytics'
-    }, req.user.id);
+    }, req.user?.id || req.user?.userId || 0);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Relatório regenerado com sucesso',
       data: newReport
@@ -394,7 +397,7 @@ router.post('/:id/regenerate', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao regenerar relatório', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao regenerar relatório',
       error: error.message
@@ -411,14 +414,14 @@ router.get('/templates', authorizeRole(['admin', 'gerente_marketing', 'visualiza
   try {
     const templates = await getReportsService().getReportStats(); // Usando método existente
 
-    res.json({
+    return res.json({
       success: true,
       data: templates
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar templates de relatório', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -442,9 +445,9 @@ router.post('/templates', authorizeRole(['admin']), async (req, res) => {
       templateConfig: templateData.templateConfig || {},
       isDefault: templateData.isDefault || false,
       isPublic: templateData.isPublic || false
-    }, req.user.id);
+    }, req.user?.id || req.user?.userId || 0);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Template criado com sucesso',
       data: template
@@ -452,7 +455,7 @@ router.post('/templates', authorizeRole(['admin']), async (req, res) => {
 
   } catch (error: any) {
     await logError('Erro ao criar template de relatório', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar template',
       error: error.message
@@ -498,14 +501,14 @@ router.get('/formats', async (_req, res) => {
       }
     ];
 
-    res.json({
+    return res.json({
       success: true,
       data: formats
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar formatos de relatório', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -534,14 +537,14 @@ router.post('/bulk-generate', authorizeRole(['admin', 'gerente_marketing']), asy
 
     for (const reportRequest of reports) {
       try {
-        const report = await getReportsService().generateReport(reportRequest, req.user.id);
+        const report = await getReportsService().generateReport(reportRequest, req.user?.id || req.user?.userId || 0);
         results.push({ success: true, report });
       } catch (error: any) {
         errors.push({ success: false, error: error.message, request: reportRequest });
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: `Processamento concluído: ${results.length} sucessos, ${errors.length} erros`,
       data: {
@@ -557,7 +560,7 @@ router.post('/bulk-generate', authorizeRole(['admin', 'gerente_marketing']), asy
 
   } catch (error: any) {
     await logError('Erro ao gerar relatórios em lote', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -612,7 +615,7 @@ router.post('/export/excel', async (req: any, res) => {
 
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
-
+    
     // Limpar arquivo após envio
     fileStream.on('end', () => {
       setTimeout(() => {
@@ -621,10 +624,11 @@ router.post('/export/excel', async (req: any, res) => {
         }
       }, 1000);
     });
+    return;
 
   } catch (error: any) {
     await logError('Erro ao exportar para Excel', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao exportar para Excel',
       error: error.message
@@ -679,7 +683,7 @@ router.post('/export/pdf', async (req: any, res) => {
 
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
-
+    
     // Limpar arquivo após envio
     fileStream.on('end', () => {
       setTimeout(() => {
@@ -688,10 +692,11 @@ router.post('/export/pdf', async (req: any, res) => {
         }
       }, 1000);
     });
+    return;
 
   } catch (error: any) {
     await logError('Erro ao exportar para PDF', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao exportar para PDF',
       error: error.message

@@ -9,7 +9,6 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { logInfo, logError, logWarn } from '../utils/loggerHelper';
 import { getDatabase } from '../config/database';
-import { getRedis } from '../config/redis';
 
 const execAsync = promisify(exec);
 
@@ -169,7 +168,7 @@ export class BackupService {
   private async backupDatabase(backupId: string): Promise<string | null> {
     try {
       const dbConfig = process.env.DATABASE_URL || '';
-      const dbName = this.extractDatabaseName(dbConfig);
+      this.extractDatabaseName(dbConfig);
       const backupPath = path.join(
         this.defaultConfig.storagePath,
         `${backupId}-database.sql`

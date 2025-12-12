@@ -59,14 +59,14 @@ router.get('/', async (req: any, res) => {
       filters
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: result
     });
 
   } catch (error: any) {
     await logError('Erro ao listar smart playlists', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message || 'Erro desconhecido'
@@ -83,14 +83,14 @@ router.get('/stats', authorizeRole(['admin', 'gerente_marketing']), async (_req,
   try {
     const stats = await getSmartPlaylistService().getSmartPlaylistStats();
 
-    res.json({
+    return res.json({
       success: true,
       data: stats
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar estatísticas de smart playlists', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -124,14 +124,14 @@ router.get('/:id', async (req: any, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: playlist
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar smart playlist', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -215,7 +215,7 @@ router.post('/', async (req: any, res) => {
 
     const playlist = await getSmartPlaylistService().createSmartPlaylist(playlistData, req.user.userId);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Smart playlist criada com sucesso',
       data: playlist
@@ -223,7 +223,7 @@ router.post('/', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao criar smart playlist', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar smart playlist',
       error: error.message || 'Erro desconhecido'
@@ -263,7 +263,7 @@ router.put('/:id', async (req: any, res) => {
       req.user.userId
     );
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Smart playlist atualizada com sucesso',
       data: playlist
@@ -271,7 +271,7 @@ router.put('/:id', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao atualizar smart playlist', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar smart playlist',
       error: error.message
@@ -290,14 +290,14 @@ router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req:
 
     await getSmartPlaylistService().deleteSmartPlaylist(parseInt(id), req.user.userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Smart playlist removida com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao remover smart playlist', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover smart playlist',
       error: error.message
@@ -332,7 +332,7 @@ router.post('/:id/generate', async (req: any, res) => {
 
     const result = await getSmartPlaylistService().generateSmartPlaylist(parseInt(id), req.user.userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Smart playlist gerada com sucesso',
       data: result
@@ -340,7 +340,7 @@ router.post('/:id/generate', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao gerar smart playlist manualmente', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao gerar smart playlist',
       error: error.message
@@ -375,14 +375,14 @@ router.post('/:id/activate', async (req: any, res) => {
 
     await getSmartPlaylistService().updateSmartPlaylist(parseInt(id), { isActive: true } as any, req.user.id);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Smart playlist ativada com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao ativar smart playlist', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao ativar smart playlist',
       error: error.message
@@ -417,14 +417,14 @@ router.post('/:id/deactivate', async (req: any, res) => {
 
     await getSmartPlaylistService().updateSmartPlaylist(parseInt(id), { isActive: false } as any, req.user.id);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Smart playlist desativada com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao desativar smart playlist', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao desativar smart playlist',
       error: error.message
@@ -456,14 +456,14 @@ router.get('/client/:clientId', async (req: any, res) => {
       { clientId: parseInt(clientId) }
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: result.playlists
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar smart playlists do cliente', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -487,14 +487,14 @@ router.get('/campaign/:campaignId', async (req: any, res) => {
       { campaignId: parseInt(campaignId) }
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: result.playlists
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar smart playlists da campanha', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -518,14 +518,14 @@ router.get('/totem/:totemId', async (req: any, res) => {
       { totemId: parseInt(totemId) }
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: result.playlists
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar smart playlists do totem', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -561,7 +561,7 @@ router.post('/:id/test', async (req: any, res) => {
     // Gerar playlist em modo de teste (não salva no banco)
     const result = await getSmartPlaylistService().generateSmartPlaylist(parseInt(id), req.user.userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Teste de geração realizado com sucesso',
       data: result
@@ -569,7 +569,7 @@ router.post('/:id/test', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao testar smart playlist', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao testar smart playlist',
       error: error.message
@@ -598,14 +598,14 @@ router.post('/bulk-generate', authorizeRole(['admin', 'gerente_marketing']), asy
 
     for (const playlistId of playlistIds) {
       try {
-        const result = await getSmartPlaylistService().generateSmartPlaylist(playlistId, req.user.id);
+        const result = await getSmartPlaylistService().generateSmartPlaylist(playlistId, req.user?.id || req.user?.userId || 0);
         results.push({ playlistId, success: true, result });
       } catch (error: any) {
         errors.push({ playlistId, success: false, error: error.message });
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: `Processamento concluído: ${results.length} sucessos, ${errors.length} erros`,
       data: {
@@ -621,7 +621,7 @@ router.post('/bulk-generate', authorizeRole(['admin', 'gerente_marketing']), asy
 
   } catch (error: any) {
     await logError('Erro ao gerar smart playlists em lote', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message

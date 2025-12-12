@@ -49,7 +49,7 @@ router.post('/frontend-error', async (req: Request, res: Response) => {
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Erro registrado com sucesso'
     });
@@ -58,7 +58,7 @@ router.post('/frontend-error', async (req: Request, res: Response) => {
     await logError('Erro ao registrar erro do frontend', logErr, { route: '/api/logs/frontend-error' }).catch(() => {
       // Se até o logger falhar, ignorar silenciosamente
     });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao registrar log'
     });
@@ -77,7 +77,7 @@ router.get('/config', authorizeRole(['admin']), async (_req: Request, res: Respo
   try {
     const config = await logRotationService.getConfig();
     
-    res.json({
+    return res.json({
       success: true,
       data: {
         ...config,
@@ -87,7 +87,7 @@ router.get('/config', authorizeRole(['admin']), async (_req: Request, res: Respo
     });
   } catch (error: any) {
     await logError('Erro ao obter configurações de logs', error, { route: '/api/logs/config' });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -105,7 +105,7 @@ router.get('/files', authorizeRole(['admin']), async (_req: Request, res: Respon
     const config = await logRotationService.getConfig();
     const files = await logRotationService.listLogFiles(config.logDirectory);
     
-    res.json({
+    return res.json({
       success: true,
       data: files.map(file => ({
         ...file,
@@ -115,7 +115,7 @@ router.get('/files', authorizeRole(['admin']), async (_req: Request, res: Respon
     });
   } catch (error: any) {
     await logError('Erro ao listar arquivos de log', error, { route: '/api/logs/files' });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -133,7 +133,7 @@ router.get('/disk-space', authorizeRole(['admin']), async (_req: Request, res: R
     const config = await logRotationService.getConfig();
     const diskSpace = await logRotationService.getDiskSpace(config.logDirectory);
     
-    res.json({
+    return res.json({
       success: true,
       data: {
         ...diskSpace,
@@ -145,7 +145,7 @@ router.get('/disk-space', authorizeRole(['admin']), async (_req: Request, res: R
     });
   } catch (error: any) {
     await logError('Erro ao obter espaço em disco', error, { route: '/api/logs/disk-space' });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -162,13 +162,13 @@ router.get('/rotation-status', authorizeRole(['admin']), async (_req: Request, r
   try {
     const rotationCheck = await logRotationService.checkRotation();
     
-    res.json({
+    return res.json({
       success: true,
       data: rotationCheck
     });
   } catch (error: any) {
     await logError('Erro ao verificar rotação de logs', error, { route: '/api/logs/rotation-status' });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -185,7 +185,7 @@ router.post('/rotate', authorizeRole(['admin']), async (_req: Request, res: Resp
   try {
     const result = await logRotationService.rotateLogs();
     
-    res.json({
+    return res.json({
       success: result.success,
       message: result.success 
         ? `Logs rotacionados: ${result.filesRotated} arquivos rotacionados, ${result.filesDeleted} arquivos excluídos`
@@ -194,7 +194,7 @@ router.post('/rotate', authorizeRole(['admin']), async (_req: Request, res: Resp
     });
   } catch (error: any) {
     await logError('Erro ao rotacionar logs', error, { route: '/api/logs/rotate' });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -211,13 +211,13 @@ router.post('/reload', authorizeRole(['admin']), async (_req: Request, res: Resp
   try {
     await reloadLogger();
     
-    res.json({
+    return res.json({
       success: true,
       message: 'Configurações do logger recarregadas com sucesso'
     });
   } catch (error: any) {
     await logError('Erro ao recarregar logger', error, { route: '/api/logs/reload' });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message

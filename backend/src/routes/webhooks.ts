@@ -46,13 +46,13 @@ router.get('/',
       if (req.query.event) filters.event = req.query.event;
 
       const webhooks = await getWebhookService().getAllWebhooks(filters);
-      res.json({
+      return res.json({
         success: true,
         data: webhooks
       });
     } catch (error: any) {
       await logError('Erro ao listar webhooks', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: error.message || 'Erro ao listar webhooks'
       });
@@ -78,13 +78,13 @@ router.get('/:id',
           message: 'Webhook não encontrado'
         });
       }
-      res.json({
+      return res.json({
         success: true,
         data: webhook
       });
     } catch (error: any) {
       await logError('Erro ao buscar webhook', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: error.message || 'Erro ao buscar webhook'
       });
@@ -111,13 +111,13 @@ router.post('/',
   async (req: any, res: Response) => {
     try {
       const webhook = await getWebhookService().createWebhook(req.body);
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         data: webhook
       });
     } catch (error: any) {
       await logError('Erro ao criar webhook', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao criar webhook'
       });
@@ -145,13 +145,13 @@ router.put('/:id',
   async (req: any, res: Response) => {
     try {
       const webhook = await getWebhookService().updateWebhook(parseInt(req.params.id), req.body);
-      res.json({
+      return res.json({
         success: true,
         data: webhook
       });
     } catch (error: any) {
       await logError('Erro ao atualizar webhook', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao atualizar webhook'
       });
@@ -171,13 +171,13 @@ router.delete('/:id',
   async (req: any, res: Response) => {
     try {
       await getWebhookService().deleteWebhook(parseInt(req.params.id));
-      res.json({
+      return res.json({
         success: true,
         message: 'Webhook deletado com sucesso'
       });
     } catch (error: any) {
       await logError('Erro ao deletar webhook', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao deletar webhook'
       });
@@ -209,13 +209,13 @@ router.post('/:id/test',
         timestamp: new Date().toISOString()
       });
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Webhook testado com sucesso'
       });
     } catch (error: any) {
       await logError('Erro ao testar webhook', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: error.message || 'Erro ao testar webhook'
       });

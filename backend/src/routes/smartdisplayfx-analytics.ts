@@ -4,8 +4,8 @@
  * @access Private (Admin, Admin SQL, Gerente Marketing, Visualizador)
  */
 
-import { Router, Response, Request } from 'express';
-import { query, param, validationResult } from 'express-validator';
+import { Router, Response } from 'express';
+import { query, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getFxAnalyticsService } from '../services/fxAnalyticsService';
 import { logError } from '../utils/loggerHelper';

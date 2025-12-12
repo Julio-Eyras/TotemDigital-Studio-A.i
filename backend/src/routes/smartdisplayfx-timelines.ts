@@ -51,10 +51,10 @@ router.get('/',
         isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
       });
 
-      res.json(result);
+      return res.json(result);
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/timelines error', error, req.query);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao listar timelines',
         message: error.message
       });
@@ -81,10 +81,10 @@ router.get('/site/:siteId/active',
         });
       }
 
-      res.json({ data: timeline });
+      return res.json({ data: timeline });
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/timelines/site/:siteId/active error', error, { siteId: req.params.siteId });
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao buscar timeline ativa',
         message: error.message
       });
@@ -112,10 +112,10 @@ router.get('/:id',
         });
       }
 
-      res.json({ data: timeline });
+      return res.json({ data: timeline });
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/timelines/:id error', error, { id: req.params.id });
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao buscar timeline',
         message: error.message
       });
@@ -142,10 +142,10 @@ router.post('/',
   async (req: any, res: Response) => {
     try {
       const timeline = await getFxTimelineService().createTimeline(req.body);
-      res.status(201).json({ data: timeline });
+      return res.status(201).json({ data: timeline });
     } catch (error: any) {
       await logError('POST /api/smartdisplayfx/timelines error', error, req.body);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao criar timeline',
         message: error.message
       });
@@ -174,7 +174,7 @@ router.put('/:id',
     try {
       const timelineId = parseInt(req.params.id);
       const timeline = await getFxTimelineService().updateTimeline(timelineId, req.body);
-      res.json({ data: timeline });
+      return res.json({ data: timeline });
     } catch (error: any) {
       await logError('PUT /api/smartdisplayfx/timelines/:id error', error, { id: req.params.id, body: req.body });
       if (error.message.includes('não encontrada')) {
@@ -182,7 +182,7 @@ router.put('/:id',
           error: error.message
         });
       }
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao atualizar timeline',
         message: error.message
       });
@@ -203,7 +203,7 @@ router.delete('/:id',
     try {
       const timelineId = parseInt(req.params.id);
       await getFxTimelineService().deleteTimeline(timelineId);
-      res.json({ message: 'Timeline deletada com sucesso' });
+      return res.json({ message: 'Timeline deletada com sucesso' });
     } catch (error: any) {
       await logError('DELETE /api/smartdisplayfx/timelines/:id error', error, { id: req.params.id });
       if (error.message.includes('não encontrada')) {
@@ -211,7 +211,7 @@ router.delete('/:id',
           error: error.message
         });
       }
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao deletar timeline',
         message: error.message
       });

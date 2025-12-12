@@ -65,7 +65,7 @@ router.post('/related-content',
         }
       }
 
-      res.json({
+      return res.json({
         success: true,
         data: {
           contentId: contentId,
@@ -74,7 +74,7 @@ router.post('/related-content',
       });
     } catch (error: any) {
       await logError('Erro ao buscar conteúdo relacionado', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao buscar conteúdo relacionado'
       });
@@ -126,13 +126,13 @@ router.get('/nearby-totems/:totemId',
         ORDER BY t.name
       `, [network.nearby_totems || []]);
 
-      res.json({
+      return res.json({
         success: true,
         data: nearbyTotems
       });
     } catch (error: any) {
       await logError('Erro ao buscar totens próximos', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao buscar totens próximos'
       });
@@ -174,13 +174,13 @@ router.post('/interactions',
 
       await logInfo('Interação registrada', { totemId, interactionType });
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Interação registrada com sucesso'
       });
     } catch (error: any) {
       await logError('Erro ao registrar interação', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao registrar interação'
       });

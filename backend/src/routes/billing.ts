@@ -149,14 +149,14 @@ router.get('/client/:clientId', authorizeRole(['admin', 'admin_sql']), async (re
       parseInt(limit as string)
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: billings
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar faturas do cliente', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -190,14 +190,14 @@ router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) 
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: billing
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar fatura', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -270,7 +270,7 @@ router.post('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res) =>
 
     const billing = await getBillingService().createBilling(mappedData, req.user.userId);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Fatura criada com sucesso',
       data: billing
@@ -278,7 +278,7 @@ router.post('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res) =>
 
   } catch (error: any) {
     await logError('Erro ao criar fatura', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar fatura',
       error: error.message || 'Erro desconhecido'
@@ -302,7 +302,7 @@ router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) 
       req.user.userId
     );
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Fatura atualizada com sucesso',
       data: billing
@@ -310,7 +310,7 @@ router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) 
 
   } catch (error: any) {
     await logError('Erro ao atualizar fatura', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar fatura',
       error: error.message
@@ -329,14 +329,14 @@ router.delete('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, re
 
     await getBillingService().deleteBilling(parseInt(id), req.user.userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Fatura removida com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao remover fatura', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover fatura',
       error: error.message
@@ -375,7 +375,7 @@ router.post('/:id/payment', async (req: any, res) => {
       ...paymentData
     }, req.user.userId);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Pagamento registrado com sucesso',
       data: payment
@@ -383,7 +383,7 @@ router.post('/:id/payment', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao registrar pagamento', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao registrar pagamento',
       error: error.message
@@ -444,14 +444,14 @@ router.get('/:id/payments', async (req: any, res) => {
     // Buscar pagamentos
     const payments = await getBillingService().getBillingPayments(parseInt(id));
 
-    res.json({
+    return res.json({
       success: true,
       data: payments
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar pagamentos da fatura', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -490,14 +490,14 @@ router.post('/:id/cancel', authorizeRole(['admin', 'admin_sql']), async (req: an
       notes: reason ? `Cancelada: ${reason}` : 'Cancelada'
     }, req.user.userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Fatura cancelada com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao cancelar fatura', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao cancelar fatura',
       error: error.message

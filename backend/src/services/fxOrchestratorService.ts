@@ -382,7 +382,7 @@ export class FxOrchestratorService {
       const rules = await this.ruleService.getActiveRulesForSite(siteId);
       
       // Buscar histórico de telemetria para otimizar distribuição
-      const telemetryStats = await this.telemetryService.getTelemetryStats({
+      await this.telemetryService.getTelemetryStats({
         startDate: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(), // Últimos 7 dias
         endDate: new Date(now).toISOString(),
       });

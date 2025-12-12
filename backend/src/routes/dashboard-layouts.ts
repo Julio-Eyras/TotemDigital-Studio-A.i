@@ -5,7 +5,7 @@
 
 import { Router, Response } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
-import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
+import { authMiddleware } from '../middleware/auth.middleware';
 import { getDashboardLayoutService } from '../services/dashboardLayoutService';
 import { logError } from '../utils/loggerHelper';
 
@@ -69,13 +69,13 @@ router.get('/default',
           message: 'Nenhum layout padrão encontrado'
         });
       }
-      res.json({
+      return res.json({
         success: true,
         data: layout
       });
     } catch (error: any) {
       await logError('Erro ao buscar layout padrão', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: error.message || 'Erro ao buscar layout padrão'
       });
@@ -107,13 +107,13 @@ router.get('/:id',
           message: 'Acesso negado'
         });
       }
-      res.json({
+      return res.json({
         success: true,
         data: layout
       });
     } catch (error: any) {
       await logError('Erro ao buscar layout', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: error.message || 'Erro ao buscar layout'
       });
@@ -141,13 +141,13 @@ router.post('/',
         isDefault: req.body.isDefault,
         isShared: req.body.isShared
       });
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         data: layout
       });
     } catch (error: any) {
       await logError('Erro ao criar layout', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao criar layout'
       });
@@ -187,13 +187,13 @@ router.put('/:id',
         parseInt(req.params.id),
         req.body
       );
-      res.json({
+      return res.json({
         success: true,
         data: updated
       });
     } catch (error: any) {
       await logError('Erro ao atualizar layout', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao atualizar layout'
       });
@@ -226,13 +226,13 @@ router.delete('/:id',
         });
       }
       await getDashboardLayoutService().deleteLayout(parseInt(req.params.id));
-      res.json({
+      return res.json({
         success: true,
         message: 'Layout deletado com sucesso'
       });
     } catch (error: any) {
       await logError('Erro ao deletar layout', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao deletar layout'
       });

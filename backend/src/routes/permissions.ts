@@ -54,13 +54,13 @@ router.get('/',
         action: action as string
       });
 
-      res.json({
+      return res.json({
         success: true,
         data: result
       });
     } catch (error: any) {
       await logError('Erro ao listar permissions', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
         error: error.message
@@ -78,13 +78,13 @@ router.get('/resources', async (_req: any, res: Response) => {
   try {
     const resources = await getPermissionService().getResources();
 
-    res.json({
+    return res.json({
       success: true,
       data: resources
     });
   } catch (error: any) {
     await logError('Erro ao listar recursos', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -101,13 +101,13 @@ router.get('/actions', async (_req: any, res: Response) => {
   try {
     const actions = await getPermissionService().getActions();
 
-    res.json({
+    return res.json({
       success: true,
       data: actions
     });
   } catch (error: any) {
     await logError('Erro ao listar ações', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -135,13 +135,13 @@ router.get('/:id',
         });
       }
 
-      res.json({
+      return res.json({
         success: true,
         data: permission
       });
     } catch (error: any) {
       await logError('Erro ao buscar permission', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
         error: error.message
@@ -172,14 +172,14 @@ router.post('/',
         description
       });
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         message: 'Permission criada com sucesso',
         data: permission
       });
     } catch (error: any) {
       await logError('Erro ao criar permission', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao criar permission',
         error: error.message
@@ -212,14 +212,14 @@ router.put('/:id',
         description
       });
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Permission atualizada com sucesso',
         data: permission
       });
     } catch (error: any) {
       await logError('Erro ao atualizar permission', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao atualizar permission',
         error: error.message
@@ -241,13 +241,13 @@ router.delete('/:id',
       const permissionId = parseInt(req.params.id);
       await getPermissionService().deletePermission(permissionId);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Permission deletada com sucesso'
       });
     } catch (error: any) {
       await logError('Erro ao deletar permission', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao deletar permission',
         error: error.message

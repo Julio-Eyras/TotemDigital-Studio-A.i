@@ -16,14 +16,15 @@ import { getDatabase } from '../config/database';
 const router = Router();
 
 // Middleware de validação simples
-const validateRequest = (req: Request, res: Response, next: any) => {
+const validateRequest = (req: Request, res: Response, next: any): void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({
+    res.status(400).json({
       success: false,
       error: 'Dados inválidos',
       details: errors.array(),
     });
+    return;
   }
   next();
 };
@@ -62,7 +63,7 @@ router.post(
         params,
       });
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Efeito FX disparado (debug)',
       });
@@ -71,7 +72,7 @@ router.post(
         route: '/api/smartdisplayfx/debug/trigger-effect',
       }).catch(() => {});
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao disparar efeito FX',
         details: error?.message,
@@ -159,7 +160,7 @@ router.post(
 
       await fxService.handleAiEvent(event);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Evento de IA recebido e processado',
       });
@@ -168,7 +169,7 @@ router.post(
         route: '/api/smartdisplayfx/events/ai',
       }).catch(() => {});
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao processar evento de IA',
         details: error?.message,
@@ -225,7 +226,7 @@ router.get(
 
       const result = await db.executeRaw(query, params);
 
-      res.json({
+      return res.json({
         success: true,
         data: result.rows,
       });
@@ -234,7 +235,7 @@ router.get(
         route: '/api/smartdisplayfx/logs',
       }).catch(() => {});
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao buscar logs SmartDisplayFX',
         details: error?.message,
@@ -261,7 +262,7 @@ router.post(
 
       const timeline = await fxService.generateTimeline(siteId, durationMinutes || 60);
 
-      res.json({
+      return res.json({
         success: true,
         data: timeline,
         message: 'Timeline FX gerada com sucesso'
@@ -271,7 +272,7 @@ router.post(
         route: '/api/smartdisplayfx/timelines/generate',
       }).catch(() => {});
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao gerar timeline FX',
         details: error?.message,
@@ -298,7 +299,7 @@ router.post(
 
       await messageBridge.publishSyncTime(siteId);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Mensagem de sincronização de tempo publicada'
       });
@@ -307,7 +308,7 @@ router.post(
         route: '/api/smartdisplayfx/sync-time',
       }).catch(() => {});
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao publicar sincronização de tempo',
         details: error?.message,

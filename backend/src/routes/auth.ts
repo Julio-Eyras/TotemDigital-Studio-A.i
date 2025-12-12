@@ -595,6 +595,11 @@ router.post('/2fa/verify', authLimiter, twoFactorCodeValidator, async (req: Requ
  */
 router.post('/2fa/setup', authMiddleware as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Não autenticado'
+      });
+    }
     const userId = req.user.id;
     const userEmail = req.user.email || `${req.user.username}@smartsignage.local`;
 
@@ -630,6 +635,11 @@ router.post('/2fa/enable', authMiddleware as any, twoFactorCodeValidator, async 
       });
     }
 
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Não autenticado'
+      });
+    }
     const userId = req.user.id;
     const { code } = req.body;
 
@@ -651,7 +661,7 @@ router.post('/2fa/enable', authMiddleware as any, twoFactorCodeValidator, async 
 
   } catch (error: any) {
     await logError('Erro ao habilitar 2FA', error, { userId: (req as any).user?.id });
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Erro interno do servidor'
     });
   }
@@ -663,6 +673,11 @@ router.post('/2fa/enable', authMiddleware as any, twoFactorCodeValidator, async 
  */
 router.post('/2fa/disable', authMiddleware as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Não autenticado'
+      });
+    }
     const userId = req.user.id;
 
     const twoFactorService = getTwoFactorService();
@@ -683,7 +698,7 @@ router.post('/2fa/disable', authMiddleware as any, async (req: AuthenticatedRequ
 
   } catch (error: any) {
     await logError('Erro ao desabilitar 2FA', error, { userId: (req as any).user?.id });
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Erro interno do servidor'
     });
   }
@@ -695,6 +710,11 @@ router.post('/2fa/disable', authMiddleware as any, async (req: AuthenticatedRequ
  */
 router.get('/2fa/status', authMiddleware as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Não autenticado'
+      });
+    }
     const userId = req.user.id;
 
     const twoFactorService = getTwoFactorService();
@@ -707,7 +727,7 @@ router.get('/2fa/status', authMiddleware as any, async (req: AuthenticatedReques
 
   } catch (error: any) {
     await logError('Erro ao obter status 2FA', error, { userId: (req as any).user?.id });
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Erro interno do servidor'
     });
   }
@@ -719,6 +739,11 @@ router.get('/2fa/status', authMiddleware as any, async (req: AuthenticatedReques
  */
 router.post('/2fa/regenerate-backup-codes', authMiddleware as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Não autenticado'
+      });
+    }
     const userId = req.user.id;
 
     const twoFactorService = getTwoFactorService();
@@ -735,7 +760,7 @@ router.post('/2fa/regenerate-backup-codes', authMiddleware as any, async (req: A
 
   } catch (error: any) {
     await logError('Erro ao regenerar backup codes', error, { userId: (req as any).user?.id });
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Erro interno do servidor'
     });
   }

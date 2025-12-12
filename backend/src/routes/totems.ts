@@ -49,7 +49,7 @@ router.get('/',
         clientId: clientId ? parseInt(clientId as string) : undefined
       });
       // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
-      res.json({
+      return res.json({
         data: result.totems || [],
         total: result.total || 0,
         page: result.page || 1,
@@ -57,7 +57,7 @@ router.get('/',
       });
     } catch (error: any) {
       await logError('Erro ao listar totems', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         success: false,
         error: 'Erro ao listar totems',
         message: error.message || 'Erro interno do servidor'
@@ -84,7 +84,7 @@ router.get('/pending',
         status: 'pending_approval'
       });
       // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
-      res.json({
+      return res.json({
         data: result.totems || [],
         total: result.total || 0,
         page: result.page || 1,
@@ -92,7 +92,7 @@ router.get('/pending',
       });
     } catch (error: any) {
       await logError('Erro ao listar totems pendentes', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         success: false,
         error: 'Erro ao listar totems pendentes',
         message: error.message || 'Erro interno do servidor'
@@ -106,10 +106,11 @@ router.get('/pending',
  * @desc Obter estatísticas de totems
  * @access Private (Admin/Manager)
  */
-router.get('/stats/overview', async (_req: AuthenticatedRequest, res: Response) => {
+router.get('/stats/overview', async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const stats = await getTotemService().getTotemStats(1); // Default totem
     res.json(stats);
+    return;
   } catch (error: any) {
     await logError('Erro ao obter estatísticas', error);
     res.status(500).json({ 
@@ -117,6 +118,7 @@ router.get('/stats/overview', async (_req: AuthenticatedRequest, res: Response) 
       error: 'Erro ao obter estatísticas',
       message: error.message || 'Erro interno do servidor'
     });
+    return;
   }
 });
 
@@ -125,10 +127,11 @@ router.get('/stats/overview', async (_req: AuthenticatedRequest, res: Response) 
  * @desc Obter totems offline
  * @access Private (Admin/Manager)
  */
-router.get('/stats/offline', async (_req: AuthenticatedRequest, res: Response) => {
+router.get('/stats/offline', async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const offlineTotems = await getTotemService().getOfflineTotems();
     res.json(offlineTotems);
+    return;
   } catch (error: any) {
     await logError('Erro ao obter totems offline', error);
     res.status(500).json({ 
@@ -136,6 +139,7 @@ router.get('/stats/offline', async (_req: AuthenticatedRequest, res: Response) =
       error: 'Erro ao obter totems offline',
       message: error.message || 'Erro interno do servidor'
     });
+    return;
   }
 });
 
@@ -154,10 +158,10 @@ router.get('/:id',
       if (!totem) {
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
-      res.json(totem);
+      return res.json(totem);
     } catch (error: any) {
       await logError('Erro ao obter totem', error);
-      res.status(500).json({ error: 'Erro ao obter totem', message: error.message });
+      return res.status(500).json({ error: 'Erro ao obter totem', message: error.message });
     }
   }
 );
@@ -177,9 +181,9 @@ router.get('/uin/:uin',
       if (!totem) {
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
-      res.json(totem);
+      return res.json(totem);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao obter totem' });
+      return res.status(500).json({ error: 'Erro ao obter totem' });
     }
   }
 );
@@ -229,10 +233,10 @@ router.post('/',
       }
       
       const totem = await getTotemService().createTotem(totemData, userId);
-      res.status(201).json(totem);
+      return res.status(201).json(totem);
     } catch (error: any) {
       await logError('Erro ao criar totem', error);
-      res.status(400).json({ 
+      return res.status(400).json({ 
         error: error.message || 'Erro ao criar totem',
         details: error.message ? [{ msg: error.message }] : undefined
       });
@@ -279,9 +283,9 @@ router.put('/:id',
       if (!totem) {
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
-      res.json(totem);
+      return res.json(totem);
     } catch (error) {
-      res.status(400).json({ error: 'Erro ao atualizar totem' });
+      return res.status(400).json({ error: 'Erro ao atualizar totem' });
     }
   }
 );
@@ -302,9 +306,9 @@ router.delete('/:id',
         return res.status(401).json({ error: 'Usuário não autenticado' });
       }
       await getTotemService().deleteTotem(totemId, userId);
-      res.json({ message: 'Totem deletado com sucesso' });
+      return res.json({ message: 'Totem deletado com sucesso' });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao deletar totem' });
+      return res.status(500).json({ error: 'Erro ao deletar totem' });
     }
   }
 );
@@ -331,9 +335,9 @@ router.put('/:id/activate',
       } else {
         await getTotemService().deactivateTotem(totemId, userId);
       }
-      res.json({ success: true });
+      return res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao alterar status do totem' });
+      return res.status(500).json({ error: 'Erro ao alterar status do totem' });
     }
   }
 );
@@ -358,9 +362,9 @@ router.post('/:id/heartbeat',
       const totemId = parseInt(req.params.id);
       const heartbeatData = req.body;
       const heartbeat = await getTotemService().registerHeartbeat(totemId, heartbeatData);
-      res.json(heartbeat);
+      return res.json(heartbeat);
     } catch (error) {
-      res.status(400).json({ error: 'Erro ao registrar heartbeat' });
+      return res.status(400).json({ error: 'Erro ao registrar heartbeat' });
     }
   }
 );
@@ -385,9 +389,9 @@ router.get('/:id/heartbeat',
         endDate: endDate as string,
         limit: Number(limit)
       });
-      res.json(heartbeats);
+      return res.json(heartbeats);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao obter histórico de heartbeats' });
+      return res.status(500).json({ error: 'Erro ao obter histórico de heartbeats' });
     }
   }
 );
@@ -404,9 +408,9 @@ router.get('/:id/playlist',
     try {
       const totemId = parseInt(req.params.id);
       const playlist = await getTotemService().getCurrentPlaylist(totemId);
-      res.json(playlist);
+      return res.json(playlist);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao obter playlist do totem' });
+      return res.status(500).json({ error: 'Erro ao obter playlist do totem' });
     }
   }
 );
@@ -429,9 +433,9 @@ router.get('/:id/analytics',
         startDate: startDate as string,
         endDate: endDate as string
       });
-      res.json(analytics);
+      return res.json(analytics);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao obter analytics do totem' });
+      return res.status(500).json({ error: 'Erro ao obter analytics do totem' });
     }
   }
 );
@@ -525,7 +529,7 @@ router.put('/:id/approve',
       // Buscar totem atualizado
       const approvedTotem = await getTotemService().getTotemById(totemId);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Totem aprovado com sucesso',
         totem: approvedTotem,
@@ -533,7 +537,7 @@ router.put('/:id/approve',
       });
     } catch (error: any) {
       await logError('Erro ao aprovar totem', error);
-      res.status(500).json({ error: 'Erro ao aprovar totem', details: error.message });
+      return res.status(500).json({ error: 'Erro ao aprovar totem', details: error.message });
     }
   }
 );
@@ -554,7 +558,10 @@ router.post('/:id/restart',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
-      const userId = req.user.id;
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
 
       await logInfo('Solicitando reinício remoto', { totemId, userId });
 
@@ -568,7 +575,7 @@ router.post('/:id/restart',
         }
       }, userId);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Comando de reinício enviado ao totem',
         command: {
@@ -582,7 +589,7 @@ router.post('/:id/restart',
       await logError('Erro ao enviar comando de reinício', error, {
         totemId: req.params.id
       });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: error.message || 'Erro ao enviar comando de reinício'
       });
@@ -602,7 +609,10 @@ router.post('/:id/screenshot',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
-      const userId = req.user.id;
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
 
       await logInfo('Solicitando screenshot remoto', { totemId, userId });
 
@@ -616,7 +626,7 @@ router.post('/:id/screenshot',
         }
       }, userId);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Comando de screenshot enviado ao totem',
         command: {
@@ -630,7 +640,7 @@ router.post('/:id/screenshot',
       await logError('Erro ao enviar comando de screenshot', error, {
         totemId: req.params.id
       });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: error.message || 'Erro ao enviar comando de screenshot'
       });
@@ -656,7 +666,7 @@ router.get('/:id/commands',
       const remoteCommandService = getRemoteCommandService();
       const commands = await remoteCommandService.getCommandHistory(totemId, limit);
 
-      res.json({
+      return res.json({
         success: true,
         data: commands
       });
@@ -665,7 +675,7 @@ router.get('/:id/commands',
       await logError('Erro ao obter histórico de comandos', error, {
         totemId: req.params.id
       });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao obter histórico de comandos'
       });
@@ -691,7 +701,7 @@ router.get('/:id/screenshots',
       const remoteCommandService = getRemoteCommandService();
       const screenshots = await remoteCommandService.getScreenshots(totemId, limit);
 
-      res.json({
+      return res.json({
         success: true,
         data: screenshots
       });
@@ -700,7 +710,7 @@ router.get('/:id/screenshots',
       await logError('Erro ao obter screenshots', error, {
         totemId: req.params.id
       });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao obter screenshots'
       });
@@ -751,10 +761,11 @@ router.get('/:id/screenshots/:screenshotId/download',
 
       const fileStream = fs.createReadStream(screenshot.file_path);
       fileStream.pipe(res);
+      return; // pipe já envia a resposta
 
     } catch (error: any) {
       await logError('Erro ao fazer download de screenshot', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao fazer download de screenshot'
       });
@@ -791,7 +802,7 @@ router.get('/:id/logs',
         limit: limit ? parseInt(limit as string) : undefined
       });
 
-      res.json({
+      return res.json({
         success: true,
         data: logs,
         count: logs.length
@@ -801,7 +812,7 @@ router.get('/:id/logs',
       await logError('Erro ao obter logs do totem', error, {
         totemId: req.params.id
       });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao obter logs do totem'
       });
@@ -849,18 +860,20 @@ router.get('/:id/logs/download',
 
       const fileStream = fs.createReadStream(filePath);
       fileStream.pipe(res);
-
+      // pipe já envia a resposta, não precisa return explícito
+      // mas adicionamos para satisfazer TypeScript
       fileStream.on('close', () => {
         fs.unlink(filePath, (err: any) => {
           if (err) logError('Erro ao remover arquivo temporário de log', err, { filePath });
         });
       });
+      return;
 
     } catch (error: any) {
       await logError('Erro ao fazer download de logs', error, {
         totemId: req.params.id
       });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao fazer download de logs'
       });

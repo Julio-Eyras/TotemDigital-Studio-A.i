@@ -382,7 +382,9 @@ async function executeRedisQuery(query: string, _databaseConfig: any): Promise<a
         if (!zsetKey) {
           throw new Error('ZRANGE requer uma chave');
         }
-        const zsetValue = await redis.zrange(zsetKey, zstart, zstop, withScores ? 'WITHSCORES' : undefined);
+        const zsetValue = withScores 
+          ? await redis.zrange(zsetKey, zstart, zstop, 'WITHSCORES')
+          : await redis.zrange(zsetKey, zstart, zstop);
         results.push({
           key: zsetKey,
           type: 'zset',

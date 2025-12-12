@@ -51,10 +51,10 @@ router.get('/',
         isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
       });
 
-      res.json(result);
+      return res.json(result);
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/effects error', error, req.query);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao listar efeitos',
         message: error.message
       });
@@ -72,10 +72,10 @@ router.get('/types',
   async (_req: any, res: Response) => {
     try {
       const types = await getFxEffectService().getEffectTypes();
-      res.json({ data: types });
+      return res.json({ data: types });
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/effects/types error', error, {});
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao listar tipos de efeitos',
         message: error.message
       });
@@ -103,10 +103,10 @@ router.get('/:id',
         });
       }
 
-      res.json({ data: effect });
+      return res.json({ data: effect });
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/effects/:id error', error, { id: req.params.id });
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao buscar efeito',
         message: error.message
       });
@@ -131,10 +131,10 @@ router.post('/',
   async (req: any, res: Response) => {
     try {
       const effect = await getFxEffectService().createEffect(req.body);
-      res.status(201).json({ data: effect });
+      return res.status(201).json({ data: effect });
     } catch (error: any) {
       await logError('POST /api/smartdisplayfx/effects error', error, req.body);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao criar efeito',
         message: error.message
       });
@@ -161,7 +161,7 @@ router.put('/:id',
     try {
       const effectId = parseInt(req.params.id);
       const effect = await getFxEffectService().updateEffect(effectId, req.body);
-      res.json({ data: effect });
+      return res.json({ data: effect });
     } catch (error: any) {
       await logError('PUT /api/smartdisplayfx/effects/:id error', error, { id: req.params.id, body: req.body });
       if (error.message.includes('não encontrado')) {
@@ -169,7 +169,7 @@ router.put('/:id',
           error: error.message
         });
       }
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao atualizar efeito',
         message: error.message
       });
@@ -190,7 +190,7 @@ router.delete('/:id',
     try {
       const effectId = parseInt(req.params.id);
       await getFxEffectService().deleteEffect(effectId);
-      res.json({ message: 'Efeito deletado com sucesso' });
+      return res.json({ message: 'Efeito deletado com sucesso' });
     } catch (error: any) {
       await logError('DELETE /api/smartdisplayfx/effects/:id error', error, { id: req.params.id });
       if (error.message.includes('não encontrado')) {
@@ -198,7 +198,7 @@ router.delete('/:id',
           error: error.message
         });
       }
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao deletar efeito',
         message: error.message
       });

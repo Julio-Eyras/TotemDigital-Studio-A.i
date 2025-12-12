@@ -88,14 +88,14 @@ router.get('/my-subscription', async (req: any, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: subscription
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar assinatura do usuário', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -128,14 +128,14 @@ router.get('/:id', async (req: any, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: subscription
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar assinatura', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -170,7 +170,7 @@ router.post('/', async (req: any, res) => {
       trialDays,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Assinatura criada com sucesso',
       data: subscription
@@ -178,7 +178,7 @@ router.post('/', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao criar assinatura', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar assinatura',
       error: error.message
@@ -245,7 +245,7 @@ router.post('/:id/cancel', async (req: any, res) => {
       cancelAtPeriodEnd
     );
 
-    res.json({
+    return res.json({
       success: true,
       message: cancelAtPeriodEnd
         ? 'Assinatura será cancelada ao final do período'
@@ -255,7 +255,7 @@ router.post('/:id/cancel', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao cancelar assinatura', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao cancelar assinatura',
       error: error.message
@@ -292,7 +292,7 @@ router.post('/:id/resume', async (req: any, res) => {
       cancelAtPeriodEnd: false,
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Assinatura retomada com sucesso',
       data: resumedSubscription
@@ -300,7 +300,7 @@ router.post('/:id/resume', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao retomar assinatura', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao retomar assinatura',
       error: error.message
@@ -396,7 +396,7 @@ router.post('/checkout', async (req: any, res) => {
       }
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         sessionId: session.id,
@@ -406,7 +406,7 @@ router.post('/checkout', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao criar checkout session', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar checkout session',
       error: error.message
@@ -444,11 +444,11 @@ router.post('/webhook', async (req, res) => {
     const subscriptionService = getSubscriptionService();
     await subscriptionService.processStripeWebhook(event);
 
-    res.json({ received: true });
+    return res.json({ received: true });
 
   } catch (error: any) {
     await logError('Erro ao processar webhook do Stripe', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao processar webhook',
       error: error.message

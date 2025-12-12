@@ -51,10 +51,10 @@ router.get('/',
         isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
       });
 
-      res.json(result);
+      return res.json(result);
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/rules error', error, req.query);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao listar regras',
         message: error.message
       });
@@ -74,10 +74,10 @@ router.get('/site/:siteId',
   async (req: any, res: Response) => {
     try {
       const rules = await getFxRuleService().getActiveRulesForSite(req.params.siteId);
-      res.json({ data: rules });
+      return res.json({ data: rules });
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/rules/site/:siteId error', error, { siteId: req.params.siteId });
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao listar regras do site',
         message: error.message
       });
@@ -105,10 +105,10 @@ router.get('/:id',
         });
       }
 
-      res.json({ data: rule });
+      return res.json({ data: rule });
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/rules/:id error', error, { id: req.params.id });
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao buscar regra',
         message: error.message
       });
@@ -134,10 +134,10 @@ router.post('/',
   async (req: any, res: Response) => {
     try {
       const rule = await getFxRuleService().createRule(req.body);
-      res.status(201).json({ data: rule });
+      return res.status(201).json({ data: rule });
     } catch (error: any) {
       await logError('POST /api/smartdisplayfx/rules error', error, req.body);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao criar regra',
         message: error.message
       });
@@ -165,7 +165,7 @@ router.put('/:id',
     try {
       const ruleId = parseInt(req.params.id);
       const rule = await getFxRuleService().updateRule(ruleId, req.body);
-      res.json({ data: rule });
+      return res.json({ data: rule });
     } catch (error: any) {
       await logError('PUT /api/smartdisplayfx/rules/:id error', error, { id: req.params.id, body: req.body });
       if (error.message.includes('não encontrada')) {
@@ -173,7 +173,7 @@ router.put('/:id',
           error: error.message
         });
       }
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao atualizar regra',
         message: error.message
       });
@@ -194,7 +194,7 @@ router.delete('/:id',
     try {
       const ruleId = parseInt(req.params.id);
       await getFxRuleService().deleteRule(ruleId);
-      res.json({ message: 'Regra deletada com sucesso' });
+      return res.json({ message: 'Regra deletada com sucesso' });
     } catch (error: any) {
       await logError('DELETE /api/smartdisplayfx/rules/:id error', error, { id: req.params.id });
       if (error.message.includes('não encontrada')) {
@@ -202,7 +202,7 @@ router.delete('/:id',
           error: error.message
         });
       }
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao deletar regra',
         message: error.message
       });

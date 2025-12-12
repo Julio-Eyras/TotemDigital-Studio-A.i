@@ -9,10 +9,38 @@ import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import { config } from '../config/env';
 
+// Declaração de módulo para estender tipos do Express
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: number;
+        userId: number; // Alias para id (compatibilidade)
+        username: string;
+        email: string;
+        role: string;
+        clientId?: number;
+      };
+    }
+  }
+}
+
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: number;
     userId: number; // Alias para id (compatibilidade)
+    username: string;
+    email: string;
+    role: string;
+    clientId?: number;
+  };
+}
+
+// Tipo para quando user está garantido (após middleware de auth)
+export interface AuthenticatedRequestWithUser extends Request {
+  user: {
+    id: number;
+    userId: number;
     username: string;
     email: string;
     role: string;

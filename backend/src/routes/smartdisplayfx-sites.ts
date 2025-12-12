@@ -51,10 +51,10 @@ router.get('/',
         isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
       });
 
-      res.json(result);
+      return res.json(result);
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/sites error', error, req.query);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao listar sites',
         message: error.message
       });
@@ -81,10 +81,10 @@ router.get('/:siteId',
         });
       }
 
-      res.json({ data: site });
+      return res.json({ data: site });
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/sites/:siteId error', error, { siteId: req.params.siteId });
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao buscar site',
         message: error.message
       });
@@ -133,13 +133,13 @@ router.get('/:siteId/config',
                     'smartdisplay'
       };
 
-      res.json({ 
+      return res.json({ 
         success: true,
         data: config 
       });
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/sites/:siteId/config error', error, { siteId: req.params.siteId });
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao obter configuração do site',
         message: error.message
       });
@@ -159,10 +159,10 @@ router.get('/:siteId/totems',
   async (req: any, res: Response) => {
     try {
       const totems = await getFxSiteService().getTotemsForSite(req.params.siteId);
-      res.json({ data: totems });
+      return res.json({ data: totems });
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/sites/:siteId/totems error', error, { siteId: req.params.siteId });
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao listar totens do site',
         message: error.message
       });
@@ -192,10 +192,10 @@ router.post('/',
   async (req: any, res: Response) => {
     try {
       const site = await getFxSiteService().createSite(req.body);
-      res.status(201).json({ data: site });
+      return res.status(201).json({ data: site });
     } catch (error: any) {
       await logError('POST /api/smartdisplayfx/sites error', error, req.body);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao criar site',
         message: error.message
       });
@@ -225,7 +225,7 @@ router.put('/:siteId',
   async (req: any, res: Response) => {
     try {
       const site = await getFxSiteService().updateSite(req.params.siteId, req.body);
-      res.json({ data: site });
+      return res.json({ data: site });
     } catch (error: any) {
       await logError('PUT /api/smartdisplayfx/sites/:siteId error', error, { siteId: req.params.siteId, body: req.body });
       if (error.message.includes('não encontrado')) {
@@ -233,7 +233,7 @@ router.put('/:siteId',
           error: error.message
         });
       }
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao atualizar site',
         message: error.message
       });
@@ -253,7 +253,7 @@ router.delete('/:siteId',
   async (req: any, res: Response) => {
     try {
       await getFxSiteService().deleteSite(req.params.siteId);
-      res.json({ message: 'Site deletado com sucesso' });
+      return res.json({ message: 'Site deletado com sucesso' });
     } catch (error: any) {
       await logError('DELETE /api/smartdisplayfx/sites/:siteId error', error, { siteId: req.params.siteId });
       if (error.message.includes('não encontrado')) {
@@ -261,7 +261,7 @@ router.delete('/:siteId',
           error: error.message
         });
       }
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao deletar site',
         message: error.message
       });
@@ -292,10 +292,10 @@ router.post('/:siteId/totems',
         position_x,
         position_y
       );
-      res.status(201).json({ data: totemSite });
+      return res.status(201).json({ data: totemSite });
     } catch (error: any) {
       await logError('POST /api/smartdisplayfx/sites/:siteId/totems error', error, { siteId: req.params.siteId, body: req.body });
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao adicionar totem ao site',
         message: error.message
       });
@@ -316,13 +316,13 @@ router.delete('/:siteId/totems/:totemId',
   async (req: any, res: Response) => {
     try {
       await getFxSiteService().removeTotemFromSite(req.params.siteId, parseInt(req.params.totemId));
-      res.json({ message: 'Totem removido do site com sucesso' });
+      return res.json({ message: 'Totem removido do site com sucesso' });
     } catch (error: any) {
       await logError('DELETE /api/smartdisplayfx/sites/:siteId/totems/:totemId error', error, { 
         siteId: req.params.siteId, 
         totemId: req.params.totemId 
       });
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao remover totem do site',
         message: error.message
       });

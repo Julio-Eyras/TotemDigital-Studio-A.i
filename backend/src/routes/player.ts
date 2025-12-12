@@ -333,7 +333,7 @@ router.get('/validate',
         `, [totemId]);
       }
 
-      res.json({
+      return res.json({
         valid: true,
         totem: {
           id: totemId,
@@ -407,7 +407,7 @@ router.get('/validate',
         duration: Date.now() - startTime
       });
       
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
@@ -429,13 +429,13 @@ router.get('/token',
       const { uin } = req.query;
       const token = generateTotemToken(uin as string);
 
-      res.json({
+      return res.json({
         token,
         expiresIn: 3600, // 1 hora
       });
     } catch (error: any) {
       await logError('Erro ao gerar token', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
@@ -511,7 +511,7 @@ router.post('/heartbeat',
 
       const newToken = generateTotemToken(uin as string);
 
-      res.json({
+      return res.json({
         success: true,
         token: newToken,
         pendingCommands: pendingCommands.map((cmd: any) => ({
@@ -523,7 +523,7 @@ router.post('/heartbeat',
       });
     } catch (error: any) {
       await logError('Erro ao processar heartbeat', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
@@ -638,7 +638,7 @@ router.post('/decrypt-config',
       }
     } catch (error: any) {
       await logError('Erro ao processar configuração do player', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
@@ -666,7 +666,7 @@ router.get('/hardware-info', async (_req: Request, res: Response) => {
       }
     }
 
-    res.json({
+    return res.json({
       macAddress: macAddress,
       hostname: os.hostname(),
       platform: os.platform(),
@@ -674,7 +674,7 @@ router.get('/hardware-info', async (_req: Request, res: Response) => {
     });
   } catch (error: any) {
     await logError('Erro ao obter informações de hardware', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
 
@@ -1007,7 +1007,7 @@ router.post('/register',
         metadata: { totemId: (newTotem as any).id || totemId }
       });
       
-      res.status(201).json(responseData);
+      return res.status(201).json(responseData);
     } catch (error: any) {
       const duration = Date.now() - startTime;
       await logError(`[${requestId}] Erro ao registrar totem`, error, { duration, requestId });
@@ -1035,7 +1035,7 @@ router.post('/register',
         duration: duration
       });
       
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Erro interno do servidor',
         message: error.message,
         requestId: requestId,
@@ -1229,7 +1229,7 @@ router.post('/event',
         campaignId
       });
 
-      res.json({
+      return res.json({
         success: true,
         eventId,
         message: 'Evento registrado com sucesso'
@@ -1240,7 +1240,7 @@ router.post('/event',
         uin: req.query.uin,
         eventType: req.body.eventType
       });
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Erro interno do servidor',
         message: error.message
       });
@@ -1296,13 +1296,13 @@ router.post('/exit-kiosk',
       }
 
       if (executed) {
-        res.json({
+        return res.json({
           success: true,
           message: 'Comando de saída do kiosk executado com sucesso'
         });
       } else {
         // Se nenhum comando funcionou, retornar instruções
-        res.json({
+        return res.json({
           success: false,
           message: 'Não foi possível executar comando de saída automaticamente',
           instructions: 'Você pode fechar o navegador manualmente ou fazer logout do usuário'
@@ -1310,7 +1310,7 @@ router.post('/exit-kiosk',
       }
     } catch (error: any) {
       await logError('Erro ao executar saída do kiosk', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
@@ -1403,14 +1403,14 @@ router.post('/command-result',
         status
       });
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Resultado do comando registrado com sucesso'
       });
 
     } catch (error: any) {
       await logError('Erro ao processar resultado de comando', error);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao processar resultado do comando',
         details: error.message
       });

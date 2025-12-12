@@ -77,13 +77,13 @@ router.get('/',
         filtered = filtered.filter(u => u.status === status);
       }
 
-      res.json({
+      return res.json({
         success: true,
         data: filtered
       });
     } catch (error: any) {
       await logError('Erro ao listar atualizações OTA', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao listar atualizações OTA'
       });
@@ -141,14 +141,14 @@ router.post('/',
         rolloutPercentage: rolloutPercentage ? parseInt(rolloutPercentage) : undefined
       }, req.user!.id);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Atualização OTA criada com sucesso',
         data: update
       });
     } catch (error: any) {
       await logError('Erro ao criar atualização OTA', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: error.message || 'Erro ao criar atualização OTA'
       });
@@ -171,13 +171,13 @@ router.post('/:id/activate',
       const otaService = getOTAUpdateService();
       await otaService.activateUpdate(updateId, req.user!.id);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Atualização OTA ativada com sucesso'
       });
     } catch (error: any) {
       await logError('Erro ao ativar atualização OTA', error, { updateId: req.params.id });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: error.message || 'Erro ao ativar atualização OTA'
       });
@@ -200,13 +200,13 @@ router.post('/:id/pause',
       const otaService = getOTAUpdateService();
       await otaService.pauseUpdate(updateId);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Atualização OTA pausada com sucesso'
       });
     } catch (error: any) {
       await logError('Erro ao pausar atualização OTA', error, { updateId: req.params.id });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: error.message || 'Erro ao pausar atualização OTA'
       });
@@ -226,13 +226,13 @@ router.get('/stats',
       const otaService = getOTAUpdateService();
       const stats = await otaService.getUpdateStats();
 
-      res.json({
+      return res.json({
         success: true,
         data: stats
       });
     } catch (error: any) {
       await logError('Erro ao obter estatísticas de atualizações', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao obter estatísticas de atualizações'
       });
@@ -282,10 +282,11 @@ router.get('/:id/download',
 
       const fileStream = fs.createReadStream(update.file_path);
       fileStream.pipe(res);
+      return;
 
     } catch (error: any) {
       await logError('Erro ao fazer download de atualização', error, { updateId: req.params.id });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao fazer download de atualização'
       });

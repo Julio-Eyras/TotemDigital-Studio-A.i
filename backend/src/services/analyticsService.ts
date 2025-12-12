@@ -5,7 +5,6 @@
 
 import { getDatabase } from '../config/database';
 import { logError, logWarn } from '../utils/loggerHelper';
-import { getCacheService } from './cacheService';
 import { getAnalyticsCacheService } from './analyticsCacheService';
 
 export interface AnalyticsFilters {
@@ -150,9 +149,6 @@ export class AnalyticsService {
     return getDatabase();
   }
 
-  private get cache() {
-    return getCacheService();
-  }
 
   private get analyticsCache() {
     return getAnalyticsCacheService();

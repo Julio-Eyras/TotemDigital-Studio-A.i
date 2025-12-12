@@ -4,7 +4,7 @@
  */
 
 import { Router, Response } from 'express';
-import { body, param, query, validationResult } from 'express-validator';
+import { param, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getBackupService } from '../services/backupService';
 import { logError } from '../utils/loggerHelper';
@@ -32,19 +32,19 @@ const validateRequest = (req: any, res: any, next: any) => {
  */
 router.post('/create',
   authorizeRole(['admin', 'admin_sql']),
-  async (req: any, res: Response) => {
+  async (_req: any, res: Response) => {
     try {
       const backupService = getBackupService();
       const result = await backupService.createFullBackup();
 
       if (result.success) {
-        res.status(201).json({
+        return res.status(201).json({
           success: true,
           message: 'Backup criado com sucesso',
           data: result
         });
       } else {
-        res.status(500).json({
+        return res.status(500).json({
           success: false,
           message: 'Erro ao criar backup',
           error: result.error
@@ -52,7 +52,7 @@ router.post('/create',
       }
     } catch (error: any) {
       await logError('Erro ao criar backup', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: error.message || 'Erro ao criar backup'
       });
@@ -67,18 +67,18 @@ router.post('/create',
  */
 router.get('/',
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (req: any, res: Response) => {
+  async (_req: any, res: Response) => {
     try {
       const backupService = getBackupService();
       const backups = await backupService.listBackups();
 
-      res.json({
+      return res.json({
         success: true,
         data: backups
       });
     } catch (error: any) {
       await logError('Erro ao listar backups', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: error.message || 'Erro ao listar backups'
       });

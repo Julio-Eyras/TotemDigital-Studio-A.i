@@ -56,7 +56,7 @@ router.get('/player-registration-logs', async (req: Request, res: Response) => {
       await logWarn('Erro ao ler logs do sistema', { route: '/api/debug/player-registration-logs', error: logErr });
     }
     
-    res.json({
+    return res.json({
       success: true,
       totems: totems.map((t: any) => ({
         id: t.totem_id,
@@ -72,7 +72,7 @@ router.get('/player-registration-logs', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     await logError('Erro ao obter logs de registro', error, { route: '/api/debug/player-registration-logs' });
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Erro ao obter logs',
       message: error.message 
     });
@@ -100,7 +100,7 @@ router.get('/totem/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Totem não encontrado' });
     }
     
-    res.json({
+    return res.json({
       success: true,
       totem: {
         ...totem,
@@ -109,7 +109,7 @@ router.get('/totem/:id', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     await logError('Erro ao obter totem', error, { route: '/api/debug/totem/:id', totemId: req.params.id });
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Erro ao obter totem',
       message: error.message 
     });
@@ -144,7 +144,7 @@ router.get('/system-info', async (_req: Request, res: Response) => {
       LIMIT 10
     `);
     
-    res.json({
+    return res.json({
       success: true,
       system: {
         nodeVersion: process.version,
@@ -160,7 +160,7 @@ router.get('/system-info', async (_req: Request, res: Response) => {
     });
   } catch (error: any) {
     await logError('Erro ao obter informações do sistema', error, { route: '/api/debug/system-info' });
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Erro ao obter informações',
       message: error.message 
     });

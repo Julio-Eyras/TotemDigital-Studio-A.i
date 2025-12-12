@@ -55,10 +55,10 @@ router.get('/',
         endDate: endDate as string | undefined,
       });
 
-      res.json(result);
+      return res.json(result);
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/telemetry error', error, req.query);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao listar telemetria',
         message: error.message
       });
@@ -105,13 +105,13 @@ router.post(
         metadata: req.body.metadata,
       });
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         data: telemetry,
       });
     } catch (error: any) {
       await logError('POST /api/smartdisplayfx/telemetry error', error, req.body);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao criar telemetria',
         message: error.message,
       });
@@ -155,14 +155,14 @@ router.post(
         results.push(telemetry);
       }
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         count: results.length,
         data: results,
       });
     } catch (error: any) {
       await logError('POST /api/smartdisplayfx/telemetry/batch error', error, req.body);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao criar telemetria em batch',
         message: error.message,
       });
@@ -193,10 +193,10 @@ router.get('/stats',
         endDate: endDate as string | undefined,
       });
 
-      res.json({ data: stats });
+      return res.json({ data: stats });
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/telemetry/stats error', error, req.query);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao obter estatísticas',
         message: error.message
       });
@@ -224,10 +224,10 @@ router.get('/:id',
         });
       }
 
-      res.json({ data: telemetry });
+      return res.json({ data: telemetry });
     } catch (error: any) {
       await logError('GET /api/smartdisplayfx/telemetry/:id error', error, { id: req.params.id });
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao buscar telemetria',
         message: error.message
       });

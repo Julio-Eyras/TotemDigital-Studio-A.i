@@ -33,7 +33,7 @@ router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Res
 
     const result = await exportExecutionService.getExecutions(filters);
 
-    res.json({
+    return res.json({
       success: true,
       data: result.data,
       pagination: {
@@ -44,7 +44,7 @@ router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Res
     });
   } catch (error: any) {
     await logError('Erro ao listar execuções de exportação', error, { filters: req.query });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao listar execuções',
       error: error.message
@@ -72,13 +72,13 @@ router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: 
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: execution
     });
   } catch (error: any) {
     await logError('Erro ao buscar execução de exportação', error, { executionId: req.params.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao buscar execução',
       error: error.message
@@ -113,10 +113,10 @@ router.get('/:id/download', authorizeRole(['admin', 'admin_sql']), async (req: a
       });
     }
 
-    res.download(fileInfo.filePath, fileInfo.fileName);
+      return res.download(fileInfo.filePath, fileInfo.fileName);
   } catch (error: any) {
     await logError('Erro ao baixar arquivo de execução', error, { executionId: req.params.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao baixar arquivo de execução',
       error: error.message

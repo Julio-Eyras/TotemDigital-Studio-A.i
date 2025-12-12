@@ -5,7 +5,6 @@
  */
 
 import { getDatabase } from '../config/database';
-import { getCacheService } from './cacheService';
 import { getAnalyticsCacheService } from './analyticsCacheService';
 import { logError } from '../utils/loggerHelper';
 import ExcelJS from 'exceljs';

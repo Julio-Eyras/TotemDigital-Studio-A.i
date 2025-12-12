@@ -332,6 +332,11 @@ check_os() {
     fi
     
     log "Sistema detectado: $PRETTY_NAME"
+    
+    # Chamar detect_distribution para configurar variáveis globais (se ainda não foi chamada)
+    if [[ -z "$DISTRO_TYPE" ]]; then
+        detect_distribution
+    fi
 }
 
 # Atualizar sistema
@@ -384,27 +389,141 @@ fix_network_wait() {
     fi
 }
 
-# Instalar Node.js
+# Detectar distribuição do sistema
+detect_distribution() {
+    if [[ ! -f /etc/os-release ]]; then
+        error "❌ Não foi possível detectar a distribuição do sistema (/etc/os-release não encontrado)"
+        exit 1
+    fi
+    
+    # Carregar informações do sistema
+    . /etc/os-release
+    
+    DISTRO_ID="${ID:-unknown}"
+    DISTRO_ID_LIKE="${ID_LIKE:-}"
+    DISTRO_VERSION="${VERSION_ID:-}"
+    DISTRO_NAME="${PRETTY_NAME:-$NAME}"
+    
+    # Normalizar distribuição
+    case "$DISTRO_ID" in
+        ubuntu)
+            DISTRO_TYPE="ubuntu"
+            ;;
+        debian)
+            DISTRO_TYPE="debian"
+            ;;
+        *)
+            # Verificar ID_LIKE para distribuições derivadas
+            if [[ "$DISTRO_ID_LIKE" == *"ubuntu"* ]] || [[ "$DISTRO_ID_LIKE" == *"debian"* ]]; then
+                if [[ "$DISTRO_ID_LIKE" == *"ubuntu"* ]]; then
+                    DISTRO_TYPE="ubuntu"
+                else
+                    DISTRO_TYPE="debian"
+                fi
+            else
+                warn "⚠️  Distribuição não reconhecida: $DISTRO_ID"
+                warn "⚠️  Tentando método genérico (pode não funcionar corretamente)"
+                DISTRO_TYPE="generic"
+            fi
+            ;;
+    esac
+    
+    log "Sistema detectado: $DISTRO_NAME ($DISTRO_TYPE)"
+    export DISTRO_TYPE DISTRO_ID DISTRO_VERSION DISTRO_NAME
+}
+
+# Instalar Node.js (compatível com múltiplas distribuições)
 install_nodejs() {
     log "Instalando Node.js..."
+    
+    # Detectar distribuição se ainda não foi detectada
+    if [[ -z "$DISTRO_TYPE" ]]; then
+        detect_distribution
+    fi
     
     # Verificar se Node.js já está instalado
     if command -v node &> /dev/null; then
         NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
         if [[ $NODE_VERSION -ge 18 ]]; then
-            log "Node.js v$(node --version) já está instalado!"
+            log "✅ Node.js v$(node --version) já está instalado!"
             return
         else
-            warn "Node.js versão antiga detectada. Atualizando..."
+            warn "⚠️  Node.js versão antiga detectada ($(node --version)). Atualizando..."
         fi
     fi
     
-    # Instalar Node.js 18.x
-    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-    sudo apt install -y nodejs
+    # Método 1: Tentar NodeSource (funciona para Ubuntu e Debian)
+    log "Tentando instalar Node.js 18.x do NodeSource (compatível com $DISTRO_TYPE)..."
     
-    log "Node.js $(node --version) instalado com sucesso!"
-    log "NPM $(npm --version) instalado com sucesso!"
+    # Verificar conectividade primeiro
+    if curl -fsSL --connect-timeout 5 --max-time 10 https://deb.nodesource.com/setup_18.x > /dev/null 2>&1; then
+        # Conectividade OK - tentar instalar do NodeSource
+        if curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - 2>&1 | tee /tmp/nodesource-install.log; then
+            if sudo apt install -y nodejs 2>&1 | tee -a /tmp/nodesource-install.log; then
+                if command -v node &> /dev/null; then
+                    log "✅ Node.js $(node --version) instalado com sucesso do NodeSource!"
+                    log "✅ NPM $(npm --version) instalado com sucesso!"
+                    return
+                fi
+            fi
+        fi
+        warn "⚠️  Falha ao instalar do NodeSource, tentando método alternativo..."
+    else
+        warn "⚠️  Não foi possível conectar ao NodeSource (problema de rede/DNS)"
+    fi
+    
+    # Método 2: Usar Node.js do repositório padrão (Ubuntu/Debian)
+    log "Tentando instalar Node.js do repositório padrão do sistema..."
+    if sudo apt update && sudo apt install -y nodejs npm 2>&1 | tee /tmp/nodejs-apt-install.log; then
+        if command -v node &> /dev/null; then
+            NODE_VER=$(node --version)
+            log "✅ Node.js instalado do repositório padrão: $NODE_VER"
+            
+            # Verificar versão
+            NODE_MAJOR=$(echo "$NODE_VER" | cut -d'v' -f2 | cut -d'.' -f1)
+            if [[ $NODE_MAJOR -lt 18 ]]; then
+                warn "⚠️  Versão do Node.js ($NODE_VER) é anterior à 18.x"
+                warn "⚠️  Algumas funcionalidades podem não funcionar corretamente"
+                warn "⚠️  Para instalar Node.js 18.x, resolva o problema de rede e execute:"
+                warn "⚠️    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -"
+                warn "⚠️    sudo apt install -y nodejs"
+            else
+                log "✅ Versão adequada do Node.js instalada!"
+            fi
+            
+            if command -v npm &> /dev/null; then
+                log "✅ NPM $(npm --version) instalado com sucesso!"
+            fi
+            return
+        fi
+    fi
+    
+    # Método 3: Usar snap (se disponível)
+    if command -v snap &> /dev/null; then
+        log "Tentando instalar Node.js via Snap..."
+        if sudo snap install node --classic 2>&1 | tee /tmp/nodejs-snap-install.log; then
+            if command -v node &> /dev/null; then
+                log "✅ Node.js $(node --version) instalado via Snap!"
+                if command -v npm &> /dev/null; then
+                    log "✅ NPM $(npm --version) instalado com sucesso!"
+                fi
+                return
+            fi
+        fi
+    fi
+    
+    # Se chegou aqui, todos os métodos falharam
+    error "❌ Falha ao instalar Node.js usando todos os métodos disponíveis"
+    error "❌ Logs de erro salvos em:"
+    error "❌   - /tmp/nodesource-install.log (se aplicável)"
+    error "❌   - /tmp/nodejs-apt-install.log (se aplicável)"
+    error "❌   - /tmp/nodejs-snap-install.log (se aplicável)"
+    error "❌"
+    error "❌ Tente instalar Node.js manualmente:"
+    error "❌   1. Verifique sua conexão de rede"
+    error "❌   2. Execute: curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -"
+    error "❌   3. Execute: sudo apt install -y nodejs"
+    exit 1
 }
 
 # Instalar Docker (opcional)
@@ -7043,7 +7162,6 @@ KIOSK_MANAGE_EOF
     # Criar variável global para usar em show_final_info
     export KIOSK_URL
     export KIOSK_ENABLED=true
-    fi
 }
 
 # Função principal
@@ -7256,7 +7374,6 @@ main() {
         else
             warning "⚠️  PostgreSQL: Serviço não está ativo"
         fi
-    fi
     fi
     
     # Salvar informações da build após instalação bem-sucedida

@@ -8,7 +8,15 @@
  * Esta é a interface de saída do FxOrchestratorService.
  */
 
-import mqtt, { MqttClient } from 'mqtt';
+// MQTT é opcional - apenas importar se disponível
+let mqtt: any;
+try {
+  const mqttModule = require('mqtt');
+  mqtt = mqttModule.default || mqttModule;
+} catch {
+  // MQTT não está instalado - usar modo log-only
+  mqtt = null;
+}
 import { logInfo, logError, logWarn } from '../utils/loggerHelper';
 import { messagingConfig } from '../config/env';
 
@@ -58,7 +66,7 @@ export interface FxTelemetryMessage {
 }
 
 export class FxMessageBridge {
-  private client: MqttClient | null = null;
+  private client: any = null;
   private connected = false;
 
   constructor() {
@@ -72,20 +80,24 @@ export class FxMessageBridge {
   private connect() {
     try {
       const url = messagingConfig.mqtt.url;
-      const options: mqtt.IClientOptions = {
+      const options: any = {
         username: messagingConfig.mqtt.username || undefined,
         password: messagingConfig.mqtt.password || undefined,
         reconnectPeriod: 5000,
       };
 
-      this.client = mqtt.connect(url, options);
+      if (mqtt) {
+        this.client = mqtt.connect(url, options);
+      } else {
+        throw new Error('MQTT não está disponível');
+      }
 
       this.client.on('connect', () => {
         this.connected = true;
         logInfo('FxMessageBridge conectado ao MQTT', { url });
       });
 
-      this.client.on('error', async (err) => {
+      this.client.on('error', async (err: Error) => {
         this.connected = false;
         await logError('FxMessageBridge MQTT error', err, { url }).catch(() => {});
       });
@@ -118,7 +130,7 @@ export class FxMessageBridge {
 
     try {
       const payload = JSON.stringify(effect);
-      this.client.publish(topic, payload, { qos: 0 }, (err) => {
+      this.client.publish(topic, payload, { qos: 0 }, (err: Error | null) => {
         if (err) {
           logError('FxMessageBridge publishEffect erro', err, { topic }).catch(() => {});
         } else {
@@ -146,7 +158,7 @@ export class FxMessageBridge {
 
     try {
       const payload = JSON.stringify(timeline);
-      this.client.publish(topic, payload, { qos: 0 }, (err) => {
+      this.client.publish(topic, payload, { qos: 0 }, (err: Error | null) => {
         if (err) {
           logError('FxMessageBridge publishTimeline erro', err, { topic }).catch(() => {});
         } else {
@@ -183,7 +195,7 @@ export class FxMessageBridge {
 
     try {
       const payload = JSON.stringify(message);
-      this.client.publish(topic, payload, { qos: 1 }, (err) => {
+      this.client.publish(topic, payload, { qos: 1 }, (err: Error | null) => {
         if (err) {
           logError('FxMessageBridge publishSyncTime erro', err, { topic }).catch(() => {});
         } else {
@@ -212,7 +224,7 @@ export class FxMessageBridge {
 
     try {
       const payload = JSON.stringify(telemetry);
-      this.client.publish(topic, payload, { qos: 0 }, (err) => {
+      this.client.publish(topic, payload, { qos: 0 }, (err: Error | null) => {
         if (err) {
           logError('FxMessageBridge publishTelemetry erro', err, { topic }).catch(() => {});
         } else {

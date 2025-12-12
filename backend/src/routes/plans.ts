@@ -27,14 +27,14 @@ router.get('/', async (_req, res) => {
   try {
     const plans = await getPlanService().getPlans(false); // Apenas ativos
 
-    res.json({
+    return res.json({
       success: true,
       data: plans
     });
 
   } catch (error: any) {
     await logError('Erro ao listar planos', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -52,14 +52,14 @@ router.get('/all', authenticateToken, authorizeRole(['admin', 'admin_sql']), asy
     const { includeInactive } = req.query;
     const plans = await getPlanService().getPlans(includeInactive === 'true');
 
-    res.json({
+    return res.json({
       success: true,
       data: plans
     });
 
   } catch (error: any) {
     await logError('Erro ao listar todos os planos', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -84,14 +84,14 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: plan
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar plano', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -116,14 +116,14 @@ router.get('/slug/:slug', async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: plan
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar plano por slug', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -142,7 +142,7 @@ router.post('/', authenticateToken, authorizeRole(['admin']), async (req: any, r
 
     const plan = await getPlanService().createPlan(planData);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Plano criado com sucesso',
       data: plan
@@ -150,7 +150,7 @@ router.post('/', authenticateToken, authorizeRole(['admin']), async (req: any, r
 
   } catch (error: any) {
     await logError('Erro ao criar plano', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar plano',
       error: error.message
@@ -170,7 +170,7 @@ router.put('/:id', authenticateToken, authorizeRole(['admin']), async (req: any,
 
     const plan = await getPlanService().updatePlan(parseInt(id), updateData);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Plano atualizado com sucesso',
       data: plan
@@ -178,7 +178,7 @@ router.put('/:id', authenticateToken, authorizeRole(['admin']), async (req: any,
 
   } catch (error: any) {
     await logError('Erro ao atualizar plano', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar plano',
       error: error.message
@@ -197,14 +197,14 @@ router.delete('/:id', authenticateToken, authorizeRole(['admin']), async (req: a
 
     await getPlanService().deletePlan(parseInt(id));
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Plano removido com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao remover plano', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover plano',
       error: error.message

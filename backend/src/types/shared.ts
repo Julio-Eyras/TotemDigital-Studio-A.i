@@ -28,15 +28,8 @@ export interface ApiError {
 /**
  * Request com usuário autenticado
  */
-export interface AuthenticatedRequest {
-  user: {
-    id: number;
-    username: string;
-    email: string;
-    role: string;
-    clientId?: number;
-  };
-}
+// Importar do middleware para evitar duplicação
+export type { AuthenticatedRequest, AuthenticatedRequestWithUser } from '../middleware/auth.middleware';
 
 /**
  * Resultado de query do banco de dados

@@ -52,13 +52,13 @@ router.get('/',
         isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined
       });
 
-      res.json({
+      return res.json({
         success: true,
         data: result
       });
     } catch (error: any) {
       await logError('Erro ao listar roles', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
         error: error.message
@@ -90,7 +90,7 @@ router.get('/:id',
       // Buscar permissões da role
       const permissions = await getRoleService().getRolePermissions(roleId);
 
-      res.json({
+      return res.json({
         success: true,
         data: {
           ...role,
@@ -99,7 +99,7 @@ router.get('/:id',
       });
     } catch (error: any) {
       await logError('Erro ao buscar role', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
         error: error.message
@@ -128,14 +128,14 @@ router.post('/',
         is_active
       });
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         message: 'Role criada com sucesso',
         data: role
       });
     } catch (error: any) {
       await logError('Erro ao criar role', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao criar role',
         error: error.message
@@ -166,14 +166,14 @@ router.put('/:id',
         is_active
       });
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Role atualizada com sucesso',
         data: role
       });
     } catch (error: any) {
       await logError('Erro ao atualizar role', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao atualizar role',
         error: error.message
@@ -195,13 +195,13 @@ router.delete('/:id',
       const roleId = parseInt(req.params.id);
       await getRoleService().deleteRole(roleId);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Role deletada com sucesso'
       });
     } catch (error: any) {
       await logError('Erro ao deletar role', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao deletar role',
         error: error.message
@@ -223,13 +223,13 @@ router.get('/:id/permissions',
       const roleId = parseInt(req.params.id);
       const permissions = await getRoleService().getRolePermissions(roleId);
 
-      res.json({
+      return res.json({
         success: true,
         data: permissions
       });
     } catch (error: any) {
       await logError('Erro ao listar permissões da role', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
         error: error.message
@@ -257,14 +257,14 @@ router.post('/:id/permissions',
 
       const permissions = await getRoleService().getRolePermissions(roleId);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Permissões atribuídas com sucesso',
         data: permissions
       });
     } catch (error: any) {
       await logError('Erro ao atribuir permissões à role', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao atribuir permissões',
         error: error.message
@@ -289,13 +289,13 @@ router.post('/:id/permissions/:permissionId',
 
       await getRoleService().assignPermissionToRole(roleId, permissionId);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Permissão atribuída com sucesso'
       });
     } catch (error: any) {
       await logError('Erro ao atribuir permissão à role', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao atribuir permissão',
         error: error.message
@@ -320,13 +320,13 @@ router.delete('/:id/permissions/:permissionId',
 
       await getRoleService().removePermissionFromRole(roleId, permissionId);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Permissão removida com sucesso'
       });
     } catch (error: any) {
       await logError('Erro ao remover permissão da role', error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao remover permissão',
         error: error.message

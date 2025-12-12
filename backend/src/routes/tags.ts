@@ -42,7 +42,7 @@ router.get('/:tagId/content',
         });
       }
 
-      res.json({
+      return res.json({
         success: true,
         data: {
           contentId: contentId,
@@ -56,7 +56,7 @@ router.get('/:tagId/content',
       });
     } catch (error: any) {
       await logError('Erro ao obter conteúdo da tag', error, { tagId: req.params.tagId });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao obter conteúdo da tag'
       });
@@ -85,13 +85,13 @@ router.get('/',
         limit: limit ? parseInt(limit as string) : undefined
       });
 
-      res.json({
+      return res.json({
         success: true,
         data: tags
       });
     } catch (error: any) {
       await logError('Erro ao listar tags', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro ao listar tags'
       });
@@ -124,14 +124,14 @@ router.post('/',
         contentId
       });
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Tag criada/atualizada com sucesso',
         data: tag
       });
     } catch (error: any) {
       await logError('Erro ao criar/atualizar tag', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: error.message || 'Erro ao criar/atualizar tag'
       });
@@ -154,13 +154,13 @@ router.delete('/:tagId',
       const tagService = getTagService();
       await tagService.deactivateTag(tagId);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Tag desativada com sucesso'
       });
     } catch (error: any) {
       await logError('Erro ao desativar tag', error, { tagId: req.params.tagId });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: error.message || 'Erro ao desativar tag'
       });

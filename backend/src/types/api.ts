@@ -4,12 +4,16 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthenticatedRequest, ApiResponse, PaginationParams, CommonFilters } from './shared';
+import { ApiResponse, PaginationParams, CommonFilters } from './shared';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 /**
- * Request tipado com autenticação
+ * Request tipado com autenticação (alias para compatibilidade)
  */
-export interface AuthenticatedRequestType extends Request, AuthenticatedRequest {}
+export type AuthenticatedRequestType = AuthenticatedRequest;
+
+// Re-export para compatibilidade
+export type { AuthenticatedRequest, AuthenticatedRequestWithUser } from '../middleware/auth.middleware';
 
 /**
  * Handler de rota tipado

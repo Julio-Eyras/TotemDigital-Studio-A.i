@@ -899,7 +899,7 @@ export class ReportsService {
       const fileName = `report_${reportId}_${Date.now()}.${format}`;
       const filePath = path.join(this.reportsDir, fileName);
 
-      let content: string;
+      let content: string | undefined;
 
       switch (format) {
         case 'json':
@@ -925,7 +925,7 @@ export class ReportsService {
       }
 
       // Salvar arquivo (apenas para formatos de texto)
-      if (format !== 'excel' && format !== 'pdf') {
+      if (content !== undefined) {
         fs.writeFileSync(filePath, content, 'utf8');
       }
       const fileSize = fs.statSync(filePath).size;

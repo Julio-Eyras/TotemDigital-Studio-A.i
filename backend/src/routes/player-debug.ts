@@ -47,7 +47,7 @@ router.get('/transactions',
 
       const transactions = await playerDebugService.getTransactions(filters);
 
-      res.json({
+      return res.json({
         success: true,
         count: transactions.length,
         filters: filters,
@@ -56,7 +56,7 @@ router.get('/transactions',
 
     } catch (error: any) {
       await logError('Erro ao buscar transações de debug', error, { route: '/api/player/debug/transactions', filters: req.query });
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Erro interno do servidor',
         message: error.message
       });
@@ -87,14 +87,14 @@ router.get('/transactions/:transactionId',
         });
       }
 
-      res.json({
+      return res.json({
         success: true,
         transaction: transaction
       });
 
     } catch (error: any) {
       await logError('Erro ao buscar transação', error, { route: '/api/player/debug/transactions/:transactionId', transactionId });
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Erro interno do servidor',
         message: error.message
       });
@@ -115,7 +115,7 @@ router.post('/cleanup',
 
       const deletedCount = await playerDebugService.cleanupOldTransactions(daysToKeep);
 
-      res.json({
+      return res.json({
         success: true,
         message: `Transações antigas removidas (mantidas últimas ${daysToKeep} dias)`,
         deletedCount: deletedCount
@@ -123,7 +123,7 @@ router.post('/cleanup',
 
     } catch (error: any) {
       await logError('Erro ao limpar transações', error, { route: '/api/player/debug/cleanup', daysToKeep });
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Erro interno do servidor',
         message: error.message
       });

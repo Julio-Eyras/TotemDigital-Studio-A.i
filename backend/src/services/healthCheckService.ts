@@ -4,8 +4,7 @@
  */
 
 import { getDatabase } from '../config/database';
-import { getRedis } from '../config/redis';
-import { logInfo, logError } from '../utils/loggerHelper';
+import { getRedisClient } from '../config/redis';
 import * as os from 'os';
 import * as fs from 'fs/promises';
 
@@ -50,7 +49,7 @@ export class HealthCheckService {
   }
 
   private get redis() {
-    return getRedis();
+    return getRedisClient();
   }
 
   /**
@@ -153,7 +152,7 @@ export class HealthCheckService {
       const redis = this.redis;
       await redis.ping();
       
-      const info = await redis.info('memory');
+      await redis.info('memory');
       const responseTime = Date.now() - startTime;
       const status = responseTime < 100 ? 'healthy' : responseTime < 500 ? 'degraded' : 'unhealthy';
 

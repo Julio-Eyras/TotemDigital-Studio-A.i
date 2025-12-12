@@ -196,8 +196,8 @@ export class AnalyticsCacheService {
     memoryUsage: string;
   }> {
     try {
-      const info = await this.redis.info('stats');
-      const keyspace = await this.redis.info('keyspace');
+      await this.redis.info('stats');
+      await this.redis.info('keyspace');
       
       // Parsear informações (simplificado)
       const stats = {

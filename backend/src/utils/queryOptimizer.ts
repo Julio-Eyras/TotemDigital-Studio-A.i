@@ -38,7 +38,7 @@ export async function findManyWithRelations<T = Record<string, unknown>>(
   
   // Construir JOINs
   let joins = '';
-  for (const [alias, relation] of Object.entries(relations)) {
+  for (const [, relation] of Object.entries(relations)) {
     joins += ` LEFT JOIN ${relation.table} ON ${table}.${relation.localKey} = ${relation.table}.${relation.foreignKey}`;
   }
   
@@ -70,8 +70,8 @@ export async function findManyWithRelations<T = Record<string, unknown>>(
     ${offsetClause}
   `;
   
-  const result = await db.query(query, params);
-  return result.rows as T[];
+  const result = await db.findMany(query, params);
+  return result as T[];
 }
 
 /**
@@ -91,7 +91,6 @@ export async function findOneWithRelations<T = Record<string, unknown>>(
  */
 export async function batchLoadRelations<T extends Record<string, unknown>>(
   items: T[],
-  relationKey: string,
   relationTable: string,
   foreignKey: string,
   localKey: string
@@ -114,10 +113,10 @@ export async function batchLoadRelations<T extends Record<string, unknown>>(
     WHERE ${foreignKey} IN (${placeholders})
   `;
   
-  const result = await db.query(query, ids);
+  const result = await db.findMany(query, ids);
   const map = new Map<number | string, unknown[]>();
   
-  for (const row of result.rows) {
+  for (const row of result) {
     const key = row[foreignKey];
     if (!map.has(key)) {
       map.set(key, []);

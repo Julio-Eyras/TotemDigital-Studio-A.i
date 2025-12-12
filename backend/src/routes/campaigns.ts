@@ -60,14 +60,14 @@ router.get('/', async (req: any, res) => {
       filters
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: result
     });
 
   } catch (error: any) {
     await logError('Erro ao listar campanhas', error, { filters: req.query });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -84,14 +84,14 @@ router.get('/stats', authorizeRole(['admin', 'gerente_marketing', 'visualizador'
   try {
     const stats = await getCampaignService().getCampaignsStats();
 
-    res.json({
+    return res.json({
       success: true,
       data: stats
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar estatísticas', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -122,14 +122,14 @@ router.get('/client/:clientId', async (req: any, res) => {
       parseInt(limit as string)
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: campaigns
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar campanhas do cliente', error, { clientId: parseInt(clientId) });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -147,14 +147,14 @@ router.get('/totem/:totemId', async (req: any, res) => {
   try {
     const campaigns = await getCampaignService().getActiveCampaignsForTotem(parseInt(totemId));
 
-    res.json({
+    return res.json({
       success: true,
       data: campaigns
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar campanhas do totem', error, { totemId: parseInt(totemId) });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -187,14 +187,14 @@ router.get('/:id', async (req: any, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: campaign
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar campanha', error, { id: parseInt(id) });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -305,7 +305,7 @@ router.post('/',
       }
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Campanha criada com sucesso',
       data: campaign
@@ -315,7 +315,7 @@ router.post('/',
     // Sanitizar dados antes de logar (campaignData pode não estar definido se erro ocorrer antes)
     const sanitizedData = req.body ? sanitizeForLogging(req.body) : null;
     await logError('Erro ao criar campanha', error, { campaignData: sanitizedData });
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar campanha',
       error: error.message || 'Erro desconhecido'
@@ -356,7 +356,7 @@ router.put('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: an
       req.user.userId
     );
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Campanha atualizada com sucesso',
       data: campaign
@@ -368,7 +368,7 @@ router.put('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: an
       id, 
       updateData: req.body || null 
     });
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar campanha',
       error: error.message
@@ -386,14 +386,14 @@ router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req:
   try {
     await getCampaignService().deleteCampaign(parseInt(id), req.user.userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Campanha removida com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao remover campanha', error, { id });
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover campanha',
       error: error.message
@@ -450,14 +450,14 @@ router.post('/:id/activate',
       await logError('Erro ao registrar eventos de início de campanha', eventError, { campaignId: id });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Campanha ativada com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao ativar campanha', error, { id });
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao ativar campanha',
       error: error.message
@@ -515,14 +515,14 @@ router.post('/:id/pause',
       await logError('Erro ao registrar eventos de pausa de campanha', eventError, { campaignId: id });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Campanha pausada com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao pausar campanha', error, { id });
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao pausar campanha',
       error: error.message
@@ -579,14 +579,14 @@ router.post('/:id/finish',
       await logError('Erro ao registrar eventos de fim de campanha', eventError, { campaignId: id });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Campanha finalizada com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao finalizar campanha', error, { id });
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao finalizar campanha',
       error: error.message
@@ -642,14 +642,14 @@ router.post('/:id/totems', async (req: any, res) => {
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Totem adicionado à campanha com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao adicionar totem à campanha', error, { id, totemData });
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao adicionar totem à campanha',
       error: error.message
@@ -705,14 +705,14 @@ router.delete('/:id/totems/:totemId', async (req: any, res) => {
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Totem removido da campanha com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao remover totem da campanha', error, { id, totemId });
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover totem da campanha',
       error: error.message
@@ -748,14 +748,14 @@ router.get('/:id/totems', async (req: any, res) => {
     // Buscar totems da campanha
     const totems = await getCampaignService().getCampaignTotems(parseInt(id));
 
-    res.json({
+    return res.json({
       success: true,
       data: totems
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar totems da campanha', error, { id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message

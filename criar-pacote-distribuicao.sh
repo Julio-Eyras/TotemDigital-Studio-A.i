@@ -45,6 +45,11 @@ copy_dir() {
         echo -e "${GREEN}Copiando $desc...${NC}"
         mkdir -p "$dst"
         cp -r "$src"/* "$dst/" 2>/dev/null || true
+        
+        # Converter line endings de todos os scripts .sh (CRLF -> LF)
+        find "$dst" -name "*.sh" -type f -exec sed -i 's/\r$//' {} \; 2>/dev/null || true
+        find "$dst" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+        
         echo -e "${GREEN}  ✅ $desc copiado${NC}"
     else
         echo -e "${YELLOW}  ⚠️  $desc não encontrado: $src${NC}"
@@ -66,6 +71,23 @@ copy_file() {
     fi
 }
 
+# Função para copiar script shell com conversão de line endings
+copy_shell_script() {
+    local src="$1"
+    local dst="$2"
+    local desc="$3"
+    
+    if [[ -f "$src" ]]; then
+        mkdir -p "$(dirname "$dst")"
+        # Converter CRLF para LF e garantir encoding UTF-8
+        sed 's/\r$//' "$src" > "$dst"
+        chmod +x "$dst" 2>/dev/null || true
+        echo -e "${GREEN}  ✅ $desc copiado (line endings convertidos)${NC}"
+    else
+        echo -e "${YELLOW}  ⚠️  $desc não encontrado: $src${NC}"
+    fi
+}
+
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}                    Copiando Componentes Principais${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -77,8 +99,8 @@ copy_dir "$SOURCE_DIR/backend" "$DIST_DIR/backend" "Backend completo"
 # 2. Frontend completo
 copy_dir "$SOURCE_DIR/frontend" "$DIST_DIR/frontend" "Frontend completo"
 
-# 3. Player-client completo
-copy_dir "$SOURCE_DIR/player-client" "$DIST_DIR/player-client" "Player-client completo"
+# 3. Player-client completo (inclui todas as plataformas: webos, android, linux, tizen, windows)
+copy_dir "$SOURCE_DIR/player-client" "$DIST_DIR/player-client" "Player-client completo (todas plataformas)"
 
 # 4. Player-SmartDisplayFX-client
 copy_dir "$SOURCE_DIR/Player-SmartDisplayFX-client" "$DIST_DIR/Player-SmartDisplayFX-client" "Player-SmartDisplayFX-client"
@@ -86,29 +108,45 @@ copy_dir "$SOURCE_DIR/Player-SmartDisplayFX-client" "$DIST_DIR/Player-SmartDispl
 # 5. Player-Smart-FX-Interface
 copy_dir "$SOURCE_DIR/Player-Smart-FX-Interface" "$DIST_DIR/Player-Smart-FX-Interface" "Player-Smart-FX-Interface"
 
-# 6. Database
+# 6. Player-agent (se existir)
+copy_dir "$SOURCE_DIR/player-agent" "$DIST_DIR/player-agent" "Player-agent"
+
+# 7. Player-fx (se existir)
+copy_dir "$SOURCE_DIR/player-fx" "$DIST_DIR/player-fx" "Player-fx"
+
+# 8. Player (diretório genérico, se existir)
+copy_dir "$SOURCE_DIR/player" "$DIST_DIR/player" "Player genérico"
+
+# 9. Database
 copy_dir "$SOURCE_DIR/database" "$DIST_DIR/database" "Database (schema e scripts)"
 
-# 7. Docker
+# 10. Docker
 copy_dir "$SOURCE_DIR/docker" "$DIST_DIR/docker" "Docker (entrypoints e configs)"
 
-# 8. Nginx
+# 11. Nginx
 copy_dir "$SOURCE_DIR/nginx" "$DIST_DIR/nginx" "Nginx (configurações)"
 
-# 9. Monitoring
+# 12. Monitoring
 copy_dir "$SOURCE_DIR/monitoring" "$DIST_DIR/monitoring" "Monitoring (Prometheus + Grafana)"
 
-# 10. Scripts
+# 13. Scripts
 echo -e "${GREEN}Copiando Scripts...${NC}"
 mkdir -p "$DIST_DIR/scripts"
 if [[ -f "$SOURCE_DIR/install-smartsignage.sh" ]]; then
-    cp "$SOURCE_DIR/install-smartsignage.sh" "$DIST_DIR/scripts/"
-    cp "$SOURCE_DIR/install-smartsignage.sh" "$DIST_DIR/"  # Também na raiz
-    echo -e "${GREEN}  ✅ install-smartsignage.sh copiado${NC}"
+    # Converter line endings (CRLF -> LF) ao copiar
+    sed 's/\r$//' "$SOURCE_DIR/install-smartsignage.sh" > "$DIST_DIR/scripts/install-smartsignage.sh"
+    sed 's/\r$//' "$SOURCE_DIR/install-smartsignage.sh" > "$DIST_DIR/install-smartsignage.sh"  # Também na raiz
+    chmod +x "$DIST_DIR/install-smartsignage.sh" "$DIST_DIR/scripts/install-smartsignage.sh"
+    echo -e "${GREEN}  ✅ install-smartsignage.sh copiado (line endings convertidos)${NC}"
 fi
-if [[ -f "$SOURCE_DIR/scripts/health-check.sh" ]]; then
-    cp "$SOURCE_DIR/scripts/health-check.sh" "$DIST_DIR/scripts/"
-    echo -e "${GREEN}  ✅ health-check.sh copiado${NC}"
+if [[ -d "$SOURCE_DIR/scripts" ]]; then
+    # Copiar todos os scripts úteis (excluindo temporários)
+    find "$SOURCE_DIR/scripts" -type f -name "*.sh" -o -name "*.ps1" | while read script; do
+        rel_path="${script#$SOURCE_DIR/scripts/}"
+        mkdir -p "$DIST_DIR/scripts/$(dirname "$rel_path")"
+        cp "$script" "$DIST_DIR/scripts/$rel_path"
+    done
+    echo -e "${GREEN}  ✅ Scripts copiados${NC}"
 fi
 
 echo
@@ -238,5 +276,6 @@ echo
 echo -e "${GREEN}📦 Diretório: $DIST_DIR${NC}"
 echo -e "${GREEN}📝 O pacote é totalmente independente e pode ser distribuído/compactado${NC}"
 echo
+
 
 

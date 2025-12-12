@@ -4,7 +4,7 @@
  */
 
 import { getDatabase } from '../config/database';
-import { logWarn, logInfo } from '../utils/loggerHelper';
+import { logWarn } from '../utils/loggerHelper';
 import { batchLoadRelations } from '../utils/queryOptimizer';
 
 export interface QueryAnalysis {
@@ -26,7 +26,7 @@ export class QueryOptimizationService {
   async analyzeQueries(): Promise<QueryAnalysis[]> {
     try {
       // Buscar queries lentas do pg_stat_statements (se disponível)
-      const slowQueries = await this.db.query(`
+      const slowQueries = await this.db.findMany(`
         SELECT 
           query,
           mean_exec_time,
@@ -36,11 +36,11 @@ export class QueryOptimizationService {
         WHERE mean_exec_time > 100
         ORDER BY mean_exec_time DESC
         LIMIT 20
-      `).catch(() => ({ rows: [] }));
+      `).catch(() => []);
 
       const analyses: QueryAnalysis[] = [];
 
-      for (const row of slowQueries.rows) {
+      for (const row of slowQueries) {
         const analysis: QueryAnalysis = {
           query: row.query,
           executionTime: row.mean_exec_time,
@@ -133,10 +133,8 @@ export class QueryOptimizationService {
       }
 
       // Buscar totens em batch (prevenir N+1)
-      const campaignIds = campaigns.map((c: Record<string, unknown>) => c.id);
       const totemsMap = await batchLoadRelations(
         campaigns as Array<Record<string, unknown>>,
-        'totems',
         'campaign_totems',
         'campaign_id',
         'id'

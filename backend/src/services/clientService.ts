@@ -48,6 +48,9 @@ export class ClientService {
     search?: string;
   }): Promise<ClientListResponse> {
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:50',message:'getAllClients entry',data:{params},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       const { page = 1, limit = 10, search } = params;
       const offset = (page - 1) * limit;
 
@@ -58,6 +61,10 @@ export class ClientService {
         whereClause += ' AND (c.name ILIKE $' + (queryParams.length + 1) + ' OR c.email ILIKE $' + (queryParams.length + 1) + ')';
         queryParams.push(`%${search}%`);
       }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:62',message:'Before query execution',data:{whereClause,queryParams:queryParams.length,limit,offset},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       // Buscar clientes
       const clients = await this.db.findMany(`
@@ -76,12 +83,49 @@ export class ClientService {
         LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
       `, [...queryParams, limit, offset]);
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:78',message:'After query execution',data:{clientsCount:clients.length,clients:clients.map(c=>({id:c.client_id,name:c.name}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:81',message:'Checking if totems join needed',data:{hasPlatformInfo:false,queryIncludesTotems:false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+
+      // Verificar se há totens com plataforma para esses clientes
+      const clientIds = clients.map(c => c.client_id);
+      if (clientIds.length > 0) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:88',message:'Querying totems for platforms',data:{clientIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        try {
+          const totemsWithPlatform = await this.db.findMany(`
+            SELECT 
+              t.client_id,
+              t.config::jsonb->'hardware'->>'platform' as platform
+            FROM totems t
+            WHERE t.client_id = ANY($1)
+            AND t.config::jsonb->'hardware'->>'platform' IS NOT NULL
+          `, [clientIds]);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:97',message:'Totems with platform found',data:{totemsCount:totemsWithPlatform.length,totemsByPlatform:totemsWithPlatform.reduce((acc:any,t:any)=>{const p=t.platform||'unknown';acc[p]=(acc[p]||0)+1;return acc;},{})},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
+        } catch (platformQueryError: any) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:102',message:'Error querying totems platforms',data:{error:platformQueryError.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
+        }
+      }
+
       // Contar total
       const totalResult = await this.db.findFirst(`
         SELECT COUNT(*) as total
         FROM clients c
         ${whereClause}
       `, queryParams);
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:110',message:'getAllClients exit',data:{total:parseInt(totalResult?.total || '0'),page,limit},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       return {
         data: clients,
@@ -90,6 +134,9 @@ export class ClientService {
         limit,
       };
     } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:120',message:'getAllClients error',data:{error:error.message,stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       await logError('Erro ao listar clientes', error, { params });
       throw new Error('Erro interno do servidor');
     }

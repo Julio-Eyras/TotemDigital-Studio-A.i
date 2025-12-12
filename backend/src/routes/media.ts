@@ -138,10 +138,10 @@ router.get('/',
         type: type as string,
         clientId: clientId ? parseInt(clientId as string) : undefined
       });
-      res.json(result);
+      return res.json(result);
     } catch (error: any) {
       await logError('Erro ao listar mídia', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Erro ao listar mídia',
         message: error.message || 'Erro desconhecido'
       });
@@ -164,9 +164,9 @@ router.get('/:id',
       if (!media) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
-      res.json(media);
+      return res.json(media);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao obter arquivo de mídia' });
+      return res.status(500).json({ error: 'Erro ao obter arquivo de mídia' });
     }
   }
 );
@@ -223,7 +223,7 @@ router.post('/upload', uploadLimiter,
         });
       }
       
-      next();
+      return next();
     });
   },
   body('name').optional().isString().isLength({ min: 1, max: 100 }),
@@ -294,13 +294,13 @@ router.post('/upload', uploadLimiter,
         },
       });
       
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         data: media
       });
     } catch (error: any) {
       await logError('Erro ao fazer upload do arquivo', error);
-      res.status(400).json({ 
+      return res.status(400).json({ 
         error: 'Erro ao fazer upload do arquivo',
         message: error.message || 'Erro desconhecido ao processar upload'
       });
@@ -365,9 +365,9 @@ router.post('/upload-multiple',
         });
         created.push(media);
       }
-      res.status(201).json(created);
+      return res.status(201).json(created);
     } catch (error) {
-      res.status(400).json({ error: 'Erro ao fazer upload dos arquivos' });
+      return res.status(400).json({ error: 'Erro ao fazer upload dos arquivos' });
     }
   }
 );
@@ -398,9 +398,9 @@ router.put('/:id',
       if (!media) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
-      res.json(media);
+      return res.json(media);
     } catch (error) {
-      res.status(400).json({ error: 'Erro ao atualizar arquivo de mídia' });
+      return res.status(400).json({ error: 'Erro ao atualizar arquivo de mídia' });
     }
   }
 );
@@ -423,9 +423,9 @@ router.delete('/:id',
         return res.status(401).json({ error: 'Usuário não autenticado' });
       }
       await getMediaService().deleteMedia(mediaId, userId);
-      res.json({ message: 'Arquivo de mídia deletado com sucesso' });
+      return res.json({ message: 'Arquivo de mídia deletado com sucesso' });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao deletar arquivo de mídia' });
+      return res.status(500).json({ error: 'Erro ao deletar arquivo de mídia' });
     }
   }
 );
@@ -446,9 +446,9 @@ router.get('/:id/download',
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
 
-      res.download(media.filePath, media.name);
+      return res.download(media.filePath, media.name);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao fazer download do arquivo' });
+      return res.status(500).json({ error: 'Erro ao fazer download do arquivo' });
     }
   }
 );
@@ -469,9 +469,9 @@ router.get('/:id/thumbnail',
         return res.status(404).json({ error: 'Thumbnail não encontrado' });
       }
 
-      res.sendFile(thumbnail);
+      return res.sendFile(thumbnail);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao obter thumbnail' });
+      return res.status(500).json({ error: 'Erro ao obter thumbnail' });
     }
   }
 );
@@ -515,10 +515,10 @@ router.post('/:id/process',
         return res.status(400).json(result);
       }
 
-      res.json(result);
+      return res.json(result);
     } catch (error: any) {
       await logError('Erro ao processar mídia', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         success: false,
         error: 'Erro ao processar arquivo de mídia',
         message: error.message
@@ -535,9 +535,9 @@ router.post('/:id/process',
 router.get('/stats/overview', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const stats = await getMediaService().getMediaStats();
-    res.json(stats);
+    return res.json(stats);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao obter estatísticas' });
+    return res.status(500).json({ error: 'Erro ao obter estatísticas' });
   }
 });
 
@@ -549,9 +549,9 @@ router.get('/stats/overview', async (_req: AuthenticatedRequest, res: Response) 
 router.get('/stats/storage', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const stats = await getMediaService().getStorageStats();
-    res.json(stats);
+    return res.json(stats);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao obter estatísticas de armazenamento' });
+    return res.status(500).json({ error: 'Erro ao obter estatísticas de armazenamento' });
   }
 });
 
