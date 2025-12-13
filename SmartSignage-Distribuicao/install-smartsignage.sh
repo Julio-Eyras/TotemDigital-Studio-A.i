@@ -855,6 +855,33 @@ install_project_dependencies() {
         warn "⚠️ winston-daily-rotate-file pode não estar no package.json (continuando...)"
     fi
     
+    # CORREÇÃO CRÍTICA: Garantir que binários do npm tenham permissão de execução
+    # ZIPs do Windows podem não preservar permissões de executáveis
+    log "Corrigindo permissões de binários do npm (node_modules/.bin/)..."
+    if [[ -d "node_modules/.bin" ]]; then
+        # Corrigir permissões de TODOS os arquivos em node_modules/.bin
+        find node_modules/.bin -type f -exec chmod +x {} \; 2>/dev/null || true
+        
+        # Verificar especificamente o tsc
+        if [[ -f "node_modules/.bin/tsc" ]]; then
+            chmod +x node_modules/.bin/tsc 2>/dev/null || true
+            log "✅ Permissão do tsc corrigida explicitamente"
+        fi
+        
+        # Verificar se o tsc tem permissão de execução
+        if [[ -x "node_modules/.bin/tsc" ]]; then
+            log "✅ Permissões de binários do npm corrigidas (tsc, etc.)"
+        else
+            warn "⚠️ tsc ainda não tem permissão de execução - tentando correção alternativa..."
+            # Tentar usar npx como alternativa
+            if command -v npx &> /dev/null; then
+                log "Usando npx para executar tsc (bypass de permissões)..."
+            fi
+        fi
+    else
+        warn "⚠️ Diretório node_modules/.bin não encontrado"
+    fi
+    
     # Compilar TypeScript do backend
     log "Compilando TypeScript do backend..."
     
@@ -864,7 +891,24 @@ install_project_dependencies() {
         rm -rf dist/*
     fi
     
-    if npm run build; then
+    # Tentar compilar usando npx para garantir que funcione mesmo com problemas de permissão
+    if [[ -x "node_modules/.bin/tsc" ]] || command -v npx &> /dev/null; then
+        # Usar npx para garantir execução correta
+        if npx tsc -p tsconfig.json 2>&1; then
+            BUILD_SUCCESS=true
+        else
+            BUILD_SUCCESS=false
+        fi
+    else
+        # Fallback para npm run build
+        if npm run build 2>&1; then
+            BUILD_SUCCESS=true
+        else
+            BUILD_SUCCESS=false
+        fi
+    fi
+    
+    if [[ "$BUILD_SUCCESS" == "true" ]]; then
         log "✅ Backend compilado com sucesso!"
         
         # Verificar se arquivos críticos foram compilados
