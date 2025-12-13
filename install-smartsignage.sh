@@ -1024,6 +1024,16 @@ install_project_dependencies() {
         warn "⚠️ winston-daily-rotate-file pode não estar no package.json (continuando...)"
     fi
     
+    # CORREÇÃO CRÍTICA: Garantir que binários do npm tenham permissão de execução
+    # ZIPs do Windows podem não preservar permissões de executáveis
+    log "Corrigindo permissões de binários do npm (node_modules/.bin/)..."
+    if [[ -d "node_modules/.bin" ]]; then
+        find node_modules/.bin -type f -exec chmod +x {} \; 2>/dev/null || true
+        log "✅ Permissões de binários do npm corrigidas (tsc, etc.)"
+    else
+        warn "⚠️ Diretório node_modules/.bin não encontrado"
+    fi
+    
     # Compilar TypeScript do backend
     log "Compilando TypeScript do backend..."
     
