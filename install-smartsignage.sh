@@ -933,6 +933,28 @@ setup_project() {
     
     log "✅ Todos os arquivos essenciais verificados"
     
+    # CORREÇÃO CRÍTICA: Corrigir permissões de diretórios e arquivos
+    # Diretórios precisam de permissão de execução (x) para serem acessados
+    log "Corrigindo permissões de diretórios e arquivos do projeto..."
+    
+    # Corrigir permissões do frontend (mais crítico)
+    if [[ -d "$INSTALL_DIR/frontend/src" ]]; then
+        log "Corrigindo permissões do frontend/src..."
+        # Todos os diretórios precisam de execução (755)
+        find "$INSTALL_DIR/frontend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
+        # Todos os arquivos precisam de leitura (644)
+        find "$INSTALL_DIR/frontend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
+        log "✅ Permissões do frontend/src corrigidas"
+    fi
+    
+    # Corrigir permissões do backend também
+    if [[ -d "$INSTALL_DIR/backend/src" ]]; then
+        log "Corrigindo permissões do backend/src..."
+        find "$INSTALL_DIR/backend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
+        find "$INSTALL_DIR/backend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
+        log "✅ Permissões do backend/src corrigidas"
+    fi
+    
     cd $INSTALL_DIR
     log "Projeto configurado em $INSTALL_DIR"
 }
@@ -2066,6 +2088,35 @@ PYTHON_ADD_OVERRIDE_EOF
         else
             log "✅ Importação em index.tsx está correta (sem extensão)"
         fi
+        
+        # CORREÇÃO CRÍTICA: Corrigir permissões de diretórios e arquivos
+        # Diretórios precisam de permissão de execução (x) para serem acessados
+        log "Corrigindo permissões de diretórios e arquivos do frontend..."
+        
+        # Corrigir permissões de todos os diretórios (precisam de execução)
+        find src -type d -exec chmod 755 {} \; 2>/dev/null || true
+        log "✅ Permissões de diretórios corrigidas (755)"
+        
+        # Corrigir permissões de todos os arquivos
+        find src -type f -exec chmod 644 {} \; 2>/dev/null || true
+        log "✅ Permissões de arquivos corrigidas (644)"
+        
+        # Verificar se os diretórios principais estão acessíveis
+        if [[ ! -r "src/components" ]] || [[ ! -x "src/components" ]]; then
+            log "Corrigindo permissões do diretório components..."
+            chmod 755 src/components 2>/dev/null || true
+            find src/components -type d -exec chmod 755 {} \; 2>/dev/null || true
+            find src/components -type f -exec chmod 644 {} \; 2>/dev/null || true
+        fi
+        
+        if [[ ! -r "src/pages" ]] || [[ ! -x "src/pages" ]]; then
+            log "Corrigindo permissões do diretório pages..."
+            chmod 755 src/pages 2>/dev/null || true
+            find src/pages -type d -exec chmod 755 {} \; 2>/dev/null || true
+            find src/pages -type f -exec chmod 644 {} \; 2>/dev/null || true
+        fi
+        
+        log "✅ Permissões corrigidas - diretórios acessíveis"
         
         log "Compilando frontend..."
         npm run build
