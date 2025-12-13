@@ -1697,26 +1697,12 @@ PYTHON_FINAL_FIX_EOF
         grep -A 3 '"resolutions"' package.json 2>/dev/null || true
         grep -A 2 '"ajv"' package.json 2>/dev/null | head -5 || true
         
-        # Instalar ajv e ajv-keywords explicitamente primeiro para resolver conflitos
-        # Usar versões compatíveis: ajv@^8.12.0 e ajv-keywords@^3.5.2 (compatível com react-scripts 5.0.1)
-        log "Instalando ajv@^8.12.0 e ajv-keywords@^3.5.2 explicitamente ANTES de outras dependências..."
-        if ! npm install ajv@^8.12.0 ajv-keywords@^3.5.2 --legacy-peer-deps --save-dev --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-ajv.log; then
-            error "Falha ao instalar ajv e ajv-keywords"
-            error "Log completo:"
-            cat /tmp/npm-install-ajv.log
-            exit 1
-        fi
-        
-        # Verificar se foi instalado corretamente
-        AJV_INSTALLED=$(npm list ajv --depth=0 2>/dev/null | grep ajv@ | head -1 || echo "")
-        if [[ -n "$AJV_INSTALLED" ]]; then
-            log "✅ ajv instalado: $AJV_INSTALLED"
-            if echo "$AJV_INSTALLED" | grep -q "8.17.1"; then
-                error "❌ Versão incorreta do ajv instalada (8.17.1)!"
-                error "Tentando forçar instalação de 8.12.0..."
-                npm install ajv@8.12.0 --legacy-peer-deps --save-dev --no-audit --no-fund --force 2>&1 | tail -20 || true
-            fi
-        fi
+        # NOTA: Não instalar ajv explicitamente aqui porque:
+        # 1. O ajv já está no package.json como dependência direta em devDependencies
+        # 2. O override já está configurado corretamente
+        # 3. Instalar explicitamente causa conflito: "Override for ajv@8.12.0 conflicts with direct dependency"
+        # 4. O npm vai instalar o ajv automaticamente quando instalar todas as dependências
+        log "✅ ajv já está configurado no package.json (devDependencies e overrides) - será instalado automaticamente"
         
         # Verificar se há dependências transitivas que podem estar forçando ajv@8.17.1
         log "Verificando dependências transitivas que podem estar forçando ajv@8.17.1..."
