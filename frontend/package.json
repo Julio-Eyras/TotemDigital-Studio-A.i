@@ -31,22 +31,9 @@
   },
   "overrides": {
     "react-dom": "^18.2.0",
-    "ajv": {
-      ".": "8.12.0",
-      "eslint": "6.12.6",
-      "@eslint/eslintrc": "6.12.6"
-    },
-    "ajv-keywords": {
-      ".": "5.1.0",
-      "fork-ts-checker-webpack-plugin": "3.5.2",
-      "eslint": "3.5.2",
-      "@eslint/eslintrc": "3.5.2"
-    },
-    "ajv-formats": {
-      ".": "2.1.1",
-      "eslint": "1.6.1",
-      "@eslint/eslintrc": "1.6.1"
-    }
+    "ajv": "8.12.0",
+    "ajv-keywords": "5.1.0",
+    "ajv-formats": "2.1.1"
   },
   "resolutions": {
     "ajv": "8.12.0",
@@ -64,7 +51,6 @@
     "eslint-plugin-react-hooks": "^4.6.0"
   },
   "scripts": {
-    "postinstall": "node fix-ajv-keywords.js",
     "start": "react-scripts start",
     "build": "node scripts/build.js",
     "build:dev": "react-scripts build",
