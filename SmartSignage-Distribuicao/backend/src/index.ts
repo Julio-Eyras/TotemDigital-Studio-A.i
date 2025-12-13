@@ -76,6 +76,7 @@ import healthRoutes from './routes/health';
 import notificationsRoutes from './routes/notifications';
 import { rateLimitHeavyOperations } from './middleware/rateLimitUser.middleware';
 import { openApiSpec } from './config/swagger';
+import { getExpressLimit } from './config/mediaConfig';
 
 // Services
 import { SystemService } from './services/systemService';
@@ -138,8 +139,6 @@ app.use(compression());
 
 // Body parsing - Configuração dinâmica de mídia
 // NOTA: loadMediaConfig será chamado DEPOIS de initializeDatabase() na função startServer()
-import { getExpressLimit } from './config/mediaConfig';
-
 // Middleware dinâmico para body parsing (lê configuração do banco em cada requisição)
 // Usa valores padrão até que o banco seja inicializado
 app.use((req, res, next) => {
