@@ -275,124 +275,124 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               </Button>
             </Box>
           ) : (
-            /* Login Form */
-            <Box component="form" onSubmit={handleSubmit}>
-            <TextField
-              fullWidth
-              name="username"
-              label="Nome de Usuário"
-              value={formData.username}
-              onChange={handleInputChange}
-              margin="normal"
-              required
-              disabled={loading}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Email color="action" />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ mb: 2 }}
-            />
+            <>
+              {/* Login Form */}
+              <Box component="form" onSubmit={handleSubmit}>
+                <TextField
+                  fullWidth
+                  name="username"
+                  label="Nome de Usuário"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  margin="normal"
+                  required
+                  disabled={loading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Email color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{ mb: 2 }}
+                />
 
-            <TextField
-              fullWidth
-              name="password"
-              label="Senha"
-              type={showPassword ? 'text' : 'password'}
-              value={formData.password}
-              onChange={handleInputChange}
-              margin="normal"
-              required
-              disabled={loading}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Lock color="action" />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={handleTogglePasswordVisibility}
-                      edge="end"
-                      disabled={loading}
-                    >
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ mb: 3 }}
-            />
+                <TextField
+                  fullWidth
+                  name="password"
+                  label="Senha"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  margin="normal"
+                  required
+                  disabled={loading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Lock color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={handleTogglePasswordVisibility}
+                          edge="end"
+                          disabled={loading}
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{ mb: 3 }}
+                />
 
-            {/* Loading Indicator */}
-            {loading && (
-              <Box sx={{ mb: 2 }}>
-                <LinearProgress />
-                <Typography variant="body2" sx={{ textAlign: 'center', mt: 1 }}>
-                  Fazendo login...
+                {/* Loading Indicator */}
+                {loading && (
+                  <Box sx={{ mb: 2 }}>
+                    <LinearProgress />
+                    <Typography variant="body2" sx={{ textAlign: 'center', mt: 1 }}>
+                      Fazendo login...
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Login Button */}
+                <Button
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  disabled={loading}
+                  startIcon={<Login />}
+                  sx={{
+                    py: 1.5,
+                    fontSize: '1.1rem',
+                    fontWeight: 'bold',
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                    '&:hover': {
+                      background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                    },
+                  }}
+                >
+                  Entrar
+                </Button>
+              </Box>
+
+              <Divider sx={{ my: 3 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Credenciais Padrão
+                </Typography>
+              </Divider>
+
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  <strong>Usuário:</strong> admin
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Senha:</strong> admin123
                 </Typography>
               </Box>
-            )}
 
-            {/* Login Button */}
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              size="large"
-              disabled={loading}
-              startIcon={<Login />}
-              sx={{
-                py: 1.5,
-                fontSize: '1.1rem',
-                fontWeight: 'bold',
-                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                '&:hover': {
-                  background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-                },
-              }}
-            >
-              Entrar
-            </Button>
-          </Box>
-
-          <>
-            <Divider sx={{ my: 3 }}>
-              <Typography variant="body2" color="text.secondary">
-                Credenciais Padrão
-              </Typography>
-            </Divider>
-
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                <strong>Usuário:</strong> admin
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Senha:</strong> admin123
-              </Typography>
-            </Box>
-
-            {/* Forgot Password Link */}
-            <Box sx={{ textAlign: 'center', mt: 3 }}>
-              <Link
-                component="button"
-                variant="body2"
-                onClick={() => window.location.href = '/forgot-password'}
-                sx={{
-                  cursor: 'pointer',
-                  textDecoration: 'none',
-                  '&:hover': {
-                    textDecoration: 'underline',
-                  },
-                }}
-              >
-                Esqueci minha senha
-              </Link>
-            </Box>
-          </>
+              {/* Forgot Password Link */}
+              <Box sx={{ textAlign: 'center', mt: 3 }}>
+                <Link
+                  component="button"
+                  variant="body2"
+                  onClick={() => window.location.href = '/forgot-password'}
+                  sx={{
+                    cursor: 'pointer',
+                    textDecoration: 'none',
+                    '&:hover': {
+                      textDecoration: 'underline',
+                    },
+                  }}
+                >
+                  Esqueci minha senha
+                </Link>
+              </Box>
+            </>
           )}
 
           {/* Footer */}
