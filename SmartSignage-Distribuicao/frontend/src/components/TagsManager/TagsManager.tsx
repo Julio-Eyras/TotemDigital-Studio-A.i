@@ -137,7 +137,7 @@ const TagsManager: React.FC = () => {
     setEditingTag(null);
   };
 
-  const getTagTypeIcon = (type: string) => {
+  const getTagTypeIcon = (type: string): React.ReactElement | undefined => {
     switch (type) {
       case 'qr_code':
         return <QrCode fontSize="small" />;
@@ -145,7 +145,7 @@ const TagsManager: React.FC = () => {
       case 'rfid':
         return <CreditCard fontSize="small" />;
       default:
-        return null;
+        return undefined;
     }
   };
 
