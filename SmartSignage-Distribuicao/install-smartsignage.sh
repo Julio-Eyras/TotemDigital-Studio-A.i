@@ -2022,10 +2022,13 @@ setup_database() {
         log "Instalando e configurando PostgreSQL (servidor único)..."
         
         # Instalar PostgreSQL se não estiver instalado
+        local PG_WAS_INSTALLED=false
         if ! command -v psql &> /dev/null; then
-            log "Instalando PostgreSQL..."
+            log "PostgreSQL não encontrado, instalando..."
             sudo apt-get update -y
             sudo apt-get install -y postgresql postgresql-contrib
+            PG_WAS_INSTALLED=true
+            log "✅ PostgreSQL instalado com sucesso"
         else
             log "PostgreSQL já está instalado: $(psql --version)"
         fi
@@ -2041,36 +2044,59 @@ setup_database() {
 
         # Garantir serviço ativo
         # No Ubuntu, o serviço pode ser postgresql ou postgresql@<versão>-main
-        # Tentar habilitar, mas não falhar se o serviço não existir (pode já estar rodando)
-        if systemctl list-unit-files | grep -q "postgresql"; then
-            # Tentar habilitar o serviço genérico postgresql
-            sudo systemctl enable postgresql 2>/dev/null || true
-            # Tentar habilitar serviços específicos de versão (ex: postgresql@16-main)
-            for pg_service in $(systemctl list-unit-files | grep -o "postgresql@[0-9]\+-main" | head -1); do
-                if [[ -n "$pg_service" ]]; then
-                    sudo systemctl enable "$pg_service" 2>/dev/null || true
-                    if ! systemctl is-active --quiet "$pg_service"; then
-                        log "Iniciando PostgreSQL ($pg_service)..."
-                        sudo systemctl start "$pg_service" 2>/dev/null || true
-                    fi
-                fi
-            done
+        # Se foi instalado agora, aguardar um pouco para o systemd reconhecer
+        if [[ "$PG_WAS_INSTALLED" == "true" ]]; then
+            log "Aguardando systemd reconhecer serviços PostgreSQL..."
+            sleep 3
+            sudo systemctl daemon-reload
         fi
         
-        # Verificar se PostgreSQL está rodando através do psql (mais confiável)
+        # Detectar qual serviço PostgreSQL está disponível
+        local PG_SERVICE=""
+        if systemctl list-unit-files | grep -q "^postgresql.service"; then
+            PG_SERVICE="postgresql"
+        elif systemctl list-unit-files | grep -qE "^postgresql@[0-9]+-main.service"; then
+            # Pegar a primeira versão encontrada
+            PG_SERVICE=$(systemctl list-unit-files | grep -oE "^postgresql@[0-9]+-main" | head -1)
+        else
+            # Tentar detectar versão instalada e construir nome do serviço
+            local PG_VERSION=$(psql --version 2>/dev/null | grep -oE "[0-9]+\.[0-9]+" | head -1 | cut -d. -f1)
+            if [[ -n "$PG_VERSION" ]]; then
+                PG_SERVICE="postgresql@${PG_VERSION}-main"
+            fi
+        fi
+        
+        # Habilitar e iniciar serviço se encontrado
+        if [[ -n "$PG_SERVICE" ]]; then
+            log "Serviço PostgreSQL detectado: $PG_SERVICE"
+            sudo systemctl enable "$PG_SERVICE" 2>/dev/null || true
+            if ! systemctl is-active --quiet "$PG_SERVICE"; then
+                log "Iniciando PostgreSQL ($PG_SERVICE)..."
+                sudo systemctl start "$PG_SERVICE" 2>/dev/null || true
+                sleep 3
+            else
+                log "PostgreSQL ($PG_SERVICE) já está rodando"
+            fi
+        else
+            log "⚠️  Não foi possível detectar serviço PostgreSQL automaticamente"
+            log "Tentando iniciar serviços conhecidos..."
+        fi
+        
+        # Verificar se PostgreSQL está rodando através do psql (método mais confiável)
         if ! sudo -u postgres psql -c "SELECT 1" > /dev/null 2>&1; then
-            log "PostgreSQL não está respondendo, tentando iniciar..."
+            log "PostgreSQL não está respondendo, tentando iniciar todos os serviços possíveis..."
             # Tentar iniciar o serviço genérico
             sudo systemctl start postgresql 2>/dev/null || true
-            # Tentar iniciar serviços específicos
-            for pg_service in postgresql@16-main postgresql@15-main postgresql@14-main; do
+            # Tentar iniciar serviços específicos por versão
+            for pg_service in postgresql@16-main postgresql@15-main postgresql@14-main postgresql@13-main; do
                 if systemctl list-unit-files | grep -q "$pg_service"; then
+                    log "Tentando iniciar $pg_service..."
                     sudo systemctl start "$pg_service" 2>/dev/null || true
                 fi
             done
             sleep 5  # Aguardar PostgreSQL iniciar
         else
-            log "PostgreSQL já está rodando"
+            log "✅ PostgreSQL está respondendo corretamente"
         fi
 
         # Aguardar PostgreSQL estar pronto
