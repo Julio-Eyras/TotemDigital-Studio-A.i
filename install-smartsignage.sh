@@ -2252,10 +2252,34 @@ setup_database() {
         fi
 
         # Garantir serviço ativo
-        sudo systemctl enable postgresql
-        if ! systemctl is-active --quiet postgresql; then
-            log "Iniciando PostgreSQL..."
-            sudo systemctl start postgresql
+        # No Ubuntu, o serviço pode ser postgresql ou postgresql@<versão>-main
+        # Tentar habilitar, mas não falhar se o serviço não existir (pode já estar rodando)
+        if systemctl list-unit-files | grep -q "postgresql"; then
+            # Tentar habilitar o serviço genérico postgresql
+            sudo systemctl enable postgresql 2>/dev/null || true
+            # Tentar habilitar serviços específicos de versão (ex: postgresql@16-main)
+            for pg_service in $(systemctl list-unit-files | grep -o "postgresql@[0-9]\+-main" | head -1); do
+                if [[ -n "$pg_service" ]]; then
+                    sudo systemctl enable "$pg_service" 2>/dev/null || true
+                    if ! systemctl is-active --quiet "$pg_service"; then
+                        log "Iniciando PostgreSQL ($pg_service)..."
+                        sudo systemctl start "$pg_service" 2>/dev/null || true
+                    fi
+                fi
+            done
+        fi
+        
+        # Verificar se PostgreSQL está rodando através do psql (mais confiável)
+        if ! sudo -u postgres psql -c "SELECT 1" > /dev/null 2>&1; then
+            log "PostgreSQL não está respondendo, tentando iniciar..."
+            # Tentar iniciar o serviço genérico
+            sudo systemctl start postgresql 2>/dev/null || true
+            # Tentar iniciar serviços específicos
+            for pg_service in postgresql@16-main postgresql@15-main postgresql@14-main; do
+                if systemctl list-unit-files | grep -q "$pg_service"; then
+                    sudo systemctl start "$pg_service" 2>/dev/null || true
+                fi
+            done
             sleep 5  # Aguardar PostgreSQL iniciar
         else
             log "PostgreSQL já está rodando"
@@ -6754,8 +6778,8 @@ show_players_menu() {
     echo -e "${GREEN}[ ]${NC} 9) Instalar TODOS os players (recomendado para desenvolvimento)"
     echo -e "${GREEN}[ ]${NC} 0) Não instalar players (apenas servidor)"
     echo
-    read -p "Digite os números separados por vírgula (ex: 1,3,5) ou 9 para todos [padrão: 0]: " players_choice
-    players_choice=${players_choice:-0}
+    read -p "Digite os números separados por vírgula (ex: 1,3,5) ou 9 para todos [padrão: 9]: " players_choice
+    players_choice=${players_choice:-9}
     
     # Limpar seleções anteriores
     INSTALL_PLAYER_WEBOS=false
