@@ -2070,10 +2070,28 @@ setup_database() {
         if [[ -n "$PG_SERVICE" ]]; then
             log "Serviço PostgreSQL detectado: $PG_SERVICE"
             sudo systemctl enable "$PG_SERVICE" 2>/dev/null || true
+            
             if ! systemctl is-active --quiet "$PG_SERVICE"; then
                 log "Iniciando PostgreSQL ($PG_SERVICE)..."
-                sudo systemctl start "$PG_SERVICE" 2>/dev/null || true
-                sleep 3
+                if sudo systemctl start "$PG_SERVICE" 2>&1; then
+                    log "Comando start executado para $PG_SERVICE"
+                else
+                    log "⚠️  Erro ao executar start (continuando...)"
+                fi
+                
+                # Aguardar um pouco e verificar status
+                sleep 5
+                if systemctl is-active --quiet "$PG_SERVICE"; then
+                    log "✅ PostgreSQL ($PG_SERVICE) iniciado com sucesso"
+                else
+                    log "⚠️  PostgreSQL ($PG_SERVICE) ainda não está ativo"
+                    # Verificar status detalhado
+                    local service_status=$(sudo systemctl status "$PG_SERVICE" --no-pager -l 2>&1 | head -20)
+                    log "Status do serviço:"
+                    echo "$service_status" | while IFS= read -r line; do
+                        log "  $line"
+                    done
+                fi
             else
                 log "PostgreSQL ($PG_SERVICE) já está rodando"
             fi
@@ -2086,32 +2104,104 @@ setup_database() {
         if ! sudo -u postgres psql -c "SELECT 1" > /dev/null 2>&1; then
             log "PostgreSQL não está respondendo, tentando iniciar todos os serviços possíveis..."
             # Tentar iniciar o serviço genérico
-            sudo systemctl start postgresql 2>/dev/null || true
+            if sudo systemctl start postgresql 2>&1; then
+                log "Tentativa de iniciar serviço genérico postgresql"
+            fi
             # Tentar iniciar serviços específicos por versão
             for pg_service in postgresql@16-main postgresql@15-main postgresql@14-main postgresql@13-main; do
                 if systemctl list-unit-files | grep -q "$pg_service"; then
                     log "Tentando iniciar $pg_service..."
-                    sudo systemctl start "$pg_service" 2>/dev/null || true
+                    if sudo systemctl start "$pg_service" 2>&1; then
+                        log "Comando start executado para $pg_service"
+                    fi
                 fi
             done
-            sleep 5  # Aguardar PostgreSQL iniciar
+            sleep 8  # Aguardar mais tempo para PostgreSQL iniciar
         else
             log "✅ PostgreSQL está respondendo corretamente"
         fi
 
-        # Aguardar PostgreSQL estar pronto
+        # Aguardar PostgreSQL estar pronto com diagnóstico melhorado
         log "Aguardando PostgreSQL estar pronto..."
-        for i in {1..30}; do
+        local pg_ready=false
+        for i in {1..45}; do
             if sudo -u postgres psql -c "SELECT 1" > /dev/null 2>&1; then
                 log "✅ PostgreSQL está pronto"
+                pg_ready=true
                 break
             fi
-            if [[ $i -eq 30 ]]; then
-                error "❌ PostgreSQL não iniciou após 60 segundos"
-                exit 1
+            
+            # A cada 10 tentativas, verificar status do serviço
+            if [[ $((i % 10)) -eq 0 ]]; then
+                log "Ainda aguardando PostgreSQL... (tentativa $i/45)"
+                if [[ -n "$PG_SERVICE" ]]; then
+                    if systemctl is-active --quiet "$PG_SERVICE"; then
+                        log "  Serviço $PG_SERVICE está ativo, mas PostgreSQL ainda não responde"
+                    else
+                        log "  Serviço $PG_SERVICE não está ativo"
+                        # Tentar reiniciar
+                        log "  Tentando reiniciar $PG_SERVICE..."
+                        sudo systemctl restart "$PG_SERVICE" 2>&1 || true
+                        sleep 5
+                    fi
+                fi
             fi
+            
             sleep 2
         done
+        
+        if [[ "$pg_ready" != "true" ]]; then
+            error "❌ PostgreSQL não iniciou após 90 segundos"
+            error "Diagnóstico:"
+            
+            # Verificar status dos serviços
+            log "Status dos serviços PostgreSQL:"
+            for pg_service in postgresql postgresql@16-main postgresql@15-main postgresql@14-main; do
+                if systemctl list-unit-files | grep -q "$pg_service"; then
+                    local status=$(systemctl is-active "$pg_service" 2>&1 || echo "unknown")
+                    log "  $pg_service: $status"
+                    if [[ "$status" != "active" ]]; then
+                        log "  Logs de $pg_service:"
+                        sudo journalctl -u "$pg_service" --no-pager -n 10 2>&1 | while IFS= read -r line; do
+                            log "    $line"
+                        done
+                    fi
+                fi
+            done
+            
+            # Verificar se há processos PostgreSQL rodando
+            if pgrep -x postgres > /dev/null; then
+                log "  Processos PostgreSQL encontrados:"
+                ps aux | grep postgres | grep -v grep | while IFS= read -r line; do
+                    log "    $line"
+                done
+            else
+                log "  Nenhum processo PostgreSQL encontrado"
+            fi
+            
+            # Verificar permissões do diretório de dados
+            local pg_data_dir=$(sudo -u postgres psql -tAc "SHOW data_directory" 2>/dev/null || echo "")
+            if [[ -z "$pg_data_dir" ]]; then
+                # Tentar localização padrão
+                for default_dir in /var/lib/postgresql/*/main; do
+                    if [[ -d "$default_dir" ]]; then
+                        pg_data_dir="$default_dir"
+                        break
+                    fi
+                done
+            fi
+            
+            if [[ -n "$pg_data_dir" && -d "$pg_data_dir" ]]; then
+                log "  Diretório de dados: $pg_data_dir"
+                local data_perms=$(ls -ld "$pg_data_dir" 2>/dev/null | awk '{print $1, $3, $4}')
+                log "  Permissões: $data_perms"
+            fi
+            
+            error "Por favor, verifique os logs acima e tente iniciar o PostgreSQL manualmente:"
+            error "  sudo systemctl status postgresql@16-main"
+            error "  sudo journalctl -u postgresql@16-main -n 50"
+            exit 1
+        fi
 
         # Parâmetros
         local PG_DB="smartsignage"
