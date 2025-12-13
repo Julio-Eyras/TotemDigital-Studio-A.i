@@ -76,18 +76,21 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       });
 
       // Verificar se 2FA é necessário
-      if (response.data?.requiresTwoFactor) {
+      if (response.requiresTwoFactor) {
         setRequiresTwoFactor(true);
-        setPendingUser(response.data.user);
+        setPendingUser(response.user);
         setError(null);
         return;
       }
 
       // Store token in localStorage
-      localStorage.setItem('token', response.data.token || response.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user || response.user));
-      
-      onLoginSuccess(response.data.token || response.token, response.data.user || response.user);
+      if (response.token && response.user) {
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        onLoginSuccess(response.token, response.user);
+      } else {
+        setError('Resposta inválida do servidor');
+      }
     } catch (error: any) {
       console.error('Erro no login:', error);
       

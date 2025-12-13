@@ -676,8 +676,12 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  token: string;
-  user: User;
+  token?: string;
+  refreshToken?: string;
+  user?: User;
+  requiresTwoFactor?: boolean;
+  success?: boolean;
+  error?: string;
 }
 
 export const authApi = {

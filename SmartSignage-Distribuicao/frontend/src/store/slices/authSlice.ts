@@ -36,7 +36,7 @@ export const login = createAsyncThunk(
   async (credentials: { username: string; password: string }, { rejectWithValue }) => {
     try {
       const response = await authApi.login(credentials);
-      return response.data;
+      return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.error || error.response?.data?.message || 'Erro ao fazer login');
     }
