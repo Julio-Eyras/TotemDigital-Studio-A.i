@@ -152,6 +152,14 @@ const authSlice = createSlice({
       })
       .addCase(login.fulfilled, (state, action) => {
         state.isLoading = false;
+        
+        // Verificar se login foi bem-sucedido e tem dados necessários
+        if (action.payload.success === false || !action.payload.token || !action.payload.user) {
+          state.error = action.payload.error || 'Erro ao fazer login';
+          state.isAuthenticated = false;
+          return;
+        }
+        
         // Garantir que o role seja um dos valores permitidos
         const user = action.payload.user;
         state.user = {
@@ -161,13 +169,17 @@ const authSlice = createSlice({
             : 'operator' as 'admin' | 'manager' | 'operator'
         };
         state.token = action.payload.token;
-        state.refreshToken = action.payload.refreshToken;
+        state.refreshToken = action.payload.refreshToken || '';
         state.isAuthenticated = true;
         state.error = null;
         
         // Salvar tokens no localStorage
-        localStorage.setItem('token', action.payload.token);
-        localStorage.setItem('refreshToken', action.payload.refreshToken);
+        if (action.payload.token) {
+          localStorage.setItem('token', action.payload.token);
+        }
+        if (action.payload.refreshToken) {
+          localStorage.setItem('refreshToken', action.payload.refreshToken);
+        }
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
