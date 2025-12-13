@@ -14,6 +14,7 @@ import { useAppSelector } from './store/hooks';
 import LoginPage from './pages/Auth/LoginPage';
 import ForgotPassword from './pages/Auth/ForgotPassword';
 import ResetPassword from './pages/Auth/ResetPassword';
+import Layout from './components/Layout';
 
 // Lazy-loaded pages (code splitting)
 const Dashboard = React.lazy(() => import('./pages/Dashboard/Dashboard'));
@@ -35,9 +36,6 @@ const AdminTools = React.lazy(() => import('./pages/AdminTools/AdminTools'));
 const OTAUpdates = React.lazy(() => import('./components/OTAUpdates/OTAUpdates'));
 const TagsManager = React.lazy(() => import('./components/TagsManager/TagsManager'));
 const SmartDisplayFx = React.lazy(() => import('./pages/SmartDisplayFx/SmartDisplayFx'));
-
-// Components
-import Layout from './components/Layout';
 
 const AppContent: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
