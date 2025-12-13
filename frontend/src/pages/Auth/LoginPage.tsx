@@ -359,38 +359,40 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </Button>
           </Box>
 
-          <Divider sx={{ my: 3 }}>
-            <Typography variant="body2" color="text.secondary">
-              Credenciais Padrão
-            </Typography>
-          </Divider>
+          <>
+            <Divider sx={{ my: 3 }}>
+              <Typography variant="body2" color="text.secondary">
+                Credenciais Padrão
+              </Typography>
+            </Divider>
 
-          <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              <strong>Usuário:</strong> admin
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              <strong>Senha:</strong> admin123
-            </Typography>
-          </Box>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                <strong>Usuário:</strong> admin
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                <strong>Senha:</strong> admin123
+              </Typography>
+            </Box>
 
-          {/* Forgot Password Link */}
-          <Box sx={{ textAlign: 'center', mt: 3 }}>
-            <Link
-              component="button"
-              variant="body2"
-              onClick={() => window.location.href = '/forgot-password'}
-              sx={{
-                cursor: 'pointer',
-                textDecoration: 'none',
-                '&:hover': {
-                  textDecoration: 'underline',
-                },
-              }}
-            >
-              Esqueci minha senha
-            </Link>
-          </Box>
+            {/* Forgot Password Link */}
+            <Box sx={{ textAlign: 'center', mt: 3 }}>
+              <Link
+                component="button"
+                variant="body2"
+                onClick={() => window.location.href = '/forgot-password'}
+                sx={{
+                  cursor: 'pointer',
+                  textDecoration: 'none',
+                  '&:hover': {
+                    textDecoration: 'underline',
+                  },
+                }}
+              >
+                Esqueci minha senha
+              </Link>
+            </Box>
+          </>
           )}
 
           {/* Footer */}
