@@ -2176,6 +2176,20 @@ PYTHON_ADD_OVERRIDE_EOF
         
         log "✅ Permissões corrigidas - diretórios acessíveis"
         
+        # Aplicar patches de dependências se existirem
+        if [[ -d "patches" ]] && [[ -n "$(ls -A patches/*.patch 2>/dev/null)" ]]; then
+            log "Aplicando patches de dependências..."
+            if command -v npx &> /dev/null; then
+                if npx patch-package 2>&1; then
+                    log "✅ Patches aplicados com sucesso"
+                else
+                    warn "⚠️  Alguns patches falharam, mas continuando..."
+                fi
+            else
+                warn "⚠️  npx não encontrado, pulando aplicação de patches"
+            fi
+        fi
+        
         log "Compilando frontend..."
         npm run build
         
@@ -6047,6 +6061,12 @@ case "$1" in
         echo "Atualizando Smart Signage Pro (Development)..."
         cd $INSTALL_DIR/backend && npm install
         cd $INSTALL_DIR/frontend && npm install --legacy-peer-deps
+        # Aplicar patches de dependências se existirem
+        if [[ -d "patches" ]] && [[ -n "$(ls -A patches/*.patch 2>/dev/null)" ]]; then
+            if command -v npx &> /dev/null; then
+                npx patch-package 2>/dev/null || true
+            fi
+        fi
         echo "Dependências atualizadas"
         ;;
     backup)
