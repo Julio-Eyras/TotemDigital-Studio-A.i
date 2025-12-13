@@ -694,6 +694,11 @@ export const authApi = {
     await api.post('/auth/logout');
   },
 
+  refreshToken: async (refreshToken: string): Promise<{ token: string; refreshToken: string }> => {
+    const response = await api.post('/auth/refresh', { refreshToken });
+    return response.data;
+  },
+
   getProfile: async (): Promise<User> => {
     const response = await api.get('/auth/profile');
     return response.data;
@@ -707,6 +712,24 @@ export const authApi = {
   resetPassword: async (payload: { token: string; password: string }): Promise<{ success: boolean; message?: string }> => {
     const response = await api.post('/auth/reset-password', payload);
     return response.data;
+  },
+
+  updateProfile: async (token: string, profileData: { name?: string; email?: string }): Promise<{ data: User }> => {
+    const response = await api.put('/auth/profile', profileData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response;
+  },
+
+  changePassword: async (token: string, passwordData: { currentPassword: string; newPassword: string }): Promise<{ data: { success: boolean; message?: string } }> => {
+    const response = await api.put('/auth/change-password', passwordData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response;
   },
 };
 
