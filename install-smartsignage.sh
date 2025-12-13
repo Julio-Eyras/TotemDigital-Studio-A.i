@@ -813,12 +813,40 @@ setup_project() {
         detect_project_directory
     fi
     
+    # CORREÇÃO CRÍTICA IMEDIATA: Corrigir permissões ANTES de qualquer operação
+    # Isso garante que diretórios sejam acessíveis mesmo se vierem do ZIP com permissões incorretas
+    log "Corrigindo permissões de diretórios e arquivos (correção preventiva)..."
+    
+    # Corrigir permissões do diretório raiz do projeto primeiro
+    if [[ -d "$SOURCE_DIR" ]]; then
+        find "$SOURCE_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
+        find "$SOURCE_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+        find "$SOURCE_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+        log "✅ Permissões do diretório raiz corrigidas"
+    fi
+    
     # Para single-server, usar diretório de origem diretamente (mais simples e confiável)
     # Para Docker, ainda copiar para /opt/smart-signage (padrão do docker-compose)
     if [[ "$INSTALL_MODE" == "single-server" ]] || [[ "$INSTALL_MODE" == "development" ]]; then
         INSTALL_DIR="$SOURCE_DIR"
         log "Modo Single-Server: usando diretório de origem diretamente: $INSTALL_DIR"
         log "✅ Não será necessário copiar arquivos - trabalhando diretamente do diretório de origem"
+        
+        # CORREÇÃO CRÍTICA IMEDIATA: Corrigir permissões ANTES de qualquer verificação
+        # ZIPs criados no Windows não preservam permissões Unix, então corrigimos aqui
+        log "Corrigindo permissões de diretórios e arquivos (preventivo para ZIPs do Windows)..."
+        if [[ -d "$INSTALL_DIR/frontend/src" ]]; then
+            # Corrigir TODOS os diretórios recursivamente (precisam de execução)
+            find "$INSTALL_DIR/frontend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
+            # Corrigir TODOS os arquivos (precisam de leitura)
+            find "$INSTALL_DIR/frontend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
+            log "✅ Permissões do frontend/src corrigidas preventivamente"
+        fi
+        if [[ -d "$INSTALL_DIR/backend/src" ]]; then
+            find "$INSTALL_DIR/backend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
+            find "$INSTALL_DIR/backend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
+            log "✅ Permissões do backend/src corrigidas preventivamente"
+        fi
         
         # Apenas garantir que estamos no diretório correto
         cd "$INSTALL_DIR"
