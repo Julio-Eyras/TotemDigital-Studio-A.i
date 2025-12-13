@@ -70,7 +70,19 @@ SmartSignage-Pro/
 
 ## 🚀 Método Rápido: Usar o Script de Distribuição
 
-O projeto já possui um script que cria o pacote completo:
+O projeto possui scripts que criam o pacote completo automaticamente:
+
+### **Método Recomendado (cria ZIP diretamente):**
+
+```bash
+# Linux/Mac - Cria ZIP diretamente
+./criar-zip-distribuicao.sh
+
+# Windows PowerShell - Cria ZIP diretamente
+.\criar-zip-distribuicao.ps1
+```
+
+### **Método Alternativo (cria diretório primeiro, depois zipar manualmente):**
 
 ```bash
 # Executar o script de criação de pacote
@@ -80,6 +92,8 @@ O projeto já possui um script que cria o pacote completo:
 # Depois, zipar apenas esse diretório:
 zip -r SmartSignage-Pro-v2.1.zip SmartSignage-Distribuicao/
 ```
+
+**Nota:** O método recomendado (`criar-zip-distribuicao.sh` ou `.ps1`) é mais rápido e cria o ZIP automaticamente. Use `criar-pacote-distribuicao.sh` apenas se precisar inspecionar o conteúdo antes de zipar.
 
 ## 📋 Método Manual: Comandos para Criar o ZIP
 

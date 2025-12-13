@@ -6,7 +6,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Provider } from 'react-redux';
 import { queryClient } from './config/queryClient';
 import { store } from './store/store';
-import Notification from './components/Notification/Notification';
+import Notification from './components/Notification';
 import { useRateLimit } from './hooks/useRateLimit';
 import { useAppSelector } from './store/hooks';
 
@@ -37,7 +37,7 @@ const TagsManager = React.lazy(() => import('./components/TagsManager/TagsManage
 const SmartDisplayFx = React.lazy(() => import('./pages/SmartDisplayFx/SmartDisplayFx'));
 
 // Components
-import Layout from './components/Layout/Layout';
+import Layout from './components/Layout';
 
 const AppContent: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
