@@ -116,6 +116,30 @@ else
     echo -e "${YELLOW}⚠️  install-smartsignage.sh não encontrado${NC}"
 fi
 
+# CORREÇÃO CRÍTICA: Corrigir permissões de diretórios e arquivos antes de criar ZIP
+# Diretórios precisam de permissão de execução (x) para serem acessados no Linux
+echo ""
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${BLUE}                    Corrigindo Permissões${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+echo -e "${GREEN}Corrigindo permissões de diretórios (755) e arquivos (644)...${NC}"
+
+# Corrigir permissões de todos os diretórios (precisam de execução)
+find "$TEMP_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
+echo -e "${GREEN}✅ Permissões de diretórios corrigidas (755)${NC}"
+
+# Corrigir permissões de todos os arquivos
+find "$TEMP_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+echo -e "${GREEN}✅ Permissões de arquivos corrigidas (644)${NC}"
+
+# Garantir que scripts .sh tenham permissão de execução
+find "$TEMP_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+echo -e "${GREEN}✅ Scripts .sh com permissão de execução${NC}"
+
+echo -e "${GREEN}✅ Permissões corrigidas - arquivos prontos para distribuição${NC}"
+
 # Copiar Dockerfiles
 for dockerfile in "$SCRIPT_DIR"/Dockerfile*; do
     if [[ -f "$dockerfile" ]]; then
