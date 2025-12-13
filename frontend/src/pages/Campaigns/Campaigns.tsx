@@ -529,7 +529,7 @@ const Campaigns: React.FC = () => {
           <Autocomplete
             multiple
             options={players}
-            getOptionLabel={(option) => option.name}
+            getOptionLabel={(option) => option.name || option.identifier || option.uin || `Totem ${option.totem_id}`}
             value={players.filter(p => newCampaign.totemIds?.includes(p.totem_id))}
             onChange={(_, newValue) => {
               setNewCampaign({ ...newCampaign, totemIds: newValue.map(p => p.totem_id) });
