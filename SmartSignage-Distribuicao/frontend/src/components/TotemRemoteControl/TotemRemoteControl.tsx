@@ -181,7 +181,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string): React.ReactElement | undefined => {
     switch (status) {
       case 'completed':
         return <CheckCircle fontSize="small" />;
@@ -191,7 +191,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
       case 'pending':
         return <Schedule fontSize="small" />;
       default:
-        return null;
+        return undefined;
     }
   };
 

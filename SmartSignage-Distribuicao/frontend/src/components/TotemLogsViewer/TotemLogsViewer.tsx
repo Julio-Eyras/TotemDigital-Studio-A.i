@@ -217,7 +217,7 @@ const TotemLogsViewer: React.FC<TotemLogsViewerProps> = ({
     }
   };
 
-  const getLevelIcon = (level: string) => {
+  const getLevelIcon = (level: string): React.ReactElement | undefined => {
     switch (level) {
       case 'error':
         return <ErrorIcon fontSize="small" />;
@@ -228,7 +228,7 @@ const TotemLogsViewer: React.FC<TotemLogsViewerProps> = ({
       case 'debug':
         return <BugReport fontSize="small" />;
       default:
-        return null;
+        return undefined;
     }
   };
 
