@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { authApi } from '../../services/api/authApi';
+import { authApi, LoginResponse } from '../../services/api';
 
 export interface User {
   id: number;
@@ -31,9 +31,9 @@ const initialState: AuthState = {
 };
 
 // Async thunks
-export const login = createAsyncThunk(
+export const login = createAsyncThunk<LoginResponse, { username: string; password: string }, { rejectValue: string }>(
   'auth/login',
-  async (credentials: { username: string; password: string }, { rejectWithValue }) => {
+  async (credentials, { rejectWithValue }) => {
     try {
       const response = await authApi.login(credentials);
       return response;
