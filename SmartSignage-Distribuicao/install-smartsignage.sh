@@ -2042,12 +2042,77 @@ setup_database() {
             log "ffmpeg já está instalado: $(ffmpeg -version | head -1)"
         fi
 
-        # Garantir serviço ativo
-        # No Ubuntu, o serviço pode ser postgresql ou postgresql@<versão>-main
+        # No Ubuntu, o cluster PostgreSQL precisa ser inicializado antes de iniciar o serviço
+        # Detectar versão do PostgreSQL instalada
+        local PG_VERSION=$(psql --version 2>/dev/null | grep -oE "[0-9]+\.[0-9]+" | head -1 | cut -d. -f1)
+        if [[ -z "$PG_VERSION" ]]; then
+            # Tentar detectar de outra forma
+            PG_VERSION=$(dpkg -l | grep -E "^ii.*postgresql-[0-9]+" | head -1 | grep -oE "[0-9]+" | head -1)
+        fi
+        
+        if [[ -n "$PG_VERSION" ]]; then
+            log "Versão PostgreSQL detectada: $PG_VERSION"
+            
+            # Verificar se o cluster já existe
+            local PG_CLUSTER_DIR="/var/lib/postgresql/${PG_VERSION}/main"
+            local PG_CLUSTER_EXISTS=false
+            
+            if [[ -d "$PG_CLUSTER_DIR" ]] && [[ -f "$PG_CLUSTER_DIR/PG_VERSION" ]]; then
+                log "Cluster PostgreSQL ${PG_VERSION} já existe em $PG_CLUSTER_DIR"
+                PG_CLUSTER_EXISTS=true
+            else
+                log "Cluster PostgreSQL ${PG_VERSION} não encontrado, inicializando..."
+                
+                # No Ubuntu, usar pg_createcluster se disponível
+                if command -v pg_createcluster &> /dev/null; then
+                    log "Criando cluster PostgreSQL usando pg_createcluster..."
+                    if sudo -u postgres pg_createcluster ${PG_VERSION} main --start 2>&1; then
+                        log "✅ Cluster criado e iniciado com sucesso"
+                        PG_CLUSTER_EXISTS=true
+                    else
+                        log "⚠️  pg_createcluster falhou, tentando método alternativo..."
+                    fi
+                fi
+                
+                # Se pg_createcluster não funcionou, tentar initdb diretamente
+                if [[ "$PG_CLUSTER_EXISTS" != "true" ]]; then
+                    if [[ ! -d "$PG_CLUSTER_DIR" ]]; then
+                        log "Criando diretório do cluster: $PG_CLUSTER_DIR"
+                        sudo mkdir -p "$PG_CLUSTER_DIR"
+                        sudo chown postgres:postgres "$PG_CLUSTER_DIR"
+                        sudo chmod 700 "$PG_CLUSTER_DIR"
+                    fi
+                    
+                    # Encontrar initdb
+                    local INITDB_PATH=""
+                    for path in /usr/lib/postgresql/${PG_VERSION}/bin/initdb /usr/local/pgsql/bin/initdb; do
+                        if [[ -f "$path" ]]; then
+                            INITDB_PATH="$path"
+                            break
+                        fi
+                    done
+                    
+                    if [[ -n "$INITDB_PATH" ]]; then
+                        log "Inicializando cluster usando $INITDB_PATH..."
+                        if sudo -u postgres "$INITDB_PATH" -D "$PG_CLUSTER_DIR" 2>&1; then
+                            log "✅ Cluster inicializado com sucesso"
+                            PG_CLUSTER_EXISTS=true
+                        else
+                            error "❌ Falha ao inicializar cluster PostgreSQL"
+                        fi
+                    else
+                        error "❌ initdb não encontrado para PostgreSQL ${PG_VERSION}"
+                    fi
+                fi
+            fi
+        else
+            log "⚠️  Não foi possível detectar versão do PostgreSQL"
+        fi
+        
         # Se foi instalado agora, aguardar um pouco para o systemd reconhecer
         if [[ "$PG_WAS_INSTALLED" == "true" ]]; then
             log "Aguardando systemd reconhecer serviços PostgreSQL..."
-            sleep 3
+            sleep 2
             sudo systemctl daemon-reload
         fi
         
@@ -2055,15 +2120,11 @@ setup_database() {
         local PG_SERVICE=""
         if systemctl list-unit-files | grep -q "^postgresql.service"; then
             PG_SERVICE="postgresql"
+        elif [[ -n "$PG_VERSION" ]] && systemctl list-unit-files | grep -qE "^postgresql@${PG_VERSION}-main.service"; then
+            PG_SERVICE="postgresql@${PG_VERSION}-main"
         elif systemctl list-unit-files | grep -qE "^postgresql@[0-9]+-main.service"; then
             # Pegar a primeira versão encontrada
             PG_SERVICE=$(systemctl list-unit-files | grep -oE "^postgresql@[0-9]+-main" | head -1)
-        else
-            # Tentar detectar versão instalada e construir nome do serviço
-            local PG_VERSION=$(psql --version 2>/dev/null | grep -oE "[0-9]+\.[0-9]+" | head -1 | cut -d. -f1)
-            if [[ -n "$PG_VERSION" ]]; then
-                PG_SERVICE="postgresql@${PG_VERSION}-main"
-            fi
         fi
         
         # Habilitar e iniciar serviço se encontrado
@@ -2074,132 +2135,57 @@ setup_database() {
             if ! systemctl is-active --quiet "$PG_SERVICE"; then
                 log "Iniciando PostgreSQL ($PG_SERVICE)..."
                 if sudo systemctl start "$PG_SERVICE" 2>&1; then
-                    log "Comando start executado para $PG_SERVICE"
-                else
-                    log "⚠️  Erro ao executar start (continuando...)"
-                fi
-                
-                # Aguardar um pouco e verificar status
-                sleep 5
-                if systemctl is-active --quiet "$PG_SERVICE"; then
-                    log "✅ PostgreSQL ($PG_SERVICE) iniciado com sucesso"
-                else
-                    log "⚠️  PostgreSQL ($PG_SERVICE) ainda não está ativo"
-                    # Verificar status detalhado
-                    local service_status=$(sudo systemctl status "$PG_SERVICE" --no-pager -l 2>&1 | head -20)
-                    log "Status do serviço:"
-                    echo "$service_status" | while IFS= read -r line; do
-                        log "  $line"
-                    done
+                    sleep 3
+                    if systemctl is-active --quiet "$PG_SERVICE"; then
+                        log "✅ PostgreSQL ($PG_SERVICE) iniciado com sucesso"
+                    else
+                        error "❌ PostgreSQL ($PG_SERVICE) não iniciou"
+                        log "Verificando logs:"
+                        sudo journalctl -u "$PG_SERVICE" --no-pager -n 20 2>&1 | head -20 | while IFS= read -r line; do
+                            log "  $line"
+                        done
+                    fi
                 fi
             else
                 log "PostgreSQL ($PG_SERVICE) já está rodando"
             fi
         else
             log "⚠️  Não foi possível detectar serviço PostgreSQL automaticamente"
-            log "Tentando iniciar serviços conhecidos..."
         fi
         
-        # Verificar se PostgreSQL está rodando através do psql (método mais confiável)
-        if ! sudo -u postgres psql -c "SELECT 1" > /dev/null 2>&1; then
-            log "PostgreSQL não está respondendo, tentando iniciar todos os serviços possíveis..."
-            # Tentar iniciar o serviço genérico
-            if sudo systemctl start postgresql 2>&1; then
-                log "Tentativa de iniciar serviço genérico postgresql"
-            fi
-            # Tentar iniciar serviços específicos por versão
-            for pg_service in postgresql@16-main postgresql@15-main postgresql@14-main postgresql@13-main; do
-                if systemctl list-unit-files | grep -q "$pg_service"; then
-                    log "Tentando iniciar $pg_service..."
-                    if sudo systemctl start "$pg_service" 2>&1; then
-                        log "Comando start executado para $pg_service"
-                    fi
-                fi
-            done
-            sleep 8  # Aguardar mais tempo para PostgreSQL iniciar
-        else
+        # Verificar se PostgreSQL está respondendo
+        if sudo -u postgres psql -c "SELECT 1" > /dev/null 2>&1; then
             log "✅ PostgreSQL está respondendo corretamente"
-        fi
-
-        # Aguardar PostgreSQL estar pronto com diagnóstico melhorado
-        log "Aguardando PostgreSQL estar pronto..."
-        local pg_ready=false
-        for i in {1..45}; do
-            if sudo -u postgres psql -c "SELECT 1" > /dev/null 2>&1; then
-                log "✅ PostgreSQL está pronto"
-                pg_ready=true
-                break
-            fi
-            
-            # A cada 10 tentativas, verificar status do serviço
-            if [[ $((i % 10)) -eq 0 ]]; then
-                log "Ainda aguardando PostgreSQL... (tentativa $i/45)"
-                if [[ -n "$PG_SERVICE" ]]; then
-                    if systemctl is-active --quiet "$PG_SERVICE"; then
-                        log "  Serviço $PG_SERVICE está ativo, mas PostgreSQL ainda não responde"
-                    else
-                        log "  Serviço $PG_SERVICE não está ativo"
-                        # Tentar reiniciar
-                        log "  Tentando reiniciar $PG_SERVICE..."
-                        sudo systemctl restart "$PG_SERVICE" 2>&1 || true
-                        sleep 5
-                    fi
-                fi
-            fi
-            
-            sleep 2
-        done
-        
-        if [[ "$pg_ready" != "true" ]]; then
-            error "❌ PostgreSQL não iniciou após 90 segundos"
+        else
+            error "❌ PostgreSQL não está respondendo"
             error "Diagnóstico:"
             
-            # Verificar status dos serviços
-            log "Status dos serviços PostgreSQL:"
-            for pg_service in postgresql postgresql@16-main postgresql@15-main postgresql@14-main; do
-                if systemctl list-unit-files | grep -q "$pg_service"; then
-                    local status=$(systemctl is-active "$pg_service" 2>&1 || echo "unknown")
-                    log "  $pg_service: $status"
-                    if [[ "$status" != "active" ]]; then
-                        log "  Logs de $pg_service:"
-                        sudo journalctl -u "$pg_service" --no-pager -n 10 2>&1 | while IFS= read -r line; do
-                            log "    $line"
-                        done
-                    fi
+            # Verificar status do serviço
+            if [[ -n "$PG_SERVICE" ]]; then
+                local service_status=$(systemctl is-active "$PG_SERVICE" 2>&1 || echo "unknown")
+                log "  Status do serviço $PG_SERVICE: $service_status"
+                
+                if [[ "$service_status" != "active" ]]; then
+                    log "  Últimos logs do serviço:"
+                    sudo journalctl -u "$PG_SERVICE" --no-pager -n 15 2>&1 | while IFS= read -r line; do
+                        log "    $line"
+                    done
                 fi
-            done
-            
-            # Verificar se há processos PostgreSQL rodando
-            if pgrep -x postgres > /dev/null; then
-                log "  Processos PostgreSQL encontrados:"
-                ps aux | grep postgres | grep -v grep | while IFS= read -r line; do
-                    log "    $line"
-                done
-            else
-                log "  Nenhum processo PostgreSQL encontrado"
             fi
             
-            # Verificar permissões do diretório de dados
-            local pg_data_dir=$(sudo -u postgres psql -tAc "SHOW data_directory" 2>/dev/null || echo "")
-            if [[ -z "$pg_data_dir" ]]; then
-                # Tentar localização padrão
-                for default_dir in /var/lib/postgresql/*/main; do
-                    if [[ -d "$default_dir" ]]; then
-                        pg_data_dir="$default_dir"
-                        break
-                    fi
-                done
+            # Verificar se o cluster existe
+            if [[ -n "$PG_VERSION" ]]; then
+                local cluster_dir="/var/lib/postgresql/${PG_VERSION}/main"
+                if [[ -d "$cluster_dir" ]]; then
+                    log "  Cluster encontrado em: $cluster_dir"
+                    local cluster_perms=$(ls -ld "$cluster_dir" 2>/dev/null | awk '{print $1, $3, $4}')
+                    log "  Permissões: $cluster_perms"
+                else
+                    error "  ❌ Cluster não encontrado em: $cluster_dir"
+                fi
             fi
             
-            if [[ -n "$pg_data_dir" && -d "$pg_data_dir" ]]; then
-                log "  Diretório de dados: $pg_data_dir"
-                local data_perms=$(ls -ld "$pg_data_dir" 2>/dev/null | awk '{print $1, $3, $4}')
-                log "  Permissões: $data_perms"
-            fi
-            
-            error "Por favor, verifique os logs acima e tente iniciar o PostgreSQL manualmente:"
-            error "  sudo systemctl status postgresql@16-main"
-            error "  sudo journalctl -u postgresql@16-main -n 50"
+            error "Por favor, verifique os logs acima e corrija o problema antes de continuar"
             exit 1
         fi
 
