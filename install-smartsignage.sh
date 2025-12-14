@@ -178,10 +178,7 @@ DB_HOST=localhost
 # Porta do banco de dados
 DB_PORT=5432
 
-# Diretório de instalação
-INSTALL_DIR=/opt/smart-signage
-
-# Diretório de uploads
+# Diretório de uploads (relativo ao INSTALL_DIR que é determinado pelo modo de instalação)
 UPLOAD_PATH=/opt/smart-signage/public/assets/uploads
 
 # JWT Secret (ALTERE EM PRODUÇÃO! Use: openssl rand -base64 64)
@@ -1029,8 +1026,9 @@ setup_project() {
         log "Modo Single-Server: usando diretório de origem diretamente: $INSTALL_DIR"
         log "✅ Não será necessário copiar arquivos - trabalhando diretamente do diretório de origem"
         
-        # Carregar configurações do sistema
+        # Carregar configurações do sistema (mas não sobrescrever INSTALL_DIR)
         CONFIG_FILE="$INSTALL_DIR/smartsignage-config"
+        local SAVED_INSTALL_DIR="$INSTALL_DIR"
         if [[ -f "$CONFIG_FILE" ]]; then
             log "Carregando configurações de: $CONFIG_FILE"
             load_system_config "$CONFIG_FILE" || warn "Usando valores padrão"
@@ -1039,6 +1037,8 @@ setup_project() {
             create_default_config "$CONFIG_FILE" "$INSTALL_DIR"
             load_system_config "$CONFIG_FILE" || warn "Usando valores padrão"
         fi
+        # Restaurar INSTALL_DIR (não pode ser sobrescrito pelo config, é determinado pelo modo)
+        INSTALL_DIR="$SAVED_INSTALL_DIR"
         
         # CORREÇÃO CRÍTICA IMEDIATA: Corrigir permissões ANTES de qualquer verificação
         # ZIPs criados no Windows não preservam permissões Unix, então corrigimos aqui
@@ -1057,7 +1057,15 @@ setup_project() {
         fi
         
         # Apenas garantir que estamos no diretório correto
-        cd "$INSTALL_DIR"
+        if [[ -d "$INSTALL_DIR" ]]; then
+            cd "$INSTALL_DIR" || {
+                error "❌ Não foi possível entrar no diretório: $INSTALL_DIR"
+                exit 1
+            }
+        else
+            error "❌ Diretório de instalação não existe: $INSTALL_DIR"
+            exit 1
+        fi
     else
         # Modo Docker: copiar para /opt/smart-signage
         INSTALL_DIR="/opt/smart-signage"
@@ -1065,8 +1073,9 @@ setup_project() {
         sudo chown $USER:$USER $INSTALL_DIR
         log "Modo Docker: copiando para $INSTALL_DIR"
         
-        # Carregar configurações do sistema
+        # Carregar configurações do sistema (mas não sobrescrever INSTALL_DIR)
         CONFIG_FILE="$INSTALL_DIR/smartsignage-config"
+        local SAVED_INSTALL_DIR="$INSTALL_DIR"
         if [[ -f "$CONFIG_FILE" ]]; then
             log "Carregando configurações de: $CONFIG_FILE"
             load_system_config "$CONFIG_FILE" || warn "Usando valores padrão"
@@ -1075,6 +1084,8 @@ setup_project() {
             create_default_config "$CONFIG_FILE" "$INSTALL_DIR"
             load_system_config "$CONFIG_FILE" || warn "Usando valores padrão"
         fi
+        # Restaurar INSTALL_DIR (não pode ser sobrescrito pelo config, é determinado pelo modo)
+        INSTALL_DIR="$SAVED_INSTALL_DIR"
         
         # Copiar arquivos do projeto (apenas para Docker, Single-Server usa diretório de origem)
         if [[ -d "$SOURCE_DIR/backend" && -d "$SOURCE_DIR/frontend" ]]; then
