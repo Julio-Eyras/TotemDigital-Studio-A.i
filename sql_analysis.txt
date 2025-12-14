@@ -1,0 +1,95 @@
+================================================================================
+ANALISE DO ARQUIVO SQL
+================================================================================
+
+Total de tabelas: 74
+Total de Ýndices: 202
+Foreign keys inline: 87
+Foreign keys ALTER TABLE: 0
+
+================================================================================
+PROBLEMAS ENCONTRADOS
+================================================================================
+
+[OK] Nenhum problema encontrado!
+
+================================================================================
+TABELAS E DEPEND╩NCIAS
+================================================================================
+
+Ordem sugerida de criaþÒo (considerando dependÛncias):
+
+  1. ai_models                      (sem dependÛncias)
+  2. alert_rules                    (sem dependÛncias)
+  3. clients                        (sem dependÛncias)
+  4. export_executions              (sem dependÛncias)
+  5. export_queries                 (sem dependÛncias)
+  6. export_schedules               (sem dependÛncias)
+  7. fx_effects                     (sem dependÛncias)
+  8. fx_rules                       (sem dependÛncias)
+  9. fx_timelines                   (sem dependÛncias)
+ 10. hosts                          (sem dependÛncias)
+ 11. ml_models                      (sem dependÛncias)
+ 12. permissions                    (sem dependÛncias)
+ 13. plans                          (sem dependÛncias)
+ 14. roles                          (sem dependÛncias)
+ 15. system_logs                    (sem dependÛncias)
+ 16. system_settings                (sem dependÛncias)
+ 17. webhook_configs                (sem dependÛncias)
+ 18. webhooks                       (sem dependÛncias)
+ 19. alert_logs                     (depende de: alert_rules)
+ 20. campaigns                      (depende de: clients)
+ 21. fx_sites                       (depende de: clients)
+ 22. locals                         (depende de: hosts)
+ 23. role_permissions               (depende de: permissions, roles)
+ 24. stripe_customers               (depende de: clients)
+ 25. subscriptions                  (depende de: clients, plans)
+ 26. users                          (depende de: clients)
+ 27. webhook_deliveries             (depende de: webhook_configs)
+ 28. advanced_schedules             (depende de: users)
+ 29. audit_logs                     (depende de: users)
+ 30. backups                        (depende de: users)
+ 31. dashboard_layouts              (depende de: users)
+ 32. medias                         (depende de: clients, users)
+ 33. ota_updates                    (depende de: users)
+ 34. password_reset_tokens          (depende de: users)
+ 35. report_templates               (depende de: users)
+ 36. reports                        (depende de: users)
+ 37. totems                         (depende de: clients, locals)
+ 38. two_factor_attempts            (depende de: users)
+ 39. user_roles                     (depende de: roles, users)
+ 40. user_two_factor                (depende de: users)
+ 41. aggregated_metrics             (depende de: campaigns, medias, totems)
+ 42. analytics_sessions             (depende de: totems)
+ 43. approval_workflows             (depende de: medias, users)
+ 44. behavior_data                  (depende de: totems)
+ 45. billing                        (depende de: campaigns, clients, totems)
+ 46. campaign_totems                (depende de: campaigns, totems)
+ 47. device_certificates            (depende de: totems)
+ 48. emotion_data                   (depende de: totems)
+ 49. execution_logs                 (depende de: campaigns, clients, totems)
+ 50. fx_telemetry                   (depende de: totems)
+ 51. fx_totem_sites                 (depende de: fx_sites, totems)
+ 52. gesture_data                   (depende de: totems)
+ 53. interaction_logs               (depende de: medias, totems)
+ 54. ml_sessions                    (depende de: totems)
+ 55. playlists                      (depende de: campaigns, clients, totems)
+ 56. qr_codes                       (depende de: campaigns, clients, totems)
+ 57. recognized_persons             (depende de: medias)
+ 58. remote_commands                (depende de: totems, users)
+ 59. schedule_executions            (depende de: advanced_schedules)
+ 60. short_links                    (depende de: campaigns, totems)
+ 61. smart_playlists                (depende de: campaigns, clients, totems)
+ 62. smart_tvs                      (depende de: totems)
+ 63. tags                           (depende de: medias)
+ 64. totem_ml_config                (depende de: totems)
+ 65. totem_network                  (depende de: totems)
+ 66. totem_update_status            (depende de: totems)
+ 67. analytics_emotions             (depende de: analytics_sessions)
+ 68. analytics_gestures             (depende de: analytics_sessions)
+ 69. analytics_qr_scans             (depende de: qr_codes, totems)
+ 70. campaign_playlists             (depende de: campaigns, playlists)
+ 71. event_logs                     (depende de: campaigns, medias, playlists, totems)
+ 72. payments                       (depende de: billing)
+ 73. playlist_items                 (depende de: medias, playlists)
+ 74. remote_screenshots             (depende de: remote_commands, totems)

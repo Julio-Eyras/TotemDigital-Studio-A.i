@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 # Variáveis
 $ScriptDir = $PSScriptRoot
 $Version = Get-Date -Format "yyyy.MM.dd"
-$ZipName = "SmartSignage-Pro-v$Version.zip"
+$ZipName = "../SmartSignage-Pro-v$Version.zip"
 $TempDir = New-TemporaryFile | ForEach-Object { Remove-Item $_; New-Item -ItemType Directory -Path $_ }
 
 Write-Host "================================================================================" -ForegroundColor Green
