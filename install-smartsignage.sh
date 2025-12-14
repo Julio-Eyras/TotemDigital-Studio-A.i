@@ -2647,10 +2647,19 @@ setup_database() {
         fi
 
         # Parâmetros (carregar do arquivo de configuração ou usar padrões)
+        # As variáveis devem ter sido exportadas por load_system_config em setup_project
+        # Se não estiverem definidas, usar valores padrão
         local PG_DB="${DB_NAME:-smartsignage}"
         local PG_USER="${DB_USER:-smartsignage}"
         local PG_PASS="${DB_PASSWORD:-smartsignage123}"
         local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+        
+        # Log das configurações usadas (sem mostrar senhas completas)
+        log "Configurações do banco de dados:"
+        log "  DB_NAME: ${PG_DB}"
+        log "  DB_USER: ${PG_USER}"
+        log "  DB_PASSWORD: ${PG_PASS:0:3}*** (oculto)"
+        log "  POSTGRES_SYSTEM_USER: ${POSTGRES_USER}"
         
         # Garantir que usuário postgres do sistema existe
         ensure_postgres_system_user
