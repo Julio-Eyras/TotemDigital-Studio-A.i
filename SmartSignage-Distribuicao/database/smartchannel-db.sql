@@ -3228,20 +3228,6 @@ COMMENT ON COLUMN ota_updates.status IS 'Status: draft, testing, active, paused,
 
 -- Índices para tabelas FX
 
--- Índices para notifications (v3.1)
-
--- Tabela para webhooks configuráveis (v3.1)
-
--- Índices para webhooks (v3.1) - DEVE SER CRIADO APÓS A TABELA
-
--- Tabela para layouts customizáveis de dashboard (v3.1)
-
--- Índices para dashboard_layouts (v3.1) - DEVE SER CRIADO APÓS A TABELA
-
--- Tabela para backups do sistema (v3.1)
-
--- Índices para backups (v3.1) - DEVE SER CRIADO APÓS A TABELA
-
 -- Comentários
 COMMENT ON TABLE tags IS 'Tags (RFID/NFC/QR) e suas associações com conteúdo';
 COMMENT ON TABLE recognized_persons IS 'Pessoas reconhecidas para personalização';
