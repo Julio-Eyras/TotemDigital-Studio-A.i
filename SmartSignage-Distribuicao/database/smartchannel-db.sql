@@ -2964,6 +2964,11 @@ CREATE TABLE IF NOT EXISTS webhooks (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Índices para webhooks (v3.1) - DEVE SER CRIADO APÓS A TABELA
+CREATE INDEX IF NOT EXISTS idx_webhooks_enabled ON webhooks(enabled);
+CREATE INDEX IF NOT EXISTS idx_webhooks_channels ON webhooks USING GIN(channels);
+CREATE INDEX IF NOT EXISTS idx_webhooks_events ON webhooks USING GIN(events);
+
 -- Tabela para layouts customizáveis de dashboard (v3.1)
 CREATE TABLE IF NOT EXISTS dashboard_layouts (
     id SERIAL PRIMARY KEY,
