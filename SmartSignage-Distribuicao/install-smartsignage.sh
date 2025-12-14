@@ -120,6 +120,111 @@ info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
 
+# Arquivo de configuração centralizado
+CONFIG_FILE="${INSTALL_DIR:-/opt/smart-signage}/smartsignage-config"
+
+# Carregar configurações do arquivo smartsignage-config
+load_system_config() {
+    local config_file="$1"
+    
+    if [[ ! -f "$config_file" ]]; then
+        log "Arquivo de configuração não encontrado: $config_file"
+        log "Usando valores padrão e criando arquivo de configuração..."
+        return 1
+    fi
+    
+    # Carregar configurações (formato: VARIAVEL=valor)
+    # Ignorar linhas de comentário e vazias
+    local loaded_count=0
+    while IFS='=' read -r key value || [[ -n "$key" ]]; do
+        # Ignorar comentários e linhas vazias
+        [[ "$key" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "$key" ]] && continue
+        
+        # Remover espaços e aspas
+        key=$(echo "$key" | xargs)
+        value=$(echo "$value" | xargs | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+        
+        # Ignorar INSTALL_DIR (não pode ser sobrescrito pelo config)
+        if [[ "$key" == "INSTALL_DIR" ]]; then
+            log_detailed "Ignorando INSTALL_DIR do arquivo de configuração para evitar sobrescrita."
+            continue
+        fi
+        
+        # Exportar variável (garantir que seja exportada globalmente)
+        if [[ -n "$key" && -n "$value" ]]; then
+            export "$key=$value"
+            loaded_count=$((loaded_count + 1))
+        fi
+    done < <(grep -v '^[[:space:]]*#' "$config_file" | grep -v '^[[:space:]]*$' | grep '=')
+    
+    if [[ $loaded_count -gt 0 ]]; then
+        log "✅ $loaded_count configurações carregadas do arquivo de configuração"
+    fi
+    
+    return 0
+}
+
+# Criar arquivo de configuração padrão
+create_default_config() {
+    local config_file="$1"
+    local install_dir="${2:-/opt/smart-signage}"
+    
+    log "Criando arquivo de configuração padrão: $config_file"
+    
+    cat > "$config_file" << 'EOF'
+# =============================================================================
+# Smart Signage Pro - Configuração do Sistema
+# =============================================================================
+# Este arquivo contém todas as configurações do sistema
+# IMPORTANTE: Altere as senhas e credenciais antes de usar em produção!
+# =============================================================================
+
+# Usuário do sistema para executar o Smart Signage Pro
+SYSTEM_USER=smartsignage
+
+# Grupo do sistema
+SYSTEM_GROUP=smartsignage
+
+# Usuário PostgreSQL do sistema (usuário que gerencia o PostgreSQL)
+POSTGRES_SYSTEM_USER=postgres
+
+# Senha do usuário postgres do PostgreSQL (ALTERE EM PRODUÇÃO!)
+POSTGRES_PASSWORD=smartsignage123
+
+# Usuário do banco de dados PostgreSQL (usuário da aplicação - master do sistema)
+DB_USER=smartsignage
+
+# Senha do usuário do banco de dados (ALTERE EM PRODUÇÃO!)
+DB_PASSWORD=smartsignage123
+
+# Nome do banco de dados
+DB_NAME=smartsignage
+
+# Host do banco de dados
+DB_HOST=localhost
+
+# Porta do banco de dados
+DB_PORT=5432
+
+# Diretório de uploads (relativo ao INSTALL_DIR que é determinado pelo modo de instalação)
+UPLOAD_PATH=/opt/smart-signage/public/assets/uploads
+
+# JWT Secret (ALTERE EM PRODUÇÃO! Use: openssl rand -base64 64)
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+
+# Porta do backend
+BACKEND_PORT=3000
+
+# Porta do frontend (Nginx)
+FRONTEND_PORT=80
+EOF
+    
+    chmod 600 "$config_file"
+    log "✅ Arquivo de configuração criado: $config_file"
+    log "⚠️  IMPORTANTE: Altere as senhas e credenciais antes de usar em produção!"
+}
+
 # Executa um arquivo SQL via psql garantindo falha imediata em caso de erro
 execute_psql_file() {
     local database_name="$1"
@@ -701,6 +806,36 @@ setup_project() {
         log "Modo Single-Server: usando diretório de origem diretamente: $INSTALL_DIR"
         log "✅ Não será necessário copiar arquivos - trabalhando diretamente do diretório de origem"
         
+        # Carregar configurações do sistema (mas não sobrescrever INSTALL_DIR)
+        CONFIG_FILE="$INSTALL_DIR/smartsignage-config"
+        local SAVED_INSTALL_DIR="$INSTALL_DIR"
+        if [[ -f "$CONFIG_FILE" ]]; then
+            log "Carregando configurações de: $CONFIG_FILE"
+            if load_system_config "$CONFIG_FILE"; then
+                log "✅ Configurações carregadas com sucesso"
+            else
+                warn "⚠️  Falha ao carregar configurações, usando valores padrão"
+            fi
+        else
+            log "Arquivo de configuração não encontrado, criando padrão..."
+            create_default_config "$CONFIG_FILE" "$INSTALL_DIR"
+            if load_system_config "$CONFIG_FILE"; then
+                log "✅ Configurações padrão carregadas"
+            else
+                warn "⚠️  Falha ao carregar configurações padrão"
+            fi
+        fi
+        # Restaurar INSTALL_DIR (não pode ser sobrescrito pelo config, é determinado pelo modo)
+        INSTALL_DIR="$SAVED_INSTALL_DIR"
+        
+        # Verificar se as variáveis principais foram carregadas (para debug)
+        if [[ -z "${DB_NAME:-}" ]]; then
+            log "⚠️  DB_NAME não encontrado no config, usando padrão: smartsignage"
+        fi
+        if [[ -z "${DB_USER:-}" ]]; then
+            log "⚠️  DB_USER não encontrado no config, usando padrão: smartsignage"
+        fi
+        
         # Apenas garantir que estamos no diretório correto
         if [[ -d "$INSTALL_DIR" ]]; then
             cd "$INSTALL_DIR" || {
@@ -717,6 +852,36 @@ setup_project() {
         sudo mkdir -p $INSTALL_DIR
         sudo chown $USER:$USER $INSTALL_DIR
         log "Modo Docker: copiando para $INSTALL_DIR"
+        
+        # Carregar configurações do sistema (mas não sobrescrever INSTALL_DIR)
+        CONFIG_FILE="$INSTALL_DIR/smartsignage-config"
+        local SAVED_INSTALL_DIR="$INSTALL_DIR"
+        if [[ -f "$CONFIG_FILE" ]]; then
+            log "Carregando configurações de: $CONFIG_FILE"
+            if load_system_config "$CONFIG_FILE"; then
+                log "✅ Configurações carregadas com sucesso"
+            else
+                warn "⚠️  Falha ao carregar configurações, usando valores padrão"
+            fi
+        else
+            log "Arquivo de configuração não encontrado, criando padrão..."
+            create_default_config "$CONFIG_FILE" "$INSTALL_DIR"
+            if load_system_config "$CONFIG_FILE"; then
+                log "✅ Configurações padrão carregadas"
+            else
+                warn "⚠️  Falha ao carregar configurações padrão"
+            fi
+        fi
+        # Restaurar INSTALL_DIR (não pode ser sobrescrito pelo config, é determinado pelo modo)
+        INSTALL_DIR="$SAVED_INSTALL_DIR"
+        
+        # Verificar se as variáveis principais foram carregadas (para debug)
+        if [[ -z "${DB_NAME:-}" ]]; then
+            log "⚠️  DB_NAME não encontrado no config, usando padrão: smartsignage"
+        fi
+        if [[ -z "${DB_USER:-}" ]]; then
+            log "⚠️  DB_USER não encontrado no config, usando padrão: smartsignage"
+        fi
         
         # Copiar arquivos do projeto (apenas para Docker, Single-Server usa diretório de origem)
         if [[ -d "$SOURCE_DIR/backend" && -d "$SOURCE_DIR/frontend" ]]; then
@@ -2197,10 +2362,20 @@ setup_database() {
             exit 1
         fi
 
-        # Parâmetros
-        local PG_DB="smartsignage"
-        local PG_USER="smartsignage"
-        local PG_PASS="smartsignage123"
+        # Parâmetros (carregar do arquivo de configuração ou usar padrões)
+        # As variáveis devem ter sido exportadas por load_system_config em setup_project
+        # Se não estiverem definidas, usar valores padrão
+        local PG_DB="${DB_NAME:-smartsignage}"
+        local PG_USER="${DB_USER:-smartsignage}"
+        local PG_PASS="${DB_PASSWORD:-smartsignage123}"
+        local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+        
+        # Log das configurações usadas (sem mostrar senhas completas)
+        log "Configurações do banco de dados:"
+        log "  DB_NAME: ${PG_DB}"
+        log "  DB_USER: ${PG_USER}"
+        log "  DB_PASSWORD: ${PG_PASS:0:3}*** (oculto)"
+        log "  POSTGRES_SYSTEM_USER: ${POSTGRES_USER}"
 
         # Criar USER idempotente
         log "Criando usuário PostgreSQL '${PG_USER}'..."

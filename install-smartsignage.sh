@@ -118,6 +118,7 @@ load_system_config() {
     
     # Carregar configurações (formato: VARIAVEL=valor)
     # Ignorar linhas de comentário e vazias
+    local loaded_count=0
     while IFS='=' read -r key value || [[ -n "$key" ]]; do
         # Ignorar comentários e linhas vazias
         [[ "$key" =~ ^[[:space:]]*# ]] && continue
@@ -127,11 +128,22 @@ load_system_config() {
         key=$(echo "$key" | xargs)
         value=$(echo "$value" | xargs | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
         
-        # Exportar variável
+        # Ignorar INSTALL_DIR (não pode ser sobrescrito pelo config)
+        if [[ "$key" == "INSTALL_DIR" ]]; then
+            log_detailed "Ignorando INSTALL_DIR do arquivo de configuração para evitar sobrescrita."
+            continue
+        fi
+        
+        # Exportar variável (garantir que seja exportada globalmente)
         if [[ -n "$key" && -n "$value" ]]; then
             export "$key=$value"
+            loaded_count=$((loaded_count + 1))
         fi
     done < <(grep -v '^[[:space:]]*#' "$config_file" | grep -v '^[[:space:]]*$' | grep '=')
+    
+    if [[ $loaded_count -gt 0 ]]; then
+        log "✅ $loaded_count configurações carregadas do arquivo de configuração"
+    fi
     
     return 0
 }
@@ -1031,14 +1043,30 @@ setup_project() {
         local SAVED_INSTALL_DIR="$INSTALL_DIR"
         if [[ -f "$CONFIG_FILE" ]]; then
             log "Carregando configurações de: $CONFIG_FILE"
-            load_system_config "$CONFIG_FILE" || warn "Usando valores padrão"
+            if load_system_config "$CONFIG_FILE"; then
+                log "✅ Configurações carregadas com sucesso"
+            else
+                warn "⚠️  Falha ao carregar configurações, usando valores padrão"
+            fi
         else
             log "Arquivo de configuração não encontrado, criando padrão..."
             create_default_config "$CONFIG_FILE" "$INSTALL_DIR"
-            load_system_config "$CONFIG_FILE" || warn "Usando valores padrão"
+            if load_system_config "$CONFIG_FILE"; then
+                log "✅ Configurações padrão carregadas"
+            else
+                warn "⚠️  Falha ao carregar configurações padrão"
+            fi
         fi
         # Restaurar INSTALL_DIR (não pode ser sobrescrito pelo config, é determinado pelo modo)
         INSTALL_DIR="$SAVED_INSTALL_DIR"
+        
+        # Verificar se as variáveis principais foram carregadas (para debug)
+        if [[ -z "${DB_NAME:-}" ]]; then
+            log "⚠️  DB_NAME não encontrado no config, usando padrão: smartsignage"
+        fi
+        if [[ -z "${DB_USER:-}" ]]; then
+            log "⚠️  DB_USER não encontrado no config, usando padrão: smartsignage"
+        fi
         
         # CORREÇÃO CRÍTICA IMEDIATA: Corrigir permissões ANTES de qualquer verificação
         # ZIPs criados no Windows não preservam permissões Unix, então corrigimos aqui
@@ -1078,14 +1106,30 @@ setup_project() {
         local SAVED_INSTALL_DIR="$INSTALL_DIR"
         if [[ -f "$CONFIG_FILE" ]]; then
             log "Carregando configurações de: $CONFIG_FILE"
-            load_system_config "$CONFIG_FILE" || warn "Usando valores padrão"
+            if load_system_config "$CONFIG_FILE"; then
+                log "✅ Configurações carregadas com sucesso"
+            else
+                warn "⚠️  Falha ao carregar configurações, usando valores padrão"
+            fi
         else
             log "Arquivo de configuração não encontrado, criando padrão..."
             create_default_config "$CONFIG_FILE" "$INSTALL_DIR"
-            load_system_config "$CONFIG_FILE" || warn "Usando valores padrão"
+            if load_system_config "$CONFIG_FILE"; then
+                log "✅ Configurações padrão carregadas"
+            else
+                warn "⚠️  Falha ao carregar configurações padrão"
+            fi
         fi
         # Restaurar INSTALL_DIR (não pode ser sobrescrito pelo config, é determinado pelo modo)
         INSTALL_DIR="$SAVED_INSTALL_DIR"
+        
+        # Verificar se as variáveis principais foram carregadas (para debug)
+        if [[ -z "${DB_NAME:-}" ]]; then
+            log "⚠️  DB_NAME não encontrado no config, usando padrão: smartsignage"
+        fi
+        if [[ -z "${DB_USER:-}" ]]; then
+            log "⚠️  DB_USER não encontrado no config, usando padrão: smartsignage"
+        fi
         
         # Copiar arquivos do projeto (apenas para Docker, Single-Server usa diretório de origem)
         if [[ -d "$SOURCE_DIR/backend" && -d "$SOURCE_DIR/frontend" ]]; then
