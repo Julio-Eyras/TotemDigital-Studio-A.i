@@ -214,26 +214,49 @@ ensure_postgres_system_user() {
     
     # Verificar se usuário existe
     if id "$postgres_user" &>/dev/null; then
+        # Usuário existe, mas verificar se o diretório home tem as permissões corretas
+        local postgres_home="/var/lib/postgresql"
+        if [[ -d "$postgres_home" ]]; then
+            local current_owner=$(stat -c '%U:%G' "$postgres_home" 2>/dev/null || echo "")
+            if [[ "$current_owner" != "$postgres_user:$postgres_user" ]]; then
+                log "Corrigindo permissões do diretório $postgres_home para $postgres_user:$postgres_user..."
+                sudo chown -R "$postgres_user:$postgres_user" "$postgres_home" 2>/dev/null || true
+                sudo chmod 700 "$postgres_home" 2>/dev/null || true
+            fi
+        fi
         return 0
     fi
     
     log "Usuário do sistema '$postgres_user' não encontrado, criando..."
     
+    # Corrigir permissões do diretório /var/lib/postgresql se já existir
+    local postgres_home="/var/lib/postgresql"
+    if [[ -d "$postgres_home" ]]; then
+        log "Diretório $postgres_home já existe, será corrigido após criar usuário..."
+    fi
+    
     # No Ubuntu/Debian, o usuário postgres geralmente é criado pelo pacote postgresql
     # Mas se não foi criado, precisamos criar manualmente
     if command -v adduser &> /dev/null; then
-        sudo adduser --system --group --home /var/lib/postgresql --shell /bin/bash "$postgres_user" 2>&1 || {
+        sudo adduser --system --group --home "$postgres_home" --shell /bin/bash "$postgres_user" 2>&1 || {
             # Tentar método alternativo
-            sudo useradd -r -s /bin/bash -d /var/lib/postgresql -U "$postgres_user" 2>&1 || {
+            sudo useradd -r -s /bin/bash -d "$postgres_home" -U "$postgres_user" 2>&1 || {
                 error "❌ Falha ao criar usuário do sistema '$postgres_user'"
                 return 1
             }
         }
     else
-        sudo useradd -r -s /bin/bash -d /var/lib/postgresql -U "$postgres_user" 2>&1 || {
+        sudo useradd -r -s /bin/bash -d "$postgres_home" -U "$postgres_user" 2>&1 || {
             error "❌ Falha ao criar usuário do sistema '$postgres_user'"
             return 1
         }
+    fi
+    
+    # Corrigir permissões do diretório home após criar o usuário
+    if [[ -d "$postgres_home" ]]; then
+        log "Corrigindo permissões do diretório $postgres_home para $postgres_user:$postgres_user..."
+        sudo chown -R "$postgres_user:$postgres_user" "$postgres_home" 2>/dev/null || true
+        sudo chmod 700 "$postgres_home" 2>/dev/null || true
     fi
     
     log "✅ Usuário do sistema '$postgres_user' criado com sucesso"
@@ -2564,22 +2587,38 @@ setup_database() {
                 
                 # Se pg_createcluster não funcionou, tentar initdb diretamente
                 if [[ "$PG_CLUSTER_EXISTS" != "true" ]]; then
+                    # Verificar/criar usuário postgres do sistema
+                    local postgres_user=$(get_postgres_user)
+                    
                     if [[ ! -d "$PG_CLUSTER_DIR" ]]; then
                         log "Criando diretório do cluster: $PG_CLUSTER_DIR"
                         sudo mkdir -p "$PG_CLUSTER_DIR"
-                        
-                        # Verificar/criar usuário postgres do sistema
-                        local postgres_user=$(get_postgres_user)
-                        
                         sudo chown "$postgres_user:$postgres_user" "$PG_CLUSTER_DIR"
                         sudo chmod 700 "$PG_CLUSTER_DIR"
+                    else
+                        # Diretório existe, mas verificar permissões
+                        local current_owner=$(stat -c '%U:%G' "$PG_CLUSTER_DIR" 2>/dev/null || echo "")
+                        if [[ "$current_owner" != "$postgres_user:$postgres_user" ]]; then
+                            log "Corrigindo permissões do diretório do cluster para $postgres_user:$postgres_user..."
+                            sudo chown -R "$postgres_user:$postgres_user" "$PG_CLUSTER_DIR" 2>/dev/null || true
+                            sudo chmod 700 "$PG_CLUSTER_DIR" 2>/dev/null || true
+                        fi
                     fi
                     
-                    # Encontrar initdb
+                    # Encontrar initdb (procurar em vários locais possíveis)
                     local INITDB_PATH=""
-                    for path in /usr/lib/postgresql/${PG_VERSION}/bin/initdb /usr/local/pgsql/bin/initdb; do
-                        if [[ -f "$path" ]]; then
+                    local possible_paths=(
+                        "/usr/lib/postgresql/${PG_VERSION}/bin/initdb"
+                        "/usr/local/pgsql/bin/initdb"
+                        "/usr/bin/initdb"
+                        "/usr/local/bin/initdb"
+                        "$(which initdb 2>/dev/null || echo '')"
+                    )
+                    
+                    for path in "${possible_paths[@]}"; do
+                        if [[ -n "$path" ]] && [[ -f "$path" ]] && [[ -x "$path" ]]; then
                             INITDB_PATH="$path"
+                            log "initdb encontrado em: $INITDB_PATH"
                             break
                         fi
                     done
@@ -2588,14 +2627,29 @@ setup_database() {
                         log "Inicializando cluster usando $INITDB_PATH..."
                         local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
                         ensure_postgres_system_user
+                        
+                        # Garantir que o diretório do cluster tem as permissões corretas
+                        if [[ -d "$PG_CLUSTER_DIR" ]]; then
+                            local current_owner=$(stat -c '%U:%G' "$PG_CLUSTER_DIR" 2>/dev/null || echo "")
+                            if [[ "$current_owner" != "$POSTGRES_USER:$POSTGRES_USER" ]]; then
+                                log "Corrigindo permissões do diretório do cluster para $POSTGRES_USER:$POSTGRES_USER..."
+                                sudo chown -R "$POSTGRES_USER:$POSTGRES_USER" "$PG_CLUSTER_DIR" 2>/dev/null || true
+                                sudo chmod 700 "$PG_CLUSTER_DIR" 2>/dev/null || true
+                            fi
+                        fi
+                        
                         if sudo -u "$POSTGRES_USER" "$INITDB_PATH" -D "$PG_CLUSTER_DIR" 2>&1; then
                             log "✅ Cluster inicializado com sucesso"
                             PG_CLUSTER_EXISTS=true
                         else
                             error "❌ Falha ao inicializar cluster PostgreSQL"
+                            error "   Verifique as permissões do diretório: $PG_CLUSTER_DIR"
+                            error "   O diretório deve pertencer a $POSTGRES_USER:$POSTGRES_USER"
                         fi
                     else
                         error "❌ initdb não encontrado para PostgreSQL ${PG_VERSION}"
+                        error "   Procurado em: ${possible_paths[*]}"
+                        error "   Tente instalar o pacote: sudo apt-get install postgresql-${PG_VERSION}"
                     fi
                 fi
             fi
