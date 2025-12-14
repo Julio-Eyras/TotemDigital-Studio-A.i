@@ -2976,6 +2976,12 @@ CREATE TABLE IF NOT EXISTS dashboard_layouts (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Índices para dashboard_layouts (v3.1) - DEVE SER CRIADO APÓS A TABELA
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_user_id ON dashboard_layouts(user_id);
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_is_default ON dashboard_layouts(user_id, is_default) WHERE is_default = true;
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_is_shared ON dashboard_layouts(is_shared) WHERE is_shared = true;
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_data ON dashboard_layouts USING GIN (layout_data);
+
 -- Tabela para backups do sistema (v3.1)
 CREATE TABLE IF NOT EXISTS backups (
     id SERIAL PRIMARY KEY,
