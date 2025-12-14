@@ -702,7 +702,15 @@ setup_project() {
         log "✅ Não será necessário copiar arquivos - trabalhando diretamente do diretório de origem"
         
         # Apenas garantir que estamos no diretório correto
-        cd "$INSTALL_DIR"
+        if [[ -d "$INSTALL_DIR" ]]; then
+            cd "$INSTALL_DIR" || {
+                error "❌ Não foi possível entrar no diretório: $INSTALL_DIR"
+                exit 1
+            }
+        else
+            error "❌ Diretório de instalação não existe: $INSTALL_DIR"
+            exit 1
+        fi
     else
         # Modo Docker: copiar para /opt/smart-signage
         INSTALL_DIR="/opt/smart-signage"
