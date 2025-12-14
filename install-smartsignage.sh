@@ -2665,7 +2665,46 @@ setup_database() {
                     else
                         error "❌ initdb não encontrado para PostgreSQL ${PG_VERSION}"
                         error "   Procurado em: ${possible_paths[*]}"
-                        error "   Tente instalar o pacote: sudo apt-get install postgresql-${PG_VERSION}"
+                        log "Tentando instalar pacote postgresql-${PG_VERSION} automaticamente..."
+                        if sudo apt-get update -y && sudo apt-get install -y "postgresql-${PG_VERSION}" postgresql-contrib; then
+                            log "✅ Pacote postgresql-${PG_VERSION} instalado"
+                            # Tentar novamente encontrar initdb
+                            INITDB_PATH=""
+                            for path in "${possible_paths[@]}"; do
+                                if [[ -n "$path" ]] && [[ -f "$path" ]] && [[ -x "$path" ]]; then
+                                    INITDB_PATH="$path"
+                                    log "initdb encontrado após instalação: $INITDB_PATH"
+                                    break
+                                fi
+                            done
+                            
+                            if [[ -n "$INITDB_PATH" ]]; then
+                                log "Inicializando cluster usando $INITDB_PATH..."
+                                local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+                                ensure_postgres_system_user
+                                
+                                # Garantir que o diretório do cluster tem as permissões corretas
+                                if [[ -d "$PG_CLUSTER_DIR" ]]; then
+                                    local current_owner=$(stat -c '%U:%G' "$PG_CLUSTER_DIR" 2>/dev/null || echo "")
+                                    if [[ "$current_owner" != "$POSTGRES_USER:$POSTGRES_USER" ]]; then
+                                        log "Corrigindo permissões do diretório do cluster para $POSTGRES_USER:$POSTGRES_USER..."
+                                        sudo chown -R "$POSTGRES_USER:$POSTGRES_USER" "$PG_CLUSTER_DIR" 2>/dev/null || true
+                                        sudo chmod 700 "$PG_CLUSTER_DIR" 2>/dev/null || true
+                                    fi
+                                fi
+                                
+                                if sudo -u "$POSTGRES_USER" "$INITDB_PATH" -D "$PG_CLUSTER_DIR" 2>&1; then
+                                    log "✅ Cluster inicializado com sucesso"
+                                    PG_CLUSTER_EXISTS=true
+                                else
+                                    error "❌ Falha ao inicializar cluster PostgreSQL mesmo após instalar pacote"
+                                fi
+                            else
+                                error "❌ initdb ainda não encontrado mesmo após instalar postgresql-${PG_VERSION}"
+                            fi
+                        else
+                            error "❌ Falha ao instalar pacote postgresql-${PG_VERSION}"
+                        fi
                     fi
                 fi
             fi
