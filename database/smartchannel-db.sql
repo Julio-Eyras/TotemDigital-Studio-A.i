@@ -1240,10 +1240,10 @@ CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_rese
 CREATE INDEX IF NOT EXISTS idx_medias_client_id ON medias(client_id);
 CREATE INDEX IF NOT EXISTS idx_medias_status ON medias(status);
 CREATE INDEX IF NOT EXISTS idx_media_client_id ON medias(client_id);
-CREATE INDEX IF NOT EXISTS idx_media_type ON medias(type);
+CREATE INDEX IF NOT EXISTS idx_media_type ON medias(media_type);
 CREATE INDEX IF NOT EXISTS idx_media_created_at ON medias(created_at);
 CREATE INDEX IF NOT EXISTS idx_media_is_active ON medias(is_active);
-CREATE INDEX IF NOT EXISTS idx_media_client_type ON medias(client_id, type, is_active);
+CREATE INDEX IF NOT EXISTS idx_media_client_type ON medias(client_id, media_type, is_active);
 CREATE INDEX IF NOT EXISTS idx_medias_client_status_type ON medias(client_id, status, media_type);
 
 -- Índices para audit_logs
