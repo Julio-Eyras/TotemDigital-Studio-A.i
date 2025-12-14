@@ -2990,6 +2990,12 @@ CREATE TABLE IF NOT EXISTS backups (
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
+-- Índices para backups (v3.1) - DEVE SER CRIADO APÓS A TABELA
+CREATE INDEX IF NOT EXISTS idx_backups_backup_id ON backups(backup_id);
+CREATE INDEX IF NOT EXISTS idx_backups_type ON backups(backup_type);
+CREATE INDEX IF NOT EXISTS idx_backups_status ON backups(status);
+CREATE INDEX IF NOT EXISTS idx_backups_created_at ON backups(created_at DESC);
+
 -- Comentários
 COMMENT ON TABLE tags IS 'Tags (RFID/NFC/QR) e suas associações com conteúdo';
 COMMENT ON TABLE recognized_persons IS 'Pessoas reconhecidas para personalização';
