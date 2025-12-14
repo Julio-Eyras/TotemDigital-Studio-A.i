@@ -2533,13 +2533,29 @@ setup_database() {
         # Instalar PostgreSQL se não estiver instalado
         local PG_WAS_INSTALLED=false
         if ! command -v psql &> /dev/null; then
-            log "PostgreSQL não encontrado, instalando..."
+            log "PostgreSQL não encontrado, instalando servidor completo..."
             sudo apt-get update -y
             sudo apt-get install -y postgresql postgresql-contrib
             PG_WAS_INSTALLED=true
             log "✅ PostgreSQL instalado com sucesso"
         else
-            log "PostgreSQL já está instalado: $(psql --version)"
+            log "PostgreSQL cliente já está instalado: $(psql --version)"
+            
+            # Verificar se o servidor PostgreSQL está instalado (não apenas o cliente)
+            local PG_SERVER_INSTALLED=false
+            if dpkg -l | grep -qE "^ii.*postgresql-[0-9]+ "; then
+                PG_SERVER_INSTALLED=true
+                log "✅ Servidor PostgreSQL detectado"
+            elif command -v pg_createcluster &> /dev/null || command -v initdb &> /dev/null; then
+                PG_SERVER_INSTALLED=true
+                log "✅ Ferramentas do servidor PostgreSQL detectadas"
+            else
+                log "⚠️  Apenas o cliente PostgreSQL está instalado, instalando servidor completo..."
+                sudo apt-get update -y
+                sudo apt-get install -y postgresql postgresql-contrib
+                PG_WAS_INSTALLED=true
+                log "✅ Servidor PostgreSQL instalado"
+            fi
         fi
         
         # Instalar ffmpeg para processamento de vídeo (thumbnails)
