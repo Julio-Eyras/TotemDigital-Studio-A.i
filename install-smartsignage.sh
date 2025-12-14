@@ -2752,7 +2752,7 @@ setup_database() {
                     log "✅ Banco de dados '${PG_DB}' criado com sucesso"
                 fi
             else
-                sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
+                sudo -u "$POSTGRES_USER" psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
                     error "❌ Falha ao criar banco de dados"
                     exit 1
                 }
