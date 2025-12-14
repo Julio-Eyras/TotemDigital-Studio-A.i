@@ -2929,11 +2929,6 @@ CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_totem_id ON fx_totem_sites(totem_i
 CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_site_id ON fx_totem_sites(site_id);
 CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_role ON fx_totem_sites(role);
 
--- Índices para webhooks (v3.1)
-CREATE INDEX IF NOT EXISTS idx_webhooks_enabled ON webhooks(enabled);
-CREATE INDEX IF NOT EXISTS idx_webhooks_channels ON webhooks USING GIN(channels);
-CREATE INDEX IF NOT EXISTS idx_webhooks_events ON webhooks USING GIN(events);
-
 -- Índices para dashboard_layouts (v3.1)
 CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_user_id ON dashboard_layouts(user_id);
 CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_is_default ON dashboard_layouts(user_id, is_default) WHERE is_default = true;
