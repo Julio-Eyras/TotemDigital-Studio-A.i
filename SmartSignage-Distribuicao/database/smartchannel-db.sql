@@ -1208,7 +1208,6 @@ CREATE INDEX IF NOT EXISTS idx_users_email_active ON users(email, is_active);
 -- Índices para campaigns
 CREATE INDEX IF NOT EXISTS idx_campaigns_client_id ON campaigns(client_id);
 CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
-CREATE INDEX IF NOT EXISTS idx_campaigns_client_id ON campaigns(client_id);
 CREATE INDEX IF NOT EXISTS idx_campaigns_start_date ON campaigns(start_date);
 CREATE INDEX IF NOT EXISTS idx_campaigns_end_date ON campaigns(end_date);
 CREATE INDEX IF NOT EXISTS idx_campaigns_is_active ON campaigns(is_active);
@@ -1371,7 +1370,6 @@ CREATE INDEX IF NOT EXISTS idx_execution_logs_totem_id ON execution_logs(totem_i
 CREATE INDEX IF NOT EXISTS idx_execution_logs_executed_at ON execution_logs(executed_at);
 CREATE INDEX IF NOT EXISTS idx_execution_logs_client_id ON execution_logs(client_id);
 CREATE INDEX IF NOT EXISTS idx_execution_logs_campaign_id ON execution_logs(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_execution_logs_media_id ON execution_logs(media_id);
 CREATE INDEX IF NOT EXISTS idx_execution_logs_media_id ON execution_logs(media_id);
 CREATE INDEX IF NOT EXISTS idx_execution_logs_play_success ON execution_logs(play_success);
 CREATE INDEX IF NOT EXISTS idx_execution_logs_totem_executed ON execution_logs(totem_id, executed_at, play_success);
