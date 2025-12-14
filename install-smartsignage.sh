@@ -99,6 +99,142 @@ log_status() {
     echo -e "${PURPLE}[STATUS $(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
 }
 
+# =============================================================================
+# GERENCIAMENTO DE CONFIGURAÇÃO CENTRALIZADA
+# =============================================================================
+
+# Arquivo de configuração centralizado
+CONFIG_FILE="${INSTALL_DIR:-/opt/smart-signage}/smartsignage-config"
+
+# Carregar configurações do arquivo smartsignage-config
+load_system_config() {
+    local config_file="$1"
+    
+    if [[ ! -f "$config_file" ]]; then
+        log "Arquivo de configuração não encontrado: $config_file"
+        log "Usando valores padrão e criando arquivo de configuração..."
+        return 1
+    fi
+    
+    # Carregar configurações (formato: VARIAVEL=valor)
+    # Ignorar linhas de comentário e vazias
+    while IFS='=' read -r key value || [[ -n "$key" ]]; do
+        # Ignorar comentários e linhas vazias
+        [[ "$key" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "$key" ]] && continue
+        
+        # Remover espaços e aspas
+        key=$(echo "$key" | xargs)
+        value=$(echo "$value" | xargs | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+        
+        # Exportar variável
+        if [[ -n "$key" && -n "$value" ]]; then
+            export "$key=$value"
+        fi
+    done < <(grep -v '^[[:space:]]*#' "$config_file" | grep -v '^[[:space:]]*$' | grep '=')
+    
+    return 0
+}
+
+# Criar arquivo de configuração padrão
+create_default_config() {
+    local config_file="$1"
+    local install_dir="${2:-/opt/smart-signage}"
+    
+    log "Criando arquivo de configuração padrão: $config_file"
+    
+    cat > "$config_file" << 'EOF'
+# =============================================================================
+# Smart Signage Pro - Configuração do Sistema
+# =============================================================================
+# Este arquivo contém todas as configurações do sistema
+# IMPORTANTE: Altere as senhas e credenciais antes de usar em produção!
+# =============================================================================
+
+# Usuário do sistema para executar o Smart Signage Pro
+SYSTEM_USER=smartsignage
+
+# Grupo do sistema
+SYSTEM_GROUP=smartsignage
+
+# Usuário PostgreSQL do sistema (usuário que gerencia o PostgreSQL)
+POSTGRES_SYSTEM_USER=postgres
+
+# Usuário do banco de dados PostgreSQL (usuário da aplicação)
+DB_USER=smartsignage
+
+# Senha do usuário do banco de dados (ALTERE EM PRODUÇÃO!)
+DB_PASSWORD=smartsignage123
+
+# Nome do banco de dados
+DB_NAME=smartsignage
+
+# Host do banco de dados
+DB_HOST=localhost
+
+# Porta do banco de dados
+DB_PORT=5432
+
+# Diretório de instalação
+INSTALL_DIR=/opt/smart-signage
+
+# Diretório de uploads
+UPLOAD_PATH=/opt/smart-signage/public/assets/uploads
+
+# JWT Secret (ALTERE EM PRODUÇÃO! Use: openssl rand -base64 64)
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+
+# Porta do backend
+BACKEND_PORT=3000
+
+# Porta do frontend (Nginx)
+FRONTEND_PORT=80
+EOF
+    
+    chmod 600 "$config_file"
+    log "✅ Arquivo de configuração criado: $config_file"
+    log "⚠️  IMPORTANTE: Altere as senhas e credenciais antes de usar em produção!"
+}
+
+# Verificar/criar usuário postgres do sistema
+ensure_postgres_system_user() {
+    local postgres_user="${POSTGRES_SYSTEM_USER:-postgres}"
+    
+    # Verificar se usuário existe
+    if id "$postgres_user" &>/dev/null; then
+        return 0
+    fi
+    
+    log "Usuário do sistema '$postgres_user' não encontrado, criando..."
+    
+    # No Ubuntu/Debian, o usuário postgres geralmente é criado pelo pacote postgresql
+    # Mas se não foi criado, precisamos criar manualmente
+    if command -v adduser &> /dev/null; then
+        sudo adduser --system --group --home /var/lib/postgresql --shell /bin/bash "$postgres_user" 2>&1 || {
+            # Tentar método alternativo
+            sudo useradd -r -s /bin/bash -d /var/lib/postgresql -U "$postgres_user" 2>&1 || {
+                error "❌ Falha ao criar usuário do sistema '$postgres_user'"
+                return 1
+            }
+        }
+    else
+        sudo useradd -r -s /bin/bash -d /var/lib/postgresql -U "$postgres_user" 2>&1 || {
+            error "❌ Falha ao criar usuário do sistema '$postgres_user'"
+            return 1
+        }
+    fi
+    
+    log "✅ Usuário do sistema '$postgres_user' criado com sucesso"
+    return 0
+}
+
+# Obter usuário postgres do sistema (garantindo que existe)
+get_postgres_user() {
+    local postgres_user="${POSTGRES_SYSTEM_USER:-postgres}"
+    ensure_postgres_system_user
+    echo "$postgres_user"
+}
+
 # Função para log de container
 log_container() {
     echo -e "${YELLOW}[CONTAINER $(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
@@ -832,6 +968,17 @@ setup_project() {
         log "Modo Single-Server: usando diretório de origem diretamente: $INSTALL_DIR"
         log "✅ Não será necessário copiar arquivos - trabalhando diretamente do diretório de origem"
         
+        # Carregar configurações do sistema
+        CONFIG_FILE="$INSTALL_DIR/smartsignage-config"
+        if [[ -f "$CONFIG_FILE" ]]; then
+            log "Carregando configurações de: $CONFIG_FILE"
+            load_system_config "$CONFIG_FILE" || warn "Usando valores padrão"
+        else
+            log "Arquivo de configuração não encontrado, criando padrão..."
+            create_default_config "$CONFIG_FILE" "$INSTALL_DIR"
+            load_system_config "$CONFIG_FILE" || warn "Usando valores padrão"
+        fi
+        
         # CORREÇÃO CRÍTICA IMEDIATA: Corrigir permissões ANTES de qualquer verificação
         # ZIPs criados no Windows não preservam permissões Unix, então corrigimos aqui
         log "Corrigindo permissões de diretórios e arquivos (preventivo para ZIPs do Windows)..."
@@ -856,6 +1003,17 @@ setup_project() {
         sudo mkdir -p $INSTALL_DIR
         sudo chown $USER:$USER $INSTALL_DIR
         log "Modo Docker: copiando para $INSTALL_DIR"
+        
+        # Carregar configurações do sistema
+        CONFIG_FILE="$INSTALL_DIR/smartsignage-config"
+        if [[ -f "$CONFIG_FILE" ]]; then
+            log "Carregando configurações de: $CONFIG_FILE"
+            load_system_config "$CONFIG_FILE" || warn "Usando valores padrão"
+        else
+            log "Arquivo de configuração não encontrado, criando padrão..."
+            create_default_config "$CONFIG_FILE" "$INSTALL_DIR"
+            load_system_config "$CONFIG_FILE" || warn "Usando valores padrão"
+        fi
         
         # Copiar arquivos do projeto (apenas para Docker, Single-Server usa diretório de origem)
         if [[ -d "$SOURCE_DIR/backend" && -d "$SOURCE_DIR/frontend" ]]; then
@@ -2276,9 +2434,11 @@ setup_database() {
                 log "Cluster PostgreSQL ${PG_VERSION} não encontrado, inicializando..."
                 
                 # No Ubuntu, usar pg_createcluster se disponível
+                local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+                ensure_postgres_system_user
                 if command -v pg_createcluster &> /dev/null; then
                     log "Criando cluster PostgreSQL usando pg_createcluster..."
-                    if sudo -u postgres pg_createcluster ${PG_VERSION} main --start 2>&1; then
+                    if sudo -u "$POSTGRES_USER" pg_createcluster ${PG_VERSION} main --start 2>&1; then
                         log "✅ Cluster criado e iniciado com sucesso"
                         PG_CLUSTER_EXISTS=true
                     else
@@ -2291,7 +2451,11 @@ setup_database() {
                     if [[ ! -d "$PG_CLUSTER_DIR" ]]; then
                         log "Criando diretório do cluster: $PG_CLUSTER_DIR"
                         sudo mkdir -p "$PG_CLUSTER_DIR"
-                        sudo chown postgres:postgres "$PG_CLUSTER_DIR"
+                        
+                        # Verificar/criar usuário postgres do sistema
+                        local postgres_user=$(get_postgres_user)
+                        
+                        sudo chown "$postgres_user:$postgres_user" "$PG_CLUSTER_DIR"
                         sudo chmod 700 "$PG_CLUSTER_DIR"
                     fi
                     
@@ -2306,7 +2470,9 @@ setup_database() {
                     
                     if [[ -n "$INITDB_PATH" ]]; then
                         log "Inicializando cluster usando $INITDB_PATH..."
-                        if sudo -u postgres "$INITDB_PATH" -D "$PG_CLUSTER_DIR" 2>&1; then
+                        local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+                        ensure_postgres_system_user
+                        if sudo -u "$POSTGRES_USER" "$INITDB_PATH" -D "$PG_CLUSTER_DIR" 2>&1; then
                             log "✅ Cluster inicializado com sucesso"
                             PG_CLUSTER_EXISTS=true
                         else
@@ -2366,7 +2532,9 @@ setup_database() {
         fi
         
         # Verificar se PostgreSQL está respondendo
-        if sudo -u postgres psql -c "SELECT 1" > /dev/null 2>&1; then
+        local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+        ensure_postgres_system_user
+        if sudo -u "$POSTGRES_USER" psql -c "SELECT 1" > /dev/null 2>&1; then
             log "✅ PostgreSQL está respondendo corretamente"
         else
             error "❌ PostgreSQL não está respondendo"
@@ -2401,17 +2569,21 @@ setup_database() {
             exit 1
         fi
 
-        # Parâmetros
-        local PG_DB="smartsignage"
-        local PG_USER="smartsignage"
-        local PG_PASS="smartsignage123"
+        # Parâmetros (carregar do arquivo de configuração ou usar padrões)
+        local PG_DB="${DB_NAME:-smartsignage}"
+        local PG_USER="${DB_USER:-smartsignage}"
+        local PG_PASS="${DB_PASSWORD:-smartsignage123}"
+        local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+        
+        # Garantir que usuário postgres do sistema existe
+        ensure_postgres_system_user
 
         # Criar USER idempotente
         log "Criando usuário PostgreSQL '${PG_USER}'..."
-        if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname = '${PG_USER}'" | grep -q 1; then
+        if sudo -u "$POSTGRES_USER" psql -tc "SELECT 1 FROM pg_roles WHERE rolname = '${PG_USER}'" | grep -q 1; then
             log "Usuário '${PG_USER}' já existe"
         else
-            sudo -u postgres psql -c "CREATE USER ${PG_USER} WITH PASSWORD '${PG_PASS}';" || {
+            sudo -u "$POSTGRES_USER" psql -c "CREATE USER ${PG_USER} WITH PASSWORD '${PG_PASS}';" || {
                 error "❌ Falha ao criar usuário PostgreSQL"
                 exit 1
             }
