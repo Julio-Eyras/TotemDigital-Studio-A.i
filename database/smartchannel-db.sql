@@ -2929,12 +2929,6 @@ CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_totem_id ON fx_totem_sites(totem_i
 CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_site_id ON fx_totem_sites(site_id);
 CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_role ON fx_totem_sites(role);
 
--- Índices para dashboard_layouts (v3.1)
-CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_user_id ON dashboard_layouts(user_id);
-CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_is_default ON dashboard_layouts(user_id, is_default) WHERE is_default = true;
-CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_is_shared ON dashboard_layouts(is_shared) WHERE is_shared = true;
-CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_data ON dashboard_layouts USING GIN (layout_data);
-
 -- Índices para backups (v3.1)
 CREATE INDEX IF NOT EXISTS idx_backups_backup_id ON backups(backup_id);
 CREATE INDEX IF NOT EXISTS idx_backups_type ON backups(backup_type);
