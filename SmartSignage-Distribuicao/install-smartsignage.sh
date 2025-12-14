@@ -2308,9 +2308,16 @@ setup_database() {
             local PG_CLUSTER_DIR="/var/lib/postgresql/${PG_VERSION}/main"
             local PG_CLUSTER_EXISTS=false
             
+            # Verificar se cluster já existe e está inicializado
+            # O pacote postgresql-16 cria o cluster automaticamente durante instalação
             if [[ -d "$PG_CLUSTER_DIR" ]] && [[ -f "$PG_CLUSTER_DIR/PG_VERSION" ]]; then
-                log "Cluster PostgreSQL ${PG_VERSION} já existe em $PG_CLUSTER_DIR"
-                PG_CLUSTER_EXISTS=true
+                # Verificar se o cluster está realmente inicializado (tem arquivos de dados)
+                if [[ -f "$PG_CLUSTER_DIR/postgresql.conf" ]] || [[ -f "$PG_CLUSTER_DIR/postmaster.pid" ]] || [[ -n "$(ls -A "$PG_CLUSTER_DIR" 2>/dev/null | grep -v '^\.$' | grep -v '^\.\.$')" ]]; then
+                    log "✅ Cluster PostgreSQL ${PG_VERSION} já existe e está inicializado em $PG_CLUSTER_DIR"
+                    PG_CLUSTER_EXISTS=true
+                else
+                    log "⚠️  Diretório do cluster existe mas parece vazio, inicializando..."
+                fi
             else
                 log "Cluster PostgreSQL ${PG_VERSION} não encontrado, inicializando..."
                 
