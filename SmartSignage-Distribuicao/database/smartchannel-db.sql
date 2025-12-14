@@ -1415,7 +1415,6 @@ CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_role ON fx_totem_sites(role);
 -- Índices para playlist_items
 CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_id ON playlist_items(playlist_id);
 CREATE INDEX IF NOT EXISTS idx_playlist_items_order ON playlist_items(playlist_id, order_index);
-CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_order ON playlist_items(playlist_id, order_index);
 
 -- Índices para event_logs
 CREATE INDEX IF NOT EXISTS idx_event_logs_event_type ON event_logs(event_type);
@@ -1426,7 +1425,6 @@ CREATE INDEX IF NOT EXISTS idx_event_logs_media_id ON event_logs(media_id);
 CREATE INDEX IF NOT EXISTS idx_event_logs_timestamp ON event_logs(timestamp);
 CREATE INDEX IF NOT EXISTS idx_event_logs_entity ON event_logs(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_event_logs_bi ON event_logs(totem_id, campaign_id, timestamp);
-CREATE INDEX IF NOT EXISTS idx_event_logs_event_type ON event_logs(event_type);
 CREATE INDEX IF NOT EXISTS idx_event_logs_logged_at ON event_logs(logged_at);
 CREATE INDEX IF NOT EXISTS idx_event_logs_totem_type ON event_logs(totem_id, event_type, logged_at);
 CREATE INDEX IF NOT EXISTS idx_event_logs_totem_timestamp ON event_logs(totem_id, timestamp);
