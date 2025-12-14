@@ -822,12 +822,16 @@ CREATE TABLE IF NOT EXISTS billing (
     payment_reference TEXT,
     notes TEXT,
     metadata JSONB,
+    stripe_invoice_id TEXT,
+    stripe_payment_intent_id TEXT,
+    subscription_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     paid_at TIMESTAMP,
     FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE,
     FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE SET NULL,
-    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL,
+    FOREIGN KEY (subscription_id) REFERENCES subscriptions(subscription_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS analytics_sessions (
@@ -3083,33 +3087,8 @@ COMMENT ON COLUMN user_two_factor.backup_codes IS 'Códigos de backup criptograf
 -- Stripe Customers Table (para armazenar IDs do Stripe)
 
 
--- Adicionar colunas ao billing para integração Stripe
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billing' AND column_name = 'stripe_invoice_id') THEN
-        ALTER TABLE billing ADD COLUMN stripe_invoice_id TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billing' AND column_name = 'stripe_payment_intent_id') THEN
-        ALTER TABLE billing ADD COLUMN stripe_payment_intent_id TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billing' AND column_name = 'subscription_id') THEN
-        ALTER TABLE billing ADD COLUMN subscription_id INTEGER;
-    END IF;
-END $$;
-
-
--- Adicionar foreign key para subscription_id
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'billing_subscription_id_fkey'
-    ) THEN
-        ALTER TABLE billing 
-        ADD CONSTRAINT billing_subscription_id_fkey 
-        FOREIGN KEY (subscription_id) REFERENCES subscriptions(subscription_id) ON DELETE SET NULL;
-    END IF;
-END $$;
+-- Colunas stripe_invoice_id, stripe_payment_intent_id e subscription_id
+-- já foram adicionadas diretamente na definição da tabela billing
 
 -- Inserir planos padrão
 INSERT INTO plans (name, slug, description, price_monthly, price_yearly, billing_interval, features, limits, is_active, is_popular, sort_order)
