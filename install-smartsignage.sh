@@ -5999,17 +5999,20 @@ setup_first_boot() {
     
     log "Garantindo privilégios para o usuário ${PRIMARY_DB_USER}..."
     
+    # Obter usuário postgres do sistema
+    local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+    
     # Transferir ownership de todas as tabelas para o usuário da aplicação
     log "Transferindo ownership de todas as tabelas para ${PRIMARY_DB_USER}..."
-    sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER TABLE ' || schemaname || '.' || tablename || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_tables WHERE schemaname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
+    sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -tAc "SELECT 'ALTER TABLE ' || schemaname || '.' || tablename || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_tables WHERE schemaname = 'public';" | sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" >/dev/null 2>&1 || true
     
     # Transferir ownership de todas as sequences
     log "Transferindo ownership de todas as sequences para ${PRIMARY_DB_USER}..."
-    sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER SEQUENCE ' || schemaname || '.' || sequencename || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_sequences WHERE schemaname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
+    sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -tAc "SELECT 'ALTER SEQUENCE ' || schemaname || '.' || sequencename || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_sequences WHERE schemaname = 'public';" | sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" >/dev/null 2>&1 || true
     
     # Transferir ownership de todas as views
     log "Transferindo ownership de todas as views para ${PRIMARY_DB_USER}..."
-    sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER VIEW ' || schemaname || '.' || viewname || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_views WHERE schemaname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
+    sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -tAc "SELECT 'ALTER VIEW ' || schemaname || '.' || viewname || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_views WHERE schemaname = 'public';" | sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" >/dev/null 2>&1 || true
     
     # Transferir ownership de todas as funções
     log "Transferindo ownership de todas as funções para ${PRIMARY_DB_USER}..."
