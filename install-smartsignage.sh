@@ -160,7 +160,10 @@ SYSTEM_GROUP=smartsignage
 # Usuário PostgreSQL do sistema (usuário que gerencia o PostgreSQL)
 POSTGRES_SYSTEM_USER=postgres
 
-# Usuário do banco de dados PostgreSQL (usuário da aplicação)
+# Senha do usuário postgres do PostgreSQL (ALTERE EM PRODUÇÃO!)
+POSTGRES_PASSWORD=smartsignage123
+
+# Usuário do banco de dados PostgreSQL (usuário da aplicação - master do sistema)
 DB_USER=smartsignage
 
 # Senha do usuário do banco de dados (ALTERE EM PRODUÇÃO!)
@@ -235,6 +238,63 @@ get_postgres_user() {
     echo "$postgres_user"
 }
 
+# Alterar senha do usuário postgres do PostgreSQL
+change_postgres_password() {
+    local postgres_user="${POSTGRES_SYSTEM_USER:-postgres}"
+    local new_password="${POSTGRES_PASSWORD:-smartsignage123}"
+    
+    log "Alterando senha do usuário PostgreSQL '${postgres_user}'..."
+    
+    # Aguardar PostgreSQL estar pronto
+    local max_attempts=10
+    local attempt=0
+    while [[ $attempt -lt $max_attempts ]]; do
+        if sudo -u "$postgres_user" psql -c "SELECT 1" > /dev/null 2>&1; then
+            break
+        fi
+        attempt=$((attempt + 1))
+        sleep 2
+    done
+    
+    if [[ $attempt -eq $max_attempts ]]; then
+        error "❌ PostgreSQL não está respondendo para alterar senha"
+        return 1
+    fi
+    
+    # Alterar senha usando ALTER USER
+    if sudo -u "$postgres_user" psql -c "ALTER USER ${postgres_user} WITH PASSWORD '${new_password}';" > /dev/null 2>&1; then
+        log "✅ Senha do usuário PostgreSQL '${postgres_user}' alterada com sucesso"
+        
+        # Atualizar arquivo .pgpass se existir (para autenticação automática)
+        local pgpass_file="/var/lib/postgresql/.pgpass"
+        if [[ -f "$pgpass_file" ]]; then
+            sudo -u "$postgres_user" sed -i "s|^localhost:5432:\*:${postgres_user}:.*|localhost:5432:*:${postgres_user}:${new_password}|" "$pgpass_file" 2>/dev/null || true
+        fi
+        
+        return 0
+    else
+        warn "⚠️  Não foi possível alterar senha do usuário PostgreSQL (pode já estar configurada)"
+        return 0
+    fi
+}
+
+# Estrutura para criptografia de senhas (implementação futura)
+# Por enquanto, senhas ficam em texto plano no arquivo de configuração
+encrypt_password() {
+    local password="$1"
+    # TODO: Implementar criptografia usando openssl ou gpg
+    # Por enquanto, retorna a senha em texto plano
+    echo "$password"
+}
+
+# Descriptografar senha (implementação futura)
+decrypt_password() {
+    local encrypted_password="$1"
+    # TODO: Implementar descriptografia
+    # Por enquanto, retorna como está (assumindo texto plano)
+    echo "$encrypted_password"
+}
+
 # Função para log de container
 log_container() {
     echo -e "${YELLOW}[CONTAINER $(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
@@ -296,7 +356,8 @@ execute_psql_file() {
 
     local schema_to_use="$temp_schema"
     local psql_output
-    if ! psql_output=$(sudo -u postgres psql -v ON_ERROR_STOP=1 -d "$database_name" -f "$schema_to_use" 2>&1); then
+    local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+    if ! psql_output=$(sudo -u "$POSTGRES_USER" psql -v ON_ERROR_STOP=1 -d "$database_name" -f "$schema_to_use" 2>&1); then
         rm -f "$schema_to_use" 2>/dev/null || true
         error "❌ Falha ao aplicar ${description}"
         echo "$psql_output"
@@ -2536,6 +2597,11 @@ setup_database() {
         ensure_postgres_system_user
         if sudo -u "$POSTGRES_USER" psql -c "SELECT 1" > /dev/null 2>&1; then
             log "✅ PostgreSQL está respondendo corretamente"
+            
+            # Alterar senha do usuário postgres se foi instalado agora ou se senha não foi configurada
+            if [[ "$PG_WAS_INSTALLED" == "true" ]] || [[ -n "${POSTGRES_PASSWORD:-}" ]]; then
+                change_postgres_password
+            fi
         else
             error "❌ PostgreSQL não está respondendo"
             error "Diagnóstico:"
@@ -2578,22 +2644,30 @@ setup_database() {
         # Garantir que usuário postgres do sistema existe
         ensure_postgres_system_user
 
-        # Criar USER idempotente
-        log "Criando usuário PostgreSQL '${PG_USER}'..."
+        # Criar USER idempotente (usuário master do sistema)
+        log "Criando usuário PostgreSQL master '${PG_USER}' (usuário do sistema Smart Signage Pro)..."
         if sudo -u "$POSTGRES_USER" psql -tc "SELECT 1 FROM pg_roles WHERE rolname = '${PG_USER}'" | grep -q 1; then
-            log "Usuário '${PG_USER}' já existe"
+            log "Usuário '${PG_USER}' já existe, atualizando senha..."
+            # Atualizar senha se o usuário já existe
+            sudo -u "$POSTGRES_USER" psql -c "ALTER USER ${PG_USER} WITH PASSWORD '${PG_PASS}';" > /dev/null 2>&1 || {
+                warn "⚠️  Não foi possível atualizar senha do usuário '${PG_USER}'"
+            }
         else
             sudo -u "$POSTGRES_USER" psql -c "CREATE USER ${PG_USER} WITH PASSWORD '${PG_PASS}';" || {
                 error "❌ Falha ao criar usuário PostgreSQL"
                 exit 1
             }
-            log "✅ Usuário '${PG_USER}' criado com sucesso"
+            log "✅ Usuário master '${PG_USER}' criado com sucesso"
         fi
+        
+        # Garantir que o usuário tem privilégios de superusuário (opcional, mas útil para administração)
+        log "Configurando privilégios do usuário master '${PG_USER}'..."
+        sudo -u "$POSTGRES_USER" psql -c "ALTER USER ${PG_USER} WITH CREATEDB CREATEROLE;" > /dev/null 2>&1 || true
 
         # Criar DATABASE com opção de recriação
         log "Criando banco de dados '${PG_DB}'..."
         local DB_EXISTS=false
-        if sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${PG_DB}'" | grep -q 1; then
+        if sudo -u "$POSTGRES_USER" psql -tc "SELECT 1 FROM pg_database WHERE datname = '${PG_DB}'" | grep -q 1; then
             DB_EXISTS=true
             log "Banco de dados '${PG_DB}' já existe"
         fi
@@ -2620,8 +2694,8 @@ setup_database() {
 
         if [[ "$DROP_DB" == true ]]; then
             log "🗑️  Removendo banco de dados '${PG_DB}'..."
-            sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${PG_DB}' AND pid <> pg_backend_pid();" >/dev/null 2>&1 || true
-            sudo -u postgres psql -c "DROP DATABASE IF EXISTS ${PG_DB};" || {
+            sudo -u "$POSTGRES_USER" psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${PG_DB}' AND pid <> pg_backend_pid();" >/dev/null 2>&1 || true
+            sudo -u "$POSTGRES_USER" psql -c "DROP DATABASE IF EXISTS ${PG_DB};" || {
                 error "❌ Falha ao remover banco de dados existente"
                 exit 1
             }
@@ -2637,14 +2711,14 @@ setup_database() {
                 
                 if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
                     log "Criando banco de dados '${PG_DB}' para restaurar backup..."
-                    sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
+                    sudo -u "$POSTGRES_USER" psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
                         error "❌ Falha ao criar banco de dados para restauração"
                         exit 1
                     }
                     log "✅ Banco de dados '${PG_DB}' criado"
                     
                     log "🔄 Restaurando backup do banco de dados..."
-                    if sudo -u postgres pg_restore -d "${PG_DB}" "$BACKUP_FILE" >/dev/null 2>&1; then
+                    if sudo -u "$POSTGRES_USER" pg_restore -d "${PG_DB}" "$BACKUP_FILE" >/dev/null 2>&1; then
                         log "✅ Backup do banco de dados restaurado com sucesso!"
                         # Limpar arquivos temporários
                         rm -f /tmp/smartsignage-db-backup-path.txt /tmp/smartsignage-db-backup-name.txt 2>/dev/null || true
@@ -2656,11 +2730,11 @@ setup_database() {
                     else
                         warn "⚠️  Falha ao restaurar backup. Banco será criado vazio."
                         warn "   Backup ainda disponível em: $BACKUP_FILE"
-                        warn "   Você pode restaurar manualmente com: sudo -u postgres pg_restore -d ${PG_DB} $BACKUP_FILE"
+                        warn "   Você pode restaurar manualmente com: sudo -u $POSTGRES_USER pg_restore -d ${PG_DB} $BACKUP_FILE"
                     fi
                 else
                     log "Nenhum backup encontrado. Criando banco de dados novo..."
-                    sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
+                    sudo -u "$POSTGRES_USER" psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
                         error "❌ Falha ao criar banco de dados"
                         exit 1
                     }
@@ -2678,8 +2752,8 @@ setup_database() {
         fi
 
         # Garantir privilégios
-        sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO ${PG_USER};" >/dev/null 2>&1 || true
-        sudo -u postgres psql -d ${PG_DB} -c "GRANT ALL ON SCHEMA public TO ${PG_USER};" >/dev/null 2>&1 || true
+        sudo -u "$POSTGRES_USER" psql -c "GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO ${PG_USER};" >/dev/null 2>&1 || true
+        sudo -u "$POSTGRES_USER" psql -d ${PG_DB} -c "GRANT ALL ON SCHEMA public TO ${PG_USER};" >/dev/null 2>&1 || true
 
         export PRIMARY_DB_USER="$PG_USER"
 
@@ -5950,15 +6024,15 @@ setup_first_boot() {
     # Garantir privilégios para tabelas específicas que podem ter sido criadas dentro de blocos DO $$
     log "Garantindo privilégios específicos em tabelas críticas..."
     for table in system_settings export_schedules export_queries export_executions; do
-        if sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$table'" | grep -q 1; then
-            sudo -u postgres psql -d "$TARGET_DB" -c "ALTER TABLE $table OWNER TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-            sudo -u postgres psql -d "$TARGET_DB" -c "GRANT ALL ON TABLE $table TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+        if sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$table'" | grep -q 1; then
+            sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "ALTER TABLE $table OWNER TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+            sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "GRANT ALL ON TABLE $table TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
         fi
     done
     
     # Configurar privilégios padrão para objetos futuros
     log "Configurando privilégios padrão para objetos futuros..."
-    sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
     sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
     sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
     
