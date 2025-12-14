@@ -2929,12 +2929,6 @@ CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_totem_id ON fx_totem_sites(totem_i
 CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_site_id ON fx_totem_sites(site_id);
 CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_role ON fx_totem_sites(role);
 
--- Índices para backups (v3.1)
-CREATE INDEX IF NOT EXISTS idx_backups_backup_id ON backups(backup_id);
-CREATE INDEX IF NOT EXISTS idx_backups_type ON backups(backup_type);
-CREATE INDEX IF NOT EXISTS idx_backups_status ON backups(status);
-CREATE INDEX IF NOT EXISTS idx_backups_created_at ON backups(created_at DESC);
-
 -- Índices para notifications (v3.1)
 CREATE INDEX IF NOT EXISTS idx_notifications_notification_id ON notifications(notification_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
