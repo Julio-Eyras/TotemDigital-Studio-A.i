@@ -233,6 +233,58 @@ CREATE TABLE IF NOT EXISTS users (
     FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL
 );
 
+-- Tabelas de export (dependem de users)
+CREATE TABLE IF NOT EXISTS export_queries (
+    query_id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT,
+    provider VARCHAR(50) NOT NULL CHECK (provider IN ('PostgreSQL', 'Redis', 'Grafana', 'Prometheus')),
+    sql_query TEXT NOT NULL,
+    database_config JSONB NOT NULL,
+    export_config JSONB NOT NULL,
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    
+    CONSTRAINT export_queries_name_unique UNIQUE (name)
+);
+
+CREATE TABLE IF NOT EXISTS export_schedules (
+    schedule_id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT,
+    query_id INTEGER NOT NULL REFERENCES export_queries(query_id) ON DELETE CASCADE,
+    cron_expression VARCHAR(100) NOT NULL,
+    enabled BOOLEAN DEFAULT true,
+    last_execution TIMESTAMP,
+    next_execution TIMESTAMP,
+    execution_count INTEGER DEFAULT 0,
+    success_count INTEGER DEFAULT 0,
+    failure_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    
+    CONSTRAINT export_schedules_name_unique UNIQUE (name)
+);
+
+CREATE TABLE IF NOT EXISTS export_executions (
+    execution_id SERIAL PRIMARY KEY,
+    schedule_id INTEGER REFERENCES export_schedules(schedule_id) ON DELETE SET NULL,
+    query_id INTEGER NOT NULL REFERENCES export_queries(query_id) ON DELETE CASCADE,
+    job_id VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    records_exported INTEGER DEFAULT 0,
+    file_path TEXT,
+    file_size BIGINT,
+    error_message TEXT,
+    execution_log TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS campaigns (
     campaign_id SERIAL PRIMARY KEY,
     client_id INTEGER NOT NULL,
