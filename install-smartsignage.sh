@@ -6036,8 +6036,8 @@ setup_first_boot() {
     # Configurar privilégios padrão para objetos futuros
     log "Configurando privilégios padrão para objetos futuros..."
     sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-    sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-    sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
     
     log "✅ Privilégios garantidos para ${PRIMARY_DB_USER}"
     
