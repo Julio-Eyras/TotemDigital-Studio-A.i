@@ -60,9 +60,15 @@ router.get('/', async (req: any, res) => {
       filters
     );
 
+    // Converter estrutura { campaigns: [...] } para { data: [...] } para compatibilidade com frontend
     return res.json({
       success: true,
-      data: result
+      data: {
+        data: result.campaigns,
+        total: result.total,
+        page: result.page,
+        limit: result.limit
+      }
     });
 
   } catch (error: any) {
@@ -280,7 +286,17 @@ router.post('/',
       });
     }
 
-    const campaign = await getCampaignService().createCampaign(mappedData, req.user.userId);
+    const userId = req.user?.userId || req.user?.id;
+    if (!userId) {
+      await logError('Erro: userId não encontrado no token', new Error('userId ausente'), { user: req.user });
+      return res.status(401).json({
+        success: false,
+        message: 'Usuário não autenticado corretamente',
+        error: 'userId ausente no token'
+      });
+    }
+
+    const campaign = await getCampaignService().createCampaign(mappedData, userId);
 
     // Registrar evento de criação de campanha (se ativa)
     if (campaign.isActive && campaign.status === 'active') {
@@ -296,7 +312,7 @@ router.post('/',
           await eventLogService.logCampaignStart(
             campaign.id,
             totem.totem_id,
-            { createdBy: req.user.userId, title: campaign.title }
+            { createdBy: userId, title: campaign.title }
           );
         }
       } catch (eventError: any) {

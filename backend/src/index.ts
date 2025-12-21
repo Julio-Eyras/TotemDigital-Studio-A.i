@@ -314,7 +314,7 @@ import playerValidationRoutes from './routes/player';
 
 // Servir player com suporte a UIN como parâmetro
 app.get('/player', (_req, res) => {
-  const playerPath = process.env.PLAYER_PATH || '/opt/smart-signage/player/index.html';
+  const playerPath = config.player.path;
   res.sendFile(playerPath);
 });
 

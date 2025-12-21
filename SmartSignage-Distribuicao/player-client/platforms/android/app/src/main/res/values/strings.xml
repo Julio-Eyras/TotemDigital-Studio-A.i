@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">Smart Signage Player</string>
-    <string name="loading">Carregando...</string>
-    <string name="error">Erro</string>
-    <string name="playlist_error">Erro ao carregar playlist</string>
-    <string name="auth_error">Falha na autenticação</string>
-</resources>
-

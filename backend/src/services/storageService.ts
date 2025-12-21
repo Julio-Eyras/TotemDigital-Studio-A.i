@@ -75,10 +75,71 @@ export class StorageService {
   }
 
   /**
+   * Calcula o uso de armazenamento por cliente
+   */
+  async getClientStorageUsage(clientId: number): Promise<number> {
+    try {
+      const clientDir = path.join(this.uploadsPath, `client-${clientId}`);
+      if (!fs.existsSync(clientDir)) {
+        return 0;
+      }
+      return await this.getDirectorySize(clientDir);
+    } catch (error: any) {
+      logErrorSync('Erro ao calcular uso de armazenamento do cliente', error, { clientId });
+      return 0;
+    }
+  }
+
+  /**
+   * Verifica se cliente tem quota disponível para novo arquivo
+   */
+  async checkClientQuota(clientId: number, fileSize: number): Promise<{ allowed: boolean; currentUsage: number; quota: number; available: number }> {
+    try {
+      const { uploadConfig } = require('../config/env').config;
+      const quota = uploadConfig.mediaQuotaPerClient;
+      const currentUsage = await this.getClientStorageUsage(clientId);
+      const available = quota - currentUsage;
+      const allowed = fileSize <= available;
+
+      if (!allowed) {
+        logWarnSync('Quota de armazenamento excedida', {
+          clientId,
+          fileSize,
+          currentUsage,
+          quota,
+          available
+        });
+      }
+
+      return {
+        allowed,
+        currentUsage,
+        quota,
+        available
+      };
+    } catch (error: any) {
+      logErrorSync('Erro ao verificar quota do cliente', error, { clientId, fileSize });
+      // Em caso de erro, permitir upload (fail-open)
+      return {
+        allowed: true,
+        currentUsage: 0,
+        quota: 0,
+        available: 0
+      };
+    }
+  }
+
+  /**
    * Salva arquivo de mídia
    */
   async saveMediaFile(file: FileInfo, clientId: number, mediaName: string): Promise<string> {
     try {
+      // Verificar quota antes de salvar
+      const quotaCheck = await this.checkClientQuota(clientId, file.size);
+      if (!quotaCheck.allowed) {
+        throw new Error(`Quota de armazenamento excedida. Uso atual: ${this.formatBytes(quotaCheck.currentUsage)}, Quota: ${this.formatBytes(quotaCheck.quota)}, Disponível: ${this.formatBytes(quotaCheck.available)}, Arquivo: ${this.formatBytes(file.size)}`);
+      }
+
       // Criar diretório do cliente
       const clientDir = path.join(this.uploadsPath, `client-${clientId}`, 'medias');
       await this.ensureDirectoryExists(clientDir);
@@ -553,5 +614,17 @@ export class StorageService {
         availableSpace: 0
       };
     }
+  }
+
+  /**
+   * Formata bytes para string legível (ex: "1.5 MB")
+   * Método público para uso em rotas e outros serviços
+   */
+  formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   }
 }

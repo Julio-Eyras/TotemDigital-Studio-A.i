@@ -171,10 +171,10 @@ fi
 # Gerar arquivo de configuração encriptado do player
 if [[ -n "$GENERATE_CONFIG_SCRIPT" ]]; then
     PLAYER_DIR=""
-    if [[ -d "/opt/smart-signage/player" ]]; then
-        PLAYER_DIR="/opt/smart-signage/player"
-    elif [[ -d "$HOME/smartsignage-pro-main/player" ]]; then
-        PLAYER_DIR="$HOME/smartsignage-pro-main/player"
+    if [[ -d "/opt/smart-signage/player-web" ]]; then
+        PLAYER_DIR="/opt/smart-signage/player-web"
+    elif [[ -d "$HOME/smartsignage-pro-main/player-web" ]]; then
+        PLAYER_DIR="$HOME/smartsignage-pro-main/player-web"
     fi
     
     if [[ -n "$PLAYER_DIR" ]]; then

@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { MediaService } from '../services/mediaService';
+import { StorageService } from '../services/storageService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
@@ -554,5 +555,43 @@ router.get('/stats/storage', async (_req: AuthenticatedRequest, res: Response) =
     return res.status(500).json({ error: 'Erro ao obter estatísticas de armazenamento' });
   }
 });
+
+/**
+ * @route GET /api/media/quota/:clientId
+ * @desc Verificar quota de armazenamento do cliente
+ * @access Private
+ */
+router.get('/quota/:clientId',
+  param('clientId').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const clientId = parseInt(req.params.clientId);
+      const storageService = new StorageService();
+      
+      const { uploadConfig } = require('../config/env').config;
+      const quota = uploadConfig.mediaQuotaPerClient;
+      const currentUsage = await storageService.getClientStorageUsage(clientId);
+      const available = quota - currentUsage;
+      const usagePercent = quota > 0 ? (currentUsage / quota) * 100 : 0;
+
+      return res.json({
+        clientId,
+        quota,
+        currentUsage,
+        available,
+        usagePercent: Math.round(usagePercent * 100) / 100,
+        quotaFormatted: storageService.formatBytes(quota),
+        currentUsageFormatted: storageService.formatBytes(currentUsage),
+        availableFormatted: storageService.formatBytes(available)
+      });
+    } catch (error: any) {
+      await logError('Erro ao verificar quota do cliente', error, { clientId: req.params.clientId });
+      return res.status(500).json({ error: 'Erro ao verificar quota de armazenamento' });
+    }
+  }
+);
+
+// formatBytes() removido - usar storageService.formatBytes() ao invés
 
 export default router;

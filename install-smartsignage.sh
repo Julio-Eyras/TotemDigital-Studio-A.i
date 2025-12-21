@@ -54,6 +54,15 @@ PRESERVE_DB=false
 LOAD_SEEDS=false
 SEEDS_OPTION_FORCED=false
 
+# Modos especiais (operações focadas)
+DB_ONLY_MODE=false                # Reinstala apenas o banco (drop + schema + seeds), sem rebuild de backend/frontend
+BACKEND_BUILD_ONLY=false          # Faz apenas build do backend (sem mexer em banco/Nginx/etc.)
+FRONTEND_BUILD_ONLY=false         # Faz apenas build do frontend (sem mexer em banco/backend/etc.)
+
+# Flags internas para controlar o comportamento de install_project_dependencies
+SKIP_BACKEND_DEPS_BUILD=false     # Quando true, pula instalação/build do backend dentro de install_project_dependencies
+SKIP_FRONTEND_DEPS_BUILD=false    # Quando true, pula instalação/build do frontend dentro de install_project_dependencies
+
 # Variáveis para seleção de players
 INSTALL_PLAYER_WEBOS=false
 INSTALL_PLAYER_ANDROID=false
@@ -173,7 +182,16 @@ SYSTEM_GROUP=smartsignage
 POSTGRES_SYSTEM_USER=postgres
 
 # Senha do usuário postgres do PostgreSQL (ALTERE EM PRODUÇÃO!)
+# IMPORTANTE:
+# - Esta senha só será aplicada automaticamente em duas situações:
+#   1) Quando o PostgreSQL for instalado AGORA por este script (PG_WAS_INSTALLED=true)
+#   2) Quando a flag FORCE_CHANGE_POSTGRES_PASSWORD=true for usada
+# - Em instalações já existentes, a senha do postgres NÃO será alterada por padrão.
 POSTGRES_PASSWORD=smartsignage123
+
+# Flag opcional para forçar alteração da senha do usuário postgres mesmo em instalações existentes
+# Use com cuidado: FORCE_CHANGE_POSTGRES_PASSWORD=true
+FORCE_CHANGE_POSTGRES_PASSWORD=false
 
 # Usuário do banco de dados PostgreSQL (usuário da aplicação - master do sistema)
 DB_USER=smartsignage
@@ -498,6 +516,26 @@ parse_arguments() {
                 PRESERVE_DB=true
                 shift
                 ;;
+            --db-only)
+                # Reinstala apenas o banco de dados (drop + schema + seeds),
+                # sem rebuild de backend/frontend ou reconfiguração completa do sistema.
+                DB_ONLY_MODE=true
+                RESET_DATABASE=true
+                SKIP_MENU=true
+                shift
+                ;;
+            --backend-only)
+                # Apenas instala dependências e compila o backend
+                BACKEND_BUILD_ONLY=true
+                SKIP_MENU=true
+                shift
+                ;;
+            --frontend-only)
+                # Apenas instala dependências e compila o frontend
+                FRONTEND_BUILD_ONLY=true
+                SKIP_MENU=true
+                shift
+                ;;
             --load-seeds|--with-seeds)
                 LOAD_SEEDS=true
                 SEEDS_OPTION_FORCED=true
@@ -522,8 +560,11 @@ parse_arguments() {
                 echo "  --check-only         Apenas verifica se precisa rebuild"
                 echo "  --skip-menu          Pula menu (usa Docker)"
                 echo "  --https-self-signed  Habilita HTTPS autoassinado (single-server)"
-                echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir"
-                echo "  --preserve-db         Preserva o banco de dados existente durante reinstalação"
+                echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir (fluxo completo)"
+                echo "  --preserve-db        Preserva o banco de dados existente durante reinstalação"
+                echo "  --db-only            Reinstala APENAS o banco (drop + schema + seeds), sem rebuild de backend/frontend"
+                echo "  --backend-only       Faz apenas build do backend (deps + TypeScript), sem tocar no banco"
+                echo "  --frontend-only      Faz apenas build do frontend (deps + build React), sem tocar no banco"
                 echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt)"
                 echo "  --no-seeds           Não carrega dados de demonstração"
                 echo "  --help               Mostra esta ajuda"
@@ -1042,16 +1083,37 @@ setup_project() {
         detect_project_directory
     fi
     
-    # CORREÇÃO CRÍTICA IMEDIATA: Corrigir permissões ANTES de qualquer operação
-    # Isso garante que diretórios sejam acessíveis mesmo se vierem do ZIP com permissões incorretas
-    log "Corrigindo permissões de diretórios e arquivos (correção preventiva)..."
+    # CORREÇÃO CRÍTICA IMEDIATA: Corrigir ownership e permissões ANTES de qualquer operação
+    # ZIPs extraídos podem ter ownership/permissões incorretos
+    log "Corrigindo ownership e permissões de diretórios e arquivos (correção preventiva)..."
     
-    # Corrigir permissões do diretório raiz do projeto primeiro
+    # Obter usuário e grupo atual
+    CURRENT_USER="${USER:-$(whoami)}"
+    CURRENT_GROUP="${GROUP:-$(id -gn)}"
+    
+    log "Ajustando ownership para: $CURRENT_USER:$CURRENT_GROUP"
+    
+    # Corrigir ownership e permissões do diretório raiz do projeto primeiro
     if [[ -d "$SOURCE_DIR" ]]; then
-        find "$SOURCE_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
-        find "$SOURCE_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
-        find "$SOURCE_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
-        log "✅ Permissões do diretório raiz corrigidas"
+        # Corrigir ownership para o usuário atual (sem sudo se já for dono, com sudo se necessário)
+        if [[ -O "$SOURCE_DIR" ]]; then
+            # Já é dono, apenas corrigir permissões
+            find "$SOURCE_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
+            find "$SOURCE_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+            find "$SOURCE_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+        else
+            # Precisa de sudo para corrigir ownership
+            log "Ajustando ownership com sudo (pode pedir senha)..."
+            sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$SOURCE_DIR" 2>/dev/null || {
+                warn "⚠️ Não foi possível ajustar ownership (tentando sem sudo)..."
+                # Tentar sem sudo mesmo assim
+                chown -R "$CURRENT_USER:$CURRENT_GROUP" "$SOURCE_DIR" 2>/dev/null || true
+            }
+            find "$SOURCE_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
+            find "$SOURCE_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+            find "$SOURCE_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+        fi
+        log "✅ Ownership e permissões do diretório raiz corrigidas"
     fi
     
     # Para single-server, usar diretório de origem diretamente (mais simples e confiável)
@@ -1091,13 +1153,46 @@ setup_project() {
             log "⚠️  DB_USER não encontrado no config, usando padrão: smartsignage"
         fi
         
-        # CORREÇÃO CRÍTICA IMEDIATA: Corrigir permissões ANTES de qualquer verificação
-        # ZIPs criados no Windows não preservam permissões Unix, então corrigimos aqui
-        log "Corrigindo permissões de diretórios e arquivos (preventivo para ZIPs do Windows)..."
+        # CORREÇÃO CRÍTICA IMEDIATA: Corrigir ownership e permissões ANTES de qualquer verificação
+        # ZIPs criados no Windows não preservam ownership/permissões Unix, então corrigimos aqui
+        log "Corrigindo ownership e permissões de diretórios e arquivos (preventivo para ZIPs do Windows)..."
+        
+        # Obter usuário e grupo atual
+        CURRENT_USER="${USER:-$(whoami)}"
+        CURRENT_GROUP="${GROUP:-$(id -gn)}"
+        
+        log "Ajustando ownership para: $CURRENT_USER:$CURRENT_GROUP"
+        
+        # Corrigir ownership e permissões recursivamente
+        if [[ -d "$INSTALL_DIR" ]]; then
+            log "Corrigindo ownership e permissões recursivamente em $INSTALL_DIR..."
+            
+            # Corrigir ownership primeiro
+            if [[ -O "$INSTALL_DIR" ]]; then
+                # Já é dono, apenas corrigir permissões
+                log "Diretório já pertence ao usuário atual"
+            else
+                # Precisa ajustar ownership
+                log "Ajustando ownership com sudo (pode pedir senha)..."
+                sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR" 2>/dev/null || {
+                    warn "⚠️ Não foi possível ajustar ownership (tentando sem sudo)..."
+                    chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR" 2>/dev/null || true
+                }
+            fi
+            
+            # TODOS os diretórios precisam de 755 (rwxr-xr-x) para permitir acesso (cd, ls)
+            find "$INSTALL_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
+            # TODOS os arquivos precisam de 644 (rw-r--r--) para permitir leitura
+            find "$INSTALL_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+            # Scripts .sh precisam de execução
+            find "$INSTALL_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+            log "✅ Ownership e permissões recursivas corrigidas em $INSTALL_DIR"
+        fi
+        
+        # Correção específica e explícita para diretórios críticos
         if [[ -d "$INSTALL_DIR/frontend/src" ]]; then
-            # Corrigir TODOS os diretórios recursivamente (precisam de execução)
+            # Garantir que diretórios possam ser acessados
             find "$INSTALL_DIR/frontend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
-            # Corrigir TODOS os arquivos (precisam de leitura)
             find "$INSTALL_DIR/frontend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
             log "✅ Permissões do frontend/src corrigidas preventivamente"
         fi
@@ -1171,7 +1266,7 @@ setup_project() {
                 rsync -av --delete "$SOURCE_DIR/frontend/" "$INSTALL_DIR/frontend/"
                 
                 # Copiar outros diretórios importantes
-                [[ -d "$SOURCE_DIR/player" ]] && rsync -av --delete "$SOURCE_DIR/player/" "$INSTALL_DIR/player/"
+                [[ -d "$SOURCE_DIR/player-web" ]] && rsync -av --delete "$SOURCE_DIR/player-web/" "$INSTALL_DIR/player-web/"
                 [[ -d "$SOURCE_DIR/scripts" ]] && rsync -av --delete "$SOURCE_DIR/scripts/" "$INSTALL_DIR/scripts/"
                 [[ -d "$SOURCE_DIR/database" ]] && rsync -av --delete "$SOURCE_DIR/database/" "$INSTALL_DIR/database/"
                 [[ -d "$SOURCE_DIR/docker" ]] && rsync -av --delete "$SOURCE_DIR/docker/" "$INSTALL_DIR/docker/"
@@ -1191,7 +1286,7 @@ setup_project() {
                 cp -a "$SOURCE_DIR/frontend" "$INSTALL_DIR/"
                 
                 # Copiar outros diretórios
-                [[ -d "$SOURCE_DIR/player" ]] && cp -a "$SOURCE_DIR/player" "$INSTALL_DIR/"
+                [[ -d "$SOURCE_DIR/player-web" ]] && cp -a "$SOURCE_DIR/player-web" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/scripts" ]] && cp -a "$SOURCE_DIR/scripts" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/database" ]] && rm -rf "$INSTALL_DIR/database" && cp -a "$SOURCE_DIR/database" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/docker" ]] && cp -a "$SOURCE_DIR/docker" "$INSTALL_DIR/"
@@ -1258,26 +1353,41 @@ setup_project() {
     
     log "✅ Todos os arquivos essenciais verificados"
     
-    # CORREÇÃO CRÍTICA: Corrigir permissões de diretórios e arquivos
+    # CORREÇÃO CRÍTICA: Corrigir ownership e permissões de diretórios e arquivos
     # Diretórios precisam de permissão de execução (x) para serem acessados
-    log "Corrigindo permissões de diretórios e arquivos do projeto..."
+    # Arquivos devem pertencer ao usuário atual
+    log "Corrigindo ownership e permissões de diretórios e arquivos do projeto..."
     
-    # Corrigir permissões do frontend (mais crítico)
+    # Obter usuário e grupo atual
+    CURRENT_USER="${USER:-$(whoami)}"
+    CURRENT_GROUP="${GROUP:-$(id -gn)}"
+    
+    # Corrigir ownership e permissões do frontend (mais crítico)
     if [[ -d "$INSTALL_DIR/frontend/src" ]]; then
-        log "Corrigindo permissões do frontend/src..."
+        log "Corrigindo ownership e permissões do frontend/src..."
+        # Corrigir ownership
+        if [[ ! -O "$INSTALL_DIR/frontend/src" ]]; then
+            sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/frontend/src" 2>/dev/null || \
+            chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/frontend/src" 2>/dev/null || true
+        fi
         # Todos os diretórios precisam de execução (755)
         find "$INSTALL_DIR/frontend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
         # Todos os arquivos precisam de leitura (644)
         find "$INSTALL_DIR/frontend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
-        log "✅ Permissões do frontend/src corrigidas"
+        log "✅ Ownership e permissões do frontend/src corrigidas"
     fi
     
     # Corrigir permissões do backend também
     if [[ -d "$INSTALL_DIR/backend/src" ]]; then
-        log "Corrigindo permissões do backend/src..."
+        log "Corrigindo ownership e permissões do backend/src..."
+        # Corrigir ownership
+        if [[ ! -O "$INSTALL_DIR/backend/src" ]]; then
+            sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/backend/src" 2>/dev/null || \
+            chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/backend/src" 2>/dev/null || true
+        fi
         find "$INSTALL_DIR/backend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
         find "$INSTALL_DIR/backend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
-        log "✅ Permissões do backend/src corrigidas"
+        log "✅ Ownership e permissões do backend/src corrigidas"
     fi
     
     cd $INSTALL_DIR
@@ -1294,136 +1404,141 @@ install_project_dependencies() {
         return 0
     fi
     
-    # Backend
-    cd $INSTALL_DIR/backend
-    log "Instalando dependências do backend (incluindo dev para build)..."
-    npm install --include=dev
-    
-    # Instalar dependência adicional do sistema de logs (winston-daily-rotate-file)
-    log "Instalando dependência do sistema de logs (winston-daily-rotate-file)..."
-    if npm install winston-daily-rotate-file --save; then
-        log "✅ winston-daily-rotate-file instalado com sucesso"
-    else
-        error "❌ Falha ao instalar winston-daily-rotate-file"
-        error "💡 Tentando novamente sem --save..."
-        if npm install winston-daily-rotate-file; then
-            log "✅ winston-daily-rotate-file instalado com sucesso (sem --save)"
-        else
-            error "❌ Falha crítica ao instalar winston-daily-rotate-file"
-            exit 1
-        fi
-    fi
-    
-    # Verificar se foi instalado corretamente
-    if npm list winston-daily-rotate-file >/dev/null 2>&1; then
-        log "✅ winston-daily-rotate-file verificado no package.json"
-    else
-        warn "⚠️ winston-daily-rotate-file pode não estar no package.json (continuando...)"
-    fi
-    
-    # CORREÇÃO CRÍTICA: Garantir que binários do npm tenham permissão de execução
-    # ZIPs do Windows podem não preservar permissões de executáveis
-    log "Corrigindo permissões de binários do npm (node_modules/.bin/)..."
-    if [[ -d "node_modules/.bin" ]]; then
-        # Corrigir permissões de TODOS os arquivos em node_modules/.bin
-        find node_modules/.bin -type f -exec chmod +x {} \; 2>/dev/null || true
+    # Backend (pode ser pulado em modos especiais)
+    if [[ "$SKIP_BACKEND_DEPS_BUILD" != "true" ]]; then
+        cd $INSTALL_DIR/backend
+        log "Instalando dependências do backend (incluindo dev para build)..."
+        npm install --include=dev
         
-        # Verificar especificamente o tsc
-        if [[ -f "node_modules/.bin/tsc" ]]; then
-            chmod +x node_modules/.bin/tsc 2>/dev/null || true
-            log "✅ Permissão do tsc corrigida explicitamente"
-        fi
-        
-        # Verificar se o tsc tem permissão de execução
-        if [[ -x "node_modules/.bin/tsc" ]]; then
-            log "✅ Permissões de binários do npm corrigidas (tsc, etc.)"
+        # Instalar dependência adicional do sistema de logs (winston-daily-rotate-file)
+        log "Instalando dependência do sistema de logs (winston-daily-rotate-file)..."
+        if npm install winston-daily-rotate-file --save; then
+            log "✅ winston-daily-rotate-file instalado com sucesso"
         else
-            warn "⚠️ tsc ainda não tem permissão de execução - tentando correção alternativa..."
-            # Tentar usar npx como alternativa
-            if command -v npx &> /dev/null; then
-                log "Usando npx para executar tsc (bypass de permissões)..."
+            error "❌ Falha ao instalar winston-daily-rotate-file"
+            error "💡 Tentando novamente sem --save..."
+            if npm install winston-daily-rotate-file; then
+                log "✅ winston-daily-rotate-file instalado com sucesso (sem --save)"
+            else
+                error "❌ Falha crítica ao instalar winston-daily-rotate-file"
+                exit 1
             fi
         fi
-    else
-        warn "⚠️ Diretório node_modules/.bin não encontrado"
-    fi
-    
-    # Compilar TypeScript do backend
-    log "Compilando TypeScript do backend..."
-    
-    # Limpar build anterior para garantir compilação limpa
-    if [[ -d "dist" ]]; then
-        log "Limpando build anterior..."
-        rm -rf dist/*
-    fi
-    
-    # Tentar compilar usando npx para garantir que funcione mesmo com problemas de permissão
-    if [[ -x "node_modules/.bin/tsc" ]] || command -v npx &> /dev/null; then
-        # Usar npx para garantir execução correta
-        if npx tsc -p tsconfig.json 2>&1; then
-            BUILD_SUCCESS=true
-        else
-            BUILD_SUCCESS=false
-        fi
-    else
-        # Fallback para npm run build
-        if npm run build 2>&1; then
-            BUILD_SUCCESS=true
-        else
-            BUILD_SUCCESS=false
-        fi
-    fi
-    
-    if [[ "$BUILD_SUCCESS" == "true" ]]; then
-        log "✅ Backend compilado com sucesso!"
         
-        # Verificar se arquivos críticos foram compilados
-        if [[ ! -f "dist/services/authService.js" ]]; then
-            error "❌ Arquivo authService.js não foi compilado!"
+        # Verificar se foi instalado corretamente
+        if npm list winston-daily-rotate-file >/dev/null 2>&1; then
+            log "✅ winston-daily-rotate-file verificado no package.json"
+        else
+            warn "⚠️ winston-daily-rotate-file pode não estar no package.json (continuando...)"
+        fi
+        
+        # CORREÇÃO CRÍTICA: Garantir que binários do npm tenham permissão de execução
+        # ZIPs do Windows podem não preservar permissões de executáveis
+        log "Corrigindo permissões de binários do npm (node_modules/.bin/)..."
+        if [[ -d "node_modules/.bin" ]]; then
+            # Corrigir permissões de TODOS os arquivos em node_modules/.bin
+            find node_modules/.bin -type f -exec chmod +x {} \; 2>/dev/null || true
+            
+            # Verificar especificamente o tsc
+            if [[ -f "node_modules/.bin/tsc" ]]; then
+                chmod +x node_modules/.bin/tsc 2>/dev/null || true
+                log "✅ Permissão do tsc corrigida explicitamente"
+            fi
+            
+            # Verificar se o tsc tem permissão de execução
+            if [[ -x "node_modules/.bin/tsc" ]]; then
+                log "✅ Permissões de binários do npm corrigidas (tsc, etc.)"
+            else
+                warn "⚠️ tsc ainda não tem permissão de execução - tentando correção alternativa..."
+                # Tentar usar npx como alternativa
+                if command -v npx &> /dev/null; then
+                    log "Usando npx para executar tsc (bypass de permissões)..."
+                fi
+            fi
+        else
+            warn "⚠️ Diretório node_modules/.bin não encontrado"
+        fi
+        
+        # Compilar TypeScript do backend
+        log "Compilando TypeScript do backend..."
+        
+        # Limpar build anterior para garantir compilação limpa
+        if [[ -d "dist" ]]; then
+            log "Limpando build anterior..."
+            rm -rf dist/*
+        fi
+        
+        # Tentar compilar usando npx para garantir que funcione mesmo com problemas de permissão
+        if [[ -x "node_modules/.bin/tsc" ]] || command -v npx &> /dev/null; then
+            # Usar npx para garantir execução correta
+            if npx tsc -p tsconfig.json 2>&1; then
+                BUILD_SUCCESS=true
+            else
+                BUILD_SUCCESS=false
+            fi
+        else
+            # Fallback para npm run build
+            if npm run build 2>&1; then
+                BUILD_SUCCESS=true
+            else
+                BUILD_SUCCESS=false
+            fi
+        fi
+        
+        if [[ "$BUILD_SUCCESS" == "true" ]]; then
+            log "✅ Backend compilado com sucesso!"
+            
+            # Verificar se arquivos críticos foram compilados
+            if [[ ! -f "dist/services/authService.js" ]]; then
+                error "❌ Arquivo authService.js não foi compilado!"
+                exit 1
+            fi
+            
+            if [[ ! -f "dist/config/database.js" ]]; then
+                error "❌ Arquivo database.js não foi compilado!"
+                exit 1
+            fi
+            
+            log "✅ Arquivos compilados verificados (authService.js, database.js)"
+            
+            # Sincronizar build compilado com diretório de deploy (single-server / development)
+            if [[ "$INSTALL_MODE" == "single-server" ]] || [[ "$INSTALL_MODE" == "development" ]]; then
+                local backend_dist_dir="$(pwd)/dist"
+                local backend_deploy_dir="/opt/smart-signage/backend"
+                
+                log "Sincronizando build do backend para $backend_deploy_dir..."
+                sudo mkdir -p "$backend_deploy_dir/dist"
+                sudo rsync -a --delete "$backend_dist_dir/" "$backend_deploy_dir/dist/" || {
+                    error "❌ Falha ao copiar build do backend para $backend_deploy_dir/dist"
+                    exit 1
+                }
+                sudo rsync -a "$(pwd)/package.json" "$backend_deploy_dir/" || {
+                    error "❌ Falha ao atualizar package.json em $backend_deploy_dir"
+                    exit 1
+                }
+                sudo chmod -R 755 "$backend_deploy_dir/dist" 2>/dev/null || true
+                log "✅ Build do backend sincronizado em $backend_deploy_dir"
+            fi
+            
+            # Verificar se o serviço systemd existe e reiniciar se necessário
+            if [[ -f "/etc/systemd/system/smart-signage.service" ]] && systemctl is-active --quiet smart-signage 2>/dev/null; then
+                log "Serviço systemd ativo detectado - reiniciando para aplicar mudanças..."
+                sudo systemctl restart smart-signage || warn "⚠️ Não foi possível reiniciar o serviço (será reiniciado após a instalação)"
+                sleep 3
+                log "✅ Serviço reiniciado"
+            fi
+        else
+            error "❌ Erro ao compilar backend TypeScript"
+            error "Verifique os erros de compilação acima"
             exit 1
         fi
-        
-        if [[ ! -f "dist/config/database.js" ]]; then
-            error "❌ Arquivo database.js não foi compilado!"
-            exit 1
-        fi
-        
-        log "✅ Arquivos compilados verificados (authService.js, database.js)"
-
-        # Sincronizar build compilado com diretório de deploy (single-server / development)
+    else
+        log "ℹ️  Modo especial: pulando instalação/compilação do backend (SKIP_BACKEND_DEPS_BUILD=true)"
+    fi
+    
+    # Frontend - sempre compilar para single-server também (pode ser pulado em modos especiais)
+    if [[ "$SKIP_FRONTEND_DEPS_BUILD" != "true" ]]; then
         if [[ "$INSTALL_MODE" == "single-server" ]] || [[ "$INSTALL_MODE" == "development" ]]; then
-            local backend_dist_dir="$(pwd)/dist"
-            local backend_deploy_dir="/opt/smart-signage/backend"
-
-            log "Sincronizando build do backend para $backend_deploy_dir..."
-            sudo mkdir -p "$backend_deploy_dir/dist"
-            sudo rsync -a --delete "$backend_dist_dir/" "$backend_deploy_dir/dist/" || {
-                error "❌ Falha ao copiar build do backend para $backend_deploy_dir/dist"
-                exit 1
-            }
-            sudo rsync -a "$(pwd)/package.json" "$backend_deploy_dir/" || {
-                error "❌ Falha ao atualizar package.json em $backend_deploy_dir"
-                exit 1
-            }
-            sudo chmod -R 755 "$backend_deploy_dir/dist" 2>/dev/null || true
-            log "✅ Build do backend sincronizado em $backend_deploy_dir"
-        fi
-        
-        # Verificar se o serviço systemd existe e reiniciar se necessário
-        if [[ -f "/etc/systemd/system/smart-signage.service" ]] && systemctl is-active --quiet smart-signage 2>/dev/null; then
-            log "Serviço systemd ativo detectado - reiniciando para aplicar mudanças..."
-            sudo systemctl restart smart-signage || warn "⚠️ Não foi possível reiniciar o serviço (será reiniciado após a instalação)"
-            sleep 3
-            log "✅ Serviço reiniciado"
-        fi
-    else
-        error "❌ Erro ao compilar backend TypeScript"
-        error "Verifique os erros de compilação acima"
-        exit 1
-    fi
-    
-    # Frontend - sempre compilar para single-server também
-    if [[ "$INSTALL_MODE" == "single-server" ]] || [[ "$INSTALL_MODE" == "development" ]]; then
         cd $INSTALL_DIR/frontend || {
             error "❌ Não foi possível entrar no diretório $INSTALL_DIR/frontend"
             exit 1
@@ -2498,6 +2613,9 @@ PYTHON_ADD_OVERRIDE_EOF
             log "Verificando logs de erro..."
             exit 1
         fi
+        fi
+    else
+        log "ℹ️  Modo especial: pulando instalação/compilação do frontend (SKIP_FRONTEND_DEPS_BUILD=true)"
     fi
     
     log "Dependências do projeto instaladas!"
@@ -2567,7 +2685,7 @@ setup_database() {
             log "ffmpeg já está instalado: $(ffmpeg -version | head -1)"
         fi
 
-        # No Ubuntu, o cluster PostgreSQL precisa ser inicializado antes de iniciar o serviço
+        # No Ubuntu/Debian, usar pg_lsclusters para detectar clusters existentes
         # Detectar versão do PostgreSQL instalada
         local PG_VERSION=$(psql --version 2>/dev/null | grep -oE "[0-9]+\.[0-9]+" | head -1 | cut -d. -f1)
         if [[ -z "$PG_VERSION" ]]; then
@@ -2578,22 +2696,88 @@ setup_database() {
         if [[ -n "$PG_VERSION" ]]; then
             log "Versão PostgreSQL detectada: $PG_VERSION"
             
-            # Verificar se o cluster já existe
-            local PG_CLUSTER_DIR="/var/lib/postgresql/${PG_VERSION}/main"
+            # Verificar clusters existentes usando pg_lsclusters (método correto no Ubuntu/Debian)
             local PG_CLUSTER_EXISTS=false
+            local PG_CLUSTER_STATUS=""
+            local PG_CLUSTER_DIR=""
             
-            # Verificar se cluster já existe e está inicializado
-            # O pacote postgresql-16 cria o cluster automaticamente durante instalação
-            if [[ -d "$PG_CLUSTER_DIR" ]] && [[ -f "$PG_CLUSTER_DIR/PG_VERSION" ]]; then
-                # Verificar se o cluster está realmente inicializado (tem arquivos de dados)
-                if [[ -f "$PG_CLUSTER_DIR/postgresql.conf" ]] || [[ -f "$PG_CLUSTER_DIR/postmaster.pid" ]] || [[ -n "$(ls -A "$PG_CLUSTER_DIR" 2>/dev/null | grep -v '^\.$' | grep -v '^\.\.$')" ]]; then
-                    log "✅ Cluster PostgreSQL ${PG_VERSION} já existe e está inicializado em $PG_CLUSTER_DIR"
-                    PG_CLUSTER_EXISTS=true
+            if command -v pg_lsclusters &> /dev/null; then
+                log "Verificando clusters PostgreSQL existentes..."
+                # pg_lsclusters retorna: Ver Cluster Port Status Owner Data directory Log file
+                local cluster_info=$(sudo pg_lsclusters 2>/dev/null | grep -E "^[[:space:]]*${PG_VERSION}[[:space:]]+main" || echo "")
+                if [[ -n "$cluster_info" ]]; then
+                    PG_CLUSTER_STATUS=$(echo "$cluster_info" | awk '{print $4}')  # Status (down, online, etc)
+                    PG_CLUSTER_DIR=$(echo "$cluster_info" | awk '{print $6}')     # Data directory
+                    log "Cluster PostgreSQL ${PG_VERSION} main encontrado:"
+                    log "  Status: $PG_CLUSTER_STATUS"
+                    log "  Diretório: $PG_CLUSTER_DIR"
+                    
+                    if [[ "$PG_CLUSTER_STATUS" == "online" ]] || [[ "$PG_CLUSTER_STATUS" == "down" ]]; then
+                        PG_CLUSTER_EXISTS=true
+                        log "✅ Cluster PostgreSQL ${PG_VERSION} main já existe"
+                        
+                        # Se está down, tentar iniciar usando pg_ctlcluster (método correto no Ubuntu/Debian)
+                        if [[ "$PG_CLUSTER_STATUS" == "down" ]]; then
+                            log "Cluster está parado (down), tentando iniciar usando pg_ctlcluster..."
+                            if sudo pg_ctlcluster ${PG_VERSION} main start 2>&1; then
+                                sleep 3
+                                # Verificar se iniciou
+                                local new_status=$(sudo pg_lsclusters 2>/dev/null | grep -E "^[[:space:]]*${PG_VERSION}[[:space:]]+main" | awk '{print $4}' || echo "")
+                                if [[ "$new_status" == "online" ]]; then
+                                    log "✅ Cluster iniciado com sucesso (status: online)"
+                                else
+                                    warn "⚠️  Cluster pode não ter iniciado corretamente (status: $new_status)"
+                                    log "Verificando logs do cluster..."
+                                    local log_file="/var/log/postgresql/postgresql-${PG_VERSION}-main.log"
+                                    if [[ -f "$log_file" ]]; then
+                                        log "Últimas linhas do log:"
+                                        sudo tail -30 "$log_file" 2>/dev/null | while IFS= read -r line; do
+                                            log "  $line"
+                                        done
+                                    fi
+                                    # Tentar verificar logs do systemd também
+                                    if systemctl list-unit-files | grep -qE "postgresql@${PG_VERSION}-main"; then
+                                        log "Logs do systemd:"
+                                        sudo journalctl -u "postgresql@${PG_VERSION}-main" --no-pager -n 20 2>&1 | while IFS= read -r line; do
+                                            log "  $line"
+                                        done
+                                    fi
+                                fi
+                            else
+                                error "❌ Falha ao iniciar cluster PostgreSQL usando pg_ctlcluster"
+                                error "Tente manualmente: sudo pg_ctlcluster ${PG_VERSION} main start"
+                                error "Ou verifique os logs: sudo journalctl -u postgresql@${PG_VERSION}-main -n 50"
+                            fi
+                        elif [[ "$PG_CLUSTER_STATUS" == "online" ]]; then
+                            log "✅ Cluster já está online e funcionando"
+                        fi
+                    fi
                 else
-                    log "⚠️  Diretório do cluster existe mas parece vazio, inicializando..."
+                    log "Nenhum cluster PostgreSQL ${PG_VERSION} main encontrado via pg_lsclusters"
                 fi
             else
-                log "Cluster PostgreSQL ${PG_VERSION} não encontrado, inicializando..."
+                # Fallback: verificar diretório diretamente (método antigo, se pg_lsclusters não disponível)
+                log "pg_lsclusters não disponível, usando método de detecção alternativo..."
+                local PG_CLUSTER_DIR="/var/lib/postgresql/${PG_VERSION}/main"
+                
+                # Verificar se PostgreSQL está rodando (melhor indicador de que o cluster existe e está funcionando)
+                if systemctl is-active --quiet postgresql || systemctl is-active --quiet "postgresql@${PG_VERSION}-main" 2>/dev/null; then
+                    log "✅ PostgreSQL está rodando - cluster já existe e está ativo"
+                    PG_CLUSTER_EXISTS=true
+                # Verificar se cluster já existe e está inicializado
+                elif [[ -d "$PG_CLUSTER_DIR" ]] && [[ -f "$PG_CLUSTER_DIR/PG_VERSION" ]]; then
+                    # Verificar se o cluster está realmente inicializado (tem arquivos de dados)
+                    if [[ -f "$PG_CLUSTER_DIR/postgresql.conf" ]] || [[ -f "$PG_CLUSTER_DIR/postmaster.pid" ]] || [[ -n "$(ls -A "$PG_CLUSTER_DIR" 2>/dev/null | grep -v '^\.$' | grep -v '^\.\.$')" ]]; then
+                        log "✅ Cluster PostgreSQL ${PG_VERSION} já existe e está inicializado em $PG_CLUSTER_DIR"
+                        PG_CLUSTER_EXISTS=true
+                    else
+                        log "⚠️  Diretório do cluster existe mas parece vazio ou incompleto"
+                    fi
+                fi
+            fi
+            
+            if [[ "$PG_CLUSTER_EXISTS" != "true" ]]; then
+                log "Cluster PostgreSQL ${PG_VERSION} não encontrado ou não funcional, inicializando..."
                 
                 # No Ubuntu, usar pg_createcluster se disponível
                 local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
@@ -2619,7 +2803,40 @@ setup_database() {
                         sudo chown "$postgres_user:$postgres_user" "$PG_CLUSTER_DIR"
                         sudo chmod 700 "$PG_CLUSTER_DIR"
                     else
-                        # Diretório existe, mas verificar permissões
+                        # Diretório existe - verificar se está vazio ou se já é um cluster
+                        local dir_content=$(ls -A "$PG_CLUSTER_DIR" 2>/dev/null | wc -l)
+                        if [[ "$dir_content" -gt 2 ]]; then
+                            # Diretório não está vazio - pode ser um cluster parcial ou corrompido
+                            if [[ -f "$PG_CLUSTER_DIR/PG_VERSION" ]] || [[ -f "$PG_CLUSTER_DIR/postgresql.conf" ]]; then
+                                log "⚠️  Diretório do cluster existe e parece ter conteúdo, mas PostgreSQL não está rodando"
+                                log "⚠️  Tentando iniciar o serviço PostgreSQL..."
+                                if sudo systemctl start postgresql 2>/dev/null || sudo systemctl start "postgresql@${PG_VERSION}-main" 2>/dev/null; then
+                                    sleep 3
+                                    if systemctl is-active --quiet postgresql || systemctl is-active --quiet "postgresql@${PG_VERSION}-main" 2>/dev/null; then
+                                        log "✅ PostgreSQL iniciado com sucesso"
+                                        PG_CLUSTER_EXISTS=true
+                                    else
+                                        error "❌ PostgreSQL não conseguiu iniciar - cluster pode estar corrompido"
+                                        error "   Considere remover o diretório $PG_CLUSTER_DIR e tentar novamente"
+                                        error "   OU corrija manualmente o cluster existente"
+                                    fi
+                                else
+                                    error "❌ Não foi possível iniciar PostgreSQL"
+                                    error "   O diretório $PG_CLUSTER_DIR existe mas não está vazio"
+                                    error "   Se você quer recriar o cluster, remova este diretório primeiro"
+                                fi
+                            else
+                                error "❌ Diretório $PG_CLUSTER_DIR existe mas não parece ser um cluster PostgreSQL válido"
+                                error "   Conteúdo encontrado: $dir_content itens"
+                                error "   Se você quer criar um novo cluster, remova este diretório primeiro:"
+                                error "   sudo rm -rf $PG_CLUSTER_DIR"
+                            fi
+                        else
+                            # Diretório está vazio ou quase vazio - OK para inicializar
+                            log "Diretório do cluster existe mas está vazio, prosseguindo com inicialização..."
+                        fi
+                        
+                        # Verificar/corrigir permissões
                         local current_owner=$(stat -c '%U:%G' "$PG_CLUSTER_DIR" 2>/dev/null || echo "")
                         if [[ "$current_owner" != "$postgres_user:$postgres_user" ]]; then
                             log "Corrigindo permissões do diretório do cluster para $postgres_user:$postgres_user..."
@@ -2661,13 +2878,25 @@ setup_database() {
                             fi
                         fi
                         
-                        if sudo -u "$POSTGRES_USER" "$INITDB_PATH" -D "$PG_CLUSTER_DIR" 2>&1; then
-                            log "✅ Cluster inicializado com sucesso"
-                            PG_CLUSTER_EXISTS=true
-                        else
-                            error "❌ Falha ao inicializar cluster PostgreSQL"
-                            error "   Verifique as permissões do diretório: $PG_CLUSTER_DIR"
-                            error "   O diretório deve pertencer a $POSTGRES_USER:$POSTGRES_USER"
+                        # Só tentar inicializar se o cluster ainda não existe
+                        if [[ "$PG_CLUSTER_EXISTS" != "true" ]]; then
+                            # Verificar se o diretório está realmente vazio antes de inicializar
+                            local dir_content=$(ls -A "$PG_CLUSTER_DIR" 2>/dev/null | wc -l)
+                            if [[ "$dir_content" -le 2 ]]; then
+                                if sudo -u "$POSTGRES_USER" "$INITDB_PATH" -D "$PG_CLUSTER_DIR" 2>&1; then
+                                    log "✅ Cluster inicializado com sucesso"
+                                    PG_CLUSTER_EXISTS=true
+                                else
+                                    error "❌ Falha ao inicializar cluster PostgreSQL"
+                                    error "   Verifique as permissões do diretório: $PG_CLUSTER_DIR"
+                                    error "   O diretório deve pertencer a $POSTGRES_USER:$POSTGRES_USER"
+                                    error "   Se o diretório não está vazio, remova-o primeiro: sudo rm -rf $PG_CLUSTER_DIR"
+                                fi
+                            else
+                                error "❌ Não é possível inicializar: diretório $PG_CLUSTER_DIR não está vazio ($dir_content itens)"
+                                error "   Remova o diretório primeiro se quiser recriar o cluster:"
+                                error "   sudo rm -rf $PG_CLUSTER_DIR"
+                            fi
                         fi
                     else
                         error "❌ initdb não encontrado para PostgreSQL ${PG_VERSION}"
@@ -2769,9 +2998,13 @@ setup_database() {
         if sudo -u "$POSTGRES_USER" psql -c "SELECT 1" > /dev/null 2>&1; then
             log "✅ PostgreSQL está respondendo corretamente"
             
-            # Alterar senha do usuário postgres se foi instalado agora ou se senha não foi configurada
-            if [[ "$PG_WAS_INSTALLED" == "true" ]] || [[ -n "${POSTGRES_PASSWORD:-}" ]]; then
+            # Alterar senha do usuário postgres SOMENTE em condições seguras:
+            # 1) Quando PostgreSQL foi instalado AGORA por este script (PG_WAS_INSTALLED=true)
+            # 2) Quando o operador definir explicitamente FORCE_CHANGE_POSTGRES_PASSWORD=true
+            if [[ "$PG_WAS_INSTALLED" == "true" ]] || [[ "${FORCE_CHANGE_POSTGRES_PASSWORD}" == "true" ]]; then
                 change_postgres_password
+            else
+                log "ℹ️  Senha do usuário 'postgres' NÃO será alterada (instalação pré-existente e FORCE_CHANGE_POSTGRES_PASSWORD=false)"
             fi
         else
             error "❌ PostgreSQL não está respondendo"
@@ -2959,32 +3192,100 @@ setup_database() {
             # Configurar postgresql.conf para escutar em todas as interfaces
             PG_CONF="${PG_CONFIG_DIR}/postgresql.conf"
             if [[ -f "$PG_CONF" ]]; then
-                # Ajustar listen_addresses para '*' apenas se necessário
-                if grep -q "^[[:space:]]*listen_addresses[[:space:]]*=" "$PG_CONF"; then
-                    if ! grep -q "^[[:space:]]*listen_addresses[[:space:]]*=[[:space:]]*'\\*'" "$PG_CONF"; then
-                        sudo sed -i "s/^[[:space:]]*listen_addresses[[:space:]]*=.*/listen_addresses = '*'/"
- "$PG_CONF" || true
+                # Remover linhas inválidas de listen_addresses que possam ter sido adicionadas incorretamente
+                sudo sed -i '/^[[:space:]]*listen_addresses[[:space:]]*=[[:space:]]*$/d' "$PG_CONF" 2>/dev/null || true
+                
+                # Verificar se há configuração válida de listen_addresses (não comentada)
+                local has_listen_addresses=$(grep -E "^[[:space:]]*listen_addresses[[:space:]]*=" "$PG_CONF" 2>/dev/null | grep -v "^[[:space:]]*#" | head -1 || echo "")
+                
+                if [[ -n "$has_listen_addresses" ]]; then
+                    # Já existe, verificar se está correto
+                    if echo "$has_listen_addresses" | grep -qE "listen_addresses[[:space:]]*=[[:space:]]*'\\*'|listen_addresses[[:space:]]*=[[:space:]]*\\*"; then
+                        log "✅ listen_addresses já está configurado corretamente"
+                    else
+                        # Atualizar para '*'
+                        sudo sed -i "s/^[[:space:]]*listen_addresses[[:space:]]*=.*/listen_addresses = '*'/" "$PG_CONF" || true
+                        log "✅ listen_addresses atualizado para '*'"
                     fi
                 else
-                    echo "listen_addresses = '*'" | sudo tee -a "$PG_CONF" > /dev/null
+                    # Não existe, adicionar na seção correta (após comentário sobre listen_addresses)
+                    local comment_line=$(grep -n "^[[:space:]]*#listen_addresses\|^[[:space:]]*#.*listen_addresses" "$PG_CONF" 2>/dev/null | head -1 | cut -d: -f1 || echo "")
+                    
+                    if [[ -n "$comment_line" ]]; then
+                        sudo sed -i "${comment_line}a listen_addresses = '*'" "$PG_CONF" || true
+                    else
+                        # Adicionar após primeira linha de configuração não comentada
+                        local first_config=$(grep -n "^[^#]" "$PG_CONF" 2>/dev/null | head -1 | cut -d: -f1 || echo "60")
+                        sudo sed -i "${first_config}i listen_addresses = '*'" "$PG_CONF" || true
+                    fi
+                    log "✅ listen_addresses adicionado ao postgresql.conf"
                 fi
+                
                 log "✅ postgresql.conf configurado para aceitar conexões remotas"
             fi
             
             # Configurar pg_hba.conf para permitir conexões da rede local
             PG_HBA="${PG_CONFIG_DIR}/pg_hba.conf"
             if [[ -f "$PG_HBA" ]]; then
-                # Verificar se já existem regras específicas para o banco/usuário
-                if ! grep -q "^host[[:space:]]\+${PG_DB}[[:space:]]\+${PG_USER}[[:space:]]\+192\.168\.0\.0/16" "$PG_HBA"; then
-                    echo "host    ${PG_DB}    ${PG_USER}    192.168.0.0/16    md5" | sudo tee -a "$PG_HBA" > /dev/null
+                # Remover TODAS as linhas que contêm listen_addresses (não pertence ao pg_hba.conf)
+                # Isso é crítico - listen_addresses no pg_hba.conf causa erro FATAL
+                if grep -q "listen_addresses" "$PG_HBA" 2>/dev/null; then
+                    log "⚠️  Removendo linhas inválidas de listen_addresses do pg_hba.conf..."
+                    sudo sed -i '/listen_addresses/d' "$PG_HBA" 2>/dev/null || true
+                    # Verificar se foi removido
+                    if grep -q "listen_addresses" "$PG_HBA" 2>/dev/null; then
+                        warn "⚠️  Ainda há listen_addresses no pg_hba.conf após tentativa de remoção"
+                        # Tentar remover de forma mais agressiva
+                        sudo sed -i '/.*listen_addresses.*/d' "$PG_HBA" 2>/dev/null || true
+                    fi
                 fi
-                if ! grep -q "^host[[:space:]]\+${PG_DB}[[:space:]]\+${PG_USER}[[:space:]]\+10\.0\.0\.0/8" "$PG_HBA"; then
-                    echo "host    ${PG_DB}    ${PG_USER}    10.0.0.0/8         md5" | sudo tee -a "$PG_HBA" > /dev/null
+                
+                # Remover duplicatas existentes das regras de rede local (tanto genéricas quanto específicas)
+                # Remover regras genéricas (all/all)
+                sudo sed -i '/^host[[:space:]]\+all[[:space:]]\+all[[:space:]]\+192\.168\.0\.0\/16[[:space:]]\+md5$/d' "$PG_HBA" 2>/dev/null || true
+                sudo sed -i '/^host[[:space:]]\+all[[:space:]]\+all[[:space:]]\+10\.0\.0\.0\/8[[:space:]]\+md5$/d' "$PG_HBA" 2>/dev/null || true
+                sudo sed -i '/^host[[:space:]]\+all[[:space:]]\+all[[:space:]]\+172\.16\.0\.0\/12[[:space:]]\+md5$/d' "$PG_HBA" 2>/dev/null || true
+                # Remover regras específicas (banco/usuário)
+                sudo sed -i '/^host[[:space:]]\+'"${PG_DB}"'[[:space:]]\+'"${PG_USER}"'[[:space:]]\+192\.168\.0\.0\/16[[:space:]]\+md5$/d' "$PG_HBA" 2>/dev/null || true
+                sudo sed -i '/^host[[:space:]]\+'"${PG_DB}"'[[:space:]]\+'"${PG_USER}"'[[:space:]]\+10\.0\.0\.0\/8[[:space:]]\+md5$/d' "$PG_HBA" 2>/dev/null || true
+                sudo sed -i '/^host[[:space:]]\+'"${PG_DB}"'[[:space:]]\+'"${PG_USER}"'[[:space:]]\+172\.16\.0\.0\/12[[:space:]]\+md5$/d' "$PG_HBA" 2>/dev/null || true
+                
+                # Encontrar onde inserir (antes da seção de replication se existir)
+                local insert_before_line=""
+                if grep -q "^# Allow replication" "$PG_HBA" || grep -q "^local[[:space:]]\+replication" "$PG_HBA"; then
+                    insert_before_line=$(grep -n "^# Allow replication\|^local[[:space:]]\+replication" "$PG_HBA" | head -1 | cut -d: -f1)
                 fi
-                if ! grep -q "^host[[:space:]]\+${PG_DB}[[:space:]]\+${PG_USER}[[:space:]]\+172\.16\.0\.0/12" "$PG_HBA"; then
-                    echo "host    ${PG_DB}    ${PG_USER}    172.16.0.0/12      md5" | sudo tee -a "$PG_HBA" > /dev/null
+                
+                # Adicionar regras genéricas para toda a rede local (permite conexões de qualquer banco/usuário da rede)
+                # Isso permite conexões da rede local além de localhost
+                if ! grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+192\.168\.0\.0/16[[:space:]]+md5" "$PG_HBA"; then
+                    if [[ -n "$insert_before_line" ]]; then
+                        sudo sed -i "${insert_before_line}i host    all    all    192.168.0.0/16    md5" "$PG_HBA" 2>/dev/null || \
+                        echo "host    all    all    192.168.0.0/16    md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    else
+                        echo "host    all    all    192.168.0.0/16    md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    fi
                 fi
-                log "✅ pg_hba.conf atualizado para aceitar conexões da rede local (sem duplicar entradas)"
+                
+                if ! grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+10\.0\.0\.0/8[[:space:]]+md5" "$PG_HBA"; then
+                    if [[ -n "$insert_before_line" ]]; then
+                        sudo sed -i "${insert_before_line}i host    all    all    10.0.0.0/8         md5" "$PG_HBA" 2>/dev/null || \
+                        echo "host    all    all    10.0.0.0/8         md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    else
+                        echo "host    all    all    10.0.0.0/8         md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    fi
+                fi
+                
+                if ! grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+172\.16\.0\.0/12[[:space:]]+md5" "$PG_HBA"; then
+                    if [[ -n "$insert_before_line" ]]; then
+                        sudo sed -i "${insert_before_line}i host    all    all    172.16.0.0/12      md5" "$PG_HBA" 2>/dev/null || \
+                        echo "host    all    all    172.16.0.0/12      md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    else
+                        echo "host    all    all    172.16.0.0/12      md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    fi
+                fi
+                
+                log "✅ pg_hba.conf atualizado para aceitar conexões da rede local (192.168.x.x, 10.x.x.x, 172.16-31.x.x)"
             fi
             
             # Reiniciar PostgreSQL para aplicar mudanças
@@ -3481,7 +3782,7 @@ server {
         return 301 /player/;
     }
     location /player/ {
-        alias /opt/smart-signage/player/;
+        alias /opt/smart-signage/player-web/;
         try_files \$uri \$uri/ /player/index.html;
     }
     
@@ -3575,7 +3876,7 @@ server {
         return 301 /player/;
     }
     location /player/ {
-        alias $INSTALL_DIR/player/;
+        alias $INSTALL_DIR/player-web/;
         try_files \$uri \$uri/ /player/index.html;
     }
     
@@ -3646,28 +3947,28 @@ setup_nginx() {
         sudo chmod -R 755 "$DEPLOY_DIR" 2>/dev/null || true
         sudo find "$DEPLOY_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
         
-        # Copiar player para /opt/smart-signage/player
-        sudo mkdir -p /opt/smart-signage/player
-        if [[ -d "$INSTALL_DIR/player" ]]; then
-            sudo rm -rf /opt/smart-signage/player/* 2>/dev/null || true
-            sudo cp -a "$INSTALL_DIR/player"/* /opt/smart-signage/player/ || true
+        # Copiar player para /opt/smart-signage/player-web
+        sudo mkdir -p /opt/smart-signage/player-web
+        if [[ -d "$INSTALL_DIR/player-web" ]]; then
+            sudo rm -rf /opt/smart-signage/player-web/* 2>/dev/null || true
+            sudo cp -a "$INSTALL_DIR/player-web"/* /opt/smart-signage/player-web/ || true
             if id www-data &>/dev/null; then
-                sudo chown -R www-data:www-data /opt/smart-signage/player 2>/dev/null || true
+                sudo chown -R www-data:www-data /opt/smart-signage/player-web 2>/dev/null || true
             else
-                sudo chown -R nginx:nginx /opt/smart-signage/player 2>/dev/null || true
+                sudo chown -R nginx:nginx /opt/smart-signage/player-web 2>/dev/null || true
             fi
-            sudo chmod -R 755 /opt/smart-signage/player 2>/dev/null || true
-            sudo find /opt/smart-signage/player -type f -exec chmod 644 {} \; 2>/dev/null || true
-            log "✅ Player copiado para /opt/smart-signage/player"
+            sudo chmod -R 755 /opt/smart-signage/player-web 2>/dev/null || true
+            sudo find /opt/smart-signage/player-web -type f -exec chmod 644 {} \; 2>/dev/null || true
+            log "✅ Player copiado para /opt/smart-signage/player-web"
             
             # Gerar arquivo de configuração encriptado do player (se não existir)
-            if [[ ! -f "/opt/smart-signage/player/config.json.enc" ]]; then
+            if [[ ! -f "/opt/smart-signage/player-web/config.json.enc" ]]; then
                 if [[ -f "$INSTALL_DIR/scripts/generate-player-config.sh" ]]; then
                     chmod +x "$INSTALL_DIR/scripts/generate-player-config.sh"
                     log "ℹ️ Nenhum arquivo de configuração encriptado encontrado."
                     log "   O player permanecerá em modo demo local até que um UIN seja configurado."
                     log "   Quando o totem for provisionado, execute:"
-                    log "   sudo $INSTALL_DIR/scripts/generate-player-config.sh <UIN> /opt/smart-signage/player"
+                    log "   sudo $INSTALL_DIR/scripts/generate-player-config.sh <UIN> /opt/smart-signage/player-web"
                 else
                     warn "⚠️ Script de geração de configuração não encontrado"
                 fi
@@ -3739,7 +4040,7 @@ server {
     # Player
     location = /player { return 301 /player/; }
     location /player/ {
-        alias /opt/smart-signage/player/;
+        alias /opt/smart-signage/player-web/;
         index index.html;
         try_files \$uri \$uri/ /player/index.html;
     }
@@ -3778,7 +4079,7 @@ server {
     # Player - redirect raiz e arquivos
     location = /player { return 301 /player/; }
     location /player/ {
-        alias /opt/smart-signage/player/;
+        alias /opt/smart-signage/player-web/;
         index index.html;
         try_files \$uri \$uri/ /player/index.html;
     }
@@ -5851,7 +6152,7 @@ log "✅ Backend configurado"
 
 log "Configurando player HTML5..."
 
-if [ -f "/app/player/index.html" ]; then
+if [ -f "/app/player-web/index.html" ]; then
     log "✅ Player HTML5 encontrado"
 else
     warning "Player HTML5 não encontrado"
@@ -7878,7 +8179,81 @@ main() {
             exit 1
         fi
     fi
-    
+
+    # =========================================================================
+    # Modos especiais: apenas banco ou apenas builds (não removem instalação)
+    # =========================================================================
+
+    # 1) Reinstalar APENAS o banco (drop + schema + seeds), sem rebuild de backend/frontend
+    if [[ "$DB_ONLY_MODE" == "true" ]]; then
+        log "Modo especial: Reinstalação APENAS do banco de dados (drop + schema + seeds)..."
+
+        # Detectar diretório do projeto e configurar INSTALL_DIR / config
+        detect_project_directory
+        # Se INSTALL_MODE não foi definido por argumentos/menu, assumir single-server para este modo
+        if [[ -z "$INSTALL_MODE" ]]; then
+            INSTALL_MODE="single-server"
+        fi
+        setup_project
+
+        # Garantir que não vamos preservar o banco (reinstalação limpa)
+        RESET_DATABASE=true
+        PRESERVE_DB=false
+
+        # Executar apenas a parte de banco e schema
+        setup_database
+        setup_environment
+
+        if [[ "$INSTALL_MODE" == "single-server" ]]; then
+            # Aplicar schema consolidado e seeds/admin
+            setup_first_boot
+        else
+            log "ℹ️  INSTALL_MODE='$INSTALL_MODE': para Docker, a recriação completa do banco geralmente é feita via containers."
+        fi
+
+        log "✅ Reinstalação do banco de dados concluída (modo --db-only)."
+        return 0
+    fi
+
+    # 2) Build APENAS do backend e/ou APENAS do frontend
+    if [[ "$BACKEND_BUILD_ONLY" == "true" || "$FRONTEND_BUILD_ONLY" == "true" ]]; then
+        log "Modo especial: build seletivo (backend/frontend) sem tocar no banco ou serviços..."
+
+        # Detectar diretório e carregar configurações básicas
+        detect_project_directory
+        if [[ -z "$INSTALL_MODE" ]]; then
+            INSTALL_MODE="single-server"
+        fi
+        setup_project
+
+        if [[ "$INSTALL_MODE" == "docker" ]]; then
+            error "❌ Modos --backend-only / --frontend-only não são suportados para INSTALL_MODE=docker."
+            error "   Use 'docker compose build' para rebuild em ambientes Docker."
+            exit 1
+        fi
+
+        if [[ "$BACKEND_BUILD_ONLY" == "true" ]]; then
+            SKIP_BACKEND_DEPS_BUILD=false
+            SKIP_FRONTEND_DEPS_BUILD=true
+            log "➡️  Executando apenas instalação/compilação do backend (--backend-only)..."
+            install_project_dependencies
+        fi
+
+        if [[ "$FRONTEND_BUILD_ONLY" == "true" ]]; then
+            SKIP_BACKEND_DEPS_BUILD=true
+            SKIP_FRONTEND_DEPS_BUILD=false
+            log "➡️  Executando apenas instalação/compilação do frontend (--frontend-only)..."
+            install_project_dependencies
+        fi
+
+        log "✅ Modo especial de build seletivo concluído."
+        return 0
+    fi
+
+    # =========================================================================
+    # Fluxo completo de instalação
+    # =========================================================================
+
     # Detectar e remover instalação anterior (se existir e usuário confirmar)
     # Isso deve ser feito ANTES de detectar o diretório do projeto para evitar conflitos
     detect_and_remove_previous_installation

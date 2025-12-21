@@ -5,7 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
-import { logError } from '../utils/loggerHelper';
+import { logError, logDebug } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 
 export interface CreateCampaignRequest {
@@ -288,6 +288,18 @@ export class CampaignService {
       }
 
       // Criar campanha
+      await logDebug('[CampaignService] Tentando inserir campanha no banco', {
+        clientId,
+        title,
+        description,
+        campaignType,
+        priority,
+        startDate,
+        endDate,
+        status,
+        isActive
+      });
+
       const result = await this.db.executeRaw(`
         INSERT INTO campaigns (
           client_id, title, description, campaign_type, priority,
@@ -302,18 +314,31 @@ export class CampaignService {
         description,
         campaignType,
         priority,
-        startDate,
-        endDate,
-        startTime,
-        endTime,
-        JSON.stringify(daysOfWeek),
+        startDate || null,
+        endDate || null,
+        startTime || null,
+        endTime || null,
+        daysOfWeek && daysOfWeek.length > 0 ? JSON.stringify(daysOfWeek) : null,
         status,
         isActive
       ]);
 
+      await logDebug('[CampaignService] Resultado do INSERT', {
+        hasResult: !!result,
+        hasRows: !!result?.rows,
+        rowCount: result?.rowCount,
+        campaignId: result?.rows?.[0]?.campaign_id
+      });
+
       const insertedCampaign = result?.rows?.[0];
       if (!insertedCampaign?.campaign_id) {
-        throw new Error('Erro ao criar campanha');
+        await logError('[CampaignService] Erro: campaign_id não retornado', new Error('campaign_id ausente'), {
+          result,
+          insertedCampaign,
+          resultRows: result?.rows,
+          rowCount: result?.rowCount
+        });
+        throw new Error('Erro ao criar campanha: ID não foi retornado pelo banco de dados');
       }
 
       // Buscar campanha criada

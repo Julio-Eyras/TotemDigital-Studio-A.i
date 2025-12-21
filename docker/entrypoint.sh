@@ -128,7 +128,7 @@ log "✅ Backend configurado"
 
 log "Configurando player HTML5..."
 
-if [ -f "/app/player/index.html" ]; then
+if [ -f "/app/player-web/index.html" ]; then
     log "✅ Player HTML5 encontrado"
 else
     warning "Player HTML5 não encontrado"

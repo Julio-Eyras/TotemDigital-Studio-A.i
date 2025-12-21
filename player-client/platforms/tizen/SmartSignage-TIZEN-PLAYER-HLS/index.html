@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1920,height=1080">
+  <title>SmartSignage Tizen Player HLS</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Player de vídeo HTML5 nativo - HLS suportado nativamente no Tizen -->
+  <video 
+    id="player"
+    autoplay
+    muted
+    playsinline
+  ></video>
+
+  <!-- JavaScript principal -->
+  <script src="js/device-info.js"></script>
+  <script src="js/hls-player.js"></script>
+  <script src="js/command-fetcher.js"></script>
+  <script src="js/heartbeat-service.js"></script>
+  <script src="js/fallback-manager.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
+

@@ -495,7 +495,8 @@ router.put('/:id/approve',
           const execAsync = promisify(exec);
           
           // Determinar diretório do player
-          const playerDir = process.env.PLAYER_DIR || '/opt/smart-signage/player';
+          const { config } = require('../config/env');
+          const playerDir = config.player.dir;
           const secretKey = process.env.TOTEM_SECRET_KEY || 'smart-signage-totem-secret-key-2025-change-in-production';
           
           // Executar script de geração de config

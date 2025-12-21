@@ -430,7 +430,7 @@ After=network.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/opt/smart-signage/player
+WorkingDirectory=/opt/smart-signage/player-web
 ExecStart=/opt/smart-signage/player/smartsignage-player
 Environment="API_BASE_URL=http://192.168.1.105:3000"
 Environment="TOTEM_UIN=auto-generate"

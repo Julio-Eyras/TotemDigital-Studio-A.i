@@ -98,6 +98,57 @@ router.get('/:id',
 );
 
 /**
+ * @route GET /api/playlists/:id/preview
+ * @desc Obter preview da playlist (lista de mídias com URLs)
+ */
+router.get('/:id/preview',
+  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      
+      const playlist = await getPlaylistService().getPlaylistById(parseInt(id));
+      
+      if (!playlist) {
+        return res.status(404).json({ error: 'Playlist não encontrada' });
+      }
+
+      // Obter mídia da playlist
+      const items = await getPlaylistService().getPlaylistMedia(parseInt(id));
+      
+      // Formatar resposta com URLs de download
+      const preview = {
+        playlistId: playlist.playlist_id,
+        playlistName: playlist.name,
+        playlistDescription: playlist.description,
+        mediaCount: items.length,
+        items: items.map((item: any) => ({
+          itemId: item.item_id,
+          orderIndex: item.order_index,
+          displaySeconds: item.duration,
+          media: item.media ? {
+            id: item.media.media_id,
+            name: item.media.name,
+            type: item.media.media_type,
+            durationSeconds: item.media.duration_seconds,
+            sizeBytes: item.media.size_bytes,
+            mimeType: item.media.mime_type,
+            downloadUrl: `/api/media/${item.media.media_id}/download`,
+            thumbnailUrl: `/api/media/${item.media.media_id}/thumbnail`
+          } : null
+        }))
+      };
+
+      res.json(preview);
+    } catch (error) {
+      await logError('Erro ao obter preview da playlist', error);
+      res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
  * @route POST /api/playlists
  * @desc Criar nova playlist
  * @access Private (Admin, Gerente Marketing)

@@ -495,7 +495,7 @@ OLLAMA_BASE_URL=http://ollama:11434
 
 ### **Configuração do Player**
 
-O player está configurado para se conectar automaticamente ao backend. Para configuração personalizada, edite `player/index.html`.
+O player está configurado para se conectar automaticamente ao backend. Para configuração personalizada, edite `player-web/index.html`.
 
 ### **Arquivo de exemplo de ambiente**
 

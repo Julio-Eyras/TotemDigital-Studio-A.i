@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" 
+        id="http://yourdomain.com/SmartSignageTizenPlayerHLS" 
+        version="1.0.0" viewmodes="maximized">
+  <name>SmartSignage Tizen Player HLS</name>
+  <content src="index.html"/>
+  <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
+  <icon src="icon.png"/>
+  <tizen:application id="com.smartsignage.tizenplayer.hls" package="com.smartsignage.tizenplayer.hls" required_version="4.0"/>
+  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+  <tizen:privilege name="http://tizen.org/privilege/network.get"/>
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
+  <tizen:metadata key="http://samsung.com/tv/metadata/preload" value="true"/>
+</widget>
+

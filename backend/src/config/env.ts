@@ -248,6 +248,19 @@ export const analyticsConfig = {
 };
 
 /**
+ * Configuração do Player/Totem
+ */
+export const playerConfig = {
+  path: getEnv('PLAYER_PATH', '/opt/smart-signage/player-web/index.html'),
+  dir: getEnv('PLAYER_DIR', '/opt/smart-signage/player-web'),
+  serverUrl: getEnv('SERVER_URL', ''), // Se vazio, será construído automaticamente
+  heartbeatInterval: getEnvNumber('HEARTBEAT_INTERVAL', 30000),
+  autoStart: getEnvBoolean('PLAYER_AUTO_START', true),
+  fullscreen: getEnvBoolean('PLAYER_FULLSCREEN', true),
+  portrait: getEnvBoolean('PLAYER_PORTRAIT', false)
+};
+
+/**
  * Configuração do Stripe
  */
 export const stripeConfig = {
@@ -311,7 +324,8 @@ export const config = {
   monitoring: monitoringConfig,
   backup: backupConfig,
   analytics: analyticsConfig,
-  stripe: stripeConfig
+  stripe: stripeConfig,
+  player: playerConfig
 };
 
 // Validar na importação (apenas em produção)

@@ -27,7 +27,7 @@ WORKDIR /app
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
 COPY scripts/ ./scripts/
-COPY player/ ./player/
+COPY player-web/ ./player-web/
 COPY docker/ ./docker/
 
 # Compilar Backend TypeScript
@@ -80,7 +80,7 @@ WORKDIR /app
 # Copiar arquivos necessários
 COPY --from=builder /app/frontend/build ./frontend/build
 COPY --from=builder /app/scripts ./scripts
-COPY --from=builder /app/player ./player
+COPY --from=builder /app/player-web ./player-web
 
 # Criar arquivo de configuração básico
 RUN echo "NODE_ENV=production" > .env

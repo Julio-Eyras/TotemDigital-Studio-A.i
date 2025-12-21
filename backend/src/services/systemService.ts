@@ -211,15 +211,15 @@ export class SystemService {
    */
   async getPlayerConfig(): Promise<PlayerConfig> {
     try {
-      const serverUrl = process.env.SERVER_URL || `http://${config.server.host}:${config.server.port}`;
+      const serverUrl = config.player.serverUrl || `http://${config.server.host}:${config.server.port}`;
       return {
         serverUrl,
-        heartbeatInterval: parseInt(process.env.HEARTBEAT_INTERVAL || '30000'),
+        heartbeatInterval: config.player.heartbeatInterval,
         mediaPath: '/assets/uploads',
         defaultPlaylist: undefined,
-        autoStart: process.env.PLAYER_AUTO_START !== 'false',
-        fullscreen: process.env.PLAYER_FULLSCREEN !== 'false',
-        portrait: process.env.PLAYER_PORTRAIT === 'true',
+        autoStart: config.player.autoStart,
+        fullscreen: config.player.fullscreen,
+        portrait: config.player.portrait,
         abandonPin: config.security.playerAbandonPin
       };
 

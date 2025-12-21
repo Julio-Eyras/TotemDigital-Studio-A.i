@@ -28,6 +28,7 @@ export const apiLimiter = rateLimit({
 
 /**
  * Rate limiter mais restritivo para autenticação (prevenir brute force)
+ * Nota: Usa keyGenerator padrão do express-rate-limit para evitar problemas com IPv6
  */
 export const authLimiter = rateLimit({
   windowMs: securityConfig.rateLimit.authWindowMs,
@@ -38,11 +39,8 @@ export const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req: Request) => {
-    // Usar IP + username para rate limiting mais preciso
-    const username = req.body?.username || req.body?.email || 'unknown';
-    return `${req.ip}-${username}`;
-  }
+  // Removido keyGenerator customizado para evitar erro ERR_ERL_KEY_GEN_IPV6
+  // O rate limiter padrão já funciona bem para autenticação por IP
 });
 
 /**

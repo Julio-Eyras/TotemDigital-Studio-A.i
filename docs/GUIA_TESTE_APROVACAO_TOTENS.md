@@ -22,7 +22,7 @@ Este guia detalha como testar todas as funcionalidades implementadas relacionada
 - ✅ Banco de dados PostgreSQL configurado e acessível
 - ✅ Variáveis de ambiente configuradas:
   - `TOTEM_SECRET_KEY` (opcional, tem valor padrão)
-  - `PLAYER_DIR` (opcional, padrão: `/opt/smart-signage/player`)
+  - `PLAYER_DIR` (opcional, padrão: `/opt/smart-signage/player-web`)
 - ✅ Script `generate-player-config.sh` disponível em `scripts/`
 
 ### Frontend Admin
@@ -152,10 +152,10 @@ Validar que o arquivo de configuração encriptado é gerado corretamente durant
 2. **Verificar arquivo gerado**
    ```bash
    # Verificar se arquivo existe
-   ls -la /opt/smart-signage/player/config.json.enc
+   ls -la /opt/smart-signage/player-web/config.json.enc
    
    # Verificar conteúdo (deve ser JSON válido)
-   cat /opt/smart-signage/player/config.json.enc
+   cat /opt/smart-signage/player-web/config.json.enc
    ```
    - Arquivo deve existir
    - Deve ter permissões 600 (apenas owner pode ler)
@@ -174,7 +174,7 @@ Validar que o arquivo de configuração encriptado é gerado corretamente durant
    ```bash
    # Tentar desencriptar usando OpenSSL
    SECRET_KEY="smart-signage-totem-secret-key-2025-change-in-production"
-   DATA=$(cat /opt/smart-signage/player/config.json.enc | jq -r '.data')
+   DATA=$(cat /opt/smart-signage/player-web/config.json.enc | jq -r '.data')
    echo -n "$DATA" | openssl enc -aes-256-cbc -d -base64 -salt -pbkdf2 -iter 10000 -k "$SECRET_KEY"
    ```
    - Deve retornar: `UIN:MAC:TIMESTAMP`
@@ -399,7 +399,7 @@ Testar todo o fluxo desde o auto-registro até a reprodução normal.
 1. Verificar se checkbox estava marcado
 2. Verificar permissões do diretório do player:
    ```bash
-   ls -la /opt/smart-signage/player/
+   ls -la /opt/smart-signage/player-web/
    chmod 755 /opt/smart-signage/player/
    ```
 3. Verificar se script existe:
@@ -471,7 +471,7 @@ Após todos os testes, verificar:
 ```bash
 # Backend
 TOTEM_SECRET_KEY=smart-signage-totem-secret-key-2025-change-in-production
-PLAYER_DIR=/opt/smart-signage/player
+PLAYER_DIR=/opt/smart-signage/player-web
 GENERATE_CONFIG_SCRIPT=/opt/smart-signage/scripts/generate-player-config.sh
 ```
 

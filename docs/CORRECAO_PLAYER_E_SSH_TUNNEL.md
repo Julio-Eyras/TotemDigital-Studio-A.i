@@ -40,7 +40,7 @@ No pgAdmin 4:
    - Configuração `/player/` já existente serve arquivos estáticos
    - Alias aponta para diretório do player
 
-3. **Player HTML (`player/index.html`):**
+3. **Player HTML (`player-web/index.html`):**
    - Atualizado para receber UIN via parâmetro de URL
    - Validação automática do totem via API
    - Sistema de tokens para segurança
@@ -96,7 +96,7 @@ Gera token de validação para totem:
    - Endpoints de validação e token
    - Sistema de segurança HMAC
 
-3. **`player/index.html`**
+3. **`player-web/index.html`**
    - Atualizado para suportar UIN via URL
    - Validação automática do totem
    - Sistema de tokens e renovação automática
@@ -115,7 +115,7 @@ Gera token de validação para totem:
 Adicione ao `.env`:
 ```env
 TOTEM_SECRET_KEY=sua-chave-secreta-aqui-mude-em-producao
-PLAYER_PATH=/opt/smart-signage/player/index.html
+PLAYER_PATH=/opt/smart-signage/player-web/index.html
 ```
 
 **⚠️ IMPORTANTE:** Altere `TOTEM_SECRET_KEY` em produção!

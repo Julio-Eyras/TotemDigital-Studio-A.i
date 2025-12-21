@@ -36,16 +36,27 @@ export const DATABASE_URL = config.url;
 export async function initializeDatabase(): Promise<pg.Pool> {
   try {
     if (!pool) {
-      pool = new Pool({
-        host: dbConfig.host,
-        port: dbConfig.port,
-        database: dbConfig.database,
-        user: dbConfig.user,
-        password: dbConfig.password,
-        max: dbConfig.max,
-        idleTimeoutMillis: dbConfig.idleTimeoutMillis,
-        connectionTimeoutMillis: dbConfig.connectionTimeoutMillis,
-      });
+      // Usar DATABASE_URL se disponível (tem precedência sobre parâmetros individuais)
+      // Isso garante que a senha seja corretamente parseada da URL
+      const poolConfig: pg.PoolConfig = config.url 
+        ? { 
+            connectionString: config.url,
+            max: dbConfig.max,
+            idleTimeoutMillis: dbConfig.idleTimeoutMillis,
+            connectionTimeoutMillis: dbConfig.connectionTimeoutMillis,
+          }
+        : {
+            host: dbConfig.host,
+            port: dbConfig.port,
+            database: dbConfig.database,
+            user: dbConfig.user,
+            password: dbConfig.password || undefined, // Garantir que seja string ou undefined, nunca vazio
+            max: dbConfig.max,
+            idleTimeoutMillis: dbConfig.idleTimeoutMillis,
+            connectionTimeoutMillis: dbConfig.connectionTimeoutMillis,
+          };
+
+      pool = new Pool(poolConfig);
 
       // Testar conexão
       await pool.query('SELECT NOW()');

@@ -5,6 +5,15 @@
 
 
 -- =============================================
+-- SCHEMA / SEARCH PATH GUARANTEES
+-- =============================================
+
+-- Garantir que o schema public exista e que o search_path esteja correto
+CREATE SCHEMA IF NOT EXISTS public;
+SET search_path TO public;
+
+
+-- =============================================
 -- BASE DOMAIN SCHEMA
 -- =============================================
 
@@ -798,11 +807,15 @@ CREATE TABLE IF NOT EXISTS remote_commands (
     command_type TEXT NOT NULL,
     command_data TEXT, -- JSON
     priority INTEGER DEFAULT 1,
-    status TEXT DEFAULT 'pending', -- pending, executing, completed, failed
+    status TEXT DEFAULT 'pending', -- pending, sent, executing, completed, failed, timeout
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMP,
     executed_at TIMESTAMP,
+    completed_at TIMESTAMP,
     result TEXT,
+    error_message TEXT,
     created_by INTEGER,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
@@ -1013,9 +1026,60 @@ CREATE TABLE IF NOT EXISTS fx_telemetry (
     status TEXT DEFAULT 'success', -- 'success', 'failed', 'timeout', 'cancelled'
     error_message TEXT,
     metadata JSONB DEFAULT '{}'::jsonb, -- Dados adicionais
+    -- Campos de contexto de site e logging para correlação em rede estrela (SmartDisplayFX Plus)
+    site_id TEXT, -- ID do site FX (fx_sites.site_id) onde o totem está vinculado no momento da execução
+    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Momento em que o evento foi registrado
+    success BOOLEAN DEFAULT true, -- Atalho booleano derivado de status (true = success)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
+    FOREIGN KEY (site_id) REFERENCES fx_sites(site_id) ON DELETE SET NULL
 );
+
+-- Garantir que instalações existentes recebam as colunas e FK de fx_telemetry
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'fx_telemetry') THEN
+        -- Adicionar colunas se ainda não existirem
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'fx_telemetry' AND column_name = 'site_id'
+        ) THEN
+            ALTER TABLE fx_telemetry ADD COLUMN site_id TEXT;
+        END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'fx_telemetry' AND column_name = 'logged_at'
+        ) THEN
+            ALTER TABLE fx_telemetry ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'fx_telemetry' AND column_name = 'success'
+        ) THEN
+            ALTER TABLE fx_telemetry ADD COLUMN success BOOLEAN DEFAULT true;
+        END IF;
+
+        -- Garantir FK opcional para fx_sites(site_id) se a tabela existir
+        IF EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_name = 'fx_sites'
+        ) THEN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints tc
+                WHERE tc.table_name = 'fx_telemetry'
+                  AND tc.constraint_type = 'FOREIGN KEY'
+                  AND tc.constraint_name = 'fx_telemetry_site_id_fkey'
+            ) THEN
+                ALTER TABLE fx_telemetry
+                    ADD CONSTRAINT fx_telemetry_site_id_fkey
+                    FOREIGN KEY (site_id) REFERENCES fx_sites(site_id) ON DELETE SET NULL;
+            END IF;
+        END IF;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS fx_totem_sites (
     id SERIAL PRIMARY KEY,
@@ -1060,7 +1124,7 @@ CREATE TABLE IF NOT EXISTS campaign_playlists (
     UNIQUE(campaign_id, playlist_id)
 );
 
-CREATE TABLE IF NOT EXISTS event_logs (
+CREATE TABLE IF NOT EXISTS public.event_logs (
     id SERIAL PRIMARY KEY,
     event_type TEXT NOT NULL,
     entity_type TEXT NOT NULL,
@@ -1071,11 +1135,42 @@ CREATE TABLE IF NOT EXISTS event_logs (
     media_id INTEGER,
     metadata JSONB,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL,
-    FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE SET NULL,
-    FOREIGN KEY (playlist_id) REFERENCES playlists(playlist_id) ON DELETE SET NULL,
-    FOREIGN KEY (media_id) REFERENCES medias(media_id) ON DELETE SET NULL
+    -- Campo de log refinado para consultas (mantido separado de timestamp por compatibilidade)
+    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES public.totems(totem_id) ON DELETE SET NULL,
+    FOREIGN KEY (campaign_id) REFERENCES public.campaigns(campaign_id) ON DELETE SET NULL,
+    FOREIGN KEY (playlist_id) REFERENCES public.playlists(playlist_id) ON DELETE SET NULL,
+    FOREIGN KEY (media_id) REFERENCES public.medias(media_id) ON DELETE SET NULL
 );
+
+-- Garantir que instalações existentes recebam a coluna logged_at em event_logs
+DO $$
+BEGIN
+    -- Verificar no schema public primeiro
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'event_logs') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'event_logs' AND column_name = 'logged_at'
+        ) THEN
+            ALTER TABLE public.event_logs ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        END IF;
+    END IF;
+    
+    -- Verificação alternativa sem schema explícito (para tabelas criadas sem schema)
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'event_logs') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'event_logs' AND column_name = 'logged_at'
+        ) THEN
+            BEGIN
+                ALTER TABLE event_logs ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+            EXCEPTION WHEN OTHERS THEN
+                -- Coluna pode já existir ou tabela pode estar em outro schema, ignorar
+                NULL;
+            END;
+        END IF;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS analytics_qr_scans (
     id SERIAL PRIMARY KEY,
@@ -1088,6 +1183,21 @@ CREATE TABLE IF NOT EXISTS analytics_qr_scans (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (qr_code_id) REFERENCES qr_codes(qr_code_id) ON DELETE CASCADE,
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.notifications (
+    notification_id SERIAL PRIMARY KEY,
+    user_id INTEGER,
+    client_id INTEGER,
+    notification_type TEXT NOT NULL, -- 'info', 'success', 'warning', 'error'
+    title TEXT,
+    message TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL,
+    FOREIGN KEY (client_id) REFERENCES public.clients(client_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS remote_screenshots (
@@ -1418,19 +1528,47 @@ CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_role ON fx_totem_sites(role);
 CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_id ON playlist_items(playlist_id);
 CREATE INDEX IF NOT EXISTS idx_playlist_items_order ON playlist_items(playlist_id, order_index);
 
--- Índices para event_logs
-CREATE INDEX IF NOT EXISTS idx_event_logs_event_type ON event_logs(event_type);
-CREATE INDEX IF NOT EXISTS idx_event_logs_totem_id ON event_logs(totem_id);
-CREATE INDEX IF NOT EXISTS idx_event_logs_campaign_id ON event_logs(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_event_logs_playlist_id ON event_logs(playlist_id);
-CREATE INDEX IF NOT EXISTS idx_event_logs_media_id ON event_logs(media_id);
-CREATE INDEX IF NOT EXISTS idx_event_logs_timestamp ON event_logs(timestamp);
-CREATE INDEX IF NOT EXISTS idx_event_logs_entity ON event_logs(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_event_logs_bi ON event_logs(totem_id, campaign_id, timestamp);
-CREATE INDEX IF NOT EXISTS idx_event_logs_logged_at ON event_logs(logged_at);
-CREATE INDEX IF NOT EXISTS idx_event_logs_totem_type ON event_logs(totem_id, event_type, logged_at);
-CREATE INDEX IF NOT EXISTS idx_event_logs_totem_timestamp ON event_logs(totem_id, timestamp);
-CREATE INDEX IF NOT EXISTS idx_event_logs_timestamp_desc ON event_logs(timestamp DESC);
+-- Garantir que event_logs.logged_at existe antes de criar índices
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'event_logs') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'event_logs' AND column_name = 'logged_at'
+        ) THEN
+            ALTER TABLE public.event_logs ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        END IF;
+    END IF;
+    
+    -- Verificação alternativa sem schema explícito (para tabelas criadas sem schema)
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'event_logs') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'event_logs' AND column_name = 'logged_at'
+        ) THEN
+            BEGIN
+                ALTER TABLE event_logs ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+            EXCEPTION WHEN OTHERS THEN
+                -- Coluna pode já existir ou tabela pode estar em outro schema, ignorar
+                NULL;
+            END;
+        END IF;
+    END IF;
+END $$;
+
+-- Índices para event_logs (usar schema explícito para evitar ambiguidade)
+CREATE INDEX IF NOT EXISTS idx_event_logs_event_type ON public.event_logs(event_type);
+CREATE INDEX IF NOT EXISTS idx_event_logs_totem_id ON public.event_logs(totem_id);
+CREATE INDEX IF NOT EXISTS idx_event_logs_campaign_id ON public.event_logs(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_event_logs_playlist_id ON public.event_logs(playlist_id);
+CREATE INDEX IF NOT EXISTS idx_event_logs_media_id ON public.event_logs(media_id);
+CREATE INDEX IF NOT EXISTS idx_event_logs_timestamp ON public.event_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_event_logs_entity ON public.event_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_event_logs_bi ON public.event_logs(totem_id, campaign_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_event_logs_logged_at ON public.event_logs(logged_at);
+CREATE INDEX IF NOT EXISTS idx_event_logs_totem_type ON public.event_logs(totem_id, event_type, logged_at);
+CREATE INDEX IF NOT EXISTS idx_event_logs_totem_timestamp ON public.event_logs(totem_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_event_logs_timestamp_desc ON public.event_logs(timestamp DESC);
 
 -- Índices para analytics_qr_scans
 CREATE INDEX IF NOT EXISTS idx_analytics_qr_scans_qr_code_id ON analytics_qr_scans(qr_code_id);
@@ -1450,13 +1588,84 @@ CREATE INDEX IF NOT EXISTS idx_advanced_schedules_next_execution ON advanced_sch
 CREATE INDEX IF NOT EXISTS idx_export_schedules_next_execution ON export_schedules(next_execution);
 CREATE INDEX IF NOT EXISTS idx_ota_updates_version ON ota_updates(version);
 
+-- Garantir que a tabela notifications existe antes de criar índices
+DO $$
+BEGIN
+    -- Verificar se a tabela existe no schema public
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'notifications') THEN
+        -- Verificar se existe em qualquer schema
+        IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'notifications') THEN
+            CREATE TABLE public.notifications (
+                notification_id SERIAL PRIMARY KEY,
+                user_id INTEGER,
+                client_id INTEGER,
+                notification_type TEXT NOT NULL,
+                title TEXT,
+                message TEXT NOT NULL,
+                metadata JSONB DEFAULT '{}'::jsonb,
+                is_read BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                read_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL,
+                FOREIGN KEY (client_id) REFERENCES public.clients(client_id) ON DELETE SET NULL
+            );
+        END IF;
+    END IF;
+    
+    -- Garantir que a tabela está no schema public (mover se necessário)
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'notifications' AND table_schema != 'public') THEN
+        -- Tabela existe mas não está em public, tentar criar em public (pode falhar se já existir, mas é OK)
+        BEGIN
+            CREATE TABLE IF NOT EXISTS public.notifications (
+                notification_id SERIAL PRIMARY KEY,
+                user_id INTEGER,
+                client_id INTEGER,
+                notification_type TEXT NOT NULL,
+                title TEXT,
+                message TEXT NOT NULL,
+                metadata JSONB DEFAULT '{}'::jsonb,
+                is_read BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                read_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL,
+                FOREIGN KEY (client_id) REFERENCES public.clients(client_id) ON DELETE SET NULL
+            );
+        EXCEPTION WHEN OTHERS THEN
+            -- Tabela já existe, OK
+            NULL;
+        END;
+    END IF;
+END $$;
+
+-- Índices para notifications (garantir que a tabela existe primeiro)
+DO $$
+BEGIN
+    -- Garantir que a tabela notifications existe no schema public
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'notifications') THEN
+        CREATE TABLE IF NOT EXISTS public.notifications (
+            notification_id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            client_id INTEGER,
+            notification_type TEXT NOT NULL,
+            title TEXT,
+            message TEXT NOT NULL,
+            metadata JSONB DEFAULT '{}'::jsonb,
+            is_read BOOLEAN DEFAULT false,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            read_at TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL,
+            FOREIGN KEY (client_id) REFERENCES public.clients(client_id) ON DELETE SET NULL
+        );
+    END IF;
+END $$;
+
 -- Índices para notifications
-CREATE INDEX IF NOT EXISTS idx_notifications_notification_id ON notifications(notification_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_client_id ON notifications(client_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
-CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, read, created_at DESC) WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_notifications_notification_id ON public.notifications(notification_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_client_id ON public.notifications(client_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_read ON public.notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON public.notifications(user_id, is_read, created_at DESC) WHERE user_id IS NOT NULL;
 
 
 -- =============================================
@@ -2911,131 +3120,10 @@ VALUES
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- =============================================
--- MIGRATIONS - QR Codes Table Update
+-- QR CODES TABLE
 -- =============================================
--- Migração para atualizar tabela qr_codes existente com novos campos
--- Esta migração é idempotente e pode ser executada múltiplas vezes
-
-DO $$
-BEGIN
-    -- Verificar se a tabela qr_codes existe
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'qr_codes') THEN
-        -- Renomear coluna id para qr_code_id se ainda não foi renomeada
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'id') THEN
-            ALTER TABLE qr_codes RENAME COLUMN id TO qr_code_id;
-        END IF;
-
-        -- Adicionar coluna client_id se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'client_id') THEN
-            ALTER TABLE qr_codes ADD COLUMN client_id INTEGER;
-            ALTER TABLE qr_codes ADD CONSTRAINT fk_qr_codes_client FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL;
-        END IF;
-
-        -- Adicionar coluna totem_id se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'totem_id') THEN
-            ALTER TABLE qr_codes ADD COLUMN totem_id INTEGER;
-            ALTER TABLE qr_codes ADD CONSTRAINT fk_qr_codes_totem FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL;
-        END IF;
-
-        -- Tornar campaign_id opcional (remover NOT NULL se existir)
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'campaign_id' AND is_nullable = 'NO') THEN
-            ALTER TABLE qr_codes ALTER COLUMN campaign_id DROP NOT NULL;
-        END IF;
-
-        -- Adicionar coluna title se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'title') THEN
-            ALTER TABLE qr_codes ADD COLUMN title TEXT;
-            -- Se já existem registros, definir um título padrão baseado no content
-            UPDATE qr_codes SET title = COALESCE(SUBSTRING(content, 1, 100), 'QR Code') WHERE title IS NULL;
-            -- Agora tornar obrigatório
-            ALTER TABLE qr_codes ALTER COLUMN title SET NOT NULL;
-        END IF;
-
-        -- Adicionar coluna description se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'description') THEN
-            ALTER TABLE qr_codes ADD COLUMN description TEXT;
-        END IF;
-
-        -- Adicionar coluna size se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'size') THEN
-            ALTER TABLE qr_codes ADD COLUMN size INTEGER DEFAULT 200;
-        END IF;
-
-        -- Adicionar coluna color se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'color') THEN
-            ALTER TABLE qr_codes ADD COLUMN color TEXT DEFAULT '#000000';
-        END IF;
-
-        -- Adicionar coluna background_color se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'background_color') THEN
-            ALTER TABLE qr_codes ADD COLUMN background_color TEXT DEFAULT '#FFFFFF';
-        END IF;
-
-        -- Adicionar coluna error_correction_level se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'error_correction_level') THEN
-            ALTER TABLE qr_codes ADD COLUMN error_correction_level TEXT DEFAULT 'M';
-        END IF;
-
-        -- Adicionar coluna margin se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'margin') THEN
-            ALTER TABLE qr_codes ADD COLUMN margin INTEGER DEFAULT 4;
-        END IF;
-
-        -- Adicionar coluna redirect_url se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'redirect_url') THEN
-            ALTER TABLE qr_codes ADD COLUMN redirect_url TEXT;
-        END IF;
-
-        -- Adicionar coluna tracking_enabled se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'tracking_enabled') THEN
-            ALTER TABLE qr_codes ADD COLUMN tracking_enabled BOOLEAN DEFAULT true;
-        END IF;
-
-        -- Adicionar coluna last_scanned_at se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'last_scanned_at') THEN
-            ALTER TABLE qr_codes ADD COLUMN last_scanned_at TIMESTAMP;
-        END IF;
-
-        -- Adicionar coluna updated_at se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'updated_at') THEN
-            ALTER TABLE qr_codes ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-        END IF;
-
-        -- Criar índices se não existirem
-        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_client_id') THEN
-            CREATE INDEX idx_qr_codes_client_id ON qr_codes(client_id);
-        END IF;
-
-        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_totem_id') THEN
-            CREATE INDEX idx_qr_codes_totem_id ON qr_codes(totem_id);
-        END IF;
-
-        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_campaign_id') THEN
-            CREATE INDEX idx_qr_codes_campaign_id ON qr_codes(campaign_id);
-        END IF;
-
-        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_is_active') THEN
-            CREATE INDEX idx_qr_codes_is_active ON qr_codes(is_active);
-        END IF;
-
-        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_expires_at') THEN
-            CREATE INDEX idx_qr_codes_expires_at ON qr_codes(expires_at);
-        END IF;
-
-        -- Corrigir foreign key na tabela analytics_qr_scans se existir e referenciar coluna antiga
-        -- Nota: A foreign key já está correta no CREATE TABLE, mas se a tabela existir com constraint antiga, precisa ser corrigida
-        -- Usar abordagem simples: remover constraints antigas e recriar com referência correta
-        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'analytics_qr_scans') THEN
-            -- Remover constraint antiga se existir (usando nome padrão ou buscando dinamicamente)
-            ALTER TABLE analytics_qr_scans DROP CONSTRAINT IF EXISTS analytics_qr_scans_qr_code_id_fkey;
-            ALTER TABLE analytics_qr_scans DROP CONSTRAINT IF EXISTS fk_analytics_qr_scans_qr_code;
-            -- Recriar com referência correta
-            ALTER TABLE analytics_qr_scans 
-            ADD CONSTRAINT fk_analytics_qr_scans_qr_code 
-            FOREIGN KEY (qr_code_id) REFERENCES qr_codes(qr_code_id) ON DELETE CASCADE;
-        END IF;
-    END IF;
-END $$;
+-- Tabela qr_codes já está definida corretamente acima (linha ~748)
+-- Migração removida - não há legados, tabela criada com estrutura completa
 
 -- =============================================
 -- EVENT LOGS TABLE (v2.1)
@@ -3110,36 +3198,12 @@ ON CONFLICT (slug) DO NOTHING;
 -- =============================================
 -- REMOTE COMMANDS ENHANCEMENTS (v2.1)
 -- =============================================
--- Migration: Remote Commands System - Enhancements
--- Adiciona colunas adicionais à tabela remote_commands existente
-
--- Adicionar colunas que faltam (se não existirem)
-DO $$ 
-BEGIN
-    -- Adicionar sent_at se não existir
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name = 'remote_commands' AND column_name = 'sent_at') THEN
-        ALTER TABLE remote_commands ADD COLUMN sent_at TIMESTAMP;
-    END IF;
-
-    -- Adicionar completed_at se não existir
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name = 'remote_commands' AND column_name = 'completed_at') THEN
-        ALTER TABLE remote_commands ADD COLUMN completed_at TIMESTAMP;
-    END IF;
-
-    -- Adicionar error_message se não existir
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name = 'remote_commands' AND column_name = 'error_message') THEN
-        ALTER TABLE remote_commands ADD COLUMN error_message TEXT;
-    END IF;
-
-    -- Adicionar updated_at se não existir
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name = 'remote_commands' AND column_name = 'updated_at') THEN
-        ALTER TABLE remote_commands ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-    END IF;
-END $$;
+-- =============================================
+-- REMOTE COMMANDS TABLE
+-- =============================================
+-- Tabela remote_commands já está definida corretamente acima (linha ~794)
+-- Colunas sent_at, completed_at, error_message e updated_at incluídas na definição
+-- Migração removida - não há legados, tabela criada com estrutura completa
 
 -- Tabela para armazenar screenshots capturados remotamente
 
