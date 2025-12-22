@@ -31,7 +31,9 @@ import { getWebSocketService } from './services/websocketService';
 // Routes
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
-import clientRoutes from './routes/clients';
+import clientRoutes from './routes/clients'; // TODO: Deprecar - usar subscribers
+import subscriberRoutes from './routes/subscribers'; // NOVO: Subscribers (anunciantes)
+import publisherRoutes from './routes/publishers'; // NOVO: Publishers (publicadores)
 import dashboardRoutes from './routes/dashboard';
 import playerRoutes from './routes/players'; // API de gerenciamento de players
 import totemRoutes from './routes/totems';
@@ -40,7 +42,9 @@ import playlistRoutes from './routes/playlists';
 import campaignRoutes from './routes/campaigns';
 import qrcodeRoutes from './routes/qrcodes';
 import analyticsRoutes from './routes/analytics';
-import billingRoutes from './routes/billing';
+import billingRoutes from './routes/billing'; // TODO: Deprecar - usar subscriber-billing e publisher-billing
+import subscriberBillingRoutes from './routes/subscriber-billing'; // NOVO: Billing de subscribers
+import publisherBillingRoutes from './routes/publisher-billing'; // NOVO: Billing de publishers
 import plansRoutes from './routes/plans';
 import subscriptionsRoutes from './routes/subscriptions';
 import settingsRoutes from './routes/settings';
@@ -261,7 +265,9 @@ app.use('/api', auditSystemUsers as any);
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', authMiddleware as any, userRoutes);
-app.use('/api/clients', authMiddleware as any, blockClientDataAccess as any, clientRoutes);
+app.use('/api/clients', authMiddleware as any, blockClientDataAccess as any, clientRoutes); // TODO: Deprecar - usar /api/subscribers
+app.use('/api/subscribers', authMiddleware as any, blockClientDataAccess as any, subscriberRoutes); // NOVO: Subscribers (anunciantes)
+app.use('/api/publishers', authMiddleware as any, publisherRoutes); // NOVO: Publishers (publicadores)
 app.use('/api/totems', totemRoutes);
 app.use('/api/players', authMiddleware as any, playerRoutes);
 app.use('/api/media', blockClientDataAccess as any, mediaRoutes);
@@ -270,7 +276,9 @@ app.use('/api/campaigns', blockClientDataAccess as any, campaignRoutes);
 app.use('/api/qrcodes', blockClientDataAccess as any, qrcodeRoutes);
 app.use('/api/qr-codes', blockClientDataAccess as any, qrcodeRoutes); // Alias para compatibilidade com frontend
 app.use('/api/analytics', blockClientDataAccess as any, analyticsRoutes);
-app.use('/api/billing', authMiddleware as any, blockClientDataAccess as any, billingRoutes);
+app.use('/api/billing', authMiddleware as any, blockClientDataAccess as any, billingRoutes); // TODO: Deprecar - usar /api/subscriber-billing e /api/publisher-billing
+app.use('/api/subscriber-billing', authMiddleware as any, blockClientDataAccess as any, subscriberBillingRoutes); // NOVO: Billing de subscribers
+app.use('/api/publisher-billing', authMiddleware as any, publisherBillingRoutes); // NOVO: Billing de publishers
 app.use('/api/plans', plansRoutes);
 app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/settings', settingsRoutes);

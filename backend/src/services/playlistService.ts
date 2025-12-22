@@ -1,5 +1,5 @@
 import { getDatabase } from '../config/database';
-import { logError, logDebug } from '../utils/loggerHelper';
+import { logError } from '../utils/loggerHelper';
 
 export interface PlaylistItem {
   playlist_id: number;
@@ -69,7 +69,7 @@ export class PlaylistService {
       }
 
       if (clientId) {
-        whereClause += ' AND p.client_id = $' + (queryParams.length + 1);
+        whereClause += ' AND p.subscriber_id = $' + (queryParams.length + 1);
         queryParams.push(clientId);
       }
 
@@ -79,15 +79,15 @@ export class PlaylistService {
           p.playlist_id,
           p.name,
           p.description,
-          p.client_id,
+          p.subscriber_id as client_id,
           COALESCE(p.is_active, true) as is_active,
           p.created_at,
           p.updated_at as updated_at,
-          c.name as client_name,
+          s.name as client_name,
           COUNT(pi.item_id) as media_count,
           COALESCE(SUM(COALESCE(pi.display_seconds, m.duration_seconds, 0)), 0) as total_duration
         FROM playlists p
-        LEFT JOIN clients c ON p.client_id = c.client_id
+        LEFT JOIN subscribers s ON p.subscriber_id = s.subscriber_id
         LEFT JOIN playlist_items pi ON p.playlist_id = pi.playlist_id
         LEFT JOIN medias m ON pi.media_id = m.media_id
         ${whereClause}
@@ -95,11 +95,11 @@ export class PlaylistService {
           p.playlist_id, 
           p.name, 
           p.description, 
-          p.client_id, 
+          p.subscriber_id, 
           COALESCE(p.is_active, true),
           p.created_at,
           p.updated_at,
-          c.name
+          s.name
         ORDER BY p.created_at DESC
         LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
       `, [...queryParams, limit, offset]);
@@ -133,15 +133,15 @@ export class PlaylistService {
           p.playlist_id,
           p.name,
           p.description,
-          p.client_id,
+          p.subscriber_id as client_id,
           COALESCE(p.is_active, true) as is_active,
           COALESCE(p.created_at, p.generated_at) as created_at,
           p.updated_at as updated_at,
-          c.name as client_name,
+          s.name as client_name,
           COUNT(pi.item_id) as media_count,
           COALESCE(SUM(COALESCE(pi.display_seconds, m.duration_seconds, 0)), 0) as total_duration
         FROM playlists p
-        LEFT JOIN clients c ON p.client_id = c.client_id
+        LEFT JOIN subscribers s ON p.subscriber_id = s.subscriber_id
         LEFT JOIN playlist_items pi ON p.playlist_id = pi.playlist_id
         LEFT JOIN medias m ON pi.media_id = m.media_id
         WHERE p.playlist_id = $1
@@ -168,58 +168,37 @@ export class PlaylistService {
    */
   async createPlaylist(data: CreatePlaylistRequest): Promise<PlaylistItem> {
     try {
-      const { name, description, clientId } = data;
+      let { name, description, clientId } = data;
 
-      // Verificar se playlist já existe
+      // Se clientId não foi fornecido, buscar primeiro subscriber ativo
+      if (!clientId) {
+        const firstSubscriber = await this.db.findFirst(`
+          SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
+        `);
+        if (firstSubscriber) {
+          clientId = firstSubscriber.subscriber_id;
+        } else {
+          throw new Error('Nenhum subscriber (anunciante) ativo encontrado. É necessário ter pelo menos um subscriber para criar playlists.');
+        }
+      }
+
+      // Verificar se playlist já existe para este subscriber (anunciante)
       const existingPlaylist = await this.db.findFirst(`
-        SELECT playlist_id FROM playlists WHERE name = $1 AND client_id = $2
+        SELECT playlist_id FROM playlists WHERE name = $1 AND subscriber_id = $2
       `, [name, clientId]);
 
       if (existingPlaylist) {
         throw new Error('Playlist com este nome já existe para este cliente');
       }
 
-      // Buscar primeiro totem e campanha ativos para usar como padrão
-      // Se não existirem, usar NULL (mas o schema requer NOT NULL, então precisamos criar valores padrão)
-      // Buscar totem ativo (pode ter active ou is_active)
-      const defaultTotem = await this.db.findFirst(`
-        SELECT totem_id FROM totems 
-        WHERE (active = true OR is_active = true) 
-        LIMIT 1
-      `);
-      
-      // Buscar campanha ativa (is_active = true ou status = 'active')
-      const defaultCampaign = await this.db.findFirst(`
-        SELECT campaign_id FROM campaigns 
-        WHERE (is_active = true OR status = 'active') 
-        LIMIT 1
-      `);
-
-      // Mapear campos do banco (PostgreSQL retorna snake_case)
-      const totemId = defaultTotem?.totem_id || defaultTotem?.totemId || null;
-      const campaignId = defaultCampaign?.campaign_id || defaultCampaign?.campaignId || null;
-
-      if (!totemId || !campaignId) {
-        await logError('Erro ao criar playlist: Totem ou campanha não encontrados', undefined, {
-          totemId: defaultTotem ? totemId : null,
-          campaignId: defaultCampaign ? campaignId : null,
-          defaultTotem: defaultTotem ? 'encontrado' : 'não encontrado',
-          defaultCampaign: defaultCampaign ? 'encontrada' : 'não encontrada'
-        });
-        throw new Error('É necessário ter pelo menos um totem e uma campanha ativos para criar playlists');
-      }
-      
-      await logDebug('Totem e campanha encontrados para playlist', {
-        totemId,
-        campaignId
-      });
-
-      // Criar playlist
+      // Criar playlist (apenas subscriber_id é necessário)
+      // Playlist não pertence a totem ou campanha específica
+      // Relacionamento com campanhas é feito via campaign_playlists (N:M)
       const result = await this.db.executeRaw(`
-        INSERT INTO playlists (name, description, client_id, totem_id, campaign_id, is_active)
-        VALUES ($1, $2, $3, $4, $5, true)
+        INSERT INTO playlists (name, description, subscriber_id, is_active)
+        VALUES ($1, $2, $3, true)
         RETURNING playlist_id
-      `, [name, description, clientId, totemId, campaignId]);
+      `, [name, description, clientId]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar playlist');
@@ -255,7 +234,7 @@ export class PlaylistService {
       // Verificar se nome já existe (se mudou)
       if (name && name !== existingPlaylist.name) {
         const playlistWithSameName = await this.db.findFirst(`
-          SELECT playlist_id FROM playlists WHERE name = $1 AND client_id = $2 AND playlist_id != $3
+          SELECT playlist_id FROM playlists WHERE name = $1 AND subscriber_id = $2 AND playlist_id != $3
         `, [name, clientId || existingPlaylist.client_id, id]);
 
         if (playlistWithSameName) {
@@ -281,7 +260,7 @@ export class PlaylistService {
       }
 
       if (clientId !== undefined) {
-        updateFields.push(`client_id = $${paramIndex}`);
+        updateFields.push(`subscriber_id = $${paramIndex}`);
         updateParams.push(clientId);
         paramIndex++;
       }

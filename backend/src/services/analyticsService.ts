@@ -183,7 +183,7 @@ export class AnalyticsService {
   private async fetchDashboardStats(): Promise<DashboardStats> {
     try {
       const totalClients = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM clients WHERE is_active = true
+        SELECT COUNT(*)::int AS count FROM subscribers WHERE is_active = true
       `);
 
       const totalTotems = await this.db.findFirst(`
@@ -226,7 +226,7 @@ export class AnalyticsService {
       `;
 
       const newClients = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM clients WHERE created_at >= ${recentWindow}
+        SELECT COUNT(*)::int AS count FROM subscribers WHERE created_at >= ${recentWindow}
       `);
 
       const newCampaigns = await this.db.findFirst(`
@@ -355,8 +355,9 @@ export class AnalyticsService {
       const params: any[] = [];
 
       if (clientId) {
-        whereClause += ' AND el.client_id = ?';
-        params.push(clientId);
+        // event_logs tem subscriber_id (derivado de campaign_id)
+        whereClause += ' AND el.subscriber_id = $' + (params.length + 1);
+        params.push(clientId); // clientId mapeado para subscriberId
       }
       if (totemId) {
         whereClause += ' AND el.totem_id = ?';
@@ -501,36 +502,35 @@ export class AnalyticsService {
         LIMIT 10
       `, params);
 
+      // NOTA: Tabela analytics_qr_scans pode não existir no schema v2
+      // Usar dados de qr_codes diretamente (scan_count, last_scan_at)
       let qrWhere = 'WHERE 1=1';
       const qrParams: any[] = [];
-      if (totemId) {
-        qrWhere += ' AND qrs.totem_id = ?';
-        qrParams.push(totemId);
-      }
+      
       if (clientId) {
-        qrWhere += ' AND t.client_id = ?';
-        qrParams.push(clientId);
+        // QR codes pertencem a campaigns, que pertencem a subscribers
+        qrWhere += ' AND q.campaign_id IN (SELECT campaign_id FROM campaigns WHERE subscriber_id = $' + (qrParams.length + 1) + ')';
+        qrParams.push(clientId); // clientId mapeado para subscriberId
       }
       if (startDate) {
-        qrWhere += ' AND qrs.scan_timestamp >= ?';
+        qrWhere += ' AND q.last_scan_at >= $' + (qrParams.length + 1);
         qrParams.push(startDate);
       }
       if (endDate) {
-        qrWhere += ' AND qrs.scan_timestamp <= ?';
+        qrWhere += ' AND q.last_scan_at <= $' + (qrParams.length + 1);
         qrParams.push(endDate);
       }
 
+      // Buscar QR codes com scan_count > 0
       const qrCodeStatsRows = await this.db.findMany(`
         SELECT 
-          qrs.qr_code_id AS "qrCodeId",
-          COALESCE(qc.content, 'QR Code') AS title,
-          COUNT(*)::int AS scans
-        FROM analytics_qr_scans qrs
-        LEFT JOIN qr_codes qc ON qc.qr_code_id = qrs.qr_code_id
-        LEFT JOIN totems t ON t.totem_id = qrs.totem_id
+          q.qr_id AS "qrCodeId",
+          COALESCE(q.title, q.content, 'QR Code') AS title,
+          q.scan_count::int AS scans
+        FROM qr_codes q
         ${qrWhere}
-        GROUP BY qrs.qr_code_id, qc.content
-        ORDER BY scans DESC
+        AND q.scan_count > 0
+        ORDER BY q.scan_count DESC
         LIMIT 10
       `, qrParams);
 

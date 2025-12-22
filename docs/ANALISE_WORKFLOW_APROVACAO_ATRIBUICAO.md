@@ -12,12 +12,12 @@
 2. **Aprovação obrigatória:**
    - ✅ Mídias e Playlists **precisam ser aprovadas por admin/users do sistema SmartSignage**
    - ✅ CLIENT não pode publicar diretamente
-   - ✅ Apenas após aprovação é que podem ser usadas em campanhas
+   - ✅ Apenas ap
+   ós aprovação é das midias e que podem ser usadas em playlist e campanhas
 
 3. **Atribuição flexível de campanhas:**
-   - ✅ CLIENT pode atrelar campanhas a **diversos hosts, locais e totens**
-   - ✅ Uma campanha pode ser exibida em múltiplos locais/totens simultaneamente
-
+   - ✅ CLIENT pode atrelar campanhas a **diversos hosts, locais e totens** sim 
+   - ✅ Uma campanha pode ser exibida em múltiplos locais/totens simultaneamente sim 
 ---
 
 ## 📊 Análise do Modelo Atual
@@ -40,9 +40,11 @@ approval_workflows (
 
 **Análise:**
 - ✅ **CORRETO:** Aprovação existe para mídias
-- ✅ **CORRETO:** `reviewed_by` referencia `users` (admin/user do sistema)
+- ✅ **CORRETO:** `reviewed_by` referencia `users` (admin/user do sistema)  o correto este e o unico qque pode aprovar midias 
 - ✅ **CORRETO:** Status permite rastrear workflow completo
-- ⚠️ **INCOMPLETO:** Não há aprovação para playlists!
+- ⚠️ **INCOMPLETO:** Não há aprovação para playlists! playlist e campanhas nao necessitam de aprovacao do admin ou usar do sistema estes sao geridos pelo anunciante ao cadastrar o anunciante este tera um paramentro que permitira ou nao que ele mesmo mantenhas suas midias, playlist, campanhas. caso ele nao tenha esta opcao habilitada esta opcao ficara a cargo da administracao do noso sistema modulo a ser desenvolvido 
+
+
 
 #### **Mídias - Status vs Approval Status:**
 
@@ -59,12 +61,12 @@ medias (
 **Análise:**
 - ⚠️ **DUPLICAÇÃO/AMBIGUIDADE:**
   - `medias.status` = 'draft', 'review', 'published', 'archived'
-  - `approval_workflows.status` = 'draft', 'review', 'approved', 'rejected', 'published'
+  - `approval_workflows.status` = 'draft', 'review', 'approved', 'rejected', 'published' use esta aqui 
 - ⚠️ **PROBLEMA:** Dois lugares para rastrear status
 - ⚠️ **RISCO:** Inconsistência entre `medias.status` e `approval_workflows.status`
 
 **Recomendação:**
-- Opção A: Remover `medias.status` e usar apenas `approval_workflows.status`
+- Opção A: Remover `medias.status` e usar apenas `approval_workflows.status` use esta aqui 
 - Opção B: Sincronizar via trigger (medias.status = approval_workflows.status)
 - Opção C: Clarificar: `medias.status` = status interno, `approval_workflows.status` = status de aprovação
 

@@ -1074,31 +1074,6 @@ Com base nas **clarificações críticas** sobre o modelo de negócio:
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 
-                    │
-                    │ (recebe/paga)
-                    │
-    ┌───────────────┴───────────────┐
-    │                               │
-┌───▼────┐                    ┌─────▼───┐
-│  HOST  │                    │ CLIENT  │
-│(Operador)                   │(Anunciante)
-│        │                    │         │
-│- Instala│                    │- Cria   │
-│- Opera  │                    │- Anuncia│
-│        │                    │- Paga   │
-│Recebe %│◄──Billing──────────┤anúncios │
-│OU paga │  (Host)            │         │
-│        │                    │         │
-│→ users │                    │→campaign│
-│→ totems│                    │→ medias │
-│→ locals│                    │→billing │
-└───┬────┘                    └─────────┘
-    │
-    │           ┌──────────────┐
-    └──────────→│campaign_totems│←─────┘
-                │   (N:M)       │
-                └───────────────┘
-
 HOST → LOCAL → TOTEM → SMART_TV
 (operador) (geografia) (edge)  (display)
 ```
@@ -1108,6 +1083,8 @@ HOST → LOCAL → TOTEM → SMART_TV
 2. TENANT retém 30% → R$ 300 (plataforma)
 3. TENANT paga 70% → HOST → R$ 700 (revenue share)
 
+
+re analise esta questao corrija se necessario reflita em todo o sistema qualquer alteracoes decorrentes de isto. 
 ### Recomendações Prioritárias (Revisadas)
 
 #### **🔴 Prioridade CRÍTICA (Correções Conceituais):**
@@ -1177,8 +1154,9 @@ Após as correções:
 - ✅ Features avançadas (ML/AI, FX, Analytics)
 - ✅ RBAC flexível e granular
 
-### Pontos Fracos Identificados: **5 problemas críticos**
-- ❌ `totems.client_id` (erro conceitual)
+### Pontos Fracos Identificados: **5 problemas críticos** reanalise esta questao corrija se necessario reflita em todo o sistema qualquer alteracoes decorrentes de isto. 
+
+- ❌ `totems.client_id` (erro conceitual) reanalise esta questao corrija se necessario reflita em todo o sistema qualquer alteracoes decorrentes de isto. . 
 - ❌ `users.client_id` (deveria ser `host_id`)
 - ❌ `subscriptions.client_id` (deveria ser `host_id`)
 - ❌ `billing.client_id` (deveria ser `host_id`)

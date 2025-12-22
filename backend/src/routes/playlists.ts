@@ -2,6 +2,7 @@ import express from 'express';
 import { body, query, param, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
+import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation.middleware';
 import { getPlaylistService } from '../services/playlistService';
 import { logError } from '../utils/loggerHelper';
 
@@ -12,6 +13,9 @@ router.use(authMiddleware);
 
 // Aplicar bloqueio de dados de clientes para OPERATOR
 router.use(blockClientDataAccess);
+
+// Aplicar isolamento de dados por subscriber
+router.use(subscriberIsolationMiddleware);
 
 // Validações
 const createPlaylistValidator = [

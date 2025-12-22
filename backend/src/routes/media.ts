@@ -3,6 +3,7 @@ import { MediaService } from '../services/mediaService';
 import { StorageService } from '../services/storageService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
+import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import { logError, logDebug, logWarnSync, sanitizeForLogging } from '../utils/loggerHelper';
@@ -27,6 +28,9 @@ router.use(authMiddleware);
 
 // Aplicar bloqueio de dados de clientes para OPERATOR
 router.use(blockClientDataAccess);
+
+// Aplicar isolamento de dados por subscriber
+router.use(subscriberIsolationMiddleware);
 
 // Função para criar configuração dinâmica do multer
 function createMulterConfig() {
@@ -273,9 +277,31 @@ router.post('/upload', uploadLimiter,
       if (!finalClientId && req.user.role === 'client' && req.user.clientId) {
         finalClientId = req.user.clientId;
       }
-      // Se ainda não tem clientId, usar 1 como padrão (admin pode criar sem cliente específico)
+      // Se ainda não tem clientId, buscar primeiro subscriber ativo (anunciante)
       if (!finalClientId) {
-        finalClientId = 1;
+        try {
+          const db = require('../config/database').getDatabase();
+          const firstSubscriber = await db.findFirst(`
+            SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
+          `);
+          if (firstSubscriber) {
+            finalClientId = firstSubscriber.subscriber_id;
+            await logDebug('[Media] Usando primeiro subscriber ativo', { subscriberId: finalClientId });
+          } else {
+            return res.status(400).json({
+              success: false,
+              error: 'Nenhum subscriber ativo encontrado',
+              message: 'É necessário ter pelo menos um subscriber (anunciante) ativo para criar mídias'
+            });
+          }
+        } catch (dbError: any) {
+          await logError('Erro ao buscar subscriber', dbError);
+          return res.status(400).json({
+            success: false,
+            error: 'clientId é obrigatório',
+            message: 'Não foi possível determinar o subscriber. Forneça clientId explicitamente.'
+          });
+        }
       }
 
       const buffer = fs.readFileSync(req.file.path);
@@ -285,8 +311,8 @@ router.post('/upload', uploadLimiter,
         title: mediaData.name,
         description: mediaData.description,
         tags: mediaData.tags ? String(mediaData.tags).split(',').map(t => t.trim()).filter(Boolean) : [],
-        clientId: finalClientId,
-        createdBy: req.user.id, // Usar ID do usuário autenticado (userId é alias de id)
+        clientId: finalClientId || 0, // Garantir que não é undefined
+        createdBy: req.user?.id || 0, // Usar ID do usuário autenticado (userId é alias de id)
         file: {
           buffer,
           originalname: mediaData.originalName,
@@ -342,9 +368,31 @@ router.post('/upload-multiple',
       if (!finalClientId && req.user.role === 'client' && req.user.clientId) {
         finalClientId = req.user.clientId;
       }
-      // Se ainda não tem clientId, usar 1 como padrão
+      // Se ainda não tem clientId, buscar primeiro subscriber ativo (anunciante)
       if (!finalClientId) {
-        finalClientId = 1;
+        try {
+          const db = require('../config/database').getDatabase();
+          const firstSubscriber = await db.findFirst(`
+            SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
+          `);
+          if (firstSubscriber) {
+            finalClientId = firstSubscriber.subscriber_id;
+            await logDebug('[Media] Usando primeiro subscriber ativo para upload múltiplo', { subscriberId: finalClientId });
+          } else {
+            return res.status(400).json({
+              success: false,
+              error: 'Nenhum subscriber ativo encontrado',
+              message: 'É necessário ter pelo menos um subscriber (anunciante) ativo para criar mídias'
+            });
+          }
+        } catch (dbError: any) {
+          await logError('Erro ao buscar subscriber', dbError);
+          return res.status(400).json({
+            success: false,
+            error: 'clientId é obrigatório',
+            message: 'Não foi possível determinar o subscriber. Forneça clientId explicitamente.'
+          });
+        }
       }
 
       const created: any[] = [];
@@ -355,8 +403,8 @@ router.post('/upload-multiple',
           title: file.originalname,
           description: '',
           tags: [],
-          clientId: finalClientId,
-          createdBy: req.user.id, // Usar ID do usuário autenticado (userId é alias de id)
+          clientId: finalClientId || 0, // Garantir que não é undefined
+          createdBy: req.user?.id || 0, // Usar ID do usuário autenticado (userId é alias de id)
           file: {
             buffer,
             originalname: file.originalname,

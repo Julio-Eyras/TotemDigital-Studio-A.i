@@ -36,17 +36,18 @@ router.get('/',
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit deve ser um número inteiro entre 1 e 100'),
   query('search').optional().isString().withMessage('search deve ser uma string'),
   query('status').optional().isString().withMessage('status deve ser uma string'),
-  query('clientId').optional().isInt({ min: 1 }).withMessage('clientId deve ser um número inteiro maior que 0'),
+  // REMOVIDO: clientId - totem não pertence a subscriber
+  // query('publisherId').optional().isInt({ min: 1 }).withMessage('publisherId deve ser um número inteiro maior que 0'),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { page = 1, limit = 10, search, status, clientId } = req.query;
+      const { page = 1, limit = 10, search, status } = req.query;
+      // REMOVIDO: clientId - totem não pertence a subscriber, pertence a publisher via local_id
       const result = await getTotemService().getAllTotems({
         page: parseInt(page as string) || 1,
         limit: parseInt(limit as string) || 10,
         search: search as string | undefined,
-        status: status as string | undefined,
-        clientId: clientId ? parseInt(clientId as string) : undefined
+        status: status as string | undefined
       });
       // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
       return res.json({

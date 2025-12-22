@@ -20,7 +20,7 @@ export interface CreateTotemRequest {
   version?: string;
   firmwareVersion?: string;
   ipAddress?: string;
-  clientId?: number;
+  // REMOVIDO: clientId - totem não pertence a subscriber, pertence a publisher via local_id
   isActive?: boolean;
   active?: boolean;
 }
@@ -36,7 +36,7 @@ export interface UpdateTotemRequest {
   version?: string;
   firmwareVersion?: string;
   ipAddress?: string;
-  clientId?: number;
+  // REMOVIDO: clientId - totem não pertence a subscriber, pertence a publisher via local_id
   isActive?: boolean;
   active?: boolean;
 }
@@ -60,8 +60,9 @@ export interface TotemResponse {
   active: boolean;
   is_active?: boolean;
   isActive?: boolean;
-  client_id?: number;
-  clientId?: number;
+  // REMOVIDO: client_id/clientId - totem não pertence a subscriber
+  // publisher_id pode ser derivado via local_id → locals → publishers
+  publisherId?: number; // Derivado de local_id (para conveniência)
   current_playlist_id?: number;
   currentPlaylistId?: number;
   createdAt: string;
@@ -131,7 +132,8 @@ export class TotemService {
     limit?: number;
     search?: string;
     status?: string;
-    clientId?: number;
+    // REMOVIDO: clientId - totem não pertence a subscriber
+    publisherId?: number; // Filtrar por publisher via local_id
   }): Promise<any> {
     const result = await this.getTotems(
       filters.page || 1,
@@ -203,15 +205,15 @@ export class TotemService {
           t.last_heartbeat as lastHeartbeat,
           t.active,
           t.is_active as is_active,
-          t.client_id,
           t.current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
-          h.name as hostName
+          p.name as hostName,
+          p.publisher_id as publisherId
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
-        LEFT JOIN hosts h ON l.host_id = h.host_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         ${whereClause}
         ORDER BY t.last_heartbeat DESC, t.created_at DESC
         LIMIT ? OFFSET ?
@@ -265,21 +267,18 @@ export class TotemService {
           t.status,
           t.active,
           t.is_active as is_active,
-          t.client_id,
           t.current_playlist_id,
           t.blocked,
           t.blocked_until,
           t.last_heartbeat as lastHeartbeat,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
-          c.client_id as client_id,
-          c.name as clientName,
           l.description as location,
-          h.name as hostName
+          p.name as hostName,
+          p.publisher_id as publisherId
         FROM totems t
-        LEFT JOIN clients c ON t.client_id = c.client_id
         LEFT JOIN locals l ON t.local_id = l.local_id
-        LEFT JOIN hosts h ON l.host_id = h.host_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE t.uin = ? OR t.identifier = ?
       `, [uin, uin]);
 
@@ -313,15 +312,15 @@ export class TotemService {
           t.last_heartbeat as lastHeartbeat,
           t.active,
           t.is_active as is_active,
-          t.client_id,
           t.current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
-          h.name as hostName
+          p.name as hostName,
+          p.publisher_id as publisherId
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
-        LEFT JOIN hosts h ON l.host_id = h.host_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE t.totem_id = ?
       `, [totemId]);
 
@@ -363,15 +362,15 @@ export class TotemService {
           t.last_heartbeat as lastHeartbeat,
           t.active,
           t.is_active as is_active,
-          t.client_id,
           t.current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
-          h.name as hostName
+          p.name as hostName,
+          p.publisher_id as publisherId
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
-        LEFT JOIN hosts h ON l.host_id = h.host_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE t.identifier = ?
       `, [identifier]);
 
@@ -413,15 +412,15 @@ export class TotemService {
           t.last_heartbeat as lastHeartbeat,
           t.active,
           t.is_active as is_active,
-          t.client_id,
           t.current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
-          h.name as hostName
+          p.name as hostName,
+          p.publisher_id as publisherId
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
-        LEFT JOIN hosts h ON l.host_id = h.host_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE t.device_id = ?
       `, [deviceId]);
 
@@ -456,7 +455,6 @@ export class TotemService {
         version, 
         firmwareVersion, 
         ipAddress, 
-        clientId,
         active = true,
         isActive = true
       } = data;
@@ -500,14 +498,13 @@ export class TotemService {
           version,
           firmware_version,
           ip_address,
-          client_id,
           active,
           is_active,
           status,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING totem_id
       `, [
         name || identifier,
@@ -520,7 +517,6 @@ export class TotemService {
         version,
         firmwareVersion,
         ipAddress,
-        clientId || null,
         active,
         isActive
       ]);
@@ -641,10 +637,7 @@ export class TotemService {
         params.push(data.ipAddress);
       }
 
-      if (data.clientId !== undefined) {
-        updates.push('client_id = ?');
-        params.push(data.clientId);
-      }
+      // REMOVIDO: clientId - totem não pertence a subscriber, pertence a publisher via local_id
 
       if (data.active !== undefined) {
         const value = data.active ? 1 : 0;
@@ -1265,10 +1258,11 @@ export class TotemService {
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
-          h.name as hostName
+          p.name as hostName,
+          p.publisher_id as publisherId
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
-        LEFT JOIN hosts h ON l.host_id = h.host_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE t.active = 1 AND (
           t.last_heartbeat IS NULL OR 
           t.last_heartbeat < datetime('now', '-${minutes} minutes')

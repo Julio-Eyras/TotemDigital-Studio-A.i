@@ -13,7 +13,7 @@ import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 
 export interface ReportRequest {
-  type: 'campaign' | 'totem' | 'client' | 'media' | 'billing' | 'analytics' | 'custom';
+  type: 'campaign' | 'totem' | 'client' | 'subscriber' | 'media' | 'billing' | 'analytics' | 'custom';
   title: string;
   description?: string;
   filters: {
@@ -415,7 +415,8 @@ export class ReportsService {
           break;
 
         case 'client':
-          data = await this.generateClientReportData(request.filters);
+        case 'subscriber': // NOVO: Suportar subscriber
+          data = await this.generateSubscriberReportData(request.filters);
           break;
 
         case 'media':
@@ -458,9 +459,11 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      if (filters.clientId) {
-        whereClause += ' AND c.client_id = ?';
-        params.push(filters.clientId);
+      // Suportar subscriberId (novo) e clientId (compatibilidade)
+      const subscriberId = filters.subscriberId || filters.clientId;
+      if (subscriberId) {
+        whereClause += ' AND c.subscriber_id = $' + (params.length + 1);
+        params.push(subscriberId);
       }
 
       if (filters.campaignId) {
@@ -489,17 +492,17 @@ export class ReportsService {
           c.start_date,
           c.end_date,
           c.created_at,
-          cl.name as client_name,
+          s.name as client_name, -- Mantido para compatibilidade
           COUNT(DISTINCT p.playlist_id) as playlist_count,
           COUNT(DISTINCT ct.totem_id) as totem_count,
           COUNT(DISTINCT pi.media_id) as media_count
         FROM campaigns c
-        LEFT JOIN clients cl ON c.client_id = cl.client_id
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         LEFT JOIN playlists p ON c.campaign_id = p.campaign_id
         LEFT JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
         LEFT JOIN playlist_items pi ON p.playlist_id = pi.playlist_id
         ${whereClause}
-        GROUP BY c.campaign_id, c.title, c.description, c.campaign_type, c.status, c.is_active, c.start_date, c.end_date, c.created_at, cl.name
+        GROUP BY c.campaign_id, c.title, c.description, c.campaign_type, c.status, c.is_active, c.start_date, c.end_date, c.created_at, s.name
         ORDER BY c.created_at DESC
       `, params);
 
@@ -527,9 +530,24 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
+      // Totem não tem client_id mais - usar publisher_id via local_id
+      // Se clientId fornecido, mapear para publisher_id (compatibilidade)
       if (filters.clientId) {
-        whereClause += ' AND t.client_id = ?';
-        params.push(filters.clientId);
+        // Buscar publisher_id do clientId (se publisher também é subscriber)
+        const publisher = await this.db.findFirst(`
+          SELECT publisher_id FROM publishers 
+          WHERE publisher_id = $1 AND is_subscriber = true
+        `, [filters.clientId]);
+        
+        if (publisher) {
+          // Buscar locals deste publisher
+          whereClause += ' AND t.local_id IN (SELECT local_id FROM locals WHERE publisher_id = $' + (params.length + 1) + ')';
+          params.push(publisher.publisher_id);
+        } else {
+          // Se não encontrou, usar publisher_id diretamente
+          whereClause += ' AND t.local_id IN (SELECT local_id FROM locals WHERE publisher_id = $' + (params.length + 1) + ')';
+          params.push(filters.clientId);
+        }
       }
 
       if (filters.totemId) {
@@ -547,13 +565,15 @@ export class ReportsService {
           t.uptime_percentage,
           t.last_heartbeat,
           t.created_at,
-          cl.name as client_name,
+          p.name as publisher_name,
+          p.name as client_name, -- Mantido para compatibilidade
           COUNT(DISTINCT ct.campaign_id) as campaign_count
         FROM totems t
-        LEFT JOIN clients cl ON t.client_id = cl.client_id
+        LEFT JOIN locals l ON t.local_id = l.local_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         LEFT JOIN campaign_totems ct ON t.totem_id = ct.totem_id
         ${whereClause}
-        GROUP BY t.totem_id, t.name, t.location, t.status, t.is_active, t.uptime_percentage, t.last_heartbeat, t.created_at, cl.name
+        GROUP BY t.totem_id, t.name, t.location, t.status, t.is_active, t.uptime_percentage, t.last_heartbeat, t.created_at, p.name
         ORDER BY t.created_at DESC
       `, params);
 
@@ -575,46 +595,48 @@ export class ReportsService {
   }
 
   /**
-   * Gera dados de relatório de cliente
+   * Gera dados de relatório de subscriber (anunciante)
    */
-  private async generateClientReportData(filters: any): Promise<any> {
+  private async generateSubscriberReportData(filters: any): Promise<any> {
     try {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      if (filters.clientId) {
-        whereClause += ' AND cl.client_id = ?';
-        params.push(filters.clientId);
+      // Suportar subscriberId (novo) e clientId (compatibilidade)
+      const subscriberId = filters.subscriberId || filters.clientId;
+      if (subscriberId) {
+        whereClause += ' AND s.subscriber_id = $' + (params.length + 1);
+        params.push(subscriberId);
       }
 
-      const clients = await this.db.findMany(`
+      const subscribers = await this.db.findMany(`
         SELECT 
-          cl.client_id,
-          cl.name,
-          cl.email,
-          cl.phone,
-          cl.address,
-          cl.is_active,
-          cl.created_at,
+          s.subscriber_id,
+          s.subscriber_id as client_id, -- Mantido para compatibilidade
+          s.name,
+          s.email,
+          s.phone,
+          s.address,
+          s.is_active,
+          s.created_at,
           COUNT(DISTINCT c.campaign_id) as campaign_count,
-          COUNT(DISTINCT t.totem_id) as totem_count,
           COUNT(DISTINCT m.media_id) as media_count
-        FROM clients cl
-        LEFT JOIN campaigns c ON cl.client_id = c.client_id
-        LEFT JOIN totems t ON cl.client_id = t.client_id
-        LEFT JOIN medias m ON cl.client_id = m.client_id
+        FROM subscribers s
+        LEFT JOIN campaigns c ON s.subscriber_id = c.subscriber_id
+        LEFT JOIN medias m ON s.subscriber_id = m.subscriber_id
         ${whereClause}
-        GROUP BY cl.client_id, cl.name, cl.email, cl.phone, cl.address, cl.is_active, cl.created_at
-        ORDER BY cl.created_at DESC
+        GROUP BY s.subscriber_id, s.name, s.email, s.phone, s.address, s.is_active, s.created_at
+        ORDER BY s.created_at DESC
       `, params);
 
       return {
-        type: 'client',
-        data: clients,
+        type: 'subscriber', // NOVO
+        type_legacy: 'client', // Mantido para compatibilidade
+        data: subscribers,
         summary: {
-          total: clients.length,
-          active: clients.filter(c => c.is_active).length,
-          inactive: clients.filter(c => !c.is_active).length
+          total: subscribers.length,
+          active: subscribers.filter(s => s.is_active).length,
+          inactive: subscribers.filter(s => !s.is_active).length
         }
       };
 
@@ -632,9 +654,11 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      if (filters.clientId) {
-        whereClause += ' AND m.client_id = ?';
-        params.push(filters.clientId);
+      // Suportar subscriberId (novo) e clientId (compatibilidade)
+      const subscriberId = filters.subscriberId || filters.clientId;
+      if (subscriberId) {
+        whereClause += ' AND m.subscriber_id = $' + (params.length + 1);
+        params.push(subscriberId);
       }
 
       if (filters.startDate) {
@@ -657,9 +681,9 @@ export class ReportsService {
           m.view_count,
           m.is_active,
           m.created_at,
-          cl.name as client_name
+          s.name as client_name
         FROM medias m
-        LEFT JOIN clients cl ON m.client_id = cl.client_id
+        LEFT JOIN subscribers s ON m.subscriber_id = s.subscriber_id
         ${whereClause}
         ORDER BY m.created_at DESC
       `, params);
@@ -690,9 +714,11 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      if (filters.clientId) {
-        whereClause += ' AND b.client_id = ?';
-        params.push(filters.clientId);
+      // Suportar subscriberId (novo) e clientId (compatibilidade)
+      const subscriberId = filters.subscriberId || filters.clientId;
+      if (subscriberId) {
+        whereClause += ' AND b.subscriber_id = $' + (params.length + 1);
+        params.push(subscriberId);
       }
 
       if (filters.startDate) {
@@ -715,10 +741,11 @@ export class ReportsService {
           b.due_date,
           b.paid_at,
           b.created_at,
-          cl.name as client_name,
+          s.name as subscriber_name,
+          s.name as client_name, -- Mantido para compatibilidade
           c.title as campaign_title
-        FROM billing b
-        LEFT JOIN clients cl ON b.client_id = cl.client_id
+        FROM subscriber_billing b
+        LEFT JOIN subscribers s ON b.subscriber_id = s.subscriber_id
         LEFT JOIN campaigns c ON b.campaign_id = c.campaign_id
         ${whereClause}
         ORDER BY b.created_at DESC

@@ -164,7 +164,7 @@ router.post('/', async (req: any, res) => {
     }
 
     const subscription = await getSubscriptionService().createSubscription({
-      clientId: finalClientId,
+      publisherId: finalClientId, // subscriptions pertencem a publishers
       planId,
       billingInterval: billingInterval || 'month',
       trialDays,

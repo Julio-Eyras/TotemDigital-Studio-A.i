@@ -6320,14 +6320,8 @@ setup_first_boot() {
     manage_demo_seed_strategy
 
     # Executar migrations ou criar schema
-    log "Criando schema do banco de dados..."
+    log "Criando schema do banco de dados (v2.0 refatorado)..."
     
-    local MASTER_SCHEMA_FILE="$INSTALL_DIR/database/smartchannel-db.sql"
-    if [[ ! -f "$MASTER_SCHEMA_FILE" ]]; then
-        error "Arquivo de schema consolidado não encontrado: $MASTER_SCHEMA_FILE"
-        exit 1
-    fi
-
     local TARGET_DB="${PRIMARY_DB_NAME:-smartsignage}"
     
     # Garantir que PRIMARY_DB_USER está definido (deve ter sido exportado em setup_database)
@@ -6343,8 +6337,51 @@ setup_first_boot() {
         log "⚠️  PRIMARY_DB_USER não estava definido, usando: ${PRIMARY_DB_USER}"
     fi
     
-    log "Aplicando schema consolidado (${MASTER_SCHEMA_FILE}) no banco '${TARGET_DB}'..."
-    execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Schema consolidado SmartChannel"
+    # Verificar se existe script de aplicação do schema v2.0
+    local APPLY_SCHEMA_SCRIPT="$INSTALL_DIR/database/apply-schema-v2.sh"
+    local APPLY_SCHEMA_ALL="$INSTALL_DIR/database/smartchannel-db-v2-refactored-apply-all.sql"
+    
+    if [[ -f "$APPLY_SCHEMA_SCRIPT" ]] && [[ -x "$APPLY_SCHEMA_SCRIPT" ]]; then
+        log "✅ Usando script de aplicação do schema v2.0 refatorado..."
+        log "Executando apply-schema-v2.sh..."
+        
+        # Configurar variáveis de ambiente para o script
+        export DB_NAME="$TARGET_DB"
+        export DB_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+        export DB_HOST="localhost"
+        export DB_PORT="5432"
+        export SKIP_CONFIRM="true"
+        export PGPASSWORD="${POSTGRES_PASSWORD:-postgres}"
+        
+        # Executar script de aplicação
+        if cd "$INSTALL_DIR/database" && bash "$APPLY_SCHEMA_SCRIPT"; then
+            log "✅ Schema v2.0 refatorado aplicado com sucesso!"
+        else
+            error "❌ Falha ao aplicar schema v2.0 usando apply-schema-v2.sh"
+            error "Tentando método alternativo (arquivo consolidado)..."
+            
+            # Fallback: usar arquivo consolidado se existir
+            if [[ -f "$APPLY_SCHEMA_ALL" ]]; then
+                log "Aplicando schema usando arquivo consolidado..."
+                execute_psql_file "$TARGET_DB" "$APPLY_SCHEMA_ALL" "Schema v2.0 consolidado"
+            else
+                error "❌ Nenhum método de aplicação do schema v2.0 disponível"
+                exit 1
+            fi
+        fi
+    elif [[ -f "$APPLY_SCHEMA_ALL" ]]; then
+        log "✅ Usando arquivo consolidado do schema v2.0 refatorado..."
+        execute_psql_file "$TARGET_DB" "$APPLY_SCHEMA_ALL" "Schema v2.0 consolidado"
+    else
+        error "❌ Nenhum arquivo de schema v2.0 encontrado!"
+        error "   Arquivos necessários (v2.0):"
+        error "   - $APPLY_SCHEMA_SCRIPT (preferencial)"
+        error "   - $APPLY_SCHEMA_ALL (alternativa)"
+        error ""
+        error "   O schema antigo (smartchannel-db.sql) foi descontinuado."
+        error "   Use apenas os arquivos v2.0 refatorados."
+        exit 1
+    fi
 
     # Atualizar configuração media.storage.path para SEMPRE usar /opt/smart-signage
     # Isso garante que arquivos sejam salvos no local correto, mesmo se INSTALL_DIR for diferente
@@ -6388,19 +6425,20 @@ setup_first_boot() {
     log "Verificando se TODAS as tabelas do schema foram criadas..."
     cd $INSTALL_DIR/backend
     
-    # Lista COMPLETA de TODAS as tabelas do schema E.R. (em ordem de dependência)
-    # Baseado em database/smartchannel-db.sql - TODAS as tabelas usadas em JOINs
+    # Lista COMPLETA de TODAS as tabelas do schema E.R. v2.0 (em ordem de dependência)
+    # Baseado em database/smartchannel-db-v2-refactored-*.sql - TODAS as tabelas usadas em JOINs
     # Ordem importa: tabelas sem foreign keys primeiro
+    # ATUALIZADO: client → subscriber, host → publisher
     ALL_TABLES=(
-        "clients"           # Client - Tabela base sem dependências (usada em JOINs)
-        "users"             # User - Depende de clients (usada em JOINs)
-        "hosts"             # Host - Sem dependências
-        "locals"            # Local - Depende de hosts
+        "subscribers"       # Subscriber (antes: clients) - Tabela base sem dependências (usada em JOINs)
+        "publishers"       # Publisher (antes: hosts) - Sem dependências
+        "users"             # User - Depende de publishers (usada em JOINs)
+        "locals"            # Local - Depende de publishers
         "totems"            # Totem - Depende de locals (usada em JOINs)
         "smart_tvs"         # SmartTV - Depende de totems
-        "campaigns"         # Campaign - Depende de clients (usada em JOINs)
-        "medias"            # Media - Depende de clients, users (usada em JOINs)
-        "playlists"         # Playlist - Depende de totems, campaigns (usada em JOINs)
+        "campaigns"         # Campaign - Depende de subscribers (usada em JOINs)
+        "medias"            # Media - Depende de subscribers, users (usada em JOINs)
+        "playlists"         # Playlist - Depende de subscribers (usada em JOINs)
         "playlist_items"    # PlaylistItem - Depende de playlists, medias (usada em JOINs)
         "campaign_playlists" # CampaignPlaylist - Depende de campaigns, playlists
         "campaign_totems"   # CampaignTotem - Depende de totems, campaigns
@@ -6413,7 +6451,11 @@ setup_first_boot() {
         "analytics_qr_scans" # AnalyticsQRScan - Depende de qr_codes, totems
         "event_logs"          # EventLog - Depende de totems, campaigns, playlists, medias (v2.1)
         "ai_models"        # AIModel - Sem dependências
-        "execution_logs"   # ExecutionLog - Depende de totems, clients, campaigns, medias
+        "execution_logs"   # ExecutionLog - Depende de totems, subscribers, campaigns, medias
+        "subscriber_billing" # SubscriberBilling - Depende de subscribers (NOVO v2.0)
+        "publisher_billing"  # PublisherBilling - Depende de publishers (NOVO v2.0)
+        "subscriptions"     # Subscription - Depende de publishers (NOVO v2.0)
+        "campaign_publishers" # CampaignPublisher - Depende de campaigns, publishers (NOVO v2.0)
         "system_logs"       # SystemLog - Sem dependências
         "webhook_configs"  # WebhookConfig - Sem dependências
         "webhook_deliveries" # WebhookDelivery - Depende de webhook_configs
@@ -6460,7 +6502,7 @@ setup_first_boot() {
     if [[ ${#MISSING_TABLES[@]} -gt 0 ]]; then
         error "❌ Falha crítica ao criar tabelas do banco de dados"
         error "Tabelas faltando: ${MISSING_TABLES[*]}"
-        error "Use smartchannel-db.sql e init-data.sql para criar o schema"
+        error "Use os arquivos smartchannel-db-v2-refactored-part*.sql ou apply-schema-v2.sh para criar o schema"
         exit 1
     fi
 
@@ -6541,8 +6583,15 @@ setup_first_boot() {
         TABLE_EXISTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='system_settings');" 2>/dev/null | tr -d ' ')
         if [[ "$TABLE_EXISTS" == "t" ]]; then
             error "   Tabela system_settings existe, mas não há configurações de logs"
-            error "   Tentando reaplicar schema consolidado para registros padrão..."
-            execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Reaplicação do schema consolidado SmartChannel (logs)"
+            error "   Tentando reaplicar schema v2.0 para registros padrão..."
+            # Tentar reaplicar usando schema v2.0
+            if [[ -f "$APPLY_SCHEMA_ALL" ]]; then
+                execute_psql_file "$TARGET_DB" "$APPLY_SCHEMA_ALL" "Reaplicação do schema v2.0 (logs)"
+            elif [[ -f "$APPLY_SCHEMA_SCRIPT" ]] && [[ -x "$APPLY_SCHEMA_SCRIPT" ]]; then
+                cd "$INSTALL_DIR/database" && bash "$APPLY_SCHEMA_SCRIPT"
+            else
+                error "   ❌ Arquivos de schema v2.0 não encontrados para reaplicação"
+            fi
             LOGS_CONFIG_COUNT=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
             if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
                 log "✅ Configurações de logs criadas após reaplicação ($LOGS_CONFIG_COUNT configurações encontradas)"
@@ -6553,8 +6602,15 @@ setup_first_boot() {
         else
             error "   Tabela system_settings NÃO existe!"
             error "   O schema de logs deve criar esta tabela primeiro"
-            error "   Reaplicando schema consolidado..."
-            execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Reaplicação do schema consolidado SmartChannel (recriar system_settings)"
+            error "   Reaplicando schema v2.0..."
+            # Tentar reaplicar usando schema v2.0
+            if [[ -f "$APPLY_SCHEMA_ALL" ]]; then
+                execute_psql_file "$TARGET_DB" "$APPLY_SCHEMA_ALL" "Reaplicação do schema v2.0 (recriar system_settings)"
+            elif [[ -f "$APPLY_SCHEMA_SCRIPT" ]] && [[ -x "$APPLY_SCHEMA_SCRIPT" ]]; then
+                cd "$INSTALL_DIR/database" && bash "$APPLY_SCHEMA_SCRIPT"
+            else
+                error "   ❌ Arquivos de schema v2.0 não encontrados para reaplicação"
+            fi
             TABLE_EXISTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='system_settings');" 2>/dev/null | tr -d ' ')
             if [[ "$TABLE_EXISTS" != "t" ]]; then
                 error "❌ system_settings ainda não existe após reaplicação. Abortando."

@@ -9,6 +9,7 @@ import { Router } from 'express';
 import { CampaignService } from '../services/campaignService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
+import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation.middleware';
 import { logError, logInfo, logDebug, sanitizeForLogging } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from '../services/eventLogService';
 
@@ -16,6 +17,9 @@ const router = Router();
 
 // Aplicar bloqueio de dados de clientes para OPERATOR
 router.use(blockClientDataAccess);
+
+// Aplicar isolamento de dados por subscriber
+router.use(subscriberIsolationMiddleware);
 
 // Lazy initialization - só criar quando necessário
 function getCampaignService(): CampaignService {
@@ -38,16 +42,33 @@ router.get('/', async (req: any, res) => {
     const {
       page = 1,
       limit = 20,
-      clientId,
+      clientId, // mantém nome por compatibilidade; internamente usa subscriber_id
       status,
       campaignType,
       isActive,
       search
     } = req.query;
 
-    // Aplicar filtro de cliente se for Client
+    // Aplicar filtro de subscriber - garantir isolamento de dados
+    // Se usuário é subscriber/client, só pode ver suas próprias campanhas
+    let finalClientId: number | undefined;
+    if (req.user.role === 'client' || req.user.role === 'subscriber') {
+      // Usar subscriberId do middleware de isolamento
+      finalClientId = req.subscriberId || req.user.clientId || req.user.subscriberId;
+      if (!finalClientId) {
+        return res.status(403).json({
+          success: false,
+          error: 'Acesso negado',
+          message: 'Subscriber ID não identificado'
+        });
+      }
+    } else {
+      // Admin pode ver todas ou filtrar por clientId fornecido
+      finalClientId = clientId ? parseInt(clientId as string) : undefined;
+    }
+    
     const filters: any = {
-      clientId: req.user.role === 'client' ? req.user.clientId : (clientId ? parseInt(clientId as string) : undefined),
+      clientId: finalClientId,
       status: status as string,
       campaignType: campaignType as string,
       isActive: isActive !== undefined ? isActive === 'true' : undefined,
@@ -107,7 +128,7 @@ router.get('/stats', authorizeRole(['admin', 'gerente_marketing', 'visualizador'
 
 /**
  * @route GET /api/campaigns/client/:clientId
- * @desc Lista campanhas de um cliente específico
+ * @desc Lista campanhas de um subscriber específico (antes cliente)
  * @access Private (Admin, Manager, Client)
  */
 router.get('/client/:clientId', async (req: any, res) => {
@@ -115,7 +136,7 @@ router.get('/client/:clientId', async (req: any, res) => {
   try {
     const { limit = 50 } = req.query;
 
-    // Verificar permissão
+    // Verificar permissão (legado para role 'client')
     if (req.user.role === 'client' && req.user.clientId !== parseInt(clientId)) {
       return res.status(403).json({
         success: false,
@@ -236,6 +257,7 @@ router.post('/',
 
     // Mapear campos do frontend para o backend
     const mappedData: any = {
+      // Mantemos clientId no payload, mas ele será gravado em subscriber_id no banco
       clientId: campaignData.clientId,
       title: campaignData.title,
       description: campaignData.description,
@@ -246,33 +268,33 @@ router.post('/',
       isActive: campaignData.isActive !== undefined ? campaignData.isActive : true
     };
 
-    // Se clientId não foi fornecido, usar o do usuário autenticado ou buscar primeiro cliente ativo
+    // Se clientId (subscriber) não foi fornecido, usar o do usuário autenticado ou buscar primeiro subscriber ativo
     if (!mappedData.clientId) {
       if (req.user.role === 'client' && req.user.clientId) {
         mappedData.clientId = req.user.clientId;
       } else {
-        // Para admin/manager, buscar primeiro cliente ativo
+        // Para admin/manager, buscar primeiro subscriber ativo
         try {
           const db = require('../config/database').getDatabase();
-          const firstClient = await db.findFirst(`
-            SELECT client_id FROM clients WHERE is_active = true LIMIT 1
+          const firstSubscriber = await db.findFirst(`
+            SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
           `);
-          if (firstClient) {
-            mappedData.clientId = firstClient.client_id;
-            await logInfo('[Campaign] Usando primeiro cliente ativo', { clientId: mappedData.clientId });
+          if (firstSubscriber) {
+            mappedData.clientId = firstSubscriber.subscriber_id;
+            await logInfo('[Campaign] Usando primeiro subscriber ativo', { clientId: mappedData.clientId });
           } else {
-            const validationError = new Error('Nenhum cliente ativo encontrado no sistema');
-            await logError('Erro: Nenhum cliente ativo encontrado', validationError, {});
+            const validationError = new Error('Nenhum subscriber ativo encontrado no sistema');
+            await logError('Erro: Nenhum subscriber ativo encontrado', validationError, {});
             return res.status(400).json({
               success: false,
-              message: 'É necessário ter pelo menos um cliente ativo para criar campanhas'
+              message: 'É necessário ter pelo menos um subscriber ativo para criar campanhas'
             });
           }
         } catch (dbError: any) {
-          await logError('Erro ao buscar cliente', dbError);
+          await logError('Erro ao buscar subscriber', dbError);
           return res.status(400).json({
             success: false,
-            message: 'clientId é obrigatório'
+            message: 'clientId (subscriber) é obrigatório'
           });
         }
       }

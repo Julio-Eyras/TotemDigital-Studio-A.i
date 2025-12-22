@@ -10,7 +10,8 @@ import { logError, logInfo } from '../utils/loggerHelper';
 
 export interface Subscription {
   subscriptionId: number;
-  clientId: number;
+  publisherId: number; // NOVO: FK para publishers
+  clientId?: number; // DEPRECADO: Mantido para compatibilidade
   planId: number;
   stripeSubscriptionId?: string;
   stripeCustomerId?: string;
@@ -26,11 +27,13 @@ export interface Subscription {
   createdAt: string;
   updatedAt: string;
   plan?: any;
-  client?: any;
+  publisher?: any; // NOVO: Dados do publisher
+  client?: any; // DEPRECADO: Mantido para compatibilidade
 }
 
 export interface CreateSubscriptionRequest {
-  clientId: number;
+  publisherId: number; // NOVO: FK para publishers
+  clientId?: number; // DEPRECADO: Mantido para compatibilidade
   planId: number;
   billingInterval?: 'month' | 'year';
   trialDays?: number;
@@ -60,7 +63,8 @@ export class SubscriptionService {
    */
   async getSubscriptions(
     filters: {
-      clientId?: number;
+      publisherId?: number; // NOVO
+      clientId?: number; // DEPRECADO: Mantido para compatibilidade
       planId?: number;
       status?: string;
     } = {}
@@ -69,25 +73,33 @@ export class SubscriptionService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      if (filters.clientId) {
-        whereClause += ' AND s.client_id = ?';
+      // NOVO: Filtrar por publisher_id
+      if (filters.publisherId !== undefined) {
+        whereClause += ' AND s.publisher_id = $' + (params.length + 1);
+        params.push(filters.publisherId);
+      }
+
+      // DEPRECADO: Filtrar por client_id (compatibilidade - mapear para publisher_id)
+      if (filters.clientId !== undefined && filters.publisherId === undefined) {
+        whereClause += ' AND s.publisher_id = $' + (params.length + 1);
         params.push(filters.clientId);
       }
 
       if (filters.planId) {
-        whereClause += ' AND s.plan_id = ?';
+        whereClause += ' AND s.plan_id = $' + (params.length + 1);
         params.push(filters.planId);
       }
 
       if (filters.status) {
-        whereClause += ' AND s.status = ?';
+        whereClause += ' AND s.status = $' + (params.length + 1);
         params.push(filters.status);
       }
 
       const subscriptions = await this.db.findMany(`
         SELECT 
           s.subscription_id as "subscriptionId",
-          s.client_id as "clientId",
+          s.publisher_id as "publisherId",
+          s.publisher_id as "clientId", -- Mantido para compatibilidade
           s.plan_id as "planId",
           s.stripe_subscription_id as "stripeSubscriptionId",
           s.stripe_customer_id as "stripeCustomerId",
@@ -101,8 +113,10 @@ export class SubscriptionService {
           s.trial_end as "trialEnd",
           s.metadata,
           s.created_at as "createdAt",
-          s.updated_at as "updatedAt"
+          s.updated_at as "updatedAt",
+          p.name as "publisher_name"
         FROM subscriptions s
+        LEFT JOIN publishers p ON s.publisher_id = p.publisher_id
         ${whereClause}
         ORDER BY s.created_at DESC
       `, params);
@@ -111,7 +125,12 @@ export class SubscriptionService {
       const subscriptionsWithPlan = await Promise.all(
         subscriptions.map(async (sub) => {
           const plan = await this.planService.getPlanById(sub.planId);
-          return { ...sub, plan };
+          return { 
+            ...sub, 
+            plan,
+            publisher: sub.publisher_name ? { name: sub.publisher_name } : undefined,
+            client: sub.publisher_name ? { name: sub.publisher_name } : undefined // Compatibilidade
+          };
         })
       );
 
@@ -131,7 +150,8 @@ export class SubscriptionService {
       const subscription = await this.db.findFirst(`
         SELECT 
           s.subscription_id as "subscriptionId",
-          s.client_id as "clientId",
+          s.publisher_id as "publisherId",
+          s.publisher_id as "clientId", -- Mantido para compatibilidade
           s.plan_id as "planId",
           s.stripe_subscription_id as "stripeSubscriptionId",
           s.stripe_customer_id as "stripeCustomerId",
@@ -145,9 +165,11 @@ export class SubscriptionService {
           s.trial_end as "trialEnd",
           s.metadata,
           s.created_at as "createdAt",
-          s.updated_at as "updatedAt"
+          s.updated_at as "updatedAt",
+          p.name as "publisher_name"
         FROM subscriptions s
-        WHERE s.subscription_id = ?
+        LEFT JOIN publishers p ON s.publisher_id = p.publisher_id
+        WHERE s.subscription_id = $1
       `, [subscriptionId]);
 
       if (!subscription) {
@@ -155,7 +177,12 @@ export class SubscriptionService {
       }
 
       const plan = await this.planService.getPlanById(subscription.planId);
-      return { ...subscription, plan };
+      return { 
+        ...subscription, 
+        plan,
+        publisher: subscription.publisher_name ? { name: subscription.publisher_name } : undefined,
+        client: subscription.publisher_name ? { name: subscription.publisher_name } : undefined // Compatibilidade
+      };
 
     } catch (error: any) {
       await logError('Erro ao buscar assinatura', error, { subscriptionId });
@@ -164,14 +191,15 @@ export class SubscriptionService {
   }
 
   /**
-   * Busca assinatura por cliente
+   * Busca assinatura por publisher
    */
-  async getSubscriptionByClient(clientId: number): Promise<Subscription | null> {
+  async getSubscriptionByPublisher(publisherId: number): Promise<Subscription | null> {
     try {
       const subscription = await this.db.findFirst(`
         SELECT 
           s.subscription_id as "subscriptionId",
-          s.client_id as "clientId",
+          s.publisher_id as "publisherId",
+          s.publisher_id as "clientId", -- Mantido para compatibilidade
           s.plan_id as "planId",
           s.stripe_subscription_id as "stripeSubscriptionId",
           s.stripe_customer_id as "stripeCustomerId",
@@ -185,24 +213,39 @@ export class SubscriptionService {
           s.trial_end as "trialEnd",
           s.metadata,
           s.created_at as "createdAt",
-          s.updated_at as "updatedAt"
+          s.updated_at as "updatedAt",
+          p.name as "publisher_name"
         FROM subscriptions s
-        WHERE s.client_id = ? AND s.status = 'active'
+        LEFT JOIN publishers p ON s.publisher_id = p.publisher_id
+        WHERE s.publisher_id = $1 AND s.status = 'active'
         ORDER BY s.created_at DESC
         LIMIT 1
-      `, [clientId]);
+      `, [publisherId]);
 
       if (!subscription) {
         return null;
       }
 
       const plan = await this.planService.getPlanById(subscription.planId);
-      return { ...subscription, plan };
+      return { 
+        ...subscription, 
+        plan,
+        publisher: subscription.publisher_name ? { name: subscription.publisher_name } : undefined,
+        client: subscription.publisher_name ? { name: subscription.publisher_name } : undefined // Compatibilidade
+      };
 
     } catch (error: any) {
-      await logError('Erro ao buscar assinatura do cliente', error, { clientId });
+      await logError('Erro ao buscar assinatura do publisher', error, { publisherId });
       throw new Error('Erro interno do servidor');
     }
+  }
+
+  /**
+   * Busca assinatura por cliente (DEPRECADO - usar getSubscriptionByPublisher)
+   */
+  async getSubscriptionByClient(clientId: number): Promise<Subscription | null> {
+    // Mapear clientId para publisherId (compatibilidade)
+    return this.getSubscriptionByPublisher(clientId);
   }
 
   /**
@@ -210,21 +253,28 @@ export class SubscriptionService {
    */
   async createSubscription(data: CreateSubscriptionRequest): Promise<Subscription> {
     try {
-      const { clientId, planId, billingInterval = 'month', trialDays } = data;
+      // Usar publisherId se fornecido, senão usar clientId (compatibilidade)
+      const publisherId = data.publisherId || data.clientId;
+      if (!publisherId) {
+        throw new Error('publisherId é obrigatório');
+      }
 
-      // Validar cliente
-      const client = await this.db.findFirst(`
-        SELECT client_id, name, email FROM clients WHERE client_id = ? AND is_active = true
-      `, [clientId]);
+      const { planId, billingInterval = 'month', trialDays } = data;
 
-      if (!client) {
-        throw new Error('Cliente não encontrado ou inativo');
+      // Validar publisher
+      const publisher = await this.db.findFirst(`
+        SELECT publisher_id, name, email FROM publishers 
+        WHERE publisher_id = $1 AND COALESCE(active, true) = true
+      `, [publisherId]);
+
+      if (!publisher) {
+        throw new Error('Publisher não encontrado ou inativo');
       }
 
       // Verificar se já existe assinatura ativa
-      const existingSubscription = await this.getSubscriptionByClient(clientId);
+      const existingSubscription = await this.getSubscriptionByPublisher(publisherId);
       if (existingSubscription && existingSubscription.status === 'active') {
-        throw new Error('Cliente já possui uma assinatura ativa');
+        throw new Error('Publisher já possui uma assinatura ativa');
       }
 
       // Buscar plano
@@ -245,21 +295,22 @@ export class SubscriptionService {
         try {
           // Criar ou buscar customer
           const customer = await this.stripeService.createOrGetCustomer(
-            clientId,
-            client.email || `${client.client_id}@smartsignage.com`,
-            client.name || undefined
+            publisherId,
+            publisher.email || `${publisher.publisher_id}@smartsignage.com`,
+            publisher.name || undefined
           );
           stripeCustomerId = customer.id;
 
-          // Salvar customer ID
+          // Salvar customer ID (usar publisher_id)
+          // TODO: Atualizar tabela stripe_customers para usar publisher_id
           await this.db.executeRaw(`
             INSERT INTO stripe_customers (client_id, stripe_customer_id, email)
-            VALUES (?, ?, ?)
+            VALUES ($1, $2, $3)
             ON CONFLICT (client_id) DO UPDATE
             SET stripe_customer_id = EXCLUDED.stripe_customer_id,
                 email = EXCLUDED.email,
                 updated_at = CURRENT_TIMESTAMP
-          `, [clientId, customer.id, client.email || null]);
+          `, [publisherId, customer.id, publisher.email || null]);
 
           // Selecionar price ID baseado no intervalo
           const priceId = billingInterval === 'year' && plan.stripePriceIdYearly
@@ -272,7 +323,7 @@ export class SubscriptionService {
               customer.id,
               priceId,
               {
-                clientId: clientId.toString(),
+                publisherId: publisherId.toString(),
                 planId: planId.toString(),
               }
             );
@@ -287,7 +338,7 @@ export class SubscriptionService {
             }
           }
         } catch (error: any) {
-          await logError('Erro ao criar subscription no Stripe (continuando sem Stripe)', error, { clientId, planId });
+          await logError('Erro ao criar subscription no Stripe (continuando sem Stripe)', error, { publisherId, planId });
           // Continuar sem Stripe se falhar
         }
       }
@@ -310,14 +361,14 @@ export class SubscriptionService {
       // Criar assinatura no banco
       const result = await this.db.executeRaw(`
         INSERT INTO subscriptions (
-          client_id, plan_id, stripe_subscription_id, stripe_customer_id,
+          publisher_id, plan_id, stripe_subscription_id, stripe_customer_id,
           status, billing_interval, current_period_start, current_period_end,
           trial_start, trial_end, metadata
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING subscription_id
       `, [
-        clientId,
+        publisherId,
         planId,
         stripeSubscriptionId,
         stripeCustomerId,
@@ -340,12 +391,12 @@ export class SubscriptionService {
         throw new Error('Erro ao buscar assinatura criada');
       }
 
-      await logInfo('Assinatura criada com sucesso', { subscriptionId: newSubscription.subscriptionId, clientId, planId });
+      await logInfo('Assinatura criada com sucesso', { subscriptionId: newSubscription.subscriptionId, publisherId, planId });
 
       return newSubscription;
 
     } catch (error: any) {
-      await logError('Erro ao criar assinatura', error, { clientId: data.clientId, planId: data.planId });
+      await logError('Erro ao criar assinatura', error, { publisherId: data.publisherId || data.clientId, planId: data.planId });
       throw error;
     }
   }

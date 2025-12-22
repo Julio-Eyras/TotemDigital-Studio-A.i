@@ -171,27 +171,32 @@ export class DashboardService {
     try {
       // Contar mídia do cliente
       const mediaCount = await this.db.findFirst(`
-        SELECT COUNT(*) as total FROM medias WHERE client_id = $1 AND status = 'active'
+        SELECT COUNT(*) as total FROM medias WHERE subscriber_id = $1 AND status = 'active'
       `, [clientId]);
 
       // Contar playlists do cliente
       const playlistCount = await this.db.findFirst(`
-        SELECT COUNT(*) as total FROM playlists WHERE client_id = $1 AND is_active = true
+        SELECT COUNT(*) as total FROM playlists WHERE subscriber_id = $1 AND is_active = true
       `, [clientId]);
 
       // Contar players do cliente
       const playerCount = await this.db.findFirst(`
-        SELECT COUNT(*) as total FROM totems WHERE client_id = $1 AND is_active = true
+        -- Totem não tem client_id mais - filtrar via local_id -> publisher_id
+        SELECT COUNT(*) as total FROM totems t
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.publisher_id = $1 AND t.is_active = true
       `, [clientId]);
 
-      // Contar players ativos do cliente
+      // Contar players ativos do publisher
+      // Totem não tem client_id mais - filtrar via local_id -> publisher_id
       const activePlayerCount = await this.db.findFirst(`
         SELECT COUNT(*) as total 
-        FROM totems 
-        WHERE client_id = $1 
-        AND is_active = true 
-        AND last_heartbeat IS NOT NULL 
-        AND last_heartbeat > NOW() - INTERVAL '5 minutes'
+        FROM totems t
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.publisher_id = $1 
+        AND t.is_active = true 
+        AND t.last_heartbeat IS NOT NULL 
+        AND t.last_heartbeat > NOW() - INTERVAL '5 minutes'
       `, [clientId]);
 
       return {

@@ -19,8 +19,13 @@ declare global {
         username: string;
         email: string;
         role: string;
-        clientId?: number;
+        publisherId?: number; // NOVO: FK para publishers
+        subscriberId?: number; // NOVO: Para subscribers (derivado de publisher ou direto)
+        clientId?: number; // DEPRECADO: Mantido para compatibilidade
+        userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
+        isTenantUser?: boolean; // NOVO
       };
+      subscriberId?: number; // Adicionado pelo subscriberIsolationMiddleware
     }
   }
 }
@@ -32,8 +37,13 @@ export interface AuthenticatedRequest extends Request {
     username: string;
     email: string;
     role: string;
-    clientId?: number;
+    publisherId?: number; // NOVO
+    subscriberId?: number; // NOVO
+    clientId?: number; // DEPRECADO
+    userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
+    isTenantUser?: boolean; // NOVO
   };
+  subscriberId?: number; // Adicionado pelo subscriberIsolationMiddleware
 }
 
 // Tipo para quando user está garantido (após middleware de auth)
@@ -44,8 +54,13 @@ export interface AuthenticatedRequestWithUser extends Request {
     username: string;
     email: string;
     role: string;
-    clientId?: number;
+    publisherId?: number; // NOVO
+    subscriberId?: number; // NOVO
+    clientId?: number; // DEPRECADO
+    userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
+    isTenantUser?: boolean; // NOVO
   };
+  subscriberId?: number;
 }
 
 /**
@@ -83,9 +98,13 @@ export const authMiddleware = async (
     // Verificar se usuário ainda existe e está ativo
     const db = getDatabase();
     const user = await db.findFirst(`
-      SELECT id, username, email, role, client_id, is_active
+      SELECT 
+        id, username, email, role, 
+        publisher_id, user_type, is_tenant_user,
+        client_id, -- Mantido para compatibilidade
+        is_active
       FROM users 
-      WHERE id = ? AND is_active = true
+      WHERE id = $1 AND is_active = true
     `, [decoded.userId]);
 
     if (!user) {
@@ -96,6 +115,23 @@ export const authMiddleware = async (
       return;
     }
 
+    // Determinar subscriberId se aplicável
+    // Se user é publisher e publisher tem is_subscriber = true, pode ter subscriberId
+    let subscriberId: number | undefined = undefined;
+    if (user.publisher_id) {
+      const publisher = await db.findFirst(`
+        SELECT publisher_id, is_subscriber 
+        FROM publishers 
+        WHERE publisher_id = $1 AND COALESCE(active, true) = true
+      `, [user.publisher_id]);
+      
+      // Se publisher também é subscriber, usar publisher_id como subscriberId temporariamente
+      // TODO: Criar tabela de mapeamento se necessário
+      if (publisher?.is_subscriber) {
+        subscriberId = user.publisher_id;
+      }
+    }
+
     // Adicionar dados do usuário à requisição
     req.user = {
       id: user.id,
@@ -103,7 +139,11 @@ export const authMiddleware = async (
       username: user.username,
       email: user.email || '',
       role: user.role,
-      clientId: user.client_id
+      publisherId: user.publisher_id || undefined,
+      subscriberId: subscriberId,
+      clientId: user.client_id || undefined, // DEPRECADO: Mantido para compatibilidade
+      userType: user.user_type || undefined,
+      isTenantUser: user.is_tenant_user || false
     };
 
     next();
@@ -319,9 +359,13 @@ export const optionalAuth = async (
     // Verificar se usuário ainda existe e está ativo
     const db = getDatabase();
     const user = await db.findFirst(`
-      SELECT id, username, email, role, client_id, is_active
+      SELECT 
+        id, username, email, role, 
+        publisher_id, user_type, is_tenant_user,
+        client_id, -- Mantido para compatibilidade
+        is_active
       FROM users 
-      WHERE id = ? AND is_active = true
+      WHERE id = $1 AND is_active = true
     `, [decoded.userId]);
 
     if (user) {

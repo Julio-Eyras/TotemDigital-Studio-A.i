@@ -10,9 +10,9 @@ import { getEventLogService } from './eventLogService';
 import * as QRCode from 'qrcode';
 
 export interface CreateQRCodeRequest {
-  clientId: number;
+  campaignId: number; // OBRIGATÓRIO: QR code pertence a uma campanha
+  clientId?: number; // DEPRECADO: Mantido para compatibilidade (será derivado de campaignId)
   totemId?: number;
-  campaignId?: number;
   title: string;
   description?: string;
   qrType: 'url' | 'text' | 'wifi' | 'contact' | 'sms' | 'email' | 'phone';
@@ -47,9 +47,10 @@ export interface UpdateQRCodeRequest {
 
 export interface QRCodeResponse {
   id: number;
-  clientId: number;
+  campaignId: number; // OBRIGATÓRIO
+  subscriberId?: number; // NOVO: Derivado de campaignId
+  clientId?: number; // DEPRECADO: Mantido para compatibilidade
   totemId?: number;
-  campaignId?: number;
   title: string;
   description?: string;
   qrType: string;
@@ -68,7 +69,8 @@ export interface QRCodeResponse {
   lastScannedAt?: string;
   createdAt: string;
   updatedAt: string;
-  clientName?: string;
+  subscriberName?: string; // NOVO
+  clientName?: string; // DEPRECADO: Mantido para compatibilidade
   totemName?: string;
   campaignTitle?: string;
   qrCodeImage?: string;
@@ -171,8 +173,10 @@ export class QRCodeService {
       const params: any[] = [];
 
       // Aplicar filtros
+      // QR codes não têm client_id direto - derivar de campaign_id
       if (filters.clientId) {
-        whereClause += ' AND q.client_id = ?';
+        // Buscar campaigns deste subscriber/clientId
+        whereClause += ' AND q.campaign_id IN (SELECT campaign_id FROM campaigns WHERE subscriber_id = $' + (params.length + 1) + ')';
         params.push(filters.clientId);
       }
 
@@ -202,40 +206,44 @@ export class QRCodeService {
       }
 
       // Buscar QR Codes
+      // QR codes pertencem a campaigns, que pertencem a subscribers
       const qrCodes = await this.db.findMany(`
         SELECT 
-          q.qr_code_id as id,
-          q.client_id as clientId,
-          q.totem_id as totemId,
+          q.qr_id as id,
           q.campaign_id as campaignId,
+          c.subscriber_id as subscriberId,
+          c.subscriber_id as clientId, -- Mantido para compatibilidade
+          q.code,
           q.title,
           q.description,
           q.qr_type as qrType,
           q.content,
+          q.url,
+          q.redirect_url as redirectUrl,
           q.size,
           q.color,
           q.background_color as backgroundColor,
           q.error_correction_level as errorCorrectionLevel,
           q.margin,
-          q.is_active as isActive,
-          q.expires_at as expiresAt,
-          q.max_scans as maxScans,
-          q.redirect_url as redirectUrl,
-          q.tracking_enabled as trackingEnabled,
+          q.image_url as qrCodeImage,
           q.scan_count as scanCount,
-          q.last_scanned_at as lastScannedAt,
+          q.last_scan_at as lastScannedAt,
+          q.max_scans as maxScans,
+          q.tracking_enabled as trackingEnabled,
+          q.expires_at as expiresAt,
+          q.metadata,
+          q.is_active as isActive,
           q.created_at as createdAt,
           q.updated_at as updatedAt,
-          cl.name as clientName,
-          t.name as totemName,
+          s.name as subscriberName,
+          s.name as clientName, -- Mantido para compatibilidade
           c.title as campaignTitle
         FROM qr_codes q
-        LEFT JOIN clients cl ON q.client_id = cl.client_id
-        LEFT JOIN totems t ON q.totem_id = t.totem_id
         LEFT JOIN campaigns c ON q.campaign_id = c.campaign_id
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         ${whereClause}
         ORDER BY q.created_at DESC
-        LIMIT ? OFFSET ?
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}
       `, [...params, limit, offset]);
 
       // Contar total
@@ -276,36 +284,39 @@ export class QRCodeService {
     try {
       const qrCode = await this.db.findFirst(`
         SELECT 
-          q.qr_code_id as id,
-          q.client_id as clientId,
-          q.totem_id as totemId,
+          q.qr_id as id,
           q.campaign_id as campaignId,
+          c.subscriber_id as subscriberId,
+          c.subscriber_id as clientId, -- Mantido para compatibilidade
+          q.code,
           q.title,
           q.description,
           q.qr_type as qrType,
           q.content,
+          q.url,
+          q.redirect_url as redirectUrl,
           q.size,
           q.color,
           q.background_color as backgroundColor,
           q.error_correction_level as errorCorrectionLevel,
           q.margin,
-          q.is_active as isActive,
-          q.expires_at as expiresAt,
-          q.max_scans as maxScans,
-          q.redirect_url as redirectUrl,
-          q.tracking_enabled as trackingEnabled,
+          q.image_url as qrCodeImage,
           q.scan_count as scanCount,
-          q.last_scanned_at as lastScannedAt,
+          q.last_scan_at as lastScannedAt,
+          q.max_scans as maxScans,
+          q.tracking_enabled as trackingEnabled,
+          q.expires_at as expiresAt,
+          q.metadata,
+          q.is_active as isActive,
           q.created_at as createdAt,
           q.updated_at as updatedAt,
-          cl.name as clientName,
-          t.name as totemName,
+          s.name as subscriberName,
+          s.name as clientName, -- Mantido para compatibilidade
           c.title as campaignTitle
         FROM qr_codes q
-        LEFT JOIN clients cl ON q.client_id = cl.client_id
-        LEFT JOIN totems t ON q.totem_id = t.totem_id
         LEFT JOIN campaigns c ON q.campaign_id = c.campaign_id
-        WHERE q.qr_code_id = ?
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
+        WHERE q.qr_id = $1
       `, [qrCodeId]);
 
       if (!qrCode) {
@@ -347,19 +358,30 @@ export class QRCodeService {
         trackingEnabled = true
       } = data;
 
-      // Verificar se cliente existe
-      const client = await this.db.findFirst(`
-        SELECT client_id FROM clients WHERE client_id = ? AND is_active = true
-      `, [clientId]);
+      // campaignId é obrigatório no novo schema
+      if (!campaignId) {
+        throw new Error('campaignId é obrigatório');
+      }
 
-      if (!client) {
-        throw new Error('Cliente não encontrado ou inativo');
+      // Verificar se campanha existe e obter subscriber_id
+      const campaign = await this.db.findFirst(`
+        SELECT campaign_id, subscriber_id FROM campaigns 
+        WHERE campaign_id = $1 AND is_active = true
+      `, [campaignId]);
+
+      if (!campaign) {
+        throw new Error('Campanha não encontrada ou inativa');
+      }
+
+      // Se clientId fornecido, validar que corresponde ao subscriber da campanha
+      if (clientId && campaign.subscriber_id !== clientId) {
+        throw new Error('clientId não corresponde ao subscriber da campanha');
       }
 
       // Verificar se totem existe (se fornecido)
       if (totemId) {
         const totem = await this.db.findFirst(`
-          SELECT totem_id FROM totems WHERE totem_id = ? AND active = 1
+          SELECT totem_id FROM totems WHERE totem_id = $1 AND is_active = true
         `, [totemId]);
 
         if (!totem) {
@@ -367,56 +389,82 @@ export class QRCodeService {
         }
       }
 
-      // Verificar se campanha existe (se fornecida)
-      if (campaignId) {
-        const campaign = await this.db.findFirst(`
-          SELECT campaign_id FROM campaigns WHERE campaign_id = ? AND is_active = 1
-        `, [campaignId]);
-
-        if (!campaign) {
-          throw new Error('Campanha não encontrada ou inativa');
-        }
-      }
-
       // Validar conteúdo baseado no tipo
       this.validateQRCodeContent(qrType, content);
 
+      // Gerar código único para QR code
+      const code = `QR-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      
+      // Determinar url baseado no tipo
+      let urlValue: string | null = null;
+      if (qrType === 'url') {
+        urlValue = content;
+      }
+      
       // Criar QR Code
       const result = await this.db.executeRaw(`
         INSERT INTO qr_codes (
-          client_id, totem_id, campaign_id, title, description, qr_type, content,
+          campaign_id, code, title, description, qr_type, content, url, redirect_url,
           size, color, background_color, error_correction_level, margin,
-          is_active, expires_at, max_scans, redirect_url, tracking_enabled
+          max_scans, tracking_enabled, expires_at, is_active,
+          metadata, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        RETURNING qr_code_id
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        RETURNING qr_id
       `, [
-        clientId,
-        totemId,
         campaignId,
+        code,
         title,
-        description,
+        description || null,
         qrType,
         content,
+        urlValue,
+        redirectUrl || null,
         size,
         color,
         backgroundColor,
         errorCorrectionLevel,
         margin,
-        isActive,
-        expiresAt,
-        maxScans,
-        redirectUrl,
-        trackingEnabled
+        maxScans || null,
+        trackingEnabled !== false,
+        expiresAt || null,
+        isActive !== false,
+        JSON.stringify({}) // metadata - pode ser expandido depois
       ]);
 
       const insertedQRCode = result?.rows?.[0];
-      if (!insertedQRCode?.qr_code_id) {
+      if (!insertedQRCode?.qr_id) {
         throw new Error('Erro ao criar QR Code');
       }
 
+      // Gerar imagem do QR code e atualizar image_url
+      try {
+        const qrCodeImage = await QRCode.toDataURL(content, {
+          width: size,
+          color: {
+            dark: color,
+            light: backgroundColor
+          },
+          errorCorrectionLevel: errorCorrectionLevel,
+          margin: margin
+        });
+        
+        // Por enquanto, salvar base64 no metadata
+        // TODO: Salvar imagem em disco/storage e atualizar image_url
+        const metadataWithImage = JSON.stringify({ image_base64: qrCodeImage });
+        
+        await this.db.executeRaw(`
+          UPDATE qr_codes 
+          SET metadata = $1, updated_at = CURRENT_TIMESTAMP
+          WHERE qr_id = $2
+        `, [metadataWithImage, insertedQRCode.qr_id]);
+      } catch (qrError: any) {
+        await logError('Erro ao gerar imagem QR code (continuando sem imagem)', qrError);
+        // Continuar sem imagem
+      }
+
       // Buscar QR Code criado
-      const newQRCode = await this.getQRCodeById(insertedQRCode.qr_code_id);
+      const newQRCode = await this.getQRCodeById(insertedQRCode.qr_id);
       if (!newQRCode) {
         throw new Error('Erro ao buscar QR Code criado');
       }
@@ -530,7 +578,7 @@ export class QRCodeService {
       await this.db.executeRaw(`
         UPDATE qr_codes 
         SET ${updates.join(', ')}
-        WHERE qr_code_id = ?
+        WHERE qr_id = $${params.length}
       `, params);
 
       // Buscar QR Code atualizado
@@ -566,7 +614,7 @@ export class QRCodeService {
 
       // Remover QR Code
       await this.db.executeRaw(`
-        DELETE FROM qr_codes WHERE qr_code_id = ?
+        DELETE FROM qr_codes WHERE qr_id = $1
       `, [qrCodeId]);
 
       // Log de auditoria
@@ -612,25 +660,15 @@ export class QRCodeService {
         throw new Error('QR Code atingiu limite de scans');
       }
 
-      // Registrar scan
-      await this.db.executeRaw(`
-        INSERT INTO qr_code_scans (
-          qr_code_id, scanned_at, ip_address, user_agent, location, device_info
-        )
-        VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
-      `, [
-        qrCodeId,
-        scanData.ipAddress,
-        scanData.userAgent,
-        scanData.location,
-        scanData.deviceInfo
-      ]);
-
-      // Atualizar contador de scans
+      // Registrar scan - incrementar contador e atualizar last_scan_at
+      // NOTA: Tabela qr_code_scans não existe no schema v2
+      // TODO: Criar tabela qr_code_scans ou usar event_logs para histórico detalhado
+      
+      // Atualizar contador de scans e last_scan_at
       await this.db.executeRaw(`
         UPDATE qr_codes 
-        SET scan_count = scan_count + 1, last_scanned_at = CURRENT_TIMESTAMP
-        WHERE qr_code_id = ?
+        SET scan_count = scan_count + 1, last_scan_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        WHERE qr_id = $1
       `, [qrCodeId]);
 
       // Registrar evento no EventLogService (não bloqueia fluxo)
@@ -674,8 +712,8 @@ export class QRCodeService {
         ORDER BY count DESC
       `);
 
-      // Por cliente
-      const byClient = await this.db.findMany(`
+      // Por subscriber (anunciante)
+      const bySubscriber = await this.db.findMany(`
         SELECT 
           q.client_id as clientId,
           cl.name as clientName,
@@ -692,21 +730,23 @@ export class QRCodeService {
         SELECT SUM(scan_count) as total FROM qr_codes
       `);
 
-      // Scans recentes (últimos 7 dias)
+      // Scans recentes (últimos 7 dias) - baseado em last_scan_at
       const recentScansResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM qr_code_scans 
-        WHERE scanned_at >= datetime('now', '-7 days')
+        SELECT COUNT(*) as count FROM qr_codes 
+        WHERE last_scan_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'
       `);
 
       // Top QR Codes por scans
       const topQRCodes = await this.db.findMany(`
         SELECT 
-          q.qr_code_id as id,
+          q.qr_id as id,
           q.title,
           q.scan_count as scanCount,
-          cl.name as clientName
+          s.name as subscriberName,
+          s.name as clientName -- Mantido para compatibilidade
         FROM qr_codes q
-        LEFT JOIN clients cl ON q.client_id = cl.client_id
+        LEFT JOIN campaigns c ON q.campaign_id = c.campaign_id
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         ORDER BY q.scan_count DESC
         LIMIT 10
       `);
@@ -717,7 +757,7 @@ export class QRCodeService {
         inactive: inactiveResult?.count || 0,
         expired: expiredResult?.count || 0,
         byType: byType.map(t => ({ type: t.type, count: t.count })),
-        byClient: byClient.map(c => ({ clientId: c.clientId, clientName: c.clientName, count: c.count })),
+        byClient: bySubscriber.map(c => ({ clientId: c.clientId, clientName: c.clientName || c.subscriberName, count: c.count })),
         totalScans: totalScansResult?.total || 0,
         recentScans: recentScansResult?.count || 0,
         topQRCodes: topQRCodes.map(q => ({
@@ -736,6 +776,9 @@ export class QRCodeService {
 
   /**
    * Busca histórico de scans de um QR Code
+   * NOTA: Tabela qr_code_scans não existe no schema v2
+   * Por enquanto, retorna informações básicas do QR code
+   * TODO: Usar event_logs ou criar tabela qr_code_scans se necessário
    */
   async getQRCodeScans(qrCodeId: number, page: number = 1, limit: number = 50): Promise<{
     scans: QRCodeScan[];
@@ -744,34 +787,24 @@ export class QRCodeService {
     limit: number;
   }> {
     try {
-      const offset = (page - 1) * limit;
+      // Buscar QR code para obter informações básicas
+      const qrCode = await this.getQRCodeById(qrCodeId);
+      if (!qrCode) {
+        throw new Error('QR Code não encontrado');
+      }
 
-      // Buscar scans
-      const scans = await this.db.findMany(`
-        SELECT 
-          scan_id as id,
-          qr_code_id as qrCodeId,
-          scanned_at as scannedAt,
-          ip_address as ipAddress,
-          user_agent as userAgent,
-          location,
-          device_info as deviceInfo
-        FROM qr_code_scans
-        WHERE qr_code_id = ?
-        ORDER BY scanned_at DESC
-        LIMIT ? OFFSET ?
-      `, [qrCodeId, limit, offset]);
+      // Por enquanto, retornar apenas informações básicas
+      // TODO: Implementar busca em event_logs ou criar tabela qr_code_scans
+      const scans: QRCodeScan[] = [];
+      
+      // Se houver event_logs relacionados, buscar aqui
+      // Por enquanto, retornar array vazio
 
-      // Contar total
-      const totalResult = await this.db.findFirst(`
-        SELECT COUNT(*) as total FROM qr_code_scans WHERE qr_code_id = ?
-      `, [qrCodeId]);
-
-      const total = totalResult?.total || 0;
+      const scanTotal = scans.length;
 
       return {
         scans,
-        total,
+        total: scanTotal,
         page,
         limit
       };
@@ -882,44 +915,49 @@ export class QRCodeService {
   }
 
   /**
-   * Busca QR Codes por cliente
+   * Busca QR Codes por subscriber (anunciante)
+   * DEPRECADO: Mantido para compatibilidade - usar getQRCodes com filtro subscriberId
    */
   async getQRCodesByClient(clientId: number, limit: number = 50): Promise<QRCodeResponse[]> {
     try {
+      // Buscar QR codes de campanhas deste subscriber
       const qrCodes = await this.db.findMany(`
         SELECT 
-          q.qr_code_id as id,
-          q.client_id as clientId,
-          q.totem_id as totemId,
+          q.qr_id as id,
           q.campaign_id as campaignId,
+          c.subscriber_id as subscriberId,
+          c.subscriber_id as clientId, -- Mantido para compatibilidade
+          q.code,
           q.title,
           q.description,
           q.qr_type as qrType,
           q.content,
+          q.url,
+          q.redirect_url as redirectUrl,
           q.size,
           q.color,
           q.background_color as backgroundColor,
           q.error_correction_level as errorCorrectionLevel,
           q.margin,
-          q.is_active as isActive,
-          q.expires_at as expiresAt,
-          q.max_scans as maxScans,
-          q.redirect_url as redirectUrl,
-          q.tracking_enabled as trackingEnabled,
+          q.image_url as qrCodeImage,
           q.scan_count as scanCount,
-          q.last_scanned_at as lastScannedAt,
+          q.last_scan_at as lastScannedAt,
+          q.max_scans as maxScans,
+          q.tracking_enabled as trackingEnabled,
+          q.expires_at as expiresAt,
+          q.metadata,
+          q.is_active as isActive,
           q.created_at as createdAt,
           q.updated_at as updatedAt,
-          cl.name as clientName,
-          t.name as totemName,
+          s.name as subscriberName,
+          s.name as clientName, -- Mantido para compatibilidade
           c.title as campaignTitle
         FROM qr_codes q
-        LEFT JOIN clients cl ON q.client_id = cl.client_id
-        LEFT JOIN totems t ON q.totem_id = t.totem_id
         LEFT JOIN campaigns c ON q.campaign_id = c.campaign_id
-        WHERE q.client_id = ?
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
+        WHERE c.subscriber_id = $1
         ORDER BY q.created_at DESC
-        LIMIT ?
+        LIMIT $2
       `, [clientId, limit]);
 
       // Processar QR Codes
