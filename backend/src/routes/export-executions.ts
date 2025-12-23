@@ -8,7 +8,7 @@ const router = Router();
 
 router.use(authMiddleware);
 
-router.get('/', authorizeRole(['admin', 'manager', 'auditor']), async (req: any, res: Response) => {
+router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const {
       scheduleId,
@@ -33,7 +33,7 @@ router.get('/', authorizeRole(['admin', 'manager', 'auditor']), async (req: any,
 
     const result = await exportExecutionService.getExecutions(filters);
 
-    res.json({
+    return res.json({
       success: true,
       data: result.data,
       pagination: {
@@ -44,7 +44,7 @@ router.get('/', authorizeRole(['admin', 'manager', 'auditor']), async (req: any,
     });
   } catch (error: any) {
     await logError('Erro ao listar execuções de exportação', error, { filters: req.query });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao listar execuções',
       error: error.message
@@ -52,7 +52,7 @@ router.get('/', authorizeRole(['admin', 'manager', 'auditor']), async (req: any,
   }
 });
 
-router.get('/:id', authorizeRole(['admin', 'manager', 'auditor']), async (req: any, res: Response) => {
+router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const executionId = parseInt(req.params.id, 10);
 
@@ -72,13 +72,13 @@ router.get('/:id', authorizeRole(['admin', 'manager', 'auditor']), async (req: a
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: execution
     });
   } catch (error: any) {
     await logError('Erro ao buscar execução de exportação', error, { executionId: req.params.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao buscar execução',
       error: error.message
@@ -86,7 +86,7 @@ router.get('/:id', authorizeRole(['admin', 'manager', 'auditor']), async (req: a
   }
 });
 
-router.get('/:id/download', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.get('/:id/download', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const executionId = parseInt(req.params.id, 10);
 
@@ -113,10 +113,10 @@ router.get('/:id/download', authorizeRole(['admin', 'manager']), async (req: any
       });
     }
 
-    res.download(fileInfo.filePath, fileInfo.fileName);
+      return res.download(fileInfo.filePath, fileInfo.fileName);
   } catch (error: any) {
     await logError('Erro ao baixar arquivo de execução', error, { executionId: req.params.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao baixar arquivo de execução',
       error: error.message

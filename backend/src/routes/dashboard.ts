@@ -25,7 +25,7 @@ const validateRequest = (req: any, res: any, next: any) => {
  * @route GET /api/dashboard/stats
  * @desc Obter estatísticas do dashboard
  */
-router.get('/stats', async (req: any, res: any) => {
+router.get('/stats', async (_req: any, res: any) => {
   try {
     const stats = await getDashboardService().getDashboardStats();
     res.json(stats);
@@ -58,7 +58,7 @@ router.get('/activities',
  * @route GET /api/dashboard/charts
  * @desc Obter dados para gráficos
  */
-router.get('/charts', async (req: any, res: any) => {
+router.get('/charts', async (_req: any, res: any) => {
   try {
     const charts = await getDashboardService().getUsageCharts();
     res.json(charts);

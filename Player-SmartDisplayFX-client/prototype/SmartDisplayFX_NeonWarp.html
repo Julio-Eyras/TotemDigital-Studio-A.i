@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SmartDisplayFX – Neon Warp Flow (PoC)</title>
+  <style>
+    :root {
+      --bg:#02030a;
+      --panel:#071026;
+      --accent:#00ffd5;
+      --accent2:#6b00ff;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #001233 0, #000 55%);
+      color: #e0f7ff;
+    }
+    .wrap {
+      display: flex;
+      gap: 18px;
+      padding: 18px;
+      height: 100%;
+    }
+    .controls {
+      width: 320px;
+      background: rgba(3,10,25,0.9);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 18px 55px rgba(0,0,0,0.75);
+      border: 1px solid rgba(0,255,213,0.12);
+      backdrop-filter: blur(16px);
+    }
+    .panels {
+      flex: 1;
+      display: flex;
+      gap: 12px;
+    }
+    .panel {
+      flex: 1;
+      border-radius: 16px;
+      overflow: hidden;
+      background: radial-gradient(circle at top left,#101b40,#020414);
+      min-height: 360px;
+      position: relative;
+      border: 1px solid rgba(0,255,213,0.08);
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    h3 {
+      margin: 4px 0 8px;
+      font-weight: 600;
+      letter-spacing: .02em;
+    }
+    label {
+      display:block;
+      margin:8px 0 4px;
+      font-size:12px;
+      color:#8fdcff;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+    }
+    input, select {
+      width:100%;
+      padding:7px 9px;
+      border-radius:9px;
+      border:1px solid rgba(255,255,255,0.08);
+      background:rgba(4,10,25,0.85);
+      color:inherit;
+      font-size:13px;
+    }
+    button {
+      margin-top:10px;
+      padding:9px 11px;
+      border-radius:999px;
+      border:0;
+      background:linear-gradient(90deg,var(--accent),var(--accent2));
+      color:#001;
+      font-weight:600;
+      cursor:pointer;
+      font-size:13px;
+      box-shadow:0 0 18px rgba(0,255,213,0.25);
+    }
+    button.secondary {
+      background:rgba(255,255,255,0.06);
+      color:#e0f7ff;
+      box-shadow:none;
+    }
+    .small { font-size:12px; color:#9bdff0; margin-bottom:6px; }
+    .badge {
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:4px 8px;
+      border-radius:999px;
+      background:rgba(255,255,255,0.04);
+      font-size:11px;
+    }
+    .dot {
+      width:8px;height:8px;border-radius:50%;
+      background:#f44336;
+    }
+    .dot.on { background:#00e676; box-shadow:0 0 10px #00e676; }
+    .log {
+      margin-top:10px;
+      height:120px;
+      border-radius:10px;
+      background:rgba(0,0,0,0.65);
+      padding:8px;
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:11px;
+      overflow:auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="controls">
+      <h3>SmartDisplayFX – Neon Warp Flow</h3>
+      <div class="small">
+        Abra este arquivo em 2 abas. Cada aba é um “totem”.
+        Use IDs diferentes e envie um efeito de transferência.
+      </div>
+
+      <label>Site ID</label>
+      <input id="siteId" value="site-01">
+
+      <label>Totem ID desta aba</label>
+      <input id="totemId" value="totem-01">
+
+      <button id="btnConnect">Conectar como Totem</button>
+
+      <label>Totem destino (para o efeito)</label>
+      <input id="targetId" value="totem-02">
+
+      <label>Duração do efeito (ms)</label>
+      <input id="duration" value="1600">
+
+      <button id="btnSend">Enviar efeito Neon Warp</button>
+
+      <div style="margin-top:8px">
+        <span class="badge">
+          <span id="statusDot" class="dot"></span>
+          <span id="statusText">desconectado</span>
+        </span>
+      </div>
+
+      <div class="log" id="log"></div>
+    </div>
+
+    <div class="panels">
+      <div class="panel"><canvas id="canvasLeft"></canvas></div>
+      <div class="panel"><canvas id="canvasRight"></canvas></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { SmartDisplayFlowClient } from '../core/sync/SmartDisplayFlowClient.js';
+
+    // ========= Estado do totem local / UI =========
+    let siteId = 'site-01';
+    let totemId = 'totem-01';
+    let connected = false;
+
+    const logEl = document.getElementById('log');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+
+    function log(msg, extra) {
+      const t = new Date().toISOString().slice(11,23);
+      const extraStr = extra ? ' ' + JSON.stringify(extra) : '';
+      logEl.innerHTML = `[${t}] ${msg}${extraStr}<br>` + logEl.innerHTML;
+    }
+
+    function setConnected(on) {
+      connected = on;
+      statusDot.classList.toggle('on', on);
+      statusText.textContent = on ? `totem: ${totemId}` : 'desconectado';
+    }
+
+    // ========= SmartDisplayFlowClient (mock localStorage) =========
+    const flowClient = new SmartDisplayFlowClient({
+      siteId,
+      totemId,
+      onLog: (msg, extra) => log(msg, extra)
+    });
+
+    // Quando chegar um effect_transfer para este totem, disparamos o efeito visual
+    flowClient.onEffect((payload, { isOrigin, isTarget }) => {
+      scheduleEffect(payload, { origin: isOrigin, target: isTarget });
+    });
+
+    document.getElementById('btnConnect').onclick = () => {
+      siteId = document.getElementById('siteId').value || siteId;
+      totemId = document.getElementById('totemId').value || totemId;
+      flowClient.connect(siteId, totemId);
+      setConnected(true);
+      log(`Conectado como ${totemId} em ${siteId} (SmartDisplayFlowClient / localStorage)`);
+    };
+
+    document.getElementById('btnSend').onclick = () => {
+      if (!connected) {
+        alert('Conecte o totem primeiro.');
+        return;
+      }
+      const target = document.getElementById('targetId').value || 'totem-02';
+      const duration = parseInt(document.getElementById('duration').value || '1600', 10);
+      const startTs = new Date(Date.now() + 700).toISOString();
+
+      flowClient.publishEffectTransfer({
+        effect_id: 'neon_warp_v1',
+        from: { totem: totemId, edge: 'right' },
+        to: { totem: target, edge: 'left' },
+        content_id: null,
+        start_ts: startTs,
+        duration_ms: duration,
+        params: {
+          color_a: '#00ffd5',
+          color_b: '#6b00ff'
+        }
+      });
+
+      log(`Solicitado efeito NeonWarp de ${totemId} para ${target} @ ${startTs}`);
+    };
+
+    // ========= Engine visual Neon Warp (Canvas simples) =========
+    class Panel {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.w = 0;
+        this.h = 0;
+        this.particles = [];
+        this.last = 0;
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        requestAnimationFrame((t) => this.tick(t));
+      }
+      resize() {
+        const r = this.canvas.getBoundingClientRect();
+        this.w = r.width;
+        this.h = r.height;
+        const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = this.w * dpr;
+        this.canvas.height = this.h * dpr;
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      tick(ts) {
+        const dt = ts - this.last || 16;
+        this.last = ts;
+        this.update(dt);
+        this.render();
+        requestAnimationFrame((t) => this.tick(t));
+      }
+      update(dt) {
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+          const p = this.particles[i];
+          p.x += p.vx * dt / 16;
+          p.y += p.vy * dt / 16;
+          p.life -= dt;
+          if (p.life <= 0) this.particles.splice(i, 1);
+        }
+      }
+      render() {
+        const ctx = this.ctx;
+        ctx.clearRect(0, 0, this.w, this.h);
+        const grad = ctx.createLinearGradient(0, 0, this.w, this.h);
+        grad.addColorStop(0, '#050816');
+        grad.addColorStop(1, '#03020b');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, this.w, this.h);
+
+        for (const p of this.particles) {
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+          g.addColorStop(0, `rgba(0,255,213,${0.9 * (p.life / p.maxLife)})`);
+          g.addColorStop(0.6, 'rgba(107,0,255,0.35)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // HUD sutil
+        ctx.fillStyle = 'rgba(200,240,255,0.06)';
+        ctx.fillRect(14, 14, 160, 40);
+        ctx.fillStyle = '#e0f7ff';
+        ctx.font = '13px system-ui';
+        ctx.fillText('SmartDisplayFX', 24, 38);
+      }
+      spawnWave(fromEdge, direction, count = 26) {
+        for (let i = 0; i < count; i++) {
+          const baseY = this.h * 0.5 + (Math.random() - 0.5) * this.h * 0.4;
+          const x = fromEdge === 'left' ? 30 : this.w - 30;
+          const vxBase = direction === 'out' ? (fromEdge === 'left' ? -1 : 1) : (fromEdge === 'left' ? 1 : -1);
+          const vx = vxBase * (3 + Math.random() * 4);
+          const vy = (Math.random() - 0.5) * 2;
+          const life = 1000 + Math.random() * 900;
+          this.particles.push({
+            x,
+            y: baseY,
+            vx,
+            vy,
+            life,
+            maxLife: life,
+            r: 10 + Math.random() * 26
+          });
+        }
+      }
+    }
+
+    const panelLeft = new Panel(document.getElementById('canvasLeft'));
+    const panelRight = new Panel(document.getElementById('canvasRight'));
+
+    function scheduleEffect(effect, opts = {}) {
+      const startTs = new Date(effect.start_ts).getTime();
+      const now = Date.now();
+      const delay = Math.max(0, startTs - now);
+      log(`Agendando efeito ${effect.effect_id} em ${delay}ms`);
+
+      setTimeout(() => {
+        if (opts.origin) {
+          panelLeft.spawnWave('right', 'out');
+        }
+        if (opts.target) {
+          panelRight.spawnWave('left', 'in');
+        }
+      }, delay);
+    }
+
+    // Expor para debug no console
+    window.SDFX = { publish, onMessage, scheduleEffect };
+  </script>
+</body>
+</html>
+
+

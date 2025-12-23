@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartSignage LG Player - Teste Browser</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    .test-container {
+      background: #2a2a2a;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .test-section {
+      margin-bottom: 30px;
+    }
+    .test-section h2 {
+      color: #4CAF50;
+      border-bottom: 2px solid #4CAF50;
+      padding-bottom: 10px;
+    }
+    .test-result {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .success {
+      background: #1b5e20;
+      color: #fff;
+    }
+    .error {
+      background: #b71c1c;
+      color: #fff;
+    }
+    .warning {
+      background: #e65100;
+      color: #fff;
+    }
+    .info {
+      background: #01579b;
+      color: #fff;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    video {
+      width: 100%;
+      max-width: 800px;
+      background: #000;
+      margin: 20px 0;
+    }
+    #console-output {
+      background: #000;
+      color: #0f0;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 SmartSignage LG Player - Teste no Navegador</h1>
+  
+  <div class="test-container">
+    <div class="test-section">
+      <h2>1. Mock webOS APIs</h2>
+      <div id="mock-webos-status"></div>
+      <button onclick="initMockWebOS()">Inicializar Mock webOS</button>
+    </div>
+
+    <div class="test-section">
+      <h2>2. DeviceInfoService</h2>
+      <div id="device-info-status"></div>
+      <button onclick="testDeviceInfo()">Testar DeviceInfo</button>
+    </div>
+
+    <div class="test-section">
+      <h2>3. HLSPlayer</h2>
+      <div id="player-status"></div>
+      <video id="player" controls></video>
+      <br>
+      <button onclick="testPlayer('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8')">Testar com HLS Stream</button>
+      <button onclick="testPlayer('')">Parar</button>
+    </div>
+
+    <div class="test-section">
+      <h2>4. CommandFetcher</h2>
+      <div id="command-status"></div>
+      <button onclick="testCommandFetcher()">Testar CommandFetcher</button>
+    </div>
+
+    <div class="test-section">
+      <h2>5. HeartbeatService</h2>
+      <div id="heartbeat-status"></div>
+      <button onclick="testHeartbeat()">Testar Heartbeat</button>
+    </div>
+
+    <div class="test-section">
+      <h2>6. FallbackManager</h2>
+      <div id="fallback-status"></div>
+      <button onclick="testFallback()">Testar Fallback</button>
+    </div>
+
+    <div class="test-section">
+      <h2>7. App Completo</h2>
+      <div id="app-status"></div>
+      <button onclick="testFullApp()">Testar App Completo</button>
+      <button onclick="stopFullApp()">Parar App</button>
+    </div>
+
+    <div class="test-section">
+      <h2>Console Output</h2>
+      <div id="console-output"></div>
+      <button onclick="clearConsole()">Limpar Console</button>
+    </div>
+  </div>
+
+  <!-- Mock webOS antes de carregar os scripts -->
+  <script>
+    // Capturar console.log
+    const originalLog = console.log;
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    const consoleOutput = document.getElementById('console-output');
+
+    function addToConsole(level, ...args) {
+      const timestamp = new Date().toLocaleTimeString();
+      const message = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
+      ).join(' ');
+      consoleOutput.textContent += `[${timestamp}] [${level}] ${message}\n`;
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    }
+
+    console.log = function(...args) {
+      originalLog.apply(console, args);
+      addToConsole('LOG', ...args);
+    };
+
+    console.warn = function(...args) {
+      originalWarn.apply(console, args);
+      addToConsole('WARN', ...args);
+    };
+
+    console.error = function(...args) {
+      originalError.apply(console, args);
+      addToConsole('ERROR', ...args);
+    };
+
+    function clearConsole() {
+      consoleOutput.textContent = '';
+    }
+
+    // Mock webOS APIs
+    window.webOS = {
+      systemInfo: {
+        getProperty: function(type, callback) {
+          setTimeout(() => {
+            const mockData = {
+              network: {
+                macAddress: 'AA:BB:CC:DD:EE:FF',
+                ipAddress: '192.168.1.100'
+              },
+              system: {
+                deviceId: 'WEBOS_DEVICE_12345',
+                serialNumber: 'SN123456789',
+                modelName: 'LG-webOS-TV'
+              }
+            };
+            callback(mockData[type] || {});
+          }, 100);
+        }
+      }
+    };
+
+    function initMockWebOS() {
+      const status = document.getElementById('mock-webos-status');
+      status.innerHTML = '<div class="test-result success">✅ Mock webOS inicializado com sucesso</div>';
+    }
+
+    // Carregar scripts
+    const scripts = [
+      'js/device-info.js',
+      'js/hls-player.js',
+      'js/command-fetcher.js',
+      'js/heartbeat-service.js',
+      'js/fallback-manager.js',
+      'js/app.js'
+    ];
+
+    let loadedScripts = 0;
+    scripts.forEach((src, index) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = () => {
+        loadedScripts++;
+        if (loadedScripts === scripts.length) {
+          console.log('✅ Todos os scripts carregados');
+          initMockWebOS();
+        }
+      };
+      script.onerror = () => {
+        console.error(`❌ Erro ao carregar: ${src}`);
+      };
+      document.head.appendChild(script);
+    });
+  </script>
+
+  <script>
+    // Testes
+    async function testDeviceInfo() {
+      const status = document.getElementById('device-info-status');
+      try {
+        status.innerHTML = '<div class="test-result info">🔄 Testando DeviceInfoService...</div>';
+        
+        const deviceInfo = new DeviceInfoService();
+        const hardwareInfo = await deviceInfo.collectHardwareInfo();
+        const uin = deviceInfo.generateUIN(hardwareInfo);
+        
+        status.innerHTML = `
+          <div class="test-result success">
+            <strong>✅ DeviceInfo funcionando!</strong><br>
+            UIN: ${uin}<br>
+            MAC: ${hardwareInfo.macAddress}<br>
+            Device ID: ${hardwareInfo.deviceId}
+          </div>
+        `;
+      } catch (error) {
+        status.innerHTML = `<div class="test-result error">❌ Erro: ${error.message}</div>`;
+      }
+    }
+
+    function testPlayer(streamUrl) {
+      const status = document.getElementById('player-status');
+      try {
+        const player = new HLSPlayer('player');
+        if (streamUrl) {
+          player.play(streamUrl).then(() => {
+            status.innerHTML = '<div class="test-result success">✅ Player iniciado com sucesso</div>';
+            player.startWatchdog(20000);
+          }).catch(err => {
+            status.innerHTML = `<div class="test-result error">❌ Erro: ${err.message}</div>`;
+          });
+        } else {
+          player.stop();
+          status.innerHTML = '<div class="test-result info">⏹️ Player parado</div>';
+        }
+      } catch (error) {
+        status.innerHTML = `<div class="test-result error">❌ Erro: ${error.message}</div>`;
+      }
+    }
+
+    function testCommandFetcher() {
+      const status = document.getElementById('command-status');
+      try {
+        const fetcher = new CommandFetcher('http://localhost:3000/api', 'TEST_UIN', 5000);
+        fetcher.onCommand = (cmd) => {
+          console.log('Comando recebido:', cmd);
+          status.innerHTML = `<div class="test-result success">✅ Comando recebido: ${cmd.action}</div>`;
+        };
+        fetcher.start();
+        status.innerHTML = '<div class="test-result success">✅ CommandFetcher iniciado (polling a cada 5s)</div>';
+      } catch (error) {
+        status.innerHTML = `<div class="test-result error">❌ Erro: ${error.message}</div>`;
+      }
+    }
+
+    function testHeartbeat() {
+      const status = document.getElementById('heartbeat-status');
+      try {
+        const heartbeat = new HeartbeatService('http://localhost:3000/api', 'TEST_UIN', 5000);
+        heartbeat.setCallbacks(
+          () => 'PLAYING',
+          () => 'http://test-stream.m3u8'
+        );
+        heartbeat.start();
+        status.innerHTML = '<div class="test-result success">✅ HeartbeatService iniciado (envio a cada 5s)</div>';
+      } catch (error) {
+        status.innerHTML = `<div class="test-result error">❌ Erro: ${error.message}</div>`;
+      }
+    }
+
+    function testFallback() {
+      const status = document.getElementById('fallback-status');
+      try {
+        const fallback = new FallbackManager(
+          'http://primary-stream.m3u8',
+          ['/media/fallback.mp4']
+        );
+        status.innerHTML = '<div class="test-result success">✅ FallbackManager criado</div>';
+      } catch (error) {
+        status.innerHTML = `<div class="test-result error">❌ Erro: ${error.message}</div>`;
+      }
+    }
+
+    let testApp = null;
+    async function testFullApp() {
+      const status = document.getElementById('app-status');
+      try {
+        // Configurar API URL para teste
+        window.API_BASE_URL = 'http://localhost:3000/api';
+        
+        // Mock localStorage
+        if (!window.localStorage) {
+          window.localStorage = {
+            _data: {},
+            getItem: function(key) { return this._data[key] || null; },
+            setItem: function(key, value) { this._data[key] = value; }
+          };
+        }
+
+        status.innerHTML = '<div class="test-result info">🔄 Inicializando app completo...</div>';
+        
+        // Criar app mas não inicializar completamente (precisa de backend)
+        const deviceInfo = new DeviceInfoService();
+        deviceInfo.saveUIN('TEST_UIN_' + Date.now());
+        
+        status.innerHTML = '<div class="test-result warning">⚠️ App criado. Para teste completo, é necessário backend rodando.</div>';
+      } catch (error) {
+        status.innerHTML = `<div class="test-result error">❌ Erro: ${error.message}</div>`;
+      }
+    }
+
+    function stopFullApp() {
+      if (testApp) {
+        // Parar serviços
+        testApp = null;
+      }
+      document.getElementById('app-status').innerHTML = '<div class="test-result info">⏹️ App parado</div>';
+    }
+  </script>
+</body>
+</html>
+

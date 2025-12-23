@@ -25,7 +25,7 @@ const validateRequest = (req: any, res: any, next: any) => {
       details: errors.array()
     });
   }
-  next();
+  return next();
 };
 
 /**
@@ -51,10 +51,10 @@ router.get('/',
         status: status as string,
       });
       
-      res.json(result);
+      return res.json(result);
     } catch (error) {
       await logError('Erro ao listar players', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
@@ -76,10 +76,10 @@ router.get('/:id',
         return res.status(404).json({ error: 'Player não encontrado' });
       }
 
-      res.json(player);
+      return res.json(player);
     } catch (error) {
       await logError('Erro ao obter player', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
@@ -101,10 +101,10 @@ router.post('/',
         clientId,
       });
 
-      res.status(201).json(newPlayer);
+      return res.status(201).json(newPlayer);
     } catch (error: any) {
       await logError('Erro ao criar player', error);
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -131,10 +131,10 @@ router.put('/:id',
         isActive,
       });
 
-      res.json(updatedPlayer);
+      return res.json(updatedPlayer);
     } catch (error: any) {
       await logError('Erro ao atualizar player', error);
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -152,10 +152,10 @@ router.delete('/:id',
       
       await getPlayerService().deletePlayer(parseInt(id));
       
-      res.status(204).send();
+      return res.status(204).send();
     } catch (error: any) {
       await logError('Erro ao excluir player', error);
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -175,10 +175,10 @@ router.post('/:id/playlist',
       
       await getPlayerService().assignPlaylist(parseInt(id), playlistId);
       
-      res.json({ message: 'Playlist atribuída com sucesso' });
+      return res.json({ message: 'Playlist atribuída com sucesso' });
     } catch (error: any) {
       await logError('Erro ao atribuir playlist ao player', error);
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -196,10 +196,10 @@ router.get('/:id/status',
       
       const status = await getPlayerService().getPlayerStatus(parseInt(id));
       
-      res.json(status);
+      return res.json(status);
     } catch (error: any) {
       await logError('Erro ao obter status do player', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );

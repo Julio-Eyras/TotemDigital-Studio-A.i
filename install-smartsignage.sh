@@ -54,6 +54,26 @@ PRESERVE_DB=false
 LOAD_SEEDS=false
 SEEDS_OPTION_FORCED=false
 
+# Modos especiais (operações focadas)
+DB_ONLY_MODE=false                # Reinstala apenas o banco (drop + schema + seeds), sem rebuild de backend/frontend
+BACKEND_BUILD_ONLY=false          # Faz apenas build do backend (sem mexer em banco/Nginx/etc.)
+FRONTEND_BUILD_ONLY=false         # Faz apenas build do frontend (sem mexer em banco/backend/etc.)
+
+# Flags internas para controlar o comportamento de install_project_dependencies
+SKIP_BACKEND_DEPS_BUILD=false     # Quando true, pula instalação/build do backend dentro de install_project_dependencies
+SKIP_FRONTEND_DEPS_BUILD=false    # Quando true, pula instalação/build do frontend dentro de install_project_dependencies
+
+# Variáveis para seleção de players
+INSTALL_PLAYER_WEBOS=false
+INSTALL_PLAYER_ANDROID=false
+INSTALL_PLAYER_LINUX_ELECTRON=false
+INSTALL_PLAYER_LINUX_CPP=false
+INSTALL_PLAYER_WINDOWS_ELECTRON=false
+INSTALL_PLAYER_TIZEN=false
+INSTALL_PLAYER_SMARTDISPLAYFX=false
+INSTALL_PLAYER_FX_INTERFACE=false
+INSTALL_ALL_PLAYERS=false
+
 # Cores para output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -86,6 +106,243 @@ log_progress() {
 # Função de log de status
 log_status() {
     echo -e "${PURPLE}[STATUS $(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
+}
+
+# =============================================================================
+# GERENCIAMENTO DE CONFIGURAÇÃO CENTRALIZADA
+# =============================================================================
+
+# Arquivo de configuração centralizado
+CONFIG_FILE="${INSTALL_DIR:-/opt/smart-signage}/smartsignage-config"
+
+# Carregar configurações do arquivo smartsignage-config
+load_system_config() {
+    local config_file="$1"
+    
+    if [[ ! -f "$config_file" ]]; then
+        log "Arquivo de configuração não encontrado: $config_file"
+        log "Usando valores padrão e criando arquivo de configuração..."
+        return 1
+    fi
+    
+    # Carregar configurações (formato: VARIAVEL=valor)
+    # Ignorar linhas de comentário e vazias
+    local loaded_count=0
+    while IFS='=' read -r key value || [[ -n "$key" ]]; do
+        # Ignorar comentários e linhas vazias
+        [[ "$key" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "$key" ]] && continue
+        
+        # Remover espaços e aspas
+        key=$(echo "$key" | xargs)
+        value=$(echo "$value" | xargs | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+        
+        # Ignorar INSTALL_DIR (não pode ser sobrescrito pelo config)
+        if [[ "$key" == "INSTALL_DIR" ]]; then
+            log_detailed "Ignorando INSTALL_DIR do arquivo de configuração para evitar sobrescrita."
+            continue
+        fi
+        
+        # Exportar variável (garantir que seja exportada globalmente)
+        if [[ -n "$key" && -n "$value" ]]; then
+            export "$key=$value"
+            loaded_count=$((loaded_count + 1))
+        fi
+    done < <(grep -v '^[[:space:]]*#' "$config_file" | grep -v '^[[:space:]]*$' | grep '=')
+    
+    if [[ $loaded_count -gt 0 ]]; then
+        log "✅ $loaded_count configurações carregadas do arquivo de configuração"
+    fi
+    
+    return 0
+}
+
+# Criar arquivo de configuração padrão
+create_default_config() {
+    local config_file="$1"
+    local install_dir="${2:-/opt/smart-signage}"
+    
+    log "Criando arquivo de configuração padrão: $config_file"
+    
+    cat > "$config_file" << 'EOF'
+# =============================================================================
+# Smart Signage Pro - Configuração do Sistema
+# =============================================================================
+# Este arquivo contém todas as configurações do sistema
+# IMPORTANTE: Altere as senhas e credenciais antes de usar em produção!
+# =============================================================================
+
+# Usuário do sistema para executar o Smart Signage Pro
+SYSTEM_USER=smartsignage
+
+# Grupo do sistema
+SYSTEM_GROUP=smartsignage
+
+# Usuário PostgreSQL do sistema (usuário que gerencia o PostgreSQL)
+POSTGRES_SYSTEM_USER=postgres
+
+# Senha do usuário postgres do PostgreSQL (ALTERE EM PRODUÇÃO!)
+# IMPORTANTE:
+# - Esta senha só será aplicada automaticamente em duas situações:
+#   1) Quando o PostgreSQL for instalado AGORA por este script (PG_WAS_INSTALLED=true)
+#   2) Quando a flag FORCE_CHANGE_POSTGRES_PASSWORD=true for usada
+# - Em instalações já existentes, a senha do postgres NÃO será alterada por padrão.
+POSTGRES_PASSWORD=smartsignage123
+
+# Flag opcional para forçar alteração da senha do usuário postgres mesmo em instalações existentes
+# Use com cuidado: FORCE_CHANGE_POSTGRES_PASSWORD=true
+FORCE_CHANGE_POSTGRES_PASSWORD=false
+
+# Usuário do banco de dados PostgreSQL (usuário da aplicação - master do sistema)
+DB_USER=smartsignage
+
+# Senha do usuário do banco de dados (ALTERE EM PRODUÇÃO!)
+DB_PASSWORD=smartsignage123
+
+# Nome do banco de dados
+DB_NAME=smartsignage
+
+# Host do banco de dados
+DB_HOST=localhost
+
+# Porta do banco de dados
+DB_PORT=5432
+
+# Diretório de uploads (relativo ao INSTALL_DIR que é determinado pelo modo de instalação)
+UPLOAD_PATH=/opt/smart-signage/public/assets/uploads
+
+# JWT Secret (ALTERE EM PRODUÇÃO! Use: openssl rand -base64 64)
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+
+# Porta do backend
+BACKEND_PORT=3000
+
+# Porta do frontend (Nginx)
+FRONTEND_PORT=80
+EOF
+    
+    chmod 600 "$config_file"
+    log "✅ Arquivo de configuração criado: $config_file"
+    log "⚠️  IMPORTANTE: Altere as senhas e credenciais antes de usar em produção!"
+}
+
+# Verificar/criar usuário postgres do sistema
+ensure_postgres_system_user() {
+    local postgres_user="${POSTGRES_SYSTEM_USER:-postgres}"
+    
+    # Verificar se usuário existe
+    if id "$postgres_user" &>/dev/null; then
+        # Usuário existe, mas verificar se o diretório home tem as permissões corretas
+        local postgres_home="/var/lib/postgresql"
+        if [[ -d "$postgres_home" ]]; then
+            local current_owner=$(stat -c '%U:%G' "$postgres_home" 2>/dev/null || echo "")
+            if [[ "$current_owner" != "$postgres_user:$postgres_user" ]]; then
+                log "Corrigindo permissões do diretório $postgres_home para $postgres_user:$postgres_user..."
+                sudo chown -R "$postgres_user:$postgres_user" "$postgres_home" 2>/dev/null || true
+                sudo chmod 700 "$postgres_home" 2>/dev/null || true
+            fi
+        fi
+        return 0
+    fi
+    
+    log "Usuário do sistema '$postgres_user' não encontrado, criando..."
+    
+    # Corrigir permissões do diretório /var/lib/postgresql se já existir
+    local postgres_home="/var/lib/postgresql"
+    if [[ -d "$postgres_home" ]]; then
+        log "Diretório $postgres_home já existe, será corrigido após criar usuário..."
+    fi
+    
+    # No Ubuntu/Debian, o usuário postgres geralmente é criado pelo pacote postgresql
+    # Mas se não foi criado, precisamos criar manualmente
+    if command -v adduser &> /dev/null; then
+        sudo adduser --system --group --home "$postgres_home" --shell /bin/bash "$postgres_user" 2>&1 || {
+            # Tentar método alternativo
+            sudo useradd -r -s /bin/bash -d "$postgres_home" -U "$postgres_user" 2>&1 || {
+                error "❌ Falha ao criar usuário do sistema '$postgres_user'"
+                return 1
+            }
+        }
+    else
+        sudo useradd -r -s /bin/bash -d "$postgres_home" -U "$postgres_user" 2>&1 || {
+            error "❌ Falha ao criar usuário do sistema '$postgres_user'"
+            return 1
+        }
+    fi
+    
+    # Corrigir permissões do diretório home após criar o usuário
+    if [[ -d "$postgres_home" ]]; then
+        log "Corrigindo permissões do diretório $postgres_home para $postgres_user:$postgres_user..."
+        sudo chown -R "$postgres_user:$postgres_user" "$postgres_home" 2>/dev/null || true
+        sudo chmod 700 "$postgres_home" 2>/dev/null || true
+    fi
+    
+    log "✅ Usuário do sistema '$postgres_user' criado com sucesso"
+    return 0
+}
+
+# Obter usuário postgres do sistema (garantindo que existe)
+get_postgres_user() {
+    local postgres_user="${POSTGRES_SYSTEM_USER:-postgres}"
+    ensure_postgres_system_user
+    echo "$postgres_user"
+}
+
+# Alterar senha do usuário postgres do PostgreSQL
+change_postgres_password() {
+    local postgres_user="${POSTGRES_SYSTEM_USER:-postgres}"
+    local new_password="${POSTGRES_PASSWORD:-smartsignage123}"
+    
+    log "Alterando senha do usuário PostgreSQL '${postgres_user}'..."
+    
+    # Aguardar PostgreSQL estar pronto
+    local max_attempts=10
+    local attempt=0
+    while [[ $attempt -lt $max_attempts ]]; do
+        if sudo -u "$postgres_user" psql -c "SELECT 1" > /dev/null 2>&1; then
+            break
+        fi
+        attempt=$((attempt + 1))
+        sleep 2
+    done
+    
+    if [[ $attempt -eq $max_attempts ]]; then
+        error "❌ PostgreSQL não está respondendo para alterar senha"
+        return 1
+    fi
+    
+    # Alterar senha usando ALTER USER
+    if sudo -u "$postgres_user" psql -c "ALTER USER ${postgres_user} WITH PASSWORD '${new_password}';" > /dev/null 2>&1; then
+        log "✅ Senha do usuário PostgreSQL '${postgres_user}' alterada com sucesso"
+        
+        # Atualizar arquivo .pgpass se existir (para autenticação automática)
+        local pgpass_file="/var/lib/postgresql/.pgpass"
+        if [[ -f "$pgpass_file" ]]; then
+            sudo -u "$postgres_user" sed -i "s|^localhost:5432:\*:${postgres_user}:.*|localhost:5432:*:${postgres_user}:${new_password}|" "$pgpass_file" 2>/dev/null || true
+        fi
+        
+        return 0
+    else
+        warn "⚠️  Não foi possível alterar senha do usuário PostgreSQL (pode já estar configurada)"
+        return 0
+    fi
+}
+
+# Estrutura para criptografia de senhas (implementação futura)
+# Por enquanto, senhas ficam em texto plano no arquivo de configuração
+encrypt_password() {
+    local password="$1"
+    # TODO: Implementar criptografia usando openssl ou gpg
+    # Por enquanto, retorna a senha em texto plano
+    echo "$password"
+}
+
+# Descriptografar senha (implementação futura)
+decrypt_password() {
+    local encrypted_password="$1"
+    # TODO: Implementar descriptografia
+    # Por enquanto, retorna como está (assumindo texto plano)
+    echo "$encrypted_password"
 }
 
 # Função para log de container
@@ -149,7 +406,8 @@ execute_psql_file() {
 
     local schema_to_use="$temp_schema"
     local psql_output
-    if ! psql_output=$(sudo -u postgres psql -v ON_ERROR_STOP=1 -d "$database_name" -f "$schema_to_use" 2>&1); then
+    local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+    if ! psql_output=$(sudo -u "$POSTGRES_USER" psql -v ON_ERROR_STOP=1 -d "$database_name" -f "$schema_to_use" 2>&1); then
         rm -f "$schema_to_use" 2>/dev/null || true
         error "❌ Falha ao aplicar ${description}"
         echo "$psql_output"
@@ -258,6 +516,26 @@ parse_arguments() {
                 PRESERVE_DB=true
                 shift
                 ;;
+            --db-only)
+                # Reinstala apenas o banco de dados (drop + schema + seeds),
+                # sem rebuild de backend/frontend ou reconfiguração completa do sistema.
+                DB_ONLY_MODE=true
+                RESET_DATABASE=true
+                SKIP_MENU=true
+                shift
+                ;;
+            --backend-only)
+                # Apenas instala dependências e compila o backend
+                BACKEND_BUILD_ONLY=true
+                SKIP_MENU=true
+                shift
+                ;;
+            --frontend-only)
+                # Apenas instala dependências e compila o frontend
+                FRONTEND_BUILD_ONLY=true
+                SKIP_MENU=true
+                shift
+                ;;
             --load-seeds|--with-seeds)
                 LOAD_SEEDS=true
                 SEEDS_OPTION_FORCED=true
@@ -282,8 +560,11 @@ parse_arguments() {
                 echo "  --check-only         Apenas verifica se precisa rebuild"
                 echo "  --skip-menu          Pula menu (usa Docker)"
                 echo "  --https-self-signed  Habilita HTTPS autoassinado (single-server)"
-                echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir"
-                echo "  --preserve-db         Preserva o banco de dados existente durante reinstalação"
+                echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir (fluxo completo)"
+                echo "  --preserve-db        Preserva o banco de dados existente durante reinstalação"
+                echo "  --db-only            Reinstala APENAS o banco (drop + schema + seeds), sem rebuild de backend/frontend"
+                echo "  --backend-only       Faz apenas build do backend (deps + TypeScript), sem tocar no banco"
+                echo "  --frontend-only      Faz apenas build do frontend (deps + build React), sem tocar no banco"
                 echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt)"
                 echo "  --no-seeds           Não carrega dados de demonstração"
                 echo "  --help               Mostra esta ajuda"
@@ -321,6 +602,11 @@ check_os() {
     fi
     
     log "Sistema detectado: $PRETTY_NAME"
+    
+    # Chamar detect_distribution para configurar variáveis globais (se ainda não foi chamada)
+    if [[ -z "$DISTRO_TYPE" ]]; then
+        detect_distribution
+    fi
 }
 
 # Atualizar sistema
@@ -373,27 +659,141 @@ fix_network_wait() {
     fi
 }
 
-# Instalar Node.js
+# Detectar distribuição do sistema
+detect_distribution() {
+    if [[ ! -f /etc/os-release ]]; then
+        error "❌ Não foi possível detectar a distribuição do sistema (/etc/os-release não encontrado)"
+        exit 1
+    fi
+    
+    # Carregar informações do sistema
+    . /etc/os-release
+    
+    DISTRO_ID="${ID:-unknown}"
+    DISTRO_ID_LIKE="${ID_LIKE:-}"
+    DISTRO_VERSION="${VERSION_ID:-}"
+    DISTRO_NAME="${PRETTY_NAME:-$NAME}"
+    
+    # Normalizar distribuição
+    case "$DISTRO_ID" in
+        ubuntu)
+            DISTRO_TYPE="ubuntu"
+            ;;
+        debian)
+            DISTRO_TYPE="debian"
+            ;;
+        *)
+            # Verificar ID_LIKE para distribuições derivadas
+            if [[ "$DISTRO_ID_LIKE" == *"ubuntu"* ]] || [[ "$DISTRO_ID_LIKE" == *"debian"* ]]; then
+                if [[ "$DISTRO_ID_LIKE" == *"ubuntu"* ]]; then
+                    DISTRO_TYPE="ubuntu"
+                else
+                    DISTRO_TYPE="debian"
+                fi
+            else
+                warn "⚠️  Distribuição não reconhecida: $DISTRO_ID"
+                warn "⚠️  Tentando método genérico (pode não funcionar corretamente)"
+                DISTRO_TYPE="generic"
+            fi
+            ;;
+    esac
+    
+    log "Sistema detectado: $DISTRO_NAME ($DISTRO_TYPE)"
+    export DISTRO_TYPE DISTRO_ID DISTRO_VERSION DISTRO_NAME
+}
+
+# Instalar Node.js (compatível com múltiplas distribuições)
 install_nodejs() {
     log "Instalando Node.js..."
+    
+    # Detectar distribuição se ainda não foi detectada
+    if [[ -z "$DISTRO_TYPE" ]]; then
+        detect_distribution
+    fi
     
     # Verificar se Node.js já está instalado
     if command -v node &> /dev/null; then
         NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
         if [[ $NODE_VERSION -ge 18 ]]; then
-            log "Node.js v$(node --version) já está instalado!"
+            log "✅ Node.js v$(node --version) já está instalado!"
             return
         else
-            warn "Node.js versão antiga detectada. Atualizando..."
+            warn "⚠️  Node.js versão antiga detectada ($(node --version)). Atualizando..."
         fi
     fi
     
-    # Instalar Node.js 18.x
-    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-    sudo apt install -y nodejs
+    # Método 1: Tentar NodeSource (funciona para Ubuntu e Debian)
+    log "Tentando instalar Node.js 18.x do NodeSource (compatível com $DISTRO_TYPE)..."
     
-    log "Node.js $(node --version) instalado com sucesso!"
-    log "NPM $(npm --version) instalado com sucesso!"
+    # Verificar conectividade primeiro
+    if curl -fsSL --connect-timeout 5 --max-time 10 https://deb.nodesource.com/setup_18.x > /dev/null 2>&1; then
+        # Conectividade OK - tentar instalar do NodeSource
+        if curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - 2>&1 | tee /tmp/nodesource-install.log; then
+            if sudo apt install -y nodejs 2>&1 | tee -a /tmp/nodesource-install.log; then
+                if command -v node &> /dev/null; then
+                    log "✅ Node.js $(node --version) instalado com sucesso do NodeSource!"
+                    log "✅ NPM $(npm --version) instalado com sucesso!"
+                    return
+                fi
+            fi
+        fi
+        warn "⚠️  Falha ao instalar do NodeSource, tentando método alternativo..."
+    else
+        warn "⚠️  Não foi possível conectar ao NodeSource (problema de rede/DNS)"
+    fi
+    
+    # Método 2: Usar Node.js do repositório padrão (Ubuntu/Debian)
+    log "Tentando instalar Node.js do repositório padrão do sistema..."
+    if sudo apt update && sudo apt install -y nodejs npm 2>&1 | tee /tmp/nodejs-apt-install.log; then
+        if command -v node &> /dev/null; then
+            NODE_VER=$(node --version)
+            log "✅ Node.js instalado do repositório padrão: $NODE_VER"
+            
+            # Verificar versão
+            NODE_MAJOR=$(echo "$NODE_VER" | cut -d'v' -f2 | cut -d'.' -f1)
+            if [[ $NODE_MAJOR -lt 18 ]]; then
+                warn "⚠️  Versão do Node.js ($NODE_VER) é anterior à 18.x"
+                warn "⚠️  Algumas funcionalidades podem não funcionar corretamente"
+                warn "⚠️  Para instalar Node.js 18.x, resolva o problema de rede e execute:"
+                warn "⚠️    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -"
+                warn "⚠️    sudo apt install -y nodejs"
+            else
+                log "✅ Versão adequada do Node.js instalada!"
+            fi
+            
+            if command -v npm &> /dev/null; then
+                log "✅ NPM $(npm --version) instalado com sucesso!"
+            fi
+            return
+        fi
+    fi
+    
+    # Método 3: Usar snap (se disponível)
+    if command -v snap &> /dev/null; then
+        log "Tentando instalar Node.js via Snap..."
+        if sudo snap install node --classic 2>&1 | tee /tmp/nodejs-snap-install.log; then
+            if command -v node &> /dev/null; then
+                log "✅ Node.js $(node --version) instalado via Snap!"
+                if command -v npm &> /dev/null; then
+                    log "✅ NPM $(npm --version) instalado com sucesso!"
+                fi
+                return
+            fi
+        fi
+    fi
+    
+    # Se chegou aqui, todos os métodos falharam
+    error "❌ Falha ao instalar Node.js usando todos os métodos disponíveis"
+    error "❌ Logs de erro salvos em:"
+    error "❌   - /tmp/nodesource-install.log (se aplicável)"
+    error "❌   - /tmp/nodejs-apt-install.log (se aplicável)"
+    error "❌   - /tmp/nodejs-snap-install.log (se aplicável)"
+    error "❌"
+    error "❌ Tente instalar Node.js manualmente:"
+    error "❌   1. Verifique sua conexão de rede"
+    error "❌   2. Execute: curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -"
+    error "❌   3. Execute: sudo apt install -y nodejs"
+    exit 1
 }
 
 # Instalar Docker (opcional)
@@ -683,6 +1083,39 @@ setup_project() {
         detect_project_directory
     fi
     
+    # CORREÇÃO CRÍTICA IMEDIATA: Corrigir ownership e permissões ANTES de qualquer operação
+    # ZIPs extraídos podem ter ownership/permissões incorretos
+    log "Corrigindo ownership e permissões de diretórios e arquivos (correção preventiva)..."
+    
+    # Obter usuário e grupo atual
+    CURRENT_USER="${USER:-$(whoami)}"
+    CURRENT_GROUP="${GROUP:-$(id -gn)}"
+    
+    log "Ajustando ownership para: $CURRENT_USER:$CURRENT_GROUP"
+    
+    # Corrigir ownership e permissões do diretório raiz do projeto primeiro
+    if [[ -d "$SOURCE_DIR" ]]; then
+        # Corrigir ownership para o usuário atual (sem sudo se já for dono, com sudo se necessário)
+        if [[ -O "$SOURCE_DIR" ]]; then
+            # Já é dono, apenas corrigir permissões
+            find "$SOURCE_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
+            find "$SOURCE_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+            find "$SOURCE_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+        else
+            # Precisa de sudo para corrigir ownership
+            log "Ajustando ownership com sudo (pode pedir senha)..."
+            sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$SOURCE_DIR" 2>/dev/null || {
+                warn "⚠️ Não foi possível ajustar ownership (tentando sem sudo)..."
+                # Tentar sem sudo mesmo assim
+                chown -R "$CURRENT_USER:$CURRENT_GROUP" "$SOURCE_DIR" 2>/dev/null || true
+            }
+            find "$SOURCE_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
+            find "$SOURCE_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+            find "$SOURCE_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+        fi
+        log "✅ Ownership e permissões do diretório raiz corrigidas"
+    fi
+    
     # Para single-server, usar diretório de origem diretamente (mais simples e confiável)
     # Para Docker, ainda copiar para /opt/smart-signage (padrão do docker-compose)
     if [[ "$INSTALL_MODE" == "single-server" ]] || [[ "$INSTALL_MODE" == "development" ]]; then
@@ -690,14 +1123,131 @@ setup_project() {
         log "Modo Single-Server: usando diretório de origem diretamente: $INSTALL_DIR"
         log "✅ Não será necessário copiar arquivos - trabalhando diretamente do diretório de origem"
         
+        # Carregar configurações do sistema (mas não sobrescrever INSTALL_DIR)
+        CONFIG_FILE="$INSTALL_DIR/smartsignage-config"
+        local SAVED_INSTALL_DIR="$INSTALL_DIR"
+        if [[ -f "$CONFIG_FILE" ]]; then
+            log "Carregando configurações de: $CONFIG_FILE"
+            if load_system_config "$CONFIG_FILE"; then
+                log "✅ Configurações carregadas com sucesso"
+            else
+                warn "⚠️  Falha ao carregar configurações, usando valores padrão"
+            fi
+        else
+            log "Arquivo de configuração não encontrado, criando padrão..."
+            create_default_config "$CONFIG_FILE" "$INSTALL_DIR"
+            if load_system_config "$CONFIG_FILE"; then
+                log "✅ Configurações padrão carregadas"
+            else
+                warn "⚠️  Falha ao carregar configurações padrão"
+            fi
+        fi
+        # Restaurar INSTALL_DIR (não pode ser sobrescrito pelo config, é determinado pelo modo)
+        INSTALL_DIR="$SAVED_INSTALL_DIR"
+        
+        # Verificar se as variáveis principais foram carregadas (para debug)
+        if [[ -z "${DB_NAME:-}" ]]; then
+            log "⚠️  DB_NAME não encontrado no config, usando padrão: smartsignage"
+        fi
+        if [[ -z "${DB_USER:-}" ]]; then
+            log "⚠️  DB_USER não encontrado no config, usando padrão: smartsignage"
+        fi
+        
+        # CORREÇÃO CRÍTICA IMEDIATA: Corrigir ownership e permissões ANTES de qualquer verificação
+        # ZIPs criados no Windows não preservam ownership/permissões Unix, então corrigimos aqui
+        log "Corrigindo ownership e permissões de diretórios e arquivos (preventivo para ZIPs do Windows)..."
+        
+        # Obter usuário e grupo atual
+        CURRENT_USER="${USER:-$(whoami)}"
+        CURRENT_GROUP="${GROUP:-$(id -gn)}"
+        
+        log "Ajustando ownership para: $CURRENT_USER:$CURRENT_GROUP"
+        
+        # Corrigir ownership e permissões recursivamente
+        if [[ -d "$INSTALL_DIR" ]]; then
+            log "Corrigindo ownership e permissões recursivamente em $INSTALL_DIR..."
+            
+            # Corrigir ownership primeiro
+            if [[ -O "$INSTALL_DIR" ]]; then
+                # Já é dono, apenas corrigir permissões
+                log "Diretório já pertence ao usuário atual"
+            else
+                # Precisa ajustar ownership
+                log "Ajustando ownership com sudo (pode pedir senha)..."
+                sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR" 2>/dev/null || {
+                    warn "⚠️ Não foi possível ajustar ownership (tentando sem sudo)..."
+                    chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR" 2>/dev/null || true
+                }
+            fi
+            
+            # TODOS os diretórios precisam de 755 (rwxr-xr-x) para permitir acesso (cd, ls)
+            find "$INSTALL_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
+            # TODOS os arquivos precisam de 644 (rw-r--r--) para permitir leitura
+            find "$INSTALL_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+            # Scripts .sh precisam de execução
+            find "$INSTALL_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+            log "✅ Ownership e permissões recursivas corrigidas em $INSTALL_DIR"
+        fi
+        
+        # Correção específica e explícita para diretórios críticos
+        if [[ -d "$INSTALL_DIR/frontend/src" ]]; then
+            # Garantir que diretórios possam ser acessados
+            find "$INSTALL_DIR/frontend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
+            find "$INSTALL_DIR/frontend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
+            log "✅ Permissões do frontend/src corrigidas preventivamente"
+        fi
+        if [[ -d "$INSTALL_DIR/backend/src" ]]; then
+            find "$INSTALL_DIR/backend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
+            find "$INSTALL_DIR/backend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
+            log "✅ Permissões do backend/src corrigidas preventivamente"
+        fi
+        
         # Apenas garantir que estamos no diretório correto
-        cd "$INSTALL_DIR"
+        if [[ -d "$INSTALL_DIR" ]]; then
+            cd "$INSTALL_DIR" || {
+                error "❌ Não foi possível entrar no diretório: $INSTALL_DIR"
+                exit 1
+            }
+        else
+            error "❌ Diretório de instalação não existe: $INSTALL_DIR"
+            exit 1
+        fi
     else
         # Modo Docker: copiar para /opt/smart-signage
         INSTALL_DIR="/opt/smart-signage"
         sudo mkdir -p $INSTALL_DIR
         sudo chown $USER:$USER $INSTALL_DIR
         log "Modo Docker: copiando para $INSTALL_DIR"
+        
+        # Carregar configurações do sistema (mas não sobrescrever INSTALL_DIR)
+        CONFIG_FILE="$INSTALL_DIR/smartsignage-config"
+        local SAVED_INSTALL_DIR="$INSTALL_DIR"
+        if [[ -f "$CONFIG_FILE" ]]; then
+            log "Carregando configurações de: $CONFIG_FILE"
+            if load_system_config "$CONFIG_FILE"; then
+                log "✅ Configurações carregadas com sucesso"
+            else
+                warn "⚠️  Falha ao carregar configurações, usando valores padrão"
+            fi
+        else
+            log "Arquivo de configuração não encontrado, criando padrão..."
+            create_default_config "$CONFIG_FILE" "$INSTALL_DIR"
+            if load_system_config "$CONFIG_FILE"; then
+                log "✅ Configurações padrão carregadas"
+            else
+                warn "⚠️  Falha ao carregar configurações padrão"
+            fi
+        fi
+        # Restaurar INSTALL_DIR (não pode ser sobrescrito pelo config, é determinado pelo modo)
+        INSTALL_DIR="$SAVED_INSTALL_DIR"
+        
+        # Verificar se as variáveis principais foram carregadas (para debug)
+        if [[ -z "${DB_NAME:-}" ]]; then
+            log "⚠️  DB_NAME não encontrado no config, usando padrão: smartsignage"
+        fi
+        if [[ -z "${DB_USER:-}" ]]; then
+            log "⚠️  DB_USER não encontrado no config, usando padrão: smartsignage"
+        fi
         
         # Copiar arquivos do projeto (apenas para Docker, Single-Server usa diretório de origem)
         if [[ -d "$SOURCE_DIR/backend" && -d "$SOURCE_DIR/frontend" ]]; then
@@ -716,7 +1266,7 @@ setup_project() {
                 rsync -av --delete "$SOURCE_DIR/frontend/" "$INSTALL_DIR/frontend/"
                 
                 # Copiar outros diretórios importantes
-                [[ -d "$SOURCE_DIR/player" ]] && rsync -av --delete "$SOURCE_DIR/player/" "$INSTALL_DIR/player/"
+                [[ -d "$SOURCE_DIR/player-web" ]] && rsync -av --delete "$SOURCE_DIR/player-web/" "$INSTALL_DIR/player-web/"
                 [[ -d "$SOURCE_DIR/scripts" ]] && rsync -av --delete "$SOURCE_DIR/scripts/" "$INSTALL_DIR/scripts/"
                 [[ -d "$SOURCE_DIR/database" ]] && rsync -av --delete "$SOURCE_DIR/database/" "$INSTALL_DIR/database/"
                 [[ -d "$SOURCE_DIR/docker" ]] && rsync -av --delete "$SOURCE_DIR/docker/" "$INSTALL_DIR/docker/"
@@ -736,11 +1286,20 @@ setup_project() {
                 cp -a "$SOURCE_DIR/frontend" "$INSTALL_DIR/"
                 
                 # Copiar outros diretórios
-                [[ -d "$SOURCE_DIR/player" ]] && cp -a "$SOURCE_DIR/player" "$INSTALL_DIR/"
+                [[ -d "$SOURCE_DIR/player-web" ]] && cp -a "$SOURCE_DIR/player-web" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/scripts" ]] && cp -a "$SOURCE_DIR/scripts" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/database" ]] && rm -rf "$INSTALL_DIR/database" && cp -a "$SOURCE_DIR/database" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/docker" ]] && cp -a "$SOURCE_DIR/docker" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/nginx" ]] && cp -a "$SOURCE_DIR/nginx" "$INSTALL_DIR/"
+                
+                # Copiar players selecionados (se houver seleção)
+                if [[ "$INSTALL_ALL_PLAYERS" == "true" ]] || [[ "$INSTALL_PLAYER_WEBOS" == "true" ]] || \
+                   [[ "$INSTALL_PLAYER_ANDROID" == "true" ]] || [[ "$INSTALL_PLAYER_LINUX_ELECTRON" == "true" ]] || \
+                   [[ "$INSTALL_PLAYER_LINUX_CPP" == "true" ]] || [[ "$INSTALL_PLAYER_WINDOWS_ELECTRON" == "true" ]] || \
+                   [[ "$INSTALL_PLAYER_TIZEN" == "true" ]] || [[ "$INSTALL_PLAYER_SMARTDISPLAYFX" == "true" ]] || \
+                   [[ "$INSTALL_PLAYER_FX_INTERFACE" == "true" ]]; then
+                    copy_selected_players
+                fi
                 
                 log "✅ Cópia recursiva completa com cp -a concluída"
             fi
@@ -794,6 +1353,43 @@ setup_project() {
     
     log "✅ Todos os arquivos essenciais verificados"
     
+    # CORREÇÃO CRÍTICA: Corrigir ownership e permissões de diretórios e arquivos
+    # Diretórios precisam de permissão de execução (x) para serem acessados
+    # Arquivos devem pertencer ao usuário atual
+    log "Corrigindo ownership e permissões de diretórios e arquivos do projeto..."
+    
+    # Obter usuário e grupo atual
+    CURRENT_USER="${USER:-$(whoami)}"
+    CURRENT_GROUP="${GROUP:-$(id -gn)}"
+    
+    # Corrigir ownership e permissões do frontend (mais crítico)
+    if [[ -d "$INSTALL_DIR/frontend/src" ]]; then
+        log "Corrigindo ownership e permissões do frontend/src..."
+        # Corrigir ownership
+        if [[ ! -O "$INSTALL_DIR/frontend/src" ]]; then
+            sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/frontend/src" 2>/dev/null || \
+            chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/frontend/src" 2>/dev/null || true
+        fi
+        # Todos os diretórios precisam de execução (755)
+        find "$INSTALL_DIR/frontend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
+        # Todos os arquivos precisam de leitura (644)
+        find "$INSTALL_DIR/frontend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
+        log "✅ Ownership e permissões do frontend/src corrigidas"
+    fi
+    
+    # Corrigir permissões do backend também
+    if [[ -d "$INSTALL_DIR/backend/src" ]]; then
+        log "Corrigindo ownership e permissões do backend/src..."
+        # Corrigir ownership
+        if [[ ! -O "$INSTALL_DIR/backend/src" ]]; then
+            sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/backend/src" 2>/dev/null || \
+            chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/backend/src" 2>/dev/null || true
+        fi
+        find "$INSTALL_DIR/backend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
+        find "$INSTALL_DIR/backend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
+        log "✅ Ownership e permissões do backend/src corrigidas"
+    fi
+    
     cd $INSTALL_DIR
     log "Projeto configurado em $INSTALL_DIR"
 }
@@ -808,92 +1404,141 @@ install_project_dependencies() {
         return 0
     fi
     
-    # Backend
-    cd $INSTALL_DIR/backend
-    log "Instalando dependências do backend (incluindo dev para build)..."
-    npm install --include=dev
-    
-    # Instalar dependência adicional do sistema de logs (winston-daily-rotate-file)
-    log "Instalando dependência do sistema de logs (winston-daily-rotate-file)..."
-    if npm install winston-daily-rotate-file --save; then
-        log "✅ winston-daily-rotate-file instalado com sucesso"
-    else
-        error "❌ Falha ao instalar winston-daily-rotate-file"
-        error "💡 Tentando novamente sem --save..."
-        if npm install winston-daily-rotate-file; then
-            log "✅ winston-daily-rotate-file instalado com sucesso (sem --save)"
+    # Backend (pode ser pulado em modos especiais)
+    if [[ "$SKIP_BACKEND_DEPS_BUILD" != "true" ]]; then
+        cd $INSTALL_DIR/backend
+        log "Instalando dependências do backend (incluindo dev para build)..."
+        npm install --include=dev
+        
+        # Instalar dependência adicional do sistema de logs (winston-daily-rotate-file)
+        log "Instalando dependência do sistema de logs (winston-daily-rotate-file)..."
+        if npm install winston-daily-rotate-file --save; then
+            log "✅ winston-daily-rotate-file instalado com sucesso"
         else
-            error "❌ Falha crítica ao instalar winston-daily-rotate-file"
+            error "❌ Falha ao instalar winston-daily-rotate-file"
+            error "💡 Tentando novamente sem --save..."
+            if npm install winston-daily-rotate-file; then
+                log "✅ winston-daily-rotate-file instalado com sucesso (sem --save)"
+            else
+                error "❌ Falha crítica ao instalar winston-daily-rotate-file"
+                exit 1
+            fi
+        fi
+        
+        # Verificar se foi instalado corretamente
+        if npm list winston-daily-rotate-file >/dev/null 2>&1; then
+            log "✅ winston-daily-rotate-file verificado no package.json"
+        else
+            warn "⚠️ winston-daily-rotate-file pode não estar no package.json (continuando...)"
+        fi
+        
+        # CORREÇÃO CRÍTICA: Garantir que binários do npm tenham permissão de execução
+        # ZIPs do Windows podem não preservar permissões de executáveis
+        log "Corrigindo permissões de binários do npm (node_modules/.bin/)..."
+        if [[ -d "node_modules/.bin" ]]; then
+            # Corrigir permissões de TODOS os arquivos em node_modules/.bin
+            find node_modules/.bin -type f -exec chmod +x {} \; 2>/dev/null || true
+            
+            # Verificar especificamente o tsc
+            if [[ -f "node_modules/.bin/tsc" ]]; then
+                chmod +x node_modules/.bin/tsc 2>/dev/null || true
+                log "✅ Permissão do tsc corrigida explicitamente"
+            fi
+            
+            # Verificar se o tsc tem permissão de execução
+            if [[ -x "node_modules/.bin/tsc" ]]; then
+                log "✅ Permissões de binários do npm corrigidas (tsc, etc.)"
+            else
+                warn "⚠️ tsc ainda não tem permissão de execução - tentando correção alternativa..."
+                # Tentar usar npx como alternativa
+                if command -v npx &> /dev/null; then
+                    log "Usando npx para executar tsc (bypass de permissões)..."
+                fi
+            fi
+        else
+            warn "⚠️ Diretório node_modules/.bin não encontrado"
+        fi
+        
+        # Compilar TypeScript do backend
+        log "Compilando TypeScript do backend..."
+        
+        # Limpar build anterior para garantir compilação limpa
+        if [[ -d "dist" ]]; then
+            log "Limpando build anterior..."
+            rm -rf dist/*
+        fi
+        
+        # Tentar compilar usando npx para garantir que funcione mesmo com problemas de permissão
+        if [[ -x "node_modules/.bin/tsc" ]] || command -v npx &> /dev/null; then
+            # Usar npx para garantir execução correta
+            if npx tsc -p tsconfig.json 2>&1; then
+                BUILD_SUCCESS=true
+            else
+                BUILD_SUCCESS=false
+            fi
+        else
+            # Fallback para npm run build
+            if npm run build 2>&1; then
+                BUILD_SUCCESS=true
+            else
+                BUILD_SUCCESS=false
+            fi
+        fi
+        
+        if [[ "$BUILD_SUCCESS" == "true" ]]; then
+            log "✅ Backend compilado com sucesso!"
+            
+            # Verificar se arquivos críticos foram compilados
+            if [[ ! -f "dist/services/authService.js" ]]; then
+                error "❌ Arquivo authService.js não foi compilado!"
+                exit 1
+            fi
+            
+            if [[ ! -f "dist/config/database.js" ]]; then
+                error "❌ Arquivo database.js não foi compilado!"
+                exit 1
+            fi
+            
+            log "✅ Arquivos compilados verificados (authService.js, database.js)"
+            
+            # Sincronizar build compilado com diretório de deploy (single-server / development)
+            if [[ "$INSTALL_MODE" == "single-server" ]] || [[ "$INSTALL_MODE" == "development" ]]; then
+                local backend_dist_dir="$(pwd)/dist"
+                local backend_deploy_dir="/opt/smart-signage/backend"
+                
+                log "Sincronizando build do backend para $backend_deploy_dir..."
+                sudo mkdir -p "$backend_deploy_dir/dist"
+                sudo rsync -a --delete "$backend_dist_dir/" "$backend_deploy_dir/dist/" || {
+                    error "❌ Falha ao copiar build do backend para $backend_deploy_dir/dist"
+                    exit 1
+                }
+                sudo rsync -a "$(pwd)/package.json" "$backend_deploy_dir/" || {
+                    error "❌ Falha ao atualizar package.json em $backend_deploy_dir"
+                    exit 1
+                }
+                sudo chmod -R 755 "$backend_deploy_dir/dist" 2>/dev/null || true
+                log "✅ Build do backend sincronizado em $backend_deploy_dir"
+            fi
+            
+            # Verificar se o serviço systemd existe e reiniciar se necessário
+            if [[ -f "/etc/systemd/system/smart-signage.service" ]] && systemctl is-active --quiet smart-signage 2>/dev/null; then
+                log "Serviço systemd ativo detectado - reiniciando para aplicar mudanças..."
+                sudo systemctl restart smart-signage || warn "⚠️ Não foi possível reiniciar o serviço (será reiniciado após a instalação)"
+                sleep 3
+                log "✅ Serviço reiniciado"
+            fi
+        else
+            error "❌ Erro ao compilar backend TypeScript"
+            error "Verifique os erros de compilação acima"
             exit 1
         fi
-    fi
-    
-    # Verificar se foi instalado corretamente
-    if npm list winston-daily-rotate-file >/dev/null 2>&1; then
-        log "✅ winston-daily-rotate-file verificado no package.json"
     else
-        warn "⚠️ winston-daily-rotate-file pode não estar no package.json (continuando...)"
+        log "ℹ️  Modo especial: pulando instalação/compilação do backend (SKIP_BACKEND_DEPS_BUILD=true)"
     fi
     
-    # Compilar TypeScript do backend
-    log "Compilando TypeScript do backend..."
-    
-    # Limpar build anterior para garantir compilação limpa
-    if [[ -d "dist" ]]; then
-        log "Limpando build anterior..."
-        rm -rf dist/*
-    fi
-    
-    if npm run build; then
-        log "✅ Backend compilado com sucesso!"
-        
-        # Verificar se arquivos críticos foram compilados
-        if [[ ! -f "dist/services/authService.js" ]]; then
-            error "❌ Arquivo authService.js não foi compilado!"
-            exit 1
-        fi
-        
-        if [[ ! -f "dist/config/database.js" ]]; then
-            error "❌ Arquivo database.js não foi compilado!"
-            exit 1
-        fi
-        
-        log "✅ Arquivos compilados verificados (authService.js, database.js)"
-
-        # Sincronizar build compilado com diretório de deploy (single-server / development)
+    # Frontend - sempre compilar para single-server também (pode ser pulado em modos especiais)
+    if [[ "$SKIP_FRONTEND_DEPS_BUILD" != "true" ]]; then
         if [[ "$INSTALL_MODE" == "single-server" ]] || [[ "$INSTALL_MODE" == "development" ]]; then
-            local backend_dist_dir="$(pwd)/dist"
-            local backend_deploy_dir="/opt/smart-signage/backend"
-
-            log "Sincronizando build do backend para $backend_deploy_dir..."
-            sudo mkdir -p "$backend_deploy_dir/dist"
-            sudo rsync -a --delete "$backend_dist_dir/" "$backend_deploy_dir/dist/" || {
-                error "❌ Falha ao copiar build do backend para $backend_deploy_dir/dist"
-                exit 1
-            }
-            sudo rsync -a "$(pwd)/package.json" "$backend_deploy_dir/" || {
-                error "❌ Falha ao atualizar package.json em $backend_deploy_dir"
-                exit 1
-            }
-            sudo chmod -R 755 "$backend_deploy_dir/dist" 2>/dev/null || true
-            log "✅ Build do backend sincronizado em $backend_deploy_dir"
-        fi
-        
-        # Verificar se o serviço systemd existe e reiniciar se necessário
-        if [[ -f "/etc/systemd/system/smart-signage.service" ]] && systemctl is-active --quiet smart-signage 2>/dev/null; then
-            log "Serviço systemd ativo detectado - reiniciando para aplicar mudanças..."
-            sudo systemctl restart smart-signage || warn "⚠️ Não foi possível reiniciar o serviço (será reiniciado após a instalação)"
-            sleep 3
-            log "✅ Serviço reiniciado"
-        fi
-    else
-        error "❌ Erro ao compilar backend TypeScript"
-        error "Verifique os erros de compilação acima"
-        exit 1
-    fi
-    
-    # Frontend - sempre compilar para single-server também
-    if [[ "$INSTALL_MODE" == "single-server" ]] || [[ "$INSTALL_MODE" == "development" ]]; then
         cd $INSTALL_DIR/frontend || {
             error "❌ Não foi possível entrar no diretório $INSTALL_DIR/frontend"
             exit 1
@@ -1677,26 +2322,12 @@ PYTHON_FINAL_FIX_EOF
         grep -A 3 '"resolutions"' package.json 2>/dev/null || true
         grep -A 2 '"ajv"' package.json 2>/dev/null | head -5 || true
         
-        # Instalar ajv e ajv-keywords explicitamente primeiro para resolver conflitos
-        # Usar versões compatíveis: ajv@^8.12.0 e ajv-keywords@^3.5.2 (compatível com react-scripts 5.0.1)
-        log "Instalando ajv@^8.12.0 e ajv-keywords@^3.5.2 explicitamente ANTES de outras dependências..."
-        if ! npm install ajv@^8.12.0 ajv-keywords@^3.5.2 --legacy-peer-deps --save-dev --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-ajv.log; then
-            error "Falha ao instalar ajv e ajv-keywords"
-            error "Log completo:"
-            cat /tmp/npm-install-ajv.log
-            exit 1
-        fi
-        
-        # Verificar se foi instalado corretamente
-        AJV_INSTALLED=$(npm list ajv --depth=0 2>/dev/null | grep ajv@ | head -1 || echo "")
-        if [[ -n "$AJV_INSTALLED" ]]; then
-            log "✅ ajv instalado: $AJV_INSTALLED"
-            if echo "$AJV_INSTALLED" | grep -q "8.17.1"; then
-                error "❌ Versão incorreta do ajv instalada (8.17.1)!"
-                error "Tentando forçar instalação de 8.12.0..."
-                npm install ajv@8.12.0 --legacy-peer-deps --save-dev --no-audit --no-fund --force 2>&1 | tail -20 || true
-            fi
-        fi
+        # NOTA: Não instalar ajv explicitamente aqui porque:
+        # 1. O ajv já está no package.json como dependência direta em devDependencies
+        # 2. O override já está configurado corretamente
+        # 3. Instalar explicitamente causa conflito: "Override for ajv@8.12.0 conflicts with direct dependency"
+        # 4. O npm vai instalar o ajv automaticamente quando instalar todas as dependências
+        log "✅ ajv já está configurado no package.json (devDependencies e overrides) - será instalado automaticamente"
         
         # Verificar se há dependências transitivas que podem estar forçando ajv@8.17.1
         log "Verificando dependências transitivas que podem estar forçando ajv@8.17.1..."
@@ -1928,6 +2559,49 @@ PYTHON_ADD_OVERRIDE_EOF
             log "✅ Importação em index.tsx está correta (sem extensão)"
         fi
         
+        # CORREÇÃO CRÍTICA: Corrigir permissões de diretórios e arquivos
+        # Diretórios precisam de permissão de execução (x) para serem acessados
+        log "Corrigindo permissões de diretórios e arquivos do frontend..."
+        
+        # Corrigir permissões de todos os diretórios (precisam de execução)
+        find src -type d -exec chmod 755 {} \; 2>/dev/null || true
+        log "✅ Permissões de diretórios corrigidas (755)"
+        
+        # Corrigir permissões de todos os arquivos
+        find src -type f -exec chmod 644 {} \; 2>/dev/null || true
+        log "✅ Permissões de arquivos corrigidas (644)"
+        
+        # Verificar se os diretórios principais estão acessíveis
+        if [[ ! -r "src/components" ]] || [[ ! -x "src/components" ]]; then
+            log "Corrigindo permissões do diretório components..."
+            chmod 755 src/components 2>/dev/null || true
+            find src/components -type d -exec chmod 755 {} \; 2>/dev/null || true
+            find src/components -type f -exec chmod 644 {} \; 2>/dev/null || true
+        fi
+        
+        if [[ ! -r "src/pages" ]] || [[ ! -x "src/pages" ]]; then
+            log "Corrigindo permissões do diretório pages..."
+            chmod 755 src/pages 2>/dev/null || true
+            find src/pages -type d -exec chmod 755 {} \; 2>/dev/null || true
+            find src/pages -type f -exec chmod 644 {} \; 2>/dev/null || true
+        fi
+        
+        log "✅ Permissões corrigidas - diretórios acessíveis"
+        
+        # Aplicar patches de dependências se existirem
+        if [[ -d "patches" ]] && [[ -n "$(ls -A patches/*.patch 2>/dev/null)" ]]; then
+            log "Aplicando patches de dependências..."
+            if command -v npx &> /dev/null; then
+                if npx patch-package 2>&1; then
+                    log "✅ Patches aplicados com sucesso"
+                else
+                    warn "⚠️  Alguns patches falharam, mas continuando..."
+                fi
+            else
+                warn "⚠️  npx não encontrado, pulando aplicação de patches"
+            fi
+        fi
+        
         log "Compilando frontend..."
         npm run build
         
@@ -1939,6 +2613,9 @@ PYTHON_ADD_OVERRIDE_EOF
             log "Verificando logs de erro..."
             exit 1
         fi
+        fi
+    else
+        log "ℹ️  Modo especial: pulando instalação/compilação do frontend (SKIP_FRONTEND_DEPS_BUILD=true)"
     fi
     
     log "Dependências do projeto instaladas!"
@@ -1972,12 +2649,31 @@ setup_database() {
         log "Instalando e configurando PostgreSQL (servidor único)..."
         
         # Instalar PostgreSQL se não estiver instalado
+        local PG_WAS_INSTALLED=false
         if ! command -v psql &> /dev/null; then
-            log "Instalando PostgreSQL..."
+            log "PostgreSQL não encontrado, instalando servidor completo..."
             sudo apt-get update -y
             sudo apt-get install -y postgresql postgresql-contrib
+            PG_WAS_INSTALLED=true
+            log "✅ PostgreSQL instalado com sucesso"
         else
-            log "PostgreSQL já está instalado: $(psql --version)"
+            log "PostgreSQL cliente já está instalado: $(psql --version)"
+            
+            # Verificar se o servidor PostgreSQL está instalado (não apenas o cliente)
+            local PG_SERVER_INSTALLED=false
+            if dpkg -l | grep -qE "^ii.*postgresql-[0-9]+ "; then
+                PG_SERVER_INSTALLED=true
+                log "✅ Servidor PostgreSQL detectado"
+            elif command -v pg_createcluster &> /dev/null || command -v initdb &> /dev/null; then
+                PG_SERVER_INSTALLED=true
+                log "✅ Ferramentas do servidor PostgreSQL detectadas"
+            else
+                log "⚠️  Apenas o cliente PostgreSQL está instalado, instalando servidor completo..."
+                sudo apt-get update -y
+                sudo apt-get install -y postgresql postgresql-contrib
+                PG_WAS_INSTALLED=true
+                log "✅ Servidor PostgreSQL instalado"
+            fi
         fi
         
         # Instalar ffmpeg para processamento de vídeo (thumbnails)
@@ -1989,51 +2685,402 @@ setup_database() {
             log "ffmpeg já está instalado: $(ffmpeg -version | head -1)"
         fi
 
-        # Garantir serviço ativo
-        sudo systemctl enable postgresql
-        if ! systemctl is-active --quiet postgresql; then
-            log "Iniciando PostgreSQL..."
-            sudo systemctl start postgresql
-            sleep 5  # Aguardar PostgreSQL iniciar
+        # No Ubuntu/Debian, usar pg_lsclusters para detectar clusters existentes
+        # Detectar versão do PostgreSQL instalada
+        local PG_VERSION=$(psql --version 2>/dev/null | grep -oE "[0-9]+\.[0-9]+" | head -1 | cut -d. -f1)
+        if [[ -z "$PG_VERSION" ]]; then
+            # Tentar detectar de outra forma
+            PG_VERSION=$(dpkg -l | grep -E "^ii.*postgresql-[0-9]+" | head -1 | grep -oE "[0-9]+" | head -1)
+        fi
+        
+        if [[ -n "$PG_VERSION" ]]; then
+            log "Versão PostgreSQL detectada: $PG_VERSION"
+            
+            # Verificar clusters existentes usando pg_lsclusters (método correto no Ubuntu/Debian)
+            local PG_CLUSTER_EXISTS=false
+            local PG_CLUSTER_STATUS=""
+            local PG_CLUSTER_DIR=""
+            
+            if command -v pg_lsclusters &> /dev/null; then
+                log "Verificando clusters PostgreSQL existentes..."
+                # pg_lsclusters retorna: Ver Cluster Port Status Owner Data directory Log file
+                local cluster_info=$(sudo pg_lsclusters 2>/dev/null | grep -E "^[[:space:]]*${PG_VERSION}[[:space:]]+main" || echo "")
+                if [[ -n "$cluster_info" ]]; then
+                    PG_CLUSTER_STATUS=$(echo "$cluster_info" | awk '{print $4}')  # Status (down, online, etc)
+                    PG_CLUSTER_DIR=$(echo "$cluster_info" | awk '{print $6}')     # Data directory
+                    log "Cluster PostgreSQL ${PG_VERSION} main encontrado:"
+                    log "  Status: $PG_CLUSTER_STATUS"
+                    log "  Diretório: $PG_CLUSTER_DIR"
+                    
+                    if [[ "$PG_CLUSTER_STATUS" == "online" ]] || [[ "$PG_CLUSTER_STATUS" == "down" ]]; then
+                        PG_CLUSTER_EXISTS=true
+                        log "✅ Cluster PostgreSQL ${PG_VERSION} main já existe"
+                        
+                        # Se está down, tentar iniciar usando pg_ctlcluster (método correto no Ubuntu/Debian)
+                        if [[ "$PG_CLUSTER_STATUS" == "down" ]]; then
+                            log "Cluster está parado (down), tentando iniciar usando pg_ctlcluster..."
+                            if sudo pg_ctlcluster ${PG_VERSION} main start 2>&1; then
+                                sleep 3
+                                # Verificar se iniciou
+                                local new_status=$(sudo pg_lsclusters 2>/dev/null | grep -E "^[[:space:]]*${PG_VERSION}[[:space:]]+main" | awk '{print $4}' || echo "")
+                                if [[ "$new_status" == "online" ]]; then
+                                    log "✅ Cluster iniciado com sucesso (status: online)"
+                                else
+                                    warn "⚠️  Cluster pode não ter iniciado corretamente (status: $new_status)"
+                                    log "Verificando logs do cluster..."
+                                    local log_file="/var/log/postgresql/postgresql-${PG_VERSION}-main.log"
+                                    if [[ -f "$log_file" ]]; then
+                                        log "Últimas linhas do log:"
+                                        sudo tail -30 "$log_file" 2>/dev/null | while IFS= read -r line; do
+                                            log "  $line"
+                                        done
+                                    fi
+                                    # Tentar verificar logs do systemd também
+                                    if systemctl list-unit-files | grep -qE "postgresql@${PG_VERSION}-main"; then
+                                        log "Logs do systemd:"
+                                        sudo journalctl -u "postgresql@${PG_VERSION}-main" --no-pager -n 20 2>&1 | while IFS= read -r line; do
+                                            log "  $line"
+                                        done
+                                    fi
+                                fi
+                            else
+                                error "❌ Falha ao iniciar cluster PostgreSQL usando pg_ctlcluster"
+                                error "Tente manualmente: sudo pg_ctlcluster ${PG_VERSION} main start"
+                                error "Ou verifique os logs: sudo journalctl -u postgresql@${PG_VERSION}-main -n 50"
+                            fi
+                        elif [[ "$PG_CLUSTER_STATUS" == "online" ]]; then
+                            log "✅ Cluster já está online e funcionando"
+                        fi
+                    fi
+                else
+                    log "Nenhum cluster PostgreSQL ${PG_VERSION} main encontrado via pg_lsclusters"
+                fi
+            else
+                # Fallback: verificar diretório diretamente (método antigo, se pg_lsclusters não disponível)
+                log "pg_lsclusters não disponível, usando método de detecção alternativo..."
+                local PG_CLUSTER_DIR="/var/lib/postgresql/${PG_VERSION}/main"
+                
+                # Verificar se PostgreSQL está rodando (melhor indicador de que o cluster existe e está funcionando)
+                if systemctl is-active --quiet postgresql || systemctl is-active --quiet "postgresql@${PG_VERSION}-main" 2>/dev/null; then
+                    log "✅ PostgreSQL está rodando - cluster já existe e está ativo"
+                    PG_CLUSTER_EXISTS=true
+                # Verificar se cluster já existe e está inicializado
+                elif [[ -d "$PG_CLUSTER_DIR" ]] && [[ -f "$PG_CLUSTER_DIR/PG_VERSION" ]]; then
+                    # Verificar se o cluster está realmente inicializado (tem arquivos de dados)
+                    if [[ -f "$PG_CLUSTER_DIR/postgresql.conf" ]] || [[ -f "$PG_CLUSTER_DIR/postmaster.pid" ]] || [[ -n "$(ls -A "$PG_CLUSTER_DIR" 2>/dev/null | grep -v '^\.$' | grep -v '^\.\.$')" ]]; then
+                        log "✅ Cluster PostgreSQL ${PG_VERSION} já existe e está inicializado em $PG_CLUSTER_DIR"
+                        PG_CLUSTER_EXISTS=true
+                    else
+                        log "⚠️  Diretório do cluster existe mas parece vazio ou incompleto"
+                    fi
+                fi
+            fi
+            
+            if [[ "$PG_CLUSTER_EXISTS" != "true" ]]; then
+                log "Cluster PostgreSQL ${PG_VERSION} não encontrado ou não funcional, inicializando..."
+                
+                # No Ubuntu, usar pg_createcluster se disponível
+                local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+                ensure_postgres_system_user
+                if command -v pg_createcluster &> /dev/null; then
+                    log "Criando cluster PostgreSQL usando pg_createcluster..."
+                    if sudo -u "$POSTGRES_USER" pg_createcluster ${PG_VERSION} main --start 2>&1; then
+                        log "✅ Cluster criado e iniciado com sucesso"
+                        PG_CLUSTER_EXISTS=true
+                    else
+                        log "⚠️  pg_createcluster falhou, tentando método alternativo..."
+                    fi
+                fi
+                
+                # Se pg_createcluster não funcionou, tentar initdb diretamente
+                if [[ "$PG_CLUSTER_EXISTS" != "true" ]]; then
+                    # Verificar/criar usuário postgres do sistema
+                    local postgres_user=$(get_postgres_user)
+                    
+                    if [[ ! -d "$PG_CLUSTER_DIR" ]]; then
+                        log "Criando diretório do cluster: $PG_CLUSTER_DIR"
+                        sudo mkdir -p "$PG_CLUSTER_DIR"
+                        sudo chown "$postgres_user:$postgres_user" "$PG_CLUSTER_DIR"
+                        sudo chmod 700 "$PG_CLUSTER_DIR"
+                    else
+                        # Diretório existe - verificar se está vazio ou se já é um cluster
+                        local dir_content=$(ls -A "$PG_CLUSTER_DIR" 2>/dev/null | wc -l)
+                        if [[ "$dir_content" -gt 2 ]]; then
+                            # Diretório não está vazio - pode ser um cluster parcial ou corrompido
+                            if [[ -f "$PG_CLUSTER_DIR/PG_VERSION" ]] || [[ -f "$PG_CLUSTER_DIR/postgresql.conf" ]]; then
+                                log "⚠️  Diretório do cluster existe e parece ter conteúdo, mas PostgreSQL não está rodando"
+                                log "⚠️  Tentando iniciar o serviço PostgreSQL..."
+                                if sudo systemctl start postgresql 2>/dev/null || sudo systemctl start "postgresql@${PG_VERSION}-main" 2>/dev/null; then
+                                    sleep 3
+                                    if systemctl is-active --quiet postgresql || systemctl is-active --quiet "postgresql@${PG_VERSION}-main" 2>/dev/null; then
+                                        log "✅ PostgreSQL iniciado com sucesso"
+                                        PG_CLUSTER_EXISTS=true
+                                    else
+                                        error "❌ PostgreSQL não conseguiu iniciar - cluster pode estar corrompido"
+                                        error "   Considere remover o diretório $PG_CLUSTER_DIR e tentar novamente"
+                                        error "   OU corrija manualmente o cluster existente"
+                                    fi
+                                else
+                                    error "❌ Não foi possível iniciar PostgreSQL"
+                                    error "   O diretório $PG_CLUSTER_DIR existe mas não está vazio"
+                                    error "   Se você quer recriar o cluster, remova este diretório primeiro"
+                                fi
+                            else
+                                error "❌ Diretório $PG_CLUSTER_DIR existe mas não parece ser um cluster PostgreSQL válido"
+                                error "   Conteúdo encontrado: $dir_content itens"
+                                error "   Se você quer criar um novo cluster, remova este diretório primeiro:"
+                                error "   sudo rm -rf $PG_CLUSTER_DIR"
+                            fi
+                        else
+                            # Diretório está vazio ou quase vazio - OK para inicializar
+                            log "Diretório do cluster existe mas está vazio, prosseguindo com inicialização..."
+                        fi
+                        
+                        # Verificar/corrigir permissões
+                        local current_owner=$(stat -c '%U:%G' "$PG_CLUSTER_DIR" 2>/dev/null || echo "")
+                        if [[ "$current_owner" != "$postgres_user:$postgres_user" ]]; then
+                            log "Corrigindo permissões do diretório do cluster para $postgres_user:$postgres_user..."
+                            sudo chown -R "$postgres_user:$postgres_user" "$PG_CLUSTER_DIR" 2>/dev/null || true
+                            sudo chmod 700 "$PG_CLUSTER_DIR" 2>/dev/null || true
+                        fi
+                    fi
+                    
+                    # Encontrar initdb (procurar em vários locais possíveis)
+                    local INITDB_PATH=""
+                    local possible_paths=(
+                        "/usr/lib/postgresql/${PG_VERSION}/bin/initdb"
+                        "/usr/local/pgsql/bin/initdb"
+                        "/usr/bin/initdb"
+                        "/usr/local/bin/initdb"
+                        "$(which initdb 2>/dev/null || echo '')"
+                    )
+                    
+                    for path in "${possible_paths[@]}"; do
+                        if [[ -n "$path" ]] && [[ -f "$path" ]] && [[ -x "$path" ]]; then
+                            INITDB_PATH="$path"
+                            log "initdb encontrado em: $INITDB_PATH"
+                            break
+                        fi
+                    done
+                    
+                    if [[ -n "$INITDB_PATH" ]]; then
+                        log "Inicializando cluster usando $INITDB_PATH..."
+                        local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+                        ensure_postgres_system_user
+                        
+                        # Garantir que o diretório do cluster tem as permissões corretas
+                        if [[ -d "$PG_CLUSTER_DIR" ]]; then
+                            local current_owner=$(stat -c '%U:%G' "$PG_CLUSTER_DIR" 2>/dev/null || echo "")
+                            if [[ "$current_owner" != "$POSTGRES_USER:$POSTGRES_USER" ]]; then
+                                log "Corrigindo permissões do diretório do cluster para $POSTGRES_USER:$POSTGRES_USER..."
+                                sudo chown -R "$POSTGRES_USER:$POSTGRES_USER" "$PG_CLUSTER_DIR" 2>/dev/null || true
+                                sudo chmod 700 "$PG_CLUSTER_DIR" 2>/dev/null || true
+                            fi
+                        fi
+                        
+                        # Só tentar inicializar se o cluster ainda não existe
+                        if [[ "$PG_CLUSTER_EXISTS" != "true" ]]; then
+                            # Verificar se o diretório está realmente vazio antes de inicializar
+                            local dir_content=$(ls -A "$PG_CLUSTER_DIR" 2>/dev/null | wc -l)
+                            if [[ "$dir_content" -le 2 ]]; then
+                                if sudo -u "$POSTGRES_USER" "$INITDB_PATH" -D "$PG_CLUSTER_DIR" 2>&1; then
+                                    log "✅ Cluster inicializado com sucesso"
+                                    PG_CLUSTER_EXISTS=true
+                                else
+                                    error "❌ Falha ao inicializar cluster PostgreSQL"
+                                    error "   Verifique as permissões do diretório: $PG_CLUSTER_DIR"
+                                    error "   O diretório deve pertencer a $POSTGRES_USER:$POSTGRES_USER"
+                                    error "   Se o diretório não está vazio, remova-o primeiro: sudo rm -rf $PG_CLUSTER_DIR"
+                                fi
+                            else
+                                error "❌ Não é possível inicializar: diretório $PG_CLUSTER_DIR não está vazio ($dir_content itens)"
+                                error "   Remova o diretório primeiro se quiser recriar o cluster:"
+                                error "   sudo rm -rf $PG_CLUSTER_DIR"
+                            fi
+                        fi
+                    else
+                        error "❌ initdb não encontrado para PostgreSQL ${PG_VERSION}"
+                        error "   Procurado em: ${possible_paths[*]}"
+                        log "Tentando instalar pacote postgresql-${PG_VERSION} automaticamente..."
+                        if sudo apt-get update -y && sudo apt-get install -y "postgresql-${PG_VERSION}" postgresql-contrib; then
+                            log "✅ Pacote postgresql-${PG_VERSION} instalado"
+                            # Tentar novamente encontrar initdb
+                            INITDB_PATH=""
+                            for path in "${possible_paths[@]}"; do
+                                if [[ -n "$path" ]] && [[ -f "$path" ]] && [[ -x "$path" ]]; then
+                                    INITDB_PATH="$path"
+                                    log "initdb encontrado após instalação: $INITDB_PATH"
+                                    break
+                                fi
+                            done
+                            
+                            if [[ -n "$INITDB_PATH" ]]; then
+                                log "Inicializando cluster usando $INITDB_PATH..."
+                                local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+                                ensure_postgres_system_user
+                                
+                                # Garantir que o diretório do cluster tem as permissões corretas
+                                if [[ -d "$PG_CLUSTER_DIR" ]]; then
+                                    local current_owner=$(stat -c '%U:%G' "$PG_CLUSTER_DIR" 2>/dev/null || echo "")
+                                    if [[ "$current_owner" != "$POSTGRES_USER:$POSTGRES_USER" ]]; then
+                                        log "Corrigindo permissões do diretório do cluster para $POSTGRES_USER:$POSTGRES_USER..."
+                                        sudo chown -R "$POSTGRES_USER:$POSTGRES_USER" "$PG_CLUSTER_DIR" 2>/dev/null || true
+                                        sudo chmod 700 "$PG_CLUSTER_DIR" 2>/dev/null || true
+                                    fi
+                                fi
+                                
+                                if sudo -u "$POSTGRES_USER" "$INITDB_PATH" -D "$PG_CLUSTER_DIR" 2>&1; then
+                                    log "✅ Cluster inicializado com sucesso"
+                                    PG_CLUSTER_EXISTS=true
+                                else
+                                    error "❌ Falha ao inicializar cluster PostgreSQL mesmo após instalar pacote"
+                                fi
+                            else
+                                error "❌ initdb ainda não encontrado mesmo após instalar postgresql-${PG_VERSION}"
+                            fi
+                        else
+                            error "❌ Falha ao instalar pacote postgresql-${PG_VERSION}"
+                        fi
+                    fi
+                fi
+            fi
         else
-            log "PostgreSQL já está rodando"
+            log "⚠️  Não foi possível detectar versão do PostgreSQL"
+        fi
+        
+        # Se foi instalado agora, aguardar um pouco para o systemd reconhecer
+        if [[ "$PG_WAS_INSTALLED" == "true" ]]; then
+            log "Aguardando systemd reconhecer serviços PostgreSQL..."
+            sleep 2
+            sudo systemctl daemon-reload
+        fi
+        
+        # Detectar qual serviço PostgreSQL está disponível
+        local PG_SERVICE=""
+        if systemctl list-unit-files | grep -q "^postgresql.service"; then
+            PG_SERVICE="postgresql"
+        elif [[ -n "$PG_VERSION" ]] && systemctl list-unit-files | grep -qE "^postgresql@${PG_VERSION}-main.service"; then
+            PG_SERVICE="postgresql@${PG_VERSION}-main"
+        elif systemctl list-unit-files | grep -qE "^postgresql@[0-9]+-main.service"; then
+            # Pegar a primeira versão encontrada
+            PG_SERVICE=$(systemctl list-unit-files | grep -oE "^postgresql@[0-9]+-main" | head -1)
+        fi
+        
+        # Habilitar e iniciar serviço se encontrado
+        if [[ -n "$PG_SERVICE" ]]; then
+            log "Serviço PostgreSQL detectado: $PG_SERVICE"
+            sudo systemctl enable "$PG_SERVICE" 2>/dev/null || true
+            
+            if ! systemctl is-active --quiet "$PG_SERVICE"; then
+                log "Iniciando PostgreSQL ($PG_SERVICE)..."
+                if sudo systemctl start "$PG_SERVICE" 2>&1; then
+                    sleep 3
+                    if systemctl is-active --quiet "$PG_SERVICE"; then
+                        log "✅ PostgreSQL ($PG_SERVICE) iniciado com sucesso"
+                    else
+                        error "❌ PostgreSQL ($PG_SERVICE) não iniciou"
+                        log "Verificando logs:"
+                        sudo journalctl -u "$PG_SERVICE" --no-pager -n 20 2>&1 | head -20 | while IFS= read -r line; do
+                            log "  $line"
+                        done
+                    fi
+                fi
+            else
+                log "PostgreSQL ($PG_SERVICE) já está rodando"
+            fi
+        else
+            log "⚠️  Não foi possível detectar serviço PostgreSQL automaticamente"
+        fi
+        
+        # Verificar se PostgreSQL está respondendo
+        local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+        ensure_postgres_system_user
+        if sudo -u "$POSTGRES_USER" psql -c "SELECT 1" > /dev/null 2>&1; then
+            log "✅ PostgreSQL está respondendo corretamente"
+            
+            # Alterar senha do usuário postgres SOMENTE em condições seguras:
+            # 1) Quando PostgreSQL foi instalado AGORA por este script (PG_WAS_INSTALLED=true)
+            # 2) Quando o operador definir explicitamente FORCE_CHANGE_POSTGRES_PASSWORD=true
+            if [[ "$PG_WAS_INSTALLED" == "true" ]] || [[ "${FORCE_CHANGE_POSTGRES_PASSWORD}" == "true" ]]; then
+                change_postgres_password
+            else
+                log "ℹ️  Senha do usuário 'postgres' NÃO será alterada (instalação pré-existente e FORCE_CHANGE_POSTGRES_PASSWORD=false)"
+            fi
+        else
+            error "❌ PostgreSQL não está respondendo"
+            error "Diagnóstico:"
+            
+            # Verificar status do serviço
+            if [[ -n "$PG_SERVICE" ]]; then
+                local service_status=$(systemctl is-active "$PG_SERVICE" 2>&1 || echo "unknown")
+                log "  Status do serviço $PG_SERVICE: $service_status"
+                
+                if [[ "$service_status" != "active" ]]; then
+                    log "  Últimos logs do serviço:"
+                    sudo journalctl -u "$PG_SERVICE" --no-pager -n 15 2>&1 | while IFS= read -r line; do
+                        log "    $line"
+                    done
+                fi
+            fi
+            
+            # Verificar se o cluster existe
+            if [[ -n "$PG_VERSION" ]]; then
+                local cluster_dir="/var/lib/postgresql/${PG_VERSION}/main"
+                if [[ -d "$cluster_dir" ]]; then
+                    log "  Cluster encontrado em: $cluster_dir"
+                    local cluster_perms=$(ls -ld "$cluster_dir" 2>/dev/null | awk '{print $1, $3, $4}')
+                    log "  Permissões: $cluster_perms"
+                else
+                    error "  ❌ Cluster não encontrado em: $cluster_dir"
+                fi
+            fi
+            
+            error "Por favor, verifique os logs acima e corrija o problema antes de continuar"
+            exit 1
         fi
 
-        # Aguardar PostgreSQL estar pronto
-        log "Aguardando PostgreSQL estar pronto..."
-        for i in {1..30}; do
-            if sudo -u postgres psql -c "SELECT 1" > /dev/null 2>&1; then
-                log "✅ PostgreSQL está pronto"
-                break
-            fi
-            if [[ $i -eq 30 ]]; then
-                error "❌ PostgreSQL não iniciou após 60 segundos"
-                exit 1
-            fi
-            sleep 2
-        done
+        # Parâmetros (carregar do arquivo de configuração ou usar padrões)
+        # As variáveis devem ter sido exportadas por load_system_config em setup_project
+        # Se não estiverem definidas, usar valores padrão
+        local PG_DB="${DB_NAME:-smartsignage}"
+        local PG_USER="${DB_USER:-smartsignage}"
+        local PG_PASS="${DB_PASSWORD:-smartsignage123}"
+        local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+        
+        # Log das configurações usadas (sem mostrar senhas completas)
+        log "Configurações do banco de dados:"
+        log "  DB_NAME: ${PG_DB}"
+        log "  DB_USER: ${PG_USER}"
+        log "  DB_PASSWORD: ${PG_PASS:0:3}*** (oculto)"
+        log "  POSTGRES_SYSTEM_USER: ${POSTGRES_USER}"
+        
+        # Garantir que usuário postgres do sistema existe
+        ensure_postgres_system_user
 
-        # Parâmetros
-        local PG_DB="smartsignage"
-        local PG_USER="smartsignage"
-        local PG_PASS="smartsignage123"
-
-        # Criar USER idempotente
-        log "Criando usuário PostgreSQL '${PG_USER}'..."
-        if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname = '${PG_USER}'" | grep -q 1; then
-            log "Usuário '${PG_USER}' já existe"
+        # Criar USER idempotente (usuário master do sistema)
+        log "Criando usuário PostgreSQL master '${PG_USER}' (usuário do sistema Smart Signage Pro)..."
+        if sudo -u "$POSTGRES_USER" psql -tc "SELECT 1 FROM pg_roles WHERE rolname = '${PG_USER}'" | grep -q 1; then
+            log "Usuário '${PG_USER}' já existe, atualizando senha..."
+            # Atualizar senha se o usuário já existe
+            sudo -u "$POSTGRES_USER" psql -c "ALTER USER ${PG_USER} WITH PASSWORD '${PG_PASS}';" > /dev/null 2>&1 || {
+                warn "⚠️  Não foi possível atualizar senha do usuário '${PG_USER}'"
+            }
         else
-            sudo -u postgres psql -c "CREATE USER ${PG_USER} WITH PASSWORD '${PG_PASS}';" || {
+            sudo -u "$POSTGRES_USER" psql -c "CREATE USER ${PG_USER} WITH PASSWORD '${PG_PASS}';" || {
                 error "❌ Falha ao criar usuário PostgreSQL"
                 exit 1
             }
-            log "✅ Usuário '${PG_USER}' criado com sucesso"
+            log "✅ Usuário master '${PG_USER}' criado com sucesso"
         fi
+        
+        # Garantir que o usuário tem privilégios de superusuário (opcional, mas útil para administração)
+        log "Configurando privilégios do usuário master '${PG_USER}'..."
+        sudo -u "$POSTGRES_USER" psql -c "ALTER USER ${PG_USER} WITH CREATEDB CREATEROLE;" > /dev/null 2>&1 || true
 
         # Criar DATABASE com opção de recriação
         log "Criando banco de dados '${PG_DB}'..."
         local DB_EXISTS=false
-        if sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${PG_DB}'" | grep -q 1; then
+        if sudo -u "$POSTGRES_USER" psql -tc "SELECT 1 FROM pg_database WHERE datname = '${PG_DB}'" | grep -q 1; then
             DB_EXISTS=true
             log "Banco de dados '${PG_DB}' já existe"
         fi
@@ -2060,8 +3107,8 @@ setup_database() {
 
         if [[ "$DROP_DB" == true ]]; then
             log "🗑️  Removendo banco de dados '${PG_DB}'..."
-            sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${PG_DB}' AND pid <> pg_backend_pid();" >/dev/null 2>&1 || true
-            sudo -u postgres psql -c "DROP DATABASE IF EXISTS ${PG_DB};" || {
+            sudo -u "$POSTGRES_USER" psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${PG_DB}' AND pid <> pg_backend_pid();" >/dev/null 2>&1 || true
+            sudo -u "$POSTGRES_USER" psql -c "DROP DATABASE IF EXISTS ${PG_DB};" || {
                 error "❌ Falha ao remover banco de dados existente"
                 exit 1
             }
@@ -2077,14 +3124,14 @@ setup_database() {
                 
                 if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
                     log "Criando banco de dados '${PG_DB}' para restaurar backup..."
-                    sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
+                    sudo -u "$POSTGRES_USER" psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
                         error "❌ Falha ao criar banco de dados para restauração"
                         exit 1
                     }
                     log "✅ Banco de dados '${PG_DB}' criado"
                     
                     log "🔄 Restaurando backup do banco de dados..."
-                    if sudo -u postgres pg_restore -d "${PG_DB}" "$BACKUP_FILE" >/dev/null 2>&1; then
+                    if sudo -u "$POSTGRES_USER" pg_restore -d "${PG_DB}" "$BACKUP_FILE" >/dev/null 2>&1; then
                         log "✅ Backup do banco de dados restaurado com sucesso!"
                         # Limpar arquivos temporários
                         rm -f /tmp/smartsignage-db-backup-path.txt /tmp/smartsignage-db-backup-name.txt 2>/dev/null || true
@@ -2096,18 +3143,18 @@ setup_database() {
                     else
                         warn "⚠️  Falha ao restaurar backup. Banco será criado vazio."
                         warn "   Backup ainda disponível em: $BACKUP_FILE"
-                        warn "   Você pode restaurar manualmente com: sudo -u postgres pg_restore -d ${PG_DB} $BACKUP_FILE"
+                        warn "   Você pode restaurar manualmente com: sudo -u $POSTGRES_USER pg_restore -d ${PG_DB} $BACKUP_FILE"
                     fi
                 else
                     log "Nenhum backup encontrado. Criando banco de dados novo..."
-                    sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
+                    sudo -u "$POSTGRES_USER" psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
                         error "❌ Falha ao criar banco de dados"
                         exit 1
                     }
                     log "✅ Banco de dados '${PG_DB}' criado com sucesso"
                 fi
             else
-                sudo -u postgres psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
+                sudo -u "$POSTGRES_USER" psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
                     error "❌ Falha ao criar banco de dados"
                     exit 1
                 }
@@ -2118,8 +3165,8 @@ setup_database() {
         fi
 
         # Garantir privilégios
-        sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO ${PG_USER};" >/dev/null 2>&1 || true
-        sudo -u postgres psql -d ${PG_DB} -c "GRANT ALL ON SCHEMA public TO ${PG_USER};" >/dev/null 2>&1 || true
+        sudo -u "$POSTGRES_USER" psql -c "GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO ${PG_USER};" >/dev/null 2>&1 || true
+        sudo -u "$POSTGRES_USER" psql -d ${PG_DB} -c "GRANT ALL ON SCHEMA public TO ${PG_USER};" >/dev/null 2>&1 || true
 
         export PRIMARY_DB_USER="$PG_USER"
 
@@ -2145,32 +3192,100 @@ setup_database() {
             # Configurar postgresql.conf para escutar em todas as interfaces
             PG_CONF="${PG_CONFIG_DIR}/postgresql.conf"
             if [[ -f "$PG_CONF" ]]; then
-                # Ajustar listen_addresses para '*' apenas se necessário
-                if grep -q "^[[:space:]]*listen_addresses[[:space:]]*=" "$PG_CONF"; then
-                    if ! grep -q "^[[:space:]]*listen_addresses[[:space:]]*=[[:space:]]*'\\*'" "$PG_CONF"; then
-                        sudo sed -i "s/^[[:space:]]*listen_addresses[[:space:]]*=.*/listen_addresses = '*'/"
- "$PG_CONF" || true
+                # Remover linhas inválidas de listen_addresses que possam ter sido adicionadas incorretamente
+                sudo sed -i '/^[[:space:]]*listen_addresses[[:space:]]*=[[:space:]]*$/d' "$PG_CONF" 2>/dev/null || true
+                
+                # Verificar se há configuração válida de listen_addresses (não comentada)
+                local has_listen_addresses=$(grep -E "^[[:space:]]*listen_addresses[[:space:]]*=" "$PG_CONF" 2>/dev/null | grep -v "^[[:space:]]*#" | head -1 || echo "")
+                
+                if [[ -n "$has_listen_addresses" ]]; then
+                    # Já existe, verificar se está correto
+                    if echo "$has_listen_addresses" | grep -qE "listen_addresses[[:space:]]*=[[:space:]]*'\\*'|listen_addresses[[:space:]]*=[[:space:]]*\\*"; then
+                        log "✅ listen_addresses já está configurado corretamente"
+                    else
+                        # Atualizar para '*'
+                        sudo sed -i "s/^[[:space:]]*listen_addresses[[:space:]]*=.*/listen_addresses = '*'/" "$PG_CONF" || true
+                        log "✅ listen_addresses atualizado para '*'"
                     fi
                 else
-                    echo "listen_addresses = '*'" | sudo tee -a "$PG_CONF" > /dev/null
+                    # Não existe, adicionar na seção correta (após comentário sobre listen_addresses)
+                    local comment_line=$(grep -n "^[[:space:]]*#listen_addresses\|^[[:space:]]*#.*listen_addresses" "$PG_CONF" 2>/dev/null | head -1 | cut -d: -f1 || echo "")
+                    
+                    if [[ -n "$comment_line" ]]; then
+                        sudo sed -i "${comment_line}a listen_addresses = '*'" "$PG_CONF" || true
+                    else
+                        # Adicionar após primeira linha de configuração não comentada
+                        local first_config=$(grep -n "^[^#]" "$PG_CONF" 2>/dev/null | head -1 | cut -d: -f1 || echo "60")
+                        sudo sed -i "${first_config}i listen_addresses = '*'" "$PG_CONF" || true
+                    fi
+                    log "✅ listen_addresses adicionado ao postgresql.conf"
                 fi
+                
                 log "✅ postgresql.conf configurado para aceitar conexões remotas"
             fi
             
             # Configurar pg_hba.conf para permitir conexões da rede local
             PG_HBA="${PG_CONFIG_DIR}/pg_hba.conf"
             if [[ -f "$PG_HBA" ]]; then
-                # Verificar se já existem regras específicas para o banco/usuário
-                if ! grep -q "^host[[:space:]]\+${PG_DB}[[:space:]]\+${PG_USER}[[:space:]]\+192\.168\.0\.0/16" "$PG_HBA"; then
-                    echo "host    ${PG_DB}    ${PG_USER}    192.168.0.0/16    md5" | sudo tee -a "$PG_HBA" > /dev/null
+                # Remover TODAS as linhas que contêm listen_addresses (não pertence ao pg_hba.conf)
+                # Isso é crítico - listen_addresses no pg_hba.conf causa erro FATAL
+                if grep -q "listen_addresses" "$PG_HBA" 2>/dev/null; then
+                    log "⚠️  Removendo linhas inválidas de listen_addresses do pg_hba.conf..."
+                    sudo sed -i '/listen_addresses/d' "$PG_HBA" 2>/dev/null || true
+                    # Verificar se foi removido
+                    if grep -q "listen_addresses" "$PG_HBA" 2>/dev/null; then
+                        warn "⚠️  Ainda há listen_addresses no pg_hba.conf após tentativa de remoção"
+                        # Tentar remover de forma mais agressiva
+                        sudo sed -i '/.*listen_addresses.*/d' "$PG_HBA" 2>/dev/null || true
+                    fi
                 fi
-                if ! grep -q "^host[[:space:]]\+${PG_DB}[[:space:]]\+${PG_USER}[[:space:]]\+10\.0\.0\.0/8" "$PG_HBA"; then
-                    echo "host    ${PG_DB}    ${PG_USER}    10.0.0.0/8         md5" | sudo tee -a "$PG_HBA" > /dev/null
+                
+                # Remover duplicatas existentes das regras de rede local (tanto genéricas quanto específicas)
+                # Remover regras genéricas (all/all)
+                sudo sed -i '/^host[[:space:]]\+all[[:space:]]\+all[[:space:]]\+192\.168\.0\.0\/16[[:space:]]\+md5$/d' "$PG_HBA" 2>/dev/null || true
+                sudo sed -i '/^host[[:space:]]\+all[[:space:]]\+all[[:space:]]\+10\.0\.0\.0\/8[[:space:]]\+md5$/d' "$PG_HBA" 2>/dev/null || true
+                sudo sed -i '/^host[[:space:]]\+all[[:space:]]\+all[[:space:]]\+172\.16\.0\.0\/12[[:space:]]\+md5$/d' "$PG_HBA" 2>/dev/null || true
+                # Remover regras específicas (banco/usuário)
+                sudo sed -i '/^host[[:space:]]\+'"${PG_DB}"'[[:space:]]\+'"${PG_USER}"'[[:space:]]\+192\.168\.0\.0\/16[[:space:]]\+md5$/d' "$PG_HBA" 2>/dev/null || true
+                sudo sed -i '/^host[[:space:]]\+'"${PG_DB}"'[[:space:]]\+'"${PG_USER}"'[[:space:]]\+10\.0\.0\.0\/8[[:space:]]\+md5$/d' "$PG_HBA" 2>/dev/null || true
+                sudo sed -i '/^host[[:space:]]\+'"${PG_DB}"'[[:space:]]\+'"${PG_USER}"'[[:space:]]\+172\.16\.0\.0\/12[[:space:]]\+md5$/d' "$PG_HBA" 2>/dev/null || true
+                
+                # Encontrar onde inserir (antes da seção de replication se existir)
+                local insert_before_line=""
+                if grep -q "^# Allow replication" "$PG_HBA" || grep -q "^local[[:space:]]\+replication" "$PG_HBA"; then
+                    insert_before_line=$(grep -n "^# Allow replication\|^local[[:space:]]\+replication" "$PG_HBA" | head -1 | cut -d: -f1)
                 fi
-                if ! grep -q "^host[[:space:]]\+${PG_DB}[[:space:]]\+${PG_USER}[[:space:]]\+172\.16\.0\.0/12" "$PG_HBA"; then
-                    echo "host    ${PG_DB}    ${PG_USER}    172.16.0.0/12      md5" | sudo tee -a "$PG_HBA" > /dev/null
+                
+                # Adicionar regras genéricas para toda a rede local (permite conexões de qualquer banco/usuário da rede)
+                # Isso permite conexões da rede local além de localhost
+                if ! grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+192\.168\.0\.0/16[[:space:]]+md5" "$PG_HBA"; then
+                    if [[ -n "$insert_before_line" ]]; then
+                        sudo sed -i "${insert_before_line}i host    all    all    192.168.0.0/16    md5" "$PG_HBA" 2>/dev/null || \
+                        echo "host    all    all    192.168.0.0/16    md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    else
+                        echo "host    all    all    192.168.0.0/16    md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    fi
                 fi
-                log "✅ pg_hba.conf atualizado para aceitar conexões da rede local (sem duplicar entradas)"
+                
+                if ! grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+10\.0\.0\.0/8[[:space:]]+md5" "$PG_HBA"; then
+                    if [[ -n "$insert_before_line" ]]; then
+                        sudo sed -i "${insert_before_line}i host    all    all    10.0.0.0/8         md5" "$PG_HBA" 2>/dev/null || \
+                        echo "host    all    all    10.0.0.0/8         md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    else
+                        echo "host    all    all    10.0.0.0/8         md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    fi
+                fi
+                
+                if ! grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+172\.16\.0\.0/12[[:space:]]+md5" "$PG_HBA"; then
+                    if [[ -n "$insert_before_line" ]]; then
+                        sudo sed -i "${insert_before_line}i host    all    all    172.16.0.0/12      md5" "$PG_HBA" 2>/dev/null || \
+                        echo "host    all    all    172.16.0.0/12      md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    else
+                        echo "host    all    all    172.16.0.0/12      md5" | sudo tee -a "$PG_HBA" > /dev/null
+                    fi
+                fi
+                
+                log "✅ pg_hba.conf atualizado para aceitar conexões da rede local (192.168.x.x, 10.x.x.x, 172.16-31.x.x)"
             fi
             
             # Reiniciar PostgreSQL para aplicar mudanças
@@ -2411,6 +3526,14 @@ CORS_ORIGIN=http://localhost:3000,http://localhost:3001
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
+
+# SmartDisplayFX / MQTT
+SMARTDISPLAYFX_MQTT_ENABLED=true
+SMARTDISPLAYFX_MQTT_URL=mqtt://localhost:1883
+SMARTDISPLAYFX_MQTT_WS_URL=ws://localhost:9001
+SMARTDISPLAYFX_MQTT_USERNAME=
+SMARTDISPLAYFX_MQTT_PASSWORD=
+SMARTDISPLAYFX_MQTT_PREFIX=smartdisplay
 EOF
 
     log "Variáveis de ambiente configuradas em $ENV_FILE"
@@ -2472,6 +3595,14 @@ CORS_ORIGIN=http://localhost:3000,http://localhost:3001
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
+
+# SmartDisplayFX / MQTT
+SMARTDISPLAYFX_MQTT_ENABLED=true
+SMARTDISPLAYFX_MQTT_URL=mqtt://localhost:1883
+SMARTDISPLAYFX_MQTT_WS_URL=ws://localhost:9001
+SMARTDISPLAYFX_MQTT_USERNAME=
+SMARTDISPLAYFX_MQTT_PASSWORD=
+SMARTDISPLAYFX_MQTT_PREFIX=smartdisplay
 EOF
         }
         log "✅ .env criado no diretório backend: $BACKEND_ENV_FILE"
@@ -2651,7 +3782,7 @@ server {
         return 301 /player/;
     }
     location /player/ {
-        alias /opt/smart-signage/player/;
+        alias /opt/smart-signage/player-web/;
         try_files \$uri \$uri/ /player/index.html;
     }
     
@@ -2745,7 +3876,7 @@ server {
         return 301 /player/;
     }
     location /player/ {
-        alias $INSTALL_DIR/player/;
+        alias $INSTALL_DIR/player-web/;
         try_files \$uri \$uri/ /player/index.html;
     }
     
@@ -2816,28 +3947,28 @@ setup_nginx() {
         sudo chmod -R 755 "$DEPLOY_DIR" 2>/dev/null || true
         sudo find "$DEPLOY_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
         
-        # Copiar player para /opt/smart-signage/player
-        sudo mkdir -p /opt/smart-signage/player
-        if [[ -d "$INSTALL_DIR/player" ]]; then
-            sudo rm -rf /opt/smart-signage/player/* 2>/dev/null || true
-            sudo cp -a "$INSTALL_DIR/player"/* /opt/smart-signage/player/ || true
+        # Copiar player para /opt/smart-signage/player-web
+        sudo mkdir -p /opt/smart-signage/player-web
+        if [[ -d "$INSTALL_DIR/player-web" ]]; then
+            sudo rm -rf /opt/smart-signage/player-web/* 2>/dev/null || true
+            sudo cp -a "$INSTALL_DIR/player-web"/* /opt/smart-signage/player-web/ || true
             if id www-data &>/dev/null; then
-                sudo chown -R www-data:www-data /opt/smart-signage/player 2>/dev/null || true
+                sudo chown -R www-data:www-data /opt/smart-signage/player-web 2>/dev/null || true
             else
-                sudo chown -R nginx:nginx /opt/smart-signage/player 2>/dev/null || true
+                sudo chown -R nginx:nginx /opt/smart-signage/player-web 2>/dev/null || true
             fi
-            sudo chmod -R 755 /opt/smart-signage/player 2>/dev/null || true
-            sudo find /opt/smart-signage/player -type f -exec chmod 644 {} \; 2>/dev/null || true
-            log "✅ Player copiado para /opt/smart-signage/player"
+            sudo chmod -R 755 /opt/smart-signage/player-web 2>/dev/null || true
+            sudo find /opt/smart-signage/player-web -type f -exec chmod 644 {} \; 2>/dev/null || true
+            log "✅ Player copiado para /opt/smart-signage/player-web"
             
             # Gerar arquivo de configuração encriptado do player (se não existir)
-            if [[ ! -f "/opt/smart-signage/player/config.json.enc" ]]; then
+            if [[ ! -f "/opt/smart-signage/player-web/config.json.enc" ]]; then
                 if [[ -f "$INSTALL_DIR/scripts/generate-player-config.sh" ]]; then
                     chmod +x "$INSTALL_DIR/scripts/generate-player-config.sh"
                     log "ℹ️ Nenhum arquivo de configuração encriptado encontrado."
                     log "   O player permanecerá em modo demo local até que um UIN seja configurado."
                     log "   Quando o totem for provisionado, execute:"
-                    log "   sudo $INSTALL_DIR/scripts/generate-player-config.sh <UIN> /opt/smart-signage/player"
+                    log "   sudo $INSTALL_DIR/scripts/generate-player-config.sh <UIN> /opt/smart-signage/player-web"
                 else
                     warn "⚠️ Script de geração de configuração não encontrado"
                 fi
@@ -2909,7 +4040,7 @@ server {
     # Player
     location = /player { return 301 /player/; }
     location /player/ {
-        alias /opt/smart-signage/player/;
+        alias /opt/smart-signage/player-web/;
         index index.html;
         try_files \$uri \$uri/ /player/index.html;
     }
@@ -2948,7 +4079,7 @@ server {
     # Player - redirect raiz e arquivos
     location = /player { return 301 /player/; }
     location /player/ {
-        alias /opt/smart-signage/player/;
+        alias /opt/smart-signage/player-web/;
         index index.html;
         try_files \$uri \$uri/ /player/index.html;
     }
@@ -3586,6 +4717,9 @@ test_endpoints() {
     
     # Obter IP do servidor
     SERVER_IP=$(hostname -I | awk '{print $1}')
+    API="http://$SERVER_IP:3000"
+    GRAFANA="http://$SERVER_IP:3002"
+    PROM="http://$SERVER_IP:9090"
     
     # Lista de endpoints para testar baseada no modo
     declare -A ENDPOINTS
@@ -3599,6 +4733,8 @@ test_endpoints() {
             ["Player"]="http://$SERVER_IP:80/player"
             ["Prometheus"]="http://$SERVER_IP:9090"
             ["Grafana"]="http://$SERVER_IP:3002"
+            ["MQTT Broker"]="mqtt://$SERVER_IP:1883"
+            ["MQTT WebSocket"]="ws://$SERVER_IP:9001"
         )
         
     elif [[ "$INSTALL_MODE" == "single-server" ]]; then
@@ -3620,18 +4756,221 @@ test_endpoints() {
         )
     fi
     
-    # Testar cada endpoint
+    # Testar cada endpoint básico
     for service in "${!ENDPOINTS[@]}"; do
         url="${ENDPOINTS[$service]}"
         log "Testando $service: $url"
         
-        # Tentar conectar com timeout
-        if curl -s --max-time 10 "$url" > /dev/null 2>&1; then
-            log "✅ $service: OK"
+        # Teste especial para MQTT
+        if [[ "$service" == "MQTT Broker" ]] || [[ "$service" == "MQTT WebSocket" ]]; then
+            # Para MQTT, usar mosquitto_sub se disponível
+            if command -v mosquitto_sub &> /dev/null; then
+                if timeout 2 mosquitto_sub -h "$SERVER_IP" -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
+                    log "✅ $service: OK"
+                else
+                    warning "⚠️  $service: Não respondeu ao teste"
+                fi
+            else
+                # Se mosquitto_sub não estiver disponível, verificar se container está rodando (Docker)
+                if [[ "$INSTALL_MODE" == "docker" ]] && $COMPOSE_CMD ps | grep -q smartsignage-mosquitto; then
+                    log "✅ $service: Container rodando (teste detalhado requer mosquitto_sub)"
+                else
+                    warning "⚠️  $service: Não foi possível verificar (mosquitto_sub não disponível)"
+                fi
+            fi
         else
-            warning "❌ $service: FALHOU - $url"
+            # Para outros endpoints, usar curl
+            if curl -s --max-time 10 "$url" > /dev/null 2>&1; then
+                log "✅ $service: OK"
+            else
+                warning "❌ $service: FALHOU - $url"
+            fi
         fi
     done
+    
+    # Verificações adicionais integradas do post-install-check
+    echo
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}                    Verificação Pós-Instalação Completa${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo
+    
+    # 1) Containers e portas (apenas Docker)
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        log "===> 1) Containers e portas"
+        if command -v docker &> /dev/null; then
+            docker compose ps 2>/dev/null || docker-compose ps 2>/dev/null || true
+            log "Portas em uso:"
+            ss -tulpen 2>/dev/null | grep -E ":3000|:3002|:9090|:80|:443|:1883|:9001" || netstat -tulpen 2>/dev/null | grep -E ":3000|:3002|:9090|:80|:443|:1883|:9001" || true
+        fi
+    fi
+    
+    # 2) Health e OpenAPI
+    log "===> 2) Health e OpenAPI"
+    if curl -fsS "$API/health" 2>/dev/null | jq . > /dev/null 2>&1; then
+        log "✅ Backend Health: OK"
+        curl -fsS "$API/health" 2>/dev/null | jq . || true
+    else
+        warning "⚠️  Backend Health: Não respondeu"
+    fi
+    
+    if curl -fsS "$API/api/docs.json" 2>/dev/null | jq '.info,.paths | keys | length' > /dev/null 2>&1; then
+        log "✅ OpenAPI Docs: OK"
+        curl -fsS "$API/api/docs.json" 2>/dev/null | jq '.info,.paths | keys | length' || true
+    else
+        warning "⚠️  OpenAPI Docs: Não disponível"
+    fi
+    
+    # 3) Login admin e token
+    log "===> 3) Login admin e token"
+    TOKEN=$(curl -fsS -X POST "$API/api/auth/login" \
+      -H "Content-Type: application/json" \
+      -d '{"username":"admin","password":"admin123"}' 2>/dev/null | jq -r '.token' 2>/dev/null || echo "")
+    if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
+        log "✅ Token de autenticação: OK"
+    else
+        warning "⚠️  Token de autenticação: FALHOU (verifique credenciais admin/admin123)"
+    fi
+    
+    # 4) CRUD rápido - criar cliente e checar lista (apenas se token OK)
+    if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
+        log "===> 4) CRUD rápido - criar cliente e checar lista"
+        CLIENT_RESULT=$(curl -fsS -X POST "$API/api/clients" \
+          -H "Authorization: Bearer $TOKEN" \
+          -H "Content-Type: application/json" \
+          -d '{"name":"Cliente Teste","email":"cliente@teste.com"}' 2>/dev/null | jq -r '.id,.name' 2>/dev/null || echo "")
+        if [[ -n "$CLIENT_RESULT" ]]; then
+            log "✅ Cliente criado: $CLIENT_RESULT"
+        else
+            warning "⚠️  Falha ao criar cliente (pode já existir)"
+        fi
+        
+        CLIENT_COUNT=$(curl -fsS -X GET "$API/api/clients?page=1&limit=5" \
+          -H "Authorization: Bearer $TOKEN" 2>/dev/null | jq '.items | length' 2>/dev/null || echo "0")
+        log "✅ Clientes na lista: $CLIENT_COUNT"
+    else
+        log "===> 4) CRUD rápido - pulado (token inválido)"
+    fi
+    
+    # 5) Upload de mídia (se houver arquivo de teste)
+    if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
+        log "===> 5) Upload de mídia (teste)"
+        if [[ -f "./banner.jpg" ]] || [[ -f "$INSTALL_DIR/banner.jpg" ]]; then
+            TEST_FILE="./banner.jpg"
+            [[ ! -f "$TEST_FILE" ]] && TEST_FILE="$INSTALL_DIR/banner.jpg"
+            UPLOAD_RESULT=$(curl -fsS -X POST "$API/api/media/upload" \
+              -H "Authorization: Bearer $TOKEN" \
+              -F "file=@$TEST_FILE" \
+              -F "name=banner_loja" 2>/dev/null | jq -r '.id,.name' 2>/dev/null || echo "")
+            if [[ -n "$UPLOAD_RESULT" ]]; then
+                log "✅ Upload de mídia: OK - $UPLOAD_RESULT"
+            else
+                warning "⚠️  Upload de mídia: Falhou"
+            fi
+        else
+            log "ℹ️  Upload de mídia: Arquivo de teste não encontrado (pulando)"
+        fi
+    else
+        log "===> 5) Upload de mídia - pulado (token inválido)"
+    fi
+    
+    # 6) Campanha simples
+    if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
+        log "===> 6) Campanha simples"
+        CAMPAIGN_RESULT=$(curl -fsS -X POST "$API/api/campaigns" \
+          -H "Authorization: Bearer $TOKEN" \
+          -H "Content-Type: application/json" \
+          -d '{"clientId":1,"title":"Campanha Teste","description":"Demo","campaignType":"general","isActive":true}' 2>/dev/null | jq -r '.id,.title' 2>/dev/null || echo "")
+        if [[ -n "$CAMPAIGN_RESULT" ]]; then
+            log "✅ Campanha criada: $CAMPAIGN_RESULT"
+        else
+            warning "⚠️  Falha ao criar campanha (pode já existir ou clientId inválido)"
+        fi
+    else
+        log "===> 6) Campanha simples - pulado (token inválido)"
+    fi
+    
+    # 7) MQTT Broker (SmartDisplayFX) - já testado acima, mas detalhar aqui
+    log "===> 7) MQTT Broker (SmartDisplayFX)"
+    if command -v mosquitto_sub &> /dev/null; then
+        if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 >/dev/null 2>&1; then
+            log "✅ MQTT Broker: OK"
+        else
+            warning "⚠️  MQTT Broker: Não respondeu"
+        fi
+    elif [[ "$INSTALL_MODE" == "docker" ]] && command -v docker &> /dev/null; then
+        if docker ps 2>/dev/null | grep -q smartsignage-mosquitto || docker ps 2>/dev/null | grep -q mosquitto; then
+            log "✅ MQTT Broker (Docker): Container rodando"
+        else
+            warning "⚠️  MQTT Broker: Não encontrado (opcional para SmartDisplayFX)"
+        fi
+    else
+        log "ℹ️  MQTT Broker: Não foi possível verificar (mosquitto_sub não disponível)"
+    fi
+    
+    # 8) Players e heartbeat
+    if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
+        log "===> 8) Players e heartbeat"
+        PID=$(curl -fsS -X POST "$API/api/players" \
+          -H "Authorization: Bearer $TOKEN" \
+          -H "Content-Type: application/json" \
+          -d '{"name":"Totem 1","location":"Loja Central","clientId":1}' 2>/dev/null | jq -r '.id' 2>/dev/null || echo "")
+        if [[ -n "$PID" ]] && [[ "$PID" != "null" ]] && [[ "$PID" != "" ]]; then
+            HEARTBEAT_RESULT=$(curl -fsS -X POST "$API/api/totems/$PID/heartbeat" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{"status":"online","uptime":120,"memoryUsage":30.5}' 2>/dev/null | jq . 2>/dev/null || echo "")
+            if [[ -n "$HEARTBEAT_RESULT" ]]; then
+                log "✅ Player criado e heartbeat: OK (Player ID: $PID)"
+            else
+                warning "⚠️  Heartbeat: Falhou"
+            fi
+        else
+            warning "⚠️  Falha ao criar player - pulando heartbeat"
+        fi
+    else
+        log "===> 8) Players e heartbeat - pulado (token inválido)"
+    fi
+    
+    # 9) Grafana e Prometheus (apenas Docker)
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        log "===> 9) Grafana e Prometheus"
+        if curl -fsS "$PROM/-/healthy" >/dev/null 2>&1; then
+            log "✅ Prometheus: OK"
+        else
+            warning "⚠️  Prometheus: Não respondeu"
+        fi
+        
+        if curl -fsS "$GRAFANA/login" >/dev/null 2>&1; then
+            log "✅ Grafana: OK"
+            log "💡 Acesse $GRAFANA (admin/admin) e verifique dashboard 'SmartSignage – Operação'"
+        else
+            warning "⚠️  Grafana: Não respondeu"
+        fi
+    fi
+    
+    # 10) HTTPS (se habilitado)
+    log "===> 10) HTTPS (se habilitado)"
+    if curl -fsS "https://$SERVER_IP/health" -k >/dev/null 2>&1; then
+        log "✅ HTTPS: OK (cert autoassinado ou Let's Encrypt)"
+    else
+        log "ℹ️  HTTPS: Não ativo (ok se você escolheu HTTP)"
+    fi
+    
+    # 11) Logs rápidos (apenas Docker)
+    if [[ "$INSTALL_MODE" == "docker" ]] && command -v docker &> /dev/null; then
+        log "===> 11) Logs rápidos"
+        log "Últimas linhas dos logs:"
+        docker compose logs --tail 20 backend 2>/dev/null | tail -n +1 || docker-compose logs --tail 20 backend 2>/dev/null | tail -n +1 || true
+        docker compose logs --tail 10 nginx 2>/dev/null | tail -n +1 || docker-compose logs --tail 10 nginx 2>/dev/null | tail -n +1 || true
+        docker compose logs --tail 10 mosquitto 2>/dev/null | tail -n +1 || docker-compose logs --tail 10 mosquitto 2>/dev/null | tail -n +1 || true
+    fi
+    
+    echo
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    log "✅ Verificação pós-instalação concluída"
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo
     
     log "Teste de endpoints concluído!"
 }
@@ -3689,13 +5028,17 @@ start_services_in_order() {
         retry_with_backoff 3 2 $COMPOSE_CMD up -d redis || true
         wait_for_redis
         
+        log "Iniciando MQTT Broker..."
+        retry_with_backoff 3 2 $COMPOSE_CMD up -d mqtt || true
+        wait_for_mqtt
+        
         log "Iniciando Ollama..."
         retry_with_backoff 3 2 $COMPOSE_CMD up -d ollama || true
         wait_for_ollama
         
         log "Iniciando App (monolito)..."
         # Retry leve para imagens que podem falhar por rede
-        for i in {1..3}; do $COMPOSE_CMD up -d postgres redis ollama prometheus grafana && break || sleep 5; done
+        for i in {1..3}; do $COMPOSE_CMD up -d postgres redis mqtt ollama prometheus grafana && break || sleep 5; done
         retry_with_backoff 3 3 $COMPOSE_CMD up -d app || true
         # Aguarde estabilização
         sleep 5
@@ -3846,6 +5189,9 @@ check_startup_order() {
                 "redis")
                     wait_for_redis
                     ;;
+                "mqtt")
+                    wait_for_mqtt
+                    ;;
                 "ollama")
                     wait_for_ollama
                     ;;
@@ -3936,6 +5282,54 @@ wait_for_redis() {
         if [[ $delay -lt 10 ]]; then delay=$((delay+1)); fi
     done
     warning "❌ Redis: Timeout"
+}
+
+wait_for_mqtt() {
+    log "Aguardando MQTT Broker..."
+    local attempts=0
+    local delay=2
+    
+    # Em Docker, verificar se container está rodando
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        while [[ $attempts -lt 15 ]]; do
+            if $COMPOSE_CMD ps | grep -q smartsignage-mqtt; then
+                # Tentar conectar via mosquitto_sub se disponível
+                if command -v mosquitto_sub &> /dev/null; then
+                    if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
+                        log "✅ MQTT Broker: Pronto"
+                        return 0
+                    fi
+                else
+                    # Se mosquitto_sub não estiver disponível, apenas verificar container
+                    log "✅ MQTT Broker: Container rodando"
+                    return 0
+                fi
+            fi
+            attempts=$((attempts+1))
+            sleep "$delay"
+            if [[ $delay -lt 10 ]]; then delay=$((delay+1)); fi
+        done
+        warning "❌ MQTT Broker: Timeout"
+        return 1
+    fi
+    
+    # Instalação local - verificar se mosquitto está respondendo
+    if command -v mosquitto_sub &> /dev/null; then
+        while [[ $attempts -lt 15 ]]; do
+            if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
+                log "✅ MQTT Broker: Pronto"
+                return 0
+            fi
+            attempts=$((attempts+1))
+            sleep "$delay"
+            if [[ $delay -lt 10 ]]; then delay=$((delay+1)); fi
+        done
+        warning "❌ MQTT Broker: Timeout"
+        return 1
+    else
+        warning "⚠️  mosquitto_sub não encontrado, pulando verificação detalhada"
+        return 0
+    fi
 }
 
 wait_for_ollama() {
@@ -4758,7 +6152,7 @@ log "✅ Backend configurado"
 
 log "Configurando player HTML5..."
 
-if [ -f "/app/player/index.html" ]; then
+if [ -f "/app/player-web/index.html" ]; then
     log "✅ Player HTML5 encontrado"
 else
     warning "Player HTML5 não encontrado"
@@ -4926,14 +6320,8 @@ setup_first_boot() {
     manage_demo_seed_strategy
 
     # Executar migrations ou criar schema
-    log "Criando schema do banco de dados..."
+    log "Criando schema do banco de dados (v2.0 refatorado)..."
     
-    local MASTER_SCHEMA_FILE="$INSTALL_DIR/database/smartchannel-db.sql"
-    if [[ ! -f "$MASTER_SCHEMA_FILE" ]]; then
-        error "Arquivo de schema consolidado não encontrado: $MASTER_SCHEMA_FILE"
-        exit 1
-    fi
-
     local TARGET_DB="${PRIMARY_DB_NAME:-smartsignage}"
     
     # Garantir que PRIMARY_DB_USER está definido (deve ter sido exportado em setup_database)
@@ -4949,8 +6337,51 @@ setup_first_boot() {
         log "⚠️  PRIMARY_DB_USER não estava definido, usando: ${PRIMARY_DB_USER}"
     fi
     
-    log "Aplicando schema consolidado (${MASTER_SCHEMA_FILE}) no banco '${TARGET_DB}'..."
-    execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Schema consolidado SmartChannel"
+    # Verificar se existe script de aplicação do schema v2.0
+    local APPLY_SCHEMA_SCRIPT="$INSTALL_DIR/database/apply-schema-v2.sh"
+    local APPLY_SCHEMA_ALL="$INSTALL_DIR/database/smartchannel-db-v2-refactored-apply-all.sql"
+    
+    if [[ -f "$APPLY_SCHEMA_SCRIPT" ]] && [[ -x "$APPLY_SCHEMA_SCRIPT" ]]; then
+        log "✅ Usando script de aplicação do schema v2.0 refatorado..."
+        log "Executando apply-schema-v2.sh..."
+        
+        # Configurar variáveis de ambiente para o script
+        export DB_NAME="$TARGET_DB"
+        export DB_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+        export DB_HOST="localhost"
+        export DB_PORT="5432"
+        export SKIP_CONFIRM="true"
+        export PGPASSWORD="${POSTGRES_PASSWORD:-postgres}"
+        
+        # Executar script de aplicação
+        if cd "$INSTALL_DIR/database" && bash "$APPLY_SCHEMA_SCRIPT"; then
+            log "✅ Schema v2.0 refatorado aplicado com sucesso!"
+        else
+            error "❌ Falha ao aplicar schema v2.0 usando apply-schema-v2.sh"
+            error "Tentando método alternativo (arquivo consolidado)..."
+            
+            # Fallback: usar arquivo consolidado se existir
+            if [[ -f "$APPLY_SCHEMA_ALL" ]]; then
+                log "Aplicando schema usando arquivo consolidado..."
+                execute_psql_file "$TARGET_DB" "$APPLY_SCHEMA_ALL" "Schema v2.0 consolidado"
+            else
+                error "❌ Nenhum método de aplicação do schema v2.0 disponível"
+                exit 1
+            fi
+        fi
+    elif [[ -f "$APPLY_SCHEMA_ALL" ]]; then
+        log "✅ Usando arquivo consolidado do schema v2.0 refatorado..."
+        execute_psql_file "$TARGET_DB" "$APPLY_SCHEMA_ALL" "Schema v2.0 consolidado"
+    else
+        error "❌ Nenhum arquivo de schema v2.0 encontrado!"
+        error "   Arquivos necessários (v2.0):"
+        error "   - $APPLY_SCHEMA_SCRIPT (preferencial)"
+        error "   - $APPLY_SCHEMA_ALL (alternativa)"
+        error ""
+        error "   O schema antigo (smartchannel-db.sql) foi descontinuado."
+        error "   Use apenas os arquivos v2.0 refatorados."
+        exit 1
+    fi
 
     # Atualizar configuração media.storage.path para SEMPRE usar /opt/smart-signage
     # Isso garante que arquivos sejam salvos no local correto, mesmo se INSTALL_DIR for diferente
@@ -4994,19 +6425,20 @@ setup_first_boot() {
     log "Verificando se TODAS as tabelas do schema foram criadas..."
     cd $INSTALL_DIR/backend
     
-    # Lista COMPLETA de TODAS as tabelas do schema E.R. (em ordem de dependência)
-    # Baseado em database/smartchannel-db.sql - TODAS as tabelas usadas em JOINs
+    # Lista COMPLETA de TODAS as tabelas do schema E.R. v2.0 (em ordem de dependência)
+    # Baseado em database/smartchannel-db-v2-refactored-*.sql - TODAS as tabelas usadas em JOINs
     # Ordem importa: tabelas sem foreign keys primeiro
+    # ATUALIZADO: client → subscriber, host → publisher
     ALL_TABLES=(
-        "clients"           # Client - Tabela base sem dependências (usada em JOINs)
-        "users"             # User - Depende de clients (usada em JOINs)
-        "hosts"             # Host - Sem dependências
-        "locals"            # Local - Depende de hosts
+        "subscribers"       # Subscriber (antes: clients) - Tabela base sem dependências (usada em JOINs)
+        "publishers"       # Publisher (antes: hosts) - Sem dependências
+        "users"             # User - Depende de publishers (usada em JOINs)
+        "locals"            # Local - Depende de publishers
         "totems"            # Totem - Depende de locals (usada em JOINs)
         "smart_tvs"         # SmartTV - Depende de totems
-        "campaigns"         # Campaign - Depende de clients (usada em JOINs)
-        "medias"            # Media - Depende de clients, users (usada em JOINs)
-        "playlists"         # Playlist - Depende de totems, campaigns (usada em JOINs)
+        "campaigns"         # Campaign - Depende de subscribers (usada em JOINs)
+        "medias"            # Media - Depende de subscribers, users (usada em JOINs)
+        "playlists"         # Playlist - Depende de subscribers (usada em JOINs)
         "playlist_items"    # PlaylistItem - Depende de playlists, medias (usada em JOINs)
         "campaign_playlists" # CampaignPlaylist - Depende de campaigns, playlists
         "campaign_totems"   # CampaignTotem - Depende de totems, campaigns
@@ -5019,7 +6451,11 @@ setup_first_boot() {
         "analytics_qr_scans" # AnalyticsQRScan - Depende de qr_codes, totems
         "event_logs"          # EventLog - Depende de totems, campaigns, playlists, medias (v2.1)
         "ai_models"        # AIModel - Sem dependências
-        "execution_logs"   # ExecutionLog - Depende de totems, clients, campaigns, medias
+        "execution_logs"   # ExecutionLog - Depende de totems, subscribers, campaigns, medias
+        "subscriber_billing" # SubscriberBilling - Depende de subscribers (NOVO v2.0)
+        "publisher_billing"  # PublisherBilling - Depende de publishers (NOVO v2.0)
+        "subscriptions"     # Subscription - Depende de publishers (NOVO v2.0)
+        "campaign_publishers" # CampaignPublisher - Depende de campaigns, publishers (NOVO v2.0)
         "system_logs"       # SystemLog - Sem dependências
         "webhook_configs"  # WebhookConfig - Sem dependências
         "webhook_deliveries" # WebhookDelivery - Depende de webhook_configs
@@ -5066,7 +6502,7 @@ setup_first_boot() {
     if [[ ${#MISSING_TABLES[@]} -gt 0 ]]; then
         error "❌ Falha crítica ao criar tabelas do banco de dados"
         error "Tabelas faltando: ${MISSING_TABLES[*]}"
-        error "Use smartchannel-db.sql e init-data.sql para criar o schema"
+        error "Use os arquivos smartchannel-db-v2-refactored-part*.sql ou apply-schema-v2.sh para criar o schema"
         exit 1
     fi
 
@@ -5086,17 +6522,20 @@ setup_first_boot() {
     
     log "Garantindo privilégios para o usuário ${PRIMARY_DB_USER}..."
     
+    # Obter usuário postgres do sistema
+    local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+    
     # Transferir ownership de todas as tabelas para o usuário da aplicação
     log "Transferindo ownership de todas as tabelas para ${PRIMARY_DB_USER}..."
-    sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER TABLE ' || schemaname || '.' || tablename || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_tables WHERE schemaname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
+    sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -tAc "SELECT 'ALTER TABLE ' || schemaname || '.' || tablename || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_tables WHERE schemaname = 'public';" | sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" >/dev/null 2>&1 || true
     
     # Transferir ownership de todas as sequences
     log "Transferindo ownership de todas as sequences para ${PRIMARY_DB_USER}..."
-    sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER SEQUENCE ' || schemaname || '.' || sequencename || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_sequences WHERE schemaname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
+    sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -tAc "SELECT 'ALTER SEQUENCE ' || schemaname || '.' || sequencename || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_sequences WHERE schemaname = 'public';" | sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" >/dev/null 2>&1 || true
     
     # Transferir ownership de todas as views
     log "Transferindo ownership de todas as views para ${PRIMARY_DB_USER}..."
-    sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 'ALTER VIEW ' || schemaname || '.' || viewname || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_views WHERE schemaname = 'public';" | sudo -u postgres psql -d "$TARGET_DB" >/dev/null 2>&1 || true
+    sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -tAc "SELECT 'ALTER VIEW ' || schemaname || '.' || viewname || ' OWNER TO ${PRIMARY_DB_USER};' FROM pg_views WHERE schemaname = 'public';" | sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" >/dev/null 2>&1 || true
     
     # Transferir ownership de todas as funções
     log "Transferindo ownership de todas as funções para ${PRIMARY_DB_USER}..."
@@ -5111,17 +6550,17 @@ setup_first_boot() {
     # Garantir privilégios para tabelas específicas que podem ter sido criadas dentro de blocos DO $$
     log "Garantindo privilégios específicos em tabelas críticas..."
     for table in system_settings export_schedules export_queries export_executions; do
-        if sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$table'" | grep -q 1; then
-            sudo -u postgres psql -d "$TARGET_DB" -c "ALTER TABLE $table OWNER TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-            sudo -u postgres psql -d "$TARGET_DB" -c "GRANT ALL ON TABLE $table TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+        if sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$table'" | grep -q 1; then
+            sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "ALTER TABLE $table OWNER TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+            sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "GRANT ALL ON TABLE $table TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
         fi
     done
     
     # Configurar privilégios padrão para objetos futuros
     log "Configurando privilégios padrão para objetos futuros..."
-    sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-    sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
-    sudo -u postgres psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
+    sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
     
     log "✅ Privilégios garantidos para ${PRIMARY_DB_USER}"
     
@@ -5144,8 +6583,15 @@ setup_first_boot() {
         TABLE_EXISTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='system_settings');" 2>/dev/null | tr -d ' ')
         if [[ "$TABLE_EXISTS" == "t" ]]; then
             error "   Tabela system_settings existe, mas não há configurações de logs"
-            error "   Tentando reaplicar schema consolidado para registros padrão..."
-            execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Reaplicação do schema consolidado SmartChannel (logs)"
+            error "   Tentando reaplicar schema v2.0 para registros padrão..."
+            # Tentar reaplicar usando schema v2.0
+            if [[ -f "$APPLY_SCHEMA_ALL" ]]; then
+                execute_psql_file "$TARGET_DB" "$APPLY_SCHEMA_ALL" "Reaplicação do schema v2.0 (logs)"
+            elif [[ -f "$APPLY_SCHEMA_SCRIPT" ]] && [[ -x "$APPLY_SCHEMA_SCRIPT" ]]; then
+                cd "$INSTALL_DIR/database" && bash "$APPLY_SCHEMA_SCRIPT"
+            else
+                error "   ❌ Arquivos de schema v2.0 não encontrados para reaplicação"
+            fi
             LOGS_CONFIG_COUNT=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
             if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
                 log "✅ Configurações de logs criadas após reaplicação ($LOGS_CONFIG_COUNT configurações encontradas)"
@@ -5156,8 +6602,15 @@ setup_first_boot() {
         else
             error "   Tabela system_settings NÃO existe!"
             error "   O schema de logs deve criar esta tabela primeiro"
-            error "   Reaplicando schema consolidado..."
-            execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Reaplicação do schema consolidado SmartChannel (recriar system_settings)"
+            error "   Reaplicando schema v2.0..."
+            # Tentar reaplicar usando schema v2.0
+            if [[ -f "$APPLY_SCHEMA_ALL" ]]; then
+                execute_psql_file "$TARGET_DB" "$APPLY_SCHEMA_ALL" "Reaplicação do schema v2.0 (recriar system_settings)"
+            elif [[ -f "$APPLY_SCHEMA_SCRIPT" ]] && [[ -x "$APPLY_SCHEMA_SCRIPT" ]]; then
+                cd "$INSTALL_DIR/database" && bash "$APPLY_SCHEMA_SCRIPT"
+            else
+                error "   ❌ Arquivos de schema v2.0 não encontrados para reaplicação"
+            fi
             TABLE_EXISTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='system_settings');" 2>/dev/null | tr -d ' ')
             if [[ "$TABLE_EXISTS" != "t" ]]; then
                 error "❌ system_settings ainda não existe após reaplicação. Abortando."
@@ -5520,6 +6973,12 @@ case "$1" in
         echo "Atualizando Smart Signage Pro (Development)..."
         cd $INSTALL_DIR/backend && npm install
         cd $INSTALL_DIR/frontend && npm install --legacy-peer-deps
+        # Aplicar patches de dependências se existirem
+        if [[ -d "patches" ]] && [[ -n "$(ls -A patches/*.patch 2>/dev/null)" ]]; then
+            if command -v npx &> /dev/null; then
+                npx patch-package 2>/dev/null || true
+            fi
+        fi
         echo "Dependências atualizadas"
         ;;
     backup)
@@ -6184,7 +7643,228 @@ show_menu() {
     
     echo
     log "Modo selecionado: $INSTALL_MODE"
+}
 
+# Menu de seleção de players
+show_players_menu() {
+    echo
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}                    Seleção de Players para Instalação${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo
+    echo -e "${YELLOW}Selecione quais players deseja instalar/complementar:${NC}"
+    echo
+    echo -e "${GREEN}[ ]${NC} 1) webOS (LG) - Player para TVs LG webOS"
+    echo -e "${GREEN}[ ]${NC} 2) Android TV - Player para dispositivos Android TV"
+    echo -e "${GREEN}[ ]${NC} 3) Linux Electron - Player para Linux usando Electron"
+    echo -e "${GREEN}[ ]${NC} 4) Linux C++ - Player nativo C++ para Linux"
+    echo -e "${GREEN}[ ]${NC} 5) Windows Electron - Player para Windows usando Electron"
+    echo -e "${GREEN}[ ]${NC} 6) Tizen (Samsung) - Player para TVs Samsung Tizen"
+    echo -e "${GREEN}[ ]${NC} 7) SmartDisplayFX Client - Cliente para efeitos visuais"
+    echo -e "${GREEN}[ ]${NC} 8) Smart FX Interface - Interface e protótipos"
+    echo
+    echo -e "${GREEN}[ ]${NC} 9) Instalar TODOS os players (recomendado para desenvolvimento)"
+    echo -e "${GREEN}[ ]${NC} 0) Não instalar players (apenas servidor)"
+    echo
+    read -p "Digite os números separados por vírgula (ex: 1,3,5) ou 9 para todos [padrão: 9]: " players_choice
+    players_choice=${players_choice:-9}
+    
+    # Limpar seleções anteriores
+    INSTALL_PLAYER_WEBOS=false
+    INSTALL_PLAYER_ANDROID=false
+    INSTALL_PLAYER_LINUX_ELECTRON=false
+    INSTALL_PLAYER_LINUX_CPP=false
+    INSTALL_PLAYER_WINDOWS_ELECTRON=false
+    INSTALL_PLAYER_TIZEN=false
+    INSTALL_PLAYER_SMARTDISPLAYFX=false
+    INSTALL_PLAYER_FX_INTERFACE=false
+    INSTALL_ALL_PLAYERS=false
+    
+    # Processar escolha
+    if [[ "$players_choice" == "9" ]]; then
+        INSTALL_ALL_PLAYERS=true
+        INSTALL_PLAYER_WEBOS=true
+        INSTALL_PLAYER_ANDROID=true
+        INSTALL_PLAYER_LINUX_ELECTRON=true
+        INSTALL_PLAYER_LINUX_CPP=true
+        INSTALL_PLAYER_WINDOWS_ELECTRON=true
+        INSTALL_PLAYER_TIZEN=true
+        INSTALL_PLAYER_SMARTDISPLAYFX=true
+        INSTALL_PLAYER_FX_INTERFACE=true
+        log "✅ Todos os players serão instalados"
+    elif [[ "$players_choice" == "0" ]]; then
+        log "ℹ️  Nenhum player será instalado (apenas servidor)"
+    else
+        # Processar escolhas múltiplas
+        IFS=',' read -ra PLAYER_CHOICES <<< "$players_choice"
+        for choice in "${PLAYER_CHOICES[@]}"; do
+            choice=$(echo "$choice" | xargs) # Trim whitespace
+            case $choice in
+                1)
+                    INSTALL_PLAYER_WEBOS=true
+                    log "✅ webOS player selecionado"
+                    ;;
+                2)
+                    INSTALL_PLAYER_ANDROID=true
+                    log "✅ Android TV player selecionado"
+                    ;;
+                3)
+                    INSTALL_PLAYER_LINUX_ELECTRON=true
+                    log "✅ Linux Electron player selecionado"
+                    ;;
+                4)
+                    INSTALL_PLAYER_LINUX_CPP=true
+                    log "✅ Linux C++ player selecionado"
+                    ;;
+                5)
+                    INSTALL_PLAYER_WINDOWS_ELECTRON=true
+                    log "✅ Windows Electron player selecionado"
+                    ;;
+                6)
+                    INSTALL_PLAYER_TIZEN=true
+                    log "✅ Tizen player selecionado"
+                    ;;
+                7)
+                    INSTALL_PLAYER_SMARTDISPLAYFX=true
+                    log "✅ SmartDisplayFX Client selecionado"
+                    ;;
+                8)
+                    INSTALL_PLAYER_FX_INTERFACE=true
+                    log "✅ Smart FX Interface selecionado"
+                    ;;
+                *)
+                    warn "⚠️  Opção '$choice' ignorada (inválida)"
+                    ;;
+            esac
+        done
+    fi
+    
+    echo
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo
+}
+
+# Copiar players selecionados para diretório de instalação
+copy_selected_players() {
+    log "Copiando players selecionados..."
+    
+    if [[ "$INSTALL_ALL_PLAYERS" == "true" ]]; then
+        log "Instalando todos os players..."
+        if [[ -d "$SOURCE_DIR/player-client" ]]; then
+            log "Copiando player-client completo..."
+            cp -r "$SOURCE_DIR/player-client" "$INSTALL_DIR/" 2>/dev/null || {
+                warn "Falha ao copiar player-client, continuando..."
+            }
+        fi
+        if [[ -d "$SOURCE_DIR/Player-SmartDisplayFX-client" ]]; then
+            log "Copiando Player-SmartDisplayFX-client..."
+            cp -r "$SOURCE_DIR/Player-SmartDisplayFX-client" "$INSTALL_DIR/" 2>/dev/null || {
+                warn "Falha ao copiar Player-SmartDisplayFX-client, continuando..."
+            }
+        fi
+        if [[ -d "$SOURCE_DIR/Player-Smart-FX-Interface" ]]; then
+            log "Copiando Player-Smart-FX-Interface..."
+            cp -r "$SOURCE_DIR/Player-Smart-FX-Interface" "$INSTALL_DIR/" 2>/dev/null || {
+                warn "Falha ao copiar Player-Smart-FX-Interface, continuando..."
+            }
+        fi
+        log "✅ Todos os players copiados"
+        return
+    fi
+    
+    # Criar diretório base para players se não existir
+    mkdir -p "$INSTALL_DIR/player-client" "$INSTALL_DIR/Player-SmartDisplayFX-client" "$INSTALL_DIR/Player-Smart-FX-Interface"
+    
+    # Copiar estrutura base do player-client (core, shared, docs) se pelo menos uma plataforma foi selecionada
+    if [[ "$INSTALL_PLAYER_WEBOS" == "true" ]] || [[ "$INSTALL_PLAYER_ANDROID" == "true" ]] || \
+       [[ "$INSTALL_PLAYER_LINUX_ELECTRON" == "true" ]] || [[ "$INSTALL_PLAYER_LINUX_CPP" == "true" ]] || \
+       [[ "$INSTALL_PLAYER_WINDOWS_ELECTRON" == "true" ]] || [[ "$INSTALL_PLAYER_TIZEN" == "true" ]]; then
+        if [[ -d "$SOURCE_DIR/player-client" ]]; then
+            log "Copiando estrutura base do player-client (core, shared, docs)..."
+            if [[ -d "$SOURCE_DIR/player-client/core" ]]; then
+                cp -r "$SOURCE_DIR/player-client/core" "$INSTALL_DIR/player-client/" 2>/dev/null || true
+            fi
+            if [[ -d "$SOURCE_DIR/player-client/shared" ]]; then
+                cp -r "$SOURCE_DIR/player-client/shared" "$INSTALL_DIR/player-client/" 2>/dev/null || true
+            fi
+            if [[ -d "$SOURCE_DIR/player-client/docs" ]]; then
+                cp -r "$SOURCE_DIR/player-client/docs" "$INSTALL_DIR/player-client/" 2>/dev/null || true
+            fi
+            # Copiar arquivos README e documentação
+            cp "$SOURCE_DIR/player-client/README.md" "$INSTALL_DIR/player-client/" 2>/dev/null || true
+        fi
+    fi
+    
+    # Copiar plataformas específicas
+    if [[ "$INSTALL_PLAYER_WEBOS" == "true" ]] && [[ -d "$SOURCE_DIR/player-client/platforms/webos" ]]; then
+        log "Copiando player webOS..."
+        mkdir -p "$INSTALL_DIR/player-client/platforms"
+        cp -r "$SOURCE_DIR/player-client/platforms/webos" "$INSTALL_DIR/player-client/platforms/" 2>/dev/null || {
+            warn "Falha ao copiar player webOS"
+        }
+    fi
+    
+    if [[ "$INSTALL_PLAYER_ANDROID" == "true" ]] && [[ -d "$SOURCE_DIR/player-client/platforms/android" ]]; then
+        log "Copiando player Android TV..."
+        mkdir -p "$INSTALL_DIR/player-client/platforms"
+        cp -r "$SOURCE_DIR/player-client/platforms/android" "$INSTALL_DIR/player-client/platforms/" 2>/dev/null || {
+            warn "Falha ao copiar player Android TV"
+        }
+    fi
+    
+    if [[ "$INSTALL_PLAYER_LINUX_ELECTRON" == "true" ]] && [[ -d "$SOURCE_DIR/player-client/platforms/linux-electron" ]]; then
+        log "Copiando player Linux Electron..."
+        mkdir -p "$INSTALL_DIR/player-client/platforms"
+        cp -r "$SOURCE_DIR/player-client/platforms/linux-electron" "$INSTALL_DIR/player-client/platforms/" 2>/dev/null || {
+            warn "Falha ao copiar player Linux Electron"
+        }
+    fi
+    
+    if [[ "$INSTALL_PLAYER_LINUX_CPP" == "true" ]] && [[ -d "$SOURCE_DIR/player-client/platforms/linux-cpp" ]]; then
+        log "Copiando player Linux C++..."
+        mkdir -p "$INSTALL_DIR/player-client/platforms"
+        cp -r "$SOURCE_DIR/player-client/platforms/linux-cpp" "$INSTALL_DIR/player-client/platforms/" 2>/dev/null || {
+            warn "Falha ao copiar player Linux C++"
+        }
+    fi
+    
+    if [[ "$INSTALL_PLAYER_WINDOWS_ELECTRON" == "true" ]] && [[ -d "$SOURCE_DIR/player-client/platforms/windows-electron" ]]; then
+        log "Copiando player Windows Electron..."
+        mkdir -p "$INSTALL_DIR/player-client/platforms"
+        cp -r "$SOURCE_DIR/player-client/platforms/windows-electron" "$INSTALL_DIR/player-client/platforms/" 2>/dev/null || {
+            warn "Falha ao copiar player Windows Electron"
+        }
+    fi
+    
+    if [[ "$INSTALL_PLAYER_TIZEN" == "true" ]] && [[ -d "$SOURCE_DIR/player-client/platforms/tizen" ]]; then
+        log "Copiando player Tizen..."
+        mkdir -p "$INSTALL_DIR/player-client/platforms"
+        cp -r "$SOURCE_DIR/player-client/platforms/tizen" "$INSTALL_DIR/player-client/platforms/" 2>/dev/null || {
+            warn "Falha ao copiar player Tizen"
+        }
+    fi
+    
+    # Copiar SmartDisplayFX Client
+    if [[ "$INSTALL_PLAYER_SMARTDISPLAYFX" == "true" ]] && [[ -d "$SOURCE_DIR/Player-SmartDisplayFX-client" ]]; then
+        log "Copiando SmartDisplayFX Client..."
+        cp -r "$SOURCE_DIR/Player-SmartDisplayFX-client" "$INSTALL_DIR/" 2>/dev/null || {
+            warn "Falha ao copiar SmartDisplayFX Client"
+        }
+    fi
+    
+    # Copiar Smart FX Interface
+    if [[ "$INSTALL_PLAYER_FX_INTERFACE" == "true" ]] && [[ -d "$SOURCE_DIR/Player-Smart-FX-Interface" ]]; then
+        log "Copiando Smart FX Interface..."
+        cp -r "$SOURCE_DIR/Player-Smart-FX-Interface" "$INSTALL_DIR/" 2>/dev/null || {
+            warn "Falha ao copiar Smart FX Interface"
+        }
+    fi
+    
+    log "✅ Players selecionados copiados"
+}
+
+# Continuar função show_menu (seeds e kiosk)
+show_menu_continuation() {
     # Perguntar sobre carregamento de seeds (se não foi definido via argumento)
     if [[ "$SEEDS_OPTION_FORCED" != "true" ]]; then
         echo
@@ -6555,7 +8235,81 @@ main() {
             exit 1
         fi
     fi
-    
+
+    # =========================================================================
+    # Modos especiais: apenas banco ou apenas builds (não removem instalação)
+    # =========================================================================
+
+    # 1) Reinstalar APENAS o banco (drop + schema + seeds), sem rebuild de backend/frontend
+    if [[ "$DB_ONLY_MODE" == "true" ]]; then
+        log "Modo especial: Reinstalação APENAS do banco de dados (drop + schema + seeds)..."
+
+        # Detectar diretório do projeto e configurar INSTALL_DIR / config
+        detect_project_directory
+        # Se INSTALL_MODE não foi definido por argumentos/menu, assumir single-server para este modo
+        if [[ -z "$INSTALL_MODE" ]]; then
+            INSTALL_MODE="single-server"
+        fi
+        setup_project
+
+        # Garantir que não vamos preservar o banco (reinstalação limpa)
+        RESET_DATABASE=true
+        PRESERVE_DB=false
+
+        # Executar apenas a parte de banco e schema
+        setup_database
+        setup_environment
+
+        if [[ "$INSTALL_MODE" == "single-server" ]]; then
+            # Aplicar schema consolidado e seeds/admin
+            setup_first_boot
+        else
+            log "ℹ️  INSTALL_MODE='$INSTALL_MODE': para Docker, a recriação completa do banco geralmente é feita via containers."
+        fi
+
+        log "✅ Reinstalação do banco de dados concluída (modo --db-only)."
+        return 0
+    fi
+
+    # 2) Build APENAS do backend e/ou APENAS do frontend
+    if [[ "$BACKEND_BUILD_ONLY" == "true" || "$FRONTEND_BUILD_ONLY" == "true" ]]; then
+        log "Modo especial: build seletivo (backend/frontend) sem tocar no banco ou serviços..."
+
+        # Detectar diretório e carregar configurações básicas
+        detect_project_directory
+        if [[ -z "$INSTALL_MODE" ]]; then
+            INSTALL_MODE="single-server"
+        fi
+        setup_project
+
+        if [[ "$INSTALL_MODE" == "docker" ]]; then
+            error "❌ Modos --backend-only / --frontend-only não são suportados para INSTALL_MODE=docker."
+            error "   Use 'docker compose build' para rebuild em ambientes Docker."
+            exit 1
+        fi
+
+        if [[ "$BACKEND_BUILD_ONLY" == "true" ]]; then
+            SKIP_BACKEND_DEPS_BUILD=false
+            SKIP_FRONTEND_DEPS_BUILD=true
+            log "➡️  Executando apenas instalação/compilação do backend (--backend-only)..."
+            install_project_dependencies
+        fi
+
+        if [[ "$FRONTEND_BUILD_ONLY" == "true" ]]; then
+            SKIP_BACKEND_DEPS_BUILD=true
+            SKIP_FRONTEND_DEPS_BUILD=false
+            log "➡️  Executando apenas instalação/compilação do frontend (--frontend-only)..."
+            install_project_dependencies
+        fi
+
+        log "✅ Modo especial de build seletivo concluído."
+        return 0
+    fi
+
+    # =========================================================================
+    # Fluxo completo de instalação
+    # =========================================================================
+
     # Detectar e remover instalação anterior (se existir e usuário confirmar)
     # Isso deve ser feito ANTES de detectar o diretório do projeto para evitar conflitos
     detect_and_remove_previous_installation
@@ -6600,6 +8354,9 @@ main() {
     
     # AGORA definir INSTALL_DIR baseado no modo escolhido
     setup_project
+    
+    # Perguntar sobre players (após definir INSTALL_DIR)
+    show_players_menu
     
     # Perguntar sobre HTTPS (após menu, antes da instalação)
     ask_https_configuration
@@ -6668,10 +8425,70 @@ main() {
         setup_kiosk_mode
     fi
     
-    # Executar checklist pós-instalação (não bloqueante)
-    if [[ -f "$INSTALL_DIR/scripts/post-install-check.sh" ]]; then
-        chmod +x "$INSTALL_DIR/scripts/post-install-check.sh" 2>/dev/null || true
-        (HOST_OVERRIDE="${PUBLIC_DOMAIN:-localhost}" bash "$INSTALL_DIR/scripts/post-install-check.sh") || true
+    # Verificações finais integradas (não bloqueantes)
+    log "Realizando verificações finais integradas..."
+    
+    # Verificar containers Docker
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        log "Verificando status dos containers..."
+        $COMPOSE_CMD ps
+        
+        # Verificar MQTT Broker
+        if $COMPOSE_CMD ps | grep -q smartsignage-mqtt; then
+            log "✅ MQTT Broker: Container rodando"
+            if command -v mosquitto_sub &> /dev/null; then
+                if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
+                    log "✅ MQTT Broker: Conectado e respondendo"
+                else
+                    warning "⚠️  MQTT Broker: Container rodando mas não respondeu ao teste"
+                fi
+            else
+                log "ℹ️  MQTT Broker: Container rodando (teste detalhado requer mosquitto_sub)"
+            fi
+        else
+            warning "⚠️  MQTT Broker: Container não encontrado"
+        fi
+        
+        # Verificar outros serviços essenciais
+        if $COMPOSE_CMD ps | grep -q smartsignage-postgres; then
+            log "✅ PostgreSQL: Container rodando"
+        else
+            warning "⚠️  PostgreSQL: Container não encontrado"
+        fi
+        
+        if $COMPOSE_CMD ps | grep -q smartsignage-redis; then
+            log "✅ Redis: Container rodando"
+        else
+            warning "⚠️  Redis: Container não encontrado"
+        fi
+        
+        if $COMPOSE_CMD ps | grep -q smartsignage-app; then
+            log "✅ App (Backend+Frontend): Container rodando"
+        else
+            warning "⚠️  App: Container não encontrado"
+        fi
+    fi
+    
+    # Verificar serviços systemd (single-server)
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        log "Verificando serviços systemd..."
+        if systemctl is-active --quiet smartsignage-backend; then
+            log "✅ Backend: Serviço ativo"
+        else
+            warning "⚠️  Backend: Serviço não está ativo"
+        fi
+        
+        if systemctl is-active --quiet nginx; then
+            log "✅ Nginx: Serviço ativo"
+        else
+            warning "⚠️  Nginx: Serviço não está ativo"
+        fi
+        
+        if systemctl is-active --quiet postgresql; then
+            log "✅ PostgreSQL: Serviço ativo"
+        else
+            warning "⚠️  PostgreSQL: Serviço não está ativo"
+        fi
     fi
     
     # Salvar informações da build após instalação bem-sucedida

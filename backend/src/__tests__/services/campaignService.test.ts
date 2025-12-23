@@ -14,8 +14,6 @@ jest.mock('../../config/database', () => ({
 describe('CampaignService', () => {
   let campaignService: CampaignService;
   let mockDb: any;
-  let getStatsSpy: jest.SpyInstance;
-  let getScheduleInfoSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -34,14 +32,6 @@ describe('CampaignService', () => {
     };
 
     campaignService = new CampaignService();
-
-    getStatsSpy = jest
-      .spyOn<any, any>(CampaignService.prototype as any, 'getCampaignStats')
-      .mockResolvedValue({ totemCount: 0, playlistCount: 0, mediaCount: 0, totalDuration: 0 });
-
-    getScheduleInfoSpy = jest
-      .spyOn<any, any>(CampaignService.prototype as any, 'getScheduleInfo')
-      .mockReturnValue({ isScheduled: false, isExpired: false, isActiveNow: true });
   });
 
   afterEach(() => {

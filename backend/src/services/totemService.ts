@@ -5,8 +5,10 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
-import { logError, logInfo, logDebug } from '../utils/loggerHelper';
+import { logError, logDebug } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from './eventLogService';
+import { getCacheService } from './cacheService';
+import { getTotemPlaylistMixService } from './totemPlaylistMixService';
 
 export interface CreateTotemRequest {
   name?: string;
@@ -19,7 +21,7 @@ export interface CreateTotemRequest {
   version?: string;
   firmwareVersion?: string;
   ipAddress?: string;
-  clientId?: number;
+  // REMOVIDO: clientId - totem não pertence a subscriber, pertence a publisher via local_id
   isActive?: boolean;
   active?: boolean;
 }
@@ -35,7 +37,7 @@ export interface UpdateTotemRequest {
   version?: string;
   firmwareVersion?: string;
   ipAddress?: string;
-  clientId?: number;
+  // REMOVIDO: clientId - totem não pertence a subscriber, pertence a publisher via local_id
   isActive?: boolean;
   active?: boolean;
 }
@@ -59,8 +61,9 @@ export interface TotemResponse {
   active: boolean;
   is_active?: boolean;
   isActive?: boolean;
-  client_id?: number;
-  clientId?: number;
+  // REMOVIDO: client_id/clientId - totem não pertence a subscriber
+  // publisher_id pode ser derivado via local_id → locals → publishers
+  publisherId?: number; // Derivado de local_id (para conveniência)
   current_playlist_id?: number;
   currentPlaylistId?: number;
   createdAt: string;
@@ -99,6 +102,19 @@ export interface HeartbeatData {
     disk?: number;
     temperature?: number;
   };
+  aiContext?: {
+    pedestrian_count?: number;
+    pedestrian_density?: 'low' | 'medium' | 'high';
+    pedestrian_demographics?: any;
+    sentiment_score?: number;
+    sentiment_label?: 'positive' | 'neutral' | 'negative';
+    emotion_tags?: string[];
+    time_of_day?: string;
+    day_type?: string;
+    weather_context?: any;
+    event_context?: any;
+    performance_metrics?: any;
+  };
 }
 
 export class TotemService {
@@ -118,6 +134,10 @@ export class TotemService {
     return getEventLogService();
   }
 
+  private get cache() {
+    return getCacheService();
+  }
+
   /**
    * Lista todos os totems (alias para getTotems)
    */
@@ -126,7 +146,8 @@ export class TotemService {
     limit?: number;
     search?: string;
     status?: string;
-    clientId?: number;
+    // REMOVIDO: clientId - totem não pertence a subscriber
+    publisherId?: number; // Filtrar por publisher via local_id
   }): Promise<any> {
     const result = await this.getTotems(
       filters.page || 1,
@@ -198,15 +219,15 @@ export class TotemService {
           t.last_heartbeat as lastHeartbeat,
           t.active,
           t.is_active as is_active,
-          t.client_id,
           t.current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
-          h.name as hostName
+          p.name as hostName,
+          p.publisher_id as publisherId
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
-        LEFT JOIN hosts h ON l.host_id = h.host_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         ${whereClause}
         ORDER BY t.last_heartbeat DESC, t.created_at DESC
         LIMIT ? OFFSET ?
@@ -260,21 +281,18 @@ export class TotemService {
           t.status,
           t.active,
           t.is_active as is_active,
-          t.client_id,
           t.current_playlist_id,
           t.blocked,
           t.blocked_until,
           t.last_heartbeat as lastHeartbeat,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
-          c.client_id as client_id,
-          c.name as clientName,
           l.description as location,
-          h.name as hostName
+          p.name as hostName,
+          p.publisher_id as publisherId
         FROM totems t
-        LEFT JOIN clients c ON t.client_id = c.client_id
         LEFT JOIN locals l ON t.local_id = l.local_id
-        LEFT JOIN hosts h ON l.host_id = h.host_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE t.uin = ? OR t.identifier = ?
       `, [uin, uin]);
 
@@ -308,15 +326,15 @@ export class TotemService {
           t.last_heartbeat as lastHeartbeat,
           t.active,
           t.is_active as is_active,
-          t.client_id,
           t.current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
-          h.name as hostName
+          p.name as hostName,
+          p.publisher_id as publisherId
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
-        LEFT JOIN hosts h ON l.host_id = h.host_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE t.totem_id = ?
       `, [totemId]);
 
@@ -358,15 +376,15 @@ export class TotemService {
           t.last_heartbeat as lastHeartbeat,
           t.active,
           t.is_active as is_active,
-          t.client_id,
           t.current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
-          h.name as hostName
+          p.name as hostName,
+          p.publisher_id as publisherId
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
-        LEFT JOIN hosts h ON l.host_id = h.host_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE t.identifier = ?
       `, [identifier]);
 
@@ -408,15 +426,15 @@ export class TotemService {
           t.last_heartbeat as lastHeartbeat,
           t.active,
           t.is_active as is_active,
-          t.client_id,
           t.current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
-          h.name as hostName
+          p.name as hostName,
+          p.publisher_id as publisherId
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
-        LEFT JOIN hosts h ON l.host_id = h.host_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE t.device_id = ?
       `, [deviceId]);
 
@@ -451,7 +469,6 @@ export class TotemService {
         version, 
         firmwareVersion, 
         ipAddress, 
-        clientId,
         active = true,
         isActive = true
       } = data;
@@ -495,14 +512,13 @@ export class TotemService {
           version,
           firmware_version,
           ip_address,
-          client_id,
           active,
           is_active,
           status,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING totem_id
       `, [
         name || identifier,
@@ -515,7 +531,6 @@ export class TotemService {
         version,
         firmwareVersion,
         ipAddress,
-        clientId || null,
         active,
         isActive
       ]);
@@ -537,6 +552,9 @@ export class TotemService {
         totemId: newTotem.id,
         identifier: newTotem.identifier
       });
+
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('totem', newTotem.id).catch(() => {});
 
       return newTotem;
 
@@ -633,10 +651,7 @@ export class TotemService {
         params.push(data.ipAddress);
       }
 
-      if (data.clientId !== undefined) {
-        updates.push('client_id = ?');
-        params.push(data.clientId);
-      }
+      // REMOVIDO: clientId - totem não pertence a subscriber, pertence a publisher via local_id
 
       if (data.active !== undefined) {
         const value = data.active ? 1 : 0;
@@ -682,6 +697,9 @@ export class TotemService {
         changes: data
       });
 
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('totem', totemId).catch(() => {});
+
       return updatedTotem;
 
     } catch (error: any) {
@@ -695,7 +713,7 @@ export class TotemService {
    */
   async processHeartbeat(data: HeartbeatData): Promise<TotemResponse> {
     try {
-      const { totemId, status, version, firmwareVersion, ipAddress, config, metrics } = data;
+      const { totemId, status, version, firmwareVersion, ipAddress, config, metrics, aiContext } = data;
 
       // Verificar se totem existe
       const totem = await this.getTotemById(totemId);
@@ -750,6 +768,18 @@ export class TotemService {
         await this.saveTotemMetrics(totemId, metrics);
       }
 
+      // Atualizar contexto de IA se fornecido
+      if (aiContext) {
+        try {
+          const mixService = getTotemPlaylistMixService();
+          await mixService.updateAIContext(totemId, aiContext);
+          await logDebug('Contexto de IA atualizado via heartbeat', { totemId });
+        } catch (error: any) {
+          // Log erro mas não falha o heartbeat
+          await logError('Erro ao atualizar contexto de IA no heartbeat', error, { totemId });
+        }
+      }
+
       // Buscar totem atualizado
       const updatedTotem = await this.getTotemById(totemId);
       if (!updatedTotem) {
@@ -766,6 +796,9 @@ export class TotemService {
         metrics,
         source: 'processHeartbeat'
       });
+
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('totem', totemId).catch(() => {});
 
       return updatedTotem;
 
@@ -805,41 +838,49 @@ export class TotemService {
   }
 
   /**
-   * Busca estatísticas de um totem
+   * Busca estatísticas de um totem (com cache de 2 minutos)
    */
   async getTotemStats(totemId: number): Promise<{
     campaignCount: number;
     playlistCount: number;
   }> {
-    try {
-      // Contar campanhas
-      const campaignCountResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count
-        FROM campaign_totems ct
-        JOIN campaigns c ON ct.campaign_id = c.campaign_id
-        WHERE ct.totem_id = ? AND COALESCE(c.is_active, true) = true
-      `, [totemId]);
+    const cacheKey = this.cache.generateKey('stats', 'totem', totemId.toString());
+    
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        try {
+          // Contar campanhas
+          const campaignCountResult = await this.db.findFirst(`
+            SELECT COUNT(*) as count
+            FROM campaign_totems ct
+            JOIN campaigns c ON ct.campaign_id = c.campaign_id
+            WHERE ct.totem_id = ? AND COALESCE(c.is_active, true) = true
+          `, [totemId]);
 
-      // Contar playlists
-      const playlistCountResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count
-        FROM playlists p
-        JOIN campaigns c ON p.campaign_id = c.campaign_id
-        WHERE p.totem_id = ? AND COALESCE(c.is_active, true) = true
-      `, [totemId]);
+          // Contar playlists
+          const playlistCountResult = await this.db.findFirst(`
+            SELECT COUNT(*) as count
+            FROM playlists p
+            JOIN campaigns c ON p.campaign_id = c.campaign_id
+            WHERE p.totem_id = ? AND COALESCE(c.is_active, true) = true
+          `, [totemId]);
 
-      return {
-        campaignCount: campaignCountResult?.count || 0,
-        playlistCount: playlistCountResult?.count || 0
-      };
+          return {
+            campaignCount: campaignCountResult?.count || 0,
+            playlistCount: playlistCountResult?.count || 0
+          };
 
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas do totem', error);
-      return {
-        campaignCount: 0,
-        playlistCount: 0
-      };
-    }
+        } catch (error: any) {
+          await logError('Erro ao buscar estatísticas do totem', error);
+          return {
+            campaignCount: 0,
+            playlistCount: 0
+          };
+        }
+      },
+      120 // Cache por 2 minutos
+    );
   }
 
   /**
@@ -919,12 +960,91 @@ export class TotemService {
   }
 
   /**
-   * Busca playlist atual do totem
+   * Obtém playlist mixada atual do totem (nova implementação com mix inteligente)
+   */
+  async getCurrentMixedPlaylist(totemId: number): Promise<any> {
+    try {
+      const mixService = getTotemPlaylistMixService();
+      
+      // Tentar obter mix atual
+      let currentMix = await mixService.getCurrentMix(totemId);
+      
+      // Se não houver mix atual, gerar uma nova
+      if (!currentMix) {
+        await logDebug('Nenhuma mixagem encontrada, gerando nova', { totemId });
+        currentMix = await mixService.generateMixForTotem(totemId);
+      }
+      
+      if (!currentMix) {
+        return null;
+      }
+      
+      // Converter mix_items para formato de playlist
+      const playlistItems = currentMix.mix_items.map((item: any, index: number) => ({
+        item_id: index + 1,
+        media_id: item.media_id,
+        playlist_id: item.playlist_id,
+        campaign_id: item.campaign_id,
+        order_index: item.order_index || index + 1,
+        duration: item.duration || 10,
+        weight: item.weight,
+        priority: item.priority,
+        tags: item.tags || [],
+      }));
+      
+      return {
+        mix_id: currentMix.mix_id,
+        playlist_id: null, // Não é uma playlist única, é um mix
+        name: `Mix Inteligente v${currentMix.mix_version}`,
+        description: `Playlist mixada gerada automaticamente (${currentMix.mix_strategy})`,
+        items: playlistItems,
+        total_items: currentMix.total_items,
+        total_duration: currentMix.total_duration,
+        mix_strategy: currentMix.mix_strategy,
+        context_snapshot: currentMix.context_snapshot,
+        generated_at: currentMix.generated_at,
+        applied_at: currentMix.applied_at,
+      };
+    } catch (error: any) {
+      await logError('Erro ao obter playlist mixada', error, { totemId });
+      // Fallback para método antigo se houver erro
+      return this.getCurrentPlaylist(totemId);
+    }
+  }
+
+  /**
+   * Gera nova playlist mixada para o totem
+   */
+  async generateMixedPlaylist(totemId: number): Promise<any> {
+    try {
+      const mixService = getTotemPlaylistMixService();
+      const newMix = await mixService.generateMixForTotem(totemId);
+      
+      // Converter para formato de resposta
+      return {
+        mix_id: newMix.mix_id,
+        totem_id: newMix.totem_id,
+        mix_version: newMix.mix_version,
+        total_items: newMix.total_items,
+        total_duration: newMix.total_duration,
+        mix_strategy: newMix.mix_strategy,
+        generated_at: newMix.generated_at,
+        applied_at: newMix.applied_at,
+        items: newMix.mix_items,
+      };
+    } catch (error: any) {
+      await logError('Erro ao gerar playlist mixada', error, { totemId });
+      throw error;
+    }
+  }
+
+  /**
+   * Busca playlist atual do totem (método legado - mantido para compatibilidade)
    */
   async getCurrentPlaylist(totemId: number): Promise<any> {
     try {
       const playlist = await this.db.findFirst(`
-        SELECT
+        SELECT 
           p.playlist_id as id,
           p.name,
           p.description,
@@ -1024,7 +1144,8 @@ export class TotemService {
               ipAddress: options.ipAddress,
               version: options.version,
               firmwareVersion: options.firmwareVersion,
-              source: options.source
+              source: options.source,
+              errorMessage: statusEvent === EventType.TOTEM_ERROR ? 'Erro detectado no totem' : undefined // Padrão conceitual
             }
           });
         }
@@ -1210,7 +1331,10 @@ export class TotemService {
         identifier: totem.identifier
       });
 
-    } catch (error: any) {
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('totem', totemId).catch(() => {});
+
+      } catch (error: any) {
       await logError('Erro ao remover totem', error);
       throw error;
     }
@@ -1239,10 +1363,11 @@ export class TotemService {
           t.created_at as createdAt,
           t.updated_at as updatedAt,
           l.description as localName,
-          h.name as hostName
+          p.name as hostName,
+          p.publisher_id as publisherId
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
-        LEFT JOIN hosts h ON l.host_id = h.host_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE t.active = 1 AND (
           t.last_heartbeat IS NULL OR 
           t.last_heartbeat < datetime('now', '-${minutes} minutes')

@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { authApi } from '../../services/api/authApi';
+import { authApi, LoginResponse } from '../../services/api';
 
 export interface User {
   id: number;
@@ -31,12 +31,12 @@ const initialState: AuthState = {
 };
 
 // Async thunks
-export const login = createAsyncThunk(
+export const login = createAsyncThunk<LoginResponse, { username: string; password: string }, { rejectValue: string }>(
   'auth/login',
-  async (credentials: { username: string; password: string }, { rejectWithValue }) => {
+  async (credentials, { rejectWithValue }) => {
     try {
       const response = await authApi.login(credentials);
-      return response.data;
+      return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.error || error.response?.data?.message || 'Erro ao fazer login');
     }
@@ -49,7 +49,7 @@ export const logout = createAsyncThunk(
     try {
       const state = getState() as { auth: AuthState };
       if (state.auth.token) {
-        await authApi.logout(state.auth.token);
+        await authApi.logout();
       }
       return null;
     } catch (error: any) {
@@ -68,7 +68,7 @@ export const refreshToken = createAsyncThunk(
       }
       
       const response = await authApi.refreshToken(state.auth.refreshToken);
-      return response.data;
+      return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Erro ao renovar token');
     }
@@ -84,8 +84,8 @@ export const checkAuthStatus = createAsyncThunk(
         throw new Error('No token available');
       }
       
-      const response = await authApi.getProfile(state.auth.token);
-      return response.data;
+      const response = await authApi.getProfile();
+      return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Token inválido');
     }
@@ -152,22 +152,42 @@ const authSlice = createSlice({
       })
       .addCase(login.fulfilled, (state, action) => {
         state.isLoading = false;
-        // Garantir que o role seja um dos valores permitidos
-        const user = action.payload.user;
+        
+        // Verificar se login foi bem-sucedido e tem dados necessários
+        if (action.payload.success === false || !action.payload.token || !action.payload.user) {
+          state.error = action.payload.error || 'Erro ao fazer login';
+          state.isAuthenticated = false;
+          return;
+        }
+        
+        // Garantir que o role seja um dos valores permitidos e mapear campos
+        const apiUser = action.payload.user;
         state.user = {
-          ...user,
-          role: (user.role === 'admin' || user.role === 'manager' || user.role === 'operator') 
-            ? user.role 
-            : 'operator' as 'admin' | 'manager' | 'operator'
+          id: apiUser.user_id || 0,
+          name: apiUser.name || '',
+          email: apiUser.email || '',
+          role: apiUser.role === 'admin' 
+            ? 'admin' as const
+            : apiUser.role === 'user' || apiUser.role === 'client'
+            ? 'operator' as const
+            : 'operator' as const,
+          isActive: apiUser.is_active !== undefined ? apiUser.is_active : true,
+          clientId: apiUser.client_id,
+          createdAt: apiUser.created_at || new Date().toISOString(),
+          updatedAt: apiUser.updated_at || new Date().toISOString(),
         };
         state.token = action.payload.token;
-        state.refreshToken = action.payload.refreshToken;
+        state.refreshToken = action.payload.refreshToken || '';
         state.isAuthenticated = true;
         state.error = null;
         
         // Salvar tokens no localStorage
-        localStorage.setItem('token', action.payload.token);
-        localStorage.setItem('refreshToken', action.payload.refreshToken);
+        if (action.payload.token) {
+          localStorage.setItem('token', action.payload.token);
+        }
+        if (action.payload.refreshToken) {
+          localStorage.setItem('refreshToken', action.payload.refreshToken);
+        }
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
@@ -229,13 +249,21 @@ const authSlice = createSlice({
       })
       .addCase(checkAuthStatus.fulfilled, (state, action) => {
         state.isLoading = false;
-        // Garantir que o role seja um dos valores permitidos
-        const user = action.payload;
+        // Garantir que o role seja um dos valores permitidos e mapear campos
+        const apiUser = action.payload;
         state.user = {
-          ...user,
-          role: (user.role === 'admin' || user.role === 'manager' || user.role === 'operator') 
-            ? user.role 
-            : 'operator' as 'admin' | 'manager' | 'operator'
+          id: apiUser.user_id || 0,
+          name: apiUser.name || '',
+          email: apiUser.email || '',
+          role: apiUser.role === 'admin' 
+            ? 'admin' as const
+            : apiUser.role === 'user' || apiUser.role === 'client'
+            ? 'operator' as const
+            : 'operator' as const,
+          isActive: apiUser.is_active !== undefined ? apiUser.is_active : true,
+          clientId: apiUser.client_id,
+          createdAt: apiUser.created_at || new Date().toISOString(),
+          updatedAt: apiUser.updated_at || new Date().toISOString(),
         };
         state.isAuthenticated = true;
         state.error = null;
@@ -254,13 +282,21 @@ const authSlice = createSlice({
       
       // Update Profile
       .addCase(updateProfile.fulfilled, (state, action) => {
-        // Garantir que o role seja um dos valores permitidos
-        const user = action.payload;
+        // Garantir que o role seja um dos valores permitidos e mapear campos
+        const apiUser = action.payload;
         state.user = {
-          ...user,
-          role: (user.role === 'admin' || user.role === 'manager' || user.role === 'operator') 
-            ? user.role 
-            : (state.user?.role || 'operator') as 'admin' | 'manager' | 'operator'
+          id: apiUser.user_id || state.user?.id || 0,
+          name: apiUser.name || state.user?.name || '',
+          email: apiUser.email || state.user?.email || '',
+          role: apiUser.role === 'admin' 
+            ? 'admin' as const
+            : apiUser.role === 'user' || apiUser.role === 'client'
+            ? 'operator' as const
+            : (state.user?.role || 'operator') as 'admin' | 'manager' | 'operator',
+          isActive: apiUser.is_active !== undefined ? apiUser.is_active : (state.user?.isActive ?? true),
+          clientId: apiUser.client_id ?? state.user?.clientId,
+          createdAt: apiUser.created_at || state.user?.createdAt || new Date().toISOString(),
+          updatedAt: apiUser.updated_at || new Date().toISOString(),
         };
       })
       

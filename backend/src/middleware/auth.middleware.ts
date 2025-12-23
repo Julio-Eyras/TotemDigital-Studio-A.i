@@ -7,6 +7,28 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { config } from '../config/env';
+
+// Declaração de módulo para estender tipos do Express
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: number;
+        userId: number; // Alias para id (compatibilidade)
+        username: string;
+        email: string;
+        role: string;
+        publisherId?: number; // NOVO: FK para publishers
+        subscriberId?: number; // NOVO: Para subscribers (derivado de publisher ou direto)
+        clientId?: number; // DEPRECADO: Mantido para compatibilidade
+        userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
+        isTenantUser?: boolean; // NOVO
+      };
+      subscriberId?: number; // Adicionado pelo subscriberIsolationMiddleware
+    }
+  }
+}
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -15,8 +37,30 @@ export interface AuthenticatedRequest extends Request {
     username: string;
     email: string;
     role: string;
-    clientId?: number;
+    publisherId?: number; // NOVO
+    subscriberId?: number; // NOVO
+    clientId?: number; // DEPRECADO
+    userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
+    isTenantUser?: boolean; // NOVO
   };
+  subscriberId?: number; // Adicionado pelo subscriberIsolationMiddleware
+}
+
+// Tipo para quando user está garantido (após middleware de auth)
+export interface AuthenticatedRequestWithUser extends Request {
+  user: {
+    id: number;
+    userId: number;
+    username: string;
+    email: string;
+    role: string;
+    publisherId?: number; // NOVO
+    subscriberId?: number; // NOVO
+    clientId?: number; // DEPRECADO
+    userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
+    isTenantUser?: boolean; // NOVO
+  };
+  subscriberId?: number;
 }
 
 /**
@@ -49,14 +93,18 @@ export const authMiddleware = async (
     }
 
     // Verificar token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, config.jwt.secret) as any;
     
     // Verificar se usuário ainda existe e está ativo
     const db = getDatabase();
     const user = await db.findFirst(`
-      SELECT id, username, email, role, client_id, is_active
+      SELECT 
+        id, username, email, role, 
+        publisher_id, user_type, is_tenant_user,
+        client_id, -- Mantido para compatibilidade
+        is_active
       FROM users 
-      WHERE id = ? AND is_active = true
+      WHERE id = $1 AND is_active = true
     `, [decoded.userId]);
 
     if (!user) {
@@ -67,6 +115,23 @@ export const authMiddleware = async (
       return;
     }
 
+    // Determinar subscriberId se aplicável
+    // Se user é publisher e publisher tem is_subscriber = true, pode ter subscriberId
+    let subscriberId: number | undefined = undefined;
+    if (user.publisher_id) {
+      const publisher = await db.findFirst(`
+        SELECT publisher_id, is_subscriber 
+        FROM publishers 
+        WHERE publisher_id = $1 AND COALESCE(active, true) = true
+      `, [user.publisher_id]);
+      
+      // Se publisher também é subscriber, usar publisher_id como subscriberId temporariamente
+      // TODO: Criar tabela de mapeamento se necessário
+      if (publisher?.is_subscriber) {
+        subscriberId = user.publisher_id;
+      }
+    }
+
     // Adicionar dados do usuário à requisição
     req.user = {
       id: user.id,
@@ -74,7 +139,11 @@ export const authMiddleware = async (
       username: user.username,
       email: user.email || '',
       role: user.role,
-      clientId: user.client_id
+      publisherId: user.publisher_id || undefined,
+      subscriberId: subscriberId,
+      clientId: user.client_id || undefined, // DEPRECADO: Mantido para compatibilidade
+      userType: user.user_type || undefined,
+      isTenantUser: user.is_tenant_user || false
     };
 
     next();
@@ -228,13 +297,26 @@ export const requireClientAccess = (req: AuthenticatedRequest, res: Response, ne
     return;
   }
 
-  // Admin pode acessar qualquer cliente
+  // ADMIN_SQL pode acessar qualquer cliente (com restrições de privacidade)
+  if (req.user.role === 'admin_sql') {
+    next();
+    return;
+  }
+
+  // OPERATOR não pode acessar dados de clientes (bloqueado pelo blockClientDataAccess)
+  // Mas se chegou aqui, pode continuar (para rotas técnicas)
+  if (req.user.role === 'operator') {
+    next();
+    return;
+  }
+
+  // ADMIN do cliente pode acessar qualquer cliente (próprio cliente)
   if (req.user.role === 'admin') {
     next();
     return;
   }
 
-  // Outros usuários só podem acessar dados do próprio cliente
+  // Outros usuários (gerente_marketing, editoracao, visualizador) só podem acessar dados do próprio cliente
   const clientId = req.params.clientId || req.body.clientId || req.query.clientId;
   
   if (clientId && req.user.clientId !== parseInt(clientId)) {
@@ -272,14 +354,18 @@ export const optionalAuth = async (
     }
 
     // Verificar token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, config.jwt.secret) as any;
     
     // Verificar se usuário ainda existe e está ativo
     const db = getDatabase();
     const user = await db.findFirst(`
-      SELECT id, username, email, role, client_id, is_active
+      SELECT 
+        id, username, email, role, 
+        publisher_id, user_type, is_tenant_user,
+        client_id, -- Mantido para compatibilidade
+        is_active
       FROM users 
-      WHERE id = ? AND is_active = true
+      WHERE id = $1 AND is_active = true
     `, [decoded.userId]);
 
     if (user) {
@@ -306,7 +392,7 @@ export const optionalAuth = async (
  */
 export const verifyAbandonPin = (req: Request, res: Response, next: NextFunction): void => {
   const { pin } = req.body;
-  const correctPin = process.env.PLAYER_ABANDON_PIN || '1234';
+  const correctPin = config.security.playerAbandonPin;
 
   if (!pin) {
     res.status(400).json({

@@ -4,10 +4,8 @@
  */
 
 import nodemailer from 'nodemailer';
-import dotenv from 'dotenv';
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
-
-dotenv.config();
+import { config } from '../config/env';
 
 export interface EmailOptions {
   to: string | string[];
@@ -37,8 +35,8 @@ export class EmailService {
   private defaultFrom: string;
 
   constructor() {
-    this.isEnabled = process.env.EMAIL_ENABLED !== 'false';
-    this.defaultFrom = process.env.SMTP_FROM || 'Smart Signage <noreply@smartsignage.com>';
+    this.isEnabled = config.email.enabled;
+    this.defaultFrom = config.email.smtp.from;
     
     if (this.isEnabled) {
       this.initializeTransporter();
@@ -51,15 +49,15 @@ export class EmailService {
   private initializeTransporter(): void {
     try {
       const smtpConfig = {
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_SECURE === 'true', // true para 465, false para outras portas
+        host: config.email.smtp.host,
+        port: config.email.smtp.port,
+        secure: config.email.smtp.secure,
         auth: {
-          user: process.env.SMTP_USER || '',
-          pass: process.env.SMTP_PASS || ''
+          user: config.email.smtp.user,
+          pass: config.email.smtp.pass
         },
         tls: {
-          rejectUnauthorized: process.env.SMTP_TLS_REJECT_UNAUTHORIZED !== 'false'
+          rejectUnauthorized: config.email.smtp.tlsRejectUnauthorized
         }
       };
 
@@ -72,18 +70,17 @@ export class EmailService {
 
       this.transporter = nodemailer.createTransport(smtpConfig);
 
-      // Verificar conexão
-      this.transporter.verify((error, success) => {
-        if (error) {
-          logError('Erro ao verificar conexão SMTP', error, {}).catch(() => {});
-          this.isEnabled = false;
-        } else {
-          logInfo('Email Service configurado e pronto', {}).catch(() => {});
-        }
+      // Verificar conexão (não bloquear fluxo)
+      this.transporter.verify().then(() => {
+        logInfo('Email Service configurado e pronto', {}).catch(() => {});
+      }).catch((error: any) => {
+        logError('Erro ao verificar conexão SMTP', error, {}).catch(() => {});
+        this.isEnabled = false;
       });
 
     } catch (error: any) {
-      await logError('Erro ao inicializar Email Service', error, {});
+      // Não podemos usar await em construtor; logar de forma assíncrona
+      logError('Erro ao inicializar Email Service', error, {}).catch(() => {});
       this.isEnabled = false;
     }
   }
@@ -154,7 +151,7 @@ export class EmailService {
       });
 
     } catch (error: any) {
-      await logError('Erro ao enviar email de recuperação de senha', error, { email });
+      await logError('Erro ao enviar email de recuperação de senha', error, { to });
       return {
         success: false,
         error: error.message
@@ -178,7 +175,7 @@ export class EmailService {
       });
 
     } catch (error: any) {
-      await logError('Erro ao enviar email de boas-vindas', error, { email, username });
+      await logError('Erro ao enviar email de boas-vindas', error, { to, username });
       return {
         success: false,
         error: error.message
@@ -201,7 +198,7 @@ export class EmailService {
       });
 
     } catch (error: any) {
-      await logError('Erro ao enviar email de notificação', error, { to: options.to, subject: options.subject });
+      await logError('Erro ao enviar email de notificação', error, { to, notification });
       return {
         success: false,
         error: error.message

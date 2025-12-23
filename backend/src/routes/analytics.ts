@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { AnalyticsService } from '../services/analyticsService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
+import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { logError } from '../utils/loggerHelper';
 
 const router = Router();
@@ -19,14 +20,17 @@ function getAnalyticsService(): AnalyticsService {
 }
 
 // Middleware de autenticação para todas as rotas
-router.use(authenticateToken);
+router.use(authenticateToken as any);
+
+// Aplicar bloqueio de dados de clientes para OPERATOR
+router.use(blockClientDataAccess);
 
 /**
  * @route GET /api/analytics/dashboard
  * @desc Busca estatísticas do dashboard
  * @access Private (Admin, Manager)
  */
-router.get('/dashboard', authorizeRole(['admin', 'manager']), async (_req, res) => {
+router.get('/dashboard', authorizeRole(['admin', 'gerente_marketing', 'visualizador']) as any, async (_req, res) => {
   try {
     const stats = await getAnalyticsService().getDashboardStats();
 
@@ -166,14 +170,14 @@ router.get('/campaigns/:campaignId', async (req: any, res) => {
 
     const analytics = await getAnalyticsService().getAnalytics(filters);
 
-    res.json({
+    return res.json({
       success: true,
       data: analytics
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar análise da campanha', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -216,14 +220,14 @@ router.get('/totems/:totemId', async (req: any, res) => {
 
     const analytics = await getAnalyticsService().getAnalytics(filters);
 
-    res.json({
+    return res.json({
       success: true,
       data: analytics
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar análise do totem', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -258,14 +262,14 @@ router.get('/clients/:clientId', async (req: any, res) => {
 
     const analytics = await getAnalyticsService().getAnalytics(filters);
 
-    res.json({
+    return res.json({
       success: true,
       data: analytics
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar análise do cliente', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -278,7 +282,7 @@ router.get('/clients/:clientId', async (req: any, res) => {
  * @desc Busca métricas de performance
  * @access Private (Admin, Manager)
  */
-router.get('/performance', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/performance', authorizeRole(['admin', 'gerente_marketing', 'visualizador']) as any, async (req, res) => {
   try {
     const { startDate, endDate, groupBy } = req.query;
 
@@ -323,7 +327,7 @@ router.get('/performance', authorizeRole(['admin', 'manager']), async (req, res)
  * @desc Busca métricas de receita
  * @access Private (Admin, Manager)
  */
-router.get('/revenue', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/revenue', authorizeRole(['admin', 'gerente_marketing', 'visualizador']) as any, async (req, res) => {
   try {
     const { startDate, endDate, groupBy } = req.query;
 
@@ -456,7 +460,7 @@ router.get('/export', async (req: any, res) => {
  * @desc Busca alertas do sistema
  * @access Private (Admin, Manager)
  */
-router.get('/alerts', authorizeRole(['admin', 'manager']), async (_req, res) => {
+router.get('/alerts', authorizeRole(['admin', 'gerente_marketing', 'visualizador']) as any, async (_req, res) => {
   try {
     const stats = await getAnalyticsService().getDashboardStats();
 
@@ -474,31 +478,5 @@ router.get('/alerts', authorizeRole(['admin', 'manager']), async (_req, res) => 
     });
   }
 });
-
-/**
- * Converte dados para CSV (implementação simplificada)
- */
-function convertToCSV(report: any): string {
-  try {
-    const headers = ['Data', 'Visualizações', 'Duração', 'Visualizadores Únicos'];
-    const rows = report.data.viewingTrends.map((trend: any) => [
-      trend.date,
-      trend.views,
-      trend.duration,
-      trend.uniqueViewers
-    ]);
-
-    const csvContent = [headers, ...rows]
-      .map(row => row.map(cell => `"${cell}"`).join(','))
-      .join('\n');
-
-    return csvContent;
-
-  } catch (error: any) {
-    // Log error de forma síncrona (função não é async)
-    logError('Erro ao converter análise para CSV', error, {}).catch(() => {});
-    return 'Erro ao converter dados para CSV';
-  }
-}
 
 export default router;

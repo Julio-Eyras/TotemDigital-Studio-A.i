@@ -7,7 +7,6 @@ import { ReportsService } from '../../services/reportsService';
 import { getDatabase } from '../../config/database';
 import { AIService } from '../../services/aiService';
 import fs from 'fs';
-import path from 'path';
 
 // Mock do banco de dados
 jest.mock('../../config/database', () => ({

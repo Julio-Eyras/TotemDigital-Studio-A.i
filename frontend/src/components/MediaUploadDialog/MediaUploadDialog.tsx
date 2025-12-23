@@ -26,6 +26,8 @@ import {
   Close,
 } from '@mui/icons-material';
 import { mediaApi, CreateMediaRequest } from '../../services/api';
+import { validateFileSize, validateFileType, VALIDATION_CONSTANTS } from '../../utils/validation';
+import { useNotification } from '../../hooks/useNotification';
 
 interface UploadDialogProps {
   open: boolean;
@@ -50,16 +52,34 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { showError } = useNotification();
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
+    setError(null);
     
-    // Validar tipos de arquivo
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'video/avi', 'video/mov', 'audio/mp3', 'audio/wav'];
-    const validFiles = selectedFiles.filter(file => allowedTypes.includes(file.type));
+    const validFiles: File[] = [];
     
-    if (validFiles.length !== selectedFiles.length) {
-      setError('Alguns arquivos não são suportados. Tipos permitidos: JPG, PNG, GIF, MP4, AVI, MOV, MP3, WAV');
+    for (const file of selectedFiles) {
+      // Validar tipo de arquivo
+      const typeValidation = validateFileType(file, VALIDATION_CONSTANTS.ALLOWED_FILE_TYPES);
+      if (!typeValidation.valid) {
+        showError(typeValidation.error || 'Tipo de arquivo não permitido', 'Erro de Validação');
+        continue;
+      }
+      
+      // Validar tamanho de arquivo
+      const sizeValidation = validateFileSize(file, VALIDATION_CONSTANTS.MAX_UPLOAD_SIZE);
+      if (!sizeValidation.valid) {
+        showError(sizeValidation.error || 'Arquivo muito grande', 'Erro de Validação');
+        continue;
+      }
+      
+      validFiles.push(file);
+    }
+    
+    if (validFiles.length === 0 && selectedFiles.length > 0) {
+      setError('Nenhum arquivo válido foi selecionado. Verifique o tipo e tamanho dos arquivos.');
     }
     
     setFiles(prev => [...prev, ...validFiles]);

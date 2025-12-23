@@ -50,6 +50,11 @@ services:
       - CORS_ORIGIN=http://localhost
       - RATE_LIMIT_WINDOW_MS=900000
       - RATE_LIMIT_MAX_REQUESTS=100
+      - SMARTDISPLAYFX_MQTT_ENABLED=${SMARTDISPLAYFX_MQTT_ENABLED:-true}
+      - SMARTDISPLAYFX_MQTT_URL=${SMARTDISPLAYFX_MQTT_URL:-mqtt://mqtt:1883}
+      - SMARTDISPLAYFX_MQTT_USERNAME=${SMARTDISPLAYFX_MQTT_USERNAME:-}
+      - SMARTDISPLAYFX_MQTT_PASSWORD=${SMARTDISPLAYFX_MQTT_PASSWORD:-}
+      - SMARTDISPLAYFX_MQTT_PREFIX=${SMARTDISPLAYFX_MQTT_PREFIX:-smartdisplay}
     ports:
       - "${FRONTEND_PORT:-80}:80"
       - "${BACKEND_PORT:-3000}:3000"
@@ -59,6 +64,8 @@ services:
       redis:
         condition: service_healthy
       ollama:
+        condition: service_started
+      mqtt:
         condition: service_started
     restart: unless-stopped
     volumes:
@@ -157,6 +164,26 @@ services:
     networks:
       - smartsignage-network
 
+  # MQTT Broker (Mosquitto) - Para SmartDisplayFX
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    container_name: smartsignage-mqtt
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+      - "${MQTT_WS_PORT:-9001}:9001"
+    volumes:
+      - mqtt_data:/mosquitto/data
+      - mqtt_logs:/mosquitto/log
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$$SYS/health", "-C", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - smartsignage-network
+
 volumes:
   # Database volumes
   postgres_data:
@@ -185,6 +212,12 @@ volumes:
   prometheus_data:
     driver: local
   grafana_data:
+    driver: local
+  
+  # MQTT volumes
+  mqtt_data:
+    driver: local
+  mqtt_logs:
     driver: local
 
 networks:

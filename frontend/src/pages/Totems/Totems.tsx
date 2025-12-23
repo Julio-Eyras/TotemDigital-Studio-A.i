@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, Grid, Card, CardContent, Avatar, Chip, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControlLabel, Switch, Alert, Tab, Tabs, Badge, Tooltip, IconButton, LinearProgress } from '@mui/material';
-import { Tv, Add, Refresh, LocationOn, CheckCircle, Pending, Warning } from '@mui/icons-material';
+import { Tv, Add, Refresh, LocationOn, CheckCircle, Pending, Warning, Settings } from '@mui/icons-material';
 import { totemApi, Player, CreatePlayerRequest } from '../../services/api';
+import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteControl';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -31,6 +32,8 @@ const Totems: React.FC = () => {
   const [approving, setApproving] = useState(false);
   const [newTotem, setNewTotem] = useState<CreatePlayerRequest>({ name: '', location: '' });
   const [tabValue, setTabValue] = useState(0);
+  const [remoteControlOpen, setRemoteControlOpen] = useState(false);
+  const [selectedTotemForControl, setSelectedTotemForControl] = useState<Player | null>(null);
 
   useEffect(() => {
     loadAll();

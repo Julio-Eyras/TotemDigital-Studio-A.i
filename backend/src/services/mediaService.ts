@@ -6,12 +6,11 @@
  */
 
 import fs from 'fs';
-import path from 'path';
 import sharp from 'sharp';
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { StorageService } from './storageService';
-import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
+import { logError, logWarn, logDebug } from '../utils/loggerHelper';
 
 export interface CreateMediaRequest {
   name: string;
@@ -142,7 +141,7 @@ export class MediaService {
 
       // Aplicar filtros
       if (filters.clientId) {
-        whereClause += ' AND m.client_id = ?';
+        whereClause += ' AND m.subscriber_id = ?';
         params.push(filters.clientId);
       }
 
@@ -183,10 +182,10 @@ export class MediaService {
           m.height,
           m.created_at as createdAt,
           m.updated_at as updatedAt,
-          c.name as clientName,
+          s.name as clientName,
           u.username as authorName
         FROM medias m
-        LEFT JOIN clients c ON m.client_id = c.client_id
+        LEFT JOIN subscribers s ON m.subscriber_id = s.subscriber_id
         LEFT JOIN users u ON m.created_by = u.id
         ${whereClause}
         ORDER BY m.created_at DESC
@@ -301,10 +300,10 @@ export class MediaService {
           m.height,
           m.created_at as createdAt,
           m.updated_at as updatedAt,
-          c.name as clientName,
+          s.name as clientName,
           u.username as authorName
         FROM medias m
-        LEFT JOIN clients c ON m.client_id = c.client_id
+        LEFT JOIN subscribers s ON m.subscriber_id = s.subscriber_id
         LEFT JOIN users u ON m.created_by = u.id
         WHERE m.media_id = ?
       `, [mediaId]);
@@ -334,13 +333,22 @@ export class MediaService {
       const results: MediaResponse[] = [];
       
       for (const file of files) {
+        // Buscar primeiro subscriber ativo como padrão
+        const firstSubscriber = await this.db.findFirst(`
+          SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
+        `);
+        
+        if (!firstSubscriber) {
+          throw new Error('Nenhum subscriber ativo encontrado. É necessário ter pelo menos um subscriber para criar mídias.');
+        }
+        
         const mediaData = {
           name: file.originalname,
           title: file.originalname,
           description: '',
           tags: [],
           file: file,
-          clientId: 1, // Default client
+          clientId: firstSubscriber.subscriber_id, // Primeiro subscriber ativo
           createdBy: 1 // Default user
         };
         
@@ -350,7 +358,7 @@ export class MediaService {
       
       return results;
     } catch (error: any) {
-      await logError('Erro ao criar múltiplas mídias', error, { count: requests.length });
+      await logError('Erro ao criar múltiplas mídias', error, { count: files.length });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -362,9 +370,9 @@ export class MediaService {
     try {
       const { name, title, description, tags, file, clientId, createdBy } = data;
 
-      // Verificar se nome já existe para o cliente
+      // Verificar se nome já existe para o subscriber (anunciante)
       const existingMedia = await this.db.findFirst(`
-        SELECT media_id FROM medias WHERE name = ? AND client_id = ?
+        SELECT media_id FROM medias WHERE name = ? AND subscriber_id = ?
       `, [name, clientId]);
 
       if (existingMedia) {
@@ -386,7 +394,7 @@ export class MediaService {
       // Criar registro no banco
       const result = await this.db.executeRaw(`
         INSERT INTO medias (
-          client_id, name, title, description, tags, version, checksum,
+          subscriber_id, name, title, description, tags, version, checksum,
           preview_url, status, created_by, file_path, media_type,
           duration_seconds, size_bytes, mime_type, width, height
         )
@@ -432,7 +440,7 @@ export class MediaService {
       return newMedia;
 
     } catch (error: any) {
-      await logError('Erro ao criar mídia', error, { name: request.name, clientId: request.clientId });
+      await logError('Erro ao criar mídia', error, { name: data.name, clientId: data.clientId });
       throw error;
     }
   }
@@ -506,7 +514,7 @@ export class MediaService {
       return updatedMedia;
 
     } catch (error: any) {
-      await logError('Erro ao atualizar mídia', error, { mediaId, updateData });
+      await logError('Erro ao atualizar mídia', error, { mediaId, updateData: data });
       throw error;
     }
   }
@@ -597,7 +605,7 @@ export class MediaService {
       return result;
 
     } catch (error: any) {
-      await logError('Erro ao processar mídia', error, { filePath, mimeType });
+      await logError('Erro ao processar mídia', error, { filePath, mimetype });
       return {};
     }
   }
@@ -626,7 +634,7 @@ export class MediaService {
    * Gera thumbnail de vídeo
    * Nota: Requer ffmpeg instalado no sistema para funcionar completamente
    */
-  private async generateVideoThumbnail(buffer: Buffer, filePath: string): Promise<string> {
+  private async generateVideoThumbnail(_buffer: Buffer, filePath: string): Promise<string> {
     try {
       const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
       
@@ -787,7 +795,7 @@ export class MediaService {
       
       return null;
     } catch (error: any) {
-      await logError('Erro ao buscar thumbnail', error, { filePath });
+      await logError('Erro ao buscar thumbnail', error, { mediaId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -955,7 +963,7 @@ export class MediaService {
       }
 
     } catch (error: any) {
-      await logError('Erro ao processar mídia', error, { filePath, mimeType });
+      await logError('Erro ao processar mídia', error, { mediaId });
       return {
         success: false,
         message: `Erro ao processar mídia: ${error.message}`
@@ -1000,7 +1008,7 @@ export class MediaService {
       const params: any[] = [];
 
       if (clientId) {
-        whereClause = 'WHERE client_id = ?';
+        whereClause = 'WHERE subscriber_id = ?';
         params.push(clientId);
       }
 
@@ -1073,7 +1081,7 @@ export class MediaService {
       const params: any[] = [];
 
       if (clientId) {
-        whereClause += ' AND m.client_id = ?';
+        whereClause += ' AND m.subscriber_id = ?';
         params.push(clientId);
       }
 
@@ -1107,10 +1115,10 @@ export class MediaService {
           m.height,
           m.created_at as createdAt,
           m.updated_at as updatedAt,
-          c.name as clientName,
+          s.name as clientName,
           u.username as authorName
         FROM medias m
-        LEFT JOIN clients c ON m.client_id = c.client_id
+        LEFT JOIN subscribers s ON m.subscriber_id = s.subscriber_id
         LEFT JOIN users u ON m.created_by = u.id
         ${whereClause}
         ORDER BY m.created_at DESC

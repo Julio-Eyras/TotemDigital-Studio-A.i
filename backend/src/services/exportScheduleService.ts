@@ -8,7 +8,7 @@ import { AuditService } from './auditService';
 import { getExportQueue, ExportJobData } from '../config/queue';
 import { parseExpression } from 'cron-parser';
 import { exportQueryService } from './exportQueryService';
-import { logError, logInfo } from '../utils/loggerHelper';
+import { logError, logInfo, logWarn } from '../utils/loggerHelper';
 
 export interface CreateExportScheduleRequest {
   name: string;
@@ -372,7 +372,7 @@ export class ExportScheduleService {
       await this.getAuditService().log('export', 'schedule_deleted', userId, {
         scheduleId: scheduleId,
         scheduleName: existing.name
-      }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId: schedule.schedule_id }).catch(() => {}));
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId }).catch(() => {}));
     } catch (error: any) {
       await logError('Erro ao excluir agendamento', error, { scheduleId });
       throw error;
@@ -415,8 +415,6 @@ export class ExportScheduleService {
    */
   private async updateScheduleJob(scheduleId: number, queryId: number, cronExpression: string, enabled: boolean): Promise<void> {
     try {
-      const queue = getExportQueue();
-      
       // Remover job antigo
       await this.removeScheduleJob(scheduleId);
 
@@ -489,6 +487,18 @@ export class ExportScheduleService {
    */
   async loadAllActiveSchedules(): Promise<void> {
     try {
+      // Verificar se a tabela existe antes de tentar carregar
+      try {
+        const tableExists = await this.db.tableExists('export_schedules');
+        if (!tableExists) {
+          await logInfo('Tabela export_schedules não existe, pulando carregamento de agendamentos');
+          return;
+        }
+      } catch (checkError: any) {
+        // Se não conseguir verificar, continuar e deixar o getAllSchedules tratar o erro
+        await logWarn('Não foi possível verificar existência da tabela export_schedules');
+      }
+
       const schedulesResult = await this.getAllSchedules({ enabled: true, limit: 500 });
       const schedules = schedulesResult.data;
       
@@ -506,8 +516,13 @@ export class ExportScheduleService {
 
       await logInfo('Agendamentos ativos carregados no Bull', { count: schedules.length });
     } catch (error: any) {
+      // Se a tabela não existe, não é um erro crítico - apenas logar e continuar
+      if (error.message && (error.message.includes('não existe') || error.message.includes('does not exist'))) {
+        await logInfo('Tabela export_schedules não encontrada, continuando sem agendamentos');
+        return;
+      }
       await logError('Erro ao carregar agendamentos', error);
-      throw error;
+      // Não lançar erro - permitir que o servidor inicie mesmo sem agendamentos
     }
   }
 

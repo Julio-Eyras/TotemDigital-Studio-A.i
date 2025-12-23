@@ -20,7 +20,7 @@ const validateRequest = (req: Request, res: Response, next: any) => {
       details: errors.array()
     });
   }
-  next();
+  return next();
 };
 
 // Aplicar autenticação em todas as rotas
@@ -31,12 +31,12 @@ router.use(authMiddleware);
  * @desc Verifica status do Email Service
  * @access Private (Admin)
  */
-router.get('/status', authorizeRole(['admin']), async (req: Request, res: Response) => {
+router.get('/status', authorizeRole(['admin']), async (_req: Request, res: Response) => {
   try {
     const isEnabled = emailService.isServiceEnabled();
     const isConnected = await emailService.testConnection();
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         enabled: isEnabled,
@@ -46,7 +46,7 @@ router.get('/status', authorizeRole(['admin']), async (req: Request, res: Respon
     });
   } catch (error: any) {
     await logError('Erro ao verificar status do email', error, { route: '/api/email/status' });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
       message: error.message
@@ -89,7 +89,7 @@ router.post('/test',
         });
       }
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Email de teste enviado com sucesso',
         data: {
@@ -100,7 +100,7 @@ router.post('/test',
       // Sanitizar dados antes de logar (email pode ser considerado sensível)
       const sanitizedBody = req.body ? sanitizeForLogging(req.body) : null;
       await logError('Erro ao enviar email de teste', error, { route: '/api/email/test', to: sanitizedBody?.to });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',
         message: error.message

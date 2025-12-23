@@ -3,10 +3,8 @@
  * Serviço para aplicar configurações de mídia ao sistema
  */
 
-import { getDatabase } from '../config/database';
 import { SettingsService } from './settingsService';
 import * as fs from 'fs';
-import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
@@ -26,10 +24,6 @@ export interface MediaConfigApplyResult {
 }
 
 export class MediaConfigService {
-  private get db() {
-    return getDatabase();
-  }
-
   private get settingsService(): SettingsService {
     if (!(global as any).settingsServiceInstance) {
       (global as any).settingsServiceInstance = new SettingsService();
@@ -37,28 +31,10 @@ export class MediaConfigService {
     return (global as any).settingsServiceInstance;
   }
 
-  /**
-   * Converte tamanho de string (ex: "500MB") para bytes
-   */
-  private parseSize(sizeStr: string): number {
-    const match = sizeStr.match(/^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)$/i);
-    if (!match) {
-      throw new Error(`Formato de tamanho inválido: ${sizeStr}`);
-    }
-
-    const value = parseFloat(match[1]);
-    const unit = match[2].toUpperCase();
-
-    const multipliers: { [key: string]: number } = {
-      'B': 1,
-      'KB': 1024,
-      'MB': 1024 * 1024,
-      'GB': 1024 * 1024 * 1024,
-      'TB': 1024 * 1024 * 1024 * 1024
-    };
-
-    return Math.floor(value * multipliers[unit]);
-  }
+  // Helpers de conversão (conversão para bytes e formato Express) podem ser
+  // reativados do histórico se necessário. Hoje utilizamos apenas o formato
+  // Nginx, então mantemos apenas `convertToNginxFormat` para evitar warnings
+  // de noUnusedLocals em strict mode.
 
   /**
    * Converte tamanho para formato Nginx (ex: "500M")
@@ -84,29 +60,7 @@ export class MediaConfigService {
     return `${Math.floor(value)}${nginxUnits[unit] || 'M'}`;
   }
 
-  /**
-   * Converte tamanho para formato Express (ex: "500mb")
-   */
-  private convertToExpressFormat(sizeStr: string): string {
-    const match = sizeStr.match(/^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)$/i);
-    if (!match) {
-      return '500mb'; // Default
-    }
-
-    const value = parseFloat(match[1]);
-    const unit = match[2].toUpperCase();
-
-    // Express usa: b, kb, mb, gb, tb (minúsculas)
-    const expressUnits: { [key: string]: string } = {
-      'B': 'b',
-      'KB': 'kb',
-      'MB': 'mb',
-      'GB': 'gb',
-      'TB': 'tb'
-    };
-
-    return `${Math.floor(value)}${expressUnits[unit] || 'mb'}`;
-  }
+  // private convertToExpressFormat(...) foi removido por não ser utilizado.
 
   /**
    * Atualiza configuração do Nginx
@@ -144,7 +98,7 @@ export class MediaConfigService {
       const timeoutStr = `${config.timeout}s`;
       configContent = configContent.replace(
         /proxy_(connect|send|read)_timeout\s+\d+s/gi,
-        (match, type) => `proxy_${type}_timeout ${timeoutStr}`
+        (_match, type) => `proxy_${type}_timeout ${timeoutStr}`
       );
 
       // Fazer backup antes de modificar
@@ -188,43 +142,6 @@ export class MediaConfigService {
       return true;
     } catch (error: any) {
       await logError('Erro ao recarregar configurações do Express/Multer', error);
-      return false;
-    }
-  }
-
-  /**
-   * Reinicia serviços necessários
-   */
-  private async restartServices(): Promise<boolean> {
-    try {
-      // Reiniciar backend
-      try {
-        await execAsync('sudo systemctl restart smart-signage');
-        await logInfo('Serviço smart-signage reiniciado');
-      } catch (error: any) {
-        await logWarn('Erro ao reiniciar smart-signage', { error: error.message });
-      }
-
-      // Recarregar Nginx (sem downtime)
-      try {
-        await execAsync('sudo systemctl reload nginx');
-        await logInfo('Nginx recarregado');
-      } catch (error: any) {
-        await logWarn('Erro ao recarregar Nginx', { error: error.message });
-        // Tentar restart completo
-        try {
-          await execAsync('sudo systemctl restart nginx');
-          await logInfo('Nginx reiniciado');
-        } catch (restartError: any) {
-          await logError('Erro ao reiniciar Nginx', restartError);
-          return false;
-        }
-      }
-
-      return true;
-
-    } catch (error: any) {
-      await logError('Erro ao reiniciar serviços', error);
       return false;
     }
   }

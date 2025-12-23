@@ -1,0 +1,20 @@
+{
+  "id": "com.smartsignage.player",
+  "version": "1.0.0",
+  "vendor": "Smart Signage Solutions",
+  "type": "web",
+  "main": "index.html",
+  "title": "Smart Signage Player",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "uiRevision": 2,
+  "requiredPermissions": [
+    "network.operation",
+    "media.operation",
+    "media.read",
+    "system.query"
+  ],
+  "disableBackHistoryAPI": true,
+  "trustLevel": "trusted"
+}
+

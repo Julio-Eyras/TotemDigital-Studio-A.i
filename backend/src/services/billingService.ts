@@ -127,10 +127,8 @@ export class BillingService {
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
-    }
-    return (global as any).auditServiceInstance;
+    const { getAuditServiceInstance } = require('../utils/globalInstances');
+    return getAuditServiceInstance();
   }
 
   /**

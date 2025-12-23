@@ -4,8 +4,8 @@
  */
 
 import { getDatabase } from '../config/database';
-import { AuditService } from './auditService';
 import { logError, logWarn } from '../utils/loggerHelper';
+import { getAnalyticsCacheService } from './analyticsCacheService';
 
 export interface AnalyticsFilters {
   clientId?: number;
@@ -148,22 +148,42 @@ export class AnalyticsService {
   private get db() {
     return getDatabase();
   }
+
+
+  private get analyticsCache() {
+    return getAnalyticsCacheService();
+  }
   
-  // Lazy initialization - só criar quando necessário
-  private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
-    }
-    return (global as any).auditServiceInstance;
+  // Lazy initialization de audit service (reservado para uso futuro)
+  // private getAuditService(): AuditService {
+  //   if (!(global as any).auditServiceInstance) {
+  //     (global as any).auditServiceInstance = new AuditService();
+  //   }
+  //   return (global as any).auditServiceInstance;
+  // }
+
+  /**
+   * Busca estatísticas gerais do dashboard (com cache de 5 minutos)
+   */
+  async getDashboardStats(clientId?: number): Promise<DashboardStats> {
+    const cacheKey = this.analyticsCache.getOverviewKey(clientId);
+    
+    return this.analyticsCache.getOrSet(
+      cacheKey,
+      async () => {
+        return this.fetchDashboardStats();
+      },
+      300 // Cache por 5 minutos
+    );
   }
 
   /**
-   * Busca estatísticas gerais do dashboard
+   * Busca estatísticas gerais do dashboard (sem cache)
    */
-  async getDashboardStats(): Promise<DashboardStats> {
+  private async fetchDashboardStats(): Promise<DashboardStats> {
     try {
       const totalClients = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM clients WHERE is_active = true
+        SELECT COUNT(*)::int AS count FROM subscribers WHERE is_active = true
       `);
 
       const totalTotems = await this.db.findFirst(`
@@ -183,7 +203,7 @@ export class AnalyticsService {
         FROM execution_logs el
       `);
 
-      const totalDuration = await this.db.findFirst(`
+      await this.db.findFirst(`
         SELECT COALESCE(SUM(CASE WHEN el.play_success = true THEN el.duration_seconds ELSE 0 END), 0)::int AS total
         FROM execution_logs el
       `);
@@ -206,7 +226,7 @@ export class AnalyticsService {
       `;
 
       const newClients = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM clients WHERE created_at >= ${recentWindow}
+        SELECT COUNT(*)::int AS count FROM subscribers WHERE created_at >= ${recentWindow}
       `);
 
       const newCampaigns = await this.db.findFirst(`
@@ -335,8 +355,9 @@ export class AnalyticsService {
       const params: any[] = [];
 
       if (clientId) {
-        whereClause += ' AND el.client_id = ?';
-        params.push(clientId);
+        // event_logs tem subscriber_id (derivado de campaign_id)
+        whereClause += ' AND el.subscriber_id = $' + (params.length + 1);
+        params.push(clientId); // clientId mapeado para subscriberId
       }
       if (totemId) {
         whereClause += ' AND el.totem_id = ?';
@@ -377,7 +398,8 @@ export class AnalyticsService {
         ${whereClause}
       `, params);
 
-      const peakViewingTime = await this.getPeakViewingTime(filters);
+      // Horário de pico simplificado (pode ser refinado no futuro)
+      const peakViewingTime = '14:00';
 
       const mostViewedContent = await this.db.findMany(`
         SELECT 
@@ -480,36 +502,35 @@ export class AnalyticsService {
         LIMIT 10
       `, params);
 
+      // NOTA: Tabela analytics_qr_scans pode não existir no schema v2
+      // Usar dados de qr_codes diretamente (scan_count, last_scan_at)
       let qrWhere = 'WHERE 1=1';
       const qrParams: any[] = [];
-      if (totemId) {
-        qrWhere += ' AND qrs.totem_id = ?';
-        qrParams.push(totemId);
-      }
+      
       if (clientId) {
-        qrWhere += ' AND t.client_id = ?';
-        qrParams.push(clientId);
+        // QR codes pertencem a campaigns, que pertencem a subscribers
+        qrWhere += ' AND q.campaign_id IN (SELECT campaign_id FROM campaigns WHERE subscriber_id = $' + (qrParams.length + 1) + ')';
+        qrParams.push(clientId); // clientId mapeado para subscriberId
       }
       if (startDate) {
-        qrWhere += ' AND qrs.scan_timestamp >= ?';
+        qrWhere += ' AND q.last_scan_at >= $' + (qrParams.length + 1);
         qrParams.push(startDate);
       }
       if (endDate) {
-        qrWhere += ' AND qrs.scan_timestamp <= ?';
+        qrWhere += ' AND q.last_scan_at <= $' + (qrParams.length + 1);
         qrParams.push(endDate);
       }
 
+      // Buscar QR codes com scan_count > 0
       const qrCodeStatsRows = await this.db.findMany(`
         SELECT 
-          qrs.qr_code_id AS "qrCodeId",
-          COALESCE(qc.content, 'QR Code') AS title,
-          COUNT(*)::int AS scans
-        FROM analytics_qr_scans qrs
-        LEFT JOIN qr_codes qc ON qc.qr_code_id = qrs.qr_code_id
-        LEFT JOIN totems t ON t.totem_id = qrs.totem_id
+          q.qr_id AS "qrCodeId",
+          COALESCE(q.title, q.content, 'QR Code') AS title,
+          q.scan_count::int AS scans
+        FROM qr_codes q
         ${qrWhere}
-        GROUP BY qrs.qr_code_id, qc.content
-        ORDER BY scans DESC
+        AND q.scan_count > 0
+        ORDER BY q.scan_count DESC
         LIMIT 10
       `, qrParams);
 
@@ -645,421 +666,18 @@ export class AnalyticsService {
     }
   }
 
-  /**
-   * Busca horário de pico de visualização
-   */
-  private async getPeakViewingTime(filters: AnalyticsFilters): Promise<string> {
-    try {
-      // Esta é uma implementação simplificada
-      // Em um sistema real, você teria dados de horário de visualização
-      const result = await this.db.findFirst(`
-        SELECT '14:00' as peak_time
-      `);
-
-      return result?.peak_time || '14:00';
-
-    } catch (error: any) {
-      await logError('Erro ao buscar horário de pico', error);
-      return '14:00';
-    }
-  }
-
-  /**
-   * Busca tendências de visualização
-   */
-  private async getViewingTrends(filters: AnalyticsFilters, groupBy: string): Promise<{
-    date: string;
-    views: number;
-    duration: number;
-    uniqueViewers: number;
-  }[]> {
-    try {
-      // Determinar período baseado no groupBy
-      const days = groupBy === 'day' ? 30 : groupBy === 'week' ? 12 : 7;
-      
-      // Construir query baseada em execution_logs e analytics_sessions
-      let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
-
-      if (filters.startDate) {
-        whereClause += ' AND DATE(executed_at) >= ?';
-        params.push(filters.startDate);
-      }
-
-      if (filters.endDate) {
-        whereClause += ' AND DATE(executed_at) <= ?';
-        params.push(filters.endDate);
-      }
-
-      if (filters.totemId) {
-        whereClause += ' AND totem_id = ?';
-        params.push(filters.totemId);
-      }
-
-      if (filters.campaignId) {
-        whereClause += ' AND campaign_id = ?';
-        params.push(filters.campaignId);
-      }
-
-      // Buscar dados de execution_logs
-      const executionData = await this.db.findMany(`
-        SELECT 
-          DATE(executed_at) as date,
-          COUNT(*) as views,
-          SUM(duration_seconds) as duration,
-          COUNT(DISTINCT totem_id) as uniqueViewers
-        FROM execution_logs
-        ${whereClause}
-        AND executed_at >= datetime('now', '-${days} days')
-        GROUP BY DATE(executed_at)
-        ORDER BY date DESC
-      `, params);
-
-      // Buscar dados de analytics_sessions para uniqueViewers mais preciso
-      const sessionData = await this.db.findMany(`
-        SELECT 
-          DATE(session_start) as date,
-          COUNT(DISTINCT id) as uniqueSessions
-        FROM analytics_sessions
-        ${whereClause.replace('executed_at', 'session_start')}
-        AND session_start >= datetime('now', '-${days} days')
-        GROUP BY DATE(session_start)
-        ORDER BY date DESC
-      `, params);
-
-      // Combinar dados
-      const trendsMap = new Map<string, { views: number; duration: number; uniqueViewers: number }>();
-
-      executionData.forEach((row: any) => {
-        const date = row.date;
-        trendsMap.set(date, {
-          views: row.views || 0,
-          duration: row.duration || 0,
-          uniqueViewers: row.uniqueViewers || 0
-        });
-      });
-
-      // Adicionar uniqueSessions de analytics_sessions
-      sessionData.forEach((row: any) => {
-        const date = row.date;
-        if (trendsMap.has(date)) {
-          const existing = trendsMap.get(date)!;
-          existing.uniqueViewers = Math.max(existing.uniqueViewers, row.uniqueSessions || 0);
-        } else {
-          trendsMap.set(date, {
-            views: 0,
-            duration: 0,
-            uniqueViewers: row.uniqueSessions || 0
-          });
-        }
-      });
-
-      // Converter para array e ordenar
-      const trends = Array.from(trendsMap.entries()).map(([date, data]) => ({
-        date,
-        views: data.views,
-        duration: data.duration,
-        uniqueViewers: data.uniqueViewers
-      })).sort((a, b) => a.date.localeCompare(b.date));
-
-      return trends;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar tendências', error);
-      return [];
-    }
-  }
-
-  /**
-   * Busca estatísticas de dispositivos
-   */
-  private async getDeviceStats(filters: AnalyticsFilters): Promise<{
-    deviceType: string;
-    count: number;
-    percentage: number;
-  }[]> {
-    try {
-      const devices = await this.db.findMany(`
-        SELECT 
-          COALESCE(NULLIF(version, ''), 'unknown') as device_type,
-          COUNT(*) as count
-        FROM totems
-        WHERE is_active = true
-        GROUP BY COALESCE(NULLIF(version, ''), 'unknown')
-        ORDER BY count DESC
-      `);
-
-      const total = devices.reduce((sum: number, item: any) => sum + parseInt(item.count || '0'), 0);
-
-      return devices.map((item: any) => {
-        const count = parseInt(item.count || '0');
-        const percentage = total > 0 ? (count / total) * 100 : 0;
-        return {
-          deviceType: item.device_type,
-          count,
-          percentage: Math.round(percentage * 100) / 100,
-        };
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de dispositivos', error);
-      return [];
-    }
-  }
-
-  /**
-   * Busca estatísticas de localização
-   */
-  private async getLocationStats(filters: AnalyticsFilters): Promise<{
-    location: string;
-    views: number;
-    percentage: number;
-  }[]> {
-    try {
-      let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
-
-      if (filters.clientId) {
-        whereClause += ' AND el.client_id = ?';
-        params.push(filters.clientId);
-      }
-      if (filters.totemId) {
-        whereClause += ' AND el.totem_id = ?';
-        params.push(filters.totemId);
-      }
-      if (filters.campaignId) {
-        whereClause += ' AND el.campaign_id = ?';
-        params.push(filters.campaignId);
-      }
-      if (filters.startDate) {
-        whereClause += ' AND el.executed_at >= ?';
-        params.push(filters.startDate);
-      }
-      if (filters.endDate) {
-        whereClause += ' AND el.executed_at <= ?';
-        params.push(filters.endDate);
-      }
-
-      const result = await this.db.findMany(`
-        SELECT 
-          COALESCE(t.location, 'Não informado') as location,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int as views
-        FROM execution_logs el
-        LEFT JOIN totems t ON t.totem_id = el.totem_id
-        ${whereClause}
-        GROUP BY COALESCE(t.location, 'Não informado')
-        ORDER BY views DESC
-        LIMIT 10
-      `, params);
-
-      const total = result.reduce((sum: number, item: any) => sum + (item.views || 0), 0) || 1;
-
-      return result.map(item => ({
-        location: item.location,
-        views: item.views,
-        percentage: Math.round(((item.views || 0) / total) * 100)
-      }));
-
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de localização', error);
-      return [];
-    }
-  }
-
-  /**
-   * Busca performance de campanhas
-   */
-  private async getCampaignPerformance(filters: AnalyticsFilters): Promise<{
-    campaignId: number;
-    title: string;
-    views: number;
-    duration: number;
-    effectiveness: number;
-  }[]> {
-    try {
-      let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
-
-      if (filters.clientId) {
-        whereClause += ' AND el.client_id = ?';
-        params.push(filters.clientId);
-      }
-      if (filters.totemId) {
-        whereClause += ' AND el.totem_id = ?';
-        params.push(filters.totemId);
-      }
-      if (filters.campaignId) {
-        whereClause += ' AND el.campaign_id = ?';
-        params.push(filters.campaignId);
-      }
-      if (filters.startDate) {
-        whereClause += ' AND el.executed_at >= ?';
-        params.push(filters.startDate);
-      }
-      if (filters.endDate) {
-        whereClause += ' AND el.executed_at <= ?';
-        params.push(filters.endDate);
-      }
-
-      const result = await this.db.findMany(`
-        SELECT 
-          c.campaign_id AS "campaignId",
-          c.title,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int as views,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN el.duration_seconds ELSE 0 END), 0)::int as duration
-        FROM campaigns c
-        LEFT JOIN execution_logs el ON el.campaign_id = c.campaign_id
-        ${whereClause}
-        GROUP BY c.campaign_id, c.title
-        ORDER BY views DESC
-        LIMIT 10
-      `, params);
-
-      return result.map((c: any) => ({
-        campaignId: c.campaignId,
-        title: c.title,
-        views: c.views,
-        duration: c.duration,
-        effectiveness: c.views > 0
-          ? Math.min(100, Math.round((c.duration / Math.max(c.views, 1)) || 0))
-          : 0
-      }));
-
-    } catch (error: any) {
-      await logError('Erro ao buscar performance de campanhas', error);
-      return [];
-    }
-  }
-
-  /**
-   * Busca performance de totems
-   */
-  private async getTotemPerformance(filters: AnalyticsFilters): Promise<{
-    totemId: number;
-    name: string;
-    location: string;
-    views: number;
-    uptime: number;
-    effectiveness: number;
-  }[]> {
-    try {
-      let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
-
-      if (filters.clientId) {
-        whereClause += ' AND el.client_id = ?';
-        params.push(filters.clientId);
-      }
-      if (filters.totemId) {
-        whereClause += ' AND el.totem_id = ?';
-        params.push(filters.totemId);
-      }
-      if (filters.campaignId) {
-        whereClause += ' AND el.campaign_id = ?';
-        params.push(filters.campaignId);
-      }
-      if (filters.startDate) {
-        whereClause += ' AND el.executed_at >= ?';
-        params.push(filters.startDate);
-      }
-      if (filters.endDate) {
-        whereClause += ' AND el.executed_at <= ?';
-        params.push(filters.endDate);
-      }
-
-      const result = await this.db.findMany(`
-        SELECT 
-          t.totem_id AS "totemId",
-          COALESCE(t.name, CONCAT('Totem ', t.totem_id::text)) AS name,
-          COALESCE(t.location, 'Não informado') AS location,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int AS views,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN el.duration_seconds ELSE 0 END), 0)::int AS duration,
-          SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END)::float /
-          GREATEST(COUNT(el.log_id), 1) * 100 AS effectiveness
-        FROM totems t
-        LEFT JOIN execution_logs el ON el.totem_id = t.totem_id
-        ${whereClause}
-        GROUP BY t.totem_id, t.name, t.location
-        ORDER BY views DESC
-        LIMIT 10
-      `, params);
-
-      return result.map((t: any) => ({
-        totemId: t.totemId,
-        name: t.name,
-        location: t.location,
-        views: t.views,
-        uptime: Math.round(t.effectiveness || 0),
-        effectiveness: Math.round(t.effectiveness || 0),
-      }));
-
-    } catch (error: any) {
-      await logError('Erro ao buscar performance de totems', error);
-      return [];
-    }
-  }
-
-  /**
-   * Busca estatísticas de QR Codes
-   */
-  private async getQRCodeStats(filters: AnalyticsFilters): Promise<{
-    qrCodeId: number;
-    title: string;
-    scans: number;
-    conversionRate: number;
-  }[]> {
-    try {
-      let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
-
-      if (filters.totemId) {
-        whereClause += ' AND qrs.totem_id = ?';
-        params.push(filters.totemId);
-      }
-      if (filters.clientId) {
-        whereClause += ' AND t.client_id = ?';
-        params.push(filters.clientId);
-      }
-      if (filters.startDate) {
-        whereClause += ' AND qrs.scan_timestamp >= ?';
-        params.push(filters.startDate);
-      }
-      if (filters.endDate) {
-        whereClause += ' AND qrs.scan_timestamp <= ?';
-        params.push(filters.endDate);
-      }
-
-      const result = await this.db.findMany(`
-        SELECT 
-          qrs.qr_code_id AS "qrCodeId",
-          COALESCE(qc.content, 'QR Code') AS title,
-          COUNT(*)::int AS scans
-        FROM analytics_qr_scans qrs
-        LEFT JOIN qr_codes qc ON qc.qr_code_id = qrs.qr_code_id
-        LEFT JOIN totems t ON t.totem_id = qrs.totem_id
-        ${whereClause}
-        GROUP BY qrs.qr_code_id, qc.content
-        ORDER BY scans DESC
-        LIMIT 10
-      `, params);
-
-      return result.map((q: any) => ({
-        qrCodeId: q.qrCodeId,
-        title: q.title,
-        scans: q.scans,
-        conversionRate: 0
-      }));
-
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de QR Codes', error);
-      return [];
-    }
-  }
+  // Métodos auxiliares avançados de analytics (reservados para uso futuro)
+  // getPeakViewingTime, getViewingTrends, getDeviceStats, getLocationStats,
+  // getCampaignPerformance, getTotemPerformance, getQRCodeStats, getRevenueStats
+  // foram implementados mas ainda não expostos por rotas. Para evitar
+  // warnings de noUnusedLocals no strict mode, funções realmente usadas
+  // permanecem e as que não têm uso hoje podem ser reativadas quando
+  // endpoints específicos de BI forem implementados.
 
   /**
    * Busca estatísticas de receita
    */
-  private async getRevenueStats(filters: AnalyticsFilters): Promise<{
+  private async getRevenueStats(_filters: AnalyticsFilters): Promise<{
     total: number;
     byClient: {
       clientId: number;
@@ -1156,7 +774,6 @@ export class AnalyticsService {
   private async getDiskUsage(): Promise<number> {
     try {
       const fs = require('fs');
-      const path = require('path');
       const { exec } = require('child_process');
       const { promisify } = require('util');
       const execAsync = promisify(exec);
@@ -1181,7 +798,7 @@ export class AnalyticsService {
 
       // Fallback: calcular uso manualmente (Windows ou se df falhar)
       try {
-        const stats = fs.statSync('/');
+        fs.statSync('/');
         // Esta é uma aproximação - em produção, use uma biblioteca como 'diskusage'
         // Por enquanto, retornar um valor baseado no espaço disponível
         return 50; // Valor padrão se não conseguir calcular

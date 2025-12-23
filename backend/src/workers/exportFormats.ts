@@ -61,9 +61,9 @@ export async function exportToExcel(
       });
 
       // Ajustar largura das colunas
-      worksheet.columns.forEach((column, index) => {
+      worksheet.columns.forEach((column, colIndex) => {
         let maxLength = 0;
-        worksheet.getColumn(index + 1).eachCell({ includeEmpty: false }, (cell) => {
+        worksheet.getColumn(colIndex + 1).eachCell({ includeEmpty: false }, (cell) => {
           const cellLength = cell.value ? cell.value.toString().length : 10;
           if (cellLength > maxLength) {
             maxLength = cellLength;
@@ -77,7 +77,7 @@ export async function exportToExcel(
         // Formatar datas
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber > 1) {
-            row.eachCell((cell, colNumber) => {
+            row.eachCell((cell) => {
               if (cell.value instanceof Date) {
                 cell.numFmt = exportConfig.dateFormat || 'dd/mm/yyyy HH:mm:ss';
               } else if (typeof cell.value === 'number') {
@@ -146,7 +146,7 @@ export async function exportToPDF(
       // Cabeçalho da tabela
       doc.fontSize(10).font('Helvetica-Bold');
       let x = 50;
-      headers.forEach((header, index) => {
+      headers.forEach((header) => {
         doc.text(header, x, doc.y, {
           width: colWidth,
           align: 'left'
@@ -178,7 +178,7 @@ export async function exportToPDF(
         }
 
         x = 50;
-        headers.forEach((header, index) => {
+        headers.forEach((header) => {
           const value = row[header];
           const displayValue = value instanceof Date
             ? value.toLocaleString('pt-BR')
@@ -249,11 +249,11 @@ export async function exportToCSV(
     }
 
     // Preparar headers
-    const headers = Object.keys(data[0]);
-    const csvHeaders = headers.map(header => ({
-      id: header,
-      title: header
-    }));
+      const headers = Object.keys(data[0]);
+      const csvHeaders = headers.map(header => ({
+        id: header,
+        title: header
+      }));
 
     // Criar CSV writer
     const csvWriter = createCsvWriter.createObjectCsvWriter({

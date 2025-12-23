@@ -19,25 +19,25 @@ function getAIService(): AIService {
 }
 
 // Middleware de autenticação para todas as rotas
-router.use(authenticateToken);
+router.use(authenticateToken as any);
 
 /**
  * @route GET /api/ai/status
  * @desc Verifica status do serviço de IA
  * @access Private (Admin, Manager)
  */
-router.get('/status', authorizeRole(['admin', 'manager']), async (_req, res) => {
+router.get('/status', authorizeRole(['admin', 'gerente_marketing']) as any, async (_req, res) => {
   try {
     const status = await getAIService().checkAIStatus();
 
-    res.json({
+    return res.json({
       success: true,
       data: status
     });
 
   } catch (error: any) {
     await logError('Erro ao verificar status da IA', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -70,14 +70,14 @@ router.post('/process', async (req: any, res) => {
       systemPrompt
     }, req.user.id);
 
-    res.json({
+    return res.json({
       success: true,
       data: response
     });
 
   } catch (error: any) {
     await logError('Erro ao processar requisição de IA', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao processar requisição de IA',
       error: error.message
@@ -90,7 +90,7 @@ router.post('/process', async (req: any, res) => {
  * @desc Lista requisições de IA
  * @access Private (Admin, Manager)
  */
-router.get('/requests', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/requests', authorizeRole(['admin', 'gerente_marketing']) as any, async (req, res) => {
   try {
     const {
       page = 1,
@@ -116,14 +116,14 @@ router.get('/requests', authorizeRole(['admin', 'manager']), async (req, res) =>
       filters
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: result
     });
 
   } catch (error: any) {
     await logError('Erro ao listar requisições de IA', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -136,18 +136,18 @@ router.get('/requests', authorizeRole(['admin', 'manager']), async (req, res) =>
  * @desc Busca estatísticas de uso de IA
  * @access Private (Admin, Manager)
  */
-router.get('/stats', authorizeRole(['admin', 'manager']), async (_req, res) => {
+router.get('/stats', authorizeRole(['admin', 'gerente_marketing']) as any, async (_req, res) => {
   try {
     const stats = await getAIService().getAIUsageStats();
 
-    res.json({
+    return res.json({
       success: true,
       data: stats
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar estatísticas de IA', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -173,14 +173,14 @@ router.post('/suggestions', async (req: any, res) => {
 
     const suggestions = await getAIService().generateContentSuggestions(context, req.user.userId);
 
-    res.json({
+    return res.json({
       success: true,
       data: suggestions
     });
 
   } catch (error: any) {
     await logError('Erro ao gerar sugestões com IA', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao gerar sugestões',
       error: error.message
@@ -206,14 +206,14 @@ router.post('/analyze-campaign', async (req: any, res) => {
 
     const analysis = await getAIService().analyzeCampaignPerformance(campaignData, req.user.userId);
 
-    res.json({
+    return res.json({
       success: true,
       data: { analysis }
     });
 
   } catch (error: any) {
     await logError('Erro ao analisar campanha com IA', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao analisar campanha',
       error: error.message
@@ -239,14 +239,14 @@ router.post('/generate-report', async (req: any, res) => {
 
     const report = await getAIService().generateIntelligentReport(data, req.user.userId);
 
-    res.json({
+    return res.json({
       success: true,
       data: { report }
     });
 
   } catch (error: any) {
     await logError('Erro ao gerar relatório com IA', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao gerar relatório',
       error: error.message
@@ -287,7 +287,7 @@ router.post('/chat', async (req: any, res) => {
       temperature: 0.7
     }, req.user.id);
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         response: response.response,
@@ -297,7 +297,7 @@ router.post('/chat', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro no chat com IA', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro no chat com IA',
       error: error.message
@@ -341,14 +341,14 @@ router.post('/optimize-content', async (req: any, res) => {
       temperature: 0.7
     }, req.user.id);
 
-    res.json({
+    return res.json({
       success: true,
       data: { optimization: response.response }
     });
 
   } catch (error: any) {
     await logError('Erro ao otimizar conteúdo com IA', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao otimizar conteúdo',
       error: error.message
@@ -389,14 +389,14 @@ router.post('/analyze-audience', async (req: any, res) => {
       temperature: 0.6
     }, req.user.id);
 
-    res.json({
+    return res.json({
       success: true,
       data: { analysis: response.response }
     });
 
   } catch (error: any) {
     await logError('Erro ao analisar audiência com IA', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao analisar audiência',
       error: error.message
@@ -409,7 +409,7 @@ router.post('/analyze-audience', async (req: any, res) => {
  * @desc Lista modelos disponíveis
  * @access Private (Admin, Manager)
  */
-router.get('/models', authorizeRole(['admin', 'manager']), async (_req, res) => {
+router.get('/models', authorizeRole(['admin', 'gerente_marketing']) as any, async (_req, res) => {
   try {
     const models = {
       ollama: [
@@ -436,14 +436,14 @@ router.get('/models', authorizeRole(['admin', 'manager']), async (_req, res) => 
       ]
     };
 
-    res.json({
+    return res.json({
       success: true,
       data: models
     });
 
   } catch (error: any) {
     await logError('Erro ao listar modelos de IA', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -456,7 +456,7 @@ router.get('/models', authorizeRole(['admin', 'manager']), async (_req, res) => 
  * @desc Testa conexão com IA
  * @access Private (Admin, Manager)
  */
-router.post('/test', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.post('/test', authorizeRole(['admin', 'gerente_marketing']) as any, async (req: any, res) => {
   try {
     const testPrompt = 'Responda apenas "OK" se você está funcionando corretamente.';
 
@@ -464,7 +464,7 @@ router.post('/test', authorizeRole(['admin', 'manager']), async (req, res) => {
       prompt: testPrompt,
       maxTokens: 10,
       temperature: 0
-    }, req.user.id);
+    }, req.user?.id || 0);
 
     res.json({
       success: true,

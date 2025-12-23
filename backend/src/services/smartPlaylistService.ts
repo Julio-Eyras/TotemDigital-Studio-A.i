@@ -134,17 +134,13 @@ export class SmartPlaylistService {
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
-    }
-    return (global as any).auditServiceInstance;
+    const { getAuditServiceInstance } = require('../utils/globalInstances');
+    return getAuditServiceInstance();
   }
   
   private getAIService(): AIService {
-    if (!(global as any).aiServiceInstance) {
-      (global as any).aiServiceInstance = new AIService();
-    }
-    return (global as any).aiServiceInstance;
+    const { getAIServiceInstance } = require('../utils/globalInstances');
+    return getAIServiceInstance();
   }
 
   /**
@@ -260,7 +256,7 @@ export class SmartPlaylistService {
                 parsedRules = JSON.parse(trimmed);
               }
             } catch (parseError: any) {
-              await logError('Erro ao fazer parse de rules', parseError, { playlistId: playlist.id || playlist.smart_playlist_id });
+              logError('Erro ao fazer parse de rules', parseError, { playlistId: playlist.id || playlist.smart_playlist_id }).catch(() => {});
               parsedRules = [];
             }
           } else if (Array.isArray(playlist.rules)) {
@@ -636,8 +632,6 @@ export class SmartPlaylistService {
    */
   async generateSmartPlaylist(playlistId: number, generatedBy: number): Promise<PlaylistGenerationResult> {
     try {
-      const startTime = Date.now();
-
       // Verificar se smart playlist existe
       const playlist = await this.getSmartPlaylistById(playlistId);
       if (!playlist) {
@@ -756,7 +750,7 @@ export class SmartPlaylistService {
       };
 
     } catch (error: any) {
-      await logError('Erro ao gerar playlist com IA', error, { playlistId, request });
+      await logError('Erro ao gerar playlist com IA', error, { playlistId: playlist.id, playlistName: playlist.name });
       throw new Error('Erro ao gerar playlist com IA');
     }
   }
@@ -769,7 +763,7 @@ export class SmartPlaylistService {
       // Executar script Python se disponível
       const pythonResult = await this.runPythonScript(playlist);
       
-      if (pythonResult.success) {
+      if (pythonResult.success && pythonResult.result) {
         return pythonResult.result;
       }
 
@@ -777,7 +771,7 @@ export class SmartPlaylistService {
       return await this.generateWithSimpleRules(playlist);
 
     } catch (error: any) {
-      await logError('Erro ao gerar playlist com regras', error, { playlistId, rules });
+      await logError('Erro ao gerar playlist com regras', error, { playlistId: playlist.id, rules: playlist.rules });
       throw new Error('Erro ao gerar playlist com regras');
     }
   }
@@ -918,7 +912,7 @@ export class SmartPlaylistService {
       };
 
     } catch (error: any) {
-      await logError('Erro ao gerar playlist com regras simples', error, { playlistId });
+      await logError('Erro ao gerar playlist com regras simples', error, { playlistId: playlist.id });
       throw new Error('Erro ao gerar playlist com regras simples');
     }
   }
@@ -990,7 +984,7 @@ export class SmartPlaylistService {
       };
 
     } catch (error: any) {
-      await logError('Erro ao processar resposta da IA', error, { aiResponse });
+      logError('Erro ao processar resposta da IA', error, { rawResponse: response }).catch(() => {});
       return {
         items: [],
         effectiveness: 0

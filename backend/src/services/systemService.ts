@@ -5,9 +5,8 @@
 
 import { getDatabase } from '../config/database';
 import * as os from 'os';
-import * as fs from 'fs';
-import * as path from 'path';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { config } from '../config/env';
 
 export interface SystemHealth {
   status: 'healthy' | 'unhealthy' | 'degraded';
@@ -212,15 +211,16 @@ export class SystemService {
    */
   async getPlayerConfig(): Promise<PlayerConfig> {
     try {
+      const serverUrl = config.player.serverUrl || `http://${config.server.host}:${config.server.port}`;
       return {
-        serverUrl: `${process.env.SERVER_URL || 'http://localhost:3000'}`,
-        heartbeatInterval: parseInt(process.env.HEARTBEAT_INTERVAL || '30000'),
+        serverUrl,
+        heartbeatInterval: config.player.heartbeatInterval,
         mediaPath: '/assets/uploads',
         defaultPlaylist: undefined,
-        autoStart: process.env.PLAYER_AUTO_START !== 'false',
-        fullscreen: process.env.PLAYER_FULLSCREEN !== 'false',
-        portrait: process.env.PLAYER_PORTRAIT === 'true',
-        abandonPin: process.env.PLAYER_ABANDON_PIN || '123456'
+        autoStart: config.player.autoStart,
+        fullscreen: config.player.fullscreen,
+        portrait: config.player.portrait,
+        abandonPin: config.security.playerAbandonPin
       };
 
     } catch (error: any) {
@@ -234,7 +234,6 @@ export class SystemService {
    */
   private getDiskUsage(): { used: number; total: number; percentage: number } {
     try {
-      const stats = fs.statSync('/');
       // Implementação simplificada - em um sistema real, você usaria uma biblioteca como 'diskusage'
       return {
         used: 0,

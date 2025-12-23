@@ -137,7 +137,7 @@ export class SettingsService {
       };
 
     } catch (error: any) {
-      await logError('Erro ao buscar configurações', error, { category });
+      await logError('Erro ao buscar configurações', error, {});
       throw new Error('Erro interno do servidor');
     }
   }
@@ -248,7 +248,7 @@ export class SettingsService {
       };
 
     } catch (error: any) {
-      await logError('Erro ao atualizar configurações', error, { updates });
+      await logError('Erro ao atualizar configurações', error, { settings });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -361,7 +361,7 @@ export class SettingsService {
       return newSetting;
 
     } catch (error: any) {
-      await logError('Erro ao criar configuração', error, { data });
+      await logError('Erro ao criar configuração', error, { key: setting.key });
       throw error;
     }
   }
@@ -423,7 +423,7 @@ export class SettingsService {
         if (setting.validation) {
           const validationResult = this.validateValue(value, setting.validation);
           if (!validationResult.isValid) {
-            errors[key] = validationResult.error;
+            errors[key] = validationResult.error || 'Valor inválido';
             continue;
           }
         }
@@ -468,7 +468,7 @@ export class SettingsService {
       return exported;
 
     } catch (error: any) {
-      await logError('Erro ao exportar configurações', error, { category });
+      await logError('Erro ao exportar configurações', error, {});
       throw new Error('Erro interno do servidor');
     }
   }

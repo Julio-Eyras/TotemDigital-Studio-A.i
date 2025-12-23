@@ -5,9 +5,12 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
-import { logError } from '../utils/loggerHelper';
+import { logError, logDebug } from '../utils/loggerHelper';
+import { getCacheService } from './cacheService';
 
 export interface CreateCampaignRequest {
+  // Mantemos o nome clientId por compatibilidade com o frontend atual,
+  // mas no banco usamos subscriber_id (tabela subscribers)
   clientId: number;
   title: string;
   description?: string;
@@ -38,6 +41,7 @@ export interface UpdateCampaignRequest {
 
 export interface CampaignResponse {
   id: number;
+  // Mantemos clientId no contrato de resposta, mas internamente mapeia para subscriber_id
   clientId: number;
   title: string;
   description?: string;
@@ -70,6 +74,7 @@ export interface CampaignStats {
   draft: number;
   byType: { type: string; count: number }[];
   byStatus: { status: string; count: number }[];
+  // Estatísticas agregadas por subscriber (mantemos nomes clientId/clientName por compatibilidade)
   byClient: { clientId: number; clientName: string; count: number }[];
   recentActivity: {
     newCampaigns: number;
@@ -89,6 +94,10 @@ export interface CampaignTotemRequest {
 export class CampaignService {
   private get db() {
     return getDatabase();
+  }
+
+  private get cache() {
+    return getCacheService();
   }
   
   // Lazy initialization - só criar quando necessário
@@ -120,7 +129,8 @@ export class CampaignService {
 
       // Aplicar filtros
       if (filters.clientId) {
-        whereClause += ' AND c.client_id = ?';
+        // Filtro por subscriber (antes client)
+        whereClause += ' AND c.subscriber_id = ?';
         params.push(filters.clientId);
       }
 
@@ -148,7 +158,7 @@ export class CampaignService {
       const campaigns = await this.db.findMany(`
         SELECT 
           c.campaign_id as id,
-          c.client_id as clientId,
+          c.subscriber_id as clientId,
           c.title,
           c.description,
           c.campaign_type as campaignType,
@@ -162,9 +172,9 @@ export class CampaignService {
           c.is_active as isActive,
           c.created_at as createdAt,
           c.updated_at as updatedAt,
-          cl.name as clientName
+          s.name as clientName
         FROM campaigns c
-        LEFT JOIN clients cl ON c.client_id = cl.client_id
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         ${whereClause}
         ORDER BY c.priority DESC, c.created_at DESC
         LIMIT ? OFFSET ?
@@ -209,7 +219,7 @@ export class CampaignService {
       const campaign = await this.db.findFirst(`
         SELECT 
           c.campaign_id as id,
-          c.client_id as clientId,
+          c.subscriber_id as clientId,
           c.title,
           c.description,
           c.campaign_type as campaignType,
@@ -223,9 +233,9 @@ export class CampaignService {
           c.is_active as isActive,
           c.created_at as createdAt,
           c.updated_at as updatedAt,
-          cl.name as clientName
+          s.name as clientName
         FROM campaigns c
-        LEFT JOIN clients cl ON c.client_id = cl.client_id
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         WHERE c.campaign_id = ?
       `, [campaignId]);
 
@@ -273,42 +283,67 @@ export class CampaignService {
         throw new Error('title é obrigatório');
       }
 
-      // Verificar se cliente existe
-      const client = await this.db.findFirst(`
-        SELECT client_id FROM clients WHERE client_id = ? AND COALESCE(is_active, true) = true
+      // Verificar se subscriber (antes client) existe
+      const subscriber = await this.db.findFirst(`
+        SELECT subscriber_id FROM subscribers WHERE subscriber_id = ? AND COALESCE(is_active, true) = true
       `, [clientId]);
 
-      if (!client) {
-        throw new Error('Cliente não encontrado ou inativo');
+      if (!subscriber) {
+        throw new Error('Subscriber (anunciante) não encontrado ou inativo');
       }
 
       // Criar campanha
-      const result = await this.db.executeRaw(`
-        INSERT INTO campaigns (
-          client_id, title, description, campaign_type, priority,
-          start_date, end_date, start_time, end_time, days_of_week,
-          status, is_active
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        RETURNING campaign_id
-      `, [
-        clientId,
+      await logDebug('[CampaignService] Tentando inserir campanha no banco', {
+        clientId, // subscriber_id no banco
         title,
         description,
         campaignType,
         priority,
         startDate,
         endDate,
-        startTime,
-        endTime,
-        JSON.stringify(daysOfWeek),
+        status,
+        isActive
+      });
+
+      const result = await this.db.executeRaw(`
+        INSERT INTO campaigns (
+          subscriber_id, title, description, campaign_type, priority,
+          start_date, end_date, start_time, end_time, days_of_week,
+          status, is_active
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING campaign_id
+      `, [
+        clientId, // subscriber_id
+        title,
+        description,
+        campaignType,
+        priority,
+        startDate || null,
+        endDate || null,
+        startTime || null,
+        endTime || null,
+        daysOfWeek && daysOfWeek.length > 0 ? JSON.stringify(daysOfWeek) : null,
         status,
         isActive
       ]);
 
+      await logDebug('[CampaignService] Resultado do INSERT', {
+        hasResult: !!result,
+        hasRows: !!result?.rows,
+        rowCount: result?.rowCount,
+        campaignId: result?.rows?.[0]?.campaign_id
+      });
+
       const insertedCampaign = result?.rows?.[0];
       if (!insertedCampaign?.campaign_id) {
-        throw new Error('Erro ao criar campanha');
+        await logError('[CampaignService] Erro: campaign_id não retornado', new Error('campaign_id ausente'), {
+          result,
+          insertedCampaign,
+          resultRows: result?.rows,
+          rowCount: result?.rowCount
+        });
+        throw new Error('Erro ao criar campanha: ID não foi retornado pelo banco de dados');
       }
 
       // Buscar campanha criada
@@ -323,6 +358,9 @@ export class CampaignService {
         title: newCampaign.title,
         clientId: newCampaign.clientId
       });
+
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('campaign', newCampaign.id).catch(() => {});
 
       return newCampaign;
 
@@ -428,6 +466,9 @@ export class CampaignService {
         changes: data
       });
 
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('campaign', campaignId).catch(() => {});
+
       return updatedCampaign;
 
     } catch (error: any) {
@@ -471,6 +512,9 @@ export class CampaignService {
         title: campaign.title,
         clientId: campaign.clientId
       });
+
+      // Invalidar cache relacionado
+      await this.cache.invalidateEntity('campaign', campaignId).catch(() => {});
 
     } catch (error: any) {
       await logError('Erro ao remover campanha', error);
@@ -664,7 +708,7 @@ export class CampaignService {
   }
 
   /**
-   * Busca estatísticas de uma campanha
+   * Busca estatísticas de uma campanha (com cache de 2 minutos)
    */
   async getCampaignStats(campaignId: number): Promise<{
     totemCount: number;
@@ -672,50 +716,58 @@ export class CampaignService {
     mediaCount: number;
     totalDuration: number;
   }> {
-    try {
-      // Contar totems
-      const totemCountResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM campaign_totems WHERE campaign_id = ? AND is_active = true
-      `, [campaignId]);
+    const cacheKey = this.cache.generateKey('stats', 'campaign', campaignId.toString());
+    
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        try {
+          // Contar totems
+          const totemCountResult = await this.db.findFirst(`
+            SELECT COUNT(*) as count FROM campaign_totems WHERE campaign_id = ? AND is_active = true
+          `, [campaignId]);
 
-      // Contar playlists
-      const playlistCountResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM playlists WHERE campaign_id = ? AND is_active = true
-      `, [campaignId]);
+          // Contar playlists
+          const playlistCountResult = await this.db.findFirst(`
+            SELECT COUNT(*) as count FROM playlists WHERE campaign_id = ? AND is_active = true
+          `, [campaignId]);
 
-      // Contar mídia (via playlists)
-      const mediaCountResult = await this.db.findFirst(`
-        SELECT COUNT(DISTINCT pi.media_id) as count
-        FROM playlist_items pi
-        JOIN playlists p ON pi.playlist_id = p.playlist_id
-        WHERE p.campaign_id = ? AND p.is_active = true
-      `, [campaignId]);
+          // Contar mídia (via playlists)
+          const mediaCountResult = await this.db.findFirst(`
+            SELECT COUNT(DISTINCT pi.media_id) as count
+            FROM playlist_items pi
+            JOIN playlists p ON pi.playlist_id = p.playlist_id
+            WHERE p.campaign_id = ? AND p.is_active = true
+          `, [campaignId]);
 
-      // Calcular duração total
-      const durationResult = await this.db.findFirst(`
-        SELECT SUM(COALESCE(pi.display_seconds, m.duration_seconds, 0)) as total
-        FROM playlist_items pi
-        JOIN playlists p ON pi.playlist_id = p.playlist_id
-        JOIN medias m ON pi.media_id = m.media_id
-        WHERE p.campaign_id = ? AND p.is_active = true
-      `, [campaignId]);
+          // Calcular duração total
+          const durationResult = await this.db.findFirst(`
+            SELECT SUM(COALESCE(pi.display_seconds, m.duration_seconds, 0)) as total
+            FROM playlist_items pi
+            JOIN playlists p ON pi.playlist_id = p.playlist_id
+            JOIN medias m ON pi.media_id = m.media_id
+            WHERE p.campaign_id = ? AND p.is_active = true
+          `, [campaignId]);
 
-      return {
-        totemCount: totemCountResult?.count || 0,
-        playlistCount: playlistCountResult?.count || 0,
-        mediaCount: mediaCountResult?.count || 0,
-        totalDuration: durationResult?.total || 0
-      };
+          return {
+            totemCount: totemCountResult?.count || 0,
+            playlistCount: playlistCountResult?.count || 0,
+            mediaCount: mediaCountResult?.count || 0,
+            totalDuration: durationResult?.total || 0
+          };
 
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas da campanha', error);
-      return {
-        totemCount: 0,
-        playlistCount: 0,
-        mediaCount: 0,
-        totalDuration: 0
-      };
-    }
+        } catch (error: any) {
+          await logError('Erro ao buscar estatísticas da campanha', error);
+          return {
+            totemCount: 0,
+            playlistCount: 0,
+            mediaCount: 0,
+            totalDuration: 0
+          };
+        }
+      },
+      120 // Cache por 2 minutos
+    );
   }
 
   /**
@@ -791,12 +843,12 @@ export class CampaignService {
       // Por cliente
       const byClient = await this.db.findMany(`
         SELECT 
-          c.client_id as clientId,
-          cl.name as clientName,
+          c.subscriber_id as clientId,
+          s.name as clientName,
           COUNT(*) as count
         FROM campaigns c
-        LEFT JOIN clients cl ON c.client_id = cl.client_id
-        GROUP BY c.client_id, cl.name
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
+        GROUP BY c.subscriber_id, s.name
         ORDER BY count DESC
         LIMIT 10
       `);
@@ -852,7 +904,7 @@ export class CampaignService {
       const campaigns = await this.db.findMany(`
         SELECT 
           c.campaign_id as id,
-          c.client_id as clientId,
+          c.subscriber_id as clientId,
           c.title,
           c.description,
           c.campaign_type as campaignType,
@@ -866,9 +918,9 @@ export class CampaignService {
           c.is_active as isActive,
           c.created_at as createdAt,
           c.updated_at as updatedAt,
-          cl.name as clientName
+          s.name as clientName
         FROM campaigns c
-        LEFT JOIN clients cl ON c.client_id = cl.client_id
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
         WHERE ct.totem_id = ? AND c.is_active = true AND c.status = 'active'
         ORDER BY c.priority DESC, c.created_at DESC
@@ -902,7 +954,7 @@ export class CampaignService {
       const toActivate = await this.db.findMany(`
         SELECT 
           c.campaign_id as id,
-          c.client_id as clientId,
+          c.subscriber_id as clientId,
           c.title,
           c.description,
           c.campaign_type as campaignType,
@@ -916,9 +968,9 @@ export class CampaignService {
           c.is_active as isActive,
           c.created_at as createdAt,
           c.updated_at as updatedAt,
-          cl.name as clientName
+          s.name as clientName
         FROM campaigns c
-        LEFT JOIN clients cl ON c.client_id = cl.client_id
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         WHERE c.status = 'draft' 
         AND c.start_date <= ? 
         AND c.is_active = false
@@ -928,7 +980,7 @@ export class CampaignService {
       const toPause = await this.db.findMany(`
         SELECT 
           c.campaign_id as id,
-          c.client_id as clientId,
+          c.subscriber_id as clientId,
           c.title,
           c.description,
           c.campaign_type as campaignType,
@@ -942,9 +994,9 @@ export class CampaignService {
           c.is_active as isActive,
           c.created_at as createdAt,
           c.updated_at as updatedAt,
-          cl.name as clientName
+          s.name as clientName
         FROM campaigns c
-        LEFT JOIN clients cl ON c.client_id = cl.client_id
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         WHERE c.status = 'active' 
         AND c.end_date <= ? 
         AND c.is_active = true
@@ -984,14 +1036,14 @@ export class CampaignService {
   }
 
   /**
-   * Busca campanhas por cliente
+   * Busca campanhas por subscriber (antes cliente)
    */
   async getCampaignsByClient(clientId: number, limit: number = 50): Promise<CampaignResponse[]> {
     try {
       const campaigns = await this.db.findMany(`
         SELECT 
           c.campaign_id as id,
-          c.client_id as clientId,
+          c.subscriber_id as clientId,
           c.title,
           c.description,
           c.campaign_type as campaignType,
@@ -1005,10 +1057,10 @@ export class CampaignService {
           c.is_active as isActive,
           c.created_at as createdAt,
           c.updated_at as updatedAt,
-          cl.name as clientName
+          s.name as clientName
         FROM campaigns c
-        LEFT JOIN clients cl ON c.client_id = cl.client_id
-        WHERE c.client_id = ?
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
+        WHERE c.subscriber_id = ?
         ORDER BY c.priority DESC, c.created_at DESC
         LIMIT ?
       `, [clientId, limit]);

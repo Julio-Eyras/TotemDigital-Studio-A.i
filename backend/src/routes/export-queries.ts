@@ -3,7 +3,7 @@
  * Rotas CRUD para queries de exportação
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { exportQueryService } from '../services/exportQueryService';
 import { sqlValidatorService } from '../services/sqlValidatorService';
 import { authMiddleware } from '../middleware/auth.middleware';
@@ -20,7 +20,7 @@ router.use(authMiddleware);
  * @desc Lista todas as queries
  * @access Private (Admin, Manager)
  */
-router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const { provider, enabled, search, page, limit } = req.query;
 
@@ -33,7 +33,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Respo
 
     const result = await exportQueryService.getAllQueries(filters);
 
-    res.json({
+    return res.json({
       success: true,
       data: result.data,
       pagination: {
@@ -44,7 +44,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Respo
     });
   } catch (error: any) {
     await logError('Erro ao listar queries de exportação', error, { filters: req.query });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao listar queries',
       error: error.message
@@ -57,7 +57,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Respo
  * @desc Busca query por ID
  * @access Private (Admin, Manager)
  */
-router.get('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const queryId = parseInt(req.params.id);
 
@@ -77,13 +77,13 @@ router.get('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: query
     });
   } catch (error: any) {
     await logError('Erro ao buscar query de exportação', error, { queryId: req.params.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao buscar query',
       error: error.message
@@ -96,7 +96,7 @@ router.get('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
  * @desc Cria nova query
  * @access Private (Admin, Manager)
  */
-router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.post('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const data = req.body;
     const userId = req.user.id;
@@ -126,7 +126,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Resp
     // Criar query
     const query = await exportQueryService.createQuery(data, userId);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: query,
       message: 'Query criada com sucesso',
@@ -134,7 +134,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Resp
     });
   } catch (error: any) {
     await logError('Erro ao criar query de exportação', error, { userId: req.user?.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao criar query',
       error: error.message
@@ -147,7 +147,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Resp
  * @desc Atualiza query
  * @access Private (Admin, Manager)
  */
-router.put('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const queryId = parseInt(req.params.id);
     const data = req.body;
@@ -184,14 +184,14 @@ router.put('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
     // Atualizar query
     const query = await exportQueryService.updateQuery(queryId, data, userId);
 
-    res.json({
+    return res.json({
       success: true,
       data: query,
       message: 'Query atualizada com sucesso'
     });
   } catch (error: any) {
     await logError('Erro ao atualizar query de exportação', error, { queryId: req.params.id, userId: req.user?.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao atualizar query',
       error: error.message
@@ -219,13 +219,13 @@ router.delete('/:id', authorizeRole(['admin']), async (req: any, res: Response) 
     // Excluir query
     await exportQueryService.deleteQuery(queryId, userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Query excluída com sucesso'
     });
   } catch (error: any) {
     await logError('Erro ao excluir query de exportação', error, { queryId: req.params.id, userId: req.user?.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao excluir query',
       error: error.message
@@ -238,7 +238,7 @@ router.delete('/:id', authorizeRole(['admin']), async (req: any, res: Response) 
  * @desc Testa conexão com banco de dados
  * @access Private (Admin, Manager)
  */
-router.post('/:id/test-connection', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.post('/:id/test-connection', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const queryId = parseInt(req.params.id);
 
@@ -266,13 +266,13 @@ router.post('/:id/test-connection', authorizeRole(['admin', 'manager']), async (
     const provider = req.body.provider || 'PostgreSQL';
     const connected = await exportQueryService.testConnection(provider, databaseConfig);
 
-    res.json({
+    return res.json({
       success: connected,
       message: connected ? 'Conexão estabelecida com sucesso' : 'Falha ao conectar ao banco de dados'
     });
   } catch (error: any) {
     await logError('Erro ao testar conexão de export query', error, { queryId: req.params.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao testar conexão',
       error: error.message
@@ -285,7 +285,7 @@ router.post('/:id/test-connection', authorizeRole(['admin', 'manager']), async (
  * @desc Valida sintaxe SQL
  * @access Private (Admin, Manager)
  */
-router.post('/validate-sql', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.post('/validate-sql', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const { sql, provider } = req.body;
 
@@ -299,7 +299,7 @@ router.post('/validate-sql', authorizeRole(['admin', 'manager']), async (req: an
     // Validar SQL
     const validation = sqlValidatorService.validateSQL(sql, provider);
 
-    res.json({
+    return res.json({
       success: validation.valid,
       data: {
         valid: validation.valid,
@@ -311,7 +311,7 @@ router.post('/validate-sql', authorizeRole(['admin', 'manager']), async (req: an
     });
   } catch (error: any) {
     await logError('Erro ao validar SQL de export query', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao validar SQL',
       error: error.message

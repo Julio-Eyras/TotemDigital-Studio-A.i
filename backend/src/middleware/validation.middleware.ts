@@ -40,7 +40,7 @@ export const validateRequest = async (req: Request, res: Response, next: NextFun
     return;
   }
   
-  next();
+  return next();
 };
 
 /**
@@ -61,7 +61,7 @@ export const validatePagination = (req: Request, res: Response, next: NextFuncti
     });
   }
   
-  next();
+  return next();
 };
 
 /**
@@ -76,7 +76,7 @@ export const validateNumericId = (req: Request, res: Response, next: NextFunctio
     });
   }
   
-  next();
+  return next();
 };
 
 /**
@@ -103,7 +103,7 @@ export const validateDateRange = (req: Request, res: Response, next: NextFunctio
     });
   }
   
-  next();
+  return next();
 };
 
 /**
@@ -116,7 +116,7 @@ export const validateFileUpload = (req: Request, res: Response, next: NextFuncti
     });
   }
   
-  next();
+  return next();
 };
 
 /**
@@ -133,7 +133,7 @@ export const validateFileSize = (maxSizeInMB: number) => {
       });
     }
     
-    next();
+    return next();
   };
 };
 
@@ -150,7 +150,7 @@ export const validateFileType = (allowedTypes: string[]) => {
       });
     }
     
-    next();
+    return next();
   };
 };
 
@@ -185,7 +185,7 @@ export const sanitizeInput = (req: Request, _res: Response, next: NextFunction) 
     });
   }
   
-  next();
+  return next();
 };
 
 /**
@@ -207,7 +207,7 @@ export const validatePermission = (permission: string) => {
       });
     }
     
-    next();
+    return next();
   };
 };
 
@@ -230,7 +230,7 @@ export const validateRole = (roles: string[]) => {
       });
     }
     
-    next();
+    return next();
   };
 };
 
@@ -266,6 +266,6 @@ export const validateRateLimit = (maxRequests: number, windowMs: number) => {
       clientRequests.count++;
     }
     
-    next();
+    return next();
   };
 };

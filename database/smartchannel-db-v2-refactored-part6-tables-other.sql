@@ -1,0 +1,580 @@
+-- =============================================
+-- SmartSignage Pro - Schema Refatorado v2.0
+-- PARTE 6: Outras Tabelas (Analytics, Logs, OTA, etc.)
+-- =============================================
+
+-- =============================================
+-- ANALYTICS E MONITORAMENTO
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS analytics_sessions (
+    session_id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL, -- FK para totems
+    
+    start_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    end_time TIMESTAMP,
+    duration_seconds INTEGER,
+    
+    metadata JSONB, -- Dados adicionais da sessão
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS analytics_emotions (
+    emotion_id SERIAL PRIMARY KEY,
+    session_id INTEGER NOT NULL, -- FK para analytics_sessions
+    totem_id INTEGER NOT NULL, -- FK para totems (denormalizado para performance)
+    
+    emotion_type TEXT NOT NULL, -- happy, sad, neutral, angry, surprised
+    confidence REAL NOT NULL, -- 0.0 a 1.0
+    detected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    metadata JSONB
+);
+
+CREATE TABLE IF NOT EXISTS analytics_gestures (
+    gesture_id SERIAL PRIMARY KEY,
+    session_id INTEGER NOT NULL, -- FK para analytics_sessions
+    totem_id INTEGER NOT NULL, -- FK para totems
+    
+    gesture_type TEXT NOT NULL, -- wave, point, touch, etc.
+    confidence REAL NOT NULL,
+    detected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    metadata JSONB
+);
+
+CREATE TABLE IF NOT EXISTS execution_logs (
+    log_id BIGSERIAL PRIMARY KEY, -- BIGSERIAL para escalar
+    totem_id INTEGER NOT NULL, -- FK para totems
+    campaign_id INTEGER, -- FK para campaigns
+    playlist_id INTEGER, -- FK para playlists
+    media_id INTEGER, -- FK para medias
+    
+    -- Derivação para performance
+    publisher_id INTEGER, -- FK para publishers (derivado de totem_id → local_id → publisher_id)
+    subscriber_id INTEGER, -- FK para subscribers (derivado de campaign_id)
+    
+    event_type TEXT NOT NULL, 
+        -- play_start, play_end, play_error, 
+        -- schedule_start, schedule_end,
+        -- interaction_start, interaction_end
+    
+    event_data JSONB, -- Dados do evento
+    
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    metadata JSONB
+);
+
+COMMENT ON TABLE execution_logs IS 'Logs de execução de campanhas/mídias nos totens';
+COMMENT ON COLUMN execution_logs.publisher_id IS 'Publisher do totem (denormalizado para performance)';
+COMMENT ON COLUMN execution_logs.subscriber_id IS 'Subscriber da campanha (denormalizado para performance)';
+
+-- Índice parcial para logs recentes será criado na parte de índices
+
+CREATE TABLE IF NOT EXISTS event_logs (
+    log_id BIGSERIAL PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    entity_type TEXT NOT NULL, -- campaign, media, totem, playlist, etc.
+    entity_id INTEGER,
+    
+    totem_id INTEGER,
+    campaign_id INTEGER,
+    media_id INTEGER,
+    publisher_id INTEGER,
+    subscriber_id INTEGER,
+    
+    user_id INTEGER, -- FK para users (quem gerou o evento)
+    
+    metadata JSONB,
+    severity TEXT DEFAULT 'info', -- debug, info, warning, error, critical
+    
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS interaction_logs (
+    interaction_id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL, -- FK para totems
+    tag_id INTEGER, -- FK para tags (RFID, NFC, QR, etc.)
+    person_id INTEGER, -- FK para recognized_persons
+    
+    interaction_type TEXT NOT NULL, -- tag_scanned, face_recognized, gesture_detected
+    interaction_data JSONB,
+    
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================
+-- ML/AI
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS totem_ml_config (
+    config_id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL UNIQUE, -- FK para totems (1:1)
+    
+    emotion_detection_enabled BOOLEAN DEFAULT false,
+    gesture_detection_enabled BOOLEAN DEFAULT false,
+    face_recognition_enabled BOOLEAN DEFAULT false,
+    behavior_analysis_enabled BOOLEAN DEFAULT false,
+    
+    config JSONB DEFAULT '{}'::jsonb, -- Configurações específicas de ML
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS emotion_data (
+    id SERIAL PRIMARY KEY,
+    session_id INTEGER NOT NULL, -- FK para analytics_sessions (sem FK explícita por enquanto)
+    totem_id INTEGER NOT NULL, -- FK para totems
+    
+    emotion TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    metadata JSONB
+);
+
+CREATE TABLE IF NOT EXISTS gesture_data (
+    id SERIAL PRIMARY KEY,
+    session_id INTEGER NOT NULL, -- FK para analytics_sessions
+    totem_id INTEGER NOT NULL, -- FK para totems
+    
+    gesture TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    metadata JSONB
+);
+
+CREATE TABLE IF NOT EXISTS behavior_data (
+    id SERIAL PRIMARY KEY,
+    session_id INTEGER NOT NULL, -- FK para analytics_sessions
+    totem_id INTEGER NOT NULL, -- FK para totems
+    
+    behavior_type TEXT NOT NULL,
+    duration_seconds INTEGER,
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    metadata JSONB
+);
+
+CREATE TABLE IF NOT EXISTS tags (
+    tag_id SERIAL PRIMARY KEY,
+    tag_type TEXT NOT NULL, -- RFID, NFC, QR, barcode
+    tag_value TEXT NOT NULL UNIQUE,
+    tag_name TEXT,
+    
+    subscriber_id INTEGER, -- FK para subscribers (se tag pertence a subscriber)
+    publisher_id INTEGER, -- FK para publishers (se tag pertence a publisher)
+    
+    metadata JSONB,
+    is_active BOOLEAN DEFAULT true,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_tag_type 
+        CHECK (tag_type IN ('RFID', 'NFC', 'QR', 'barcode', 'unknown'))
+);
+
+CREATE TABLE IF NOT EXISTS recognized_persons (
+    person_id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL, -- FK para totems
+    
+    name TEXT,
+    features JSONB NOT NULL, -- Features faciais (vetor)
+    confidence REAL,
+    
+    metadata JSONB,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================
+-- CONTROLE REMOTO
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS remote_commands (
+    command_id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL, -- FK para totems
+    user_id INTEGER NOT NULL, -- FK para users (quem criou o comando)
+    
+    command_type TEXT NOT NULL, 
+        -- restart, reboot, update, play, pause, 
+        -- load_playlist, clear_cache, ping
+    
+    status TEXT DEFAULT 'pending', 
+        -- pending, sent, executing, completed, failed, timeout
+    
+    parameters JSONB, -- Parâmetros do comando
+    response JSONB, -- Resposta do totem
+    
+    sent_at TIMESTAMP,
+    executed_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    
+    error_message TEXT,
+    retry_count INTEGER DEFAULT 0,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_remote_command_type 
+        CHECK (command_type IN ('restart', 'reboot', 'update', 'play', 'pause', 
+                                'load_playlist', 'clear_cache', 'ping', 'custom')),
+    CONSTRAINT chk_remote_command_status 
+        CHECK (status IN ('pending', 'sent', 'executing', 'completed', 'failed', 'timeout'))
+);
+
+-- =============================================
+-- OTA UPDATES
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS ota_updates (
+    id SERIAL PRIMARY KEY,
+    version TEXT NOT NULL,
+    platform TEXT NOT NULL, -- webos, tizen, android, linux, windows, all
+    file_path TEXT NOT NULL,
+    file_size BIGINT NOT NULL,
+    checksum TEXT NOT NULL,
+    description TEXT,
+    changelog TEXT,
+    is_mandatory BOOLEAN DEFAULT false,
+    min_version TEXT,
+    max_version TEXT,
+    rollout_percentage INTEGER DEFAULT 100,
+    status TEXT NOT NULL DEFAULT 'draft', 
+        -- draft, testing, active, paused, completed, cancelled
+    
+    created_by INTEGER, -- FK para users
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    released_at TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_ota_platform 
+        CHECK (platform IN ('webos', 'tizen', 'android', 'linux', 'windows', 'all')),
+    CONSTRAINT chk_ota_status 
+        CHECK (status IN ('draft', 'testing', 'active', 'paused', 'completed', 'cancelled')),
+    CONSTRAINT chk_ota_rollout 
+        CHECK (rollout_percentage >= 0 AND rollout_percentage <= 100)
+);
+
+CREATE TABLE IF NOT EXISTS totem_update_status (
+    id SERIAL PRIMARY KEY,
+    ota_update_id INTEGER NOT NULL, -- FK para ota_updates
+    totem_id INTEGER NOT NULL, -- FK para totems
+    
+    status TEXT NOT NULL DEFAULT 'pending', 
+        -- pending, downloaded, installed, failed, skipped
+    
+    downloaded_at TIMESTAMP,
+    installed_at TIMESTAMP,
+    error_message TEXT,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_totem_update_status 
+        CHECK (status IN ('pending', 'downloaded', 'installed', 'failed', 'skipped')),
+    
+    UNIQUE(ota_update_id, totem_id)
+);
+
+-- =============================================
+-- SMARTDISPLAYFX
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS fx_sites (
+    site_id TEXT PRIMARY KEY, -- ID único do site (ex: "shopping-center-1")
+    name TEXT NOT NULL,
+    description TEXT,
+    location JSONB, -- Coordenadas, endereço, etc.
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS fx_totem_sites (
+    totem_id INTEGER NOT NULL, -- FK para totems
+    site_id TEXT NOT NULL, -- FK para fx_sites
+    position JSONB, -- Posição do totem no site
+    is_active BOOLEAN DEFAULT true,
+    
+    PRIMARY KEY (totem_id, site_id)
+);
+
+-- =============================================
+-- AUDITORIA E SEGURANÇA
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER, -- FK para users (NULL se ação automática)
+    action TEXT NOT NULL, -- create, update, delete, approve, reject, login, logout
+    entity TEXT NOT NULL, -- media, campaign, totem, playlist, etc.
+    entity_id INTEGER,
+    
+    publisher_id INTEGER, -- FK para publishers (contexto da ação)
+    subscriber_id INTEGER, -- FK para subscribers (contexto da ação)
+    
+    metadata JSONB, -- Dados adicionais
+    ip_address TEXT,
+    user_agent TEXT,
+    
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_two_factor (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL UNIQUE, -- FK para users
+    secret TEXT NOT NULL, -- Secret TOTP (criptografado)
+    enabled BOOLEAN DEFAULT false,
+    backup_codes TEXT[], -- Array de backup codes (criptografados)
+    last_used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS two_factor_attempts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL, -- FK para users
+    code TEXT NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    success BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL, -- FK para users
+    token TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    used BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================
+-- RELATÓRIOS E EXPORTAÇÕES
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS reports (
+    report_id SERIAL PRIMARY KEY,
+    type TEXT NOT NULL, 
+        -- campaign, totem, publisher, subscriber, media, billing, analytics, custom
+    
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT DEFAULT 'pending', 
+        -- pending, generating, completed, failed
+    
+    format TEXT DEFAULT 'pdf', -- pdf, excel, csv, json
+    file_path TEXT,
+    file_size BIGINT,
+    download_url TEXT,
+    download_count INTEGER DEFAULT 0,
+    
+    filters JSONB, -- Filtros aplicados
+    template TEXT,
+    custom_fields JSONB,
+    ai_analysis BOOLEAN DEFAULT false,
+    metadata JSONB,
+    
+    generated_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    
+    created_by INTEGER, -- FK para users
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_report_type 
+        CHECK (type IN ('campaign', 'totem', 'publisher', 'subscriber', 
+                       'media', 'billing', 'analytics', 'custom')),
+    CONSTRAINT chk_report_status 
+        CHECK (status IN ('pending', 'generating', 'completed', 'failed')),
+    CONSTRAINT chk_report_format 
+        CHECK (format IN ('pdf', 'excel', 'csv', 'json'))
+);
+
+CREATE TABLE IF NOT EXISTS report_templates (
+    template_id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    type TEXT NOT NULL, -- campaign, totem, publisher, subscriber, etc.
+    template_config JSONB NOT NULL DEFAULT '{}'::jsonb,
+    is_default BOOLEAN DEFAULT false,
+    is_public BOOLEAN DEFAULT false,
+    
+    created_by INTEGER, -- FK para users
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================
+-- AGENDAMENTOS AVANÇADOS
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS advanced_schedules (
+    schedule_id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    schedule_type TEXT NOT NULL, 
+        -- campaign, playlist, campaign_activation, playlist_generation
+    
+    target_id INTEGER NOT NULL, -- campaign_id ou playlist_id
+    cron_expression TEXT NOT NULL,
+    schedule_config JSONB,
+    
+    enabled BOOLEAN DEFAULT true,
+    last_execution TIMESTAMP,
+    next_execution TIMESTAMP,
+    execution_count INTEGER DEFAULT 0,
+    success_count INTEGER DEFAULT 0,
+    failure_count INTEGER DEFAULT 0,
+    
+    created_by INTEGER, -- FK para users
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_schedule_type 
+        CHECK (schedule_type IN ('campaign', 'playlist', 
+                                'campaign_activation', 'playlist_generation'))
+);
+
+-- =============================================
+-- QR CODES E SHORT LINKS
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS qr_codes (
+    qr_id SERIAL PRIMARY KEY,
+    campaign_id INTEGER NOT NULL, -- FK para campaigns (QR code pertence a uma campanha)
+    
+    -- Identificação
+    code TEXT UNIQUE NOT NULL, -- Código único do QR code
+    title TEXT NOT NULL, -- Título/descrição do QR code
+    description TEXT,
+    
+    -- Tipo e conteúdo
+    qr_type TEXT DEFAULT 'url', -- 'url', 'text', 'wifi', 'contact', 'sms', 'email', 'phone'
+    content TEXT NOT NULL, -- Conteúdo codificado no QR (URL, texto, etc.)
+    url TEXT, -- URL para redirect (se qr_type = 'url')
+    redirect_url TEXT, -- URL de redirecionamento após scan
+    
+    -- Aparência
+    size INTEGER DEFAULT 200,
+    color TEXT DEFAULT '#000000',
+    background_color TEXT DEFAULT '#FFFFFF',
+    error_correction_level TEXT DEFAULT 'M', -- 'L', 'M', 'Q', 'H'
+    margin INTEGER DEFAULT 4,
+    
+    -- Imagem gerada
+    image_url TEXT, -- URL/caminho da imagem do QR code gerada
+    
+    -- Tracking e limites
+    scan_count INTEGER DEFAULT 0,
+    last_scan_at TIMESTAMP,
+    max_scans INTEGER, -- Limite máximo de scans (NULL = ilimitado)
+    tracking_enabled BOOLEAN DEFAULT true,
+    
+    -- Validade
+    expires_at TIMESTAMP, -- Data de expiração (NULL = não expira)
+    
+    -- Metadados extras
+    metadata JSONB DEFAULT '{}'::jsonb, -- Campos adicionais (utm_params, deeplink_url, etc.)
+    
+    is_active BOOLEAN DEFAULT true,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_qr_type CHECK (qr_type IN ('url', 'text', 'wifi', 'contact', 'sms', 'email', 'phone')),
+    CONSTRAINT chk_error_correction_level CHECK (error_correction_level IN ('L', 'M', 'Q', 'H'))
+);
+
+COMMENT ON TABLE qr_codes IS 'QR Codes associados a campanhas';
+COMMENT ON COLUMN qr_codes.campaign_id IS 'Campanha à qual o QR code pertence (obrigatório)';
+COMMENT ON COLUMN qr_codes.code IS 'Código único identificador do QR code';
+COMMENT ON COLUMN qr_codes.qr_type IS 'Tipo de conteúdo do QR code';
+COMMENT ON COLUMN qr_codes.content IS 'Conteúdo codificado no QR (URL, texto, dados WiFi, etc.)';
+COMMENT ON COLUMN qr_codes.metadata IS 'Metadados extras (utm_params, deeplink_url, etc.)';
+
+CREATE TABLE IF NOT EXISTS short_links (
+    link_id SERIAL PRIMARY KEY,
+    campaign_id INTEGER NOT NULL, -- FK para campaigns
+    
+    short_code TEXT UNIQUE NOT NULL,
+    original_url TEXT NOT NULL,
+    
+    click_count INTEGER DEFAULT 0,
+    last_click_at TIMESTAMP,
+    
+    metadata JSONB,
+    expires_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT true,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================
+-- DASHBOARD E UI
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS dashboard_layouts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL, -- FK para users
+    name TEXT NOT NULL,
+    layout_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    is_default BOOLEAN DEFAULT false,
+    is_shared BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================
+-- BACKUPS
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS backups (
+    id SERIAL PRIMARY KEY,
+    backup_id TEXT UNIQUE NOT NULL,
+    backup_type TEXT NOT NULL, -- full, database, uploads, config
+    file_path TEXT NOT NULL,
+    file_size BIGINT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'in_progress', 
+        -- in_progress, completed, failed
+    
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_by INTEGER, -- FK para users
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_backup_type 
+        CHECK (backup_type IN ('full', 'database', 'uploads', 'config')),
+    CONSTRAINT chk_backup_status 
+        CHECK (status IN ('in_progress', 'completed', 'failed'))
+);
+
+-- =============================================
+-- STRIPE INTEGRATION
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS stripe_customers (
+    id SERIAL PRIMARY KEY,
+    subscriber_id INTEGER, -- FK para subscribers (opcional)
+    publisher_id INTEGER, -- FK para publishers (opcional)
+    
+    stripe_customer_id TEXT UNIQUE NOT NULL,
+    email TEXT,
+    name TEXT,
+    
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_stripe_customer_reference 
+        CHECK (subscriber_id IS NOT NULL OR publisher_id IS NOT NULL)
+);
+

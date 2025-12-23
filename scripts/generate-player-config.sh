@@ -23,7 +23,7 @@ error() {
 # Verificar argumentos
 if [[ $# -lt 2 ]]; then
     error "Uso: $0 <UIN> <PLAYER_DIR> [SECRET_KEY]"
-    echo "Exemplo: $0 default-demo /opt/smart-signage/player"
+    echo "Exemplo: $0 default-demo /opt/smart-signage/player-web"
     exit 1
 fi
 

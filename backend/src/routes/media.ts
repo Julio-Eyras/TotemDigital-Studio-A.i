@@ -1,13 +1,17 @@
 import { Router, Response } from 'express';
 import { MediaService } from '../services/mediaService';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { StorageService } from '../services/storageService';
+import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
+import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
+import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
-import { logError, logDebug, logWarn, logWarnSync, sanitizeForLogging } from '../utils/loggerHelper';
+import { logError, logDebug, logWarnSync, sanitizeForLogging } from '../utils/loggerHelper';
+import { uploadLimiter } from '../middleware/security.middleware';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { getMediaConfig, getMaxFileSize, getAllowedMimeTypes, getStoragePath } from '../config/mediaConfig';
+import { getMediaConfig, getAllowedMimeTypes, getStoragePath } from '../config/mediaConfig';
 
 const router = Router();
 
@@ -21,6 +25,12 @@ function getMediaService(): MediaService {
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
+
+// Aplicar bloqueio de dados de clientes para OPERATOR
+router.use(blockClientDataAccess);
+
+// Aplicar isolamento de dados por subscriber
+router.use(subscriberIsolationMiddleware);
 
 // Função para criar configuração dinâmica do multer
 function createMulterConfig() {
@@ -54,11 +64,11 @@ function createMulterConfig() {
     throw new Error(`Diretório de uploads não é gravável. Verifique permissões: ${error.message}`);
   }
 
-  const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
+    const storage = multer.diskStorage({
+    destination: (_req, _file, cb) => {
       cb(null, storagePath);
     },
-    filename: (req, file, cb) => {
+    filename: (_req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
       cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
@@ -79,7 +89,7 @@ function createMulterConfig() {
     limits: {
       fileSize: config.maxSize
     },
-    fileFilter: (req, file, cb) => {
+    fileFilter: (_req, file, cb) => {
       const extname = allowedTypesRegex.test(path.extname(file.originalname).toLowerCase());
       const mimetype = allowedMimeTypes.includes(file.mimetype);
 
@@ -133,10 +143,10 @@ router.get('/',
         type: type as string,
         clientId: clientId ? parseInt(clientId as string) : undefined
       });
-      res.json(result);
+      return res.json(result);
     } catch (error: any) {
       await logError('Erro ao listar mídia', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Erro ao listar mídia',
         message: error.message || 'Erro desconhecido'
       });
@@ -159,9 +169,9 @@ router.get('/:id',
       if (!media) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
-      res.json(media);
+      return res.json(media);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao obter arquivo de mídia' });
+      return res.status(500).json({ error: 'Erro ao obter arquivo de mídia' });
     }
   }
 );
@@ -171,7 +181,7 @@ router.get('/:id',
  * @desc Upload de arquivo de mídia
  * @access Private
  */
-router.post('/upload',
+router.post('/upload', uploadLimiter,
   async (req: AuthenticatedRequest, res: Response, next) => {
     // Log detalhado antes do multer processar (apenas em desenvolvimento)
     if (process.env.NODE_ENV === 'development') {
@@ -218,7 +228,7 @@ router.post('/upload',
         });
       }
       
-      next();
+      return next();
     });
   },
   body('name').optional().isString().isLength({ min: 1, max: 100 }),
@@ -267,9 +277,31 @@ router.post('/upload',
       if (!finalClientId && req.user.role === 'client' && req.user.clientId) {
         finalClientId = req.user.clientId;
       }
-      // Se ainda não tem clientId, usar 1 como padrão (admin pode criar sem cliente específico)
+      // Se ainda não tem clientId, buscar primeiro subscriber ativo (anunciante)
       if (!finalClientId) {
-        finalClientId = 1;
+        try {
+          const db = require('../config/database').getDatabase();
+          const firstSubscriber = await db.findFirst(`
+            SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
+          `);
+          if (firstSubscriber) {
+            finalClientId = firstSubscriber.subscriber_id;
+            await logDebug('[Media] Usando primeiro subscriber ativo', { subscriberId: finalClientId });
+          } else {
+            return res.status(400).json({
+              success: false,
+              error: 'Nenhum subscriber ativo encontrado',
+              message: 'É necessário ter pelo menos um subscriber (anunciante) ativo para criar mídias'
+            });
+          }
+        } catch (dbError: any) {
+          await logError('Erro ao buscar subscriber', dbError);
+          return res.status(400).json({
+            success: false,
+            error: 'clientId é obrigatório',
+            message: 'Não foi possível determinar o subscriber. Forneça clientId explicitamente.'
+          });
+        }
       }
 
       const buffer = fs.readFileSync(req.file.path);
@@ -279,8 +311,8 @@ router.post('/upload',
         title: mediaData.name,
         description: mediaData.description,
         tags: mediaData.tags ? String(mediaData.tags).split(',').map(t => t.trim()).filter(Boolean) : [],
-        clientId: finalClientId,
-        createdBy: req.user.id, // Usar ID do usuário autenticado (userId é alias de id)
+        clientId: finalClientId || 0, // Garantir que não é undefined
+        createdBy: req.user?.id || 0, // Usar ID do usuário autenticado (userId é alias de id)
         file: {
           buffer,
           originalname: mediaData.originalName,
@@ -289,13 +321,13 @@ router.post('/upload',
         },
       });
       
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         data: media
       });
     } catch (error: any) {
       await logError('Erro ao fazer upload do arquivo', error);
-      res.status(400).json({ 
+      return res.status(400).json({ 
         error: 'Erro ao fazer upload do arquivo',
         message: error.message || 'Erro desconhecido ao processar upload'
       });
@@ -308,7 +340,9 @@ router.post('/upload',
  * @desc Upload múltiplo de arquivos de mídia
  * @access Private
  */
-router.post('/upload-multiple',
+router.post('/upload-multiple', 
+  authorizeRole(['admin', 'gerente_marketing', 'editoracao']),
+  uploadLimiter,
   (req, res, next) => getMulterUpload().array('files', 10)(req, res, next), // Máximo 10 arquivos
   body('clientId').optional().isInt({ min: 1 }),
   validateRequest,
@@ -334,9 +368,31 @@ router.post('/upload-multiple',
       if (!finalClientId && req.user.role === 'client' && req.user.clientId) {
         finalClientId = req.user.clientId;
       }
-      // Se ainda não tem clientId, usar 1 como padrão
+      // Se ainda não tem clientId, buscar primeiro subscriber ativo (anunciante)
       if (!finalClientId) {
-        finalClientId = 1;
+        try {
+          const db = require('../config/database').getDatabase();
+          const firstSubscriber = await db.findFirst(`
+            SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
+          `);
+          if (firstSubscriber) {
+            finalClientId = firstSubscriber.subscriber_id;
+            await logDebug('[Media] Usando primeiro subscriber ativo para upload múltiplo', { subscriberId: finalClientId });
+          } else {
+            return res.status(400).json({
+              success: false,
+              error: 'Nenhum subscriber ativo encontrado',
+              message: 'É necessário ter pelo menos um subscriber (anunciante) ativo para criar mídias'
+            });
+          }
+        } catch (dbError: any) {
+          await logError('Erro ao buscar subscriber', dbError);
+          return res.status(400).json({
+            success: false,
+            error: 'clientId é obrigatório',
+            message: 'Não foi possível determinar o subscriber. Forneça clientId explicitamente.'
+          });
+        }
       }
 
       const created: any[] = [];
@@ -347,8 +403,8 @@ router.post('/upload-multiple',
           title: file.originalname,
           description: '',
           tags: [],
-          clientId: finalClientId,
-          createdBy: req.user.id, // Usar ID do usuário autenticado (userId é alias de id)
+          clientId: finalClientId || 0, // Garantir que não é undefined
+          createdBy: req.user?.id || 0, // Usar ID do usuário autenticado (userId é alias de id)
           file: {
             buffer,
             originalname: file.originalname,
@@ -358,9 +414,9 @@ router.post('/upload-multiple',
         });
         created.push(media);
       }
-      res.status(201).json(created);
+      return res.status(201).json(created);
     } catch (error) {
-      res.status(400).json({ error: 'Erro ao fazer upload dos arquivos' });
+      return res.status(400).json({ error: 'Erro ao fazer upload dos arquivos' });
     }
   }
 );
@@ -368,9 +424,10 @@ router.post('/upload-multiple',
 /**
  * @route PUT /api/media/:id
  * @desc Atualizar arquivo de mídia
- * @access Private
+ * @access Private (Admin, Gerente Marketing, Editoração)
  */
 router.put('/:id',
+  authorizeRole(['admin', 'gerente_marketing', 'editoracao']),
   param('id').isInt({ min: 1 }),
   body('name').optional().isString().isLength({ min: 1, max: 100 }),
   body('description').optional().isString(),
@@ -390,9 +447,9 @@ router.put('/:id',
       if (!media) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
-      res.json(media);
+      return res.json(media);
     } catch (error) {
-      res.status(400).json({ error: 'Erro ao atualizar arquivo de mídia' });
+      return res.status(400).json({ error: 'Erro ao atualizar arquivo de mídia' });
     }
   }
 );
@@ -400,9 +457,10 @@ router.put('/:id',
 /**
  * @route DELETE /api/media/:id
  * @desc Deletar arquivo de mídia
- * @access Private
+ * @access Private (Admin, Gerente Marketing, Editoração)
  */
 router.delete('/:id',
+  authorizeRole(['admin', 'gerente_marketing', 'editoracao']),
   param('id').isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -414,9 +472,9 @@ router.delete('/:id',
         return res.status(401).json({ error: 'Usuário não autenticado' });
       }
       await getMediaService().deleteMedia(mediaId, userId);
-      res.json({ message: 'Arquivo de mídia deletado com sucesso' });
+      return res.json({ message: 'Arquivo de mídia deletado com sucesso' });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao deletar arquivo de mídia' });
+      return res.status(500).json({ error: 'Erro ao deletar arquivo de mídia' });
     }
   }
 );
@@ -437,9 +495,9 @@ router.get('/:id/download',
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
 
-      res.download(media.filePath, media.name);
+      return res.download(media.filePath, media.name);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao fazer download do arquivo' });
+      return res.status(500).json({ error: 'Erro ao fazer download do arquivo' });
     }
   }
 );
@@ -460,9 +518,9 @@ router.get('/:id/thumbnail',
         return res.status(404).json({ error: 'Thumbnail não encontrado' });
       }
 
-      res.sendFile(thumbnail);
+      return res.sendFile(thumbnail);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao obter thumbnail' });
+      return res.status(500).json({ error: 'Erro ao obter thumbnail' });
     }
   }
 );
@@ -506,10 +564,10 @@ router.post('/:id/process',
         return res.status(400).json(result);
       }
 
-      res.json(result);
+      return res.json(result);
     } catch (error: any) {
       await logError('Erro ao processar mídia', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         success: false,
         error: 'Erro ao processar arquivo de mídia',
         message: error.message
@@ -523,12 +581,12 @@ router.post('/:id/process',
  * @desc Obter estatísticas de mídia
  * @access Private
  */
-router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/stats/overview', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const stats = await getMediaService().getMediaStats();
-    res.json(stats);
+    return res.json(stats);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao obter estatísticas' });
+    return res.status(500).json({ error: 'Erro ao obter estatísticas' });
   }
 });
 
@@ -537,13 +595,51 @@ router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) =
  * @desc Obter estatísticas de armazenamento
  * @access Private
  */
-router.get('/stats/storage', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/stats/storage', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const stats = await getMediaService().getStorageStats();
-    res.json(stats);
+    return res.json(stats);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao obter estatísticas de armazenamento' });
+    return res.status(500).json({ error: 'Erro ao obter estatísticas de armazenamento' });
   }
 });
+
+/**
+ * @route GET /api/media/quota/:clientId
+ * @desc Verificar quota de armazenamento do cliente
+ * @access Private
+ */
+router.get('/quota/:clientId',
+  param('clientId').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const clientId = parseInt(req.params.clientId);
+      const storageService = new StorageService();
+      
+      const { uploadConfig } = require('../config/env').config;
+      const quota = uploadConfig.mediaQuotaPerClient;
+      const currentUsage = await storageService.getClientStorageUsage(clientId);
+      const available = quota - currentUsage;
+      const usagePercent = quota > 0 ? (currentUsage / quota) * 100 : 0;
+
+      return res.json({
+        clientId,
+        quota,
+        currentUsage,
+        available,
+        usagePercent: Math.round(usagePercent * 100) / 100,
+        quotaFormatted: storageService.formatBytes(quota),
+        currentUsageFormatted: storageService.formatBytes(currentUsage),
+        availableFormatted: storageService.formatBytes(available)
+      });
+    } catch (error: any) {
+      await logError('Erro ao verificar quota do cliente', error, { clientId: req.params.clientId });
+      return res.status(500).json({ error: 'Erro ao verificar quota de armazenamento' });
+    }
+  }
+);
+
+// formatBytes() removido - usar storageService.formatBytes() ao invés
 
 export default router;

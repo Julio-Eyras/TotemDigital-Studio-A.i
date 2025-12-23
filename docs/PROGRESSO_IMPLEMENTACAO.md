@@ -1,186 +1,148 @@
-# 📋 Progresso de Implementação - Smart Signage Pro v2.1
+# Progresso da Implementação - Mudanças no Código
 
-**Última Atualização:** 2025-11-06  
-**Status Geral:** 🟡 Em Andamento
+## ✅ FASE 1.1: Arquivos Base Criados (CONCLUÍDO)
 
----
+### Arquivos Criados
 
-## 📊 RESUMO DO PROGRESSO
+1. **`backend/src/services/subscriberService.ts`** ✅
+2. **`backend/src/services/publisherService.ts`** ✅
+3. **`backend/src/routes/subscribers.ts`** ✅
+4. **`backend/src/routes/publishers.ts`** ✅
 
-| Prioridade | Total | Concluído | Em Andamento | Pendente |
-|------------|-------|-----------|--------------|----------|
-| 🔴 Alta | 3 | 3 | 0 | 0 |
-| 🟡 Média | 4 | 3 | 0 | 1 |
-| 🟢 Baixa | 2 | 1 | 0 | 1 |
-| **TOTAL** | **9** | **7** | **0** | **2** |
+### FASE 1.4: Rotas Registradas (CONCLUÍDO)
 
-**Progresso Geral:** 78% (7/9 tarefas completas)
-
----
-
-## 🔴 PRIORIDADE ALTA
-
-### ✅ 1. Recuperação de Senha
-- **Status:** ✅ COMPLETO
-- **Progresso:** 100%
-- **Tempo Real:** ~2 horas
-- **Dependências:** Sistema de Email (mock temporário implementado)
-
-**Checklist:**
-- [x] Criar tabela `password_reset_tokens` no banco
-- [x] Implementar endpoint `POST /api/auth/forgot-password`
-- [x] Implementar endpoint `POST /api/auth/reset-password`
-- [x] Implementar serviço de geração de tokens
-- [x] Implementar envio de email (mock temporário - console.log em dev)
-- [x] Criar interface no frontend (ForgotPassword e ResetPassword)
-- [x] Adicionar rotas no App.tsx
-- [x] Adicionar link "Esqueci minha senha" na página de login
-- [ ] Testes (próxima tarefa)
+- ✅ Importações adicionadas no `index.ts`
+- ✅ Rotas registradas:
+  - `/api/subscribers` → `subscriberRoutes`
+  - `/api/publishers` → `publisherRoutes`
+- ✅ Middleware aplicado (authMiddleware, blockClientDataAccess)
 
 ---
 
-### ✅ 2. Testes Automatizados
-- **Status:** ✅ COMPLETO (Fase Inicial)
-- **Progresso:** 100% (fase inicial)
-- **Tempo Real:** ~1.5 horas
-- **Dependências:** Jest (instalado), Supertest (instalado), ts-jest (instalado)
+## ✅ FASE 1.2: Atualização de Queries SQL (EM PROGRESSO)
 
-**Implementado:**
-- [x] Configurar Jest com ts-jest (jest.config.js)
-- [x] Criar setup.ts para configuração inicial de testes
-- [x] Criar testes unitários para AuthService (forgotPassword, resetPassword, login, register, cleanupExpiredTokens)
-- [x] Criar testes unitários para EmailService (sendEmail, sendPasswordResetEmail, sendWelcomeEmail, sendNotificationEmail, testConnection)
-- [x] Criar testes de integração para rotas de autenticação (login, register, forgot-password, reset-password)
-- [x] Configurar relatórios de cobertura de código (lcov, html, text)
-- [x] Adicionar scripts npm (test, test:watch, test:coverage, test:unit, test:integration)
-- [x] Criar .env.test.example para configuração de testes
-- [x] Criar README_TESTS.md com documentação completa
-- [x] Mock de dependências (banco de dados, serviços externos)
-- [ ] Integrar com CI/CD (futuro)
+### ✅ Campaigns - CONCLUÍDO
 
----
+**`backend/src/services/campaignService.ts`**
+- ✅ Todas as queries SQL atualizadas:
+  - `client_id` → `subscriber_id` em todas as queries
+  - `clients` → `subscribers` em todos os JOINs
+- ✅ Interfaces TypeScript mantêm `clientId` para compatibilidade com frontend
+- ✅ Funções atualizadas:
+  - `getCampaigns()` - usa `subscriber_id` e JOIN com `subscribers`
+  - `getCampaignById()` - usa `subscriber_id` e JOIN com `subscribers`
+  - `createCampaign()` - valida subscriber e insere com `subscriber_id`
+  - `getCampaignsStats()` - agregação por subscriber
+  - `getActiveCampaignsForTotem()` - usa `subscriber_id`
+  - `getCampaignsToUpdate()` - usa `subscriber_id`
+  - `getCampaignsByClient()` - usa `subscriber_id` (mantém nome para compatibilidade)
 
-### ✅ 3. Processamento de Mídia
-- **Status:** ✅ COMPLETO
-- **Progresso:** 100%
-- **Tempo Real:** ~1 hora
-- **Dependências:** Sharp (instalado), FFmpeg (opcional para vídeos)
+**`backend/src/routes/campaigns.ts`**
+- ✅ Mantém compatibilidade com frontend (`clientId` em query/body)
+- ✅ Busca primeiro subscriber ativo quando `clientId` não fornecido
+- ✅ Comentários atualizados para refletir subscriber (anunciante)
 
-**Checklist:**
-- [x] Sharp já instalado no package.json
-- [x] Implementar método público processMediaById
-- [x] Implementar geração de thumbnails (imagens)
-- [x] Implementar redimensionamento de imagens (com fit)
-- [x] Implementar otimização de imagens (JPEG/PNG/WebP)
-- [x] Implementar atualização de metadados no banco
-- [x] Melhorar método getThumbnail
-- [x] Atualizar rota POST /api/media/:id/process (remover mock)
-- [x] Implementar thumbnail de vídeo (com ffmpeg, fallback se não disponível)
-- [x] Remover mock da rota de processamento
+### ✅ Media - CONCLUÍDO
 
----
+**`backend/src/services/mediaService.ts`**
+- ✅ Todas as queries SQL atualizadas:
+  - `client_id` → `subscriber_id` em todas as queries
+  - `clients` → `subscribers` em todos os JOINs
+- ✅ Interfaces TypeScript mantêm `clientId` para compatibilidade
+- ✅ Funções atualizadas:
+  - `getMedia()` - usa `subscriber_id` e JOIN com `subscribers`
+  - `getMediaById()` - usa `subscriber_id` e JOIN com `subscribers`
+  - `createMedia()` - insere com `subscriber_id`
+  - `getMediaStats()` - usa `subscriber_id`
+  - `getMediaByTags()` - usa `subscriber_id`
+  - `createMultipleMedia()` - busca primeiro subscriber ativo
 
-## 🟡 PRIORIDADE MÉDIA
+**`backend/src/routes/media.ts`**
+- ✅ Mantém compatibilidade com frontend (`clientId` em query/body)
+- ✅ Busca primeiro subscriber ativo quando `clientId` não fornecido (upload simples e múltiplo)
+- ✅ Validação melhorada com mensagens de erro claras
 
-### ✅ 4. Sistema de Email
-- **Status:** ✅ COMPLETO
-- **Progresso:** 100%
-- **Tempo Real:** ~1.5 horas
-- **Dependências:** Nodemailer (instalado ^6.10.1)
+### ✅ Playlists - CONCLUÍDO
 
-**Implementado:**
-- [x] Criar backend/src/services/emailService.ts com Nodemailer
-- [x] Configurar Nodemailer com variáveis de ambiente (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, etc.)
-- [x] Integrar com AuthService para recuperação de senha
-- [x] Integrar com NotificationService para alertas de alta prioridade
-- [x] Criar rotas backend/src/routes/email.ts (status, teste)
-- [x] Templates HTML de email (recuperação de senha, boas-vindas, notificações)
-- [x] Suporte a modo desenvolvimento (console.log se SMTP não configurado)
-- [x] Teste de conexão SMTP na inicialização
-- [x] Atualizar variáveis de ambiente (EMAIL_ENABLED, SMTP_*, FRONTEND_URL)
+**`backend/src/services/playlistService.ts`**
+- ✅ Todas as queries SQL atualizadas:
+  - `client_id` → `subscriber_id` em todas as queries
+  - `clients` → `subscribers` em todos os JOINs
+- ✅ Interfaces TypeScript mantêm `clientId` para compatibilidade
+- ✅ Funções atualizadas:
+  - `getAllPlaylists()` - usa `subscriber_id` e JOIN com `subscribers`
+  - `getPlaylistById()` - usa `subscriber_id` e JOIN com `subscribers`
+  - `createPlaylist()` - busca primeiro subscriber ativo se não fornecido, insere com `subscriber_id`
+  - `updatePlaylist()` - atualiza `subscriber_id`
 
-### ✅ 5. Tendências de Analytics
-- **Status:** ✅ COMPLETO (implementado junto com remoção de mocks)
-- **Progresso:** 100%
-- **Tempo Real:** Implementado junto com Tarefa 8
-
-**Implementado:**
-- [x] `getViewingTrends` agora consulta dados reais de `execution_logs` e `analytics_sessions`
-- [x] Queries otimizadas com filtros e agregações
-- [x] Dados consistentes com Dashboard e Reports
-
-### ✅ 6. Execução de Queries por Provider
-- **Status:** ✅ COMPLETO
-- **Progresso:** 100%
-- **Tempo Real:** ~2 horas
-- **Dependências:** ioredis (já instalado), axios (já instalado)
-
-**Implementado:**
-- [x] Criar config/grafana.ts com executeGrafanaQuery e testGrafanaConnection
-- [x] Criar config/prometheus.ts com executePrometheusQuery, executePrometheusInstantQuery e testPrometheusConnection
-- [x] Implementar executeRedisQuery no exportWorker.ts (suporta KEYS, GET, HGETALL, SMEMBERS, LRANGE, ZRANGE, INFO)
-- [x] Implementar executePrometheusQueryWrapper no exportWorker.ts (detecta range vs instant)
-- [x] Atualizar executeQuery no exportWorker.ts para suportar todos os providers
-- [x] Atualizar testConnection no exportQueryService.ts para testar todos os providers
-- [x] Adicionar variáveis de ambiente para Grafana e Prometheus
-- [x] Converter respostas do Grafana e Prometheus para formato tabular
-
-### ✅ 7. Agendamento Avançado
-- **Status:** ✅ COMPLETO
-- **Progresso:** 100%
-- **Tempo Real:** ~2 horas
-- **Dependências:** Bull (já instalado), cron-parser (já instalado)
-
-**Implementado:**
-- [x] Criar database/advanced-schedules-schema.sql com tabelas advanced_schedules e schedule_executions
-- [x] Criar backend/src/services/advancedScheduleService.ts com CRUD completo
-- [x] Criar backend/src/workers/advancedScheduleWorker.ts para processar agendamentos
-- [x] Adicionar queue de agendamento avançado em backend/src/config/queue.ts
-- [x] Criar rotas backend/src/routes/advanced-schedules.ts
-- [x] Integrar no backend/src/index.ts (inicialização e rotas)
-- [x] Atualizar install-smartsignage.sh para aplicar schema de agendamentos avançados
-- [x] Suporte a 4 tipos de agendamento: campaign, playlist, campaign_activation, playlist_generation
-- [x] Suporte a ações customizadas (activate, pause, finish, regenerate)
-- [x] Integração com Bull para execução automática baseada em cron
-- [x] Histórico de execuções com status e logs detalhados
+**`backend/src/routes/playlists.ts`**
+- ✅ Mantém compatibilidade com frontend (`clientId` em query/body)
+- ✅ Validações corretas
 
 ---
 
-## 🟢 PRIORIDADE BAIXA
+## 🔄 PRÓXIMOS PASSOS CRÍTICOS
 
-### ✅ 8. Remover Mocks Restantes
-- **Status:** ✅ COMPLETO
-- **Progresso:** 100%
-- **Tempo Real:** ~2 horas
+### FASE 1.2: Continuar Atualização de Queries SQL
 
-**Mocks removidos:**
-- [x] `reportsService.incrementDownloadCount` - Implementado com atualização no banco
-- [x] `reportsService.createReportTemplate` - Implementado com CRUD completo
-- [x] `getViewingTrends` em analyticsService - Implementado com dados reais
-- [x] `getDiskUsage` em analyticsService - Implementado com cálculo real (df)
-- [x] `generateAnalyticsReportData` em reportsService - Implementado com dados reais
-- [x] Criado schema reports-schema.sql com tabelas reports e report_templates
+**Arquivos restantes mais críticos:**
 
-### ✅ 9. Compressão de Logs
-- **Status:** ⏳ Pendente
-- **Progresso:** 0%
+1. **`totemService.ts`** ⚠️ CRÍTICO
+   - **REMOVER** `client_id` completamente (totem não pertence a subscriber)
+   - Usar `publisher_id` via `local_id` → `locals` → `publishers`
+
+2. **`billingService.ts`** ⚠️ CRÍTICO
+   - Dividir em `subscriberBillingService.ts` e `publisherBillingService.ts`
+   - Implementar lógica de revenue share
+
+3. **Outros serviços que usam `client_id`:**
+   - `qrcodeService.ts`
+   - `analyticsService.ts`
+   - `reportsService.ts`
+   - E outros ~50 arquivos...
+
+### FASE 1.3: Atualizar Interfaces TypeScript
+
+- [ ] `types/entities.ts` - Renomear `Client` → `Subscriber`, `Host` → `Publisher`
+- [ ] `types/api.ts` - Atualizar tipos de API
+- [ ] `types/global.d.ts` - Atualizar tipos globais
+
+### FASE 4: Atualizar Users e Autenticação
+
+- [ ] `auth.middleware.ts` - `client_id` → `publisher_id`
+- [ ] `userService.ts` - Adicionar `is_tenant_user`, `user_type`, `publisher_id`
+- [ ] `authService.ts` - Atualizar lógica de autenticação
 
 ---
 
-## 📝 NOTAS E DECISÕES
+## 📊 Estatísticas
 
-### Decisões Pendentes
-- [ ] Definir estratégia de email (SMTP próprio vs serviço externo)
-- [ ] Definir estratégia de testes (coverage mínimo, quais serviços testar primeiro)
-- [ ] Definir prioridade entre recuperação de senha e sistema de email
+- **Arquivos criados:** 4
+- **Arquivos atualizados:** 6 (campaigns, media, playlists - service + routes)
+- **Arquivos a atualizar:** ~58 (backend) + frontend
+- **Progresso FASE 1:** ~40% (arquivos base + 3 serviços críticos)
 
 ---
 
-## 🎯 PRÓXIMOS PASSOS
+## ⚠️ Notas Importantes
 
-1. **Iniciar com Recuperação de Senha** (pode usar mock de email temporariamente)
-2. **Ou iniciar com Sistema de Email** (necessário para recuperação de senha)
-3. **Ou iniciar com Testes** (garantir qualidade antes de novas features)
+1. ✅ **3 serviços críticos migrados** - Campaigns, Media, Playlists agora usam `subscriber_id`
+2. ✅ **Compatibilidade mantida** - Frontend continua funcionando com `clientId`
+3. ⚠️ **Arquivos antigos ainda existem** - `clients.ts` mantido para compatibilidade temporária
+4. ⚠️ **Queries SQL** ainda usam nomes antigos em outros arquivos - precisa atualizar gradualmente
+5. ⚠️ **Frontend** ainda não foi tocado - será feito depois do backend
 
-**Aguardando decisão do usuário...**
+---
 
+## 🎯 Estratégia de Continuação
+
+1. ✅ Criar novos arquivos (FEITO)
+2. ✅ Registrar rotas (FEITO)
+3. ✅ Atualizar Campaigns (FEITO)
+4. ✅ Atualizar Media (FEITO)
+5. ✅ Atualizar Playlists (FEITO)
+6. ⏳ **PRÓXIMO:** Atualizar `totemService.ts` (remover client_id)
+7. ⏳ Criar serviços de billing separados
+8. ⏳ Atualizar middleware de autenticação
+9. ⏳ Atualizar outros serviços gradualmente
+10. ⏳ Remover arquivos antigos no final

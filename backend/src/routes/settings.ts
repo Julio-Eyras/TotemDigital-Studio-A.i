@@ -26,7 +26,7 @@ router.use(authenticateToken);
  * @desc Busca todas as configurações
  * @access Private (Admin, Manager)
  */
-router.get('/', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
   try {
     const settings = await getSettingsService().getSettings();
 
@@ -50,7 +50,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req, res) => {
  * @desc Busca configurações públicas
  * @access Private (Admin, Manager, Client)
  */
-router.get('/public', async (req, res) => {
+router.get('/public', async (_req, res) => {
   try {
     const settings = await getSettingsService().getSettings();
 
@@ -74,7 +74,7 @@ router.get('/public', async (req, res) => {
  * @desc Busca configuração específica
  * @access Private (Admin, Manager)
  */
-router.get('/:key', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/:key', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
   try {
     const { key } = req.params;
 
@@ -87,14 +87,14 @@ router.get('/:key', authorizeRole(['admin', 'manager']), async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: setting
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar configuração', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -110,6 +110,13 @@ router.get('/:key', authorizeRole(['admin', 'manager']), async (req, res) => {
 router.put('/', authorizeRole(['admin']), async (req, res) => {
   try {
     const settings = req.body;
+
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Não autenticado'
+      });
+    }
 
     const validation = await getSettingsService().updateSettings(settings, req.user.id);
 
@@ -133,7 +140,7 @@ router.put('/', authorizeRole(['admin']), async (req, res) => {
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Configurações atualizadas com sucesso',
       data: validation
@@ -141,7 +148,7 @@ router.put('/', authorizeRole(['admin']), async (req, res) => {
 
   } catch (error: any) {
     await logError('Erro ao atualizar configurações', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar configurações',
       error: error.message
@@ -154,20 +161,27 @@ router.put('/', authorizeRole(['admin']), async (req, res) => {
  * @desc Reseta configuração para valor padrão
  * @access Private (Admin, Manager)
  */
-router.post('/:key/reset', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.post('/:key/reset', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
   try {
     const { key } = req.params;
 
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Não autenticado'
+      });
+    }
+
     await getSettingsService().resetSetting(key, req.user.id);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Configuração resetada para valor padrão'
     });
 
   } catch (error: any) {
     await logError('Erro ao resetar configuração', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao resetar configuração',
       error: error.message
@@ -182,16 +196,23 @@ router.post('/:key/reset', authorizeRole(['admin', 'manager']), async (req, res)
  */
 router.post('/reset-all', authorizeRole(['admin']), async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Não autenticado'
+      });
+    }
+
     await getSettingsService().resetAllSettings(req.user.id);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Todas as configurações foram resetadas para valores padrão'
     });
 
   } catch (error: any) {
     await logError('Erro ao resetar todas as configurações', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -208,9 +229,16 @@ router.post('/', authorizeRole(['admin']), async (req, res) => {
   try {
     const settingData = req.body;
 
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Não autenticado'
+      });
+    }
+
     const setting = await getSettingsService().createSetting(settingData, req.user.id);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Configuração criada com sucesso',
       data: setting
@@ -218,7 +246,7 @@ router.post('/', authorizeRole(['admin']), async (req, res) => {
 
   } catch (error: any) {
     await logError('Erro ao criar configuração', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao criar configuração',
       error: error.message
@@ -235,16 +263,23 @@ router.delete('/:key', authorizeRole(['admin']), async (req, res) => {
   try {
     const { key } = req.params;
 
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Não autenticado'
+      });
+    }
+
     await getSettingsService().deleteSetting(key, req.user.id);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Configuração removida com sucesso'
     });
 
   } catch (error: any) {
     await logError('Erro ao remover configuração', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao remover configuração',
       error: error.message
@@ -257,7 +292,7 @@ router.delete('/:key', authorizeRole(['admin']), async (req, res) => {
  * @desc Valida configurações
  * @access Private (Admin, Manager)
  */
-router.post('/validate', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.post('/validate', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
   try {
     const settings = req.body;
 
@@ -283,7 +318,7 @@ router.post('/validate', authorizeRole(['admin', 'manager']), async (req, res) =
  * @desc Exporta configurações
  * @access Private (Admin, Manager)
  */
-router.get('/export', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/export', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
   try {
     const settings = await getSettingsService().exportSettings();
 
@@ -317,6 +352,13 @@ router.post('/import', authorizeRole(['admin']), async (req, res) => {
       });
     }
 
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Não autenticado'
+      });
+    }
+
     const validation = await getSettingsService().importSettings(settings, req.user.id);
 
     if (!validation.isValid) {
@@ -327,7 +369,7 @@ router.post('/import', authorizeRole(['admin']), async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Configurações importadas com sucesso',
       data: validation
@@ -335,7 +377,7 @@ router.post('/import', authorizeRole(['admin']), async (req, res) => {
 
   } catch (error: any) {
     await logError('Erro ao importar configurações', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao importar configurações',
       error: error.message
@@ -348,7 +390,7 @@ router.post('/import', authorizeRole(['admin']), async (req, res) => {
  * @desc Lista categorias de configurações
  * @access Private (Admin, Manager)
  */
-router.get('/categories', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/categories', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
   try {
     const settings = await getSettingsService().getSettings();
 
@@ -380,7 +422,7 @@ router.get('/categories', authorizeRole(['admin', 'manager']), async (req, res) 
  * @desc Busca configurações de uma categoria específica
  * @access Private (Admin, Manager)
  */
-router.get('/category/:category', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.get('/category/:category', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
   try {
     const { category } = req.params;
 
@@ -394,14 +436,14 @@ router.get('/category/:category', authorizeRole(['admin', 'manager']), async (re
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: categorySettings
     });
 
   } catch (error: any) {
     await logError('Erro ao buscar configurações da categoria', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
@@ -414,10 +456,17 @@ router.get('/category/:category', authorizeRole(['admin', 'manager']), async (re
  * @desc Atualiza configurações de uma categoria específica
  * @access Private (Admin, Manager)
  */
-router.put('/category/:category', authorizeRole(['admin', 'manager']), async (req, res) => {
+router.put('/category/:category', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
   try {
     const { category } = req.params;
     const settings = req.body;
+
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Não autenticado'
+      });
+    }
 
     // Filtrar apenas configurações da categoria
     const categorySettings: { [key: string]: any } = {};
@@ -449,7 +498,7 @@ router.put('/category/:category', authorizeRole(['admin', 'manager']), async (re
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: `Configurações da categoria ${category} atualizadas com sucesso`,
       data: validation
@@ -457,7 +506,7 @@ router.put('/category/:category', authorizeRole(['admin', 'manager']), async (re
 
   } catch (error: any) {
     await logError('Erro ao atualizar configurações da categoria', error);
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message || 'Erro ao atualizar configurações da categoria',
       error: error.message
@@ -488,7 +537,7 @@ router.post('/media/apply', authorizeRole(['admin']), async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: result.message,
       data: result
@@ -496,7 +545,7 @@ router.post('/media/apply', authorizeRole(['admin']), async (req, res) => {
 
   } catch (error: any) {
     await logError('Erro ao aplicar configurações de mídia', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message || 'Erro ao aplicar configurações de mídia',
       error: error.message

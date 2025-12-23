@@ -1,406 +1,342 @@
 /**
- * Notification Service - Smart Signage v2.0
- * Serviço de notificações
+ * Notification Service - Smart Signage Pro v3.1
+ * Serviço para notificações em tempo real via WebSocket
  */
 
-import { getDatabase } from '../config/database';
-import { AuditService } from './auditService';
-import { logError, logInfo } from '../utils/loggerHelper';
+import { getWebSocketService } from './websocketService';
+import { logInfo, logError } from '../utils/loggerHelper';
 
 export interface Notification {
-  id: number;
-  type: 'info' | 'warning' | 'error' | 'success';
+  id: string;
+  type: 'info' | 'success' | 'warning' | 'error';
   title: string;
   message: string;
   userId?: number;
   clientId?: number;
-  isRead: boolean;
-  metadata?: any;
-  createdAt: string;
-  expiresAt?: string;
+  data?: Record<string, unknown>;
+  createdAt: Date;
+  read: boolean;
 }
 
-export interface NotificationRequest {
-  type: 'info' | 'warning' | 'error' | 'success' | 'system_alert';
-  title: string;
-  message: string;
-  userId?: number;
-  clientId?: number;
-  priority?: 'low' | 'medium' | 'high';
-  metadata?: any;
-  expiresAt?: string;
+export interface NotificationPreferences {
+  userId: number;
+  email: boolean;
+  push: boolean;
+  sms: boolean;
+  webhook: boolean;
+  channels: string[];
 }
 
 export class NotificationService {
-  private get db() {
-    return getDatabase();
-  }
-  
-  // Lazy initialization - só criar quando necessário
-  private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
-    }
-    return (global as any).auditServiceInstance;
-  }
-
   /**
-   * Inicializa o serviço
+   * Enviar notificação em tempo real
    */
-  async initialize(): Promise<void> {
+  async sendNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'read'>): Promise<Notification> {
     try {
-      await logInfo('NotificationService inicializado', {});
-    } catch (error: any) {
-      await logError('Erro ao inicializar NotificationService', error, {});
-      throw error;
-    }
-  }
+      const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const fullNotification: Notification = {
+        ...notification,
+        id: notificationId,
+        createdAt: new Date(),
+        read: false
+      };
 
-  /**
-   * Cria nova notificação
-   */
-  async createNotification(notification: NotificationRequest, createdBy: number): Promise<Notification> {
-    try {
-      const result = await this.db.executeRaw(`
-        INSERT INTO notifications (
-          type, title, message, user_id, client_id, 
-          is_read, metadata, expires_at
-        )
-        VALUES (?, ?, ?, ?, ?, false, ?, ?)
-        RETURNING notification_id
-      `, [
-        notification.type,
-        notification.title,
-        notification.message,
-        notification.userId,
-        notification.clientId,
-        notification.metadata ? JSON.stringify(notification.metadata) : null,
-        notification.expiresAt
-      ]);
-
-      const insertedNotification = result?.rows?.[0];
-      if (!insertedNotification?.notification_id) {
-        throw new Error('Erro ao criar notificação');
+      // Enviar via WebSocket
+      const wsService = getWebSocketService();
+      
+      if (notification.userId) {
+        // Notificação para usuário específico
+        wsService.sendToUser(notification.userId, {
+          type: 'notification',
+          data: fullNotification
+        });
+      } else if (notification.clientId) {
+        // Notificação para todos os usuários do cliente
+        wsService.broadcastToClient(notification.clientId, {
+          type: 'notification',
+          data: fullNotification
+        });
+      } else {
+        // Broadcast global (apenas para admins)
+        wsService.broadcast({
+          type: 'notification',
+          data: fullNotification
+        }, ['admin', 'admin_sql']);
       }
 
-      const newNotification = await this.getNotificationById(insertedNotification.notification_id);
-      if (!newNotification) {
-        throw new Error('Erro ao buscar notificação criada');
-      }
+      // Salvar notificação no banco
+      await this.saveNotification(fullNotification);
 
-      // Log de auditoria
-      await this.getAuditService().log('notification', 'created', createdBy, {
-        notificationId: newNotification.id,
-        type: newNotification.type,
-        title: newNotification.title
+      await logInfo('Notificação enviada', {
+        notificationId,
+        type: notification.type,
+        userId: notification.userId,
+        clientId: notification.clientId
       });
 
-      // Enviar email se configurado e se for notificação importante
-      if (notification.priority === 'high' || notification.type === 'error' || notification.type === 'system_alert') {
-        try {
-          const { emailService } = await import('./emailService');
-          
-          // Buscar email do usuário se userId fornecido
-          if (notification.userId) {
-            const user = await this.db.findFirst(`
-              SELECT email FROM users WHERE id = ? AND is_active = true
-            `, [notification.userId]);
-
-            if (user?.email) {
-              await emailService.sendNotificationEmail(user.email, {
-                title: notification.title,
-                message: notification.message,
-                type: notification.type
-              });
-            }
-          }
-        } catch (emailError: any) {
-          await logError('Erro ao enviar email de notificação', emailError, { notificationId: notification.id });
-          // Não falhar a criação da notificação se o email falhar
-        }
-      }
-
-      return newNotification;
-
-    } catch (error: any) {
-      await logError('Erro ao criar notificação', error, { data });
+      return fullNotification;
+    } catch (error: unknown) {
+      await logError('Erro ao enviar notificação', error as Error, {});
       throw error;
     }
   }
 
   /**
-   * Busca notificação por ID
+   * Obter notificações do usuário
    */
-  async getNotificationById(notificationId: number): Promise<Notification | null> {
+  async getUserNotifications(userId: number, limit: number = 50): Promise<Notification[]> {
     try {
-      const notification = await this.db.findFirst(`
+      const { getDatabase } = await import('../config/database');
+      const db = getDatabase();
+
+      const result = await db.findMany(`
         SELECT 
           notification_id as id,
-          type,
+          notification_type as type,
           title,
           message,
-          user_id as userId,
-          client_id as clientId,
-          is_read as isRead,
-          metadata,
-          created_at as createdAt,
-          expires_at as expiresAt
+          user_id as "userId",
+          client_id as "clientId",
+          data,
+          created_at as "createdAt",
+          read
         FROM notifications
-        WHERE notification_id = ?
-      `, [notificationId]);
+        WHERE user_id = $1 OR (user_id IS NULL AND client_id IN (
+          SELECT client_id FROM users WHERE id = $1
+        ))
+        ORDER BY created_at DESC
+        LIMIT $2
+      `, [userId, limit]);
 
-      if (!notification) {
+      return result.map((row: Record<string, unknown>) => ({
+        id: row.id as string,
+        type: row.type as 'info' | 'success' | 'warning' | 'error',
+        title: row.title as string,
+        message: row.message as string,
+        userId: row.userId as number | undefined,
+        clientId: row.clientId as number | undefined,
+        data: row.data as Record<string, unknown> | undefined,
+        createdAt: row.createdAt as Date,
+        read: row.read as boolean
+      }));
+    } catch (error: unknown) {
+      await logError('Erro ao obter notificações', error as Error, { userId });
+      return [];
+    }
+  }
+
+  /**
+   * Marcar notificação como lida
+   */
+  async markAsRead(notificationId: string, userId: number): Promise<void> {
+    try {
+      const { getDatabase } = await import('../config/database');
+      const db = getDatabase();
+
+      await db.executeRaw(`
+        UPDATE notifications
+        SET read = true, updated_at = CURRENT_TIMESTAMP
+        WHERE notification_id = $1 AND user_id = $2
+      `, [notificationId, userId]);
+
+      await logInfo('Notificação marcada como lida', { notificationId, userId });
+    } catch (error: unknown) {
+      await logError('Erro ao marcar notificação como lida', error as Error, {
+        notificationId,
+        userId
+      });
+    }
+  }
+
+  /**
+   * Criar notificação (alias para sendNotification)
+   */
+  async createNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'read'>): Promise<Notification> {
+    return this.sendNotification(notification);
+  }
+
+  /**
+   * Obter notificação por ID
+   */
+  async getNotificationById(notificationId: string, userId: number): Promise<Notification | null> {
+    try {
+      const { getDatabase } = await import('../config/database');
+      const db = getDatabase();
+
+      const result = await db.findFirst(`
+        SELECT 
+          notification_id as id,
+          notification_type as type,
+          title,
+          message,
+          user_id as "userId",
+          client_id as "clientId",
+          data,
+          created_at as "createdAt",
+          read
+        FROM notifications
+        WHERE notification_id = $1 AND (user_id = $2 OR user_id IS NULL)
+      `, [notificationId, userId]);
+
+      if (!result) {
         return null;
       }
 
       return {
-        ...notification,
-        metadata: notification.metadata ? JSON.parse(notification.metadata) : undefined
+        id: result.id as string,
+        type: result.type as 'info' | 'success' | 'warning' | 'error',
+        title: result.title as string,
+        message: result.message as string,
+        userId: result.userId as number | undefined,
+        clientId: result.clientId as number | undefined,
+        data: result.data as Record<string, unknown> | undefined,
+        createdAt: result.createdAt as Date,
+        read: result.read as boolean
       };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar notificação', error, { notificationId });
-      throw new Error('Erro interno do servidor');
+    } catch (error: unknown) {
+      await logError('Erro ao obter notificação', error as Error, { notificationId, userId });
+      return null;
     }
   }
 
   /**
-   * Lista notificações com paginação
+   * Obter notificações com filtros
    */
   async getNotifications(
-    page: number = 1,
-    limit: number = 20,
-    filters: {
-      userId?: number;
-      clientId?: number;
-      type?: string;
-      isRead?: boolean;
-    } = {}
-  ): Promise<{ notifications: Notification[]; total: number; page: number; limit: number }> {
+    limit: number = 50,
+    offset: number = 0,
+    filters?: { userId?: number; clientId?: number; read?: boolean; type?: string }
+  ): Promise<Notification[]> {
     try {
-      const offset = (page - 1) * limit;
-      let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const { getDatabase } = await import('../config/database');
+      const db = getDatabase();
 
-      // Aplicar filtros
-      if (filters.userId) {
-        whereClause += ' AND (user_id = ? OR user_id IS NULL)';
-        params.push(filters.userId);
-      }
-
-      if (filters.clientId) {
-        whereClause += ' AND (client_id = ? OR client_id IS NULL)';
-        params.push(filters.clientId);
-      }
-
-      if (filters.type) {
-        whereClause += ' AND type = ?';
-        params.push(filters.type);
-      }
-
-      if (filters.isRead !== undefined) {
-        whereClause += ' AND is_read = ?';
-        params.push(filters.isRead ? 1 : 0);
-      }
-
-      // Filtrar notificações expiradas
-      whereClause += ' AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)';
-
-      // Buscar notificações
-      const notifications = await this.db.findMany(`
+      let query = `
         SELECT 
           notification_id as id,
-          type,
+          notification_type as type,
           title,
           message,
-          user_id as userId,
-          client_id as clientId,
-          is_read as isRead,
-          metadata,
-          created_at as createdAt,
-          expires_at as expiresAt
+          user_id as "userId",
+          client_id as "clientId",
+          data,
+          created_at as "createdAt",
+          read
         FROM notifications
-        ${whereClause}
-        ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
-      `, [...params, limit, offset]);
+        WHERE 1=1
+      `;
+      const params: (string | number | boolean)[] = [];
+      let paramIndex = 1;
 
-      // Contar total
-      const totalResult = await this.db.findFirst(`
-        SELECT COUNT(*) as total FROM notifications ${whereClause}
-      `, params);
+      if (filters?.userId) {
+        query += ` AND (user_id = $${paramIndex} OR user_id IS NULL)`;
+        params.push(filters.userId);
+        paramIndex++;
+      }
 
-      const total = totalResult?.total || 0;
+      if (filters?.clientId) {
+        query += ` AND client_id = $${paramIndex}`;
+        params.push(filters.clientId);
+        paramIndex++;
+      }
 
-      // Processar notificações
-      const processedNotifications = notifications.map(notification => ({
-        ...notification,
-        metadata: notification.metadata ? JSON.parse(notification.metadata) : undefined
+      if (filters?.read !== undefined) {
+        query += ` AND read = $${paramIndex}`;
+        params.push(filters.read);
+        paramIndex++;
+      }
+
+      if (filters?.type) {
+        query += ` AND notification_type = $${paramIndex}`;
+        params.push(filters.type);
+        paramIndex++;
+      }
+
+      query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+      params.push(limit, offset);
+
+      const result = await db.findMany(query, params);
+
+      return result.map((row: Record<string, unknown>) => ({
+        id: row.id as string,
+        type: row.type as 'info' | 'success' | 'warning' | 'error',
+        title: row.title as string,
+        message: row.message as string,
+        userId: row.userId as number | undefined,
+        clientId: row.clientId as number | undefined,
+        data: row.data as Record<string, unknown> | undefined,
+        createdAt: row.createdAt as Date,
+        read: row.read as boolean
       }));
-
-      return {
-        notifications: processedNotifications,
-        total,
-        page,
-        limit
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar notificações', error, { filters });
-      throw new Error('Erro interno do servidor');
+    } catch (error: unknown) {
+      await logError('Erro ao obter notificações', error as Error, { filters });
+      return [];
     }
   }
 
   /**
-   * Marca notificação como lida
+   * Deletar notificação
    */
-  async markAsRead(notificationId: number, userId: number): Promise<void> {
+  async deleteNotification(notificationId: string, userId: number): Promise<boolean> {
     try {
-      await this.db.executeRaw(`
-        UPDATE notifications 
-        SET is_read = 1 
-        WHERE notification_id = ? AND (user_id = ? OR user_id IS NULL)
+      const { getDatabase } = await import('../config/database');
+      const db = getDatabase();
+
+      await db.executeRaw(`
+        DELETE FROM notifications
+        WHERE notification_id = $1 AND user_id = $2
       `, [notificationId, userId]);
 
-      // Log de auditoria
-      await this.getAuditService().log('notification', 'read', userId, {
-        notificationId
+      await logInfo('Notificação deletada', { notificationId, userId });
+      return true;
+    } catch (error: unknown) {
+      await logError('Erro ao deletar notificação', error as Error, {
+        notificationId,
+        userId
       });
-
-    } catch (error: any) {
-      await logError('Erro ao marcar notificação como lida', error, { notificationId, userId });
-      throw error;
+      return false;
     }
   }
 
   /**
-   * Marca todas as notificações como lidas
+   * Salvar notificação no banco
    */
-  async markAllAsRead(userId: number): Promise<void> {
+  private async saveNotification(notification: Notification): Promise<void> {
     try {
-      await this.db.executeRaw(`
-        UPDATE notifications 
-        SET is_read = 1 
-        WHERE (user_id = ? OR user_id IS NULL) AND is_read = 0
-      `, [userId]);
+      const { getDatabase } = await import('../config/database');
+      const db = getDatabase();
 
-      // Log de auditoria
-      await this.getAuditService().log('notification', 'mark_all_read', userId, {
-        message: 'Todas as notificações marcadas como lidas'
+      await db.executeRaw(`
+        INSERT INTO notifications (
+          notification_id, notification_type, title, message,
+          user_id, client_id, data, created_at, read
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [
+        notification.id,
+        notification.type,
+        notification.title,
+        notification.message,
+        notification.userId || null,
+        notification.clientId || null,
+        notification.data ? JSON.stringify(notification.data) : null,
+        notification.createdAt,
+        notification.read
+      ]);
+    } catch (error: unknown) {
+      await logError('Erro ao salvar notificação', error as Error, {
+        notificationId: notification.id
       });
-
-    } catch (error: any) {
-      await logError('Erro ao marcar todas as notificações como lidas', error, { userId });
-      throw error;
-    }
-  }
-
-  /**
-   * Remove notificação
-   */
-  async deleteNotification(notificationId: number, deletedBy: number): Promise<void> {
-    try {
-      await this.db.executeRaw(`
-        DELETE FROM notifications WHERE notification_id = ?
-      `, [notificationId]);
-
-      // Log de auditoria
-      await this.getAuditService().log('notification', 'deleted', deletedBy, {
-        notificationId
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao remover notificação', error, { notificationId, userId });
-      throw error;
-    }
-  }
-
-  /**
-   * Remove notificações expiradas
-   */
-  async cleanupExpiredNotifications(): Promise<number> {
-    try {
-      const result = await this.db.executeRaw(`
-        DELETE FROM notifications 
-        WHERE expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP
-      `);
-
-      return result.changes || 0;
-
-    } catch (error: any) {
-      await logError('Erro ao limpar notificações expiradas', error, {});
-      throw error;
-    }
-  }
-
-  /**
-   * Cria notificação de sistema
-   */
-  async createSystemNotification(
-    type: 'info' | 'warning' | 'error' | 'success',
-    title: string,
-    message: string,
-    metadata?: any
-  ): Promise<void> {
-    try {
-      await this.createNotification({
-        type,
-        title,
-        message,
-        metadata
-      }, 1); // ID do sistema
-
-    } catch (error: any) {
-      await logError('Erro ao criar notificação de sistema', error, { data });
-    }
-  }
-
-  /**
-   * Cria notificação para usuário
-   */
-  async createUserNotification(
-    userId: number,
-    type: 'info' | 'warning' | 'error' | 'success',
-    title: string,
-    message: string,
-    metadata?: any
-  ): Promise<void> {
-    try {
-      await this.createNotification({
-        type,
-        title,
-        message,
-        userId,
-        metadata
-      }, 1); // ID do sistema
-
-    } catch (error: any) {
-      await logError('Erro ao criar notificação para usuário', error, { userId, data });
-    }
-  }
-
-  /**
-   * Cria notificação para cliente
-   */
-  async createClientNotification(
-    clientId: number,
-    type: 'info' | 'warning' | 'error' | 'success',
-    title: string,
-    message: string,
-    metadata?: any
-  ): Promise<void> {
-    try {
-      await this.createNotification({
-        type,
-        title,
-        message,
-        clientId,
-        metadata
-      }, 1); // ID do sistema
-
-    } catch (error: any) {
-      await logError('Erro ao criar notificação para cliente', error, { clientId, data });
     }
   }
 }
 
+// Singleton
+let notificationServiceInstance: NotificationService | null = null;
+
+export function getNotificationService(): NotificationService {
+  if (!notificationServiceInstance) {
+    notificationServiceInstance = new NotificationService();
+  }
+  return notificationServiceInstance;
+}

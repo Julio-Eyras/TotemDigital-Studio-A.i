@@ -1,6 +1,16 @@
 -- SmartChannel DB Schema
 -- Consolidated schema including base tables, advanced schedules, exports, reports, views and log settings
 -- Generated on 2025-11-08 21:17:19
+-- Updated: 2025-01-XX - Integrated all migrations (2FA, Plans, OTA Updates, Interactive Features, Remote Commands, v3.1 Features)
+
+
+-- =============================================
+-- SCHEMA / SEARCH PATH GUARANTEES
+-- =============================================
+
+-- Garantir que o schema public exista e que o search_path esteja correto
+CREATE SCHEMA IF NOT EXISTS public;
+SET search_path TO public;
 
 
 -- =============================================
@@ -18,6 +28,11 @@
 -- =============================================
 
 -- Clients
+
+-- =============================================
+-- TABELAS (em ordem de dependências)
+-- =============================================
+
 CREATE TABLE IF NOT EXISTS clients (
     client_id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
@@ -31,7 +46,187 @@ CREATE TABLE IF NOT EXISTS clients (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Users
+CREATE TABLE IF NOT EXISTS hosts (
+    host_id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    contact_name TEXT,
+    email TEXT,
+    phone TEXT,
+    wths TEXT,
+    description TEXT,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ai_models (
+    id SERIAL PRIMARY KEY,
+    model_name TEXT NOT NULL,
+    model_type TEXT NOT NULL,
+    version TEXT NOT NULL,
+    file_url TEXT,
+    file_size INTEGER,
+    accuracy_score REAL,
+    performance_score REAL,
+    training_data_size INTEGER,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS system_logs (
+    log_id SERIAL PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS webhook_configs (
+    id SERIAL PRIMARY KEY,
+    url TEXT NOT NULL,
+    events TEXT, -- JSON array
+    secret TEXT NOT NULL,
+    timeout_ms INTEGER DEFAULT 5000,
+    retry_count INTEGER DEFAULT 3,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS alert_rules (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    metric TEXT NOT NULL,
+    condition TEXT NOT NULL, -- gt, lt, eq, gte, lte
+    threshold REAL NOT NULL,
+    duration INTEGER DEFAULT 300, -- seconds
+    is_active BOOLEAN DEFAULT true,
+    notification_channels TEXT, -- JSON array
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ml_models (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL, -- emotion, gesture, face, behavior
+    version TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    accuracy REAL,
+    status TEXT DEFAULT 'active', -- active, inactive, training, testing
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS roles (
+    role_id SERIAL PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    description TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS permissions (
+    permission_id SERIAL PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    resource TEXT NOT NULL, -- media, campaign, totem, analytics, etc.
+    action TEXT NOT NULL, -- create, read, update, delete, approve
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE IF NOT EXISTS system_settings (
+    setting_id SERIAL PRIMARY KEY,
+    setting_key VARCHAR(255) UNIQUE NOT NULL,
+    setting_value TEXT NOT NULL,
+    setting_type VARCHAR(50) NOT NULL DEFAULT 'string', -- string, number, boolean, json, array
+    category VARCHAR(100) DEFAULT 'system',
+    description TEXT,
+    is_public BOOLEAN DEFAULT false,
+    is_editable BOOLEAN DEFAULT true,
+    validation TEXT, -- regex ou validação
+    options JSONB, -- opções disponíveis (para selects)
+    default_value TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS plans (
+    plan_id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    description TEXT,
+    price_monthly NUMERIC(12, 2) NOT NULL,
+    price_yearly NUMERIC(12, 2),
+    currency TEXT DEFAULT 'BRL',
+    billing_interval TEXT DEFAULT 'month', -- month, year
+    stripe_price_id_monthly TEXT,
+    stripe_price_id_yearly TEXT,
+    stripe_product_id TEXT,
+    features JSONB DEFAULT '{}'::jsonb, -- Limites e features do plano
+    limits JSONB DEFAULT '{}'::jsonb, -- Ex: { totems: 10, campaigns: 50, storage_gb: 100 }
+    is_active BOOLEAN DEFAULT true,
+    is_popular BOOLEAN DEFAULT false,
+    sort_order INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS fx_effects (
+    effect_id SERIAL PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    effect_type TEXT NOT NULL, -- 'neon_warp', 'ripple_sync', 'liquid_flow', 'holographic_swipe', 'matrix_data_flow', 'particle_burst'
+    description TEXT,
+    default_params JSONB DEFAULT '{}'::jsonb,
+    preview_url TEXT, -- URL de preview/animação
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS fx_rules (
+    rule_id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    site_id TEXT, -- Opcional: regra específica de site (FK para fx_sites)
+    conditions JSONB NOT NULL, -- Condições (idade, humor, tag, hora, etc.)
+    actions JSONB NOT NULL, -- Ações (efeito, conteúdo, totens, prioridade)
+    priority INTEGER DEFAULT 0, -- Prioridade da regra (maior = mais importante)
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS fx_timelines (
+    timeline_id SERIAL PRIMARY KEY,
+    site_id TEXT NOT NULL, -- FK para fx_sites
+    name TEXT,
+    version INTEGER DEFAULT 1,
+    events JSONB NOT NULL, -- Array de eventos FX
+    generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    starts_at TIMESTAMP,
+    ends_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS webhooks (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    secret TEXT,
+    channels TEXT[] DEFAULT ARRAY[]::TEXT[],
+    events TEXT[] DEFAULT ARRAY[]::TEXT[],
+    enabled BOOLEAN DEFAULT true,
+    retry_count INTEGER DEFAULT 3,
+    timeout_ms INTEGER DEFAULT 5000,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     client_id INTEGER,
@@ -47,91 +242,58 @@ CREATE TABLE IF NOT EXISTS users (
     FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL
 );
 
--- Password Reset Tokens
-CREATE TABLE IF NOT EXISTS password_reset_tokens (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    token TEXT NOT NULL UNIQUE,
-    expires_at TIMESTAMP NOT NULL,
-    used BOOLEAN DEFAULT false,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Índices para password_reset_tokens
-CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
-CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
-CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
-
--- Hosts
-CREATE TABLE IF NOT EXISTS hosts (
-    host_id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
-    contact_name TEXT,
-    email TEXT,
-    phone TEXT,
-    wths TEXT,
+-- Tabelas de export (dependem de users)
+CREATE TABLE IF NOT EXISTS export_queries (
+    query_id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
     description TEXT,
-    active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Locals
-CREATE TABLE IF NOT EXISTS locals (
-    local_id TEXT PRIMARY KEY,
-    host_id INTEGER NOT NULL,
-    description TEXT,
-    active BOOLEAN DEFAULT true,
+    provider VARCHAR(50) NOT NULL CHECK (provider IN ('PostgreSQL', 'Redis', 'Grafana', 'Prometheus')),
+    sql_query TEXT NOT NULL,
+    database_config JSONB NOT NULL,
+    export_config JSONB NOT NULL,
+    enabled BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (host_id) REFERENCES hosts(host_id) ON DELETE CASCADE
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    
+    CONSTRAINT export_queries_name_unique UNIQUE (name)
 );
 
--- Totems
-CREATE TABLE IF NOT EXISTS totems (
-    totem_id SERIAL PRIMARY KEY,
-    name TEXT,
-    identifier TEXT UNIQUE NOT NULL,
-    uin TEXT UNIQUE, -- Unique Identifier Number (UIN) para validação do player
-    device_id TEXT UNIQUE,
-    local_id TEXT,
-    location TEXT,
+CREATE TABLE IF NOT EXISTS export_schedules (
+    schedule_id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
     description TEXT,
-    config TEXT, -- JSON
-    status TEXT DEFAULT 'offline', -- online, offline, error, maintenance
-    version TEXT,
-    firmware_version TEXT,
-    ip_address TEXT,
-    last_seen TIMESTAMP,
-    last_heartbeat TIMESTAMP,
-    active BOOLEAN DEFAULT true,
-    is_active BOOLEAN DEFAULT true,
-    client_id INTEGER,
-    current_playlist_id INTEGER,
-    blocked BOOLEAN DEFAULT false, -- Bloqueio manual do totem
-    blocked_until TIMESTAMP, -- Bloqueio temporário até data/hora
+    query_id INTEGER NOT NULL REFERENCES export_queries(query_id) ON DELETE CASCADE,
+    cron_expression VARCHAR(100) NOT NULL,
+    enabled BOOLEAN DEFAULT true,
+    last_execution TIMESTAMP,
+    next_execution TIMESTAMP,
+    execution_count INTEGER DEFAULT 0,
+    success_count INTEGER DEFAULT 0,
+    failure_count INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (local_id) REFERENCES locals(local_id) ON DELETE SET NULL,
-    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    
+    CONSTRAINT export_schedules_name_unique UNIQUE (name)
 );
 
--- Smart TVs
-CREATE TABLE IF NOT EXISTS smart_tvs (
-    smartv_id TEXT PRIMARY KEY,
-    totem_id INTEGER NOT NULL,
-    brand TEXT,
-    model TEXT,
-    ip_address TEXT,
-    config TEXT, -- JSON
-    active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS export_executions (
+    execution_id SERIAL PRIMARY KEY,
+    schedule_id INTEGER REFERENCES export_schedules(schedule_id) ON DELETE SET NULL,
+    query_id INTEGER NOT NULL REFERENCES export_queries(query_id) ON DELETE CASCADE,
+    job_id VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    records_exported INTEGER DEFAULT 0,
+    file_path TEXT,
+    file_size BIGINT,
+    error_message TEXT,
+    execution_log TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Campaigns
 CREATE TABLE IF NOT EXISTS campaigns (
     campaign_id SERIAL PRIMARY KEY,
     client_id INTEGER NOT NULL,
@@ -151,7 +313,109 @@ CREATE TABLE IF NOT EXISTS campaigns (
     FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE
 );
 
--- Media
+CREATE TABLE IF NOT EXISTS stripe_customers (
+    id SERIAL PRIMARY KEY,
+    client_id INTEGER NOT NULL UNIQUE,
+    stripe_customer_id TEXT UNIQUE NOT NULL,
+    email TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS fx_sites (
+    site_id TEXT PRIMARY KEY, -- ID único do site (ex: 'site-01', 'loja-centro')
+    name TEXT NOT NULL,
+    description TEXT,
+    client_id INTEGER, -- Cliente dono do site
+    broker_url TEXT, -- URL do broker MQTT local (ex: 'ws://localhost:9001')
+    broker_type TEXT DEFAULT 'mqtt', -- 'mqtt', 'websocket', 'hybrid'
+    broker_config JSONB DEFAULT '{}'::jsonb, -- Configurações do broker (auth, topics, etc.)
+    sync_interval_ms INTEGER DEFAULT 2000, -- Intervalo de sincronização em ms
+    time_sync_enabled BOOLEAN DEFAULT true, -- Habilitar sincronização de tempo
+    config JSONB DEFAULT '{}'::jsonb, -- Configurações gerais do site
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS locals (
+    local_id TEXT PRIMARY KEY,
+    host_id INTEGER NOT NULL,
+    description TEXT,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (host_id) REFERENCES hosts(host_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id SERIAL PRIMARY KEY,
+    webhook_id INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    success BOOLEAN NOT NULL,
+    status_code INTEGER,
+    error_message TEXT,
+    delivered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (webhook_id) REFERENCES webhook_configs(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS alert_logs (
+    id SERIAL PRIMARY KEY,
+    rule_id INTEGER NOT NULL,
+    metric TEXT NOT NULL,
+    value REAL NOT NULL,
+    threshold REAL NOT NULL,
+    condition TEXT NOT NULL,
+    labels TEXT, -- JSON
+    triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP,
+    FOREIGN KEY (rule_id) REFERENCES alert_rules(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    id SERIAL PRIMARY KEY,
+    role_id INTEGER NOT NULL,
+    permission_id INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE,
+    FOREIGN KEY (permission_id) REFERENCES permissions(permission_id) ON DELETE CASCADE,
+    UNIQUE(role_id, permission_id)
+);
+
+CREATE TABLE IF NOT EXISTS subscriptions (
+    subscription_id SERIAL PRIMARY KEY,
+    client_id INTEGER NOT NULL,
+    plan_id INTEGER NOT NULL,
+    stripe_subscription_id TEXT UNIQUE,
+    stripe_customer_id TEXT,
+    status TEXT DEFAULT 'active', -- active, canceled, past_due, unpaid, trialing, incomplete
+    billing_interval TEXT DEFAULT 'month', -- month, year
+    current_period_start TIMESTAMP,
+    current_period_end TIMESTAMP,
+    cancel_at_period_end BOOLEAN DEFAULT false,
+    canceled_at TIMESTAMP,
+    trial_start TIMESTAMP,
+    trial_end TIMESTAMP,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE,
+    FOREIGN KEY (plan_id) REFERENCES plans(plan_id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    used BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS medias (
     media_id SERIAL PRIMARY KEY,
     client_id INTEGER NOT NULL,
@@ -180,7 +444,249 @@ CREATE TABLE IF NOT EXISTS medias (
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Playlists
+CREATE TABLE IF NOT EXISTS user_roles (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    granted_by INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE,
+    FOREIGN KEY (granted_by) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE(user_id, role_id)
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER,
+    action TEXT NOT NULL, -- create, update, delete, approve, etc.
+    entity TEXT NOT NULL, -- media, campaign, totem, etc.
+    entity_id INTEGER,
+    metadata TEXT, -- JSON
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS advanced_schedules (
+    schedule_id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    schedule_type TEXT NOT NULL, -- 'campaign' | 'playlist' | 'campaign_activation' | 'playlist_generation'
+    target_id INTEGER NOT NULL, -- campaign_id ou playlist_id dependendo do tipo
+    cron_expression TEXT NOT NULL, -- Expressão cron para agendamento
+    schedule_config TEXT, -- JSON com configurações específicas
+    enabled BOOLEAN DEFAULT true,
+    last_execution TIMESTAMP,
+    next_execution TIMESTAMP,
+    execution_count INTEGER DEFAULT 0,
+    success_count INTEGER DEFAULT 0,
+    failure_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS reports (
+    report_id SERIAL PRIMARY KEY,
+    type TEXT NOT NULL, -- campaign, totem, client, media, billing, analytics, custom
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT DEFAULT 'pending', -- pending, generating, completed, failed
+    format TEXT DEFAULT 'pdf', -- pdf, excel, csv, json
+    file_path TEXT,
+    file_size INTEGER,
+    download_url TEXT,
+    download_count INTEGER DEFAULT 0,
+    filters TEXT, -- JSON
+    template TEXT,
+    custom_fields TEXT, -- JSON
+    ai_analysis BOOLEAN DEFAULT false,
+    metadata TEXT, -- JSON
+    generated_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS report_templates (
+    template_id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    type TEXT NOT NULL, -- campaign, totem, client, media, billing, analytics, custom
+    template_config TEXT NOT NULL, -- JSON com configuração do template
+    is_default BOOLEAN DEFAULT false,
+    is_public BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_two_factor (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL UNIQUE,
+    secret TEXT NOT NULL, -- Secret TOTP (criptografado)
+    enabled BOOLEAN DEFAULT false,
+    backup_codes TEXT[], -- Array de backup codes (criptografados)
+    last_used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS two_factor_attempts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    code TEXT NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    success BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ota_updates (
+    id SERIAL PRIMARY KEY,
+    version TEXT NOT NULL, -- Versão da atualização (ex: "2.1.0")
+    platform TEXT NOT NULL, -- 'webos', 'tizen', 'android', 'linux', 'windows', 'all'
+    file_path TEXT NOT NULL, -- Caminho do arquivo de atualização
+    file_size BIGINT NOT NULL, -- Tamanho do arquivo em bytes
+    checksum TEXT NOT NULL, -- SHA256 do arquivo
+    description TEXT, -- Descrição da atualização
+    changelog TEXT, -- Changelog detalhado
+    is_mandatory BOOLEAN DEFAULT false, -- Se a atualização é obrigatória
+    min_version TEXT, -- Versão mínima necessária para atualizar
+    max_version TEXT, -- Versão máxima que pode atualizar
+    rollout_percentage INTEGER DEFAULT 100, -- Porcentagem de rollout (0-100)
+    status TEXT NOT NULL DEFAULT 'draft', -- 'draft', 'testing', 'active', 'paused', 'completed', 'cancelled'
+    created_by INTEGER, -- ID do usuário que criou
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    released_at TIMESTAMP, -- Data de lançamento
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS dashboard_layouts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    layout_data JSONB NOT NULL DEFAULT '{}',
+    is_default BOOLEAN DEFAULT false,
+    is_shared BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS backups (
+    id SERIAL PRIMARY KEY,
+    backup_id TEXT UNIQUE NOT NULL,
+    backup_type TEXT NOT NULL, -- 'full', 'database', 'uploads', 'config'
+    file_path TEXT NOT NULL,
+    file_size BIGINT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status TEXT NOT NULL DEFAULT 'in_progress', -- 'completed', 'failed', 'in_progress'
+    metadata JSONB DEFAULT '{}',
+    created_by INTEGER,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS totems (
+    totem_id SERIAL PRIMARY KEY,
+    name TEXT,
+    identifier TEXT UNIQUE NOT NULL,
+    uin TEXT UNIQUE, -- Unique Identifier Number (UIN) para validação do player
+    device_id TEXT UNIQUE,
+    local_id TEXT,
+    location TEXT,
+    description TEXT,
+    config TEXT, -- JSON
+    status TEXT DEFAULT 'offline', -- online, offline, error, maintenance
+    version TEXT,
+    firmware_version TEXT,
+    ip_address TEXT,
+    last_seen TIMESTAMP,
+    last_heartbeat TIMESTAMP,
+    active BOOLEAN DEFAULT true,
+    is_active BOOLEAN DEFAULT true,
+    client_id INTEGER,
+    current_playlist_id INTEGER,
+    blocked BOOLEAN DEFAULT false, -- Bloqueio manual do totem
+    blocked_until TIMESTAMP, -- Bloqueio temporário até data/hora
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (local_id) REFERENCES locals(local_id) ON DELETE SET NULL,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS approval_workflows (
+    id SERIAL PRIMARY KEY,
+    media_id INTEGER UNIQUE NOT NULL,
+    status TEXT DEFAULT 'draft', -- draft, review, approved, rejected, published
+    reviewed_by INTEGER,
+    reviewed_at TIMESTAMP,
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (media_id) REFERENCES medias(media_id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS tags (
+    id SERIAL PRIMARY KEY,
+    tag_id TEXT UNIQUE NOT NULL, -- ID único da tag (RFID/NFC/QR)
+    tag_type TEXT NOT NULL, -- 'rfid', 'nfc', 'qr_code', 'barcode'
+    name TEXT,
+    description TEXT,
+    content_id INTEGER, -- ID do conteúdo associado
+    metadata JSONB DEFAULT '{}', -- Metadados flexíveis em formato JSONB
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (content_id) REFERENCES medias(media_id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS recognized_persons (
+    id SERIAL PRIMARY KEY,
+    person_id TEXT UNIQUE NOT NULL, -- ID único da pessoa
+    name TEXT,
+    features TEXT, -- Características faciais (JSON)
+    content_id INTEGER, -- Conteúdo personalizado
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (content_id) REFERENCES medias(media_id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS schedule_executions (
+    execution_id SERIAL PRIMARY KEY,
+    schedule_id INTEGER NOT NULL,
+    job_id TEXT, -- ID do job no Bull
+    status TEXT NOT NULL, -- 'running' | 'completed' | 'failed' | 'cancelled'
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    execution_log TEXT,
+    error_message TEXT,
+    metadata TEXT, -- JSON com dados adicionais
+    FOREIGN KEY (schedule_id) REFERENCES advanced_schedules(schedule_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS smart_tvs (
+    smartv_id TEXT PRIMARY KEY,
+    totem_id INTEGER NOT NULL,
+    brand TEXT,
+    model TEXT,
+    ip_address TEXT,
+    config TEXT, -- JSON
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS playlists (
     playlist_id SERIAL PRIMARY KEY,
     totem_id INTEGER NOT NULL,
@@ -201,23 +707,6 @@ CREATE TABLE IF NOT EXISTS playlists (
     FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL
 );
 
--- Playlist Items
-CREATE TABLE IF NOT EXISTS playlist_items (
-    item_id SERIAL PRIMARY KEY,
-    playlist_id INTEGER NOT NULL,
-    media_id INTEGER NOT NULL,
-    order_index INTEGER DEFAULT 0,
-    display_seconds INTEGER,
-    transition TEXT,
-    start_time_offset_seconds INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (playlist_id) REFERENCES playlists(playlist_id) ON DELETE CASCADE,
-    FOREIGN KEY (media_id) REFERENCES medias(media_id) ON DELETE CASCADE,
-    UNIQUE(playlist_id, order_index)
-);
-
--- Smart Playlists
 CREATE TABLE IF NOT EXISTS smart_playlists (
     smart_playlist_id SERIAL PRIMARY KEY,
     client_id INTEGER NOT NULL,
@@ -249,31 +738,6 @@ CREATE TABLE IF NOT EXISTS smart_playlists (
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_smart_playlists_client_id ON smart_playlists(client_id);
-CREATE INDEX IF NOT EXISTS idx_smart_playlists_campaign_id ON smart_playlists(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_smart_playlists_status ON smart_playlists(status);
-
--- Ensure legacy databases have updated columns
-ALTER TABLE medias ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
-ALTER TABLE medias ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0;
-ALTER TABLE medias ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
-ALTER TABLE playlists ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-
--- Campaign Playlists
-CREATE TABLE IF NOT EXISTS campaign_playlists (
-    id SERIAL PRIMARY KEY,
-    campaign_id INTEGER NOT NULL,
-    playlist_id INTEGER NOT NULL,
-    priority INTEGER DEFAULT 1,
-    active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE CASCADE,
-    FOREIGN KEY (playlist_id) REFERENCES playlists(playlist_id) ON DELETE CASCADE,
-    UNIQUE(campaign_id, playlist_id)
-);
-
--- Campaign Totems
 CREATE TABLE IF NOT EXISTS campaign_totems (
     id SERIAL PRIMARY KEY,
     totem_id INTEGER NOT NULL,
@@ -290,7 +754,6 @@ CREATE TABLE IF NOT EXISTS campaign_totems (
     UNIQUE(campaign_id, totem_id)
 );
 
--- QR Codes
 CREATE TABLE IF NOT EXISTS qr_codes (
     qr_code_id SERIAL PRIMARY KEY,
     client_id INTEGER,
@@ -323,14 +786,6 @@ CREATE TABLE IF NOT EXISTS qr_codes (
     FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE SET NULL
 );
 
--- Criar índice para melhorar performance nas consultas
-CREATE INDEX IF NOT EXISTS idx_qr_codes_client_id ON qr_codes(client_id);
-CREATE INDEX IF NOT EXISTS idx_qr_codes_totem_id ON qr_codes(totem_id);
-CREATE INDEX IF NOT EXISTS idx_qr_codes_campaign_id ON qr_codes(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_qr_codes_is_active ON qr_codes(is_active);
-CREATE INDEX IF NOT EXISTS idx_qr_codes_expires_at ON qr_codes(expires_at);
-
--- Short Links
 CREATE TABLE IF NOT EXISTS short_links (
     short_id TEXT PRIMARY KEY,
     campaign_id INTEGER NOT NULL,
@@ -345,7 +800,6 @@ CREATE TABLE IF NOT EXISTS short_links (
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL
 );
 
--- Remote Commands
 CREATE TABLE IF NOT EXISTS remote_commands (
     id SERIAL PRIMARY KEY,
     totem_id INTEGER NOT NULL,
@@ -353,16 +807,19 @@ CREATE TABLE IF NOT EXISTS remote_commands (
     command_type TEXT NOT NULL,
     command_data TEXT, -- JSON
     priority INTEGER DEFAULT 1,
-    status TEXT DEFAULT 'pending', -- pending, executing, completed, failed
+    status TEXT DEFAULT 'pending', -- pending, sent, executing, completed, failed, timeout
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMP,
     executed_at TIMESTAMP,
+    completed_at TIMESTAMP,
     result TEXT,
+    error_message TEXT,
     created_by INTEGER,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Billing
 CREATE TABLE IF NOT EXISTS billing (
     billing_id SERIAL PRIMARY KEY,
     client_id INTEGER NOT NULL,
@@ -378,40 +835,18 @@ CREATE TABLE IF NOT EXISTS billing (
     payment_reference TEXT,
     notes TEXT,
     metadata JSONB,
+    stripe_invoice_id TEXT,
+    stripe_payment_intent_id TEXT,
+    subscription_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     paid_at TIMESTAMP,
     FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE,
     FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE SET NULL,
-    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL,
+    FOREIGN KEY (subscription_id) REFERENCES subscriptions(subscription_id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_billing_client_id ON billing(client_id);
-CREATE INDEX IF NOT EXISTS idx_billing_campaign_id ON billing(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_billing_totem_id ON billing(totem_id);
-CREATE INDEX IF NOT EXISTS idx_billing_status ON billing(status);
-CREATE INDEX IF NOT EXISTS idx_billing_due_date ON billing(due_date);
-
--- Payments
-CREATE TABLE IF NOT EXISTS payments (
-    payment_id SERIAL PRIMARY KEY,
-    billing_id INTEGER NOT NULL,
-    amount NUMERIC(12, 2) NOT NULL,
-    currency TEXT DEFAULT 'BRL',
-    payment_method TEXT,
-    payment_reference TEXT,
-    notes TEXT,
-    metadata JSONB,
-    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status TEXT DEFAULT 'completed',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (billing_id) REFERENCES billing(billing_id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_payments_billing_id ON payments(billing_id);
-CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
-
--- Analytics Sessions
 CREATE TABLE IF NOT EXISTS analytics_sessions (
     id SERIAL PRIMARY KEY,
     totem_id INTEGER NOT NULL,
@@ -427,62 +862,6 @@ CREATE TABLE IF NOT EXISTS analytics_sessions (
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
 );
 
--- Analytics Emotions
-CREATE TABLE IF NOT EXISTS analytics_emotions (
-    id SERIAL PRIMARY KEY,
-    session_id INTEGER NOT NULL,
-    emotion TEXT NOT NULL,
-    confidence REAL NOT NULL,
-    timestamp TIMESTAMP NOT NULL,
-    face_detected BOOLEAN DEFAULT false,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (session_id) REFERENCES analytics_sessions(id) ON DELETE CASCADE
-);
-
--- Analytics Gestures
-CREATE TABLE IF NOT EXISTS analytics_gestures (
-    id SERIAL PRIMARY KEY,
-    session_id INTEGER NOT NULL,
-    gesture_type TEXT NOT NULL,
-    coordinates TEXT, -- JSON
-    confidence REAL NOT NULL,
-    timestamp TIMESTAMP NOT NULL,
-    action_triggered TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (session_id) REFERENCES analytics_sessions(id) ON DELETE CASCADE
-);
-
--- Analytics QR Scans
-CREATE TABLE IF NOT EXISTS analytics_qr_scans (
-    id SERIAL PRIMARY KEY,
-    qr_code_id INTEGER NOT NULL,
-    totem_id INTEGER NOT NULL,
-    scan_timestamp TIMESTAMP NOT NULL,
-    user_agent TEXT,
-    ip_address TEXT,
-    location TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (qr_code_id) REFERENCES qr_codes(qr_code_id) ON DELETE CASCADE,
-    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
-);
-
--- AI Models
-CREATE TABLE IF NOT EXISTS ai_models (
-    id SERIAL PRIMARY KEY,
-    model_name TEXT NOT NULL,
-    model_type TEXT NOT NULL,
-    version TEXT NOT NULL,
-    file_url TEXT,
-    file_size INTEGER,
-    accuracy_score REAL,
-    performance_score REAL,
-    training_data_size INTEGER,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Execution Logs
 CREATE TABLE IF NOT EXISTS execution_logs (
     log_id SERIAL PRIMARY KEY,
     totem_id INTEGER,
@@ -501,68 +880,6 @@ CREATE TABLE IF NOT EXISTS execution_logs (
     FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE SET NULL
 );
 
--- System Logs
-CREATE TABLE IF NOT EXISTS system_logs (
-    log_id SERIAL PRIMARY KEY,
-    event_type TEXT NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Webhook Configs
-CREATE TABLE IF NOT EXISTS webhook_configs (
-    id SERIAL PRIMARY KEY,
-    url TEXT NOT NULL,
-    events TEXT, -- JSON array
-    secret TEXT NOT NULL,
-    timeout_ms INTEGER DEFAULT 5000,
-    retry_count INTEGER DEFAULT 3,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Webhook Deliveries
-CREATE TABLE IF NOT EXISTS webhook_deliveries (
-    id SERIAL PRIMARY KEY,
-    webhook_id INTEGER NOT NULL,
-    event_type TEXT NOT NULL,
-    success BOOLEAN NOT NULL,
-    status_code INTEGER,
-    error_message TEXT,
-    delivered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (webhook_id) REFERENCES webhook_configs(id) ON DELETE CASCADE
-);
-
--- Alert Rules
-CREATE TABLE IF NOT EXISTS alert_rules (
-    id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
-    metric TEXT NOT NULL,
-    condition TEXT NOT NULL, -- gt, lt, eq, gte, lte
-    threshold REAL NOT NULL,
-    duration INTEGER DEFAULT 300, -- seconds
-    is_active BOOLEAN DEFAULT true,
-    notification_channels TEXT, -- JSON array
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Alert Logs
-CREATE TABLE IF NOT EXISTS alert_logs (
-    id SERIAL PRIMARY KEY,
-    rule_id INTEGER NOT NULL,
-    metric TEXT NOT NULL,
-    value REAL NOT NULL,
-    threshold REAL NOT NULL,
-    condition TEXT NOT NULL,
-    labels TEXT, -- JSON
-    triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    resolved_at TIMESTAMP,
-    FOREIGN KEY (rule_id) REFERENCES alert_rules(id) ON DELETE CASCADE
-);
-
--- ML Tables
 CREATE TABLE IF NOT EXISTS emotion_data (
     id SERIAL PRIMARY KEY,
     totem_id INTEGER NOT NULL,
@@ -600,18 +917,6 @@ CREATE TABLE IF NOT EXISTS behavior_data (
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS ml_models (
-    id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
-    type TEXT NOT NULL, -- emotion, gesture, face, behavior
-    version TEXT NOT NULL,
-    file_path TEXT NOT NULL,
-    accuracy REAL,
-    status TEXT DEFAULT 'active', -- active, inactive, training, testing
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS totem_ml_config (
     id SERIAL PRIMARY KEY,
     totem_id INTEGER UNIQUE NOT NULL,
@@ -641,74 +946,6 @@ CREATE TABLE IF NOT EXISTS ml_sessions (
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
 );
 
--- RBAC Tables
-CREATE TABLE IF NOT EXISTS roles (
-    role_id SERIAL PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
-    description TEXT,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS permissions (
-    permission_id SERIAL PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
-    resource TEXT NOT NULL, -- media, campaign, totem, analytics, etc.
-    action TEXT NOT NULL, -- create, read, update, delete, approve
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS user_roles (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    role_id INTEGER NOT NULL,
-    granted_by INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE,
-    FOREIGN KEY (granted_by) REFERENCES users(id) ON DELETE SET NULL,
-    UNIQUE(user_id, role_id)
-);
-
-CREATE TABLE IF NOT EXISTS role_permissions (
-    id SERIAL PRIMARY KEY,
-    role_id INTEGER NOT NULL,
-    permission_id INTEGER NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE,
-    FOREIGN KEY (permission_id) REFERENCES permissions(permission_id) ON DELETE CASCADE,
-    UNIQUE(role_id, permission_id)
-);
-
--- Approval Workflow
-CREATE TABLE IF NOT EXISTS approval_workflows (
-    id SERIAL PRIMARY KEY,
-    media_id INTEGER UNIQUE NOT NULL,
-    status TEXT DEFAULT 'draft', -- draft, review, approved, rejected, published
-    reviewed_by INTEGER,
-    reviewed_at TIMESTAMP,
-    comment TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (media_id) REFERENCES medias(media_id) ON DELETE CASCADE,
-    FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
-);
-
--- Audit Log
-CREATE TABLE IF NOT EXISTS audit_logs (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER,
-    action TEXT NOT NULL, -- create, update, delete, approve, etc.
-    entity TEXT NOT NULL, -- media, campaign, totem, etc.
-    entity_id INTEGER,
-    metadata TEXT, -- JSON
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-);
-
--- Aggregated Metrics
 CREATE TABLE IF NOT EXISTS aggregated_metrics (
     id SERIAL PRIMARY KEY,
     date TIMESTAMP NOT NULL,
@@ -727,7 +964,6 @@ CREATE TABLE IF NOT EXISTS aggregated_metrics (
     UNIQUE(date, granularity, totem_id, campaign_id, media_id)
 );
 
--- Device Certificates
 CREATE TABLE IF NOT EXISTS device_certificates (
     id SERIAL PRIMARY KEY,
     totem_id INTEGER UNIQUE NOT NULL,
@@ -740,32 +976,795 @@ CREATE TABLE IF NOT EXISTS device_certificates (
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS totem_update_status (
+    totem_id INTEGER PRIMARY KEY,
+    current_version TEXT NOT NULL, -- Versão atual do totem
+    available_version TEXT, -- Versão disponível para atualização
+    update_status TEXT NOT NULL DEFAULT 'up_to_date', -- 'up_to_date', 'update_available', 'downloading', 'installing', 'failed', 'rollback'
+    last_check TIMESTAMP, -- Última vez que verificou atualizações
+    last_update TIMESTAMP, -- Última vez que foi atualizado
+    error_message TEXT, -- Mensagem de erro se falhou
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS interaction_logs (
+    id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL,
+    interaction_type TEXT NOT NULL, -- 'facial_recognition', 'tag_id', 'touch', 'gesture'
+    interaction_data JSONB, -- Dados da interação
+    content_id INTEGER, -- Conteúdo exibido
+    person_id TEXT, -- ID da pessoa (se reconhecida)
+    tag_id TEXT, -- ID da tag (se aplicável)
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
+    FOREIGN KEY (content_id) REFERENCES medias(media_id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS totem_network (
+    id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL,
+    network_id TEXT NOT NULL, -- ID da rede/grupo
+    nearby_totems INTEGER[], -- Array de IDs de totens próximos
+    is_active BOOLEAN DEFAULT true,
+    last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS fx_telemetry (
+    id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL,
+    effect_id TEXT NOT NULL, -- Nome do efeito executado
+    event_id TEXT, -- ID do evento da timeline
+    content_id INTEGER, -- ID do conteúdo exibido
+    planned_start_ts TIMESTAMP, -- Quando deveria começar
+    actual_start_ts TIMESTAMP, -- Quando realmente começou
+    ended_at TIMESTAMP, -- Quando terminou
+    duration_ms INTEGER, -- Duração real em ms
+    avg_fps DECIMAL(5,2), -- FPS médio durante execução
+    status TEXT DEFAULT 'success', -- 'success', 'failed', 'timeout', 'cancelled'
+    error_message TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb, -- Dados adicionais
+    -- Campos de contexto de site e logging para correlação em rede estrela (SmartDisplayFX Plus)
+    site_id TEXT, -- ID do site FX (fx_sites.site_id) onde o totem está vinculado no momento da execução
+    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Momento em que o evento foi registrado
+    success BOOLEAN DEFAULT true, -- Atalho booleano derivado de status (true = success)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
+    FOREIGN KEY (site_id) REFERENCES fx_sites(site_id) ON DELETE SET NULL
+);
+
+-- Garantir que instalações existentes recebam as colunas e FK de fx_telemetry
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'fx_telemetry') THEN
+        -- Adicionar colunas se ainda não existirem
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'fx_telemetry' AND column_name = 'site_id'
+        ) THEN
+            ALTER TABLE fx_telemetry ADD COLUMN site_id TEXT;
+        END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'fx_telemetry' AND column_name = 'logged_at'
+        ) THEN
+            ALTER TABLE fx_telemetry ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'fx_telemetry' AND column_name = 'success'
+        ) THEN
+            ALTER TABLE fx_telemetry ADD COLUMN success BOOLEAN DEFAULT true;
+        END IF;
+
+        -- Garantir FK opcional para fx_sites(site_id) se a tabela existir
+        IF EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_name = 'fx_sites'
+        ) THEN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints tc
+                WHERE tc.table_name = 'fx_telemetry'
+                  AND tc.constraint_type = 'FOREIGN KEY'
+                  AND tc.constraint_name = 'fx_telemetry_site_id_fkey'
+            ) THEN
+                ALTER TABLE fx_telemetry
+                    ADD CONSTRAINT fx_telemetry_site_id_fkey
+                    FOREIGN KEY (site_id) REFERENCES fx_sites(site_id) ON DELETE SET NULL;
+            END IF;
+        END IF;
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS fx_totem_sites (
+    id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL,
+    site_id TEXT NOT NULL,
+    role TEXT DEFAULT 'participant', -- 'master', 'participant', 'observer'
+    position_x INTEGER, -- Posição X na rede (para visualização)
+    position_y INTEGER, -- Posição Y na rede (para visualização)
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
+    FOREIGN KEY (site_id) REFERENCES fx_sites(site_id) ON DELETE CASCADE,
+    UNIQUE(totem_id, site_id)
+);
+
+CREATE TABLE IF NOT EXISTS playlist_items (
+    item_id SERIAL PRIMARY KEY,
+    playlist_id INTEGER NOT NULL,
+    media_id INTEGER NOT NULL,
+    order_index INTEGER DEFAULT 0,
+    display_seconds INTEGER,
+    transition TEXT,
+    start_time_offset_seconds INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (playlist_id) REFERENCES playlists(playlist_id) ON DELETE CASCADE,
+    FOREIGN KEY (media_id) REFERENCES medias(media_id) ON DELETE CASCADE,
+    UNIQUE(playlist_id, order_index)
+);
+
+CREATE TABLE IF NOT EXISTS campaign_playlists (
+    id SERIAL PRIMARY KEY,
+    campaign_id INTEGER NOT NULL,
+    playlist_id INTEGER NOT NULL,
+    priority INTEGER DEFAULT 1,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE CASCADE,
+    FOREIGN KEY (playlist_id) REFERENCES playlists(playlist_id) ON DELETE CASCADE,
+    UNIQUE(campaign_id, playlist_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.event_logs (
+    id SERIAL PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER,
+    totem_id INTEGER,
+    campaign_id INTEGER,
+    playlist_id INTEGER,
+    media_id INTEGER,
+    metadata JSONB,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Campo de log refinado para consultas (mantido separado de timestamp por compatibilidade)
+    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES public.totems(totem_id) ON DELETE SET NULL,
+    FOREIGN KEY (campaign_id) REFERENCES public.campaigns(campaign_id) ON DELETE SET NULL,
+    FOREIGN KEY (playlist_id) REFERENCES public.playlists(playlist_id) ON DELETE SET NULL,
+    FOREIGN KEY (media_id) REFERENCES public.medias(media_id) ON DELETE SET NULL
+);
+
+-- Garantir que instalações existentes recebam a coluna logged_at em event_logs
+DO $$
+BEGIN
+    -- Verificar no schema public primeiro
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'event_logs') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'event_logs' AND column_name = 'logged_at'
+        ) THEN
+            ALTER TABLE public.event_logs ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        END IF;
+    END IF;
+    
+    -- Verificação alternativa sem schema explícito (para tabelas criadas sem schema)
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'event_logs') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'event_logs' AND column_name = 'logged_at'
+        ) THEN
+            BEGIN
+                ALTER TABLE event_logs ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+            EXCEPTION WHEN OTHERS THEN
+                -- Coluna pode já existir ou tabela pode estar em outro schema, ignorar
+                NULL;
+            END;
+        END IF;
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS analytics_qr_scans (
+    id SERIAL PRIMARY KEY,
+    qr_code_id INTEGER NOT NULL,
+    totem_id INTEGER NOT NULL,
+    scan_timestamp TIMESTAMP NOT NULL,
+    user_agent TEXT,
+    ip_address TEXT,
+    location TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (qr_code_id) REFERENCES qr_codes(qr_code_id) ON DELETE CASCADE,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.notifications (
+    notification_id SERIAL PRIMARY KEY,
+    user_id INTEGER,
+    client_id INTEGER,
+    notification_type TEXT NOT NULL, -- 'info', 'success', 'warning', 'error'
+    title TEXT,
+    message TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL,
+    FOREIGN KEY (client_id) REFERENCES public.clients(client_id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS remote_screenshots (
+    id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL,
+    command_id INTEGER, -- Referência ao comando que gerou o screenshot
+    file_path TEXT NOT NULL,
+    file_size INTEGER,
+    width INTEGER,
+    height INTEGER,
+    format TEXT DEFAULT 'png',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
+    FOREIGN KEY (command_id) REFERENCES remote_commands(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+    payment_id SERIAL PRIMARY KEY,
+    billing_id INTEGER NOT NULL,
+    amount NUMERIC(12, 2) NOT NULL,
+    currency TEXT DEFAULT 'BRL',
+    payment_method TEXT,
+    payment_reference TEXT,
+    notes TEXT,
+    metadata JSONB,
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'completed',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (billing_id) REFERENCES billing(billing_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS analytics_emotions (
+    id SERIAL PRIMARY KEY,
+    session_id INTEGER NOT NULL,
+    emotion TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    face_detected BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES analytics_sessions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS analytics_gestures (
+    id SERIAL PRIMARY KEY,
+    session_id INTEGER NOT NULL,
+    gesture_type TEXT NOT NULL,
+    coordinates TEXT, -- JSON
+    confidence REAL NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    action_triggered TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES analytics_sessions(id) ON DELETE CASCADE
+);
+
+
+-- =============================================
+-- FOREIGN KEYS (ALTER TABLE)
+-- =============================================
+
+ALTER TABLE medias ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
+ALTER TABLE medias ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0;
+
+ALTER TABLE medias ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+
+ALTER TABLE playlists ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+
+-- =============================================
+-- ÍNDICES (agrupados por tabela)
+-- =============================================
+
+-- Índices para export_queries
+CREATE INDEX IF NOT EXISTS idx_export_queries_provider ON export_queries(provider);
+CREATE INDEX IF NOT EXISTS idx_export_queries_enabled ON export_queries(enabled);
+
+-- Índices para export_schedules
+CREATE INDEX IF NOT EXISTS idx_export_schedules_query_id ON export_schedules(query_id);
+CREATE INDEX IF NOT EXISTS idx_export_schedules_enabled ON export_schedules(enabled);
+
+-- Índices para export_executions
+CREATE INDEX IF NOT EXISTS idx_export_executions_schedule_id ON export_executions(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_export_executions_query_id ON export_executions(query_id);
+CREATE INDEX IF NOT EXISTS idx_export_executions_status ON export_executions(status);
+CREATE INDEX IF NOT EXISTS idx_export_executions_created_at ON export_executions(created_at);
+
+-- Índices para system_settings
+CREATE INDEX IF NOT EXISTS idx_system_settings_key ON system_settings(setting_key);
+CREATE INDEX IF NOT EXISTS idx_system_settings_category ON system_settings(category);
+
+-- Índices para plans
+CREATE INDEX IF NOT EXISTS idx_plans_slug ON plans(slug);
+CREATE INDEX IF NOT EXISTS idx_plans_is_active ON plans(is_active);
+
+-- Índices para fx_effects
+CREATE INDEX IF NOT EXISTS idx_fx_effects_effect_type ON fx_effects(effect_type);
+CREATE INDEX IF NOT EXISTS idx_fx_effects_is_active ON fx_effects(is_active);
+
+-- Índices para fx_rules
+CREATE INDEX IF NOT EXISTS idx_fx_rules_site_id ON fx_rules(site_id);
+CREATE INDEX IF NOT EXISTS idx_fx_rules_is_active ON fx_rules(is_active);
+CREATE INDEX IF NOT EXISTS idx_fx_rules_priority ON fx_rules(priority DESC);
+
+-- Índices para fx_timelines
+CREATE INDEX IF NOT EXISTS idx_fx_timelines_site_id ON fx_timelines(site_id);
+CREATE INDEX IF NOT EXISTS idx_fx_timelines_starts_at ON fx_timelines(starts_at);
+CREATE INDEX IF NOT EXISTS idx_fx_timelines_is_active ON fx_timelines(is_active);
+
+-- Índices para webhooks
+CREATE INDEX IF NOT EXISTS idx_webhooks_enabled ON webhooks(enabled);
+CREATE INDEX IF NOT EXISTS idx_webhooks_channels ON webhooks USING GIN(channels);
+CREATE INDEX IF NOT EXISTS idx_webhooks_events ON webhooks USING GIN(events);
+
+-- Índices para users
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_client_id ON users(client_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
+CREATE INDEX IF NOT EXISTS idx_users_email_active ON users(email, is_active);
+
+-- Índices para campaigns
+CREATE INDEX IF NOT EXISTS idx_campaigns_client_id ON campaigns(client_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
+CREATE INDEX IF NOT EXISTS idx_campaigns_start_date ON campaigns(start_date);
+CREATE INDEX IF NOT EXISTS idx_campaigns_end_date ON campaigns(end_date);
+CREATE INDEX IF NOT EXISTS idx_campaigns_is_active ON campaigns(is_active);
+CREATE INDEX IF NOT EXISTS idx_campaigns_active_dates ON campaigns(client_id, is_active, start_date, end_date) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_campaigns_client_status_dates ON campaigns(client_id, status, start_date, end_date);
+
+-- Índices para stripe_customers
+CREATE INDEX IF NOT EXISTS idx_stripe_customers_client_id ON stripe_customers(client_id);
+CREATE INDEX IF NOT EXISTS idx_stripe_customers_stripe_customer_id ON stripe_customers(stripe_customer_id);
+
+-- Índices para fx_sites
+CREATE INDEX IF NOT EXISTS idx_fx_sites_client_id ON fx_sites(client_id);
+CREATE INDEX IF NOT EXISTS idx_fx_sites_is_active ON fx_sites(is_active);
+
+-- Índices para subscriptions
+CREATE INDEX IF NOT EXISTS idx_subscriptions_client_id ON subscriptions(client_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_plan_id ON subscriptions(plan_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription_id ON subscriptions(stripe_subscription_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_client_status ON subscriptions(client_id, status);
+
+-- Índices para password_reset_tokens
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
+
+-- Índices para medias
+CREATE INDEX IF NOT EXISTS idx_medias_client_id ON medias(client_id);
+CREATE INDEX IF NOT EXISTS idx_medias_status ON medias(status);
+CREATE INDEX IF NOT EXISTS idx_media_client_id ON medias(client_id);
+CREATE INDEX IF NOT EXISTS idx_media_type ON medias(media_type);
+CREATE INDEX IF NOT EXISTS idx_media_created_at ON medias(created_at);
+CREATE INDEX IF NOT EXISTS idx_media_is_active ON medias(is_active);
+CREATE INDEX IF NOT EXISTS idx_media_client_type ON medias(client_id, media_type, is_active);
+CREATE INDEX IF NOT EXISTS idx_medias_client_status_type ON medias(client_id, status, media_type);
+
+-- Índices para audit_logs
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp_desc ON audit_logs(timestamp DESC);
+
+-- Índices para advanced_schedules
+CREATE INDEX IF NOT EXISTS idx_advanced_schedules_type ON advanced_schedules(schedule_type);
+CREATE INDEX IF NOT EXISTS idx_advanced_schedules_target_id ON advanced_schedules(target_id);
+CREATE INDEX IF NOT EXISTS idx_advanced_schedules_enabled ON advanced_schedules(enabled);
+CREATE INDEX IF NOT EXISTS idx_advanced_schedules_created_by ON advanced_schedules(created_by);
+
+-- Índices para reports
+CREATE INDEX IF NOT EXISTS idx_reports_type ON reports(type);
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+CREATE INDEX IF NOT EXISTS idx_reports_created_by ON reports(created_by);
+CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at);
+CREATE INDEX IF NOT EXISTS idx_reports_generated_at ON reports(generated_at);
+
+-- Índices para report_templates
+CREATE INDEX IF NOT EXISTS idx_report_templates_type ON report_templates(type);
+CREATE INDEX IF NOT EXISTS idx_report_templates_created_by ON report_templates(created_by);
+CREATE INDEX IF NOT EXISTS idx_report_templates_is_default ON report_templates(is_default);
+CREATE INDEX IF NOT EXISTS idx_report_templates_is_public ON report_templates(is_public);
+
+-- Índices para user_two_factor
+CREATE INDEX IF NOT EXISTS idx_user_two_factor_user_id ON user_two_factor(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_two_factor_enabled ON user_two_factor(enabled);
+
+-- Índices para two_factor_attempts
+CREATE INDEX IF NOT EXISTS idx_two_factor_attempts_user_id ON two_factor_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_two_factor_attempts_created_at ON two_factor_attempts(created_at);
+CREATE INDEX IF NOT EXISTS idx_two_factor_attempts_success ON two_factor_attempts(success);
+
+-- Índices para ota_updates
+CREATE INDEX IF NOT EXISTS idx_ota_updates_platform ON ota_updates(platform);
+CREATE INDEX IF NOT EXISTS idx_ota_updates_status ON ota_updates(status);
+CREATE INDEX IF NOT EXISTS idx_ota_updates_created_at ON ota_updates(created_at);
+
+-- Índices para dashboard_layouts
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_user_id ON dashboard_layouts(user_id);
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_is_default ON dashboard_layouts(user_id, is_default) WHERE is_default = true;
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_is_shared ON dashboard_layouts(is_shared) WHERE is_shared = true;
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_data ON dashboard_layouts USING GIN (layout_data);
+
+-- Índices para backups
+CREATE INDEX IF NOT EXISTS idx_backups_backup_id ON backups(backup_id);
+CREATE INDEX IF NOT EXISTS idx_backups_type ON backups(backup_type);
+CREATE INDEX IF NOT EXISTS idx_backups_status ON backups(status);
+CREATE INDEX IF NOT EXISTS idx_backups_created_at ON backups(created_at DESC);
+
+-- Índices para totems
+CREATE INDEX IF NOT EXISTS idx_totems_identifier ON totems(identifier);
+CREATE INDEX IF NOT EXISTS idx_totems_status ON totems(status);
+CREATE INDEX IF NOT EXISTS idx_totems_last_heartbeat ON totems(last_heartbeat);
+CREATE INDEX IF NOT EXISTS idx_totems_client_id ON totems(client_id);
+CREATE INDEX IF NOT EXISTS idx_totems_is_active ON totems(is_active);
+CREATE INDEX IF NOT EXISTS idx_totems_active_status ON totems(client_id, is_active, status) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_totems_client_status ON totems(client_id, status);
+
+-- Índices para tags
+CREATE INDEX IF NOT EXISTS idx_tags_metadata ON tags USING GIN (metadata);
+CREATE INDEX IF NOT EXISTS idx_tags_tag_id ON tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_tags_tag_type ON tags(tag_type);
+CREATE INDEX IF NOT EXISTS idx_tags_content_id ON tags(content_id);
+
+-- Índices para recognized_persons
+CREATE INDEX IF NOT EXISTS idx_recognized_persons_person_id ON recognized_persons(person_id);
+CREATE INDEX IF NOT EXISTS idx_recognized_persons_content_id ON recognized_persons(content_id);
+
+-- Índices para schedule_executions
+CREATE INDEX IF NOT EXISTS idx_schedule_executions_schedule_id ON schedule_executions(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_executions_status ON schedule_executions(status);
+CREATE INDEX IF NOT EXISTS idx_schedule_executions_started_at ON schedule_executions(started_at);
+
+-- Índices para playlists
+CREATE INDEX IF NOT EXISTS idx_playlists_totem_id ON playlists(totem_id);
+CREATE INDEX IF NOT EXISTS idx_playlists_campaign_id ON playlists(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_playlists_client_id ON playlists(client_id);
+CREATE INDEX IF NOT EXISTS idx_playlists_is_active ON playlists(is_active);
+CREATE INDEX IF NOT EXISTS idx_playlists_created_at ON playlists(created_at);
+CREATE INDEX IF NOT EXISTS idx_playlists_totem_campaign ON playlists(totem_id, campaign_id);
+
+-- Índices para smart_playlists
+CREATE INDEX IF NOT EXISTS idx_smart_playlists_client_id ON smart_playlists(client_id);
+CREATE INDEX IF NOT EXISTS idx_smart_playlists_campaign_id ON smart_playlists(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_smart_playlists_status ON smart_playlists(status);
+
+-- Índices para campaign_totems
+CREATE INDEX IF NOT EXISTS idx_campaign_totems_campaign_status ON campaign_totems(campaign_id, status);
+
+-- Índices para qr_codes
+CREATE INDEX IF NOT EXISTS idx_qr_codes_client_id ON qr_codes(client_id);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_totem_id ON qr_codes(totem_id);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_campaign_id ON qr_codes(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_is_active ON qr_codes(is_active);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_expires_at ON qr_codes(expires_at);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_client_active_expires ON qr_codes(client_id, is_active, expires_at);
+
+-- Índices para remote_commands
+CREATE INDEX IF NOT EXISTS idx_remote_commands_totem_id ON remote_commands(totem_id);
+CREATE INDEX IF NOT EXISTS idx_remote_commands_status ON remote_commands(status);
+CREATE INDEX IF NOT EXISTS idx_remote_commands_created_at ON remote_commands(created_at);
+CREATE INDEX IF NOT EXISTS idx_remote_commands_command_type ON remote_commands(command_type);
+CREATE INDEX IF NOT EXISTS idx_remote_commands_totem_status_created ON remote_commands(totem_id, status, created_at);
+
+-- Índices para billing
+CREATE INDEX IF NOT EXISTS idx_billing_client_id ON billing(client_id);
+CREATE INDEX IF NOT EXISTS idx_billing_campaign_id ON billing(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_billing_totem_id ON billing(totem_id);
+CREATE INDEX IF NOT EXISTS idx_billing_status ON billing(status);
+CREATE INDEX IF NOT EXISTS idx_billing_due_date ON billing(due_date);
+CREATE INDEX IF NOT EXISTS idx_billing_stripe_invoice_id ON billing(stripe_invoice_id);
+CREATE INDEX IF NOT EXISTS idx_billing_subscription_id ON billing(subscription_id);
+CREATE INDEX IF NOT EXISTS idx_billing_client_status_due ON billing(client_id, status, due_date);
+
+-- Índices para analytics_sessions
+CREATE INDEX IF NOT EXISTS idx_analytics_sessions_totem_id ON analytics_sessions(totem_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_sessions_start ON analytics_sessions(session_start);
+CREATE INDEX IF NOT EXISTS idx_analytics_sessions_totem_start ON analytics_sessions(totem_id, session_start);
+
+-- Índices para execution_logs
+CREATE INDEX IF NOT EXISTS idx_execution_logs_totem_id ON execution_logs(totem_id);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_executed_at ON execution_logs(executed_at);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_client_id ON execution_logs(client_id);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_campaign_id ON execution_logs(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_media_id ON execution_logs(media_id);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_play_success ON execution_logs(play_success);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_totem_executed ON execution_logs(totem_id, executed_at, play_success);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_totem_campaign ON execution_logs(totem_id, campaign_id);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_executed_desc ON execution_logs(executed_at DESC);
+
+-- Índices para aggregated_metrics
+CREATE INDEX IF NOT EXISTS idx_aggregated_metrics_date ON aggregated_metrics(date);
+CREATE INDEX IF NOT EXISTS idx_aggregated_metrics_totem_id ON aggregated_metrics(totem_id);
+
+-- Índices para totem_update_status
+CREATE INDEX IF NOT EXISTS idx_totem_update_status_status ON totem_update_status(update_status);
+CREATE INDEX IF NOT EXISTS idx_totem_update_status_last_check ON totem_update_status(last_check);
+
+-- Índices para interaction_logs
+CREATE INDEX IF NOT EXISTS idx_interaction_logs_totem_id ON interaction_logs(totem_id);
+CREATE INDEX IF NOT EXISTS idx_interaction_logs_type ON interaction_logs(interaction_type);
+CREATE INDEX IF NOT EXISTS idx_interaction_logs_timestamp ON interaction_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_interaction_logs_totem_type_timestamp ON interaction_logs(totem_id, interaction_type, timestamp);
+CREATE INDEX IF NOT EXISTS idx_interaction_logs_timestamp_desc ON interaction_logs(timestamp DESC);
+
+-- Índices para totem_network
+CREATE INDEX IF NOT EXISTS idx_totem_network_totem_id ON totem_network(totem_id);
+CREATE INDEX IF NOT EXISTS idx_totem_network_network_id ON totem_network(network_id);
+
+-- Índices para fx_telemetry
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_totem_id ON fx_telemetry(totem_id);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_effect_id ON fx_telemetry(effect_id);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_created_at ON fx_telemetry(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_status ON fx_telemetry(status);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_site_id ON fx_telemetry(site_id);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_logged_at ON fx_telemetry(logged_at);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_success ON fx_telemetry(success);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_site_logged ON fx_telemetry(site_id, logged_at, success);
+
+-- Índices para fx_totem_sites
+CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_totem_id ON fx_totem_sites(totem_id);
+CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_site_id ON fx_totem_sites(site_id);
+CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_role ON fx_totem_sites(role);
+
+-- Índices para playlist_items
+CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_id ON playlist_items(playlist_id);
+CREATE INDEX IF NOT EXISTS idx_playlist_items_order ON playlist_items(playlist_id, order_index);
+
+-- Garantir que event_logs.logged_at existe antes de criar índices
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'event_logs') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'event_logs' AND column_name = 'logged_at'
+        ) THEN
+            ALTER TABLE public.event_logs ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        END IF;
+    END IF;
+    
+    -- Verificação alternativa sem schema explícito (para tabelas criadas sem schema)
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'event_logs') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'event_logs' AND column_name = 'logged_at'
+        ) THEN
+            BEGIN
+                ALTER TABLE event_logs ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+            EXCEPTION WHEN OTHERS THEN
+                -- Coluna pode já existir ou tabela pode estar em outro schema, ignorar
+                NULL;
+            END;
+        END IF;
+    END IF;
+END $$;
+
+-- Índices para event_logs (usar schema explícito para evitar ambiguidade)
+CREATE INDEX IF NOT EXISTS idx_event_logs_event_type ON public.event_logs(event_type);
+CREATE INDEX IF NOT EXISTS idx_event_logs_totem_id ON public.event_logs(totem_id);
+CREATE INDEX IF NOT EXISTS idx_event_logs_campaign_id ON public.event_logs(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_event_logs_playlist_id ON public.event_logs(playlist_id);
+CREATE INDEX IF NOT EXISTS idx_event_logs_media_id ON public.event_logs(media_id);
+CREATE INDEX IF NOT EXISTS idx_event_logs_timestamp ON public.event_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_event_logs_entity ON public.event_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_event_logs_bi ON public.event_logs(totem_id, campaign_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_event_logs_logged_at ON public.event_logs(logged_at);
+CREATE INDEX IF NOT EXISTS idx_event_logs_totem_type ON public.event_logs(totem_id, event_type, logged_at);
+CREATE INDEX IF NOT EXISTS idx_event_logs_totem_timestamp ON public.event_logs(totem_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_event_logs_timestamp_desc ON public.event_logs(timestamp DESC);
+
+-- Índices para analytics_qr_scans
+CREATE INDEX IF NOT EXISTS idx_analytics_qr_scans_qr_code_id ON analytics_qr_scans(qr_code_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_qr_scans_totem_id ON analytics_qr_scans(totem_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_qr_scans_scan_timestamp ON analytics_qr_scans(scan_timestamp);
+
+-- Índices para remote_screenshots
+CREATE INDEX IF NOT EXISTS idx_remote_screenshots_totem_id ON remote_screenshots(totem_id);
+CREATE INDEX IF NOT EXISTS idx_remote_screenshots_created_at ON remote_screenshots(created_at);
+
+-- Índices para payments
+CREATE INDEX IF NOT EXISTS idx_payments_billing_id ON payments(billing_id);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
+
+-- Índices para ON
+CREATE INDEX IF NOT EXISTS idx_advanced_schedules_next_execution ON advanced_schedules(next_execution);
+CREATE INDEX IF NOT EXISTS idx_export_schedules_next_execution ON export_schedules(next_execution);
+CREATE INDEX IF NOT EXISTS idx_ota_updates_version ON ota_updates(version);
+
+-- Garantir que a tabela notifications existe antes de criar índices
+DO $$
+BEGIN
+    -- Verificar se a tabela existe no schema public
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'notifications') THEN
+        -- Verificar se existe em qualquer schema
+        IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'notifications') THEN
+            CREATE TABLE public.notifications (
+                notification_id SERIAL PRIMARY KEY,
+                user_id INTEGER,
+                client_id INTEGER,
+                notification_type TEXT NOT NULL,
+                title TEXT,
+                message TEXT NOT NULL,
+                metadata JSONB DEFAULT '{}'::jsonb,
+                is_read BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                read_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL,
+                FOREIGN KEY (client_id) REFERENCES public.clients(client_id) ON DELETE SET NULL
+            );
+        END IF;
+    END IF;
+    
+    -- Garantir que a tabela está no schema public (mover se necessário)
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'notifications' AND table_schema != 'public') THEN
+        -- Tabela existe mas não está em public, tentar criar em public (pode falhar se já existir, mas é OK)
+        BEGIN
+            CREATE TABLE IF NOT EXISTS public.notifications (
+                notification_id SERIAL PRIMARY KEY,
+                user_id INTEGER,
+                client_id INTEGER,
+                notification_type TEXT NOT NULL,
+                title TEXT,
+                message TEXT NOT NULL,
+                metadata JSONB DEFAULT '{}'::jsonb,
+                is_read BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                read_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL,
+                FOREIGN KEY (client_id) REFERENCES public.clients(client_id) ON DELETE SET NULL
+            );
+        EXCEPTION WHEN OTHERS THEN
+            -- Tabela já existe, OK
+            NULL;
+        END;
+    END IF;
+END $$;
+
+-- Índices para notifications (garantir que a tabela existe primeiro)
+DO $$
+BEGIN
+    -- Garantir que a tabela notifications existe no schema public
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'notifications') THEN
+        CREATE TABLE IF NOT EXISTS public.notifications (
+            notification_id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            client_id INTEGER,
+            notification_type TEXT NOT NULL,
+            title TEXT,
+            message TEXT NOT NULL,
+            metadata JSONB DEFAULT '{}'::jsonb,
+            is_read BOOLEAN DEFAULT false,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            read_at TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL,
+            FOREIGN KEY (client_id) REFERENCES public.clients(client_id) ON DELETE SET NULL
+        );
+    END IF;
+END $$;
+
+-- Índices para notifications
+CREATE INDEX IF NOT EXISTS idx_notifications_notification_id ON public.notifications(notification_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_client_id ON public.notifications(client_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_read ON public.notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON public.notifications(user_id, is_read, created_at DESC) WHERE user_id IS NOT NULL;
+
+
+-- =============================================
+-- COMENTÁRIOS, VIEWS, FUNCTIONS, ETC.
+-- =============================================
+
+
+-- Users
+
+-- Password Reset Tokens
+
+-- Índices para password_reset_tokens
+
+-- Hosts
+
+-- Locals
+
+-- Totems
+
+-- Smart TVs
+
+-- Campaigns
+
+-- Media
+
+-- Playlists
+
+-- Playlist Items
+
+-- Smart Playlists
+
+
+-- Ensure legacy databases have updated columns
+
+-- Campaign Playlists
+
+-- Campaign Totems
+
+-- QR Codes
+
+-- Criar índice para melhorar performance nas consultas
+
+-- Short Links
+
+-- Remote Commands
+
+-- Billing
+
+
+-- Payments
+
+
+-- Analytics Sessions
+
+-- Analytics Emotions
+
+-- Analytics Gestures
+
+-- Analytics QR Scans
+
+-- AI Models
+
+-- Execution Logs
+
+-- System Logs
+
+-- Webhook Configs
+
+-- Webhook Deliveries
+
+-- Alert Rules
+
+-- Alert Logs
+
+-- ML Tables
+
+
+
+
+
+
+-- RBAC Tables
+
+
+
+
+-- Approval Workflow
+
+-- Audit Log
+
+-- Aggregated Metrics
+
+-- Device Certificates
+
 -- =============================================
 -- INDEXES
 -- =============================================
 
 -- Performance indexes
-CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE INDEX IF NOT EXISTS idx_users_client_id ON users(client_id);
-CREATE INDEX IF NOT EXISTS idx_totems_identifier ON totems(identifier);
-CREATE INDEX IF NOT EXISTS idx_totems_status ON totems(status);
-CREATE INDEX IF NOT EXISTS idx_totems_last_heartbeat ON totems(last_heartbeat);
-CREATE INDEX IF NOT EXISTS idx_campaigns_client_id ON campaigns(client_id);
-CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
-CREATE INDEX IF NOT EXISTS idx_medias_client_id ON medias(client_id);
-CREATE INDEX IF NOT EXISTS idx_medias_status ON medias(status);
-CREATE INDEX IF NOT EXISTS idx_playlists_totem_id ON playlists(totem_id);
-CREATE INDEX IF NOT EXISTS idx_playlists_campaign_id ON playlists(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_id ON playlist_items(playlist_id);
-CREATE INDEX IF NOT EXISTS idx_playlist_items_order ON playlist_items(playlist_id, order_index);
-CREATE INDEX IF NOT EXISTS idx_analytics_sessions_totem_id ON analytics_sessions(totem_id);
-CREATE INDEX IF NOT EXISTS idx_analytics_sessions_start ON analytics_sessions(session_start);
-CREATE INDEX IF NOT EXISTS idx_execution_logs_totem_id ON execution_logs(totem_id);
-CREATE INDEX IF NOT EXISTS idx_execution_logs_executed_at ON execution_logs(executed_at);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);
-CREATE INDEX IF NOT EXISTS idx_aggregated_metrics_date ON aggregated_metrics(date);
-CREATE INDEX IF NOT EXISTS idx_aggregated_metrics_totem_id ON aggregated_metrics(totem_id);
 
 -- =============================================
 -- TRIGGERS (PostgreSQL)
@@ -942,32 +1941,8 @@ END $$;
 -- Sistema de agendamento avançado para campanhas e playlists
 
 -- Tabela de agendamentos avançados
-CREATE TABLE IF NOT EXISTS advanced_schedules (
-    schedule_id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT,
-    schedule_type TEXT NOT NULL, -- 'campaign' | 'playlist' | 'campaign_activation' | 'playlist_generation'
-    target_id INTEGER NOT NULL, -- campaign_id ou playlist_id dependendo do tipo
-    cron_expression TEXT NOT NULL, -- Expressão cron para agendamento
-    schedule_config TEXT, -- JSON com configurações específicas
-    enabled BOOLEAN DEFAULT true,
-    last_execution TIMESTAMP,
-    next_execution TIMESTAMP,
-    execution_count INTEGER DEFAULT 0,
-    success_count INTEGER DEFAULT 0,
-    failure_count INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER,
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-);
 
 -- Índices para otimização
-CREATE INDEX IF NOT EXISTS idx_advanced_schedules_type ON advanced_schedules(schedule_type);
-CREATE INDEX IF NOT EXISTS idx_advanced_schedules_target_id ON advanced_schedules(target_id);
-CREATE INDEX IF NOT EXISTS idx_advanced_schedules_enabled ON advanced_schedules(enabled);
-CREATE INDEX IF NOT EXISTS idx_advanced_schedules_next_execution ON advanced_schedules(next_execution);
-CREATE INDEX IF NOT EXISTS idx_advanced_schedules_created_by ON advanced_schedules(created_by);
 
 -- Trigger para atualizar updated_at automaticamente
 CREATE OR REPLACE FUNCTION update_advanced_schedules_timestamp()
@@ -987,23 +1962,8 @@ BEGIN
 END $$;
 
 -- Tabela de histórico de execuções de agendamentos
-CREATE TABLE IF NOT EXISTS schedule_executions (
-    execution_id SERIAL PRIMARY KEY,
-    schedule_id INTEGER NOT NULL,
-    job_id TEXT, -- ID do job no Bull
-    status TEXT NOT NULL, -- 'running' | 'completed' | 'failed' | 'cancelled'
-    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP,
-    execution_log TEXT,
-    error_message TEXT,
-    metadata TEXT, -- JSON com dados adicionais
-    FOREIGN KEY (schedule_id) REFERENCES advanced_schedules(schedule_id) ON DELETE CASCADE
-);
 
 -- Índices para histórico
-CREATE INDEX IF NOT EXISTS idx_schedule_executions_schedule_id ON schedule_executions(schedule_id);
-CREATE INDEX IF NOT EXISTS idx_schedule_executions_status ON schedule_executions(status);
-CREATE INDEX IF NOT EXISTS idx_schedule_executions_started_at ON schedule_executions(started_at);
 
 
 -- =============================================
@@ -1017,69 +1977,12 @@ CREATE INDEX IF NOT EXISTS idx_schedule_executions_started_at ON schedule_execut
 -- Usando Bull + Redis para gerenciamento de filas
 
 -- Export Queries
-CREATE TABLE IF NOT EXISTS export_queries (
-    query_id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    description TEXT,
-    provider VARCHAR(50) NOT NULL CHECK (provider IN ('PostgreSQL', 'Redis', 'Grafana', 'Prometheus')),
-    sql_query TEXT NOT NULL,
-    database_config JSONB NOT NULL,
-    export_config JSONB NOT NULL,
-    enabled BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    
-    CONSTRAINT export_queries_name_unique UNIQUE (name)
-);
 
 -- Export Schedules (Agendamentos)
-CREATE TABLE IF NOT EXISTS export_schedules (
-    schedule_id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    description TEXT,
-    query_id INTEGER NOT NULL REFERENCES export_queries(query_id) ON DELETE CASCADE,
-    cron_expression VARCHAR(100) NOT NULL,
-    enabled BOOLEAN DEFAULT true,
-    last_execution TIMESTAMP,
-    next_execution TIMESTAMP,
-    execution_count INTEGER DEFAULT 0,
-    success_count INTEGER DEFAULT 0,
-    failure_count INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    
-    CONSTRAINT export_schedules_name_unique UNIQUE (name)
-);
 
 -- Export Executions (Histórico de execuções)
-CREATE TABLE IF NOT EXISTS export_executions (
-    execution_id SERIAL PRIMARY KEY,
-    schedule_id INTEGER REFERENCES export_schedules(schedule_id) ON DELETE SET NULL,
-    query_id INTEGER NOT NULL REFERENCES export_queries(query_id) ON DELETE CASCADE,
-    job_id VARCHAR(255),
-    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
-    started_at TIMESTAMP,
-    completed_at TIMESTAMP,
-    records_exported INTEGER DEFAULT 0,
-    file_path TEXT,
-    file_size BIGINT,
-    error_message TEXT,
-    execution_log TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
 -- Índices para performance
-CREATE INDEX IF NOT EXISTS idx_export_queries_provider ON export_queries(provider);
-CREATE INDEX IF NOT EXISTS idx_export_queries_enabled ON export_queries(enabled);
-CREATE INDEX IF NOT EXISTS idx_export_schedules_query_id ON export_schedules(query_id);
-CREATE INDEX IF NOT EXISTS idx_export_schedules_enabled ON export_schedules(enabled);
-CREATE INDEX IF NOT EXISTS idx_export_schedules_next_execution ON export_schedules(next_execution);
-CREATE INDEX IF NOT EXISTS idx_export_executions_schedule_id ON export_executions(schedule_id);
-CREATE INDEX IF NOT EXISTS idx_export_executions_query_id ON export_executions(query_id);
-CREATE INDEX IF NOT EXISTS idx_export_executions_status ON export_executions(status);
-CREATE INDEX IF NOT EXISTS idx_export_executions_created_at ON export_executions(created_at);
 
 -- Triggers para updated_at
 CREATE OR REPLACE FUNCTION update_export_queries_timestamp()
@@ -1142,57 +2045,12 @@ COMMENT ON COLUMN export_executions.status IS 'Status: pending, running, complet
 -- Tabelas para gerenciamento de relatórios
 
 -- Reports Table
-CREATE TABLE IF NOT EXISTS reports (
-    report_id SERIAL PRIMARY KEY,
-    type TEXT NOT NULL, -- campaign, totem, client, media, billing, analytics, custom
-    title TEXT NOT NULL,
-    description TEXT,
-    status TEXT DEFAULT 'pending', -- pending, generating, completed, failed
-    format TEXT DEFAULT 'pdf', -- pdf, excel, csv, json
-    file_path TEXT,
-    file_size INTEGER,
-    download_url TEXT,
-    download_count INTEGER DEFAULT 0,
-    filters TEXT, -- JSON
-    template TEXT,
-    custom_fields TEXT, -- JSON
-    ai_analysis BOOLEAN DEFAULT false,
-    metadata TEXT, -- JSON
-    generated_at TIMESTAMP,
-    expires_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER,
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-);
 
 -- Report Templates Table
-CREATE TABLE IF NOT EXISTS report_templates (
-    template_id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT,
-    type TEXT NOT NULL, -- campaign, totem, client, media, billing, analytics, custom
-    template_config TEXT NOT NULL, -- JSON com configuração do template
-    is_default BOOLEAN DEFAULT false,
-    is_public BOOLEAN DEFAULT false,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER,
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-);
 
 -- Índices para reports
-CREATE INDEX IF NOT EXISTS idx_reports_type ON reports(type);
-CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
-CREATE INDEX IF NOT EXISTS idx_reports_created_by ON reports(created_by);
-CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at);
-CREATE INDEX IF NOT EXISTS idx_reports_generated_at ON reports(generated_at);
 
 -- Índices para report_templates
-CREATE INDEX IF NOT EXISTS idx_report_templates_type ON report_templates(type);
-CREATE INDEX IF NOT EXISTS idx_report_templates_created_by ON report_templates(created_by);
-CREATE INDEX IF NOT EXISTS idx_report_templates_is_default ON report_templates(is_default);
-CREATE INDEX IF NOT EXISTS idx_report_templates_is_public ON report_templates(is_public);
 
 
 -- =============================================
@@ -1996,25 +2854,8 @@ COMMENT ON SCHEMA public IS 'Smart Signage v2.1 - Schema com views para acesso d
 -- =============================================
 
 -- Criar tabela system_settings se não existir
-CREATE TABLE IF NOT EXISTS system_settings (
-    setting_id SERIAL PRIMARY KEY,
-    setting_key VARCHAR(255) UNIQUE NOT NULL,
-    setting_value TEXT NOT NULL,
-    setting_type VARCHAR(50) NOT NULL DEFAULT 'string', -- string, number, boolean, json, array
-    category VARCHAR(100) DEFAULT 'system',
-    description TEXT,
-    is_public BOOLEAN DEFAULT false,
-    is_editable BOOLEAN DEFAULT true,
-    validation TEXT, -- regex ou validação
-    options JSONB, -- opções disponíveis (para selects)
-    default_value TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
 -- Criar índice na chave para busca rápida
-CREATE INDEX IF NOT EXISTS idx_system_settings_key ON system_settings(setting_key);
-CREATE INDEX IF NOT EXISTS idx_system_settings_category ON system_settings(category);
 
 -- Trigger para atualizar updated_at
 CREATE OR REPLACE FUNCTION update_system_settings_timestamp()
@@ -2279,131 +3120,10 @@ VALUES
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- =============================================
--- MIGRATIONS - QR Codes Table Update
+-- QR CODES TABLE
 -- =============================================
--- Migração para atualizar tabela qr_codes existente com novos campos
--- Esta migração é idempotente e pode ser executada múltiplas vezes
-
-DO $$
-BEGIN
-    -- Verificar se a tabela qr_codes existe
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'qr_codes') THEN
-        -- Renomear coluna id para qr_code_id se ainda não foi renomeada
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'id') THEN
-            ALTER TABLE qr_codes RENAME COLUMN id TO qr_code_id;
-        END IF;
-
-        -- Adicionar coluna client_id se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'client_id') THEN
-            ALTER TABLE qr_codes ADD COLUMN client_id INTEGER;
-            ALTER TABLE qr_codes ADD CONSTRAINT fk_qr_codes_client FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE SET NULL;
-        END IF;
-
-        -- Adicionar coluna totem_id se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'totem_id') THEN
-            ALTER TABLE qr_codes ADD COLUMN totem_id INTEGER;
-            ALTER TABLE qr_codes ADD CONSTRAINT fk_qr_codes_totem FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL;
-        END IF;
-
-        -- Tornar campaign_id opcional (remover NOT NULL se existir)
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'campaign_id' AND is_nullable = 'NO') THEN
-            ALTER TABLE qr_codes ALTER COLUMN campaign_id DROP NOT NULL;
-        END IF;
-
-        -- Adicionar coluna title se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'title') THEN
-            ALTER TABLE qr_codes ADD COLUMN title TEXT;
-            -- Se já existem registros, definir um título padrão baseado no content
-            UPDATE qr_codes SET title = COALESCE(SUBSTRING(content, 1, 100), 'QR Code') WHERE title IS NULL;
-            -- Agora tornar obrigatório
-            ALTER TABLE qr_codes ALTER COLUMN title SET NOT NULL;
-        END IF;
-
-        -- Adicionar coluna description se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'description') THEN
-            ALTER TABLE qr_codes ADD COLUMN description TEXT;
-        END IF;
-
-        -- Adicionar coluna size se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'size') THEN
-            ALTER TABLE qr_codes ADD COLUMN size INTEGER DEFAULT 200;
-        END IF;
-
-        -- Adicionar coluna color se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'color') THEN
-            ALTER TABLE qr_codes ADD COLUMN color TEXT DEFAULT '#000000';
-        END IF;
-
-        -- Adicionar coluna background_color se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'background_color') THEN
-            ALTER TABLE qr_codes ADD COLUMN background_color TEXT DEFAULT '#FFFFFF';
-        END IF;
-
-        -- Adicionar coluna error_correction_level se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'error_correction_level') THEN
-            ALTER TABLE qr_codes ADD COLUMN error_correction_level TEXT DEFAULT 'M';
-        END IF;
-
-        -- Adicionar coluna margin se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'margin') THEN
-            ALTER TABLE qr_codes ADD COLUMN margin INTEGER DEFAULT 4;
-        END IF;
-
-        -- Adicionar coluna redirect_url se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'redirect_url') THEN
-            ALTER TABLE qr_codes ADD COLUMN redirect_url TEXT;
-        END IF;
-
-        -- Adicionar coluna tracking_enabled se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'tracking_enabled') THEN
-            ALTER TABLE qr_codes ADD COLUMN tracking_enabled BOOLEAN DEFAULT true;
-        END IF;
-
-        -- Adicionar coluna last_scanned_at se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'last_scanned_at') THEN
-            ALTER TABLE qr_codes ADD COLUMN last_scanned_at TIMESTAMP;
-        END IF;
-
-        -- Adicionar coluna updated_at se não existir
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'qr_codes' AND column_name = 'updated_at') THEN
-            ALTER TABLE qr_codes ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-        END IF;
-
-        -- Criar índices se não existirem
-        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_client_id') THEN
-            CREATE INDEX idx_qr_codes_client_id ON qr_codes(client_id);
-        END IF;
-
-        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_totem_id') THEN
-            CREATE INDEX idx_qr_codes_totem_id ON qr_codes(totem_id);
-        END IF;
-
-        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_campaign_id') THEN
-            CREATE INDEX idx_qr_codes_campaign_id ON qr_codes(campaign_id);
-        END IF;
-
-        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_is_active') THEN
-            CREATE INDEX idx_qr_codes_is_active ON qr_codes(is_active);
-        END IF;
-
-        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'qr_codes' AND indexname = 'idx_qr_codes_expires_at') THEN
-            CREATE INDEX idx_qr_codes_expires_at ON qr_codes(expires_at);
-        END IF;
-
-        -- Corrigir foreign key na tabela analytics_qr_scans se existir e referenciar coluna antiga
-        -- Nota: A foreign key já está correta no CREATE TABLE, mas se a tabela existir com constraint antiga, precisa ser corrigida
-        -- Usar abordagem simples: remover constraints antigas e recriar com referência correta
-        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'analytics_qr_scans') THEN
-            -- Remover constraint antiga se existir (usando nome padrão ou buscando dinamicamente)
-            ALTER TABLE analytics_qr_scans DROP CONSTRAINT IF EXISTS analytics_qr_scans_qr_code_id_fkey;
-            ALTER TABLE analytics_qr_scans DROP CONSTRAINT IF EXISTS fk_analytics_qr_scans_qr_code;
-            -- Recriar com referência correta
-            ALTER TABLE analytics_qr_scans 
-            ADD CONSTRAINT fk_analytics_qr_scans_qr_code 
-            FOREIGN KEY (qr_code_id) REFERENCES qr_codes(qr_code_id) ON DELETE CASCADE;
-        END IF;
-    END IF;
-END $$;
+-- Tabela qr_codes já está definida corretamente acima (linha ~748)
+-- Migração removida - não há legados, tabela criada com estrutura completa
 
 -- =============================================
 -- EVENT LOGS TABLE (v2.1)
@@ -2412,38 +3132,464 @@ END $$;
 -- (playback de vídeo, exibição de anúncios, BI, campanhas)
 -- Estratégia: Arquivos locais para logs operacionais, banco para eventos importantes
 
-CREATE TABLE IF NOT EXISTS event_logs (
-    id SERIAL PRIMARY KEY,
-    event_type TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
-    entity_id INTEGER,
-    totem_id INTEGER,
-    campaign_id INTEGER,
-    playlist_id INTEGER,
-    media_id INTEGER,
-    metadata JSONB,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL,
-    FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE SET NULL,
-    FOREIGN KEY (playlist_id) REFERENCES playlists(playlist_id) ON DELETE SET NULL,
-    FOREIGN KEY (media_id) REFERENCES medias(media_id) ON DELETE SET NULL
-);
 
 -- Índices para performance
-CREATE INDEX IF NOT EXISTS idx_event_logs_event_type ON event_logs(event_type);
-CREATE INDEX IF NOT EXISTS idx_event_logs_totem_id ON event_logs(totem_id);
-CREATE INDEX IF NOT EXISTS idx_event_logs_campaign_id ON event_logs(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_event_logs_playlist_id ON event_logs(playlist_id);
-CREATE INDEX IF NOT EXISTS idx_event_logs_media_id ON event_logs(media_id);
-CREATE INDEX IF NOT EXISTS idx_event_logs_timestamp ON event_logs(timestamp);
-CREATE INDEX IF NOT EXISTS idx_event_logs_entity ON event_logs(entity_type, entity_id);
 
 -- Índice composto para queries comuns de BI
-CREATE INDEX IF NOT EXISTS idx_event_logs_bi ON event_logs(totem_id, campaign_id, timestamp);
 
 COMMENT ON TABLE event_logs IS 'Registra eventos importantes do sistema para BI, relatórios e auditoria';
 COMMENT ON COLUMN event_logs.event_type IS 'Tipo do evento (video_playback_start, ad_display_start, campaign_start, etc)';
 COMMENT ON COLUMN event_logs.entity_type IS 'Tipo da entidade relacionada (media, campaign, totem, playlist, etc)';
 COMMENT ON COLUMN event_logs.metadata IS 'Dados adicionais do evento em formato JSON';
+
+-- =============================================
+-- 2FA/MFA SUPPORT (v2.1)
+-- =============================================
+-- Migration: 2FA/MFA Support
+-- Adiciona suporte para autenticação de dois fatores (TOTP)
+
+-- Tabela para armazenar configurações de 2FA dos usuários
+
+-- Tabela para rastrear tentativas de verificação 2FA
+
+-- Índices para performance
+
+-- Comentários
+COMMENT ON TABLE user_two_factor IS 'Configurações de autenticação de dois fatores (TOTP) por usuário';
+COMMENT ON TABLE two_factor_attempts IS 'Histórico de tentativas de verificação 2FA para auditoria e segurança';
+COMMENT ON COLUMN user_two_factor.secret IS 'Secret TOTP criptografado usando AES-256';
+COMMENT ON COLUMN user_two_factor.backup_codes IS 'Códigos de backup criptografados (hash SHA-256)';
+
+-- =============================================
+-- PLANS AND SUBSCRIPTIONS (v2.1)
+-- =============================================
+-- Migration: Add Plans and Subscriptions Tables
+-- Adiciona tabelas para sistema de planos e assinaturas com integração Stripe
+
+-- Plans Table
+
+
+-- Subscriptions Table
+
+
+-- Stripe Customers Table (para armazenar IDs do Stripe)
+
+
+-- Colunas stripe_invoice_id, stripe_payment_intent_id e subscription_id
+-- já foram adicionadas diretamente na definição da tabela billing
+
+-- Inserir planos padrão
+INSERT INTO plans (name, slug, description, price_monthly, price_yearly, billing_interval, features, limits, is_active, is_popular, sort_order)
+VALUES 
+    ('Básico', 'basic', 'Plano básico para pequenos negócios', 99.00, 990.00, 'month', 
+     '{"totems": 5, "campaigns": 10, "storage_gb": 10, "support": "email"}',
+     '{"max_totems": 5, "max_campaigns": 10, "storage_gb": 10, "support_level": "email"}',
+     true, false, 1),
+    ('Profissional', 'professional', 'Plano profissional para empresas', 299.00, 2990.00, 'month',
+     '{"totems": 20, "campaigns": 50, "storage_gb": 100, "support": "priority", "analytics": true, "api_access": true}',
+     '{"max_totems": 20, "max_campaigns": 50, "storage_gb": 100, "support_level": "priority", "analytics": true, "api_access": true}',
+     true, true, 2),
+    ('Enterprise', 'enterprise', 'Plano enterprise com recursos ilimitados', 999.00, 9990.00, 'month',
+     '{"totems": -1, "campaigns": -1, "storage_gb": 1000, "support": "dedicated", "analytics": true, "api_access": true, "custom_integrations": true}',
+     '{"max_totems": -1, "max_campaigns": -1, "storage_gb": 1000, "support_level": "dedicated", "analytics": true, "api_access": true, "custom_integrations": true}',
+     true, false, 3)
+ON CONFLICT (slug) DO NOTHING;
+
+-- =============================================
+-- REMOTE COMMANDS ENHANCEMENTS (v2.1)
+-- =============================================
+-- =============================================
+-- REMOTE COMMANDS TABLE
+-- =============================================
+-- Tabela remote_commands já está definida corretamente acima (linha ~794)
+-- Colunas sent_at, completed_at, error_message e updated_at incluídas na definição
+-- Migração removida - não há legados, tabela criada com estrutura completa
+
+-- Tabela para armazenar screenshots capturados remotamente
+
+-- Índices adicionais para performance
+
+-- Comentários
+COMMENT ON TABLE remote_commands IS 'Comandos remotos enviados aos totens para controle e manutenção';
+COMMENT ON TABLE remote_screenshots IS 'Screenshots capturados remotamente dos totens';
+COMMENT ON COLUMN remote_commands.command_type IS 'Tipo de comando: restart, screenshot, update, config, custom';
+COMMENT ON COLUMN remote_commands.status IS 'Status: pending, sent, executing, completed, failed, timeout';
+
+-- =============================================
+-- OTA UPDATES SYSTEM (v2.1)
+-- =============================================
+-- Migration: OTA Updates System
+-- Adiciona suporte para atualizações Over-The-Air dos players
+
+-- Tabela para armazenar atualizações OTA
+
+-- Tabela para rastrear status de atualização de cada totem
+
+-- Índices para performance
+
+-- Comentários
+COMMENT ON TABLE ota_updates IS 'Atualizações Over-The-Air disponíveis para players';
+COMMENT ON TABLE totem_update_status IS 'Status de atualização de cada totem';
+COMMENT ON COLUMN ota_updates.rollout_percentage IS 'Porcentagem de rollout gradual (0-100)';
+COMMENT ON COLUMN ota_updates.status IS 'Status: draft, testing, active, paused, completed, cancelled';
+
+-- =============================================
+-- INTERACTIVE FEATURES (v2.1)
+-- =============================================
+-- Migration: Interactive Features
+-- Adiciona suporte para tags, reconhecimento facial e rede visual
+
+-- Tabela para armazenar tags e suas associações
+
+-- Índice GIN para busca eficiente em metadata
+
+-- Tabela para armazenar pessoas reconhecidas (opcional)
+
+-- Tabela para histórico de interações
+
+-- Tabela para rede visual (totens interconectados)
+
+-- =============================================
+-- SMARTDISPLAYFX PLUS - TABELAS FX
+-- =============================================
+
+-- Tabela para armazenar efeitos FX disponíveis
+
+-- Tabela para regras inteligentes de acionamento
+
+-- Tabela para timelines FX globais
+
+-- Tabela para telemetria de execução de efeitos
+
+-- Tabela para configurações de sites/rede estrela
+
+-- Relação totens com sites FX
+
+-- Índices para performance
+
+-- Índices para tabelas FX
+
+-- Comentários
+COMMENT ON TABLE tags IS 'Tags (RFID/NFC/QR) e suas associações com conteúdo';
+COMMENT ON TABLE recognized_persons IS 'Pessoas reconhecidas para personalização';
+COMMENT ON TABLE interaction_logs IS 'Histórico de interações dos totens';
+COMMENT ON TABLE totem_network IS 'Rede de totens interconectados';
+COMMENT ON TABLE fx_effects IS 'Catálogo de efeitos FX disponíveis no sistema SmartDisplayFX Plus';
+COMMENT ON TABLE fx_rules IS 'Regras inteligentes para acionamento de efeitos FX';
+COMMENT ON TABLE fx_timelines IS 'Timelines globais de efeitos FX para sites';
+COMMENT ON TABLE fx_telemetry IS 'Telemetria de execução de efeitos FX nos totens';
+COMMENT ON TABLE fx_sites IS 'Configuração de sites/rede estrela para SmartDisplayFX Plus';
+COMMENT ON TABLE fx_totem_sites IS 'Relação entre totens e sites FX';
+COMMENT ON TABLE webhooks IS 'Webhooks configuráveis para notificações de eventos';
+COMMENT ON COLUMN webhooks.channels IS 'Canais suportados: alerts, events, telemetry, etc';
+COMMENT ON COLUMN webhooks.events IS 'Eventos específicos a serem enviados';
+COMMENT ON TABLE dashboard_layouts IS 'Layouts customizáveis de dashboard por usuário';
+COMMENT ON COLUMN dashboard_layouts.layout_data IS 'JSON com configuração de widgets, posições e tamanhos';
+COMMENT ON TABLE backups IS 'Registro de backups automáticos do sistema';
+COMMENT ON COLUMN backups.backup_type IS 'Tipo: full, database, uploads, config';
+COMMENT ON COLUMN backups.status IS 'Status: completed, failed, in_progress';
+COMMENT ON TABLE notifications IS 'Notificações em tempo real para usuários';
+COMMENT ON COLUMN notifications.notification_type IS 'Tipo: info, success, warning, error';
+
+-- =============================================
+-- ÍNDICES ADICIONAIS PARA PERFORMANCE (v2.1 + v3.1)
+-- =============================================
+-- Índices adicionais para otimizar queries comuns
+
+-- Índices para tabela users (v3.1)
+
+-- Índices para tabela totems (v3.1)
+
+-- Índices para tabela medias (v3.1)
+
+-- Índices para tabela playlists (v3.1)
+
+-- Índices para tabela campaigns (v3.1)
+
+-- Índices para execution_logs (analytics) (v3.1)
+
+-- Índices para fx_telemetry (v3.1)
+
+-- Índices para event_logs (v3.1)
+
+-- Índices compostos para queries frequentes (v3.1)
+
+-- Índices compostos para queries frequentes
+
+-- Índices para campos frequentemente usados em WHERE
+
+-- Índices para ordenação e paginação
+
+-- =============================================
+-- ROLES E PERMISSÕES - HIERARQUIA COMPLETA
+-- =============================================
+
+-- Inserir Roles (Hierarquia: admin_sql > operator > admin > gerente_marketing > editoracao > visualizador > client)
+INSERT INTO roles (name, description, is_active) VALUES
+  ('admin_sql', 'Administrador SQL - Acesso total ao sistema e dados gerais da base de dados', true),
+  ('operator', 'Operador do Sistema - Acesso a funcionalidades administrativas e manutenção, SEM dados de clientes', true),
+  ('admin', 'Administrador do Cliente - Administra parâmetros administrativos e configurações do próprio cliente', true),
+  ('gerente_marketing', 'Gerente de Marketing - Gerencia/cria/analisa campanhas, mídias, playlists. Total acesso à parte de marketing', true),
+  ('editoracao', 'Editoração - Acesso a suprir informações relevantes e mídias. Upload e edição de conteúdo', true),
+  ('visualizador', 'Visualizador - Acesso a dados e relatórios, apenas leitura', true),
+  ('client', 'Cliente Final (Player) - Acesso apenas via API do player', true)
+ON CONFLICT (name) DO UPDATE SET
+  description = EXCLUDED.description,
+  is_active = EXCLUDED.is_active;
+
+-- Inserir Permissões
+INSERT INTO permissions (name, resource, action, description) VALUES
+  -- Sistema
+  ('system.read', 'system', 'read', 'Ler configurações do sistema'),
+  ('system.update', 'system', 'update', 'Atualizar configurações do sistema'),
+  ('system.maintenance', 'system', 'maintenance', 'Manutenção do sistema'),
+  
+  -- Banco de Dados
+  ('database.read', 'database', 'read', 'Ler dados gerais da base de dados'),
+  ('database.write', 'database', 'write', 'Escrever na base de dados'),
+  ('database.backup', 'database', 'backup', 'Criar backups'),
+  ('database.restore', 'database', 'restore', 'Restaurar backups'),
+  ('database.migrate', 'database', 'migrate', 'Executar migrações'),
+  
+  -- Usuários
+  ('users.read', 'users', 'read', 'Ler usuários'),
+  ('users.create', 'users', 'create', 'Criar usuários'),
+  ('users.update', 'users', 'update', 'Atualizar usuários'),
+  ('users.delete', 'users', 'delete', 'Deletar usuários'),
+  
+  -- Roles
+  ('roles.read', 'roles', 'read', 'Ler roles'),
+  ('roles.create', 'roles', 'create', 'Criar roles'),
+  ('roles.update', 'roles', 'update', 'Atualizar roles'),
+  ('roles.delete', 'roles', 'delete', 'Deletar roles'),
+  
+  -- Permissões
+  ('permissions.read', 'permissions', 'read', 'Ler permissões'),
+  ('permissions.create', 'permissions', 'create', 'Criar permissões'),
+  ('permissions.update', 'permissions', 'update', 'Atualizar permissões'),
+  ('permissions.delete', 'permissions', 'delete', 'Deletar permissões'),
+  
+  -- Clientes
+  ('clients.read', 'clients', 'read', 'Ler clientes'),
+  ('clients.create', 'clients', 'create', 'Criar clientes'),
+  ('clients.update', 'clients', 'update', 'Atualizar clientes'),
+  ('clients.delete', 'clients', 'delete', 'Deletar clientes'),
+  
+  -- Campanhas
+  ('campaigns.read', 'campaigns', 'read', 'Ler campanhas'),
+  ('campaigns.create', 'campaigns', 'create', 'Criar campanhas'),
+  ('campaigns.update', 'campaigns', 'update', 'Atualizar campanhas'),
+  ('campaigns.delete', 'campaigns', 'delete', 'Deletar campanhas'),
+  
+  -- Mídia
+  ('medias.read', 'medias', 'read', 'Ler mídia'),
+  ('medias.create', 'medias', 'create', 'Criar mídia'),
+  ('medias.update', 'medias', 'update', 'Atualizar mídia'),
+  ('medias.delete', 'medias', 'delete', 'Deletar mídia'),
+  ('medias.download', 'medias', 'download', 'Download de mídia'),
+  
+  -- Playlists
+  ('playlists.read', 'playlists', 'read', 'Ler playlists'),
+  ('playlists.create', 'playlists', 'create', 'Criar playlists'),
+  ('playlists.update', 'playlists', 'update', 'Atualizar playlists'),
+  ('playlists.delete', 'playlists', 'delete', 'Deletar playlists'),
+  ('playlists.download', 'playlists', 'download', 'Download de playlists'),
+  
+  -- Totens
+  ('totems.read', 'totems', 'read', 'Ler totens'),
+  ('totems.create', 'totems', 'create', 'Criar totens'),
+  ('totems.update', 'totems', 'update', 'Atualizar totens'),
+  ('totems.delete', 'totems', 'delete', 'Deletar totens'),
+  ('totems.restart', 'totems', 'restart', 'Reiniciar totem'),
+  ('totems.screenshot', 'totems', 'screenshot', 'Capturar screenshot'),
+  ('totems.logs', 'totems', 'logs', 'Acessar logs do totem'),
+  
+  -- Relatórios
+  ('reports.read', 'reports', 'read', 'Ler relatórios'),
+  ('reports.create', 'reports', 'create', 'Criar relatórios'),
+  ('reports.update', 'reports', 'update', 'Atualizar relatórios'),
+  ('reports.delete', 'reports', 'delete', 'Deletar relatórios'),
+  ('reports.export', 'reports', 'export', 'Exportar relatórios'),
+  
+  -- Analytics
+  ('analytics.read', 'analytics', 'read', 'Ler analytics'),
+  ('analytics.export', 'analytics', 'export', 'Exportar analytics'),
+  
+  -- Billing
+  ('billing.read', 'billing', 'read', 'Ler dados de billing'),
+  ('billing.create', 'billing', 'create', 'Criar dados de billing'),
+  ('billing.update', 'billing', 'update', 'Atualizar dados de billing'),
+  ('billing.delete', 'billing', 'delete', 'Deletar dados de billing'),
+  
+  -- Configurações
+  ('settings.read', 'settings', 'read', 'Ler configurações'),
+  ('settings.update', 'settings', 'update', 'Atualizar configurações'),
+  
+  -- Logs
+  ('logs.read', 'logs', 'read', 'Ler logs'),
+  ('logs.export', 'logs', 'export', 'Exportar logs'),
+  
+  -- OTA Updates
+  ('ota.read', 'ota', 'read', 'Ler atualizações OTA'),
+  ('ota.create', 'ota', 'create', 'Criar atualizações OTA'),
+  ('ota.update', 'ota', 'update', 'Atualizar atualizações OTA'),
+  ('ota.delete', 'ota', 'delete', 'Deletar atualizações OTA'),
+  
+  -- SmartDisplayFX
+  ('smartdisplayfx.read', 'smartdisplayfx', 'read', 'Ler SmartDisplayFX'),
+  ('smartdisplayfx.update', 'smartdisplayfx', 'update', 'Atualizar SmartDisplayFX'),
+  ('smartdisplayfx.config', 'smartdisplayfx', 'config', 'Configurar SmartDisplayFX'),
+  ('smartdisplayfx.logs', 'smartdisplayfx', 'logs', 'Acessar logs do SmartDisplayFX'),
+  
+  -- Auditoria
+  ('audit.read', 'audit', 'read', 'Ler logs de auditoria'),
+  ('audit.export', 'audit', 'export', 'Exportar logs de auditoria'),
+  
+  -- Backup
+  ('backup.read', 'backup', 'read', 'Ler backups'),
+  ('backup.create', 'backup', 'create', 'Criar backups'),
+  ('backup.restore', 'backup', 'restore', 'Restaurar backups'),
+  
+  -- Monitoramento
+  ('monitoring.read', 'monitoring', 'read', 'Ler monitoramento'),
+  ('monitoring.update', 'monitoring', 'update', 'Atualizar monitoramento'),
+  
+  -- Player
+  ('player.authenticate', 'player', 'authenticate', 'Autenticar player'),
+  ('player.heartbeat', 'player', 'heartbeat', 'Enviar heartbeat'),
+  ('player.playlist.download', 'player', 'playlist.download', 'Download de playlist'),
+  ('player.media.download', 'player', 'media.download', 'Download de mídia'),
+  ('player.logs.upload', 'player', 'logs.upload', 'Upload de logs'),
+  ('player.screenshot.upload', 'player', 'screenshot.upload', 'Upload de screenshot')
+ON CONFLICT (name) DO NOTHING;
+
+-- Atribuir Permissões às Roles
+
+-- ADMIN_SQL: Todas as permissões
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'admin_sql'
+ON CONFLICT DO NOTHING;
+
+-- OPERATOR: Apenas permissões do sistema (SEM dados de clientes)
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'operator'
+  AND (
+    p.resource IN ('system', 'settings', 'logs', 'ota', 'smartdisplayfx', 'monitoring', 'backup')
+    OR (p.resource = 'totems' AND p.action IN ('read', 'update', 'restart', 'screenshot', 'logs'))
+    OR (p.resource = 'smartdisplayfx' AND p.action IN ('config', 'logs'))
+  )
+ON CONFLICT DO NOTHING;
+
+-- ADMIN: Permissões do cliente (próprio cliente) - Administra parâmetros administrativos e configurações
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'admin'
+  AND p.resource IN ('clients', 'users', 'campaigns', 'medias', 'playlists', 'totems', 'reports', 'analytics', 'billing', 'smartdisplayfx', 'audit', 'settings', 'qr-codes', 'tags', 'ai')
+  AND p.resource NOT IN ('system', 'database', 'roles', 'permissions')
+ON CONFLICT DO NOTHING;
+
+-- GERENTE_MARKETING: Total acesso à parte de marketing (campanhas, mídias, playlists)
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'gerente_marketing'
+  AND (
+    -- Marketing completo
+    (p.resource IN ('campaigns', 'medias', 'playlists', 'smart-playlist', 'qr-codes', 'tags', 'smartdisplayfx', 'ai') AND p.action IN ('read', 'create', 'update', 'delete'))
+    OR
+    -- Analytics e relatórios (leitura e criação)
+    (p.resource IN ('analytics', 'reports') AND p.action IN ('read', 'create'))
+    OR
+    -- Totens (apenas leitura)
+    (p.resource = 'totems' AND p.action = 'read')
+  )
+  AND p.resource NOT IN ('users', 'billing', 'clients', 'settings')
+ON CONFLICT DO NOTHING;
+
+-- EDITORACAO: Acesso a suprir informações relevantes e mídias
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'editoracao'
+  AND (
+    -- Mídias (total acesso)
+    (p.resource = 'medias' AND p.action IN ('read', 'create', 'update', 'delete'))
+    OR
+    -- Tags (leitura e criação)
+    (p.resource = 'tags' AND p.action IN ('read', 'create'))
+    OR
+    -- Campanhas e playlists (apenas leitura para contexto)
+    (p.resource IN ('campaigns', 'playlists') AND p.action = 'read')
+  )
+ON CONFLICT DO NOTHING;
+
+-- VISUALIZADOR: Apenas leitura de dados e relatórios
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'visualizador'
+  AND p.action = 'read'
+  AND p.resource IN ('campaigns', 'medias', 'playlists', 'totems', 'reports', 'analytics', 'smartdisplayfx', 'dashboard')
+ON CONFLICT DO NOTHING;
+
+-- CLIENT: Apenas permissões do player
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'client'
+  AND p.resource = 'player'
+ON CONFLICT DO NOTHING;
+
+-- =============================================
+-- SMARTDISPLAYFX PLUS - DADOS INICIAIS
+-- =============================================
+
+-- Dados iniciais: Efeitos padrão
+INSERT INTO fx_effects (name, effect_type, description, default_params, is_active) VALUES
+  ('Neon Warp Flow', 'neon_warp', 'Efeito de propagandas fluindo entre totens com rastro neon', 
+   '{"color_a": "#00ffd5", "color_b": "#6b00ff", "intensity": 0.8, "trail_particles": 32, "duration_ms": 1600}'::jsonb, true),
+  ('Ripple Sync Flow', 'ripple_sync', 'Efeito de ondas sincronizadas entre totens', 
+   '{"wave_count": 3, "wave_speed": 1.0, "color": "#00ffff", "duration_ms": 2000}'::jsonb, true),
+  ('Liquid Flow', 'liquid_flow', 'Efeito de fluxo líquido entre telas', 
+   '{"viscosity": 0.5, "color": "#ff00ff", "duration_ms": 1800}'::jsonb, true),
+  ('Holographic Swipe', 'holographic_swipe', 'Efeito de deslize holográfico', 
+   '{"glow_intensity": 0.9, "color": "#ffffff", "duration_ms": 1500}'::jsonb, true),
+  ('Matrix Data Flow', 'matrix_data_flow', 'Efeito estilo Matrix com dados fluindo', 
+   '{"characters": "01", "speed": 1.0, "color": "#00ff00", "duration_ms": 2200}'::jsonb, true),
+  ('Particle Burst', 'particle_burst', 'Efeito de explosão de partículas', 
+   '{"particle_count": 50, "color": "#ffff00", "duration_ms": 1200}'::jsonb, true)
+ON CONFLICT (name) DO UPDATE SET
+  effect_type = EXCLUDED.effect_type,
+  description = EXCLUDED.description,
+  default_params = EXCLUDED.default_params,
+  updated_at = CURRENT_TIMESTAMP;
+
+-- Dados iniciais: Regras padrão (exemplos)
+INSERT INTO fx_rules (name, description, conditions, actions, priority, is_active) VALUES
+  ('Jovem - Promo Games', 'Mostrar promo de games para jovens', 
+   '{"age_bucket": ["14-25", "18-25"], "mood": ["happy", "neutral"]}'::jsonb,
+   '{"effect_type": "neon_warp", "content_category": "games", "priority": "high"}'::jsonb,
+   10, true),
+  ('Atenção Alta - Produto Premium', 'Mostrar produto premium quando atenção alta', 
+   '{"attention_ms": {"min": 2000}, "mood": ["happy", "surprised"]}'::jsonb,
+   '{"effect_type": "holographic_swipe", "content_category": "premium", "priority": "high"}'::jsonb,
+   15, true),
+  ('Tag Específica - Conteúdo Personalizado', 'Mostrar conteúdo baseado em tag', 
+   '{"interaction_type": "tag_id", "tag_category": ["vip", "premium"]}'::jsonb,
+   '{"effect_type": "particle_burst", "use_tag_content": true, "priority": "critical"}'::jsonb,
+   20, true)
+ON CONFLICT DO NOTHING;
 
 

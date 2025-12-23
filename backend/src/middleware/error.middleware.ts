@@ -47,20 +47,26 @@ export const errorHandler = async (
 
     // Log de auditoria para erros operacionais
     if (isOperational && req.user?.id) {
-      try {
-        const auditService = new AuditService();
-        await auditService.log('error', 'occurred', req.user.id, {
-          error: err.message,
-          statusCode,
-          url: req.url,
-          method: req.method
-        });
-      } catch (auditError) {
-        await logError('Erro ao registrar auditoria no error handler', auditError, { 
-          originalError: err.message,
-          statusCode 
-        });
-      }
+      // Não bloquear resposta por causa de auditoria;
+      // executar em segundo plano e apenas logar falhas.
+      (async () => {
+        try {
+          const auditService = new AuditService();
+          await auditService.log('error', 'occurred', req.user?.id || undefined, {
+            error: err.message,
+            statusCode,
+            url: req.url,
+            method: req.method
+          });
+        } catch (auditError) {
+          await logError('Erro ao registrar auditoria no error handler', auditError, { 
+            originalError: err.message,
+            statusCode 
+          }).catch(() => {
+            // Se até o log da auditoria falhar, ignorar silenciosamente
+          });
+        }
+      })();
     }
 
     // Resposta baseada no ambiente

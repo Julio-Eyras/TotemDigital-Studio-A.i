@@ -6,12 +6,14 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { AIService } from './aiService';
-import { logError } from '../utils/loggerHelper';
+import { logError, logInfo } from '../utils/loggerHelper';
 import * as fs from 'fs';
 import * as path from 'path';
+import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
 
 export interface ReportRequest {
-  type: 'campaign' | 'totem' | 'client' | 'media' | 'billing' | 'analytics' | 'custom';
+  type: 'campaign' | 'totem' | 'client' | 'subscriber' | 'media' | 'billing' | 'analytics' | 'custom';
   title: string;
   description?: string;
   filters: {
@@ -397,7 +399,7 @@ export class ReportsService {
   /**
    * Gera dados do relatório
    */
-  private async generateReportData(request: ReportRequest): Promise<any> {
+  async generateReportData(request: ReportRequest): Promise<any> {
     const startTime = Date.now();
 
     try {
@@ -413,7 +415,8 @@ export class ReportsService {
           break;
 
         case 'client':
-          data = await this.generateClientReportData(request.filters);
+        case 'subscriber': // NOVO: Suportar subscriber
+          data = await this.generateSubscriberReportData(request.filters);
           break;
 
         case 'media':
@@ -456,9 +459,11 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      if (filters.clientId) {
-        whereClause += ' AND c.client_id = ?';
-        params.push(filters.clientId);
+      // Suportar subscriberId (novo) e clientId (compatibilidade)
+      const subscriberId = filters.subscriberId || filters.clientId;
+      if (subscriberId) {
+        whereClause += ' AND c.subscriber_id = $' + (params.length + 1);
+        params.push(subscriberId);
       }
 
       if (filters.campaignId) {
@@ -487,17 +492,17 @@ export class ReportsService {
           c.start_date,
           c.end_date,
           c.created_at,
-          cl.name as client_name,
+          s.name as client_name, -- Mantido para compatibilidade
           COUNT(DISTINCT p.playlist_id) as playlist_count,
           COUNT(DISTINCT ct.totem_id) as totem_count,
           COUNT(DISTINCT pi.media_id) as media_count
         FROM campaigns c
-        LEFT JOIN clients cl ON c.client_id = cl.client_id
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         LEFT JOIN playlists p ON c.campaign_id = p.campaign_id
         LEFT JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
         LEFT JOIN playlist_items pi ON p.playlist_id = pi.playlist_id
         ${whereClause}
-        GROUP BY c.campaign_id, c.title, c.description, c.campaign_type, c.status, c.is_active, c.start_date, c.end_date, c.created_at, cl.name
+        GROUP BY c.campaign_id, c.title, c.description, c.campaign_type, c.status, c.is_active, c.start_date, c.end_date, c.created_at, s.name
         ORDER BY c.created_at DESC
       `, params);
 
@@ -525,9 +530,24 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
+      // Totem não tem client_id mais - usar publisher_id via local_id
+      // Se clientId fornecido, mapear para publisher_id (compatibilidade)
       if (filters.clientId) {
-        whereClause += ' AND t.client_id = ?';
-        params.push(filters.clientId);
+        // Buscar publisher_id do clientId (se publisher também é subscriber)
+        const publisher = await this.db.findFirst(`
+          SELECT publisher_id FROM publishers 
+          WHERE publisher_id = $1 AND is_subscriber = true
+        `, [filters.clientId]);
+        
+        if (publisher) {
+          // Buscar locals deste publisher
+          whereClause += ' AND t.local_id IN (SELECT local_id FROM locals WHERE publisher_id = $' + (params.length + 1) + ')';
+          params.push(publisher.publisher_id);
+        } else {
+          // Se não encontrou, usar publisher_id diretamente
+          whereClause += ' AND t.local_id IN (SELECT local_id FROM locals WHERE publisher_id = $' + (params.length + 1) + ')';
+          params.push(filters.clientId);
+        }
       }
 
       if (filters.totemId) {
@@ -545,13 +565,15 @@ export class ReportsService {
           t.uptime_percentage,
           t.last_heartbeat,
           t.created_at,
-          cl.name as client_name,
+          p.name as publisher_name,
+          p.name as client_name, -- Mantido para compatibilidade
           COUNT(DISTINCT ct.campaign_id) as campaign_count
         FROM totems t
-        LEFT JOIN clients cl ON t.client_id = cl.client_id
+        LEFT JOIN locals l ON t.local_id = l.local_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         LEFT JOIN campaign_totems ct ON t.totem_id = ct.totem_id
         ${whereClause}
-        GROUP BY t.totem_id, t.name, t.location, t.status, t.is_active, t.uptime_percentage, t.last_heartbeat, t.created_at, cl.name
+        GROUP BY t.totem_id, t.name, t.location, t.status, t.is_active, t.uptime_percentage, t.last_heartbeat, t.created_at, p.name
         ORDER BY t.created_at DESC
       `, params);
 
@@ -573,46 +595,48 @@ export class ReportsService {
   }
 
   /**
-   * Gera dados de relatório de cliente
+   * Gera dados de relatório de subscriber (anunciante)
    */
-  private async generateClientReportData(filters: any): Promise<any> {
+  private async generateSubscriberReportData(filters: any): Promise<any> {
     try {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      if (filters.clientId) {
-        whereClause += ' AND cl.client_id = ?';
-        params.push(filters.clientId);
+      // Suportar subscriberId (novo) e clientId (compatibilidade)
+      const subscriberId = filters.subscriberId || filters.clientId;
+      if (subscriberId) {
+        whereClause += ' AND s.subscriber_id = $' + (params.length + 1);
+        params.push(subscriberId);
       }
 
-      const clients = await this.db.findMany(`
+      const subscribers = await this.db.findMany(`
         SELECT 
-          cl.client_id,
-          cl.name,
-          cl.email,
-          cl.phone,
-          cl.address,
-          cl.is_active,
-          cl.created_at,
+          s.subscriber_id,
+          s.subscriber_id as client_id, -- Mantido para compatibilidade
+          s.name,
+          s.email,
+          s.phone,
+          s.address,
+          s.is_active,
+          s.created_at,
           COUNT(DISTINCT c.campaign_id) as campaign_count,
-          COUNT(DISTINCT t.totem_id) as totem_count,
           COUNT(DISTINCT m.media_id) as media_count
-        FROM clients cl
-        LEFT JOIN campaigns c ON cl.client_id = c.client_id
-        LEFT JOIN totems t ON cl.client_id = t.client_id
-        LEFT JOIN medias m ON cl.client_id = m.client_id
+        FROM subscribers s
+        LEFT JOIN campaigns c ON s.subscriber_id = c.subscriber_id
+        LEFT JOIN medias m ON s.subscriber_id = m.subscriber_id
         ${whereClause}
-        GROUP BY cl.client_id, cl.name, cl.email, cl.phone, cl.address, cl.is_active, cl.created_at
-        ORDER BY cl.created_at DESC
+        GROUP BY s.subscriber_id, s.name, s.email, s.phone, s.address, s.is_active, s.created_at
+        ORDER BY s.created_at DESC
       `, params);
 
       return {
-        type: 'client',
-        data: clients,
+        type: 'subscriber', // NOVO
+        type_legacy: 'client', // Mantido para compatibilidade
+        data: subscribers,
         summary: {
-          total: clients.length,
-          active: clients.filter(c => c.is_active).length,
-          inactive: clients.filter(c => !c.is_active).length
+          total: subscribers.length,
+          active: subscribers.filter(s => s.is_active).length,
+          inactive: subscribers.filter(s => !s.is_active).length
         }
       };
 
@@ -630,9 +654,11 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      if (filters.clientId) {
-        whereClause += ' AND m.client_id = ?';
-        params.push(filters.clientId);
+      // Suportar subscriberId (novo) e clientId (compatibilidade)
+      const subscriberId = filters.subscriberId || filters.clientId;
+      if (subscriberId) {
+        whereClause += ' AND m.subscriber_id = $' + (params.length + 1);
+        params.push(subscriberId);
       }
 
       if (filters.startDate) {
@@ -655,9 +681,9 @@ export class ReportsService {
           m.view_count,
           m.is_active,
           m.created_at,
-          cl.name as client_name
+          s.name as client_name
         FROM medias m
-        LEFT JOIN clients cl ON m.client_id = cl.client_id
+        LEFT JOIN subscribers s ON m.subscriber_id = s.subscriber_id
         ${whereClause}
         ORDER BY m.created_at DESC
       `, params);
@@ -688,9 +714,11 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      if (filters.clientId) {
-        whereClause += ' AND b.client_id = ?';
-        params.push(filters.clientId);
+      // Suportar subscriberId (novo) e clientId (compatibilidade)
+      const subscriberId = filters.subscriberId || filters.clientId;
+      if (subscriberId) {
+        whereClause += ' AND b.subscriber_id = $' + (params.length + 1);
+        params.push(subscriberId);
       }
 
       if (filters.startDate) {
@@ -713,10 +741,11 @@ export class ReportsService {
           b.due_date,
           b.paid_at,
           b.created_at,
-          cl.name as client_name,
+          s.name as subscriber_name,
+          s.name as client_name, -- Mantido para compatibilidade
           c.title as campaign_title
-        FROM billing b
-        LEFT JOIN clients cl ON b.client_id = cl.client_id
+        FROM subscriber_billing b
+        LEFT JOIN subscribers s ON b.subscriber_id = s.subscriber_id
         LEFT JOIN campaigns c ON b.campaign_id = c.campaign_id
         ${whereClause}
         ORDER BY b.created_at DESC
@@ -868,7 +897,7 @@ export class ReportsService {
   /**
    * Gera dados de relatório customizado
    */
-  private async generateCustomReportData(request: ReportRequest): Promise<any> {
+  private async generateCustomReportData(_request: ReportRequest): Promise<any> {
     try {
       // Implementar geração de relatório customizado
       // Esta é uma implementação simplificada
@@ -897,7 +926,7 @@ export class ReportsService {
       const fileName = `report_${reportId}_${Date.now()}.${format}`;
       const filePath = path.join(this.reportsDir, fileName);
 
-      let content: string;
+      let content: string | undefined;
 
       switch (format) {
         case 'json':
@@ -909,21 +938,23 @@ export class ReportsService {
           break;
 
         case 'excel':
-          // Implementar geração de Excel
-          content = this.convertToCSV(reportData); // Fallback para CSV
+          await this.convertToExcel(reportData, filePath);
+          // Excel é binário, não precisa de content
           break;
 
         case 'pdf':
-          // Implementar geração de PDF
-          content = this.convertToCSV(reportData); // Fallback para CSV
+          await this.convertToPDF(reportData, filePath, request);
+          // PDF é binário, não precisa de content
           break;
 
         default:
           throw new Error(`Formato não suportado: ${format}`);
       }
 
-      // Salvar arquivo
-      fs.writeFileSync(filePath, content, 'utf8');
+      // Salvar arquivo (apenas para formatos de texto)
+      if (content !== undefined) {
+        fs.writeFileSync(filePath, content, 'utf8');
+      }
       const fileSize = fs.statSync(filePath).size;
 
       return {
@@ -958,9 +989,195 @@ export class ReportsService {
       return csvContent;
 
     } catch (error: any) {
-      await logError('Erro ao converter para CSV', error);
+      logError('Erro ao converter para CSV', error).catch(() => {});
       return 'Erro ao converter dados para CSV';
     }
+  }
+
+  /**
+   * Converte dados para Excel (público para uso em rotas)
+   */
+  async convertToExcel(data: any, filePath: string): Promise<void> {
+    try {
+      await logInfo('Iniciando conversão para Excel', { filePath });
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Relatório');
+
+      if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
+        worksheet.addRow(['Nenhum dado encontrado']);
+        await workbook.xlsx.writeFile(filePath);
+        return;
+      }
+
+      // Adicionar título
+      if (data.title) {
+        worksheet.mergeCells('A1:Z1');
+        const titleRow = worksheet.getRow(1);
+        titleRow.getCell(1).value = data.title;
+        titleRow.getCell(1).font = { size: 16, bold: true };
+        titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+        titleRow.height = 25;
+      }
+
+      // Adicionar descrição
+      if (data.description) {
+        worksheet.mergeCells(`A2:Z2`);
+        const descRow = worksheet.getRow(2);
+        descRow.getCell(1).value = data.description;
+        descRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+        descRow.height = 20;
+      }
+
+      // Cabeçalhos
+      const headers = Object.keys(data.data[0]);
+      const headerRow = worksheet.addRow(headers);
+      headerRow.font = { bold: true };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+      headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+      headerRow.height = 20;
+
+      // Dados
+      data.data.forEach((row: any) => {
+        const values = headers.map(header => row[header] || '');
+        worksheet.addRow(values);
+      });
+
+      // Ajustar largura das colunas
+      worksheet.columns.forEach((column: any) => {
+        if (column.header) {
+          let maxLength = 10;
+          column.eachCell({ includeEmpty: true }, (cell: any) => {
+            const cellValue = cell.value ? String(cell.value) : '';
+            if (cellValue.length > maxLength) {
+              maxLength = cellValue.length;
+            }
+          });
+          column.width = Math.min(maxLength + 2, 50);
+        }
+      });
+
+      // Adicionar bordas
+      worksheet.eachRow((row: any) => {
+        row.eachCell((cell: any) => {
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+          };
+        });
+      });
+
+      // Adicionar data de geração
+      const lastRow = worksheet.lastRow?.number || 0;
+      worksheet.mergeCells(`A${lastRow + 2}:Z${lastRow + 2}`);
+      const footerRow = worksheet.getRow(lastRow + 2);
+      footerRow.getCell(1).value = `Gerado em: ${new Date().toLocaleString('pt-BR')}`;
+      footerRow.getCell(1).font = { italic: true, size: 10 };
+      footerRow.getCell(1).alignment = { horizontal: 'right' };
+
+      await workbook.xlsx.writeFile(filePath);
+      await logInfo('Arquivo Excel gerado com sucesso', { filePath });
+
+    } catch (error: any) {
+      await logError('Erro ao converter para Excel', error, { filePath });
+      throw error;
+    }
+  }
+
+  /**
+   * Converte dados para PDF (público para uso em rotas)
+   */
+  async convertToPDF(data: any, filePath: string, request: ReportRequest): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 50 });
+        const stream = fs.createWriteStream(filePath);
+        doc.pipe(stream);
+
+        // Título
+        doc.fontSize(20).font('Helvetica-Bold').text(data.title || request.title, { align: 'center' });
+        doc.moveDown();
+
+        // Descrição
+        if (data.description || request.description) {
+          doc.fontSize(12).font('Helvetica').text(data.description || request.description || '', { align: 'center' });
+          doc.moveDown();
+        }
+
+        // Informações do relatório
+        doc.fontSize(10).font('Helvetica-Oblique');
+        doc.text(`Tipo: ${request.type}`, { align: 'left' });
+        doc.text(`Período: ${request.filters.startDate || 'N/A'} - ${request.filters.endDate || 'N/A'}`, { align: 'left' });
+        doc.moveDown();
+
+        // Dados
+        if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
+          doc.fontSize(14).font('Helvetica').text('Nenhum dado encontrado', { align: 'center' });
+          doc.end();
+          stream.on('finish', () => resolve());
+          return;
+        }
+
+        const headers = Object.keys(data.data[0]);
+        const startY = doc.y;
+        const rowHeight = 20;
+        const colWidth = (doc.page.width - 100) / headers.length;
+
+        // Cabeçalhos
+        doc.fontSize(10).font('Helvetica-Bold');
+        let x = 50;
+        headers.forEach((header) => {
+          doc.text(header, x, startY, { width: colWidth, align: 'left' });
+          x += colWidth;
+        });
+
+        // Linha de separação
+        doc.moveTo(50, startY + rowHeight).lineTo(doc.page.width - 50, startY + rowHeight).stroke();
+        doc.y = startY + rowHeight + 5;
+
+        // Dados
+        doc.fontSize(9).font('Helvetica');
+        data.data.forEach((row: any) => {
+          // Verificar se precisa de nova página
+          if (doc.y > doc.page.height - 100) {
+            doc.addPage();
+            doc.y = 50;
+          }
+
+          x = 50;
+          headers.forEach((header) => {
+            const value = String(row[header] || '');
+            doc.text(value.substring(0, 30), x, doc.y, { width: colWidth, align: 'left' });
+            x += colWidth;
+          });
+          doc.y += rowHeight;
+        });
+
+        // Rodapé
+        doc.fontSize(8).font('Helvetica-Oblique');
+        doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, doc.page.width - 50, doc.page.height - 50, { align: 'right' });
+
+        doc.end();
+        stream.on('finish', () => {
+          logInfo('Arquivo PDF gerado com sucesso', { filePath }).catch(() => {});
+          resolve();
+        });
+        stream.on('error', (error) => {
+          logError('Erro ao gerar PDF', error, { filePath }).catch(() => {});
+          reject(error);
+        });
+
+      } catch (error: any) {
+        logError('Erro ao converter para PDF', error, { filePath }).catch(() => {});
+        reject(error);
+      }
+    });
   }
 
   /**

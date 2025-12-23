@@ -23,14 +23,65 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Interceptor para tratar erros
+// Interceptor para tratar erros e rate limiting
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Tratamento de Rate Limiting (429)
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.headers['retry-after'] || 60;
+      const retryAfterSeconds = parseInt(retryAfter, 10);
+
+      // Emitir evento customizado para notificação
+      const rateLimitEvent = new CustomEvent('rateLimitExceeded', {
+        detail: {
+          retryAfter: retryAfterSeconds,
+          message: `Muitas requisições. Aguarde ${retryAfterSeconds} segundos antes de tentar novamente.`,
+        },
+      });
+      window.dispatchEvent(rateLimitEvent);
+
+      // Aguardar antes de retry (se configurado)
+      if (originalRequest && !originalRequest._retry) {
+        originalRequest._retry = true;
+        await new Promise((resolve) => setTimeout(resolve, retryAfterSeconds * 1000));
+        return api(originalRequest);
+      }
+
+      return Promise.reject(error);
+    }
+
+    // Tratamento de 401 (Não autorizado)
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
       window.location.href = '/login';
+      return Promise.reject(error);
     }
+
+    // Tratamento de 413 (Payload muito grande)
+    if (error.response?.status === 413) {
+      const payloadErrorEvent = new CustomEvent('payloadTooLarge', {
+        detail: {
+          message: 'Arquivo ou dados muito grandes. Reduza o tamanho e tente novamente.',
+        },
+      });
+      window.dispatchEvent(payloadErrorEvent);
+    }
+
+    // Tratamento de 400 (Bad Request) - Validação
+    if (error.response?.status === 400) {
+      const validationError = error.response.data?.message || error.response.data?.error || 'Erro de validação';
+      const validationEvent = new CustomEvent('validationError', {
+        detail: {
+          message: validationError,
+        },
+      });
+      window.dispatchEvent(validationEvent);
+    }
+
     return Promise.reject(error);
   }
 );
@@ -218,6 +269,35 @@ export const clientApi = {
 
   delete: async (id: number): Promise<void> => {
     await api.delete(`/clients/${id}`);
+  },
+};
+
+// =============================================
+// ALERTS API
+// =============================================
+
+export interface SystemAlert {
+  id: string;
+  ruleId: string;
+  type: string;
+  severity: 'info' | 'warning' | 'error' | 'critical';
+  message: string;
+  details: Record<string, any>;
+  timestamp: string;
+  acknowledged: boolean;
+}
+
+export const alertsApi = {
+  getActive: async (limit: number = 20): Promise<SystemAlert[]> => {
+    const response = await api.get('/alerts', { params: { limit } });
+    const data = response.data?.data || response.data;
+    return Array.isArray(data) ? data : [];
+  },
+
+  checkNow: async (): Promise<SystemAlert[]> => {
+    const response = await api.post('/alerts/check');
+    const data = response.data?.data || response.data;
+    return Array.isArray(data) ? data : [];
   },
 };
 
@@ -596,8 +676,12 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  token: string;
-  user: User;
+  token?: string;
+  refreshToken?: string;
+  user?: User;
+  requiresTwoFactor?: boolean;
+  success?: boolean;
+  error?: string;
 }
 
 export const authApi = {
@@ -608,6 +692,11 @@ export const authApi = {
 
   logout: async (): Promise<void> => {
     await api.post('/auth/logout');
+  },
+
+  refreshToken: async (refreshToken: string): Promise<{ token: string; refreshToken: string }> => {
+    const response = await api.post('/auth/refresh', { refreshToken });
+    return response.data;
   },
 
   getProfile: async (): Promise<User> => {
@@ -623,6 +712,24 @@ export const authApi = {
   resetPassword: async (payload: { token: string; password: string }): Promise<{ success: boolean; message?: string }> => {
     const response = await api.post('/auth/reset-password', payload);
     return response.data;
+  },
+
+  updateProfile: async (token: string, profileData: { name?: string; email?: string }): Promise<{ data: User }> => {
+    const response = await api.put('/auth/profile', profileData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response;
+  },
+
+  changePassword: async (token: string, passwordData: { currentPassword: string; newPassword: string }): Promise<{ data: { success: boolean; message?: string } }> => {
+    const response = await api.put('/auth/change-password', passwordData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response;
   },
 };
 
@@ -1010,6 +1117,412 @@ export const totemApi = {
     limit?: number;
   } = {}): Promise<PlayerListResponse> => {
     const response = await api.get('/totems/pending', { params });
+    return response.data;
+  },
+  
+  // Remote Control
+  restart: async (id: number): Promise<{ success: boolean; message: string; command: any }> => {
+    const response = await api.post(`/totems/${id}/restart`);
+    return response.data;
+  },
+  
+  screenshot: async (id: number): Promise<{ success: boolean; message: string; command: any }> => {
+    const response = await api.post(`/totems/${id}/screenshot`);
+    return response.data;
+  },
+  
+  getCommands: async (id: number, limit?: number): Promise<{ success: boolean; data: any[] }> => {
+    const response = await api.get(`/totems/${id}/commands`, { params: { limit } });
+    return response.data;
+  },
+  
+  getScreenshots: async (id: number, limit?: number): Promise<{ success: boolean; data: any[] }> => {
+    const response = await api.get(`/totems/${id}/screenshots`, { params: { limit } });
+    return response.data;
+  },
+  
+  downloadScreenshot: async (id: number, screenshotId: number): Promise<Blob> => {
+    const response = await api.get(`/totems/${id}/screenshots/${screenshotId}/download`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+  
+  // Logs
+  getLogs: async (id: number, filters?: {
+    level?: 'info' | 'warn' | 'error' | 'debug';
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+    limit?: number;
+  }): Promise<{ success: boolean; data: any[]; count: number }> => {
+    const response = await api.get(`/totems/${id}/logs`, { params: filters });
+    return response.data;
+  },
+  
+  downloadLogs: async (id: number, filters?: {
+    level?: 'info' | 'warn' | 'error' | 'debug';
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+  }): Promise<Blob> => {
+    const response = await api.get(`/totems/${id}/logs/download`, {
+      params: filters,
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+};
+
+// =============================================
+// OTA UPDATES API
+// =============================================
+
+export interface OTAUpdate {
+  id: number;
+  version: string;
+  platform: 'webos' | 'tizen' | 'android' | 'linux' | 'windows' | 'all';
+  filePath: string;
+  fileSize: number;
+  checksum: string;
+  description?: string;
+  changelog?: string;
+  isMandatory: boolean;
+  minVersion?: string;
+  maxVersion?: string;
+  rolloutPercentage: number;
+  status: 'draft' | 'testing' | 'active' | 'paused' | 'completed' | 'cancelled';
+  createdAt: string;
+  releasedAt?: string;
+}
+
+export const otaApi = {
+  getAll: async (filters?: {
+    platform?: string;
+    status?: string;
+    limit?: number;
+  }): Promise<{ success: boolean; data: OTAUpdate[] }> => {
+    const response = await api.get('/ota-updates', { params: filters });
+    return response.data;
+  },
+
+  create: async (formData: FormData): Promise<{ success: boolean; message: string; data: OTAUpdate }> => {
+    const response = await api.post('/ota-updates', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+
+  activate: async (id: number): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post(`/ota-updates/${id}/activate`);
+    return response.data;
+  },
+
+  pause: async (id: number): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post(`/ota-updates/${id}/pause`);
+    return response.data;
+  },
+
+  getStats: async (): Promise<{ success: boolean; data: any }> => {
+    const response = await api.get('/ota-updates/stats');
+    return response.data;
+  },
+
+  download: async (id: number): Promise<Blob> => {
+    const response = await api.get(`/ota-updates/${id}/download`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+};
+
+// =============================================
+// TAGS API
+// =============================================
+
+export interface Tag {
+  id: number;
+  tagId: string;
+  tagType: 'rfid' | 'nfc' | 'qr_code' | 'barcode';
+  name?: string;
+  description?: string;
+  contentId?: number;
+  isActive: boolean;
+}
+
+export const tagApi = {
+  getContent: async (tagId: string): Promise<{ success: boolean; data: { contentId: number | null; tag: Tag | null } }> => {
+    const response = await api.get(`/tags/${tagId}/content`);
+    return response.data;
+  },
+
+  getAll: async (filters?: {
+    tagType?: string;
+    isActive?: boolean;
+    limit?: number;
+  }): Promise<{ success: boolean; data: Tag[] }> => {
+    const response = await api.get('/tags', { params: filters });
+    return response.data;
+  },
+
+  create: async (data: {
+    tagId: string;
+    tagType: 'rfid' | 'nfc' | 'qr_code' | 'barcode';
+    name?: string;
+    description?: string;
+    contentId?: number;
+  }): Promise<{ success: boolean; message: string; data: Tag }> => {
+    const response = await api.post('/tags', data);
+    return response.data;
+  },
+
+  deactivate: async (tagId: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/tags/${tagId}`);
+    return response.data;
+  },
+};
+
+// =============================================
+// FACIAL RECOGNITION API
+// =============================================
+
+export interface RecognizedPerson {
+  id: number;
+  personId: string;
+  name?: string;
+  features?: any;
+  contentId?: number;
+  isActive: boolean;
+}
+
+export interface FacialMatchResponse {
+  personId?: string;
+  contentId?: number;
+  confidence?: number;
+  name?: string;
+}
+
+export const facialRecognitionApi = {
+  match: async (features: any, totemId?: number): Promise<{ success: boolean; data: FacialMatchResponse | null }> => {
+    const response = await api.post('/facial-recognition/match', { features, totemId });
+    return response.data;
+  },
+
+  getAllPersons: async (filters?: {
+    isActive?: boolean;
+    limit?: number;
+  }): Promise<{ success: boolean; data: RecognizedPerson[] }> => {
+    const response = await api.get('/facial-recognition/persons', { params: filters });
+    return response.data;
+  },
+
+  createPerson: async (data: {
+    personId: string;
+    name?: string;
+    features?: any;
+    contentId?: number;
+  }): Promise<{ success: boolean; message: string; data: RecognizedPerson }> => {
+    const response = await api.post('/facial-recognition/persons', data);
+    return response.data;
+  },
+};
+
+// =============================================
+// NETWORK API
+// =============================================
+
+export const networkApi = {
+  getRelatedContent: async (interaction: any, totemId: number): Promise<{ success: boolean; data: { contentId: number | null } }> => {
+    const response = await api.post('/network/related-content', { interaction, totemId });
+    return response.data;
+  },
+
+  getNearbyTotems: async (totemId: number, radius?: number): Promise<{ success: boolean; data: any[] }> => {
+    const response = await api.get(`/network/nearby-totems/${totemId}`, { params: { radius } });
+    return response.data;
+  },
+
+  logInteraction: async (data: {
+    totemId: number;
+    interactionType: 'facial_recognition' | 'tag_id' | 'touch' | 'gesture';
+    interactionData?: any;
+    contentId?: number;
+    personId?: string;
+    tagId?: string;
+  }): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/network/interactions', data);
+    return response.data;
+  },
+};
+
+// =============================================
+// PLANS API
+// =============================================
+
+export interface Plan {
+  plan_id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  price: number;
+  currency: string;
+  features: string[];
+  billing_interval: 'month' | 'year';
+  is_active: boolean;
+  stripe_product_id?: string;
+  stripe_price_id?: string;
+  metadata?: any;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatePlanRequest {
+  name: string;
+  slug: string;
+  description?: string;
+  price: number;
+  currency?: string;
+  features: string[];
+  billing_interval?: 'month' | 'year';
+  is_active?: boolean;
+  stripe_product_id?: string;
+  stripe_price_id?: string;
+}
+
+export interface UpdatePlanRequest {
+  name?: string;
+  slug?: string;
+  description?: string;
+  price?: number;
+  currency?: string;
+  features?: string[];
+  billing_interval?: 'month' | 'year';
+  is_active?: boolean;
+  stripe_product_id?: string;
+  stripe_price_id?: string;
+}
+
+export const planApi = {
+  getAll: async (includeInactive: boolean = false): Promise<Plan[]> => {
+    const endpoint = includeInactive ? '/plans/all' : '/plans';
+    const response = await api.get(endpoint);
+    return response.data.data || [];
+  },
+
+  getById: async (id: number): Promise<Plan> => {
+    const response = await api.get(`/plans/${id}`);
+    return response.data.data;
+  },
+
+  getBySlug: async (slug: string): Promise<Plan> => {
+    const response = await api.get(`/plans/slug/${slug}`);
+    return response.data.data;
+  },
+
+  create: async (data: CreatePlanRequest): Promise<Plan> => {
+    const response = await api.post('/plans', data);
+    return response.data.data;
+  },
+
+  update: async (id: number, data: UpdatePlanRequest): Promise<Plan> => {
+    const response = await api.put(`/plans/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/plans/${id}`);
+  },
+};
+
+// =============================================
+// SUBSCRIPTIONS API
+// =============================================
+
+export interface Subscription {
+  subscription_id: number;
+  client_id: number;
+  plan_id: number;
+  stripe_subscription_id?: string;
+  status: 'active' | 'cancelled' | 'past_due' | 'unpaid' | 'trialing';
+  start_date: string;
+  end_date?: string;
+  current_period_start: string;
+  current_period_end: string;
+  trial_start?: string;
+  trial_end?: string;
+  billing_interval: 'month' | 'year';
+  amount: number;
+  currency: string;
+  metadata?: any;
+  created_at: string;
+  updated_at: string;
+  plan?: Plan;
+}
+
+export interface CreateSubscriptionRequest {
+  planId: number;
+  clientId?: number;
+  trialDays?: number;
+}
+
+export interface UpdateSubscriptionRequest {
+  planId?: number;
+  status?: string;
+}
+
+export interface CheckoutSessionResponse {
+  sessionId: string;
+  url: string;
+}
+
+export const subscriptionApi = {
+  getAll: async (params?: {
+    clientId?: number;
+    planId?: number;
+    status?: string;
+  }): Promise<Subscription[]> => {
+    const response = await api.get('/subscriptions', { params });
+    return response.data.data || [];
+  },
+
+  getById: async (id: number): Promise<Subscription> => {
+    const response = await api.get(`/subscriptions/${id}`);
+    return response.data.data;
+  },
+
+  getByClient: async (clientId: number): Promise<Subscription[]> => {
+    const response = await api.get('/subscriptions', { params: { clientId } });
+    return response.data.data || [];
+  },
+
+  create: async (data: CreateSubscriptionRequest): Promise<CheckoutSessionResponse> => {
+    const response = await api.post('/subscriptions', data);
+    return response.data.data;
+  },
+
+  update: async (id: number, data: UpdateSubscriptionRequest): Promise<Subscription> => {
+    const response = await api.put(`/subscriptions/${id}`, data);
+    return response.data.data;
+  },
+
+  cancel: async (id: number): Promise<Subscription> => {
+    const response = await api.post(`/subscriptions/${id}/cancel`);
+    return response.data.data;
+  },
+
+  resume: async (id: number): Promise<Subscription> => {
+    const response = await api.post(`/subscriptions/${id}/resume`);
+    return response.data.data;
+  },
+
+  handleWebhook: async (payload: any, signature: string): Promise<any> => {
+    const response = await api.post('/subscriptions/webhook', payload, {
+      headers: {
+        'stripe-signature': signature,
+      },
+    });
     return response.data;
   },
 };
@@ -1454,5 +1967,205 @@ export const logsApi = {
     await api.post('/logs/reload');
   },
 };
+
+// =============================================
+// SMARTDISPLAYFX API
+// =============================================
+
+export interface SmartDisplayFxLog {
+  id: number;
+  event_type: string;
+  entity_type: 'smartdisplayfx_rule' | 'smartdisplayfx_effect';
+  media_id?: number;
+  metadata: {
+    siteId?: string;
+    fromTotemId?: string;
+    toTotemId?: string;
+    effectId?: string;
+    durationMs?: number;
+    rule?: string;
+    interactionType?: string;
+    tagId?: string;
+    segment?: string;
+    attentionMs?: number;
+    mood?: string;
+    params?: Record<string, any>;
+    [key: string]: any;
+  };
+  created_at: string;
+}
+
+export interface SmartDisplayFxLogsParams {
+  siteId?: string;
+  type?: 'rule' | 'effect';
+  limit?: number;
+}
+
+export interface FxAnalyticsOverview {
+  totalExecutions: number;
+  successful: number;
+  failed: number;
+  successRate: number;
+  avgFps: number;
+  avgDuration: number;
+  topEffects: Array<{
+    effect_id: string;
+    executions: number;
+    avg_fps: number;
+    avg_duration: number;
+    success_rate: number;
+  }>;
+  topTotems: Array<{
+    totem_id: number;
+    name: string;
+    executions: number;
+    avg_fps: number;
+    success_rate: number;
+  }>;
+  trends: Array<{
+    date: string;
+    executions: number;
+    avg_fps: number;
+    success_rate: number;
+  }>;
+}
+
+export interface FxPerformanceMetrics {
+  fpsDistribution: Array<{
+    fps_range: string;
+    count: number;
+    percentage: number;
+  }>;
+  durationDistribution: Array<{
+    duration_range: string;
+    count: number;
+    percentage: number;
+  }>;
+  performanceByHour: Array<{
+    hour: number;
+    executions: number;
+    avg_fps: number;
+    avg_duration: number;
+  }>;
+  performanceByDay: Array<{
+    day_of_week: number;
+    day_name: string;
+    executions: number;
+    avg_fps: number;
+  }>;
+}
+
+export interface FxTelemetry {
+  id: number;
+  totem_id: number;
+  effect_id: string;
+  event_id?: string;
+  content_id?: number;
+  planned_start_ts?: string;
+  actual_start_ts?: string;
+  ended_at?: string;
+  duration_ms?: number;
+  avg_fps?: number;
+  status: string;
+  error_message?: string;
+  metadata: Record<string, any>;
+  created_at: string;
+}
+
+export interface FxTelemetryListResponse {
+  data: FxTelemetry[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export const smartDisplayFxApi = {
+  getLogs: async (params: SmartDisplayFxLogsParams = {}): Promise<SmartDisplayFxLog[]> => {
+    const response = await api.get('/smartdisplayfx/logs', { params });
+    return response.data.data || [];
+  },
+
+  triggerEffect: async (payload: {
+    siteId: string;
+    fromTotemId: string;
+    toTotemId: string;
+    effectId?: string;
+    contentId?: number;
+    durationMs?: number;
+    params?: Record<string, any>;
+  }) => {
+    const response = await api.post('/smartdisplayfx/debug/trigger-effect', payload);
+    return response.data;
+  },
+
+  // Analytics
+  getAnalyticsOverview: async (params?: {
+    site_id?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<FxAnalyticsOverview> => {
+    const response = await api.get('/smartdisplayfx/analytics/overview', { params });
+    return response.data;
+  },
+
+  getPerformanceMetrics: async (params?: {
+    site_id?: string;
+    effect_id?: string;
+    totem_id?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<FxPerformanceMetrics> => {
+    const response = await api.get('/smartdisplayfx/analytics/performance', { params });
+    return response.data;
+  },
+
+  getSiteAnalytics: async (params?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<Array<{
+    site_id: string;
+    site_name: string;
+    totem_count: number;
+    total_executions: number;
+    avg_fps: number;
+    avg_duration: number;
+    successful: number;
+    failed: number;
+    success_rate: number;
+  }>> => {
+    const response = await api.get('/smartdisplayfx/analytics/sites', { params });
+    return response.data.data || [];
+  },
+
+  // Telemetry
+  getTelemetry: async (params?: {
+    page?: number;
+    limit?: number;
+    totem_id?: number;
+    effect_id?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<FxTelemetryListResponse> => {
+    const response = await api.get('/smartdisplayfx/telemetry', { params });
+    return response.data;
+  },
+
+  getTelemetryStats: async (params?: {
+    totem_id?: number;
+    effect_id?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const response = await api.get('/smartdisplayfx/telemetry/stats', { params });
+    return response.data.data;
+  },
+};
+
+// =============================================
+// PLAYLIST MIX API
+// =============================================
+
+export * from './playlistMixApi';
 
 export default api;

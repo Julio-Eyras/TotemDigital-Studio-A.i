@@ -1,6 +1,8 @@
 import express from 'express';
 import { body, query, param, validationResult } from 'express-validator';
-import { authMiddleware } from '../middleware/auth.middleware';
+import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
+import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
+import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation.middleware';
 import { getPlaylistService } from '../services/playlistService';
 import { logError } from '../utils/loggerHelper';
 
@@ -8,6 +10,12 @@ const router = express.Router();
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
+
+// Aplicar bloqueio de dados de clientes para OPERATOR
+router.use(blockClientDataAccess);
+
+// Aplicar isolamento de dados por subscriber
+router.use(subscriberIsolationMiddleware);
 
 // Validações
 const createPlaylistValidator = [
@@ -94,10 +102,63 @@ router.get('/:id',
 );
 
 /**
+ * @route GET /api/playlists/:id/preview
+ * @desc Obter preview da playlist (lista de mídias com URLs)
+ */
+router.get('/:id/preview',
+  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      
+      const playlist = await getPlaylistService().getPlaylistById(parseInt(id));
+      
+      if (!playlist) {
+        return res.status(404).json({ error: 'Playlist não encontrada' });
+      }
+
+      // Obter mídia da playlist
+      const items = await getPlaylistService().getPlaylistMedia(parseInt(id));
+      
+      // Formatar resposta com URLs de download
+      const preview = {
+        playlistId: playlist.playlist_id,
+        playlistName: playlist.name,
+        playlistDescription: playlist.description,
+        mediaCount: items.length,
+        items: items.map((item: any) => ({
+          itemId: item.item_id,
+          orderIndex: item.order_index,
+          displaySeconds: item.duration,
+          media: item.media ? {
+            id: item.media.media_id,
+            name: item.media.name,
+            type: item.media.media_type,
+            durationSeconds: item.media.duration_seconds,
+            sizeBytes: item.media.size_bytes,
+            mimeType: item.media.mime_type,
+            downloadUrl: `/api/media/${item.media.media_id}/download`,
+            thumbnailUrl: `/api/media/${item.media.media_id}/thumbnail`
+          } : null
+        }))
+      };
+
+      res.json(preview);
+    } catch (error) {
+      await logError('Erro ao obter preview da playlist', error);
+      res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
  * @route POST /api/playlists
  * @desc Criar nova playlist
+ * @access Private (Admin, Gerente Marketing)
  */
 router.post('/',
+  authorizeRole(['admin', 'gerente_marketing']),
   createPlaylistValidator,
   validateRequest,
   async (req: any, res: any) => {
@@ -121,8 +182,10 @@ router.post('/',
 /**
  * @route PUT /api/playlists/:id
  * @desc Atualizar playlist
+ * @access Private (Admin, Gerente Marketing)
  */
 router.put('/:id',
+  authorizeRole(['admin', 'gerente_marketing']),
   updatePlaylistValidator,
   validateRequest,
   async (req: any, res: any) => {
@@ -148,8 +211,10 @@ router.put('/:id',
 /**
  * @route DELETE /api/playlists/:id
  * @desc Excluir playlist
+ * @access Private (Admin, Gerente Marketing)
  */
 router.delete('/:id',
+  authorizeRole(['admin', 'gerente_marketing']),
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
   async (req: any, res: any) => {

@@ -32,9 +32,11 @@ import {
   Refresh as ReloadIcon,
   Warning,
   VideoLibrary,
-  Build
+  Build,
+  Security
 } from '@mui/icons-material';
 import { settingsApi, SystemSetting, logsApi, LogRotationConfig, LogFileInfo, DiskSpaceInfo, RotationStatus } from '../../services/api';
+import TwoFactor from './TwoFactor';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -272,6 +274,7 @@ const Settings: React.FC = () => {
           <Tab label="Geral" icon={<SettingsIcon />} iconPosition="start" />
           <Tab label="Logs" icon={<Storage />} iconPosition="start" />
           <Tab label="Mídias" icon={<VideoLibrary />} iconPosition="start" />
+          <Tab label="2FA" icon={<Security />} iconPosition="start" />
         </Tabs>
       </Paper>
 
@@ -567,6 +570,10 @@ const Settings: React.FC = () => {
             Nenhuma configuração de mídia encontrada. Certifique-se de que as configurações foram inseridas no banco de dados.
           </Alert>
         )}
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={3}>
+        <TwoFactor />
       </TabPanel>
     </Box>
   );

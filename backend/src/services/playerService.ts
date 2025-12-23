@@ -5,7 +5,8 @@ export interface Player {
   totem_id: number;
   name: string;
   location?: string;
-  client_id?: number;
+  publisher_id?: number; // NOVO: Totem pertence a publisher via local_id
+  client_id?: number; // DEPRECADO: Mantido para compatibilidade
   is_active: boolean;
   last_heartbeat?: string;
   current_playlist_id?: number;
@@ -61,9 +62,11 @@ export class PlayerService {
         queryParams.push(`%${search}%`);
       }
 
+      // Totem não tem client_id mais - filtrar via local_id -> publisher_id
       if (clientId) {
-        whereClause += ' AND t.client_id = $' + (queryParams.length + 1);
-        queryParams.push(clientId);
+        // Se clientId fornecido, mapear para publisher_id via locals
+        whereClause += ' AND t.local_id IN (SELECT local_id FROM locals WHERE publisher_id = $' + (queryParams.length + 1) + ')';
+        queryParams.push(clientId); // clientId mapeado para publisher_id
       }
 
       if (status) {
@@ -77,7 +80,8 @@ export class PlayerService {
           t.totem_id,
           t.name,
           t.location,
-          t.client_id,
+          l.publisher_id,
+          l.publisher_id as client_id, -- Mantido para compatibilidade
           t.is_active,
           t.last_heartbeat,
           t.current_playlist_id,
@@ -88,9 +92,11 @@ export class PlayerService {
           END as status,
           t.created_at,
           t.updated_at,
-          c.name as client_name
+          p.name as publisher_name,
+          p.name as client_name -- Mantido para compatibilidade
         FROM totems t
-        LEFT JOIN clients c ON t.client_id = c.client_id
+        LEFT JOIN locals l ON t.local_id = l.local_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         ${whereClause}
         ORDER BY t.created_at DESC
         LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
@@ -125,7 +131,8 @@ export class PlayerService {
           t.totem_id,
           t.name,
           t.location,
-          t.client_id,
+          l.publisher_id,
+          l.publisher_id as client_id, -- Mantido para compatibilidade
           t.is_active,
           t.last_heartbeat,
           t.current_playlist_id,
@@ -136,9 +143,11 @@ export class PlayerService {
           END as status,
           t.created_at,
           t.updated_at,
-          c.name as client_name
+          p.name as publisher_name,
+          p.name as client_name -- Mantido para compatibilidade
         FROM totems t
-        LEFT JOIN clients c ON t.client_id = c.client_id
+        LEFT JOIN locals l ON t.local_id = l.local_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE t.totem_id = $1
       `, [id]);
 
@@ -167,13 +176,31 @@ export class PlayerService {
 
       // Criar player
       const identifier = name.trim();
+      
+      // Totem não tem client_id mais - precisa de local_id
+      // Se clientId fornecido, buscar local_id via publisher_id
+      let localId: number | null = null;
+      if (clientId) {
+        // Buscar primeiro local deste publisher
+        const local = await this.db.findFirst(`
+          SELECT local_id FROM locals 
+          WHERE publisher_id = $1 AND is_active = true 
+          ORDER BY local_id ASC 
+          LIMIT 1
+        `, [clientId]);
+        localId = local?.local_id || null;
+        
+        if (!localId) {
+          throw new Error('Publisher não possui nenhum local ativo. Crie um local antes de criar o totem.');
+        }
+      }
 
       const result = await this.db.executeRaw(`
         INSERT INTO totems (
           name,
           identifier,
           location,
-          client_id,
+          local_id,
           is_active,
           active,
           status,
@@ -182,7 +209,7 @@ export class PlayerService {
         )
         VALUES ($1, $2, $3, $4, true, true, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING totem_id
-      `, [name, identifier, location, clientId]);
+      `, [name, identifier, location || null, localId]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar player');
@@ -247,9 +274,22 @@ export class PlayerService {
         paramIndex++;
       }
 
+      // Totem não tem client_id mais - usar local_id via publisher_id
       if (clientId !== undefined) {
-        updateFields.push(`client_id = $${paramIndex}`);
-        updateParams.push(clientId);
+        // Buscar local_id deste publisher
+        const local = await this.db.findFirst(`
+          SELECT local_id FROM locals 
+          WHERE publisher_id = $1 AND is_active = true 
+          ORDER BY local_id ASC 
+          LIMIT 1
+        `, [clientId]);
+        
+        if (!local) {
+          throw new Error('Publisher não possui nenhum local ativo');
+        }
+        
+        updateFields.push(`local_id = $${paramIndex}`);
+        updateParams.push(local.local_id);
         paramIndex++;
       }
 

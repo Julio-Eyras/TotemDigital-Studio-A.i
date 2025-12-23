@@ -26,7 +26,7 @@ const validateRequest = (req: any, res: any, next: any) => {
       details: errors.array()
     });
   }
-  next();
+  return next();
 };
 
 /**
@@ -40,6 +40,9 @@ router.get('/',
   validateRequest,
   async (req: any, res: any) => {
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clients.ts:41',message:'GET /api/clients entry',data:{query:req.query,hasPlatformFilter:!!req.query.platform},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       const { page = 1, limit = 10, search } = req.query;
       
       const result = await getClientService().getAllClients({
@@ -48,10 +51,17 @@ router.get('/',
         search: search as string,
       });
       
-      res.json(result);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clients.ts:52',message:'GET /api/clients response',data:{resultTotal:result.total,resultDataCount:result.data.length,resultData:result.data.map((c:any)=>({id:c.client_id,name:c.name}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      return res.json(result);
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clients.ts:58',message:'GET /api/clients error',data:{error:(error as any)?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       await logError('Erro ao listar clientes', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
@@ -73,10 +83,10 @@ router.get('/:id',
         return res.status(404).json({ error: 'Cliente não encontrado' });
       }
 
-      res.json(client);
+      return res.json(client);
     } catch (error) {
       await logError('Erro ao obter cliente', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
@@ -99,10 +109,10 @@ router.post('/',
         address,
       });
 
-      res.status(201).json(newClient);
+      return res.status(201).json(newClient);
     } catch (error: any) {
       await logError('Erro ao criar cliente', error);
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -130,10 +140,10 @@ router.put('/:id',
         address,
       });
 
-      res.json(updatedClient);
+      return res.json(updatedClient);
     } catch (error: any) {
       await logError('Erro ao atualizar cliente', error);
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -151,10 +161,10 @@ router.delete('/:id',
       
       await getClientService().deleteClient(parseInt(id));
       
-      res.status(204).send();
+      return res.status(204).send();
     } catch (error: any) {
       await logError('Erro ao excluir cliente', error);
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
 );

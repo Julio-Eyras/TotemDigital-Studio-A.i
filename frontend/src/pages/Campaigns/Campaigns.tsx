@@ -66,7 +66,11 @@ const Campaigns: React.FC = () => {
     end_date: '',
     playlistIds: [],
     totemIds: [],
-  });
+    // Novos campos comerciais (frontend envia para backend usar comercial_tier e time_share)
+    commercial_tier: 'standard' as any,
+    default_time_share_percent: 0,
+    max_consecutive_slots: 2,
+  } as any);
 
   useEffect(() => {
     loadCampaigns();
@@ -83,10 +87,25 @@ const Campaigns: React.FC = () => {
         search: searchTerm || undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
       });
-      setCampaigns(response.data || []);
-    } catch (error) {
+      // Normalizar dados do backend (campaignType -> campaign_type)
+      const normalizedCampaigns = (response.data || []).map((campaign: any) => ({
+        ...campaign,
+        campaign_type: campaign.campaign_type || campaign.campaignType || 'standard',
+        status: campaign.status || 'draft',
+        client_id: campaign.client_id || campaign.clientId,
+        start_date: campaign.start_date || campaign.startDate,
+        end_date: campaign.end_date || campaign.endDate,
+        is_active: campaign.is_active !== undefined ? campaign.is_active : (campaign.isActive !== undefined ? campaign.isActive : true),
+        created_at: campaign.created_at || campaign.createdAt,
+        updated_at: campaign.updated_at || campaign.updatedAt,
+      }));
+      setCampaigns(normalizedCampaigns);
+    } catch (error: any) {
       console.error('Erro ao carregar campanhas:', error);
-      setError('Erro ao carregar lista de campanhas');
+      const errorMessage = error?.response?.data?.message 
+        || error?.message 
+        || 'Erro ao carregar lista de campanhas';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -121,7 +140,11 @@ const Campaigns: React.FC = () => {
 
   const handleCreateCampaign = async () => {
     try {
-      await campaignApi.create(newCampaign);
+      setError(null); // Limpar erro anterior
+      const createdCampaign = await campaignApi.create(newCampaign as any);
+      console.log('Campanha criada com sucesso:', createdCampaign);
+      
+      // Fechar diálogo e limpar formulário
       setCreateDialogOpen(false);
       setNewCampaign({
         title: '',
@@ -133,11 +156,21 @@ const Campaigns: React.FC = () => {
         end_date: '',
         playlistIds: [],
         totemIds: [],
-      });
-      loadCampaigns();
-    } catch (error) {
+        commercial_tier: 'standard' as any,
+        default_time_share_percent: 0,
+        max_consecutive_slots: 2,
+      } as any);
+      
+      // Recarregar lista de campanhas
+      await loadCampaigns();
+    } catch (error: any) {
       console.error('Erro ao criar campanha:', error);
-      setError('Erro ao criar campanha');
+      // Extrair mensagem de erro específica da resposta da API
+      const errorMessage = error?.response?.data?.message 
+        || error?.response?.data?.error 
+        || error?.message 
+        || 'Erro ao criar campanha. Verifique os dados e tente novamente.';
+      setError(errorMessage);
     }
   };
 
@@ -148,20 +181,28 @@ const Campaigns: React.FC = () => {
       const updateData: UpdateCampaignRequest = {
         title: selectedCampaign.title,
         description: selectedCampaign.description,
-        campaign_type: selectedCampaign.campaign_type,
-        status: selectedCampaign.status,
-        clientId: selectedCampaign.client_id,
-        start_date: selectedCampaign.start_date,
-        end_date: selectedCampaign.end_date,
-        isActive: selectedCampaign.is_active,
-      };
+        campaign_type: selectedCampaign.campaign_type || (selectedCampaign as any).campaignType || 'standard',
+        status: selectedCampaign.status || 'draft',
+        clientId: selectedCampaign.client_id || (selectedCampaign as any).clientId,
+        start_date: selectedCampaign.start_date || (selectedCampaign as any).startDate,
+        end_date: selectedCampaign.end_date || (selectedCampaign as any).endDate,
+        isActive: selectedCampaign.is_active !== undefined ? selectedCampaign.is_active : ((selectedCampaign as any).isActive !== undefined ? (selectedCampaign as any).isActive : true),
+        // Campos comerciais
+        commercial_tier: (selectedCampaign as any).commercial_tier || 'standard',
+        default_time_share_percent: (selectedCampaign as any).default_time_share_percent ?? 0,
+        max_consecutive_slots: (selectedCampaign as any).max_consecutive_slots ?? 2,
+      } as any;
       await campaignApi.update(selectedCampaign.campaign_id, updateData);
       setEditDialogOpen(false);
       setSelectedCampaign(null);
-      loadCampaigns();
-    } catch (error) {
+      await loadCampaigns();
+    } catch (error: any) {
       console.error('Erro ao atualizar campanha:', error);
-      setError('Erro ao atualizar campanha');
+      const errorMessage = error?.response?.data?.message 
+        || error?.response?.data?.error 
+        || error?.message 
+        || 'Erro ao atualizar campanha';
+      setError(errorMessage);
     }
   };
 
@@ -178,6 +219,7 @@ const Campaigns: React.FC = () => {
   };
 
   const getStatusColor = (status: string) => {
+    if (!status) return theme.palette.primary.main;
     switch (status.toLowerCase()) {
       case 'active':
         return theme.palette.success.main;
@@ -193,6 +235,7 @@ const Campaigns: React.FC = () => {
   };
 
   const getStatusIcon = (status: string) => {
+    if (!status) return <CampaignIcon />;
     switch (status.toLowerCase()) {
       case 'active':
         return <PlayArrow />;
@@ -232,7 +275,7 @@ const Campaigns: React.FC = () => {
             Campanhas
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie suas campanhas de sinalização digital
+            Gerencie campanhas, playlists, agendamentos e prioridades comerciais (tier, share de tempo).
           </Typography>
         </Box>
         <Button
@@ -320,22 +363,22 @@ const Campaigns: React.FC = () => {
                     position: 'absolute',
                     top: 16,
                     left: 16,
-                    backgroundColor: alpha(getStatusColor(campaign.status), 0.1),
-                    color: getStatusColor(campaign.status),
+                    backgroundColor: alpha(getStatusColor(campaign.status || 'draft'), 0.1),
+                    color: getStatusColor(campaign.status || 'draft'),
                   }}
                 >
-                  {getStatusIcon(campaign.status)}
+                  {getStatusIcon(campaign.status || 'draft')}
                 </Avatar>
                 
                 <Chip
-                  label={campaign.status.toUpperCase()}
+                  label={(campaign.status || 'draft').toUpperCase()}
                   size="small"
                   sx={{
                     position: 'absolute',
                     top: 16,
                     right: 16,
-                    backgroundColor: alpha(getStatusColor(campaign.status), 0.1),
-                    color: getStatusColor(campaign.status),
+                    backgroundColor: alpha(getStatusColor(campaign.status || 'draft'), 0.1),
+                    color: getStatusColor(campaign.status || 'draft'),
                     fontWeight: 'bold',
                   }}
                 />
@@ -347,7 +390,7 @@ const Campaigns: React.FC = () => {
                   right: 16,
                 }}>
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    {campaign.campaign_type.toUpperCase()}
+                    {(campaign.campaign_type || (campaign as any).campaignType || 'standard').toUpperCase()}
                   </Typography>
                 </Box>
               </Box>
@@ -367,22 +410,22 @@ const Campaigns: React.FC = () => {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <CalendarToday fontSize="small" color="action" />
                     <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                      Início: {formatDate(campaign.start_date)}
+                      Início: {formatDate(campaign.start_date || (campaign as any).startDate)}
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <CalendarToday fontSize="small" color="action" />
                     <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                      Fim: {formatDate(campaign.end_date)}
+                      Fim: {formatDate(campaign.end_date || (campaign as any).endDate)}
                     </Typography>
                   </Box>
                 </Box>
 
                 <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Chip
-                    label={campaign.is_active ? 'Ativa' : 'Inativa'}
+                    label={(campaign.is_active !== undefined ? campaign.is_active : ((campaign as any).isActive !== undefined ? (campaign as any).isActive : true)) ? 'Ativa' : 'Inativa'}
                     size="small"
-                    color={campaign.is_active ? 'success' : 'default'}
+                    color={(campaign.is_active !== undefined ? campaign.is_active : ((campaign as any).isActive !== undefined ? (campaign as any).isActive : true)) ? 'success' : 'default'}
                     variant="outlined"
                   />
                   
@@ -529,7 +572,7 @@ const Campaigns: React.FC = () => {
           <Autocomplete
             multiple
             options={players}
-            getOptionLabel={(option) => option.name}
+            getOptionLabel={(option) => option.name || option.identifier || option.uin || `Totem ${option.totem_id}`}
             value={players.filter(p => newCampaign.totemIds?.includes(p.totem_id))}
             onChange={(_, newValue) => {
               setNewCampaign({ ...newCampaign, totemIds: newValue.map(p => p.totem_id) });
@@ -538,6 +581,51 @@ const Campaigns: React.FC = () => {
               <TextField {...params} label="SmartvPlayers → Totem" margin="normal" />
             )}
           />
+          
+          {/* Campos Comerciais */}
+          <Box sx={{ mt: 2, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: theme.palette.primary.main }}>
+              Configurações Comerciais
+            </Typography>
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Nível Comercial (Tier)</InputLabel>
+              <Select
+                value={(newCampaign as any).commercial_tier || 'standard'}
+                onChange={(e) => setNewCampaign({ ...newCampaign, commercial_tier: e.target.value } as any)}
+                label="Nível Comercial (Tier)"
+              >
+                <MenuItem value="premium">Premium</MenuItem>
+                <MenuItem value="standard">Standard</MenuItem>
+                <MenuItem value="remnant">Remnant</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Share de Tempo Padrão (%)"
+              type="number"
+              inputProps={{ min: 0, max: 100, step: 0.1 }}
+              value={(newCampaign as any).default_time_share_percent || 0}
+              onChange={(e) => setNewCampaign({ 
+                ...newCampaign, 
+                default_time_share_percent: parseFloat(e.target.value) || 0 
+              } as any)}
+              margin="normal"
+              helperText="Percentual de tempo padrão que esta campanha deve ocupar no mix (0-100%)"
+            />
+            <TextField
+              fullWidth
+              label="Máximo de Slots Consecutivos"
+              type="number"
+              inputProps={{ min: 1, max: 10 }}
+              value={(newCampaign as any).max_consecutive_slots || 2}
+              onChange={(e) => setNewCampaign({ 
+                ...newCampaign, 
+                max_consecutive_slots: parseInt(e.target.value) || 2 
+              } as any)}
+              margin="normal"
+              helperText="Número máximo de itens desta campanha que podem aparecer consecutivamente"
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateDialogOpen(false)}>Cancelar</Button>
@@ -588,6 +676,54 @@ const Campaigns: React.FC = () => {
             }
             label="Campanha Ativa"
           />
+          
+          {/* Campos Comerciais */}
+          <Box sx={{ mt: 2, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: theme.palette.primary.main }}>
+              Configurações Comerciais
+            </Typography>
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Nível Comercial (Tier)</InputLabel>
+              <Select
+                value={(selectedCampaign as any)?.commercial_tier || 'standard'}
+                onChange={(e) => setSelectedCampaign({ 
+                  ...selectedCampaign!, 
+                  commercial_tier: e.target.value 
+                } as any)}
+                label="Nível Comercial (Tier)"
+              >
+                <MenuItem value="premium">Premium</MenuItem>
+                <MenuItem value="standard">Standard</MenuItem>
+                <MenuItem value="remnant">Remnant</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Share de Tempo Padrão (%)"
+              type="number"
+              inputProps={{ min: 0, max: 100, step: 0.1 }}
+              value={(selectedCampaign as any)?.default_time_share_percent || 0}
+              onChange={(e) => setSelectedCampaign({ 
+                ...selectedCampaign!, 
+                default_time_share_percent: parseFloat(e.target.value) || 0 
+              } as any)}
+              margin="normal"
+              helperText="Percentual de tempo padrão que esta campanha deve ocupar no mix (0-100%)"
+            />
+            <TextField
+              fullWidth
+              label="Máximo de Slots Consecutivos"
+              type="number"
+              inputProps={{ min: 1, max: 10 }}
+              value={(selectedCampaign as any)?.max_consecutive_slots || 2}
+              onChange={(e) => setSelectedCampaign({ 
+                ...selectedCampaign!, 
+                max_consecutive_slots: parseInt(e.target.value) || 2 
+              } as any)}
+              margin="normal"
+              helperText="Número máximo de itens desta campanha que podem aparecer consecutivamente"
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>

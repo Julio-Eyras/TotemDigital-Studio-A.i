@@ -3,7 +3,7 @@
  * Rotas CRUD para agendamentos de exportação
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { exportScheduleService } from '../services/exportScheduleService';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { authorizeRole } from '../middleware/auth.middleware';
@@ -19,7 +19,7 @@ router.use(authMiddleware);
  * @desc Lista todos os agendamentos
  * @access Private (Admin, Manager)
  */
-router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const { queryId, enabled, search, page, limit } = req.query;
 
@@ -32,7 +32,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Respo
 
     const result = await exportScheduleService.getAllSchedules(filters);
 
-    res.json({
+    return res.json({
       success: true,
       data: result.data,
       pagination: {
@@ -43,7 +43,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Respo
     });
   } catch (error: any) {
     await logError('Erro ao listar agendamentos de exportação', error, { filters: req.query });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao listar agendamentos',
       error: error.message
@@ -56,7 +56,7 @@ router.get('/', authorizeRole(['admin', 'manager']), async (req: any, res: Respo
  * @desc Busca agendamento por ID
  * @access Private (Admin, Manager)
  */
-router.get('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const scheduleId = parseInt(req.params.id);
 
@@ -76,13 +76,13 @@ router.get('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: schedule
     });
   } catch (error: any) {
     await logError('Erro ao buscar agendamento de exportação', error, { scheduleId: req.params.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao buscar agendamento',
       error: error.message
@@ -95,7 +95,7 @@ router.get('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
  * @desc Cria novo agendamento
  * @access Private (Admin, Manager)
  */
-router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.post('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const data = req.body;
     const userId = req.user.id;
@@ -120,7 +120,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Resp
     // Criar agendamento
     const schedule = await exportScheduleService.createSchedule(data, userId);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: schedule,
       message: 'Agendamento criado com sucesso',
@@ -128,7 +128,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Resp
     });
   } catch (error: any) {
     await logError('Erro ao criar agendamento de exportação', error, { userId: req.user?.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao criar agendamento',
       error: error.message
@@ -141,7 +141,7 @@ router.post('/', authorizeRole(['admin', 'manager']), async (req: any, res: Resp
  * @desc Atualiza agendamento
  * @access Private (Admin, Manager)
  */
-router.put('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const scheduleId = parseInt(req.params.id);
     const data = req.body;
@@ -168,14 +168,14 @@ router.put('/:id', authorizeRole(['admin', 'manager']), async (req: any, res: Re
     // Atualizar agendamento
     const schedule = await exportScheduleService.updateSchedule(scheduleId, data, userId);
 
-    res.json({
+    return res.json({
       success: true,
       data: schedule,
       message: 'Agendamento atualizado com sucesso'
     });
   } catch (error: any) {
     await logError('Erro ao atualizar agendamento de exportação', error, { scheduleId: req.params.id, userId: req.user?.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao atualizar agendamento',
       error: error.message
@@ -203,13 +203,13 @@ router.delete('/:id', authorizeRole(['admin']), async (req: any, res: Response) 
     // Excluir agendamento
     await exportScheduleService.deleteSchedule(scheduleId, userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Agendamento excluído com sucesso'
     });
   } catch (error: any) {
     await logError('Erro ao excluir agendamento de exportação', error, { scheduleId: req.params.id, userId: req.user?.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao excluir agendamento',
       error: error.message
@@ -222,7 +222,7 @@ router.delete('/:id', authorizeRole(['admin']), async (req: any, res: Response) 
  * @desc Executa agendamento manualmente
  * @access Private (Admin, Manager)
  */
-router.post('/:id/execute-now', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.post('/:id/execute-now', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const scheduleId = parseInt(req.params.id);
     const userId = req.user.id;
@@ -237,13 +237,13 @@ router.post('/:id/execute-now', authorizeRole(['admin', 'manager']), async (req:
     // Executar agendamento
     await exportScheduleService.executeScheduleNow(scheduleId, userId);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Execução manual iniciada com sucesso'
     });
   } catch (error: any) {
     await logError('Erro ao executar agendamento manualmente', error, { scheduleId: req.params.id, userId: req.user?.id });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao executar agendamento',
       error: error.message
@@ -256,7 +256,7 @@ router.post('/:id/execute-now', authorizeRole(['admin', 'manager']), async (req:
  * @desc Valida expressão cron
  * @access Private (Admin, Manager)
  */
-router.post('/validate-cron', authorizeRole(['admin', 'manager']), async (req: any, res: Response) => {
+router.post('/validate-cron', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
   try {
     const { cronExpression } = req.body;
 
@@ -270,7 +270,7 @@ router.post('/validate-cron', authorizeRole(['admin', 'manager']), async (req: a
     // Validar expressão cron
     const validation = exportScheduleService.validateCronExpression(cronExpression);
 
-    res.json({
+    return res.json({
       success: validation.valid,
       data: {
         valid: validation.valid,
@@ -280,7 +280,7 @@ router.post('/validate-cron', authorizeRole(['admin', 'manager']), async (req: a
     });
   } catch (error: any) {
     await logError('Erro ao validar expressão cron de exportação', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro ao validar expressão cron',
       error: error.message

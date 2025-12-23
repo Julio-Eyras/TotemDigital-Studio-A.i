@@ -4,37 +4,50 @@
  */
 
 import express from 'express';
+import http from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
+import { apiLimiter, validatePayloadSize, sanitizeQueryParams, validateOrigin } from './middleware/security.middleware';
+import { config } from './config/env';
 import { initializeDatabase, closeDatabase } from './config/database';
 import { initializeRedis, closeRedis, testRedisConnection } from './config/redis';
 import { initializeExportQueue, closeExportQueue, initializeAdvancedScheduleQueue, closeAdvancedScheduleQueue } from './config/queue';
 import { registerExportWorker } from './workers/exportWorker';
 import { registerAdvancedScheduleWorker } from './workers/advancedScheduleWorker';
 import { exportScheduleService } from './services/exportScheduleService';
+import { InvoiceWorker } from './workers/invoiceWorker';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
 import { authMiddleware } from './middleware/auth.middleware';
+import { blockClientDataAccess } from './middleware/operatorProtection.middleware';
+import { auditSystemUsers } from './middleware/auditSystemUsers.middleware';
 import { getLogger } from './config/logger';
 import { LogRotationService } from './services/logRotationService';
 import { logInfo, logError, logWarn, logInfoSync } from './utils/loggerHelper';
+import { getWebSocketService } from './services/websocketService';
 
 // Routes
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
-import clientRoutes from './routes/clients';
+import clientRoutes from './routes/clients'; // TODO: Deprecar - usar subscribers
+import subscriberRoutes from './routes/subscribers'; // NOVO: Subscribers (anunciantes)
+import publisherRoutes from './routes/publishers'; // NOVO: Publishers (publicadores)
 import dashboardRoutes from './routes/dashboard';
 import playerRoutes from './routes/players'; // API de gerenciamento de players
 import totemRoutes from './routes/totems';
 import mediaRoutes from './routes/media';
 import playlistRoutes from './routes/playlists';
+import playlistMixRoutes from './routes/playlist-mix';
 import campaignRoutes from './routes/campaigns';
 import qrcodeRoutes from './routes/qrcodes';
 import analyticsRoutes from './routes/analytics';
-import billingRoutes from './routes/billing';
+import billingRoutes from './routes/billing'; // TODO: Deprecar - usar subscriber-billing e publisher-billing
+import subscriberBillingRoutes from './routes/subscriber-billing'; // NOVO: Billing de subscribers
+import publisherBillingRoutes from './routes/publisher-billing'; // NOVO: Billing de publishers
+import plansRoutes from './routes/plans';
+import subscriptionsRoutes from './routes/subscriptions';
 import settingsRoutes from './routes/settings';
 import reportsRoutes from './routes/reports';
 import aiRoutes from './routes/ai';
@@ -47,15 +60,35 @@ import logsRoutes from './routes/logs';
 import playerDebugRoutes from './routes/player-debug';
 import advancedSchedulesRoutes from './routes/advanced-schedules';
 import emailRoutes from './routes/email';
+import otaUpdatesRoutes from './routes/ota-updates';
+import tagsRoutes from './routes/tags';
+import facialRecognitionRoutes from './routes/facial-recognition';
+import networkRoutes from './routes/network';
+import smartDisplayFxRoutes from './routes/smartdisplayfx';
+import smartDisplayFxEffectsRoutes from './routes/smartdisplayfx-effects';
+import smartDisplayFxRulesRoutes from './routes/smartdisplayfx-rules';
+import smartDisplayFxTimelinesRoutes from './routes/smartdisplayfx-timelines';
+import smartDisplayFxSitesRoutes from './routes/smartdisplayfx-sites';
+import smartDisplayFxTelemetryRoutes from './routes/smartdisplayfx-telemetry';
+import smartDisplayFxAnalyticsRoutes from './routes/smartdisplayfx-analytics';
+import alertsRoutes from './routes/alerts';
+import rolesRoutes from './routes/roles';
+import permissionsRoutes from './routes/permissions';
+import webhooksRoutes from './routes/webhooks';
+import dashboardLayoutsRoutes from './routes/dashboard-layouts';
+import backupsRoutes from './routes/backups';
+import healthRoutes from './routes/health';
+import notificationsRoutes from './routes/notifications';
+import { rateLimitHeavyOperations } from './middleware/rateLimitUser.middleware';
 import { openApiSpec } from './config/swagger';
+import { getExpressLimit } from './config/mediaConfig';
 
 // Services
 import { SystemService } from './services/systemService';
-import { NotificationService } from './services/notificationService';
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000');
-const HOST = process.env.HOST || '0.0.0.0';
+const PORT = config.server.port;
+const HOST = config.server.host;
 
 // =============================================
 // MIDDLEWARE GLOBAL
@@ -84,18 +117,17 @@ app.use(helmet({
 }));
 
 // CORS
-const corsOrigins = process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:80', 'http://nginx:80'];
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // Permite requisições sem origem (como mobile apps ou requisições diretas)
     if (!origin) return callback(null, true);
     
     // Verifica se a origem está na lista permitida
-    if (corsOrigins.includes(origin)) {
+    if (config.security.corsOrigins.includes(origin)) {
       callback(null, true);
     } else {
       // Em produção, aceitar também requisições do Nginx
-      if (process.env.NODE_ENV === 'production') {
+      if (config.server.isProduction) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
@@ -112,8 +144,6 @@ app.use(compression());
 
 // Body parsing - Configuração dinâmica de mídia
 // NOTA: loadMediaConfig será chamado DEPOIS de initializeDatabase() na função startServer()
-import { getExpressLimit } from './config/mediaConfig';
-
 // Middleware dinâmico para body parsing (lê configuração do banco em cada requisição)
 // Usa valores padrão até que o banco seja inicializado
 app.use((req, res, next) => {
@@ -130,18 +160,13 @@ app.use((req, res, next) => {
 app.use(morgan('combined'));
 app.use(requestLogger);
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-  message: {
-    error: 'Muitas requisições. Tente novamente em alguns minutos.',
-    retryAfter: '15 minutos'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api/', limiter);
+// Security middlewares
+app.use(validateOrigin);
+app.use(sanitizeQueryParams);
+app.use(validatePayloadSize()); // Usa valor de securityConfig.maxPayloadSize
+
+// Rate limiting - aplicar limiter genérico em todas as rotas API
+app.use('/api/', apiLimiter);
 
 // Static files
 app.use('/assets', express.static('/opt/smart-signage/public/assets'));
@@ -171,7 +196,7 @@ app.get('/', (_req, res) => {
       player: '/player',
       admin: '/admin'
     },
-    documentation: process.env.NODE_ENV !== 'production' ? '/api-docs' : 'Not available in production',
+    documentation: config.server.isDevelopment ? '/api-docs' : 'Not available in production',
     timestamp: new Date().toISOString()
   });
 });
@@ -235,30 +260,59 @@ app.get('/api/health', async (_req, res) => {
   }
 });
 
+// Middleware de auditoria para ADMIN_SQL e OPERATOR (aplicar antes das rotas)
+app.use('/api', auditSystemUsers as any);
+
 // API Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/users', authMiddleware, userRoutes);
-app.use('/api/clients', authMiddleware, clientRoutes);
+app.use('/api/users', authMiddleware as any, userRoutes);
+app.use('/api/clients', authMiddleware as any, blockClientDataAccess as any, clientRoutes); // TODO: Deprecar - usar /api/subscribers
+app.use('/api/subscribers', authMiddleware as any, blockClientDataAccess as any, subscriberRoutes); // NOVO: Subscribers (anunciantes)
+app.use('/api/publishers', authMiddleware as any, publisherRoutes); // NOVO: Publishers (publicadores)
 app.use('/api/totems', totemRoutes);
-app.use('/api/players', authMiddleware, playerRoutes);
-app.use('/api/media', mediaRoutes);
-app.use('/api/playlists', playlistRoutes);
-app.use('/api/campaigns', campaignRoutes);
-app.use('/api/qrcodes', qrcodeRoutes);
-app.use('/api/qr-codes', qrcodeRoutes); // Alias para compatibilidade com frontend
-app.use('/api/analytics', analyticsRoutes);
-app.use('/api/billing', billingRoutes);
+app.use('/api/players', authMiddleware as any, playerRoutes);
+app.use('/api/media', blockClientDataAccess as any, mediaRoutes);
+app.use('/api/playlists', blockClientDataAccess as any, playlistRoutes);
+app.use('/api/playlist-mix', authMiddleware as any, playlistMixRoutes);
+app.use('/api/campaigns', blockClientDataAccess as any, campaignRoutes);
+app.use('/api/qrcodes', blockClientDataAccess as any, qrcodeRoutes);
+app.use('/api/qr-codes', blockClientDataAccess as any, qrcodeRoutes); // Alias para compatibilidade com frontend
+app.use('/api/analytics', blockClientDataAccess as any, analyticsRoutes);
+app.use('/api/billing', authMiddleware as any, blockClientDataAccess as any, billingRoutes); // TODO: Deprecar - usar /api/subscriber-billing e /api/publisher-billing
+app.use('/api/subscriber-billing', authMiddleware as any, blockClientDataAccess as any, subscriberBillingRoutes); // NOVO: Billing de subscribers
+app.use('/api/publisher-billing', authMiddleware as any, publisherBillingRoutes); // NOVO: Billing de publishers
+app.use('/api/plans', plansRoutes);
+app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/settings', settingsRoutes);
-app.use('/api/reports', reportsRoutes);
+app.use('/api/reports', blockClientDataAccess as any, reportsRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api/smart-playlist', smartPlaylistRoutes);
-app.use('/api/dashboard', authMiddleware, dashboardRoutes);
+app.use('/api/smart-playlist', blockClientDataAccess as any, smartPlaylistRoutes);
+app.use('/api/dashboard', authMiddleware as any, dashboardRoutes);
 app.use('/api/export-queries', exportQueriesRoutes);
 app.use('/api/export-schedules', exportSchedulesRoutes);
 app.use('/api/export-executions', exportExecutionsRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/advanced-schedules', advancedSchedulesRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/ota-updates', otaUpdatesRoutes);
+app.use('/api/tags', blockClientDataAccess as any, tagsRoutes);
+app.use('/api/facial-recognition', blockClientDataAccess as any, facialRecognitionRoutes);
+app.use('/api/network', networkRoutes);
+app.use('/api/smartdisplayfx', smartDisplayFxRoutes);
+app.use('/api/smartdisplayfx/effects', smartDisplayFxEffectsRoutes);
+app.use('/api/smartdisplayfx/rules', smartDisplayFxRulesRoutes);
+app.use('/api/smartdisplayfx/timelines', smartDisplayFxTimelinesRoutes);
+app.use('/api/smartdisplayfx/sites', smartDisplayFxSitesRoutes);
+app.use('/api/smartdisplayfx/telemetry', smartDisplayFxTelemetryRoutes);
+app.use('/api/smartdisplayfx/analytics', smartDisplayFxAnalyticsRoutes);
+app.use('/api/alerts', alertsRoutes);
+app.use('/api/roles', rolesRoutes);
+app.use('/api/permissions', permissionsRoutes);
+app.use('/api/webhooks', webhooksRoutes);
+app.use('/api/dashboard-layouts', dashboardLayoutsRoutes);
+app.use('/api/backups', rateLimitHeavyOperations, backupsRoutes);
+app.use('/api/health', healthRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 // Docs JSON (Swagger OpenAPI)
 app.get('/api/docs.json', (_req, res) => {
@@ -270,13 +324,13 @@ import playerValidationRoutes from './routes/player';
 
 // Servir player com suporte a UIN como parâmetro
 app.get('/player', (_req, res) => {
-  const playerPath = process.env.PLAYER_PATH || '/opt/smart-signage/player/index.html';
+  const playerPath = config.player.path;
   res.sendFile(playerPath);
 });
 
 // API de validação do player (antes do middleware de autenticação)
 app.use('/api/player', playerValidationRoutes);
-app.use('/api/player/debug', authMiddleware, playerDebugRoutes); // Debug de transações do player (requer autenticação)
+app.use('/api/player/debug', authMiddleware as any, playerDebugRoutes); // Debug de transações do player (requer autenticação)
 app.use('/api/debug', debugRoutes); // Debug endpoints (logs, diagnóstico)
 
 app.get('/player/config', async (_req, res) => {
@@ -295,7 +349,7 @@ app.get('/admin', (_req, res) => {
 });
 
 // API Documentation
-if (process.env.NODE_ENV !== 'production') {
+if (config.server.isDevelopment) {
   const swaggerUi = require('swagger-ui-express');
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
 }
@@ -323,61 +377,61 @@ process.on('SIGTERM', async () => {
   // Usar try/catch explícito para capturar erros síncronos e assíncronos
   try {
     await logInfo('SIGTERM recebido. Iniciando shutdown graceful...');
-  } catch (logErr) {
+  } catch {
     // Silenciosamente falhar - logging não disponível
   }
   
   try {
+    // Export queue
     try {
       await closeExportQueue();
-    } catch (err) {
-      shutdownFailed = true;
-      // Silenciosamente falhar - já marcado como failed
-    }
-    
-    try {
       await logInfo('Queue de exportação fechada');
-    } catch (logErr) {
-      // Silenciosamente falhar - logging não disponível
+    } catch {
+      shutdownFailed = true;
     }
     
+    // Advanced schedule queue
     try {
       await closeAdvancedScheduleQueue();
-    } catch (err) {
-      shutdownFailed = true;
-      // Silenciosamente falhar - já marcado como failed
-    }
-    
-    try {
       await logInfo('Queue de agendamento avançado fechada');
-    } catch (logErr) {
-      // Silenciosamente falhar - logging não disponível
+    } catch {
+      shutdownFailed = true;
     }
     
+    // Redis
     try {
       await closeRedis();
-    } catch (err) {
-      shutdownFailed = true;
-      // Silenciosamente falhar - já marcado como failed
-    }
-    
-    try {
       await logInfo('Redis desconectado');
-    } catch (logErr) {
-      // Silenciosamente falhar - logging não disponível
+    } catch {
+      shutdownFailed = true;
     }
     
+    // Invoice Worker
+    try {
+      if ((global as any).invoiceWorker) {
+        (global as any).invoiceWorker.stop();
+        await logInfo('Invoice Worker parado');
+      }
+    } catch {
+      shutdownFailed = true;
+    }
+    
+    // Playlist Mix Worker
+    try {
+      if ((global as any).playlistMixWorker) {
+        (global as any).playlistMixWorker.stop();
+        await logInfo('Playlist Mix Worker parado');
+      }
+    } catch {
+      shutdownFailed = true;
+    }
+    
+    // Database
     try {
       await closeDatabase();
-    } catch (err) {
-      shutdownFailed = true;
-      // Silenciosamente falhar - já marcado como failed
-    }
-    
-    try {
       await logInfo('Database desconectado');
-    } catch (logErr) {
-      // Silenciosamente falhar - logging não disponível
+    } catch {
+      shutdownFailed = true;
     }
     
     // Sair com código de erro se alguma operação falhou
@@ -385,7 +439,7 @@ process.on('SIGTERM', async () => {
   } catch (error) {
     try {
       await logError('Erro durante shutdown', error);
-    } catch (logErr) {
+    } catch {
       // Silenciosamente falhar - logging não disponível
     }
     process.exit(1);
@@ -398,61 +452,61 @@ process.on('SIGINT', async () => {
   // Usar try/catch explícito para capturar erros síncronos e assíncronos
   try {
     await logInfo('SIGINT recebido. Iniciando shutdown graceful...');
-  } catch (logErr) {
+  } catch {
     // Silenciosamente falhar - logging não disponível
   }
   
   try {
+    // Export queue
     try {
       await closeExportQueue();
-    } catch (err) {
-      shutdownFailed = true;
-      // Silenciosamente falhar - já marcado como failed
-    }
-    
-    try {
       await logInfo('Queue de exportação fechada');
-    } catch (logErr) {
-      // Silenciosamente falhar - logging não disponível
+    } catch {
+      shutdownFailed = true;
     }
     
+    // Advanced schedule queue
     try {
       await closeAdvancedScheduleQueue();
-    } catch (err) {
-      shutdownFailed = true;
-      // Silenciosamente falhar - já marcado como failed
-    }
-    
-    try {
       await logInfo('Queue de agendamento avançado fechada');
-    } catch (logErr) {
-      // Silenciosamente falhar - logging não disponível
+    } catch {
+      shutdownFailed = true;
     }
     
+    // Redis
     try {
       await closeRedis();
-    } catch (err) {
-      shutdownFailed = true;
-      // Silenciosamente falhar - já marcado como failed
-    }
-    
-    try {
       await logInfo('Redis desconectado');
-    } catch (logErr) {
-      // Silenciosamente falhar - logging não disponível
+    } catch {
+      shutdownFailed = true;
     }
     
+    // Invoice Worker
+    try {
+      if ((global as any).invoiceWorker) {
+        (global as any).invoiceWorker.stop();
+        await logInfo('Invoice Worker parado');
+      }
+    } catch {
+      shutdownFailed = true;
+    }
+    
+    // Playlist Mix Worker
+    try {
+      if ((global as any).playlistMixWorker) {
+        (global as any).playlistMixWorker.stop();
+        await logInfo('Playlist Mix Worker parado');
+      }
+    } catch {
+      shutdownFailed = true;
+    }
+    
+    // Database
     try {
       await closeDatabase();
-    } catch (err) {
-      shutdownFailed = true;
-      // Silenciosamente falhar - já marcado como failed
-    }
-    
-    try {
       await logInfo('Database desconectado');
-    } catch (logErr) {
-      // Silenciosamente falhar - logging não disponível
+    } catch {
+      shutdownFailed = true;
     }
     
     // Sair com código de erro se alguma operação falhou
@@ -460,7 +514,7 @@ process.on('SIGINT', async () => {
   } catch (error) {
     try {
       await logError('Erro durante shutdown', error);
-    } catch (logErr) {
+    } catch {
       // Silenciosamente falhar - logging não disponível
     }
     process.exit(1);
@@ -489,27 +543,58 @@ async function startServer() {
       await logWarn('Erro ao carregar configurações de mídia (usando padrões)', { error: err.message });
     }
     
-    // Inicializar Redis
-    await logInfo('Conectando ao Redis...');
-    await initializeRedis();
-    const redisConnected = await testRedisConnection();
-    if (!redisConnected) {
-      throw new Error('Falha ao conectar ao Redis');
+    // Inicializar Redis (opcional)
+    if (config.redis.enabled) {
+      await logInfo('Conectando ao Redis...');
+      try {
+        await initializeRedis();
+        const redisConnected = await testRedisConnection();
+        if (!redisConnected) {
+          await logWarn('Redis não conectado, continuando sem cache');
+        } else {
+          await logInfo('Redis conectado com sucesso');
+        }
+      } catch (error: any) {
+        await logWarn('Erro ao conectar ao Redis, continuando sem cache', { error: error.message });
+      }
+      
+      // Inicializar Bull Queue (requer Redis)
+      try {
+        await logInfo('Inicializando Bull Queue...');
+        initializeExportQueue();
+        registerExportWorker();
+        
+        await logInfo('Inicializando Bull Queue de Agendamento Avançado...');
+        initializeAdvancedScheduleQueue();
+        registerAdvancedScheduleWorker();
+      } catch (error: any) {
+        await logWarn('Erro ao inicializar Bull Queue, continuando sem filas', { error: error.message });
+      }
+    } else {
+      await logInfo('Redis desabilitado (CACHE_ENABLED=false), continuando sem cache e filas');
     }
     
-    // Inicializar Bull Queue
-    await logInfo('Inicializando Bull Queue...');
-    initializeExportQueue();
-    registerExportWorker();
+    // Inicializar Invoice Worker
+    await logInfo('Inicializando Invoice Worker...');
+    const invoiceWorker = new InvoiceWorker();
+    invoiceWorker.start();
+    (global as any).invoiceWorker = invoiceWorker; // Salvar para graceful shutdown
     
-    // Inicializar Bull Queue de Agendamento Avançado
-    await logInfo('Inicializando Bull Queue de Agendamento Avançado...');
-    initializeAdvancedScheduleQueue();
-    registerAdvancedScheduleWorker();
+    // Inicializar Playlist Mix Worker
+    await logInfo('Inicializando Playlist Mix Worker...');
+    const { getPlaylistMixWorker } = await import('./workers/playlistMixWorker');
+    const playlistMixWorker = getPlaylistMixWorker();
+    playlistMixWorker.start();
+    (global as any).playlistMixWorker = playlistMixWorker; // Salvar para graceful shutdown
     
-    // Carregar agendamentos ativos
-    await logInfo('Carregando agendamentos ativos...');
-    await exportScheduleService.loadAllActiveSchedules();
+    // Carregar agendamentos ativos (não crítico se falhar)
+    try {
+      await logInfo('Carregando agendamentos ativos...');
+      await exportScheduleService.loadAllActiveSchedules();
+    } catch (error: any) {
+      // Não crítico - servidor pode iniciar sem agendamentos
+      await logWarn('Não foi possível carregar agendamentos (continuando): ' + (error.message || error));
+    }
     
     // Inicializar logger
     await logInfo('Inicializando sistema de logs...');
@@ -546,29 +631,39 @@ async function startServer() {
     const systemService = new SystemService();
     await systemService.initialize();
     
-    const notificationService = new NotificationService();
-    await notificationService.initialize();
+    // NotificationService será inicializado lazy quando necessário
     
     // AuditService será inicializado lazy quando necessário
     
+    // Criar servidor HTTP para WebSocket
+    const server = http.createServer(app);
+    
+    // Inicializar WebSocket Service
+    await logInfo('Inicializando WebSocket server...');
+    const wsService = getWebSocketService();
+    wsService.initialize(server);
+    (global as any).wsService = wsService; // Salvar para graceful shutdown
+    
     // Iniciar servidor
-    app.listen(PORT, HOST, () => {
+    server.listen(PORT, HOST, () => {
       logInfoSync('Smart Signage v2.1 iniciado com sucesso', {
         host: HOST,
         port: PORT,
-        environment: process.env.NODE_ENV || 'development'
+        environment: config.server.nodeEnv
       });
       logInfoSync('Servidor rodando', {
         server: `http://${HOST}:${PORT}`,
         player: `http://${HOST}:${PORT}/player`,
         admin: `http://${HOST}:${PORT}/admin`,
         apiDocs: `http://${HOST}:${PORT}/api-docs`,
-        health: `http://${HOST}:${PORT}/health`
+        health: `http://${HOST}:${PORT}/health`,
+        websocket: `ws://${HOST}:${PORT}/ws`
       });
       logInfoSync('Configurações do sistema', {
         database: 'PostgreSQL',
-        redis: 'Conectado',
-        bullQueue: 'Ativo',
+        redis: config.redis.enabled ? 'Conectado' : 'Desabilitado',
+        bullQueue: config.redis.enabled ? 'Ativo' : 'Desabilitado',
+        websocket: 'Ativo',
         aiProvider: process.env.AI_PROVIDER || 'ollama'
       });
     });

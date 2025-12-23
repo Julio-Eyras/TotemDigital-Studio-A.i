@@ -1,0 +1,25 @@
+Ótimo, vamos priorizar CronSQL ponta a ponta (frontend + backend) até ficar redondo antes de mexer com Prometheus/Grafana e analytics finais. Proponho avançar assim:
+1. Diagnóstico & Plano Detalhado (CheckPoint 1)
+Revisar o que já existe no Admin Tools > CronSQL (UI atual, chamadas API, limitações).
+Listar melhorias UX esperadas: fluxo de criação/edição, feedback de validação, permissões (RBAC), monitoramento de execuções, download etc.
+Mapear gaps no backend que sustentam a nova UX (filtros, paginação, logs, endpoints faltantes).
+2. Implementação Backend Incremental
+Ajustes nas rotas/services (validação, auditoria, filtros, paginação, logs, permissões).
+Novos endpoints caso necessário (ex.: reexecução, preview).
+Testes Jest atualizados para cobrir cenários.
+Documentar APIs (anotações técnicas para o futuro guia).
+3. Implementação Frontend UX
+Refinar layout dos tabs (Consultas, Agendamentos, Execuções).
+Formulários com validação contextual (provider → opções, export format, cron helper).
+Interações avançadas (preview SQL, testar conexão, mostrar histórico, download).
+Controle de permissões na UI (RBAC).
+4. CheckPoint 2 – Demostração
+Rodar npm test + teste manual do fluxo end-to-end (criar consulta → agendar → ver execução).
+Capturar prints/fluxos para o guia do usuário.
+Validar com você antes de seguir.
+5. Documentação Estruturada
+Guia do Usuário: passo a passo com capturas reais.
+Guia Técnico: APIs, workers, scripts necessários, troubleshooting, checklists.
+Documento ER/Fluxos: diagrama atualizado (podemos gerar PlantUML/Draw.io) + descrição textual das entidades CronSQL e relações.
+Depois disso, com CronSQL fechado, partimos para Prometheus/Grafana e analytics real.
+Confere esse plano? Posso começar pelo CheckPoint 1 (diagnóstico detalhado e backlog de melhorias) agora mesmo.

@@ -48,6 +48,9 @@ export enum EventType {
   PLAYLIST_ITEM_PLAY = 'playlist_item_play',
   
   // Totem/Player
+  TOTEM_COMMAND_SENT = 'totem_command_sent',
+  TOTEM_COMMAND_COMPLETED = 'totem_command_completed',
+  TOTEM_COMMAND_FAILED = 'totem_command_failed',
   TOTEM_ONLINE = 'totem_online',
   TOTEM_OFFLINE = 'totem_offline',
   TOTEM_HEARTBEAT = 'totem_heartbeat',
@@ -152,6 +155,7 @@ export class EventLogService {
 
   /**
    * Registra fim de reprodução de vídeo
+   * @param duration Duração em segundos (será salvo como durationSeconds no metadata)
    */
   async logVideoPlaybackEnd(
     mediaId: number,
@@ -168,7 +172,9 @@ export class EventLogService {
       totemId,
       metadata: {
         ...metadata,
-        duration,
+        durationSeconds: duration, // Padrão conceitual: durationSeconds
+        duration, // Manter compatibilidade
+        result: completed ? 'success' : 'failure',
         completed,
         playbackEndTime: new Date().toISOString()
       }
@@ -182,7 +188,7 @@ export class EventLogService {
    * @param campaignId ID da campanha
    * @param startTime Data/hora de início
    * @param endTime Data/hora de fim (opcional)
-   * @param metadata Metadados adicionais
+   * @param metadata Metadados adicionais (pode incluir: slot, price, currency, result, skipReason)
    */
   async logAdDisplay(
     adId: number,
@@ -193,6 +199,7 @@ export class EventLogService {
     metadata?: any
   ): Promise<number> {
     const eventType = endTime ? EventType.AD_DISPLAY_END : EventType.AD_DISPLAY_START;
+    const durationSeconds = endTime ? Math.floor((endTime.getTime() - startTime.getTime()) / 1000) : null;
     
     return this.logEvent({
       eventType,
@@ -203,15 +210,21 @@ export class EventLogService {
       campaignId,
       metadata: {
         ...metadata,
+        mediaId: adId, // Padrão conceitual
+        totemId, // Padrão conceitual
+        campaignId, // Padrão conceitual
         startTime: startTime.toISOString(),
         endTime: endTime?.toISOString(),
-        duration: endTime ? Math.floor((endTime.getTime() - startTime.getTime()) / 1000) : null
+        durationSeconds, // Padrão conceitual: durationSeconds
+        duration: durationSeconds, // Manter compatibilidade
+        result: metadata?.result || (endTime ? 'success' : undefined) // Padrão conceitual
       }
     });
   }
 
   /**
    * Registra scan de QR Code
+   * @param metadata Pode incluir: location, userAgent, ipAddress, campaignId, clientId, redirectUrl, scanResult, errorMessage
    */
   async logQRCodeScan(
     qrCodeId: number,
@@ -225,7 +238,10 @@ export class EventLogService {
       totemId,
       metadata: {
         ...metadata,
-        scanTime: new Date().toISOString()
+        qrCodeId, // Padrão conceitual
+        totemId: totemId || metadata?.totemId, // Padrão conceitual
+        scanTime: new Date().toISOString(),
+        scanResult: metadata?.scanResult || 'success' // Padrão conceitual: 'success' | 'failure'
       }
     });
   }

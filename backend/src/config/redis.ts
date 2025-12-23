@@ -4,17 +4,15 @@
  */
 
 import Redis from 'ioredis';
-import dotenv from 'dotenv';
 import { logInfoSync, logErrorSync, logWarnSync } from '../utils/loggerHelper';
+import { redisConfig as config } from './env';
 
-dotenv.config();
-
-// Configuração do Redis
+// Configuração do Redis usando sistema centralizado
 const redisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD || undefined,
-  db: parseInt(process.env.REDIS_DB || '0'),
+  host: config.host,
+  port: config.port,
+  password: config.password || undefined,
+  db: config.db,
   maxRetriesPerRequest: 3,
   retryStrategy: (times: number) => {
     const delay = Math.min(times * 50, 2000);

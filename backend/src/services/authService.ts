@@ -9,6 +9,8 @@ import crypto from 'crypto';
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
+import { config } from '../config/env';
+import { getAuditServiceInstance } from '../utils/globalInstances';
 
 export interface LoginRequest {
   username: string;
@@ -34,6 +36,7 @@ export interface AuthResponse {
     clientId?: number;
   };
   error?: string;
+  requiresTwoFactor?: boolean; // Indica se 2FA é necessário
 }
 
 export interface ChangePasswordRequest {
@@ -48,10 +51,7 @@ export class AuthService {
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
-    }
-    return (global as any).auditServiceInstance;
+    return getAuditServiceInstance();
   }
 
   /**
@@ -79,9 +79,10 @@ export class AuthService {
             LEFT JOIN clients c ON u.client_id = c.client_id 
             WHERE u.username = ? AND u.is_active = true
           `, [username]);
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Se falhar mesmo com a tabela existindo, tentar sem JOIN
-          await logWarn(`[AUTH] Erro no JOIN com clients - buscando sem JOIN`, { error: error.message });
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          await logWarn(`[AUTH] Erro no JOIN com clients - buscando sem JOIN`, { error: errorMessage });
           user = await this.db.findFirst(`
             SELECT u.*
             FROM users u 
@@ -102,7 +103,7 @@ export class AuthService {
 
       if (!user) {
         await logWarn(`[AUTH] Usuário não encontrado ou inativo`, { username });
-        await this.getAuditService().log('auth', 'login_failed', null, { username, reason: 'user_not_found' }).catch(e => logError('[AUTH] Erro ao registrar log', e));
+        await this.getAuditService().log('auth', 'login_failed', undefined, { username, reason: 'user_not_found' }).catch(e => logError('[AUTH] Erro ao registrar log', e));
         return { success: false, error: 'Credenciais inválidas' };
       }
 
@@ -127,7 +128,28 @@ export class AuthService {
         WHERE id = ?
       `, [user.id]).catch(e => logError('[AUTH] Erro ao atualizar last_login', e));
 
-      // Gerar tokens
+      // Verificar se 2FA está habilitado
+      const { getTwoFactorService } = await import('./twoFactorService');
+      const twoFactorService = getTwoFactorService();
+      const requiresTwoFactor = await twoFactorService.isTwoFactorEnabled(user.id);
+
+      if (requiresTwoFactor) {
+        await logInfo(`[AUTH] 2FA requerido para usuário`, { username, userId: user.id });
+        
+        // Não gerar tokens ainda - aguardar verificação 2FA
+        return {
+          success: true,
+          requiresTwoFactor: true,
+          user: {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            clientId: user.client_id
+          }
+        };
+      }
+
+      // Gerar tokens (2FA não habilitado)
       await logDebug(`[AUTH] Gerando tokens JWT`, { userId: user.id });
       const token = this.generateToken(user);
       const refreshToken = this.generateRefreshToken(user);
@@ -173,7 +195,7 @@ export class AuthService {
    */
   async register(data: RegisterRequest): Promise<AuthResponse> {
     try {
-      const { username, password, email, role = 'client', clientId } = data;
+      const { username, password, role = 'client', clientId } = data;
 
       // Verificar se usuário já existe
       const existingUser = await this.db.findFirst(`
@@ -256,7 +278,7 @@ export class AuthService {
    */
   async refreshToken(refreshToken: string): Promise<AuthResponse> {
     try {
-      const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET!) as any;
+      const decoded = jwt.verify(refreshToken, config.jwt.secret) as any;
       
       // Buscar usuário (com ou sem JOIN dependendo da existência da tabela)
       const clientsTableExists = await this.db.tableExists('clients');
@@ -458,8 +480,8 @@ export class AuthService {
       clientId: user.client_id
     };
 
-    return jwt.sign(payload, process.env.JWT_SECRET!, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '24h'
+    return jwt.sign(payload, config.jwt.secret, {
+      expiresIn: config.jwt.expiresIn
     } as jwt.SignOptions);
   }
 
@@ -472,8 +494,8 @@ export class AuthService {
       type: 'refresh'
     };
 
-    return jwt.sign(payload, process.env.JWT_SECRET!, {
-      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
+    return jwt.sign(payload, config.jwt.secret, {
+      expiresIn: config.jwt.refreshExpiresIn
     } as jwt.SignOptions);
   }
 
@@ -481,7 +503,7 @@ export class AuthService {
    * Verifica se PIN de abandono está correto
    */
   async verifyAbandonPin(pin: string): Promise<boolean> {
-    const correctPin = process.env.PLAYER_ABANDON_PIN || '1234';
+    const correctPin = config.security.playerAbandonPin;
     return pin === correctPin;
   }
 

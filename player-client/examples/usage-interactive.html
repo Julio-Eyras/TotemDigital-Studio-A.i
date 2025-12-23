@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Signage Pro - Player Interativo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .status-panel {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .service-status {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 10px;
+            background: #333;
+            border-radius: 4px;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-active { background: #4caf50; }
+        .status-inactive { background: #f44336; }
+        button {
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1976d2;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #000;
+            padding: 15px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #2196f3;
+            padding-left: 10px;
+        }
+        .log-error {
+            border-left-color: #f44336;
+        }
+        .log-success {
+            border-left-color: #4caf50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Smart Signage Pro - Player Interativo</h1>
+        
+        <div class="status-panel">
+            <h2>Status dos Serviços</h2>
+            <div id="services-status"></div>
+        </div>
+
+        <div class="status-panel">
+            <h2>Controles</h2>
+            <button id="btn-init">Inicializar Player</button>
+            <button id="btn-load">Carregar Playlist</button>
+            <button id="btn-stop">Parar</button>
+            <button id="btn-status">Status</button>
+        </div>
+
+        <div class="status-panel">
+            <h2>Logs</h2>
+            <div id="logs" class="log"></div>
+        </div>
+    </div>
+
+    <!-- Carregar bibliotecas necessárias -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    
+    <!-- Carregar serviços -->
+    <script src="../core/cache/LocalPlaylistManager.js"></script>
+    <script src="../core/interruption/InterruptionManager.js"></script>
+    <script src="../core/services/FacialRecognitionService.js"></script>
+    <script src="../core/services/TagReaderService.js"></script>
+    <script src="../core/services/VisualNetworkService.js"></script>
+    <script src="../core/integration/InteractivePlayer.js"></script>
+
+    <script>
+        // Configuração
+        const config = {
+            totemId: 'TOTEM_001',
+            enableFacialRecognition: true,
+            enableTagReader: true,
+            enableVisualNetwork: false, // Desabilitado para exemplo local
+            defaultInteractiveContentId: 999,
+            signalingServer: 'ws://localhost:8080'
+        };
+
+        // Mock API Client
+        window.apiClient = {
+            baseURL: 'http://localhost:3000',
+            getToken: () => localStorage.getItem('token'),
+            get: async (url) => {
+                const response = await fetch(`${window.apiClient.baseURL}${url}`, {
+                    headers: {
+                        'Authorization': `Bearer ${window.apiClient.getToken()}`
+                    }
+                });
+                return { data: await response.json() };
+            },
+            post: async (url, data) => {
+                const response = await fetch(`${window.apiClient.baseURL}${url}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${window.apiClient.getToken()}`
+                    },
+                    body: JSON.stringify(data)
+                });
+                return { data: await response.json() };
+            }
+        };
+
+        // Mock Media Player
+        window.mediaPlayer = {
+            play: async (media, options) => {
+                log(`Reproduzindo: ${media.name || media.id}`, 'success');
+                if (options.onEnd) {
+                    setTimeout(options.onEnd, (options.duration || 10) * 1000);
+                }
+            }
+        };
+
+        // Inicializar player
+        let player = null;
+
+        // Função de log
+        function log(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logsDiv.appendChild(entry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        // Atualizar status
+        function updateStatus() {
+            if (!player) {
+                document.getElementById('services-status').innerHTML = '<p>Player não inicializado</p>';
+                return;
+            }
+
+            const status = player.getStatus();
+            let html = '';
+
+            html += `<div class="service-status">
+                <span><span class="status-indicator ${status.initialized ? 'status-active' : 'status-inactive'}"></span>Player</span>
+                <span>${status.initialized ? 'Ativo' : 'Inativo'}</span>
+            </div>`;
+
+            if (status.services.localPlaylistManager) {
+                const cache = status.services.localPlaylistManager;
+                html += `<div class="service-status">
+                    <span>Cache Local</span>
+                    <span>${cache.mediaCount} mídias (${(cache.usagePercent || 0).toFixed(1)}%)</span>
+                </div>`;
+            }
+
+            if (status.services.interruptionManager) {
+                const im = status.services.interruptionManager;
+                html += `<div class="service-status">
+                    <span>Interruption Manager</span>
+                    <span>${im.isInterrupted ? 'Interrompido' : 'Normal'} (Fila: ${im.queueLength})</span>
+                </div>`;
+            }
+
+            if (status.services.facialRecognition) {
+                html += `<div class="service-status">
+                    <span>Reconhecimento Facial</span>
+                    <span>Ativo</span>
+                </div>`;
+            }
+
+            if (status.services.tagReader) {
+                const tr = status.services.tagReader;
+                html += `<div class="service-status">
+                    <span>Leitor de Tags</span>
+                    <span>${tr.readingActive ? 'Lendo' : 'Parado'} (${tr.activeTags} tags ativas)</span>
+                </div>`;
+            }
+
+            document.getElementById('services-status').innerHTML = html;
+        }
+
+        // Event listeners
+        document.getElementById('btn-init').addEventListener('click', async () => {
+            try {
+                log('Inicializando player...', 'info');
+                player = new InteractivePlayer(config);
+                await player.initialize();
+                log('Player inicializado com sucesso!', 'success');
+                updateStatus();
+            } catch (error) {
+                log(`Erro ao inicializar: ${error.message}`, 'error');
+            }
+        });
+
+        document.getElementById('btn-load').addEventListener('click', async () => {
+            if (!player) {
+                log('Inicialize o player primeiro!', 'error');
+                return;
+            }
+
+            try {
+                const playlistId = prompt('ID da Playlist:', '1');
+                if (playlistId) {
+                    log(`Carregando playlist ${playlistId}...`, 'info');
+                    await player.loadPlaylist(playlistId);
+                    log('Playlist carregada!', 'success');
+                    updateStatus();
+                }
+            } catch (error) {
+                log(`Erro ao carregar playlist: ${error.message}`, 'error');
+            }
+        });
+
+        document.getElementById('btn-stop').addEventListener('click', () => {
+            if (player) {
+                player.stop();
+                log('Player parado', 'info');
+                updateStatus();
+            }
+        });
+
+        document.getElementById('btn-status').addEventListener('click', () => {
+            if (player) {
+                const status = player.getStatus();
+                log(`Status: ${JSON.stringify(status, null, 2)}`, 'info');
+                updateStatus();
+            }
+        });
+
+        // Atualizar status a cada 2 segundos
+        setInterval(updateStatus, 2000);
+    </script>
+</body>
+</html>
+
