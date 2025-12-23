@@ -2162,4 +2162,10 @@ export const smartDisplayFxApi = {
   },
 };
 
+// =============================================
+// PLAYLIST MIX API
+// =============================================
+
+export * from './playlistMixApi';
+
 export default api;

@@ -39,6 +39,7 @@ import playerRoutes from './routes/players'; // API de gerenciamento de players
 import totemRoutes from './routes/totems';
 import mediaRoutes from './routes/media';
 import playlistRoutes from './routes/playlists';
+import playlistMixRoutes from './routes/playlist-mix';
 import campaignRoutes from './routes/campaigns';
 import qrcodeRoutes from './routes/qrcodes';
 import analyticsRoutes from './routes/analytics';
@@ -272,6 +273,7 @@ app.use('/api/totems', totemRoutes);
 app.use('/api/players', authMiddleware as any, playerRoutes);
 app.use('/api/media', blockClientDataAccess as any, mediaRoutes);
 app.use('/api/playlists', blockClientDataAccess as any, playlistRoutes);
+app.use('/api/playlist-mix', authMiddleware as any, playlistMixRoutes);
 app.use('/api/campaigns', blockClientDataAccess as any, campaignRoutes);
 app.use('/api/qrcodes', blockClientDataAccess as any, qrcodeRoutes);
 app.use('/api/qr-codes', blockClientDataAccess as any, qrcodeRoutes); // Alias para compatibilidade com frontend
@@ -558,9 +560,14 @@ async function startServer() {
     invoiceWorker.start();
     (global as any).invoiceWorker = invoiceWorker; // Salvar para graceful shutdown
     
-    // Carregar agendamentos ativos
-    await logInfo('Carregando agendamentos ativos...');
-    await exportScheduleService.loadAllActiveSchedules();
+    // Carregar agendamentos ativos (não crítico se falhar)
+    try {
+      await logInfo('Carregando agendamentos ativos...');
+      await exportScheduleService.loadAllActiveSchedules();
+    } catch (error: any) {
+      // Não crítico - servidor pode iniciar sem agendamentos
+      await logWarn('Não foi possível carregar agendamentos (continuando): ' + (error.message || error));
+    }
     
     // Inicializar logger
     await logInfo('Inicializando sistema de logs...');

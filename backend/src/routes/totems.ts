@@ -883,4 +883,73 @@ router.get('/:id/logs/download',
   }
 );
 
+/**
+ * @route GET /api/totems/:id/playlist/mix
+ * @desc Obter playlist mixada atual do totem
+ * @access Private
+ */
+router.get('/:id/playlist/mix',
+  param('id').isInt({ min: 1 }).withMessage('ID do totem inválido'),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id);
+      const playlist = await getTotemService().getCurrentMixedPlaylist(totemId);
+      
+      if (!playlist) {
+        return res.status(404).json({
+          success: false,
+          error: 'Playlist mixada não encontrada'
+        });
+      }
+      
+      return res.json({
+        success: true,
+        data: playlist
+      });
+    } catch (error: any) {
+      await logError('Erro ao obter playlist mixada', error, {
+        totemId: req.params.id
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao obter playlist mixada',
+        message: error.message
+      });
+    }
+  }
+);
+
+/**
+ * @route POST /api/totems/:id/playlist/mix/generate
+ * @desc Gerar nova playlist mixada para o totem
+ * @access Private (Admin, Manager)
+ */
+router.post('/:id/playlist/mix/generate',
+  param('id').isInt({ min: 1 }).withMessage('ID do totem inválido'),
+  validateRequest,
+  authorizeRole(['admin', 'manager']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id);
+      const mix = await getTotemService().generateMixedPlaylist(totemId);
+      
+      return res.json({
+        success: true,
+        data: mix,
+        message: 'Playlist mixada gerada com sucesso'
+      });
+    } catch (error: any) {
+      await logError('Erro ao gerar playlist mixada', error, {
+        totemId: req.params.id
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao gerar playlist mixada',
+        message: error.message
+      });
+    }
+  }
+);
+
 export default router;

@@ -65,7 +65,10 @@ async function applySchema() {
     'smartchannel-db-v2-refactored-part7-foreign-keys.sql',
     'smartchannel-db-v2-refactored-part8-indexes.sql',
     'smartchannel-db-v2-refactored-part9-triggers-functions.sql',
-    'smartchannel-db-v2-refactored-part10-views.sql'
+    'smartchannel-db-v2-refactored-part10-views.sql',
+    'smartchannel-db-v2-refactored-part11-playlist-mix.sql',
+    'smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql',
+    'seeds-playlist-mix.sql'
   ];
   
   const pool = new Pool(dbConfig);

@@ -76,7 +76,21 @@ O **SmartSignage Pro** é uma plataforma completa de sinalização digital que p
 
 ### 8. Playlists
 
-**Playlists** são sequências ordenadas de mídias que são reproduzidas nos totens.
+**Playlists** são sequências ordenadas de mídias que podem ser atreladas a uma ou mais campanhas, que serão reproduzidas nos totens. 
+
+**Como funcionam:**
+
+1. **Criação de Playlists:** Playlists são criadas de forma independente e funcionam como **candidatas** a serem usadas em campanhas. Uma playlist pode ser associada a uma ou múltiplas campanhas.
+
+2. **Playlist do Totem:** A playlist final de cada totem é o **mix inteligente** de todas as playlists e campanhas atreladas a ele. O sistema combina automaticamente todas as campanhas ativas em um totem para criar uma única playlist de execução.
+
+3. **Ordenação e Classificação:** As playlists dos totens são classificadas, ordenadas e/ou disparadas sob determinadas regras sistemáticas ou por **Inteligência Artificial**, incluindo:
+   - **Tags** de conteúdo e contexto
+   - **Reconhecimento de transeuntes** (detecção de público)
+   - **Análise de sentimento** e contexto emocional
+   - **Priorização** por campanha e subscriber
+   - **Regras temporais** (horário, dia da semana)
+   - E outras regras configuráveis
 
 ---
 
@@ -179,8 +193,12 @@ O dashboard exibe:
    - Data de término
    - Descrição
 4. Configure os totens/locais onde a campanha será exibida
-5. Associe playlists à campanha
+5. **Associe playlists à campanha:**
+   - Selecione uma ou mais playlists já criadas (candidatas)
+   - Ou crie uma nova playlist durante a criação da campanha
 6. Clique em **Salvar**
+
+**Nota:** Você só pode associar playlists que pertencem ao mesmo subscriber da campanha.
 
 ### Ativando/Desativando uma Campanha
 
@@ -245,13 +263,36 @@ Você pode:
 
 ## Gerenciando Playlists
 
+### O Que São Playlists?
+
+**Playlists** são sequências ordenadas de mídias que podem ser atreladas a uma ou mais campanhas. Elas são criadas independentemente das campanhas e podem ser reutilizadas em múltiplas campanhas.
+
+**Características:**
+- ✅ Criadas antes ou durante a criação de campanhas
+- ✅ Podem ser reutilizadas em múltiplas campanhas
+- ✅ Podem existir sem estar associadas a nenhuma campanha (candidatas)
+- ✅ Cada playlist pertence a um subscriber específico
+
+**Como Funciona a Playlist do Totem:**
+
+Quando um totem executa seu conteúdo, ele não reproduz playlists individuais, mas sim uma **playlist mixada** que combina:
+
+1. **Todas as campanhas ativas** associadas ao totem
+2. **Todas as playlists** dessas campanhas
+3. **Ordenação inteligente** baseada em:
+   - Regras sistemáticas (prioridade, horário, tags)
+   - Inteligência Artificial (reconhecimento de transeuntes, sentimento, contexto)
+   - Configurações de campanha e playlist
+
+O sistema automaticamente combina tudo isso para criar uma experiência de reprodução otimizada e contextual.
+
 ### Criando uma Playlist
 
 1. Acesse **Playlists** no menu lateral
 2. Clique em **Nova Playlist**
 3. Preencha:
    - Nome da playlist
-   - Subscriber
+   - Subscriber (proprietário da playlist)
    - Descrição
 4. Adicione mídias:
    - Clique em **Adicionar Mídia**
@@ -259,6 +300,23 @@ Você pode:
    - Arraste para ordenar
    - Configure duração de exibição (se aplicável)
 5. Clique em **Salvar**
+
+**Nota:** Após criar, a playlist estará disponível como **candidata** para ser associada a campanhas. Quando associada a campanhas que estão vinculadas a totens, essa playlist fará parte do mix de conteúdo reproduzido nos totens.
+
+### Como a Playlist é Mixada no Totem
+
+Quando você associa campanhas a um totem, o sistema:
+
+1. **Coleta** todas as playlists de todas as campanhas ativas desse totem
+2. **Aplica regras sistemáticas:**
+   - Prioridade da campanha
+   - Horários de execução
+   - Tags de conteúdo
+3. **Aplica Inteligência Artificial (quando disponível):**
+   - Reconhecimento de transeuntes (ajusta conteúdo baseado no público presente)
+   - Análise de sentimento (adapta o tom do conteúdo)
+   - Contexto temporal e ambiental
+4. **Gera a playlist final** do totem que será executada
 
 ### Ordenando Mídias em uma Playlist
 
@@ -422,8 +480,10 @@ Contratos podem ser associados a:
 
 1. Crie/verifique se existe um subscriber
 2. Faça upload das mídias necessárias
-3. Crie uma playlist com essas mídias
-4. Crie a campanha associando a playlist aos totens desejados
+3. Crie uma playlist com essas mídias (a playlist será uma candidata)
+4. Crie a campanha e associe a playlist criada aos totens desejados
+
+**Fluxo:** Mídias → Playlist (candidata) → Campanha → Totens
 
 ### Posso editar uma campanha que já está em execução?
 
@@ -470,9 +530,9 @@ Entre em contato através do email de suporte fornecido pelo administrador ou us
 - **Local**: Local físico onde totens estão instalados
 - **Totem**: Micro-servidor edge que controla Smart TVs
 - **Smart TV**: Display físico controlado por totem
-- **Campanha**: Conjunto organizado de conteúdo publicitário
+- **Campanha**: Conjunto organizado de conteúdo publicitário que associa playlists a totens
 - **Mídia**: Arquivo de conteúdo (imagem, vídeo, HTML5)
-- **Playlist**: Sequência ordenada de mídias
+- **Playlist**: Sequência ordenada de mídias que funciona como candidata para ser usada em campanhas
 - **Revenue Share**: Percentual da receita pago a publishers
 - **Billing**: Sistema de cobranças e pagamentos
 

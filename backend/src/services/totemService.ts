@@ -8,6 +8,7 @@ import { AuditService } from './auditService';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from './eventLogService';
 import { getCacheService } from './cacheService';
+import { getTotemPlaylistMixService } from './totemPlaylistMixService';
 
 export interface CreateTotemRequest {
   name?: string;
@@ -100,6 +101,19 @@ export interface HeartbeatData {
     memory?: number;
     disk?: number;
     temperature?: number;
+  };
+  aiContext?: {
+    pedestrian_count?: number;
+    pedestrian_density?: 'low' | 'medium' | 'high';
+    pedestrian_demographics?: any;
+    sentiment_score?: number;
+    sentiment_label?: 'positive' | 'neutral' | 'negative';
+    emotion_tags?: string[];
+    time_of_day?: string;
+    day_type?: string;
+    weather_context?: any;
+    event_context?: any;
+    performance_metrics?: any;
   };
 }
 
@@ -699,7 +713,7 @@ export class TotemService {
    */
   async processHeartbeat(data: HeartbeatData): Promise<TotemResponse> {
     try {
-      const { totemId, status, version, firmwareVersion, ipAddress, config, metrics } = data;
+      const { totemId, status, version, firmwareVersion, ipAddress, config, metrics, aiContext } = data;
 
       // Verificar se totem existe
       const totem = await this.getTotemById(totemId);
@@ -752,6 +766,18 @@ export class TotemService {
       // Salvar métricas se fornecidas
       if (metrics) {
         await this.saveTotemMetrics(totemId, metrics);
+      }
+
+      // Atualizar contexto de IA se fornecido
+      if (aiContext) {
+        try {
+          const { getTotemPlaylistMixService } = await import('./totemPlaylistMixService');
+          const mixService = getTotemPlaylistMixService();
+          await mixService.updateAIContext(totemId, aiContext);
+        } catch (error: any) {
+          // Log erro mas não falha o heartbeat
+          await logError('Erro ao atualizar contexto de IA no heartbeat', error, { totemId });
+        }
       }
 
       // Buscar totem atualizado
@@ -934,12 +960,91 @@ export class TotemService {
   }
 
   /**
-   * Busca playlist atual do totem
+   * Obtém playlist mixada atual do totem (nova implementação com mix inteligente)
+   */
+  async getCurrentMixedPlaylist(totemId: number): Promise<any> {
+    try {
+      const mixService = getTotemPlaylistMixService();
+      
+      // Tentar obter mix atual
+      let currentMix = await mixService.getCurrentMix(totemId);
+      
+      // Se não houver mix atual, gerar uma nova
+      if (!currentMix) {
+        await logDebug('Nenhuma mixagem encontrada, gerando nova', { totemId });
+        currentMix = await mixService.generateMixForTotem(totemId);
+      }
+      
+      if (!currentMix) {
+        return null;
+      }
+      
+      // Converter mix_items para formato de playlist
+      const playlistItems = currentMix.mix_items.map((item: any, index: number) => ({
+        item_id: index + 1,
+        media_id: item.media_id,
+        playlist_id: item.playlist_id,
+        campaign_id: item.campaign_id,
+        order_index: item.order_index || index + 1,
+        duration: item.duration || 10,
+        weight: item.weight,
+        priority: item.priority,
+        tags: item.tags || [],
+      }));
+      
+      return {
+        mix_id: currentMix.mix_id,
+        playlist_id: null, // Não é uma playlist única, é um mix
+        name: `Mix Inteligente v${currentMix.mix_version}`,
+        description: `Playlist mixada gerada automaticamente (${currentMix.mix_strategy})`,
+        items: playlistItems,
+        total_items: currentMix.total_items,
+        total_duration: currentMix.total_duration,
+        mix_strategy: currentMix.mix_strategy,
+        context_snapshot: currentMix.context_snapshot,
+        generated_at: currentMix.generated_at,
+        applied_at: currentMix.applied_at,
+      };
+    } catch (error: any) {
+      await logError('Erro ao obter playlist mixada', error, { totemId });
+      // Fallback para método antigo se houver erro
+      return this.getCurrentPlaylist(totemId);
+    }
+  }
+
+  /**
+   * Gera nova playlist mixada para o totem
+   */
+  async generateMixedPlaylist(totemId: number): Promise<any> {
+    try {
+      const mixService = getTotemPlaylistMixService();
+      const newMix = await mixService.generateMixForTotem(totemId);
+      
+      // Converter para formato de resposta
+      return {
+        mix_id: newMix.mix_id,
+        totem_id: newMix.totem_id,
+        mix_version: newMix.mix_version,
+        total_items: newMix.total_items,
+        total_duration: newMix.total_duration,
+        mix_strategy: newMix.mix_strategy,
+        generated_at: newMix.generated_at,
+        applied_at: newMix.applied_at,
+        items: newMix.mix_items,
+      };
+    } catch (error: any) {
+      await logError('Erro ao gerar playlist mixada', error, { totemId });
+      throw error;
+    }
+  }
+
+  /**
+   * Busca playlist atual do totem (método legado - mantido para compatibilidade)
    */
   async getCurrentPlaylist(totemId: number): Promise<any> {
     try {
       const playlist = await this.db.findFirst(`
-        SELECT
+        SELECT 
           p.playlist_id as id,
           p.name,
           p.description,

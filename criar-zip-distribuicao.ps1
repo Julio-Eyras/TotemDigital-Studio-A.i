@@ -8,8 +8,13 @@ $PROJECT_ROOT = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $PROJECT_ROOT -or $PROJECT_ROOT -eq "") {
     $PROJECT_ROOT = Get-Location
 }
+
+# Diretorio de distribuicao continua ao lado do projeto (como ja esta funcionando)
 $DIST_DIR = Join-Path (Split-Path -Parent $PROJECT_ROOT) "SmartSignage-Pro-install"
-$ZIP_FILE = Join-Path (Split-Path -Parent $PROJECT_ROOT) "SmartSignage-Pro-install.zip"
+
+# Caminho FIXO para o arquivo ZIP, conforme solicitado
+$ZIP_TARGET_DIR = "C:\devs-jce"
+$ZIP_FILE = Join-Path $ZIP_TARGET_DIR "SmartSignage-Pro-install.zip"
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  SmartSignage Pro - Distribuicao" -ForegroundColor Cyan
@@ -542,14 +547,19 @@ Convert-ShellScriptLineEndings -Directory $DIST_DIR
 Write-Host "✅ Conversão de line endings concluída" -ForegroundColor Green
 
 # Validar arquivos críticos
-Write-Host "`nValidando arquivos críticos..." -ForegroundColor Green
+Write-Host "`nValidando arquivos criticos..." -ForegroundColor Green
 $criticalFiles = @(
     "install-windows.ps1",
     "install-smartsignage.sh",
     "backend\package.json",
     "frontend\package.json",
     "backend\scripts\setup-database.js",
-    "database\smartchannel-db-v2-refactored-part1-tables.sql",
+    # Arquivos de schema corretos (partes refatoradas)
+    "database\smartchannel-db-v2-refactored-part1-schema-setup.sql",
+    "database\smartchannel-db-v2-refactored-part2-tables-base.sql",
+    "database\smartchannel-db-v2-refactored-part3-tables-dependent.sql",
+    "database\smartchannel-db-v2-refactored-part4-billing-contracts.sql",
+    "database\smartchannel-db-v2-refactored-part5-tables-relationships.sql",
     "backend\env.example",
     "docker-compose.yml"
 )
@@ -559,19 +569,19 @@ foreach ($criticalFile in $criticalFiles) {
     $checkPath = Join-Path $DIST_DIR $criticalFile
     if (-not (Test-Path $checkPath)) {
         $missingFiles += $criticalFile
-        Write-Host "  ⚠️  Faltando: $criticalFile" -ForegroundColor Yellow
+        Write-Host "  [AVISO] Faltando: $criticalFile" -ForegroundColor Yellow
     } else {
-        Write-Host "  ✅ Encontrado: $criticalFile" -ForegroundColor Gray
+        Write-Host "  [OK] Encontrado: $criticalFile" -ForegroundColor Gray
     }
 }
 
 if ($missingFiles.Count -gt 0) {
-    Write-Host "`n⚠️  AVISO: Alguns arquivos críticos não foram encontrados:" -ForegroundColor Yellow
+    Write-Host "`n[AVISO] Alguns arquivos criticos nao foram encontrados:" -ForegroundColor Yellow
     foreach ($missing in $missingFiles) {
         Write-Host "    - $missing" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "`n✅ Todos os arquivos críticos foram encontrados!" -ForegroundColor Green
+    Write-Host "`n[OK] Todos os arquivos criticos foram encontrados!" -ForegroundColor Green
 }
 
 # Estatísticas finais
@@ -579,14 +589,14 @@ Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "  Distribuição Criada com Sucesso!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "📁 Diretório: $DIST_DIR" -ForegroundColor White
+Write-Host "Diretorio de distribuicao: $DIST_DIR" -ForegroundColor White
 Write-Host ""
 
 # Calcular tamanho
 $totalSize = (Get-ChildItem -Path $DIST_DIR -Recurse -File -ErrorAction SilentlyContinue | 
     Measure-Object -Property Length -Sum).Sum
 $totalSizeMB = [math]::Round($totalSize / 1MB, 2)
-Write-Host "📊 Estatísticas:" -ForegroundColor Cyan
+Write-Host "Estatisticas:" -ForegroundColor Cyan
 Write-Host "   Tamanho total: $totalSizeMB MB" -ForegroundColor White
 
 # Contar arquivos
@@ -598,24 +608,24 @@ Write-Host "   Arquivos processados: $totalCopied" -ForegroundColor White
 Write-Host ""
 
 # Listar diretórios principais incluídos
-Write-Host "📦 Diretórios incluídos:" -ForegroundColor Cyan
+Write-Host "Diretorios incluidos:" -ForegroundColor Cyan
 foreach ($dir in $MAIN_DIRECTORIES) {
     $dirPath = Join-Path $DIST_DIR $dir
     if (Test-Path $dirPath) {
         $dirFileCount = (Get-ChildItem -Path $dirPath -Recurse -File -ErrorAction SilentlyContinue).Count
-        Write-Host "   ✅ $dir ($dirFileCount arquivos)" -ForegroundColor Green
+        Write-Host "   [OK] $dir ($dirFileCount arquivos)" -ForegroundColor Green
     } else {
-        Write-Host "   ⚠️  $dir (não encontrado)" -ForegroundColor Yellow
+        Write-Host "   [AVISO] $dir (nao encontrado)" -ForegroundColor Yellow
     }
 }
 Write-Host ""
 
 # Informar sobre exclusões
-Write-Host "🚫 Arquivos excluídos (como esperado):" -ForegroundColor Cyan
-Write-Host "   - node_modules/ (serão instalados pelos scripts)" -ForegroundColor Gray
-Write-Host "   - dist/, build/ (serão gerados durante instalação)" -ForegroundColor Gray
-Write-Host "   - logs/, coverage/, .cache/ (temporários)" -ForegroundColor Gray
-Write-Host "   - .env, .env.* (configurações locais)" -ForegroundColor Gray
+Write-Host "Arquivos excluidos (como esperado):" -ForegroundColor Cyan
+Write-Host "   - node_modules/ (sera instalado pelos scripts)" -ForegroundColor Gray
+Write-Host "   - dist/, build/ (serao gerados durante instalacao)" -ForegroundColor Gray
+Write-Host "   - logs/, coverage/, .cache/ (temporarios)" -ForegroundColor Gray
+Write-Host "   - .env, .env.* (configuracoes locais)" -ForegroundColor Gray
 Write-Host "   - *.log, *.test.*, *.spec.* (arquivos de teste e logs)" -ForegroundColor Gray
 Write-Host ""
 

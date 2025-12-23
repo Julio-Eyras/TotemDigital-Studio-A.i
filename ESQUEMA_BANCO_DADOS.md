@@ -74,9 +74,17 @@ SUBSCRIBERS (Anunciantes)
 ### Fluxo de Relacionamentos
 
 ```
-Subscriber → Campaign → Playlist → Media
+Subscriber → Media
+    ↓
+  Playlist (candidata) ← Mídias organizadas
+    ↓
+  Campaign → campaign_playlists → Playlist (associada)
                 ↓
             Campaign_Totems → Totem → Local → Publisher
+                ↓
+        [MIX INTELIGENTE] ← Todas as playlists das campanhas ativas
+                ↓
+        Playlist Final do Totem (ordenada por regras/IA)
                 ↓
             Campaign_Publishers → Publisher → Revenue Share
 ```
@@ -345,7 +353,18 @@ Subscriber → Campaign → Playlist → Media
 
 ### 11. playlists (Playlists)
 
-**Descrição:** Sequências ordenadas de mídias.
+**Descrição:** Sequências ordenadas de mídias que podem ser atreladas a uma ou mais campanhas, que serão reproduzidas nos totens.
+
+**Conceito Fundamental:**
+- Playlists são criadas independentemente e funcionam como **candidatas** a serem usadas em campanhas
+- Uma playlist pode ser associada a uma ou múltiplas campanhas
+- A **playlist final do totem** é o **mix inteligente** de todas as playlists e campanhas atreladas a ele
+- As playlists dos totens são classificadas, ordenadas e/ou disparadas sob regras sistemáticas ou **Inteligência Artificial**, incluindo:
+  - Tags de conteúdo
+  - Reconhecimento de transeuntes (detecção de público)
+  - Análise de sentimento e contexto
+  - Priorização por campanha
+  - Regras temporais e outras configurações
 
 **Campos Principais:**
 
@@ -534,6 +553,8 @@ Subscriber → Campaign → Playlist → Media
 
 ### 18. campaign_totems (Campanhas ↔ Totens)
 
+**Importante:** Quando campanhas são associadas a totens através desta tabela, todas as playlists dessas campanhas (via `campaign_playlists`) são coletadas e mixadas pelo sistema para formar a playlist final executada no totem. Essa playlist mixada é classificada, ordenada e disparada seguindo regras sistemáticas e/ou Inteligência Artificial (tags, reconhecimento de transeuntes, sentimento, etc.).
+
 **Descrição:** Relacionamento N:N entre campanhas e totens.
 
 **Campos:**
@@ -548,7 +569,9 @@ Subscriber → Campaign → Playlist → Media
 
 ### 19. campaign_playlists (Campanhas ↔ Playlists)
 
-**Descrição:** Relacionamento N:N entre campanhas e playlists.
+**Descrição:** Relacionamento N:N entre campanhas e playlists. Esta tabela associa playlists (candidatas) às campanhas. Uma playlist pode ser usada em múltiplas campanhas, e uma campanha pode usar múltiplas playlists.
+
+**Nota:** Quando campanhas são associadas a totens (via `campaign_totems`), todas as playlists dessas campanhas são coletadas e mixadas para formar a playlist final executada no totem, seguindo regras sistemáticas e/ou IA.
 
 **Campos:**
 

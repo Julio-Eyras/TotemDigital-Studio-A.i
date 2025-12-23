@@ -332,6 +332,29 @@ O sistema utiliza PostgreSQL com schema refatorado v2.0, onde:
 - **campaigns**: Campanhas
 - **medias**: Mídias
 - **playlists**: Playlists
+
+#### Lógica de Mix de Playlists em Totens
+
+**Conceito:**
+A playlist final executada em um totem é o resultado de um processo de **mix inteligente** que combina todas as playlists das campanhas ativas associadas ao totem.
+
+**Fluxo:**
+1. **Coleta:** O sistema identifica todas as campanhas ativas associadas ao totem (via `campaign_totems`)
+2. **Agregação:** Coleta todas as playlists dessas campanhas (via `campaign_playlists`)
+3. **Ordenação:** Aplica regras sistemáticas e/ou IA para ordenar e classificar o conteúdo:
+   - **Regras Sistemáticas:**
+     - Prioridade da campanha (`campaigns.priority`)
+     - Horários de execução (`campaigns.start_time`, `end_time`, `days_of_week`)
+     - Tags de conteúdo (`medias.tags`)
+     - Configurações de playlist (`playlists.settings`)
+   - **Inteligência Artificial (quando disponível):**
+     - Reconhecimento de transeuntes (detecção de público presente)
+     - Análise de sentimento e contexto
+     - Otimização baseada em histórico de exibições
+4. **Geração:** Cria a playlist final ordenada para execução no totem
+
+**Implementação:**
+A lógica de mix deve ser implementada no serviço de totem quando o totem solicita sua playlist atualizada via heartbeat ou API.
 - **subscriber_billing**: Billing de anunciantes
 - **publisher_billing**: Billing de publicadores
 

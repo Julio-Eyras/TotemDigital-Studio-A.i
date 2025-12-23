@@ -83,13 +83,20 @@ O SmartSignage Pro não é apenas um sistema de exibição de conteúdo. É uma 
 - Compressão automática
 - Tamanho máximo: 100MB por arquivo
 
-#### **Playlists Inteligentes**
-- Criação de playlists personalizadas
-- Ordenação arrastar-e-soltar
+#### **Playlists Inteligentes com Mix Automático**
+- Criação de playlists personalizadas (independentes de campanhas)
+- Playlists funcionam como candidatas reutilizáveis para campanhas
+- Uma playlist pode ser usada em múltiplas campanhas
+- **Mix automático inteligente** no totem: o sistema combina automaticamente todas as playlists das campanhas ativas
+- Ordenação inteligente por regras sistemáticas e/ou IA:
+  - Tags e classificação de conteúdo
+  - Reconhecimento de transeuntes (ajusta conteúdo baseado no público)
+  - Análise de sentimento e contexto
+  - Priorização por campanha e horário
+- Ordenação arrastar-e-soltar na criação
 - Duração configurável por mídia
 - Transições customizáveis
 - Workflow de aprovação
-- Agendamento automático
 
 #### **Campanhas Avançadas**
 - Campanhas multi-local
@@ -205,7 +212,12 @@ O SmartSignage Pro não é apenas um sistema de exibição de conteúdo. É uma 
 
 #### **IA Integrada**
 - Geração automática de conteúdo
-- Playlists inteligentes baseadas em regras
+- **Mix inteligente de playlists** com ordenação automática:
+  - Reconhecimento de transeuntes (detecção de público presente)
+  - Análise de sentimento e contexto emocional
+  - Classificação e ordenação por tags de conteúdo
+  - Otimização baseada em histórico de exibições
+- Playlists inteligentes baseadas em regras sistemáticas e IA
 - Análise de campanhas com insights automáticos
 - Suporte a múltiplas IAs:
   - Ollama (local)

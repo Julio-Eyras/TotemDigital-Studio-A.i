@@ -100,7 +100,7 @@ try {
                     }
                 } else {
                     Write-Host "   ⚠️  Falha ao instalar Redis via Chocolatey" -ForegroundColor Yellow
-                    Write-Host "   💡 Tente executar como administrador: choco install redis-64 -y" -ForegroundColor Yellow
+                    Write-Host "   [DICA] Tente executar como administrador: choco install redis-64 -y" -ForegroundColor Yellow
                 }
             }
         } catch {
@@ -139,15 +139,15 @@ if (-not (Test-Path "backend\.env")) {
 # Atualizar configurações no .env
 $envContent = Get-Content "backend\.env" -ErrorAction SilentlyContinue
 if ($envContent) {
-    $envContent = $envContent -replace 'DB_USER=smartsignage', 'DB_USER=postgres' `
-                              -replace 'DB_PASSWORD=smartsignage123', 'DB_PASSWORD=postgres' `
-                              -replace 'DATABASE_URL=postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage', 'DATABASE_URL=postgresql://postgres:postgres@localhost:5432/smartsignage' `
-                              -replace 'NODE_ENV=production', 'NODE_ENV=development' `
-                              -replace 'CACHE_ENABLED=true', "CACHE_ENABLED=$cacheEnabled" `
-                              -replace 'CACHE_ENABLED=false', "CACHE_ENABLED=$cacheEnabled"
+    $envContent = $envContent -replace "DB_USER=smartsignage", "DB_USER=postgres" `
+                              -replace "DB_PASSWORD=smartsignage123", "DB_PASSWORD=postgres" `
+                              -replace "DATABASE_URL=postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage", "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/smartsignage" `
+                              -replace "NODE_ENV=production", "NODE_ENV=development" `
+                              -replace "CACHE_ENABLED=true", "CACHE_ENABLED=$cacheEnabled" `
+                              -replace "CACHE_ENABLED=false", "CACHE_ENABLED=$cacheEnabled"
     
-    # Se CACHE_ENABLED não existir, adicionar
-    if ($envContent -notmatch 'CACHE_ENABLED=') {
+    # Se CACHE_ENABLED nao existir, adicionar
+    if ($envContent -notmatch "CACHE_ENABLED=") {
         $envContent += "CACHE_ENABLED=$cacheEnabled"
     }
     
