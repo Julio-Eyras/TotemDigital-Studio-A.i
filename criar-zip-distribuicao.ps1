@@ -4,9 +4,12 @@
 $ErrorActionPreference = "Stop"
 
 # Configurações
-$PROJECT_ROOT = "C:\SmartSignage-Pro"
-$DIST_DIR = "C:\SmartSignage-Pro-install"
-$ZIP_FILE = "C:\devs-jce\SmartSignage-Pro-install.zip"
+$PROJECT_ROOT = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $PROJECT_ROOT -or $PROJECT_ROOT -eq "") {
+    $PROJECT_ROOT = Get-Location
+}
+$DIST_DIR = Join-Path (Split-Path -Parent $PROJECT_ROOT) "SmartSignage-Pro-install"
+$ZIP_FILE = Join-Path (Split-Path -Parent $PROJECT_ROOT) "SmartSignage-Pro-install.zip"
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  SmartSignage Pro - Distribuicao" -ForegroundColor Cyan
@@ -67,7 +70,19 @@ $EXCLUDE_DIRECTORIES = @(
     "public/assets/uploads",
     "public/assets/backups",
     "postgres_data",
-    "redis_data"
+    "redis_data",
+    ".pnp",
+    ".pnp.js",
+    ".yarn",
+    "yarn-error.log",
+    "npm-debug.log*",
+    ".eslintcache",
+    ".tsbuildinfo",
+    "*.tsbuildinfo",
+    ".env.local",
+    ".env.development.local",
+    ".env.test.local",
+    ".env.production.local"
 )
 
 $EXCLUDE_FILES = @(
@@ -78,11 +93,20 @@ $EXCLUDE_FILES = @(
     ".env",
     ".env.local",
     ".env.production",
+    ".env.development",
     "Thumbs.db",
     ".DS_Store",
     "*.swp",
     "*.swo",
-    "*~"
+    "*~",
+    "package-lock.json",
+    "yarn.lock",
+    "*.pid",
+    "*.seed",
+    "*.pid.lock",
+    "*.lcov",
+    ".npm",
+    ".yarn-integrity"
 )
 
 # Arquivos de teste (excluir apenas testes, manter source)
@@ -360,16 +384,52 @@ $rootFiles = @(
     "*.config.ts"
 )
 
+# Arquivos específicos importantes (garantir inclusão)
+$importantRootFiles = @(
+    "install-windows.ps1",
+    "install-smartsignage.ps1",
+    "install-smartsignage.sh",
+    "fix-frontend-ajv.ps1",
+    "criar-zip-distribuicao.ps1",
+    "docker-compose.yml",
+    "Dockerfile",
+    "Dockerfile.backend",
+    "Dockerfile.frontend",
+    "Dockerfile.app",
+    "Dockerfile.workers"
+)
+
 $rootFilesCopied = 0
+
+# Primeiro, copiar arquivos importantes específicos
+foreach ($importantFile in $importantRootFiles) {
+    $sourcePath = Join-Path $PROJECT_ROOT $importantFile
+    if (Test-Path $sourcePath) {
+        $destPath = Join-Path $DIST_DIR $importantFile
+        Copy-Item -Path $sourcePath -Destination $destPath -Force -ErrorAction SilentlyContinue
+        Write-Host "  Copiado: $importantFile" -ForegroundColor Green
+        $rootFilesCopied++
+        $totalCopied++
+    }
+}
+
+# Depois, copiar arquivos por padrão
 foreach ($pattern in $rootFiles) {
     $files = Get-ChildItem -Path $PROJECT_ROOT -Filter $pattern -File -ErrorAction SilentlyContinue
     foreach ($file in $files) {
+        # Pular se já foi copiado na lista de importantes
+        if ($importantRootFiles -contains $file.Name) {
+            continue
+        }
+        
         # Excluir arquivos específicos
         if ($file.Name -eq ".env" -or 
             $file.Name -like ".env.*" -or 
             $file.Name -eq "package-lock.json" -or 
             $file.Name -eq "yarn.lock" -or
-            $file.Extension -eq ".log") {
+            $file.Extension -eq ".log" -or
+            $file.Name -like "*.test.*" -or
+            $file.Name -like "*.spec.*") {
             continue
         }
         
@@ -433,8 +493,15 @@ sudo ./install-smartsignage.sh
 ### Windows
 
 \`\`\`powershell
-.\install-smartsignage.ps1
+.\install-windows.ps1
 \`\`\`
+
+O script de instalação do Windows irá:
+- Verificar e instalar automaticamente Node.js, npm, PostgreSQL e Redis (via Chocolatey)
+- Instalar todas as dependências do backend e frontend
+- Compilar o backend TypeScript
+- Configurar o banco de dados automaticamente
+- Corrigir problemas comuns (como o módulo ajv no frontend)
 
 ## Pré-requisitos
 
@@ -445,10 +512,13 @@ sudo ./install-smartsignage.sh
 
 ## Notas Importantes
 
-- Esta distribuição **NÃO inclui** \`node_modules\` - execute \`npm install\` após a instalação
+- Esta distribuição **NÃO inclui** \`node_modules\` - os scripts de instalação executarão \`npm install\` automaticamente
 - Arquivos de configuração (.env) devem ser criados a partir dos exemplos (.env.example)
-- Builds de produção devem ser gerados após a instalação
+- Builds de produção serão gerados automaticamente pelos scripts de instalação
+- O script \`install-windows.ps1\` configura tudo automaticamente, incluindo o banco de dados
 - Consulte a pasta \`docs/\` para documentação completa do sistema
+- Scripts SQL do banco de dados estão em \`database/smartchannel-db-v2-refactored-part*.sql\`
+- O script \`backend/scripts/setup-database.js\` é usado para configurar o banco de dados automaticamente
 
 ## Documentação
 
@@ -471,26 +541,82 @@ Write-Host "`nConvertendo line endings de TODOS os scripts .sh..." -ForegroundCo
 Convert-ShellScriptLineEndings -Directory $DIST_DIR
 Write-Host "✅ Conversão de line endings concluída" -ForegroundColor Green
 
+# Validar arquivos críticos
+Write-Host "`nValidando arquivos críticos..." -ForegroundColor Green
+$criticalFiles = @(
+    "install-windows.ps1",
+    "install-smartsignage.sh",
+    "backend\package.json",
+    "frontend\package.json",
+    "backend\scripts\setup-database.js",
+    "database\smartchannel-db-v2-refactored-part1-tables.sql",
+    "backend\env.example",
+    "docker-compose.yml"
+)
+
+$missingFiles = @()
+foreach ($criticalFile in $criticalFiles) {
+    $checkPath = Join-Path $DIST_DIR $criticalFile
+    if (-not (Test-Path $checkPath)) {
+        $missingFiles += $criticalFile
+        Write-Host "  ⚠️  Faltando: $criticalFile" -ForegroundColor Yellow
+    } else {
+        Write-Host "  ✅ Encontrado: $criticalFile" -ForegroundColor Gray
+    }
+}
+
+if ($missingFiles.Count -gt 0) {
+    Write-Host "`n⚠️  AVISO: Alguns arquivos críticos não foram encontrados:" -ForegroundColor Yellow
+    foreach ($missing in $missingFiles) {
+        Write-Host "    - $missing" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "`n✅ Todos os arquivos críticos foram encontrados!" -ForegroundColor Green
+}
+
 # Estatísticas finais
 Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "  Distribuicao Criada com Sucesso!" -ForegroundColor Green
+Write-Host "  Distribuição Criada com Sucesso!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Diretorio: $DIST_DIR" -ForegroundColor White
+Write-Host "📁 Diretório: $DIST_DIR" -ForegroundColor White
 Write-Host ""
 
 # Calcular tamanho
 $totalSize = (Get-ChildItem -Path $DIST_DIR -Recurse -File -ErrorAction SilentlyContinue | 
     Measure-Object -Property Length -Sum).Sum
 $totalSizeMB = [math]::Round($totalSize / 1MB, 2)
-Write-Host "Tamanho total: $totalSizeMB MB" -ForegroundColor Cyan
+Write-Host "📊 Estatísticas:" -ForegroundColor Cyan
+Write-Host "   Tamanho total: $totalSizeMB MB" -ForegroundColor White
 
 # Contar arquivos
 $fileCount = (Get-ChildItem -Path $DIST_DIR -Recurse -File -ErrorAction SilentlyContinue).Count
 $dirCount = (Get-ChildItem -Path $DIST_DIR -Recurse -Directory -ErrorAction SilentlyContinue).Count
-Write-Host "Arquivos: $fileCount" -ForegroundColor Cyan
-Write-Host "Diretorios: $dirCount" -ForegroundColor Cyan
-Write-Host "Arquivos copiados: $totalCopied" -ForegroundColor Cyan
+Write-Host "   Arquivos: $fileCount" -ForegroundColor White
+Write-Host "   Diretórios: $dirCount" -ForegroundColor White
+Write-Host "   Arquivos processados: $totalCopied" -ForegroundColor White
+Write-Host ""
+
+# Listar diretórios principais incluídos
+Write-Host "📦 Diretórios incluídos:" -ForegroundColor Cyan
+foreach ($dir in $MAIN_DIRECTORIES) {
+    $dirPath = Join-Path $DIST_DIR $dir
+    if (Test-Path $dirPath) {
+        $dirFileCount = (Get-ChildItem -Path $dirPath -Recurse -File -ErrorAction SilentlyContinue).Count
+        Write-Host "   ✅ $dir ($dirFileCount arquivos)" -ForegroundColor Green
+    } else {
+        Write-Host "   ⚠️  $dir (não encontrado)" -ForegroundColor Yellow
+    }
+}
+Write-Host ""
+
+# Informar sobre exclusões
+Write-Host "🚫 Arquivos excluídos (como esperado):" -ForegroundColor Cyan
+Write-Host "   - node_modules/ (serão instalados pelos scripts)" -ForegroundColor Gray
+Write-Host "   - dist/, build/ (serão gerados durante instalação)" -ForegroundColor Gray
+Write-Host "   - logs/, coverage/, .cache/ (temporários)" -ForegroundColor Gray
+Write-Host "   - .env, .env.* (configurações locais)" -ForegroundColor Gray
+Write-Host "   - *.log, *.test.*, *.spec.* (arquivos de teste e logs)" -ForegroundColor Gray
 Write-Host ""
 
 # Perguntar se deseja criar ZIP
@@ -499,6 +625,13 @@ $response = Read-Host
 
 if ($response -eq "S" -or $response -eq "s" -or $response -eq "Y" -or $response -eq "y") {
     Write-Host "`nCriando arquivo ZIP..." -ForegroundColor Green
+    
+    # Garantir que o diretório do ZIP existe
+    $zipDir = Split-Path -Parent $ZIP_FILE
+    if (-not (Test-Path $zipDir)) {
+        Write-Host "  Criando diretório para ZIP: $zipDir" -ForegroundColor Cyan
+        New-Item -ItemType Directory -Path $zipDir -Force | Out-Null
+    }
     
     # Tentar remover arquivo ZIP existente se houver
     if (Test-Path $ZIP_FILE) {
@@ -517,7 +650,9 @@ if ($response -eq "S" -or $response -eq "s" -or $response -eq "Y" -or $response 
             
             # Criar nome alternativo com timestamp
             $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-            $ZIP_FILE = "C:\devs-jce\SmartSignage-Pro-install-$timestamp.zip"
+            $zipDir = Split-Path -Parent $ZIP_FILE
+            $zipBaseName = [System.IO.Path]::GetFileNameWithoutExtension($ZIP_FILE)
+            $ZIP_FILE = Join-Path $zipDir "$zipBaseName-$timestamp.zip"
         }
     }
     

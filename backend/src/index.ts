@@ -521,23 +521,36 @@ async function startServer() {
       await logWarn('Erro ao carregar configurações de mídia (usando padrões)', { error: err.message });
     }
     
-    // Inicializar Redis
-    await logInfo('Conectando ao Redis...');
-    await initializeRedis();
-    const redisConnected = await testRedisConnection();
-    if (!redisConnected) {
-      throw new Error('Falha ao conectar ao Redis');
+    // Inicializar Redis (opcional)
+    if (config.redis.enabled) {
+      await logInfo('Conectando ao Redis...');
+      try {
+        await initializeRedis();
+        const redisConnected = await testRedisConnection();
+        if (!redisConnected) {
+          await logWarn('Redis não conectado, continuando sem cache');
+        } else {
+          await logInfo('Redis conectado com sucesso');
+        }
+      } catch (error: any) {
+        await logWarn('Erro ao conectar ao Redis, continuando sem cache', { error: error.message });
+      }
+      
+      // Inicializar Bull Queue (requer Redis)
+      try {
+        await logInfo('Inicializando Bull Queue...');
+        initializeExportQueue();
+        registerExportWorker();
+        
+        await logInfo('Inicializando Bull Queue de Agendamento Avançado...');
+        initializeAdvancedScheduleQueue();
+        registerAdvancedScheduleWorker();
+      } catch (error: any) {
+        await logWarn('Erro ao inicializar Bull Queue, continuando sem filas', { error: error.message });
+      }
+    } else {
+      await logInfo('Redis desabilitado (CACHE_ENABLED=false), continuando sem cache e filas');
     }
-    
-    // Inicializar Bull Queue
-    await logInfo('Inicializando Bull Queue...');
-    initializeExportQueue();
-    registerExportWorker();
-    
-    // Inicializar Bull Queue de Agendamento Avançado
-    await logInfo('Inicializando Bull Queue de Agendamento Avançado...');
-    initializeAdvancedScheduleQueue();
-    registerAdvancedScheduleWorker();
     
     // Inicializar Invoice Worker
     await logInfo('Inicializando Invoice Worker...');
@@ -614,8 +627,8 @@ async function startServer() {
       });
       logInfoSync('Configurações do sistema', {
         database: 'PostgreSQL',
-        redis: 'Conectado',
-        bullQueue: 'Ativo',
+        redis: config.redis.enabled ? 'Conectado' : 'Desabilitado',
+        bullQueue: config.redis.enabled ? 'Ativo' : 'Desabilitado',
         websocket: 'Ativo',
         aiProvider: process.env.AI_PROVIDER || 'ollama'
       });

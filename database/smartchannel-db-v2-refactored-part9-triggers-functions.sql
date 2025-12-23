@@ -94,7 +94,7 @@ CREATE TRIGGER trigger_user_two_factor_updated_at BEFORE UPDATE ON user_two_fact
 
 -- REMOVIDO: playlist_approvals não existe mais
 -- CREATE TRIGGER trigger_playlist_approvals_updated_at BEFORE UPDATE ON playlist_approvals
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+--     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =============================================
 -- FUNÇÃO: Validar JSONB de configurações de plan
