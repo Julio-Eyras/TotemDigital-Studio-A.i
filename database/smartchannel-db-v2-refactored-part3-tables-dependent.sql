@@ -121,6 +121,11 @@ CREATE TABLE IF NOT EXISTS campaigns (
     campaign_type TEXT DEFAULT 'general', -- general, scheduled, interactive
     priority INTEGER DEFAULT 1, -- 1-10, maior = mais prioridade
     
+    -- Camada comercial
+    commercial_tier TEXT DEFAULT 'standard', -- premium, standard, remnant
+    default_time_share_percent NUMERIC(5, 2) DEFAULT 0, -- % alvo de share de tempo (fallback)
+    max_consecutive_slots INTEGER DEFAULT 2, -- maximo de slots consecutivos na fila
+    
     start_date TIMESTAMP,
     end_date TIMESTAMP,
     start_time TEXT, -- HH:MM
@@ -144,7 +149,13 @@ CREATE TABLE IF NOT EXISTS campaigns (
     CONSTRAINT chk_campaign_dates 
         CHECK (start_date IS NULL OR end_date IS NULL OR start_date <= end_date),
     CONSTRAINT chk_campaign_priority 
-        CHECK (priority >= 1 AND priority <= 10)
+        CHECK (priority >= 1 AND priority <= 10),
+    CONSTRAINT chk_campaign_commercial_tier
+        CHECK (commercial_tier IN ('premium', 'standard', 'remnant')),
+    CONSTRAINT chk_campaign_time_share
+        CHECK (default_time_share_percent >= 0 AND default_time_share_percent <= 100),
+    CONSTRAINT chk_campaign_max_consecutive_slots
+        CHECK (max_consecutive_slots IS NULL OR max_consecutive_slots >= 1)
 );
 
 COMMENT ON TABLE campaigns IS 'Campanhas publicitárias criadas por subscribers (anunciantes)';

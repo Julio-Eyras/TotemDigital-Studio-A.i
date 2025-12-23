@@ -33,6 +33,11 @@ const Totems = React.lazy(() => import('./pages/Totems/Totems'));
 const Billing = React.lazy(() => import('./pages/Billing/Billing'));
 const QRCodes = React.lazy(() => import('./pages/QRCodes/QRCodes'));
 const AdminTools = React.lazy(() => import('./pages/AdminTools/AdminTools'));
+const PlaylistMix = React.lazy(() => import('./pages/PlaylistMix/PlaylistMix'));
+const PlaylistMixRules = React.lazy(() => import('./pages/PlaylistMix/PlaylistMixRules'));
+const PlaylistMixGroup = React.lazy(() => import('./pages/PlaylistMix/PlaylistMixGroup'));
+const AIContextDashboard = React.lazy(() => import('./pages/AIContext/AIContextDashboard'));
+const PlaylistMixAnalytics = React.lazy(() => import('./pages/PlaylistMix/PlaylistMixAnalytics'));
 const OTAUpdates = React.lazy(() => import('./components/OTAUpdates/OTAUpdates'));
 const TagsManager = React.lazy(() => import('./components/TagsManager/TagsManager'));
 const SmartDisplayFx = React.lazy(() => import('./pages/SmartDisplayFx/SmartDisplayFx'));
@@ -230,6 +235,46 @@ const AppContent: React.FC = () => {
             element={
               <ProtectedRoute>
                 <Totems />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/playlist-mix"
+            element={
+              <ProtectedRoute>
+                <PlaylistMix />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/playlist-mix/groups"
+            element={
+              <ProtectedRoute>
+                <PlaylistMixGroup />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/playlist-mix/rules"
+            element={
+              <ProtectedRoute>
+                <PlaylistMixRules />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ai-context"
+            element={
+              <ProtectedRoute>
+                <AIContextDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/playlist-mix/analytics"
+            element={
+              <ProtectedRoute>
+                <PlaylistMixAnalytics />
               </ProtectedRoute>
             }
           />

@@ -2,7 +2,7 @@
  * API Service para Mixagem de Playlists
  */
 
-import { api } from './index';
+import api from './index';
 
 export interface MixRule {
   rule_id: number;
@@ -96,6 +96,35 @@ export interface MixHistory {
   applied_at?: string;
   last_executed_at?: string;
   created_at: string;
+}
+
+export interface MixGroupCampaignSummary {
+  campaign_id: number;
+  total_duration: number;
+  total_items: number;
+  share_percent?: number;
+}
+
+export interface MixGroupTotemSummary {
+  totem_id: number;
+  name?: string | null;
+  identifier: string;
+  local_id?: number | null;
+  local_name?: string | null;
+  tv_count: number;
+  mix_total_duration: number;
+  mix_total_items: number;
+}
+
+export interface MixGroupOverview {
+  publisher_id: number;
+  publisher_name: string;
+  local_id?: number | null;
+  local_name?: string | null;
+  total_totems: number;
+  total_tvs: number;
+  campaigns: MixGroupCampaignSummary[];
+  totems: MixGroupTotemSummary[];
 }
 
 export interface CreateMixRuleRequest {
@@ -235,5 +264,83 @@ export const getMixHistory = async (filters: MixHistoryFilters = {}): Promise<{
     data: response.data.data || [],
     pagination: response.data.pagination || { page: 1, limit: 20, total: 0 }
   };
+};
+
+/**
+ * Obtém overview de mixagem por grupo (publisher/local)
+ */
+export const getMixOverview = async (params?: {
+  publisherId?: number;
+  localId?: number;
+}): Promise<MixGroupOverview[]> => {
+  const response = await api.get('/playlist-mix/overview', { params });
+  return response.data.data || [];
+};
+
+/**
+ * Analytics de performance de mixagens
+ */
+export interface MixAnalytics {
+  stats: {
+    total_mixes: number;
+    avg_items: number;
+    avg_duration: number;
+    avg_engagement: number;
+    avg_executions: number;
+    total_executions: number;
+  };
+  byStrategy: Array<{
+    strategy: string;
+    count: number;
+    avg_engagement: number;
+    avg_executions: number;
+    avg_items: number;
+  }>;
+  topMixes: Array<{
+    history_id: number;
+    totem_id: number;
+    totem_identifier?: string;
+    totem_name?: string;
+    mix_strategy?: string;
+    engagement_score: number | null;
+    execution_count: number;
+    total_items: number;
+    total_duration: number;
+    generated_at?: string;
+  }>;
+  byTotem: Array<{
+    totem_id: number;
+    totem_identifier?: string;
+    totem_name?: string;
+    mix_count: number;
+    avg_engagement: number;
+    total_executions: number;
+    avg_items: number;
+  }>;
+  trend: Array<{
+    date: string;
+    mix_count: number;
+    avg_engagement: number;
+    total_executions: number;
+  }>;
+}
+
+export const getMixAnalytics = async (filters?: {
+  totemId?: number;
+  startDate?: string;
+  endDate?: string;
+  ruleId?: number;
+}): Promise<{
+  success: boolean;
+  data: MixAnalytics;
+}> => {
+  const params: any = {};
+  if (filters?.totemId) params.totemId = filters.totemId;
+  if (filters?.startDate) params.startDate = filters.startDate;
+  if (filters?.endDate) params.endDate = filters.endDate;
+  if (filters?.ruleId) params.ruleId = filters.ruleId;
+  
+  const response = await api.get('/playlist-mix/analytics', { params });
+  return response.data;
 };
 

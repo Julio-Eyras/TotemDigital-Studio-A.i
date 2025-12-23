@@ -771,9 +771,9 @@ export class TotemService {
       // Atualizar contexto de IA se fornecido
       if (aiContext) {
         try {
-          const { getTotemPlaylistMixService } = await import('./totemPlaylistMixService');
           const mixService = getTotemPlaylistMixService();
           await mixService.updateAIContext(totemId, aiContext);
+          await logDebug('Contexto de IA atualizado via heartbeat', { totemId });
         } catch (error: any) {
           // Log erro mas não falha o heartbeat
           await logError('Erro ao atualizar contexto de IA no heartbeat', error, { totemId });

@@ -66,7 +66,11 @@ const Campaigns: React.FC = () => {
     end_date: '',
     playlistIds: [],
     totemIds: [],
-  });
+    // Novos campos comerciais (frontend envia para backend usar comercial_tier e time_share)
+    commercial_tier: 'standard' as any,
+    default_time_share_percent: 0,
+    max_consecutive_slots: 2,
+  } as any);
 
   useEffect(() => {
     loadCampaigns();
@@ -137,7 +141,7 @@ const Campaigns: React.FC = () => {
   const handleCreateCampaign = async () => {
     try {
       setError(null); // Limpar erro anterior
-      const createdCampaign = await campaignApi.create(newCampaign);
+      const createdCampaign = await campaignApi.create(newCampaign as any);
       console.log('Campanha criada com sucesso:', createdCampaign);
       
       // Fechar diálogo e limpar formulário
@@ -152,7 +156,10 @@ const Campaigns: React.FC = () => {
         end_date: '',
         playlistIds: [],
         totemIds: [],
-      });
+        commercial_tier: 'standard' as any,
+        default_time_share_percent: 0,
+        max_consecutive_slots: 2,
+      } as any);
       
       // Recarregar lista de campanhas
       await loadCampaigns();
@@ -180,7 +187,11 @@ const Campaigns: React.FC = () => {
         start_date: selectedCampaign.start_date || (selectedCampaign as any).startDate,
         end_date: selectedCampaign.end_date || (selectedCampaign as any).endDate,
         isActive: selectedCampaign.is_active !== undefined ? selectedCampaign.is_active : ((selectedCampaign as any).isActive !== undefined ? (selectedCampaign as any).isActive : true),
-      };
+        // Campos comerciais
+        commercial_tier: (selectedCampaign as any).commercial_tier || 'standard',
+        default_time_share_percent: (selectedCampaign as any).default_time_share_percent ?? 0,
+        max_consecutive_slots: (selectedCampaign as any).max_consecutive_slots ?? 2,
+      } as any;
       await campaignApi.update(selectedCampaign.campaign_id, updateData);
       setEditDialogOpen(false);
       setSelectedCampaign(null);
@@ -264,7 +275,7 @@ const Campaigns: React.FC = () => {
             Campanhas
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie suas campanhas de sinalização digital
+            Gerencie campanhas, playlists, agendamentos e prioridades comerciais (tier, share de tempo).
           </Typography>
         </Box>
         <Button
@@ -570,6 +581,51 @@ const Campaigns: React.FC = () => {
               <TextField {...params} label="SmartvPlayers → Totem" margin="normal" />
             )}
           />
+          
+          {/* Campos Comerciais */}
+          <Box sx={{ mt: 2, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: theme.palette.primary.main }}>
+              Configurações Comerciais
+            </Typography>
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Nível Comercial (Tier)</InputLabel>
+              <Select
+                value={(newCampaign as any).commercial_tier || 'standard'}
+                onChange={(e) => setNewCampaign({ ...newCampaign, commercial_tier: e.target.value } as any)}
+                label="Nível Comercial (Tier)"
+              >
+                <MenuItem value="premium">Premium</MenuItem>
+                <MenuItem value="standard">Standard</MenuItem>
+                <MenuItem value="remnant">Remnant</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Share de Tempo Padrão (%)"
+              type="number"
+              inputProps={{ min: 0, max: 100, step: 0.1 }}
+              value={(newCampaign as any).default_time_share_percent || 0}
+              onChange={(e) => setNewCampaign({ 
+                ...newCampaign, 
+                default_time_share_percent: parseFloat(e.target.value) || 0 
+              } as any)}
+              margin="normal"
+              helperText="Percentual de tempo padrão que esta campanha deve ocupar no mix (0-100%)"
+            />
+            <TextField
+              fullWidth
+              label="Máximo de Slots Consecutivos"
+              type="number"
+              inputProps={{ min: 1, max: 10 }}
+              value={(newCampaign as any).max_consecutive_slots || 2}
+              onChange={(e) => setNewCampaign({ 
+                ...newCampaign, 
+                max_consecutive_slots: parseInt(e.target.value) || 2 
+              } as any)}
+              margin="normal"
+              helperText="Número máximo de itens desta campanha que podem aparecer consecutivamente"
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateDialogOpen(false)}>Cancelar</Button>
@@ -620,6 +676,54 @@ const Campaigns: React.FC = () => {
             }
             label="Campanha Ativa"
           />
+          
+          {/* Campos Comerciais */}
+          <Box sx={{ mt: 2, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: theme.palette.primary.main }}>
+              Configurações Comerciais
+            </Typography>
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Nível Comercial (Tier)</InputLabel>
+              <Select
+                value={(selectedCampaign as any)?.commercial_tier || 'standard'}
+                onChange={(e) => setSelectedCampaign({ 
+                  ...selectedCampaign!, 
+                  commercial_tier: e.target.value 
+                } as any)}
+                label="Nível Comercial (Tier)"
+              >
+                <MenuItem value="premium">Premium</MenuItem>
+                <MenuItem value="standard">Standard</MenuItem>
+                <MenuItem value="remnant">Remnant</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Share de Tempo Padrão (%)"
+              type="number"
+              inputProps={{ min: 0, max: 100, step: 0.1 }}
+              value={(selectedCampaign as any)?.default_time_share_percent || 0}
+              onChange={(e) => setSelectedCampaign({ 
+                ...selectedCampaign!, 
+                default_time_share_percent: parseFloat(e.target.value) || 0 
+              } as any)}
+              margin="normal"
+              helperText="Percentual de tempo padrão que esta campanha deve ocupar no mix (0-100%)"
+            />
+            <TextField
+              fullWidth
+              label="Máximo de Slots Consecutivos"
+              type="number"
+              inputProps={{ min: 1, max: 10 }}
+              value={(selectedCampaign as any)?.max_consecutive_slots || 2}
+              onChange={(e) => setSelectedCampaign({ 
+                ...selectedCampaign!, 
+                max_consecutive_slots: parseInt(e.target.value) || 2 
+              } as any)}
+              margin="normal"
+              helperText="Número máximo de itens desta campanha que podem aparecer consecutivamente"
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>

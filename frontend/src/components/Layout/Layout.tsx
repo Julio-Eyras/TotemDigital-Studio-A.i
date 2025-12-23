@@ -44,6 +44,7 @@ import {
   AutoAwesome,
   DarkMode,
   LightMode,
+  Shuffle,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authApi } from '../../services/api';
@@ -92,6 +93,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'Mídia', icon: <VideoLibrary />, path: '/media' },
     { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
     { text: 'Smart Playlist', icon: <SmartToy />, path: '/smart-playlist' },
+    { text: 'Playlist Mix', icon: <Shuffle />, path: '/playlist-mix' },
+    { text: 'Mix por Grupos', icon: <Tv />, path: '/playlist-mix/groups' },
+    { text: 'Regras de Mix', icon: <Settings />, path: '/playlist-mix/rules' },
+    { text: 'Analytics Mix', icon: <Assessment />, path: '/playlist-mix/analytics' },
+    { text: 'Contexto de IA', icon: <SmartToy />, path: '/ai-context' },
+    { text: 'Mix por Grupos', icon: <Shuffle />, path: '/playlist-mix/groups' },
     { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
     { text: 'SmartvPlayer', icon: <Computer />, path: '/players' },
     { text: 'Totems', icon: <Tv />, path: '/totems' },

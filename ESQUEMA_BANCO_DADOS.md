@@ -304,7 +304,7 @@ Subscriber → Media
 
 ### 9. campaigns (Campanhas)
 
-**Descrição:** Campanhas publicitárias criadas por subscribers.
+**Descrição:** Campanhas publicitárias criadas por subscribers (anunciantes), com atributos comerciais usados na mixagem de conteúdo.
 
 **Campos Principais:**
 
@@ -314,6 +314,9 @@ Subscriber → Media
 | subscriber_id | INTEGER NOT NULL | FK para subscribers |
 | name | TEXT NOT NULL | Nome da campanha |
 | description | TEXT | Descrição |
+| commercial_tier | TEXT DEFAULT 'standard' | Tier comercial (premium, standard, remnant) |
+| default_time_share_percent | NUMERIC(5, 2) DEFAULT 0 | Share de tempo padrão da campanha (0-100%) |
+| max_consecutive_slots | INTEGER DEFAULT 2 | Máximo de slots consecutivos na timeline do totem |
 | start_date | TIMESTAMP | Data de início |
 | end_date | TIMESTAMP | Data de término |
 | status | TEXT DEFAULT 'draft' | Status (draft, active, paused, completed, cancelled) |
@@ -585,7 +588,7 @@ Subscriber → Media
 
 ### 20. campaign_publishers (Campanhas ↔ Publishers)
 
-**Descrição:** Relacionamento N:N entre campanhas e publishers.
+**Descrição:** Relacionamento N:N entre campanhas e publishers, com configurações comerciais específicas por publisher/grupo.
 
 **Campos:**
 
@@ -593,7 +596,14 @@ Subscriber → Media
 |-------|------|-----------|
 | campaign_id | INTEGER NOT NULL | FK para campaigns |
 | publisher_id | INTEGER NOT NULL | FK para publishers |
+| revenue_share_percentage | NUMERIC(5, 2) | % específico para este publisher nesta campanha |
+| time_share_percent | NUMERIC(5, 2) | Share de tempo específico desta campanha neste publisher (0-100%) |
+| daypart_config | JSONB | Configuração por faixas horárias (ex.: `{ "12-13": { "time_share_percent": 50 } }`) |
+| min_impressions_per_hour | INTEGER | Número mínimo de impressões por hora (se configurado) |
+| max_impressions_per_hour | INTEGER | Número máximo de impressões por hora (se configurado) |
+| is_active | BOOLEAN DEFAULT true | Se a relação está ativa |
 | created_at | TIMESTAMP | Data de criação |
+| updated_at | TIMESTAMP | Data de atualização |
 
 **PK:** `(campaign_id, publisher_id)`
 

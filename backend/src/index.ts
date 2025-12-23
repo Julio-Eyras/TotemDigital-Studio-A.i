@@ -416,6 +416,16 @@ process.on('SIGTERM', async () => {
       shutdownFailed = true;
     }
     
+    // Playlist Mix Worker
+    try {
+      if ((global as any).playlistMixWorker) {
+        (global as any).playlistMixWorker.stop();
+        await logInfo('Playlist Mix Worker parado');
+      }
+    } catch {
+      shutdownFailed = true;
+    }
+    
     // Database
     try {
       await closeDatabase();
@@ -476,6 +486,16 @@ process.on('SIGINT', async () => {
       if ((global as any).invoiceWorker) {
         (global as any).invoiceWorker.stop();
         await logInfo('Invoice Worker parado');
+      }
+    } catch {
+      shutdownFailed = true;
+    }
+    
+    // Playlist Mix Worker
+    try {
+      if ((global as any).playlistMixWorker) {
+        (global as any).playlistMixWorker.stop();
+        await logInfo('Playlist Mix Worker parado');
       }
     } catch {
       shutdownFailed = true;
@@ -559,6 +579,13 @@ async function startServer() {
     const invoiceWorker = new InvoiceWorker();
     invoiceWorker.start();
     (global as any).invoiceWorker = invoiceWorker; // Salvar para graceful shutdown
+    
+    // Inicializar Playlist Mix Worker
+    await logInfo('Inicializando Playlist Mix Worker...');
+    const { getPlaylistMixWorker } = await import('./workers/playlistMixWorker');
+    const playlistMixWorker = getPlaylistMixWorker();
+    playlistMixWorker.start();
+    (global as any).playlistMixWorker = playlistMixWorker; // Salvar para graceful shutdown
     
     // Carregar agendamentos ativos (não crítico se falhar)
     try {

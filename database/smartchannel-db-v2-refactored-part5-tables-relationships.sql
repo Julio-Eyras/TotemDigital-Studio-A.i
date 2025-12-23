@@ -128,6 +128,12 @@ CREATE TABLE IF NOT EXISTS campaign_publishers (
     
     -- Configurações específicas para este publisher
     revenue_share_percentage NUMERIC(5, 2), -- % específico para este publisher nesta campanha
+    
+    -- Configuracao comercial por publisher/grupo
+    time_share_percent NUMERIC(5, 2), -- % de share de tempo nesta combinacao campanha/publisher
+    daypart_config JSONB, -- configuracao por faixas horarias (ex: {\"12-13\": {\"time_share_percent\": 50}})
+    min_impressions_per_hour INTEGER,
+    max_impressions_per_hour INTEGER,
     is_active BOOLEAN DEFAULT true,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -137,6 +143,16 @@ CREATE TABLE IF NOT EXISTS campaign_publishers (
         CHECK (
             (revenue_share_percentage IS NULL) OR
             (revenue_share_percentage >= 0 AND revenue_share_percentage <= 100)
+        ),
+    CONSTRAINT chk_campaign_publisher_time_share
+        CHECK (
+            (time_share_percent IS NULL) OR
+            (time_share_percent >= 0 AND time_share_percent <= 100)
+        ),
+    CONSTRAINT chk_campaign_publisher_impressions
+        CHECK (
+            (min_impressions_per_hour IS NULL OR min_impressions_per_hour >= 0) AND
+            (max_impressions_per_hour IS NULL OR max_impressions_per_hour >= 0)
         ),
     
     PRIMARY KEY (campaign_id, publisher_id)

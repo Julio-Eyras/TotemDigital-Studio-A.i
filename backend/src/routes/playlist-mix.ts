@@ -150,6 +150,7 @@ router.post('/rules',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const db = getDatabase();
+      const mixService = getTotemPlaylistMixService();
       const {
         name,
         description,
@@ -172,6 +173,42 @@ router.post('/rules',
         shuffle_enabled = false,
         is_default = false
       } = req.body;
+
+      // Validar regra antes de criar
+      const validation = await mixService.validateMixRule({
+        name,
+        rule_type,
+        priority_weight,
+        time_weight,
+        tag_weight,
+        subscriber_weight,
+        ai_enabled,
+        ai_provider,
+        rotation_strategy,
+        max_items_per_playlist,
+        totem_id,
+        use_pedestrian_detection,
+        use_sentiment_analysis,
+        use_context_awareness,
+        use_historical_optimization,
+      });
+
+      if (!validation.isValid) {
+        return res.status(400).json({
+          success: false,
+          error: 'Erro de validação',
+          validationErrors: validation.errors,
+          warnings: validation.warnings,
+        });
+      }
+
+      // Retornar warnings se houver (mas permitir criação)
+      if (validation.warnings.length > 0) {
+        await logError('Avisos de validação na criação de regra', new Error(validation.warnings.join('; ')), {
+          warnings: validation.warnings,
+          ruleData: req.body,
+        });
+      }
       
       const result = await db.executeRaw(`
         INSERT INTO playlist_mix_rules (
@@ -217,7 +254,8 @@ router.post('/rules',
       return res.status(201).json({
         success: true,
         data: rule,
-        message: 'Regra de mixagem criada com sucesso'
+        message: 'Regra de mixagem criada com sucesso',
+        warnings: validation.warnings.length > 0 ? validation.warnings : undefined,
       });
     } catch (error: any) {
       await logError('Erro ao criar regra de mixagem', error);
@@ -248,6 +286,46 @@ router.put('/rules/:id',
     try {
       const ruleId = parseInt(req.params.id);
       const db = getDatabase();
+      const mixService = getTotemPlaylistMixService();
+      
+      // Buscar regra existente para validação
+      const existingRule = await db.findFirst(`
+        SELECT * FROM playlist_mix_rules WHERE rule_id = $1
+      `, [ruleId]);
+      
+      if (!existingRule) {
+        return res.status(404).json({
+          success: false,
+          error: 'Regra não encontrada'
+        });
+      }
+
+      // Validar dados atualizados (mesclar com dados existentes)
+      const updatedRuleData = {
+        ...existingRule,
+        ...req.body,
+      };
+
+      const validation = await mixService.validateMixRule(updatedRuleData);
+      
+      if (!validation.isValid) {
+        return res.status(400).json({
+          success: false,
+          error: 'Erro de validação',
+          validationErrors: validation.errors,
+          warnings: validation.warnings,
+        });
+      }
+
+      // Retornar warnings se houver (mas permitir atualização)
+      if (validation.warnings.length > 0) {
+        await logError('Avisos de validação na atualização de regra', new Error(validation.warnings.join('; ')), {
+          warnings: validation.warnings,
+          ruleId,
+          ruleData: req.body,
+        });
+      }
+
       const updates: string[] = [];
       const params: any[] = [];
       let paramIndex = 1;
@@ -303,7 +381,8 @@ router.put('/rules/:id',
       return res.json({
         success: true,
         data: rule,
-        message: 'Regra atualizada com sucesso'
+        message: 'Regra atualizada com sucesso',
+        warnings: validation.warnings.length > 0 ? validation.warnings : undefined,
       });
     } catch (error: any) {
       await logError('Erro ao atualizar regra de mixagem', error);
@@ -599,6 +678,389 @@ router.get('/history',
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter histórico de mixagens'
+      });
+    }
+  }
+);
+
+/**
+ * @route GET /api/playlist-mix/overview
+ * @desc Obter visão agregada de mixagem por publisher/local (mapa de slots por grupo)
+ * @access Private
+ */
+router.get('/overview',
+  query('publisherId').optional().isInt({ min: 1 }),
+  query('localId').optional().isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { publisherId, localId } = req.query;
+      const db = getDatabase();
+
+      const params: any[] = [];
+      let whereClause = 'WHERE t.is_active = true';
+
+      if (publisherId) {
+        whereClause += ` AND p.publisher_id = $${params.length + 1}`;
+        params.push(parseInt(publisherId as string, 10));
+      }
+
+      if (localId) {
+        whereClause += ` AND l.local_id = $${params.length + 1}`;
+        params.push(parseInt(localId as string, 10));
+      }
+
+      // Buscar todos os totems com seus publishers/locais e contagem de TVs
+      const totems = await db.findMany(`
+        SELECT
+          t.totem_id,
+          t.name as totem_name,
+          t.identifier,
+          l.local_id,
+          l.name as local_name,
+          p.publisher_id,
+          p.name as publisher_name,
+          COALESCE((
+            SELECT COUNT(*) FROM smart_tvs st WHERE st.totem_id = t.totem_id
+          ), 0) as tv_count
+        FROM totems t
+        INNER JOIN locals l ON t.local_id = l.local_id
+        INNER JOIN publishers p ON l.publisher_id = p.publisher_id
+        ${whereClause}
+        ORDER BY p.name, l.name, t.name
+      `, params);
+
+      if (!totems || totems.length === 0) {
+        return res.json({
+          success: true,
+          data: [],
+        });
+      }
+
+      interface CampaignAgg {
+        campaign_id: number;
+        total_duration: number;
+        total_items: number;
+        subscriber_id?: number;
+        subscriber_name?: string | null;
+        commercial_tier?: string | null;
+        share_percent?: number;
+      }
+
+      interface GroupAgg {
+        publisher_id: number;
+        publisher_name: string;
+        local_id: number | null;
+        local_name: string | null;
+        total_totems: number;
+        total_tvs: number;
+        campaigns: CampaignAgg[];
+        totems: Array<{
+          totem_id: number;
+          name: string | null;
+          identifier: string;
+          local_id: number | null;
+          local_name: string | null;
+          tv_count: number;
+          mix_total_duration: number;
+          mix_total_items: number;
+        }>;
+      }
+
+      const groupsMap = new Map<string, GroupAgg>();
+
+      // Para cada totem, buscar mix atual e agregar por grupo (publisher+local)
+      for (const t of totems) {
+        const mix = await db.findFirst(`
+          SELECT 
+            m.mix_id,
+            m.mix_items,
+            m.total_duration,
+            m.total_items,
+            m.generated_at,
+            m.applied_at
+          FROM totem_playlist_mix m
+          WHERE m.totem_id = $1
+            AND m.is_current = true
+          ORDER BY m.generated_at DESC
+          LIMIT 1
+        `, [t.totem_id]);
+
+        const groupKey = `${t.publisher_id || 0}:${t.local_id || 0}`;
+        let group = groupsMap.get(groupKey);
+        if (!group) {
+          group = {
+            publisher_id: t.publisher_id,
+            publisher_name: t.publisher_name,
+            local_id: t.local_id,
+            local_name: t.local_name,
+            total_totems: 0,
+            total_tvs: 0,
+            campaigns: [],
+            totems: [],
+          };
+          groupsMap.set(groupKey, group);
+        }
+
+        group.total_totems += 1;
+        group.total_tvs += Number(t.tv_count || 0);
+
+        let mixItems: any[] = [];
+        let mixTotalDuration = 0;
+        let mixTotalItems = 0;
+
+        if (mix && mix.mix_items) {
+          if (Array.isArray(mix.mix_items)) {
+            mixItems = mix.mix_items;
+          } else {
+            try {
+              mixItems = JSON.parse(mix.mix_items);
+            } catch {
+              mixItems = [];
+            }
+          }
+          mixTotalItems = mix.total_items || mixItems.length;
+          mixTotalDuration = mix.total_duration || mixItems.reduce(
+            (sum: number, it: any) => sum + (it.duration || 10),
+            0
+          );
+        }
+
+        group.totems.push({
+          totem_id: t.totem_id,
+          name: t.totem_name,
+          identifier: t.identifier,
+          local_id: t.local_id,
+          local_name: t.local_name,
+          tv_count: Number(t.tv_count || 0),
+          mix_total_duration: mixTotalDuration,
+          mix_total_items: mixTotalItems,
+        });
+
+        // Agregar campanhas por grupo
+        for (const item of mixItems) {
+          const campaignId = Number(item.campaign_id);
+          if (!campaignId) continue;
+          const duration = Number(item.duration || 10);
+
+          let agg = group.campaigns.find((c) => c.campaign_id === campaignId);
+          if (!agg) {
+            agg = {
+              campaign_id: campaignId,
+              total_duration: 0,
+              total_items: 0,
+            };
+            group.campaigns.push(agg);
+          }
+          agg.total_duration += duration;
+          agg.total_items += 1;
+        }
+      }
+
+      // Calcular share_percent por grupo
+      for (const group of groupsMap.values()) {
+        const totalDuration = group.campaigns.reduce(
+          (sum, c) => sum + c.total_duration,
+          0
+        );
+        const base = totalDuration || 1;
+        for (const c of group.campaigns) {
+          c.share_percent = (c.total_duration / base) * 100;
+        }
+        // Ordenar campanhas por share decrescente
+        group.campaigns.sort((a, b) => (b.share_percent || 0) - (a.share_percent || 0));
+      }
+
+      return res.json({
+        success: true,
+        data: Array.from(groupsMap.values()),
+      });
+    } catch (error: any) {
+      await logError('Erro ao obter overview de mixagem', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao obter overview de mixagem',
+        message: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * @route GET /api/playlist-mix/analytics
+ * @desc Obter analytics de performance de mixagens
+ * @access Private
+ */
+router.get('/analytics',
+  query('totemId').optional().isInt({ min: 1 }),
+  query('startDate').optional().isISO8601(),
+  query('endDate').optional().isISO8601(),
+  query('ruleId').optional().isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { totemId, startDate, endDate, ruleId } = req.query;
+      const db = getDatabase();
+      
+      let whereClause = 'WHERE 1=1';
+      const params: any[] = [];
+      let paramIndex = 1;
+
+      if (totemId) {
+        whereClause += ` AND pmh.totem_id = $${paramIndex}`;
+        params.push(parseInt(totemId as string));
+        paramIndex++;
+      }
+
+      if (ruleId) {
+        whereClause += ` AND pmh.rule_id = $${paramIndex}`;
+        params.push(parseInt(ruleId as string));
+        paramIndex++;
+      }
+
+      if (startDate) {
+        whereClause += ` AND pmh.generated_at >= $${paramIndex}`;
+        params.push(startDate);
+        paramIndex++;
+      }
+
+      if (endDate) {
+        whereClause += ` AND pmh.generated_at <= $${paramIndex}`;
+        params.push(endDate);
+        paramIndex++;
+      }
+
+      // Estatísticas gerais
+      const stats = await db.findFirst(`
+        SELECT 
+          COUNT(*) as total_mixes,
+          AVG(pmh.total_items) as avg_items,
+          AVG(pmh.total_duration) as avg_duration,
+          AVG(pmh.engagement_score) as avg_engagement,
+          AVG(pmh.execution_count) as avg_executions,
+          SUM(pmh.execution_count) as total_executions
+        FROM playlist_mix_history pmh
+        ${whereClause}
+      `, params);
+
+      // Performance por estratégia
+      const byStrategy = await db.findMany(`
+        SELECT 
+          pmh.mix_strategy,
+          COUNT(*) as count,
+          AVG(pmh.engagement_score) as avg_engagement,
+          AVG(pmh.execution_count) as avg_executions,
+          AVG(pmh.total_items) as avg_items
+        FROM playlist_mix_history pmh
+        ${whereClause}
+        GROUP BY pmh.mix_strategy
+        ORDER BY avg_engagement DESC
+      `, params);
+
+      // Top mixagens por engajamento
+      const topMixes = await db.findMany(`
+        SELECT 
+          pmh.history_id,
+          pmh.totem_id,
+          pmh.mix_strategy,
+          pmh.engagement_score,
+          pmh.execution_count,
+          pmh.total_items,
+          pmh.total_duration,
+          pmh.generated_at,
+          t.identifier as totem_identifier,
+          t.name as totem_name
+        FROM playlist_mix_history pmh
+        LEFT JOIN totems t ON pmh.totem_id = t.totem_id
+        ${whereClause}
+        ORDER BY pmh.engagement_score DESC NULLS LAST
+        LIMIT 10
+      `, params);
+
+      // Performance por totem
+      const byTotem = await db.findMany(`
+        SELECT 
+          pmh.totem_id,
+          t.identifier as totem_identifier,
+          t.name as totem_name,
+          COUNT(*) as mix_count,
+          AVG(pmh.engagement_score) as avg_engagement,
+          SUM(pmh.execution_count) as total_executions,
+          AVG(pmh.total_items) as avg_items
+        FROM playlist_mix_history pmh
+        LEFT JOIN totems t ON pmh.totem_id = t.totem_id
+        ${whereClause}
+        GROUP BY pmh.totem_id, t.identifier, t.name
+        ORDER BY avg_engagement DESC NULLS LAST
+        LIMIT 20
+      `, params);
+
+      // Tendência temporal (últimos 30 dias)
+      const trendData = await db.findMany(`
+        SELECT 
+          DATE(pmh.generated_at) as date,
+          COUNT(*) as mix_count,
+          AVG(pmh.engagement_score) as avg_engagement,
+          SUM(pmh.execution_count) as total_executions
+        FROM playlist_mix_history pmh
+        ${whereClause}
+          AND pmh.generated_at >= NOW() - INTERVAL '30 days'
+        GROUP BY DATE(pmh.generated_at)
+        ORDER BY date DESC
+      `, params);
+
+      return res.json({
+        success: true,
+        data: {
+          stats: {
+            total_mixes: parseInt(stats?.total_mixes || '0'),
+            avg_items: parseFloat(stats?.avg_items || '0'),
+            avg_duration: parseFloat(stats?.avg_duration || '0'),
+            avg_engagement: parseFloat(stats?.avg_engagement || '0'),
+            avg_executions: parseFloat(stats?.avg_executions || '0'),
+            total_executions: parseInt(stats?.total_executions || '0'),
+          },
+          byStrategy: byStrategy.map((s: any) => ({
+            strategy: s.mix_strategy,
+            count: parseInt(s.count),
+            avg_engagement: parseFloat(s.avg_engagement || '0'),
+            avg_executions: parseFloat(s.avg_executions || '0'),
+            avg_items: parseFloat(s.avg_items || '0'),
+          })),
+          topMixes: topMixes.map((m: any) => ({
+            history_id: m.history_id,
+            totem_id: m.totem_id,
+            totem_identifier: m.totem_identifier,
+            totem_name: m.totem_name,
+            mix_strategy: m.mix_strategy,
+            engagement_score: m.engagement_score ? parseFloat(m.engagement_score) : null,
+            execution_count: parseInt(m.execution_count || '0'),
+            total_items: parseInt(m.total_items || '0'),
+            total_duration: parseInt(m.total_duration || '0'),
+            generated_at: m.generated_at,
+          })),
+          byTotem: byTotem.map((t: any) => ({
+            totem_id: t.totem_id,
+            totem_identifier: t.totem_identifier,
+            totem_name: t.totem_name,
+            mix_count: parseInt(t.mix_count),
+            avg_engagement: parseFloat(t.avg_engagement || '0'),
+            total_executions: parseInt(t.total_executions || '0'),
+            avg_items: parseFloat(t.avg_items || '0'),
+          })),
+          trend: trendData.map((t: any) => ({
+            date: t.date,
+            mix_count: parseInt(t.mix_count),
+            avg_engagement: parseFloat(t.avg_engagement || '0'),
+            total_executions: parseInt(t.total_executions || '0'),
+          })),
+        },
+      });
+    } catch (error: any) {
+      await logError('Erro ao obter analytics de mixagens', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao obter analytics de mixagens',
       });
     }
   }

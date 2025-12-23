@@ -329,19 +329,24 @@ O sistema utiliza PostgreSQL com schema refatorado v2.0, onde:
 - **locals**: Locais físicos
 - **totems**: Totens edge
 - **smart_tvs**: Smart TVs
-- **campaigns**: Campanhas
+- **campaigns**: Campanhas (com atributos comerciais)
 - **medias**: Mídias
 - **playlists**: Playlists
 
 #### Lógica de Mix de Playlists em Totens
 
 **Conceito:**
-A playlist final executada em um totem é o resultado de um processo de **mix inteligente** que combina todas as playlists das campanhas ativas associadas ao totem.
+A playlist final executada em um totem é o resultado de um processo de **mix inteligente** que combina todas as playlists das campanhas ativas associadas ao totem, respeitando regras comerciais (tier, share de tempo, contratos) e contexto de IA.
 
-**Fluxo:**
-1. **Coleta:** O sistema identifica todas as campanhas ativas associadas ao totem (via `campaign_totems`)
-2. **Agregação:** Coleta todas as playlists dessas campanhas (via `campaign_playlists`)
-3. **Ordenação:** Aplica regras sistemáticas e/ou IA para ordenar e classificar o conteúdo:
+**Fluxo (alto nível):**
+1. **Coleta:** O sistema identifica todas as campanhas ativas associadas ao totem (via `campaign_totems` e `campaign_publishers`), filtradas por contratos e janelas de horário.
+2. **Agregação:** Coleta todas as playlists dessas campanhas (via `campaign_playlists`) e respectivos itens (`playlist_items` + `medias`).
+3. **Cálculo Comercial:** Para cada campanha, calcula um peso base considerando:
+   - Tier comercial (`campaigns.commercial_tier`: premium, standard, remnant)
+   - Share de tempo padrão (`campaigns.default_time_share_percent`)
+   - Share específico por publisher (`campaign_publishers.time_share_percent`/`daypart_config`)
+   - Restrições de impressões (`min_impressions_per_hour`, `max_impressions_per_hour`)
+4. **Ordenação:** Aplica regras sistemáticas e/ou IA para ordenar e classificar o conteúdo:
    - **Regras Sistemáticas:**
      - Prioridade da campanha (`campaigns.priority`)
      - Horários de execução (`campaigns.start_time`, `end_time`, `days_of_week`)
@@ -350,11 +355,13 @@ A playlist final executada em um totem é o resultado de um processo de **mix in
    - **Inteligência Artificial (quando disponível):**
      - Reconhecimento de transeuntes (detecção de público presente)
      - Análise de sentimento e contexto
-     - Otimização baseada em histórico de exibições
-4. **Geração:** Cria a playlist final ordenada para execução no totem
+     - Otimização baseada em histórico de exibições (`ai_context_data.performance_metrics`)
+5. **Geração:** Cria a playlist final ordenada (mix) e persiste em `totem_playlist_mix`, com snapshot do contexto.
 
 **Implementação:**
-A lógica de mix deve ser implementada no serviço de totem quando o totem solicita sua playlist atualizada via heartbeat ou API.
+- A lógica de mix é implementada em `TotemPlaylistMixService` (backend) e exposta via endpoints `/api/totems/:id/playlist/mix` e `/api/totems/:id/playlist/mix/generate`.
+- Regras de mixagem são configuráveis via `playlist_mix_rules` e API `/api/playlist-mix/rules`.
+- Contexto de IA é armazenado em `ai_context_data` e utilizado opcionalmente na ponderação.
 - **subscriber_billing**: Billing de anunciantes
 - **publisher_billing**: Billing de publicadores
 

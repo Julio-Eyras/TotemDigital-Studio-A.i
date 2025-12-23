@@ -48,6 +48,31 @@
    - Todas as tabelas e relacionamentos
    - Billing e contratos
    - Analytics e logs
+
+### Diagramas Funcionais
+
+5. **[DIAGRAMA_FUNCIONAL_SISTEMA.md](DIAGRAMA_FUNCIONAL_SISTEMA.md)**
+   - 10 diagramas técnicos detalhados
+   - Arquitetura geral do sistema
+   - Modelo de negócio - Entidades e relacionamentos
+   - Fluxo de mixagem de playlists
+   - Processo completo de geração de conteúdo
+   - Sistema de billing e contratos
+   - Fluxos de heartbeat e contexto IA
+
+6. **[DIAGRAMA_VISAO_NEGOCIO.md](DIAGRAMA_VISAO_NEGOCIO.md)**
+   - Diagramas de negócio e modelo de valor
+   - Visão geral do modelo de negócio
+   - Modelo de receita e fluxo financeiro
+   - Personas e jornadas dos usuários
+   - Matriz de valor e diferenciais competitivos
+   - Ciclo de otimização contínua
+
+7. **[README_DIAGRAMAS.md](README_DIAGRAMAS.md)**
+   - Guia de uso dos diagramas
+   - Como visualizar (Mermaid)
+   - Exemplos de uso
+   - Convenções e manutenção
    - Views e materialized views
    - Índices e performance
    - Triggers e functions
