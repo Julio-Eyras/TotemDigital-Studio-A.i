@@ -92,6 +92,9 @@ main() {
         "smartchannel-db-v2-refactored-part8-indexes.sql|Parte 8: Índices"
         "smartchannel-db-v2-refactored-part9-triggers-functions.sql|Parte 9: Triggers e Funções"
         "smartchannel-db-v2-refactored-part10-views.sql|Parte 10: Views"
+        "smartchannel-db-v2-refactored-part11-playlist-mix.sql|Parte 11: Playlist Mix (Tabelas)"
+        "smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql|Parte 12: Playlist Mix (Funções e Triggers)"
+        "seeds-playlist-mix.sql|Seeds: Dados Iniciais Playlist Mix"
     )
     
     # Mostrar configuração

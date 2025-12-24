@@ -68,16 +68,19 @@
    - Matriz de valor e diferenciais competitivos
    - Ciclo de otimização contínua
 
-7. **[README_DIAGRAMAS.md](README_DIAGRAMAS.md)**
+7. **[DIAGRAMAS_COMPLETOS_SISTEMA.md](DIAGRAMAS_COMPLETOS_SISTEMA.md)**
+   - 17 diagramas Mermaid completos
+   - Modelo ER - Banco de Dados (2 diagramas)
+   - Visão do Cliente - Jornadas e fluxos (4 diagramas)
+   - Visão Comercial - Receita, pricing, tiers (4 diagramas)
+   - Visão Técnica - Arquitetura e stack (3 diagramas)
+   - Fluxos Principais do Negócio - Processos end-to-end (4 diagramas)
+
+8. **[README_DIAGRAMAS.md](README_DIAGRAMAS.md)**
    - Guia de uso dos diagramas
    - Como visualizar (Mermaid)
    - Exemplos de uso
    - Convenções e manutenção
-   - Views e materialized views
-   - Índices e performance
-   - Triggers e functions
-   - Diagrama ER
-   - Como aplicar o schema
 
 ---
 

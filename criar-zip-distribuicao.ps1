@@ -560,6 +560,15 @@ $criticalFiles = @(
     "database\smartchannel-db-v2-refactored-part3-tables-dependent.sql",
     "database\smartchannel-db-v2-refactored-part4-billing-contracts.sql",
     "database\smartchannel-db-v2-refactored-part5-tables-relationships.sql",
+    "database\smartchannel-db-v2-refactored-part6-tables-other.sql",
+    "database\smartchannel-db-v2-refactored-part7-foreign-keys.sql",
+    "database\smartchannel-db-v2-refactored-part8-indexes.sql",
+    "database\smartchannel-db-v2-refactored-part9-triggers-functions.sql",
+    "database\smartchannel-db-v2-refactored-part10-views.sql",
+    "database\smartchannel-db-v2-refactored-part11-playlist-mix.sql",
+    "database\smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql",
+    "database\seeds-playlist-mix.sql",
+    "database\apply-schema-v2.sh",
     "backend\env.example",
     "docker-compose.yml"
 )
