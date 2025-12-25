@@ -58,7 +58,8 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "lint": "eslint src/**/*.{ts,tsx}",
-    "lint:fix": "eslint src/**/*.{ts,tsx} --fix"
+    "lint:fix": "eslint src/**/*.{ts,tsx} --fix",
+    "postinstall": "node scripts/fix-fork-ts-checker.js"
   },
   "browserslist": {
     "production": [
