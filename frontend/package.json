@@ -35,7 +35,7 @@
     "ajv-keywords": "^5.1.0",
     "ajv-formats": "^2.1.1",
     "fork-ts-checker-webpack-plugin": {
-      "schema-utils": "^3.3.0"
+      "schema-utils": "^2.7.1"
     }
   },
   "resolutions": {
