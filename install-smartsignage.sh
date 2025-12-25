@@ -2001,11 +2001,10 @@ try:
         data['resolutions'] = {}
     data['resolutions']['ajv'] = '^8.12.0'
     data['resolutions']['ajv-keywords'] = '^3.5.2'
+    data['resolutions']['ajv-formats'] = '^2.1.1'
     
-    if 'devDependencies' not in data:
-        data['devDependencies'] = {}
-    data['devDependencies']['ajv'] = '^8.12.0'
-    data['devDependencies']['ajv-keywords'] = '^3.5.2'
+    # NÃO adicionar ajv em devDependencies - causa conflito com overrides
+    # O override já força a versão correta para todas as dependências transitivas
     
     with open('package.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -2279,11 +2278,10 @@ try:
             data['resolutions'] = {}
         data['resolutions']['ajv'] = '^8.12.0'
         data['resolutions']['ajv-keywords'] = '^3.5.2'
+        data['resolutions']['ajv-formats'] = '^2.1.1'
         
-        if 'devDependencies' not in data:
-            data['devDependencies'] = {}
-        data['devDependencies']['ajv'] = '^8.12.0'
-        data['devDependencies']['ajv-keywords'] = '^3.5.2'
+        # NÃO adicionar ajv em devDependencies - causa conflito com overrides
+        # O override já força a versão correta para todas as dependências transitivas
         
         with open('package.json', 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -2323,11 +2321,11 @@ PYTHON_FINAL_FIX_EOF
         grep -A 2 '"ajv"' package.json 2>/dev/null | head -5 || true
         
         # NOTA: Não instalar ajv explicitamente aqui porque:
-        # 1. O ajv já está no package.json como dependência direta em devDependencies
-        # 2. O override já está configurado corretamente
+        # 1. O ajv NÃO deve estar em devDependencies (causa conflito com overrides)
+        # 2. O override já está configurado corretamente e força a versão para todas as dependências transitivas
         # 3. Instalar explicitamente causa conflito: "Override for ajv@8.12.0 conflicts with direct dependency"
-        # 4. O npm vai instalar o ajv automaticamente quando instalar todas as dependências
-        log "✅ ajv já está configurado no package.json (devDependencies e overrides) - será instalado automaticamente"
+        # 4. O npm vai instalar o ajv automaticamente quando instalar todas as dependências (via override)
+        log "✅ ajv já está configurado no package.json (overrides) - será instalado automaticamente via override"
         
         # Verificar se há dependências transitivas que podem estar forçando ajv@8.17.1
         log "Verificando dependências transitivas que podem estar forçando ajv@8.17.1..."
@@ -2380,12 +2378,10 @@ try:
         data['resolutions'] = {}
     data['resolutions']['ajv'] = '^8.12.0'
     data['resolutions']['ajv-keywords'] = '^3.5.2'
+    data['resolutions']['ajv-formats'] = '^2.1.1'
     
-    # Garantir devDependencies também está correto
-    if 'devDependencies' not in data:
-        data['devDependencies'] = {}
-    data['devDependencies']['ajv'] = '^8.12.0'
-    data['devDependencies']['ajv-keywords'] = '^3.5.2'
+    # NÃO adicionar ajv em devDependencies - causa conflito com overrides
+    # O override já força a versão correta para todas as dependências transitivas
     
     with open('package.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -2452,17 +2448,12 @@ PYTHON_REMOVE_OVERRIDE_EOF
                     cat /tmp/npm-ls-ajv.log | head -10
                 fi
                 
-                # FORÇAR instalação da versão correta
-                warn "Forçando instalação de ajv@8.12.0..."
+                # NÃO instalar ajv explicitamente - causa conflito com overrides
+                # O override já força a versão correta para todas as dependências transitivas
+                warn "⚠️  Versão incorreta detectada, mas não instalando explicitamente (causaria conflito)"
+                warn "O override no package.json deve forçar a versão correta durante npm install"
                 
-                # Remover ajv@8.17.1 e instalar 8.12.0
-                npm uninstall ajv 2>/dev/null || true
-                npm install ajv@8.12.0 --legacy-peer-deps --save-dev --no-audit --no-fund --force 2>&1 | tail -20 || {
-                    error "Falha ao forçar instalação de ajv@8.12.0"
-                    exit 1
-                }
-                
-                # Verificar novamente
+                # Verificar novamente após garantir que override está correto
                 AJV_VER_AFTER=$(npm list ajv --depth=0 2>/dev/null | grep -oE "ajv@[0-9]+\.[0-9]+\.[0-9]+" | head -1 || echo "")
                 if echo "$AJV_VER_AFTER" | grep -q "8.17.1"; then
                     error "❌ IMPOSSÍVEL corrigir: ajv@8.17.1 ainda está instalado após tentativa de correção"
@@ -2507,11 +2498,11 @@ except Exception as e:
 PYTHON_ADD_OVERRIDE_EOF
                     
                     if [[ $? -eq 0 ]]; then
-                        log "Override adicionado. Tentando reinstalar ajv..."
-                        npm uninstall ajv 2>/dev/null || true
-                        npm install ajv@8.12.0 --legacy-peer-deps --save-dev --no-audit --no-fund --force 2>&1 | tail -20 || true
+                        log "Override adicionado. O override forçará a versão correta durante npm install"
+                        # NÃO instalar ajv explicitamente - causa conflito com overrides
+                        # O npm install normal respeitará o override
                         
-                        # Verificar novamente
+                        # Verificar novamente após garantir que override está correto
                         AJV_VER_FINAL=$(npm list ajv --depth=0 2>/dev/null | grep -oE "ajv@[0-9]+\.[0-9]+\.[0-9]+" | head -1 || echo "")
                         if echo "$AJV_VER_FINAL" | grep -q "8.17.1"; then
                             error "❌ Ainda não foi possível corrigir. Versão atual: $AJV_VER_FINAL"
