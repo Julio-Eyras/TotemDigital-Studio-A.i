@@ -1995,12 +1995,12 @@ try:
         data['overrides'] = {}
     data['overrides']['react-dom'] = '^18.2.0'
     data['overrides']['ajv'] = '^8.12.0'
-    data['overrides']['ajv-keywords'] = '^5.1.1'
+    data['overrides']['ajv-keywords'] = '^5.1.0'
     
     if 'resolutions' not in data:
         data['resolutions'] = {}
     data['resolutions']['ajv'] = '^8.12.0'
-    data['resolutions']['ajv-keywords'] = '^5.1.1'
+    data['resolutions']['ajv-keywords'] = '^5.1.0'
     data['resolutions']['ajv-formats'] = '^2.1.1'
     
     # NÃO adicionar ajv em devDependencies - causa conflito com overrides
@@ -2040,13 +2040,13 @@ PYTHON_FIX_EOF
         
         # CORREÇÃO: Remover qualquer versão antiga do ajv-keywords (3.x) que não é compatível com ajv 8.x
         if grep -qE '("ajv-keywords":\s*"\^3\.|3\.5\.2|"3\.5\.2"|\^3\.5\.2)' package.json 2>/dev/null; then
-            warn "Versão incompatível do ajv-keywords (3.x) detectada no package.json - corrigindo para 5.1.1..."
-            sed -i 's/3\.5\.2/5.1.1/g' package.json
+            warn "Versão incompatível do ajv-keywords (3.x) detectada no package.json - corrigindo para 5.1.0..."
+            sed -i 's/3\.5\.2/5.1.0/g' package.json
             sed -i 's/"3\.5\.2"/"5.1.0"/g' package.json
             sed -i 's/\^3\.5\.2/\^5.1.0/g' package.json
             sed -i 's/"ajv-keywords":\s*"\^3\./"ajv-keywords": "^5.1./g' package.json
             PACKAGE_JSON_FIXED=true
-            log "✅ Versão do ajv-keywords corrigida para ^5.1.1 (compatível com ajv 8.x)"
+            log "✅ Versão do ajv-keywords corrigida para ^5.1.0 (compatível com ajv 8.x)"
         fi
         
         # GARANTIR que overrides e resolutions estão corretos (forçar se necessário)
@@ -2079,7 +2079,7 @@ try:
     # Forçar versões corretas
     data['overrides']['react-dom'] = '^18.2.0'
     data['overrides']['ajv'] = '^8.12.0'
-    data['overrides']['ajv-keywords'] = '^5.1.1'
+    data['overrides']['ajv-keywords'] = '^5.1.0'
     
     # Reordenar para colocar overrides antes de devDependencies
     ordered_data = {}
@@ -2107,9 +2107,9 @@ PYTHON_EOF
                 warn "Falha ao usar Python, tentando método sed..."
                 # Fallback para sed
                 if grep -q '"devDependencies"' package.json; then
-                    sed -i '/"devDependencies"/i\  "overrides": {\n    "react-dom": "^18.2.0",\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.1"\n  },' package.json
+                    sed -i '/"devDependencies"/i\  "overrides": {\n    "react-dom": "^18.2.0",\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.0"\n  },' package.json
                 else
-                    sed -i '$ i\  "overrides": {\n    "react-dom": "^18.2.0",\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.1"\n  },' package.json
+                    sed -i '$ i\  "overrides": {\n    "react-dom": "^18.2.0",\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.0"\n  },' package.json
                 fi
                 PACKAGE_JSON_FIXED=true
             fi
@@ -2127,7 +2127,7 @@ try:
         # Forçar versões corretas em overrides
         data['overrides']['react-dom'] = '^18.2.0'
         data['overrides']['ajv'] = '^8.12.0'
-        data['overrides']['ajv-keywords'] = '^5.1.1'
+        data['overrides']['ajv-keywords'] = '^5.1.0'
         
         with open('package.json', 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -2165,7 +2165,7 @@ try:
     
     # Forçar versões corretas
     data['resolutions']['ajv'] = '^8.12.0'
-    data['resolutions']['ajv-keywords'] = '^5.1.1'
+    data['resolutions']['ajv-keywords'] = '^5.1.0'
     
     with open('package.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -2183,9 +2183,9 @@ PYTHON_RESOLUTIONS_EOF
             # Fallback para sed
             if ! grep -q '"resolutions"' package.json 2>/dev/null; then
                 if grep -q '"devDependencies"' package.json; then
-                    sed -i '/"devDependencies"/i\  "resolutions": {\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.1"\n  },' package.json
+                    sed -i '/"devDependencies"/i\  "resolutions": {\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.0"\n  },' package.json
                 else
-                    sed -i '$ i\  "resolutions": {\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.1"\n  },' package.json
+                    sed -i '$ i\  "resolutions": {\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.0"\n  },' package.json
                 fi
                 PACKAGE_JSON_FIXED=true
             else
@@ -2272,12 +2272,12 @@ try:
         if 'overrides' not in data:
             data['overrides'] = {}
         data['overrides']['ajv'] = '^8.12.0'
-        data['overrides']['ajv-keywords'] = '^5.1.1'
+        data['overrides']['ajv-keywords'] = '^5.1.0'
         
         if 'resolutions' not in data:
             data['resolutions'] = {}
         data['resolutions']['ajv'] = '^8.12.0'
-        data['resolutions']['ajv-keywords'] = '^5.1.1'
+        data['resolutions']['ajv-keywords'] = '^5.1.0'
         data['resolutions']['ajv-formats'] = '^2.1.1'
         
         # NÃO adicionar ajv em devDependencies - causa conflito com overrides
@@ -2377,7 +2377,7 @@ try:
     if 'resolutions' not in data:
         data['resolutions'] = {}
     data['resolutions']['ajv'] = '^8.12.0'
-    data['resolutions']['ajv-keywords'] = '^5.1.1'
+    data['resolutions']['ajv-keywords'] = '^5.1.0'
     data['resolutions']['ajv-formats'] = '^2.1.1'
     
     # NÃO adicionar ajv em devDependencies - causa conflito com overrides
@@ -2477,7 +2477,7 @@ try:
     
     # Override global para ajv
     data['overrides']['ajv'] = '^8.12.0'
-    data['overrides']['ajv-keywords'] = '^5.1.1'  # Compatível com ajv 8.x
+    data['overrides']['ajv-keywords'] = '^5.1.0'  # Compatível com ajv 8.x
     
     # Override específico para dependências conhecidas que podem estar causando problema
     # react-scripts e suas dependências
