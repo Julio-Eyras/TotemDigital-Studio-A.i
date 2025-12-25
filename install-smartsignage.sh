@@ -2040,13 +2040,13 @@ PYTHON_FIX_EOF
         
         # CORREÇÃO: Remover qualquer versão antiga do ajv-keywords (3.x) que não é compatível com ajv 8.x
         if grep -qE '("ajv-keywords":\s*"\^3\.|3\.5\.2|"3\.5\.2"|\^3\.5\.2)' package.json 2>/dev/null; then
-            warn "Versão incompatível do ajv-keywords (3.x) detectada no package.json - corrigindo para 5.1.0..."
-            sed -i 's/3\.5\.2/5.1.0/g' package.json
+            warn "Versão incompatível do ajv-keywords (3.x) detectada no package.json - corrigindo para 5.1.1..."
+            sed -i 's/3\.5\.2/5.1.1/g' package.json
             sed -i 's/"3\.5\.2"/"5.1.0"/g' package.json
             sed -i 's/\^3\.5\.2/\^5.1.0/g' package.json
             sed -i 's/"ajv-keywords":\s*"\^3\./"ajv-keywords": "^5.1./g' package.json
             PACKAGE_JSON_FIXED=true
-            log "✅ Versão do ajv-keywords corrigida para ^5.1.0 (compatível com ajv 8.x)"
+            log "✅ Versão do ajv-keywords corrigida para ^5.1.1 (compatível com ajv 8.x)"
         fi
         
         # GARANTIR que overrides e resolutions estão corretos (forçar se necessário)
@@ -2107,9 +2107,9 @@ PYTHON_EOF
                 warn "Falha ao usar Python, tentando método sed..."
                 # Fallback para sed
                 if grep -q '"devDependencies"' package.json; then
-                    sed -i '/"devDependencies"/i\  "overrides": {\n    "react-dom": "^18.2.0",\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.0"\n  },' package.json
+                    sed -i '/"devDependencies"/i\  "overrides": {\n    "react-dom": "^18.2.0",\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.1"\n  },' package.json
                 else
-                    sed -i '$ i\  "overrides": {\n    "react-dom": "^18.2.0",\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.0"\n  },' package.json
+                    sed -i '$ i\  "overrides": {\n    "react-dom": "^18.2.0",\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.1"\n  },' package.json
                 fi
                 PACKAGE_JSON_FIXED=true
             fi
@@ -2183,9 +2183,9 @@ PYTHON_RESOLUTIONS_EOF
             # Fallback para sed
             if ! grep -q '"resolutions"' package.json 2>/dev/null; then
                 if grep -q '"devDependencies"' package.json; then
-                    sed -i '/"devDependencies"/i\  "resolutions": {\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.0"\n  },' package.json
+                    sed -i '/"devDependencies"/i\  "resolutions": {\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.1"\n  },' package.json
                 else
-                    sed -i '$ i\  "resolutions": {\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.0"\n  },' package.json
+                    sed -i '$ i\  "resolutions": {\n    "ajv": "^8.12.0",\n    "ajv-keywords": "^5.1.1"\n  },' package.json
                 fi
                 PACKAGE_JSON_FIXED=true
             else
