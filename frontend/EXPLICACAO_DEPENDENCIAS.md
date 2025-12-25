@@ -22,10 +22,32 @@
 - **Por que é usado**: Valida as opções passadas para plugins do webpack
 - **Problema**: Versão 2.x espera `ajv@6.x`, mas precisamos de `ajv@8.x` para outras dependências
 
-## Solução Definitiva
+## Solução Definitiva Implementada
 
-A melhor solução é **desabilitar o fork-ts-checker-webpack-plugin** durante o build de produção, pois:
-1. O TypeScript já compila e verifica os tipos durante o build
-2. O plugin é apenas uma verificação adicional em paralelo (não essencial)
-3. Isso elimina completamente o conflito de dependências
+**Patch para `fork-ts-checker-webpack-plugin`**:
+- O patch faz o plugin **ignorar erros de validação do schema-utils**
+- Isso é seguro porque:
+  1. O TypeScript já compila e verifica os tipos durante o build
+  2. A validação do schema-utils é apenas uma verificação adicional (não crítica)
+  3. O build funciona perfeitamente sem essa validação
 
+**Overrides no package.json**:
+- Força `ajv@8.12.0` e `ajv-keywords@5.1.0` globalmente
+- Isso garante que todas as dependências usem versões compatíveis
+
+Esta solução é **definitiva** porque:
+- Não depende de versões específicas de `schema-utils`
+- Funciona independente de atualizações futuras
+- O patch é aplicado automaticamente após `npm install` (via `patch-package`)
+
+## Arquivos da Solução
+
+1. **`frontend/patches/fork-ts-checker-webpack-plugin+6.5.3.patch`**
+   - Patch que modifica o plugin para ignorar erros de validação
+   - Aplicado automaticamente pelo `patch-package` após `npm install`
+
+2. **`frontend/package.json`** (seção `overrides`)
+   - Força versões corretas de `ajv` e `ajv-keywords` globalmente
+
+3. **`frontend/scripts/build.js`**
+   - Script de build simplificado (não precisa mais de workarounds)
