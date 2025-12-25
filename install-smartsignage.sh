@@ -2038,13 +2038,20 @@ PYTHON_FIX_EOF
             log "✅ Versão do ajv corrigida para 8.12.0 (todas as formas)"
         fi
         
-        # CORREÇÃO: Remover qualquer versão antiga do ajv-keywords (3.x) que não é compatível com ajv 8.x
-        if grep -qE '("ajv-keywords":\s*"\^3\.|3\.5\.2|"3\.5\.2"|\^3\.5\.2)' package.json 2>/dev/null; then
-            warn "Versão incompatível do ajv-keywords (3.x) detectada no package.json - corrigindo para 5.1.0..."
+        # CORREÇÃO: Remover qualquer versão antiga ou incorreta do ajv-keywords
+        # Corrigir versão 3.x (incompatível) e 5.1.1 (não existe) para 5.1.0
+        if grep -qE '("ajv-keywords":\s*"\^3\.|3\.5\.2|"3\.5\.2"|\^3\.5\.2|"ajv-keywords":\s*"\^5\.1\.1|5\.1\.1)' package.json 2>/dev/null; then
+            warn "Versão incorreta do ajv-keywords detectada no package.json - corrigindo para 5.1.0..."
+            # Corrigir versão 3.x
             sed -i 's/3\.5\.2/5.1.0/g' package.json
             sed -i 's/"3\.5\.2"/"5.1.0"/g' package.json
             sed -i 's/\^3\.5\.2/\^5.1.0/g' package.json
-            sed -i 's/"ajv-keywords":\s*"\^3\./"ajv-keywords": "^5.1./g' package.json
+            sed -i 's/"ajv-keywords":\s*"\^3\./"ajv-keywords": "^5.1.0"/g' package.json
+            # Corrigir versão 5.1.1 (não existe)
+            sed -i 's/5\.1\.1/5.1.0/g' package.json
+            sed -i 's/"5\.1\.1"/"5.1.0"/g' package.json
+            sed -i 's/\^5\.1\.1/\^5.1.0/g' package.json
+            sed -i 's/"ajv-keywords":\s*"\^5\.1\.1/"ajv-keywords": "^5.1.0"/g' package.json
             PACKAGE_JSON_FIXED=true
             log "✅ Versão do ajv-keywords corrigida para ^5.1.0 (compatível com ajv 8.x)"
         fi
