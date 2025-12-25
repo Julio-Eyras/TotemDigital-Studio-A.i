@@ -1995,12 +1995,12 @@ try:
         data['overrides'] = {}
     data['overrides']['react-dom'] = '^18.2.0'
     data['overrides']['ajv'] = '^8.12.0'
-    data['overrides']['ajv-keywords'] = '^5.1.0'
+    data['overrides']['ajv-keywords'] = '^5.1.1'
     
     if 'resolutions' not in data:
         data['resolutions'] = {}
     data['resolutions']['ajv'] = '^8.12.0'
-    data['resolutions']['ajv-keywords'] = '^5.1.0'
+    data['resolutions']['ajv-keywords'] = '^5.1.1'
     data['resolutions']['ajv-formats'] = '^2.1.1'
     
     # NÃO adicionar ajv em devDependencies - causa conflito com overrides
@@ -2079,7 +2079,7 @@ try:
     # Forçar versões corretas
     data['overrides']['react-dom'] = '^18.2.0'
     data['overrides']['ajv'] = '^8.12.0'
-    data['overrides']['ajv-keywords'] = '^5.1.0'
+    data['overrides']['ajv-keywords'] = '^5.1.1'
     
     # Reordenar para colocar overrides antes de devDependencies
     ordered_data = {}
@@ -2127,7 +2127,7 @@ try:
         # Forçar versões corretas em overrides
         data['overrides']['react-dom'] = '^18.2.0'
         data['overrides']['ajv'] = '^8.12.0'
-        data['overrides']['ajv-keywords'] = '^5.1.0'
+        data['overrides']['ajv-keywords'] = '^5.1.1'
         
         with open('package.json', 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -2165,7 +2165,7 @@ try:
     
     # Forçar versões corretas
     data['resolutions']['ajv'] = '^8.12.0'
-    data['resolutions']['ajv-keywords'] = '^5.1.0'
+    data['resolutions']['ajv-keywords'] = '^5.1.1'
     
     with open('package.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -2272,12 +2272,12 @@ try:
         if 'overrides' not in data:
             data['overrides'] = {}
         data['overrides']['ajv'] = '^8.12.0'
-        data['overrides']['ajv-keywords'] = '^5.1.0'
+        data['overrides']['ajv-keywords'] = '^5.1.1'
         
         if 'resolutions' not in data:
             data['resolutions'] = {}
         data['resolutions']['ajv'] = '^8.12.0'
-        data['resolutions']['ajv-keywords'] = '^5.1.0'
+        data['resolutions']['ajv-keywords'] = '^5.1.1'
         data['resolutions']['ajv-formats'] = '^2.1.1'
         
         # NÃO adicionar ajv em devDependencies - causa conflito com overrides
@@ -2377,7 +2377,7 @@ try:
     if 'resolutions' not in data:
         data['resolutions'] = {}
     data['resolutions']['ajv'] = '^8.12.0'
-    data['resolutions']['ajv-keywords'] = '^5.1.0'
+    data['resolutions']['ajv-keywords'] = '^5.1.1'
     data['resolutions']['ajv-formats'] = '^2.1.1'
     
     # NÃO adicionar ajv em devDependencies - causa conflito com overrides
@@ -2477,7 +2477,7 @@ try:
     
     # Override global para ajv
     data['overrides']['ajv'] = '^8.12.0'
-    data['overrides']['ajv-keywords'] = '^5.1.0'  # Compatível com ajv 8.x
+    data['overrides']['ajv-keywords'] = '^5.1.1'  # Compatível com ajv 8.x
     
     # Override específico para dependências conhecidas que podem estar causando problema
     # react-scripts e suas dependências
