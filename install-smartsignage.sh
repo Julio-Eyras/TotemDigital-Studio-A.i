@@ -2647,47 +2647,66 @@ try:
     with open(ajv_keywords_path, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Verificar se já foi corrigido
-    if 'SOLUÇÃO AJV-KEYWORDS' in content:
+    # Verificar se já foi corrigido (buscar por qualquer uma das marcas)
+    if 'SOLUÇÃO AJV-KEYWORDS' in content or 'keywordFunc' in content:
         print("✅ ajv-keywords já foi corrigido anteriormente")
         sys.exit(0)
     
-    # Procurar pela linha que lança erro: throw new Error("Unknown keyword " + keyword);
-    # Modificar para retornar undefined em vez de lançar erro
-    # Isso permite que keywords não suportadas sejam ignoradas silenciosamente
-    pattern = r'throw new Error\("Unknown keyword " \+ keyword\);'
+    # ESTRATÉGIA: 
+    # 1. Modificar função get para retornar undefined em vez de lançar erro
+    # 2. Modificar chamadas get(k)(ajv) para verificar se get(k) é função antes de chamar
     
-    if re.search(pattern, content):
-        # Substituir por uma versão que retorna undefined em vez de lançar erro
-        # Isso é seguro porque o schema-utils pode funcionar sem essas keywords
-        fix = '''// SOLUÇÃO AJV-KEYWORDS: Retornar undefined em vez de lançar erro para keywords desconhecidas
-        // Isso resolve problemas com keywords movidas para ajv-formats ou não suportadas
-        // Retornar undefined é seguro - o schema-utils pode funcionar sem essas keywords
-        return undefined; // Keyword desconhecida - ignorar silenciosamente'''
-        
-        content = re.sub(pattern, fix, content)
-        
+    modified = False
+    
+    # Passo 1: Modificar get para retornar undefined
+    pattern_get = r'throw new Error\("Unknown keyword " \+ keyword\);'
+    if re.search(pattern_get, content):
+        fix_get = '''// SOLUÇÃO AJV-KEYWORDS: Retornar undefined para keywords desconhecidas
+        return undefined;'''
+        content = re.sub(pattern_get, fix_get, content)
+        modified = True
+    
+    # Passo 2: Modificar chamadas get(k)(ajv) para verificar se é função
+    # Procurar por padrões como: get(k)(ajv) ou keywords.forEach(function(k) { get(k)(ajv); })
+    pattern_call1 = r'get\(k\)\(ajv\)'
+    if re.search(pattern_call1, content):
+        # Substituir get(k)(ajv) por uma versão que verifica se é função
+        fix_call = '''(function(keyword) {
+            // SOLUÇÃO AJV-KEYWORDS: Verificar se get retorna função antes de chamar
+            var keywordFunc = get(keyword);
+            if (typeof keywordFunc === 'function') {
+                keywordFunc(ajv);
+            }
+            // Se undefined, ignorar silenciosamente (keyword não suportada)
+        })(k)'''
+        content = re.sub(pattern_call1, fix_call, content)
+        modified = True
+    
+    # Tentar padrão alternativo: pode estar em formato diferente
+    if not modified:
+        pattern_call2 = r'get\([^)]+\)\(ajv\)'
+        if re.search(pattern_call2, content):
+            # Substituir qualquer get(...)(ajv) por versão segura
+            def replace_call(match):
+                call_expr = match.group(0)
+                # Extrair o argumento de get()
+                arg_match = re.search(r'get\(([^)]+)\)', call_expr)
+                if arg_match:
+                    arg = arg_match.group(1)
+                    return f'(function(keyword) {{ var f = get(keyword); if (typeof f === "function") f(ajv); }})({arg})'
+                return call_expr
+            
+            content = re.sub(pattern_call2, replace_call, content)
+            modified = True
+    
+    if modified:
         with open(ajv_keywords_path, 'w', encoding='utf-8') as f:
             f.write(content)
-        
-        print("✅ ajv-keywords corrigido para retornar undefined em vez de lançar erro")
+        print("✅ ajv-keywords corrigido: get retorna undefined e chamadas verificam função")
         sys.exit(0)
     else:
-        # Tentar padrão alternativo (pode variar entre versões)
-        pattern2 = r'throw new Error\(`Unknown keyword \$\{keyword\}`\);'
-        if re.search(pattern2, content):
-            fix2 = '''// SOLUÇÃO AJV-KEYWORDS: Retornar undefined em vez de lançar erro
-        return undefined;'''
-            content = re.sub(pattern2, fix2, content)
-            
-            with open(ajv_keywords_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            
-            print("✅ ajv-keywords corrigido (padrão alternativo)")
-            sys.exit(0)
-        else:
-            print("⚠️  Padrão de erro não encontrado em ajv-keywords - pode já estar corrigido ou estrutura diferente")
-            sys.exit(0)
+        print("⚠️  Padrões não encontrados - pode já estar corrigido ou estrutura diferente")
+        sys.exit(0)
     
 except Exception as e:
     # Não é crítico se falhar
