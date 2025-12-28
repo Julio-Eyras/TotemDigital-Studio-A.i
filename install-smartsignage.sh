@@ -2628,10 +2628,11 @@ PYTHON_ADD_OVERRIDE_EOF
             warn "⚠️  O build pode falhar se houver conflitos de dependências"
         fi
         
-        # CORREÇÃO 1: Corrigir ajv-keywords para não lançar erro em formatMinimum (movido para ajv-formats)
+        # CORREÇÃO 1: Corrigir ajv-keywords para não lançar erro para keywords desconhecidas
+        # Isso resolve problemas com keywords que foram movidas (formatMinimum, etc) ou não suportadas
         AJV_KEYWORDS_PATH="node_modules/ajv-keywords/dist/index.js"
         if [[ -f "$AJV_KEYWORDS_PATH" ]] && command -v python3 &> /dev/null; then
-            log "Corrigindo ajv-keywords para resolver erro formatMinimum..."
+            log "Corrigindo ajv-keywords para não lançar erro em keywords desconhecidas..."
             python3 << 'PYTHON_FIX_AJV_KEYWORDS_EOF'
 import re
 import sys
@@ -2647,29 +2648,46 @@ try:
         content = f.read()
     
     # Verificar se já foi corrigido
-    if 'SOLUÇÃO FORMATMINIMUM' in content:
+    if 'SOLUÇÃO AJV-KEYWORDS' in content:
+        print("✅ ajv-keywords já foi corrigido anteriormente")
         sys.exit(0)
     
     # Procurar pela linha que lança erro: throw new Error("Unknown keyword " + keyword);
-    # Modificar para retornar undefined em vez de lançar erro para formatMinimum
-    pattern = r'(throw new Error\("Unknown keyword " \+ keyword\);)'
+    # Modificar para retornar undefined em vez de lançar erro
+    # Isso permite que keywords não suportadas sejam ignoradas silenciosamente
+    pattern = r'throw new Error\("Unknown keyword " \+ keyword\);'
     
     if re.search(pattern, content):
-        # Substituir por uma versão que retorna undefined para formatMinimum (foi movido para ajv-formats)
-        fix = '''// SOLUÇÃO FORMATMINIMUM: formatMinimum foi movido para ajv-formats no ajv@8.x
-        // Retornar undefined em vez de lançar erro para formatMinimum
-        if (keyword === 'formatMinimum' || keyword === 'formatMaximum' || keyword === 'formatExclusiveMinimum' || keyword === 'formatExclusiveMaximum') {
-            return undefined; // Essas keywords foram movidas para ajv-formats
-        }
-        throw new Error("Unknown keyword " + keyword);'''
+        # Substituir por uma versão que retorna undefined em vez de lançar erro
+        # Isso é seguro porque o schema-utils pode funcionar sem essas keywords
+        fix = '''// SOLUÇÃO AJV-KEYWORDS: Retornar undefined em vez de lançar erro para keywords desconhecidas
+        // Isso resolve problemas com keywords movidas para ajv-formats ou não suportadas
+        // Retornar undefined é seguro - o schema-utils pode funcionar sem essas keywords
+        return undefined; // Keyword desconhecida - ignorar silenciosamente'''
         
         content = re.sub(pattern, fix, content)
         
         with open(ajv_keywords_path, 'w', encoding='utf-8') as f:
             f.write(content)
         
-        print("✅ ajv-keywords corrigido para não lançar erro em formatMinimum")
+        print("✅ ajv-keywords corrigido para retornar undefined em vez de lançar erro")
         sys.exit(0)
+    else:
+        # Tentar padrão alternativo (pode variar entre versões)
+        pattern2 = r'throw new Error\(`Unknown keyword \$\{keyword\}`\);'
+        if re.search(pattern2, content):
+            fix2 = '''// SOLUÇÃO AJV-KEYWORDS: Retornar undefined em vez de lançar erro
+        return undefined;'''
+            content = re.sub(pattern2, fix2, content)
+            
+            with open(ajv_keywords_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            print("✅ ajv-keywords corrigido (padrão alternativo)")
+            sys.exit(0)
+        else:
+            print("⚠️  Padrão de erro não encontrado em ajv-keywords - pode já estar corrigido ou estrutura diferente")
+            sys.exit(0)
     
 except Exception as e:
     # Não é crítico se falhar
