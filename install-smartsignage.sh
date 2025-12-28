@@ -2619,13 +2619,63 @@ PYTHON_ADD_OVERRIDE_EOF
         
         log "✅ Permissões corrigidas - diretórios acessíveis"
         
-        # CORREÇÃO CRÍTICA: Corrigir fork-ts-checker-webpack-plugin para resolver conflito schema-utils/ajv
+        # CORREÇÃO CRÍTICA: Corrigir fork-ts-checker-webpack-plugin e schema-utils para resolver conflito ajv-keywords/ajv-formats
         log "Corrigindo fork-ts-checker-webpack-plugin (resolvendo conflito schema-utils/ajv)..."
         
         # Garantir que Python está instalado antes de usar
         if ! ensure_python_installed; then
             warn "⚠️  Python3 não disponível - pulando correção do fork-ts-checker-webpack-plugin"
             warn "⚠️  O build pode falhar se houver conflitos de dependências"
+        fi
+        
+        # CORREÇÃO 1: Corrigir ajv-keywords para não lançar erro em formatMinimum (movido para ajv-formats)
+        AJV_KEYWORDS_PATH="node_modules/ajv-keywords/dist/index.js"
+        if [[ -f "$AJV_KEYWORDS_PATH" ]] && command -v python3 &> /dev/null; then
+            log "Corrigindo ajv-keywords para resolver erro formatMinimum..."
+            python3 << 'PYTHON_FIX_AJV_KEYWORDS_EOF'
+import re
+import sys
+import os
+
+ajv_keywords_path = "node_modules/ajv-keywords/dist/index.js"
+
+if not os.path.exists(ajv_keywords_path):
+    sys.exit(0)
+
+try:
+    with open(ajv_keywords_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Verificar se já foi corrigido
+    if 'SOLUÇÃO FORMATMINIMUM' in content:
+        sys.exit(0)
+    
+    # Procurar pela linha que lança erro: throw new Error("Unknown keyword " + keyword);
+    # Modificar para retornar undefined em vez de lançar erro para formatMinimum
+    pattern = r'(throw new Error\("Unknown keyword " \+ keyword\);)'
+    
+    if re.search(pattern, content):
+        # Substituir por uma versão que retorna undefined para formatMinimum (foi movido para ajv-formats)
+        fix = '''// SOLUÇÃO FORMATMINIMUM: formatMinimum foi movido para ajv-formats no ajv@8.x
+        // Retornar undefined em vez de lançar erro para formatMinimum
+        if (keyword === 'formatMinimum' || keyword === 'formatMaximum' || keyword === 'formatExclusiveMinimum' || keyword === 'formatExclusiveMaximum') {
+            return undefined; // Essas keywords foram movidas para ajv-formats
+        }
+        throw new Error("Unknown keyword " + keyword);'''
+        
+        content = re.sub(pattern, fix, content)
+        
+        with open(ajv_keywords_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        print("✅ ajv-keywords corrigido para não lançar erro em formatMinimum")
+        sys.exit(0)
+    
+except Exception as e:
+    # Não é crítico se falhar
+    print(f"⚠️  Não foi possível corrigir ajv-keywords: {e}")
+    sys.exit(0)
+PYTHON_FIX_AJV_KEYWORDS_EOF
         fi
         
         PLUGIN_PATH="node_modules/fork-ts-checker-webpack-plugin/lib/ForkTsCheckerWebpackPlugin.js"
