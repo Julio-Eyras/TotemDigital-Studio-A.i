@@ -7067,12 +7067,12 @@ case "$1" in
         PLUGIN_PATH="$INSTALL_DIR/frontend/node_modules/fork-ts-checker-webpack-plugin/lib/ForkTsCheckerWebpackPlugin.js"
         if [[ -f "$PLUGIN_PATH" ]] && ! grep -q "SOLUÇÃO DEFINITIVA" "$PLUGIN_PATH" 2>/dev/null; then
             echo "Corrigindo fork-ts-checker-webpack-plugin..."
-            python3 << 'PYTHON_FIX_PLUGIN_UPDATE_EOF'
+            python3 << PYTHON_FIX_PLUGIN_UPDATE_EOF
 import re
 import sys
 import os
 
-plugin_path = sys.argv[1] if len(sys.argv) > 1 else "node_modules/fork-ts-checker-webpack-plugin/lib/ForkTsCheckerWebpackPlugin.js"
+plugin_path = "$PLUGIN_PATH"
 
 if not os.path.exists(plugin_path):
     sys.exit(0)
@@ -7112,7 +7112,6 @@ try:
 except Exception as e:
     sys.exit(1)
 PYTHON_FIX_PLUGIN_UPDATE_EOF
-            "$PLUGIN_PATH"
         fi
         
         # Aplicar patches de dependências se existirem
