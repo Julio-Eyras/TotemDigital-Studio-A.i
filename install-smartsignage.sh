@@ -2682,21 +2682,17 @@ try:
         content = re.sub(pattern_call1, fix_call, content)
         modified = True
     
-    # Tentar padrão alternativo: pode estar em formato diferente
-    if not modified:
-        pattern_call2 = r'get\([^)]+\)\(ajv\)'
+    # Tentar padrão alternativo: pode estar em formato diferente (ex: get('keyword')(ajv))
+    if not modified and not re.search(pattern_call1, content):
+        # Procurar por outros padrões como get('keyword')(ajv)
+        pattern_call2 = r"get\(['\"][^'\"]+['\"]\)\(ajv\)"
         if re.search(pattern_call2, content):
-            # Substituir qualquer get(...)(ajv) por versão segura
-            def replace_call(match):
-                call_expr = match.group(0)
-                # Extrair o argumento de get()
-                arg_match = re.search(r'get\(([^)]+)\)', call_expr)
-                if arg_match:
-                    arg = arg_match.group(1)
-                    return f'(function(keyword) {{ var f = get(keyword); if (typeof f === "function") f(ajv); }})({arg})'
-                return call_expr
-            
-            content = re.sub(pattern_call2, replace_call, content)
+            # Substituir por versão que verifica função
+            content = re.sub(
+                pattern_call2,
+                r"(function(k) { var f = get(\1); if (typeof f === 'function') f(ajv); })(\1)",
+                content
+            )
             modified = True
     
     if modified:
