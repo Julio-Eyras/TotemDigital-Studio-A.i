@@ -2667,7 +2667,7 @@ try:
         modified = True
     
     # Passo 2: Modificar chamadas get(k)(ajv) para verificar se é função
-    # Procurar por padrões como: get(k)(ajv) ou keywords.forEach(function(k) { get(k)(ajv); })
+    # Procurar por padrões como: get(k)(ajv)
     pattern_call1 = r'get\(k\)\(ajv\)'
     if re.search(pattern_call1, content):
         # Substituir get(k)(ajv) por uma versão que verifica se é função
@@ -2681,19 +2681,6 @@ try:
         })(k)'''
         content = re.sub(pattern_call1, fix_call, content)
         modified = True
-    
-    # Tentar padrão alternativo: pode estar em formato diferente (ex: get('keyword')(ajv))
-    if not modified and not re.search(pattern_call1, content):
-        # Procurar por outros padrões como get('keyword')(ajv)
-        pattern_call2 = r"get\(['\"][^'\"]+['\"]\)\(ajv\)"
-        if re.search(pattern_call2, content):
-            # Substituir por versão que verifica função
-            content = re.sub(
-                pattern_call2,
-                r"(function(k) { var f = get(\1); if (typeof f === 'function') f(ajv); })(\1)",
-                content
-            )
-            modified = True
     
     if modified:
         with open(ajv_keywords_path, 'w', encoding='utf-8') as f:
