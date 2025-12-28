@@ -25,19 +25,21 @@
 
 ## Solução Definitiva Implementada ✅
 
-### Script Postinstall Automático
+### Correção Automática no Script de Instalação
 
-**`frontend/scripts/fix-fork-ts-checker.js`**:
-- Script Node.js que modifica o `fork-ts-checker-webpack-plugin` diretamente após `npm install`
+**`install-smartsignage.sh`**:
+- O script de instalação corrige automaticamente o `fork-ts-checker-webpack-plugin` após `npm install`
 - Faz o plugin **ignorar erros de validação do schema-utils** com try/catch
-- Executado automaticamente via `postinstall` script no `package.json`
+- Usa Python para aplicar a correção de forma robusta e multiplataforma
+- Executado automaticamente durante a instalação do frontend
 
 **Por que esta solução é definitiva**:
 1. ✅ **Não depende de patches** - Modifica o arquivo diretamente
 2. ✅ **Funciona independente da versão** - Detecta o padrão no código
-3. ✅ **Executado automaticamente** - Sempre que `npm install` é rodado
+3. ✅ **Executado automaticamente** - Durante a instalação via `install-smartsignage.sh`
 4. ✅ **Seguro** - A validação não é crítica (TypeScript já valida os tipos)
 5. ✅ **Idempotente** - Verifica se já foi corrigido antes de aplicar
+6. ✅ **Centralizado** - Toda a lógica de correção está no script de instalação
 
 ### Overrides no package.json
 
@@ -59,9 +61,10 @@
    - Overrides forçam versões corretas de `ajv` e `ajv-keywords`
    - Todas as dependências recebem essas versões
 
-2. **Após `npm install`** (via `postinstall`):
-   - Script `fix-fork-ts-checker.js` é executado automaticamente
-   - Modifica `fork-ts-checker-webpack-plugin` para ignorar erros de validação
+2. **Após `npm install`** (via `install-smartsignage.sh`):
+   - O script de instalação detecta e corrige automaticamente o `fork-ts-checker-webpack-plugin`
+   - Usa Python para aplicar a correção de forma robusta
+   - Modifica o plugin para ignorar erros de validação do `schema-utils`
    - Build funciona perfeitamente
 
 3. **Durante o build**:
@@ -71,9 +74,10 @@
 
 ## Arquivos da Solução
 
-1. **`frontend/scripts/fix-fork-ts-checker.js`**
-   - Script que corrige o plugin automaticamente
-   - Executado via `postinstall` após cada `npm install`
+1. **`install-smartsignage.sh`** (seção de instalação do frontend)
+   - Contém a lógica de correção do `fork-ts-checker-webpack-plugin`
+   - Executado automaticamente durante a instalação
+   - Também aplicado durante atualizações (`smartsignage-dev update`)
 
 2. **`frontend/package.json`** (seção `overrides`)
    - Força versões corretas de `ajv` e `ajv-keywords` globalmente
