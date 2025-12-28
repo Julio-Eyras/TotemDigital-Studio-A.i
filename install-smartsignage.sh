@@ -645,6 +645,44 @@ install_dependencies() {
     log "Dependências básicas instaladas!"
 }
 
+# Garantir que Python3 está instalado (necessário para correções automáticas)
+ensure_python_installed() {
+    log "Verificando se Python3 está instalado..."
+    
+    if command -v python3 &> /dev/null; then
+        PYTHON_VERSION=$(python3 --version 2>&1 || echo "não disponível")
+        log "✅ Python3 disponível: $PYTHON_VERSION"
+        return 0
+    fi
+    
+    warn "Python3 não encontrado - instalando como dependência do projeto..."
+    
+    # Tentar instalar usando apt (Ubuntu/Debian)
+    if command -v apt &> /dev/null || command -v apt-get &> /dev/null; then
+        log "Instalando Python3 via apt..."
+        if sudo apt update -y && sudo apt install -y python3 python3-pip 2>/dev/null; then
+            PYTHON_VERSION=$(python3 --version 2>&1 || echo "não disponível")
+            log "✅ Python3 instalado com sucesso: $PYTHON_VERSION"
+            return 0
+        fi
+    fi
+    
+    # Tentar instalar usando apt-get (fallback)
+    if command -v apt-get &> /dev/null; then
+        log "Tentando instalar Python3 via apt-get..."
+        if sudo apt-get update -y && sudo apt-get install -y python3 python3-pip 2>/dev/null; then
+            PYTHON_VERSION=$(python3 --version 2>&1 || echo "não disponível")
+            log "✅ Python3 instalado com sucesso: $PYTHON_VERSION"
+            return 0
+        fi
+    fi
+    
+    error "❌ Falha ao instalar Python3"
+    error "Python3 é necessário para correções automáticas de dependências"
+    error "Por favor, instale manualmente: sudo apt install -y python3 python3-pip"
+    return 1
+}
+
 # Corrigir demora no boot causada por systemd-networkd-wait-online
 fix_network_wait() {
     log "Corrigindo demora no boot (network-wait)..."
@@ -1940,15 +1978,10 @@ EOF
         
         # Validar se Python está disponível (necessário para manipulação segura do JSON)
         log "Validando Python (necessário para manipulação segura do package.json)..."
-        if ! command -v python3 &> /dev/null; then
-            warn "Python3 não encontrado - instalando..."
-            sudo apt install -y python3 python3-pip 2>/dev/null || {
-                error "Falha ao instalar Python3"
-                exit 1
-            }
+        if ! ensure_python_installed; then
+            error "Python3 é obrigatório para a instalação do frontend"
+            exit 1
         fi
-        PYTHON_VERSION=$(python3 --version 2>&1 || echo "não disponível")
-        log "✅ Python disponível: $PYTHON_VERSION"
         
         # CRÍTICO: Garantir que estamos usando o package.json CORRETO do repositório
         # Se o package.json no servidor foi modificado, substituir pelo do repositório
@@ -2588,6 +2621,13 @@ PYTHON_ADD_OVERRIDE_EOF
         
         # CORREÇÃO CRÍTICA: Corrigir fork-ts-checker-webpack-plugin para resolver conflito schema-utils/ajv
         log "Corrigindo fork-ts-checker-webpack-plugin (resolvendo conflito schema-utils/ajv)..."
+        
+        # Garantir que Python está instalado antes de usar
+        if ! ensure_python_installed; then
+            warn "⚠️  Python3 não disponível - pulando correção do fork-ts-checker-webpack-plugin"
+            warn "⚠️  O build pode falhar se houver conflitos de dependências"
+        fi
+        
         PLUGIN_PATH="node_modules/fork-ts-checker-webpack-plugin/lib/ForkTsCheckerWebpackPlugin.js"
         
         if [[ -f "$PLUGIN_PATH" ]]; then
@@ -2611,8 +2651,12 @@ PYTHON_ADD_OVERRIDE_EOF
                     fi
                 else
                     # Tentar método alternativo usando Python (mais robusto)
-                    log "Tentando correção alternativa usando Python..."
-                    python3 << 'PYTHON_FIX_PLUGIN_EOF'
+                    if ! command -v python3 &> /dev/null; then
+                        warn "⚠️  Python3 não disponível - não é possível aplicar correção automática"
+                        warn "⚠️  O build pode falhar. Instale Python3: sudo apt install -y python3 python3-pip"
+                    else
+                        log "Tentando correção alternativa usando Python..."
+                        python3 << 'PYTHON_FIX_PLUGIN_EOF'
 import re
 import sys
 import os
@@ -2664,12 +2708,13 @@ except Exception as e:
     print(f"❌ Erro ao corrigir fork-ts-checker-webpack-plugin: {e}")
     sys.exit(1)
 PYTHON_FIX_PLUGIN_EOF
-                    
-                    if [[ $? -eq 0 ]]; then
-                        log "✅ fork-ts-checker-webpack-plugin corrigido usando Python!"
-                    else
-                        warn "⚠️  Não foi possível corrigir fork-ts-checker-webpack-plugin automaticamente"
-                        warn "O build pode falhar, mas você pode corrigir manualmente se necessário"
+                        
+                        if [[ $? -eq 0 ]]; then
+                            log "✅ fork-ts-checker-webpack-plugin corrigido usando Python!"
+                        else
+                            warn "⚠️  Não foi possível corrigir fork-ts-checker-webpack-plugin automaticamente"
+                            warn "O build pode falhar, mas você pode corrigir manualmente se necessário"
+                        fi
                     fi
                 fi
             fi
@@ -7066,8 +7111,20 @@ case "$1" in
         # CORREÇÃO CRÍTICA: Corrigir fork-ts-checker-webpack-plugin
         PLUGIN_PATH="$INSTALL_DIR/frontend/node_modules/fork-ts-checker-webpack-plugin/lib/ForkTsCheckerWebpackPlugin.js"
         if [[ -f "$PLUGIN_PATH" ]] && ! grep -q "SOLUÇÃO DEFINITIVA" "$PLUGIN_PATH" 2>/dev/null; then
-            echo "Corrigindo fork-ts-checker-webpack-plugin..."
-            python3 << PYTHON_FIX_PLUGIN_UPDATE_EOF
+            # Garantir que Python está instalado
+            if ! command -v python3 &> /dev/null; then
+                echo "⚠️  Python3 não encontrado - instalando..."
+                if sudo apt update -y && sudo apt install -y python3 python3-pip 2>/dev/null; then
+                    echo "✅ Python3 instalado"
+                else
+                    echo "❌ Falha ao instalar Python3 - pulando correção do fork-ts-checker-webpack-plugin"
+                    echo "⚠️  O build pode falhar. Instale manualmente: sudo apt install -y python3 python3-pip"
+                fi
+            fi
+            
+            if command -v python3 &> /dev/null; then
+                echo "Corrigindo fork-ts-checker-webpack-plugin..."
+                python3 << PYTHON_FIX_PLUGIN_UPDATE_EOF
 import re
 import sys
 import os
@@ -7112,6 +7169,7 @@ try:
 except Exception as e:
     sys.exit(1)
 PYTHON_FIX_PLUGIN_UPDATE_EOF
+            fi
         fi
         
         # Aplicar patches de dependências se existirem
