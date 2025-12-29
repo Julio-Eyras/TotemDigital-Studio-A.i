@@ -113,14 +113,17 @@ CREATE INDEX IF NOT EXISTS idx_execution_logs_campaign_time ON execution_logs(ca
 CREATE INDEX IF NOT EXISTS idx_execution_logs_publisher_time ON execution_logs(publisher_id, timestamp DESC) 
     WHERE publisher_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_execution_logs_event_type ON execution_logs(event_type, timestamp DESC);
--- Índice parcial para logs recentes (últimos 30 dias)
-CREATE INDEX IF NOT EXISTS idx_execution_logs_recent ON execution_logs(timestamp DESC) 
-    WHERE timestamp > NOW() - INTERVAL '30 days';
+-- REMOVIDO: Índice parcial com NOW() não é permitido (função não é IMMUTABLE)
+-- Para logs recentes, usar índice completo em timestamp DESC e filtrar na query
+-- CREATE INDEX IF NOT EXISTS idx_execution_logs_recent ON execution_logs(timestamp DESC) 
+--     WHERE timestamp > NOW() - INTERVAL '30 days';
 
 -- Analytics Sessions
 CREATE INDEX IF NOT EXISTS idx_analytics_sessions_totem ON analytics_sessions(totem_id, start_time DESC);
-CREATE INDEX IF NOT EXISTS idx_analytics_sessions_recent ON analytics_sessions(start_time DESC) 
-    WHERE start_time > NOW() - INTERVAL '7 days';
+-- REMOVIDO: Índice parcial com NOW() não é permitido (função não é IMMUTABLE)
+-- Para sessões recentes, usar índice completo em start_time DESC e filtrar na query
+-- CREATE INDEX IF NOT EXISTS idx_analytics_sessions_recent ON analytics_sessions(start_time DESC) 
+--     WHERE start_time > NOW() - INTERVAL '7 days';
 
 -- Analytics Emotions
 CREATE INDEX IF NOT EXISTS idx_analytics_emotions_session ON analytics_emotions(session_id);

@@ -24,10 +24,19 @@ END $$;
 -- FKs da tabela LOCALS
 -- =============================================
 
-ALTER TABLE locals
-    ADD CONSTRAINT fk_locals_publisher 
-    FOREIGN KEY (publisher_id) REFERENCES publishers(publisher_id) 
-    ON DELETE CASCADE;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'fk_locals_publisher'
+        AND conrelid = 'locals'::regclass::oid
+    ) THEN
+        ALTER TABLE locals
+            ADD CONSTRAINT fk_locals_publisher 
+            FOREIGN KEY (publisher_id) REFERENCES publishers(publisher_id) 
+            ON DELETE CASCADE;
+    END IF;
+END $$;
 
 -- =============================================
 -- FKs da tabela TOTEMS
