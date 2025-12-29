@@ -7,10 +7,18 @@
 -- FKs da tabela USERS
 -- =============================================
 
-ALTER TABLE users
-    ADD CONSTRAINT fk_users_publisher 
-    FOREIGN KEY (publisher_id) REFERENCES publishers(publisher_id) 
-    ON DELETE SET NULL;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'fk_users_publisher'
+    ) THEN
+        ALTER TABLE users
+            ADD CONSTRAINT fk_users_publisher 
+            FOREIGN KEY (publisher_id) REFERENCES publishers(publisher_id) 
+            ON DELETE SET NULL;
+    END IF;
+END $$;
 
 -- =============================================
 -- FKs da tabela LOCALS

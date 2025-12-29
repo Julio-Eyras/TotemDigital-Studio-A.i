@@ -53,8 +53,8 @@ CREATE INDEX IF NOT EXISTS idx_medias_approval_status ON medias(approval_status)
 CREATE INDEX IF NOT EXISTS idx_medias_active ON medias(is_active) WHERE is_active = true;
 
 -- Playlists
-CREATE INDEX IF NOT EXISTS idx_playlists_totem ON playlists(totem_id) WHERE totem_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_playlists_campaign ON playlists(campaign_id) WHERE campaign_id IS NOT NULL;
+-- REMOVIDO: idx_playlists_totem - totem_id foi removido de playlists (relacionamento via campaign_totems)
+-- REMOVIDO: idx_playlists_campaign - campaign_id foi removido de playlists (relacionamento via campaign_playlists)
 CREATE INDEX IF NOT EXISTS idx_playlists_subscriber ON playlists(subscriber_id);
 CREATE INDEX IF NOT EXISTS idx_playlists_active ON playlists(is_active) WHERE is_active = true;
 
