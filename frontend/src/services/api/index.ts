@@ -31,25 +31,26 @@ api.interceptors.response.use(
 
     // Tratamento de Rate Limiting (429)
     if (error.response?.status === 429) {
-      const retryAfter = error.response.headers['retry-after'] || 60;
-      const retryAfterSeconds = parseInt(retryAfter, 10);
+      const retryAfter = error.response.headers['retry-after'] || 
+                        error.response.data?.error?.retryAfter || 
+                        60;
+      const retryAfterSeconds = parseInt(String(retryAfter), 10);
+      const retryAfterMinutes = Math.ceil(retryAfterSeconds / 60);
+      
+      // Mensagem mais amigável
+      const message = error.response.data?.error?.message || 
+                     `Muitas requisições. Aguarde ${retryAfterMinutes} minuto(s) antes de tentar novamente.`;
 
       // Emitir evento customizado para notificação
       const rateLimitEvent = new CustomEvent('rateLimitExceeded', {
         detail: {
           retryAfter: retryAfterSeconds,
-          message: `Muitas requisições. Aguarde ${retryAfterSeconds} segundos antes de tentar novamente.`,
+          message: message,
         },
       });
       window.dispatchEvent(rateLimitEvent);
 
-      // Aguardar antes de retry (se configurado)
-      if (originalRequest && !originalRequest._retry) {
-        originalRequest._retry = true;
-        await new Promise((resolve) => setTimeout(resolve, retryAfterSeconds * 1000));
-        return api(originalRequest);
-      }
-
+      // NÃO fazer retry automático para rate limit (evitar loops e mais requisições)
       return Promise.reject(error);
     }
 
@@ -134,17 +135,34 @@ export const dashboardApi = {
 // USERS API
 // =============================================
 
+export interface UserFlags {
+  flag_smart_0: boolean;
+  flag_smart_1: boolean;
+  flag_smart_2: boolean;
+  flag_smart_3: boolean;
+  flag_smart_4: boolean;
+  flag_smart_5: boolean;
+  flag_smart_6: boolean;
+  flag_smart_7: boolean;
+  flag_smart_8: boolean;
+  flag_smart_9: boolean;
+}
+
 export interface User {
   user_id: number;
   username: string;
   email?: string;
   name: string;
-  role: 'admin' | 'user' | 'client';
-  client_id?: number;
+  role: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
+  publisher_id?: number;
+  subscriber_id?: number;
+  user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+  is_tenant_user?: boolean;
   is_active: boolean;
   last_login?: string;
   created_at: string;
   updated_at?: string;
+  flags?: UserFlags;
 }
 
 export interface CreateUserRequest {
@@ -152,8 +170,12 @@ export interface CreateUserRequest {
   email?: string;
   password: string;
   name: string;
-  role: 'admin' | 'user' | 'client';
-  clientId?: number;
+  role: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
+  publisherId?: number;
+  subscriberId?: number;
+  userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+  isTenantUser?: boolean;
+  flags?: Partial<UserFlags>; // NOVO
 }
 
 export interface UpdateUserRequest {
@@ -161,9 +183,13 @@ export interface UpdateUserRequest {
   email?: string;
   password?: string;
   name?: string;
-  role?: 'admin' | 'user' | 'client';
-  clientId?: number;
+  role?: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'client' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
+  publisherId?: number;
+  subscriberId?: number;
+  userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+  isTenantUser?: boolean;
   isActive?: boolean;
+  flags?: Partial<UserFlags>; // NOVO
 }
 
 export interface UserListResponse {
@@ -179,7 +205,9 @@ export const userApi = {
     limit?: number;
     search?: string;
     role?: string;
-    clientId?: number;
+    userType?: string;
+    publisherId?: number;
+    subscriberId?: number;
   } = {}): Promise<UserListResponse> => {
     const response = await api.get('/users', { params });
     return response.data;
@@ -203,6 +231,25 @@ export const userApi = {
   delete: async (id: number): Promise<void> => {
     await api.delete(`/users/${id}`);
   },
+
+  // Flags management
+  getFlags: async (id: number): Promise<UserFlags> => {
+    const response = await api.get(`/users/${id}/flags`);
+    return response.data.data;
+  },
+
+  updateFlags: async (id: number, flags: Partial<UserFlags>): Promise<UserFlags> => {
+    const response = await api.put(`/users/${id}/flags`, { flags });
+    return response.data.data;
+  },
+
+  setFlag: async (id: number, flagName: keyof UserFlags, value: boolean): Promise<void> => {
+    if (value) {
+      await api.post(`/users/${id}/flags/${flagName}`);
+    } else {
+      await api.delete(`/users/${id}/flags/${flagName}`);
+    }
+  },
 };
 
 // =============================================
@@ -212,8 +259,10 @@ export const userApi = {
 export interface Client {
   client_id: number;
   name: string;
+  contact_name?: string;
   email?: string;
   phone?: string;
+  whatsapp?: string;
   address?: string;
   is_active: boolean;
   created_at: string;
@@ -222,15 +271,19 @@ export interface Client {
 
 export interface CreateClientRequest {
   name: string;
+  contact_name?: string;
   email?: string;
   phone?: string;
+  whatsapp?: string;
   address?: string;
 }
 
 export interface UpdateClientRequest {
   name?: string;
+  contact_name?: string;
   email?: string;
   phone?: string;
+  whatsapp?: string;
   address?: string;
   isActive?: boolean;
 }
@@ -321,16 +374,31 @@ export interface Player {
   config?: any;
 }
 
+// Alias para compatibilidade
+export type Totem = Player;
+
 export interface CreatePlayerRequest {
-  name: string;
+  name?: string;
+  identifier?: string; // Opcional: backend aceita name OU identifier
+  uin?: string;
+  localId: number; // OBRIGATÓRIO
+  deviceId?: string;
   location?: string;
-  clientId?: number;
+  description?: string;
+  firmwareVersion?: string;
+  clientId?: number; // DEPRECATED - usar subscriber_id
 }
 
 export interface UpdatePlayerRequest {
   name?: string;
+  identifier?: string;
+  uin?: string;
+  localId?: number;
+  deviceId?: string;
   location?: string;
-  clientId?: number;
+  description?: string;
+  firmwareVersion?: string;
+  clientId?: number; // DEPRECATED
   isActive?: boolean;
 }
 
@@ -346,10 +414,17 @@ export const playerApi = {
     page?: number;
     limit?: number;
     search?: string;
-    clientId?: number;
+    subscriberId?: number; // NOVO: Use subscriberId
+    clientId?: number; // DEPRECATED: Mantido para compatibilidade
     status?: string;
   } = {}): Promise<PlayerListResponse> => {
-    const response = await api.get('/players', { params });
+    // Converter clientId para subscriberId se fornecido
+    const apiParams: any = { ...params };
+    if (apiParams.clientId && !apiParams.subscriberId) {
+      apiParams.subscriberId = apiParams.clientId;
+      delete apiParams.clientId;
+    }
+    const response = await api.get('/players', { params: apiParams });
     return response.data;
   },
 
@@ -390,7 +465,9 @@ export interface PlaylistItem {
   playlist_id: number;
   name: string;
   description?: string;
-  client_id?: number;
+  subscriber_id: number; // NOVO: OBRIGATÓRIO
+  subscriber_name?: string; // NOVO: Nome do subscriber
+  client_id?: number; // DEPRECATED: Mantido para compatibilidade (alias de subscriber_id)
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -401,13 +478,15 @@ export interface PlaylistItem {
 export interface CreatePlaylistRequest {
   name: string;
   description?: string;
-  clientId?: number;
+  subscriberId?: number; // NOVO: Use subscriberId
+  clientId?: number; // DEPRECATED: Mantido para compatibilidade
 }
 
 export interface UpdatePlaylistRequest {
   name?: string;
   description?: string;
-  clientId?: number;
+  subscriberId?: number; // NOVO: Use subscriberId
+  clientId?: number; // DEPRECATED: Mantido para compatibilidade
   isActive?: boolean;
 }
 
@@ -432,7 +511,8 @@ export const playlistApi = {
     page?: number;
     limit?: number;
     search?: string;
-    clientId?: number;
+    subscriberId?: number; // NOVO: Use subscriberId
+    clientId?: number; // DEPRECATED: Mantido para compatibilidade
   } = {}): Promise<PlaylistListResponse> => {
     const response = await api.get('/playlists', { params });
     const data = response.data?.data || response.data;
@@ -503,39 +583,82 @@ export const playlistApi = {
 // =============================================
 
 export interface MediaItem {
+  // IDs
   media_id: number;
+  id?: number; // Alias para media_id
+  subscriberId: number; // FK para subscribers
+  
+  // Dados do subscriber
+  subscriberName?: string;
+  subscriberEmail?: string;
+  subscriberPhone?: string;
+  subscriberAddress?: string;
+  subscriberIsActive?: boolean;
+  
+  // Dados da mídia
   name: string;
-  title?: string;
   description?: string;
-  media_type: string;
+  tags?: string[]; // TEXT[] array
+  
+  // Arquivo
   file_path: string;
-  mime_type: string;
+  fileName?: string; // Nome do arquivo original
+  fileSizeBytes?: number; // BIGINT
+  size_bytes?: number; // Alias para fileSizeBytes
+  
+  // Tipo e metadados
+  media_type: string; // video, image, html, widget, iframe, audio, pdf
+  mime_type?: string;
   duration_seconds?: number;
-  size_bytes: number;
   width?: number;
   height?: number;
-  status: string;
+  
+  // URLs
+  thumbnailUrl?: string;
+  previewUrl?: string;
+  downloadUrl?: string;
+  
+  // Status e aprovação
+  status: string; // draft, pending_approval, approved, rejected, archived
+  approvalStatus?: string; // pending, approved, rejected
+  rejectionReason?: string;
+  approvedBy?: number;
+  approvedByName?: string;
+  approvedAt?: string;
+  
+  // Metadados
+  metadata?: any; // JSONB
+  isActive?: boolean;
+  
+  // Timestamps
   created_at: string;
   updated_at: string;
-  thumbnailUrl?: string;
-  downloadUrl?: string;
-  previewUrl?: string;
+  
+  // Compatibilidade (campos antigos)
+  title?: string; // Deprecated - usar name
+  clientId?: number; // Deprecated - usar subscriberId
+  clientName?: string; // Deprecated - usar subscriberName
 }
 
 export interface CreateMediaRequest {
   name: string;
-  title?: string;
   description?: string;
   tags?: string[];
-  clientId?: number;
+  subscriberId?: number; // FK para subscribers (obrigatório se não for admin)
+  // Deprecated
+  clientId?: number; // Alias para subscriberId (compatibilidade)
+  title?: string; // Deprecated - usar name
 }
 
 export interface UpdateMediaRequest {
   name?: string;
-  title?: string;
   description?: string;
   tags?: string[];
-  status?: string;
+  status?: string; // draft, pending_approval, approved, rejected, archived
+  approvalStatus?: string; // pending, approved, rejected
+  rejectionReason?: string;
+  // Deprecated
+  title?: string; // Deprecated - usar name
 }
 
 export interface MediaListResponse {
@@ -551,9 +674,17 @@ export const mediaApi = {
     limit?: number;
     search?: string;
     mediaType?: string;
-    clientId?: number;
+    subscriberId?: number;
+    clientId?: number; // Deprecated - usar subscriberId
   } = {}): Promise<MediaListResponse> => {
-    const response = await api.get('/media', { params });
+    // Converter clientId para subscriberId se fornecido
+    const apiParams: any = { ...params };
+    if (apiParams.clientId && !apiParams.subscriberId) {
+      apiParams.subscriberId = apiParams.clientId;
+      delete apiParams.clientId;
+    }
+    
+    const response = await api.get('/media', { params: apiParams });
     const backendData = response.data;
     
     // Backend retorna { media: [...], total, page, limit }
@@ -576,8 +707,6 @@ export const mediaApi = {
     }
     
     // Mapear campos do backend para o formato esperado pelo frontend
-    // Backend usa: id, sizeBytes, durationSeconds, mediaType, thumbnailUrl, downloadUrl
-    // Frontend espera: media_id, size_bytes, duration_seconds, media_type, thumbnailUrl, downloadUrl
     const mappedMedia = mediaArray.map((item: any) => {
       // Debug: log primeiro item para verificar estrutura
       if (mediaArray.indexOf(item) === 0) {
@@ -592,36 +721,72 @@ export const mediaApi = {
       }
       
       // Construir thumbnailUrl se não existir
-      let thumbnailUrl = item.thumbnailUrl || item.thumbnail_url;
+      let thumbnailUrl = item.thumbnailUrl || item.thumbnail_url || item.thumbnailUrlComputed;
       if (!thumbnailUrl && filePath) {
         if (item.media_type === 'image' || item.mediaType === 'image') {
-          // Para imagens, tentar usar o próprio arquivo como thumbnail
           thumbnailUrl = filePath;
         } else if (item.media_type === 'video' || item.mediaType === 'video') {
-          // Para vídeos, usar o próprio arquivo como preview
           thumbnailUrl = filePath;
         }
       }
       
       return {
+        // IDs
         media_id: item.media_id || item.id,
+        id: item.id || item.media_id,
+        subscriberId: item.subscriberId || item.subscriber_id,
+        
+        // Dados do subscriber
+        subscriberName: item.subscriberName || item.subscribername,
+        subscriberEmail: item.subscriberEmail || item.subscriberemail,
+        subscriberPhone: item.subscriberPhone || item.subscriberphone,
+        subscriberAddress: item.subscriberAddress || item.subscriberaddress,
+        subscriberIsActive: item.subscriberIsActive !== undefined ? item.subscriberIsActive : (item.subscriberisactive !== undefined ? item.subscriberisactive : true),
+        
+        // Dados da mídia
         name: item.name || '',
-        title: item.title,
         description: item.description,
-        media_type: item.media_type || item.mediaType || 'video',
+        tags: item.tags || [],
+        
+        // Arquivo
         file_path: filePath,
+        fileName: item.fileName || item.filename,
+        fileSizeBytes: item.fileSizeBytes || item.filesizebytes,
+        size_bytes: item.size_bytes || item.sizeBytes || item.fileSizeBytes || (item.size || 0),
+        
+        // Tipo e metadados
+        media_type: item.media_type || item.mediaType || 'video',
         mime_type: item.mime_type || item.mimeType || '',
         duration_seconds: item.duration_seconds || item.durationSeconds || null,
-        size_bytes: item.size_bytes || item.sizeBytes || (item.size || 0),
         width: item.width,
         height: item.height,
+        
+        // URLs
+        thumbnailUrl: thumbnailUrl,
+        previewUrl: item.previewUrl || item.preview_url || thumbnailUrl,
+        downloadUrl: item.downloadUrl || item.download_url || filePath,
+        
+        // Status e aprovação
         status: item.status || 'draft',
+        approvalStatus: item.approvalStatus || item.approvalstatus,
+        rejectionReason: item.rejectionReason || item.rejectionreason,
+        approvedBy: item.approvedBy || item.approvedby,
+        approvedByName: item.approvedByName || item.approvedbyname,
+        approvedAt: item.approvedAt || item.approvedat,
+        
+        // Metadados
+        metadata: item.metadata,
+        isActive: item.isActive !== undefined ? item.isActive : (item.isactive !== undefined ? item.isactive : true),
+        
+        // Timestamps
         created_at: item.created_at || item.createdAt || new Date().toISOString(),
         updated_at: item.updated_at || item.updatedAt || new Date().toISOString(),
-        thumbnailUrl: thumbnailUrl,
-        downloadUrl: item.downloadUrl || item.download_url || filePath,
-        previewUrl: item.previewUrl || item.preview_url || thumbnailUrl,
-      };
+        
+        // Compatibilidade (campos antigos)
+        title: item.title || item.name, // Deprecated
+        clientId: item.subscriberId || item.subscriber_id, // Deprecated
+        clientName: item.subscriberName || item.subscribername, // Deprecated
+      } as MediaItem;
     });
     
     return {
@@ -641,14 +806,19 @@ export const mediaApi = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('name', data.name);
-    if (data.title) formData.append('title', data.title);
     if (data.description) formData.append('description', data.description);
     if (data.tags) {
       // Se tags é array, converter para string separada por vírgulas
-      const tagsStr = Array.isArray(data.tags) ? data.tags.join(',') : data.tags;
+      const tagsStr = Array.isArray(data.tags) ? data.tags.join(',') : String(data.tags);
       formData.append('tags', tagsStr);
     }
-    if (data.clientId) formData.append('clientId', data.clientId.toString());
+    // Usar subscriberId (ou clientId como fallback para compatibilidade)
+    const subscriberId = data.subscriberId || data.clientId;
+    if (subscriberId) {
+      formData.append('subscriberId', subscriberId.toString());
+    }
+    // Deprecated - manter para compatibilidade
+    if (data.title) formData.append('name', data.title); // title não existe mais, usar name
 
     // Não definir Content-Type manualmente - axios detecta FormData e adiciona boundary automaticamente
     const response = await api.post('/media/upload', formData);
@@ -751,6 +921,10 @@ export interface Campaign {
   updated_at: string;
   playlist_count?: number;
   totem_count?: number;
+  playlistIds?: number[]; // NOVO: IDs das playlists associadas
+  playlistNames?: string[]; // NOVO: Nomes das playlists associadas
+  mediaIds?: number[]; // NOVO: IDs das mídias diretamente associadas (sem playlist)
+  mediaNames?: string[]; // NOVO: Nomes das mídias diretamente associadas
 }
 
 export interface CreateCampaignRequest {
@@ -763,6 +937,8 @@ export interface CreateCampaignRequest {
   end_date?: string;
   playlistIds?: number[];
   totemIds?: number[];
+  publisherIds?: number[]; // IDs dos publishers onde a campanha será exibida
+  mediaIds?: number[]; // NOVO: IDs das mídias diretamente associadas (sem playlist)
 }
 
 export interface UpdateCampaignRequest {
@@ -774,6 +950,9 @@ export interface UpdateCampaignRequest {
   start_date?: string;
   end_date?: string;
   isActive?: boolean;
+  playlistIds?: number[]; // NOVO: IDs das playlists associadas
+  publisherIds?: number[]; // IDs dos publishers onde a campanha será exibida
+  mediaIds?: number[]; // NOVO: IDs das mídias diretamente associadas (sem playlist)
 }
 
 export interface CampaignListResponse {
@@ -788,12 +967,19 @@ export const campaignApi = {
     page?: number;
     limit?: number;
     search?: string;
-    clientId?: number;
+    subscriberId?: number; // NOVO: Use subscriberId
+    clientId?: number; // DEPRECATED: Mantido para compatibilidade
     status?: string;
     campaignType?: string;
     isActive?: boolean;
   } = {}): Promise<CampaignListResponse> => {
-    const response = await api.get('/campaigns', { params });
+    // Converter clientId para subscriberId se fornecido
+    const apiParams: any = { ...params };
+    if (apiParams.clientId && !apiParams.subscriberId) {
+      apiParams.subscriberId = apiParams.clientId;
+      delete apiParams.clientId;
+    }
+    const response = await api.get('/campaigns', { params: apiParams });
     return response.data.data;
   },
 
@@ -2159,6 +2345,548 @@ export const smartDisplayFxApi = {
   }) => {
     const response = await api.get('/smartdisplayfx/telemetry/stats', { params });
     return response.data.data;
+  },
+};
+
+// =============================================
+// PUBLISHERS API
+// =============================================
+
+export interface Publisher {
+  publisher_id: number;
+  name: string;
+  contact_name?: string;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+  description?: string;
+  is_subscriber?: boolean;
+  is_publisher?: boolean;
+  client_type?: 'subscriber' | 'publisher' | 'both';
+  active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CreatePublisherRequest {
+  name: string;
+  contact_name?: string;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+  description?: string;
+  is_subscriber?: boolean;
+  is_publisher?: boolean;
+  client_type?: 'subscriber' | 'publisher' | 'both';
+}
+
+export interface UpdatePublisherRequest {
+  name?: string;
+  contact_name?: string;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+  description?: string;
+  is_subscriber?: boolean;
+  is_publisher?: boolean;
+  client_type?: 'subscriber' | 'publisher' | 'both';
+  active?: boolean;
+}
+
+export interface PublisherListResponse {
+  data: Publisher[];
+  total: number;
+  page?: number;
+  limit?: number;
+}
+
+export interface PublisherStats {
+  localsCount: number;
+  totemsCount: number;
+  smartTvsCount: number;
+  activeCampaignsCount: number;
+  onlineTotems?: number;
+  playingTvs?: number;
+}
+
+export const publisherApi = {
+  getAll: async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    client_type?: 'subscriber' | 'publisher' | 'both';
+    active_only?: boolean;
+  }): Promise<PublisherListResponse> => {
+    const response = await api.get('/publishers', { params });
+    return response.data;
+  },
+
+  getById: async (id: number): Promise<Publisher> => {
+    const response = await api.get(`/publishers/${id}`);
+    return response.data.data;
+  },
+
+  create: async (data: CreatePublisherRequest): Promise<Publisher> => {
+    const response = await api.post('/publishers', data);
+    // Backend retorna diretamente o publisher ou { data: publisher }
+    return response.data.data || response.data;
+  },
+
+  update: async (id: number, data: UpdatePublisherRequest): Promise<Publisher> => {
+    const response = await api.put(`/publishers/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/publishers/${id}`);
+  },
+
+  getLocals: async (publisherId: number): Promise<any[]> => {
+    const response = await api.get(`/publishers/${publisherId}/locals`);
+    return response.data.data || [];
+  },
+
+  getTotems: async (publisherId: number): Promise<any[]> => {
+    const response = await api.get(`/publishers/${publisherId}/totems`);
+    return response.data.data || [];
+  },
+
+  getSmartTvs: async (publisherId: number): Promise<any[]> => {
+    const response = await api.get(`/publishers/${publisherId}/smart-tvs`);
+    return response.data.data || [];
+  },
+
+  getStats: async (publisherId: number): Promise<any> => {
+    const response = await api.get(`/publishers/${publisherId}/stats`);
+    return response.data.data || response.data;
+  },
+};
+
+// =============================================
+// SUBSCRIBERS API
+// =============================================
+
+export interface Subscriber {
+  subscriber_id: number;
+  name: string;
+  contact_name?: string;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+  address?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface CreateSubscriberRequest {
+  name: string;
+  contact_name?: string;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+  address?: string;
+}
+
+export interface UpdateSubscriberRequest {
+  name?: string;
+  contact_name?: string;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+  address?: string;
+  isActive?: boolean;
+}
+
+export interface SubscriberListResponse {
+  data: Subscriber[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export const subscriberApi = {
+  getAll: async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }): Promise<SubscriberListResponse> => {
+    const response = await api.get('/subscribers', { params });
+    return response.data;
+  },
+
+  getById: async (id: number): Promise<Subscriber> => {
+    const response = await api.get(`/subscribers/${id}`);
+    return response.data;
+  },
+
+  create: async (data: CreateSubscriberRequest): Promise<Subscriber> => {
+    const response = await api.post('/subscribers', data);
+    return response.data;
+  },
+
+  update: async (id: number, data: UpdateSubscriberRequest): Promise<Subscriber> => {
+    const response = await api.put(`/subscribers/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/subscribers/${id}`);
+  },
+};
+
+// =============================================
+// LOCALS API
+// =============================================
+
+export interface Local {
+  local_id: number;
+  publisher_id: number;
+  name: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  timezone?: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  publisher_name?: string;
+}
+
+export interface CreateLocalRequest {
+  publisher_id: number;
+  name: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  timezone?: string;
+  description?: string;
+}
+
+export interface UpdateLocalRequest {
+  name?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  timezone?: string;
+  description?: string;
+  is_active?: boolean;
+}
+
+export interface LocalListResponse {
+  data: Local[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export const localApi = {
+  getAll: async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    publisherId?: number;
+    active_only?: boolean;
+  }): Promise<LocalListResponse> => {
+    const response = await api.get('/locals', { params });
+    return response.data;
+  },
+
+  getById: async (id: number): Promise<Local> => {
+    const response = await api.get(`/locals/${id}`);
+    return response.data.data || response.data;
+  },
+
+  create: async (data: CreateLocalRequest): Promise<Local> => {
+    const response = await api.post('/locals', data);
+    return response.data.data || response.data;
+  },
+
+  update: async (id: number, data: UpdateLocalRequest): Promise<Local> => {
+    const response = await api.put(`/locals/${id}`, data);
+    return response.data.data || response.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/locals/${id}`);
+  },
+
+  getTotems: async (localId: number): Promise<any[]> => {
+    const response = await api.get(`/locals/${localId}/totems`);
+    return response.data.data || response.data || [];
+  },
+};
+
+// =============================================
+// SMART TVS API
+// =============================================
+
+export interface SmartTv {
+  tv_id: number;
+  totem_id: number;
+  identifier: string;
+  device_id?: string;
+  name?: string;
+  brand?: string;
+  model?: string;
+  platform?: string;
+  firmware_version?: string;
+  resolution_width?: number;
+  resolution_height?: number;
+  orientation?: 'landscape' | 'portrait';
+  status?: string;
+  last_seen?: string;
+  capabilities?: any;
+  settings?: any;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  totem_name?: string;
+  local_name?: string;
+  publisher_name?: string;
+  publisher_id?: number;
+}
+
+export interface CreateSmartTvRequest {
+  totem_id: number;
+  identifier: string;
+  device_id?: string;
+  name?: string;
+  brand?: string;
+  model?: string;
+  platform?: string;
+  firmware_version?: string;
+  resolution_width?: number;
+  resolution_height?: number;
+  orientation?: 'landscape' | 'portrait';
+  capabilities?: any;
+  settings?: any;
+}
+
+export interface UpdateSmartTvRequest {
+  identifier?: string;
+  device_id?: string;
+  name?: string;
+  brand?: string;
+  model?: string;
+  platform?: string;
+  firmware_version?: string;
+  resolution_width?: number;
+  resolution_height?: number;
+  orientation?: 'landscape' | 'portrait';
+  status?: string;
+  capabilities?: any;
+  settings?: any;
+  is_active?: boolean;
+}
+
+export interface SmartTvListResponse {
+  data: SmartTv[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export const smartTvApi = {
+  getAll: async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    totemId?: number;
+    publisherId?: number;
+    active_only?: boolean;
+  }): Promise<SmartTvListResponse> => {
+    const response = await api.get('/smart-tvs', { params });
+    return response.data;
+  },
+
+  getById: async (id: number): Promise<SmartTv> => {
+    const response = await api.get(`/smart-tvs/${id}`);
+    return response.data.data || response.data;
+  },
+
+  create: async (data: CreateSmartTvRequest): Promise<SmartTv> => {
+    const response = await api.post('/smart-tvs', data);
+    return response.data.data || response.data;
+  },
+
+  update: async (id: number, data: UpdateSmartTvRequest): Promise<SmartTv> => {
+    const response = await api.put(`/smart-tvs/${id}`, data);
+    return response.data.data || response.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/smart-tvs/${id}`);
+  },
+
+  getByTotem: async (totemId: number): Promise<SmartTv[]> => {
+    const response = await api.get(`/smart-tvs/totem/${totemId}`);
+    return response.data.data || response.data || [];
+  },
+};
+
+// =============================================
+// SUBSCRIBER ACCESS API
+// =============================================
+
+export interface SubscriberPublisherAccess {
+  accessId: number;
+  subscriberId: number;
+  publisherId: number;
+  contractId?: number;
+  planId?: number;
+  accessType: 'plan' | 'contract' | 'override';
+  grantedAt: string;
+  expiresAt?: string;
+  isActive: boolean;
+  publisherName?: string;
+  publisherEmail?: string;
+  planName?: string;
+  contractNumber?: string;
+}
+
+export interface AccessiblePublisher {
+  publisher_id: number;
+  publisher_name: string;
+  publisher_email?: string;
+  contract_id?: number;
+  plan_id?: number;
+  plan_name?: string;
+  access_type: string;
+  expires_at?: string;
+}
+
+export interface PlanPublisherAccess {
+  plan_id: number;
+  plan_name: string;
+  plan_slug: string;
+  publisher_id: number;
+  publisher_name: string;
+  publisher_email?: string;
+  is_allowed: boolean;
+  restrictions?: any;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SubscriberPublisherAccessDetail {
+  accessId: number;
+  subscriberId: number;
+  subscriberName: string;
+  publisherId: number;
+  publisherName: string;
+  contractId?: number;
+  contractNumber?: string;
+  planId?: number;
+  planName?: string;
+  accessType: 'plan' | 'contract' | 'override';
+  grantedAt: string;
+  expiresAt?: string;
+  revokedAt?: string;
+  isActive: boolean;
+  grantedBy?: number;
+  grantedByName?: string;
+  notes?: string;
+  metadata?: any;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const subscriberAccessApi = {
+  // Listar todos os acessos (admin only)
+  getAllAccess: async (params?: {
+    subscriberId?: number;
+    publisherId?: number;
+    contractId?: number;
+    planId?: number;
+    isActive?: boolean;
+  }): Promise<SubscriberPublisherAccessDetail[]> => {
+    const response = await api.get('/subscriber-access', { params });
+    return response.data.data || [];
+  },
+
+  // Obter publishers acessíveis por um subscriber
+  getAccessiblePublishers: async (subscriberId: number): Promise<AccessiblePublisher[]> => {
+    const response = await api.get(`/subscriber-access/${subscriberId}/publishers`);
+    return response.data.data || [];
+  },
+
+  // Validar acesso
+  hasAccess: async (subscriberId: number, publisherId: number): Promise<boolean> => {
+    const response = await api.get(`/subscriber-access/${subscriberId}/publishers/${publisherId}/check`);
+    return response.data.hasAccess === true;
+  },
+
+  // Conceder acesso (admin only)
+  grantAccess: async (data: {
+    subscriberId: number;
+    publisherId: number;
+    contractId: number;
+    expiresAt?: string;
+    notes?: string;
+  }): Promise<SubscriberPublisherAccess> => {
+    const response = await api.post('/subscriber-access/grant', data);
+    return response.data.data;
+  },
+
+  // Revogar acesso (admin only)
+  revokeAccess: async (subscriberId: number, publisherId: number, reason?: string): Promise<void> => {
+    await api.post(`/subscriber-access/${subscriberId}/publishers/${publisherId}/revoke`, { reason });
+  },
+
+  // ===== PLAN PUBLISHER ACCESS (Admin only) =====
+  
+  // Listar configurações de plan_publisher_access
+  getPlanPublisherAccess: async (params?: {
+    planId?: number;
+    publisherId?: number;
+  }): Promise<PlanPublisherAccess[]> => {
+    const response = await api.get('/subscriber-access/plan-publisher', { params });
+    return response.data.data || [];
+  },
+
+  // Configurar acesso de plano a publisher
+  setPlanPublisherAccess: async (data: {
+    planId: number;
+    publisherId: number;
+    isAllowed: boolean;
+    restrictions?: any;
+    notes?: string;
+  }): Promise<void> => {
+    await api.post('/subscriber-access/plan-publisher', data);
+  },
+
+  // Remover acesso de plano a publisher
+  removePlanPublisherAccess: async (planId: number, publisherId: number): Promise<void> => {
+    await api.delete(`/subscriber-access/plan-publisher/${planId}/${publisherId}`);
+  },
+
+  // Obter acessos expirando (admin only)
+  getExpiringAccess: async (days?: number): Promise<{
+    data: AccessiblePublisher[];
+    summary: {
+      total: number;
+      expiringIn7Days: number;
+      expiringIn15Days: number;
+      expiringIn30Days: number;
+    };
+  }> => {
+    const response = await api.get('/subscriber-access/expiring', { params: { days } });
+    return response.data;
   },
 };
 
