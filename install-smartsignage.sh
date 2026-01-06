@@ -8632,6 +8632,216 @@ check_rebuild_needed() {
 }
 
 # Rebuild preservando dados
+# Função para rebuild completo: limpar cache, reconstruir builds e reiniciar serviços
+rebuild_and_restart() {
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "🔄 REBUILD E RESTART - Limpando cache, reconstruindo builds e reiniciando"
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # Detectar diretório de instalação
+    if [[ -z "$INSTALL_DIR" ]]; then
+        if [[ -d "/opt/smart-signage" ]]; then
+            INSTALL_DIR="/opt/smart-signage"
+        elif [[ -d "$(pwd)" ]]; then
+            INSTALL_DIR="$(pwd)"
+        else
+            error "Não foi possível detectar o diretório de instalação. Execute o script na raiz do projeto."
+        fi
+    fi
+    
+    log "Diretório de instalação: $INSTALL_DIR"
+    
+    # Criar diretório de logs se não existir
+    mkdir -p "$INSTALL_DIR/logs" 2>/dev/null || true
+    
+    # 1. Parar serviços
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "1️⃣  PARANDO SERVIÇOS..."
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # Parar serviços systemd
+    if command -v systemctl &> /dev/null; then
+        if sudo systemctl is-active --quiet smart-signage-backend 2>/dev/null; then
+            log "Parando serviço smart-signage-backend..."
+            sudo systemctl stop smart-signage-backend 2>/dev/null || true
+        fi
+        if sudo systemctl is-active --quiet smart-signage-frontend 2>/dev/null; then
+            log "Parando serviço smart-signage-frontend..."
+            sudo systemctl stop smart-signage-frontend 2>/dev/null || true
+        fi
+    fi
+    
+    # Parar processos Node.js
+    if pgrep -f "node.*dist/index.js" > /dev/null; then
+        log "Parando processo backend..."
+        pkill -f "node.*dist/index.js" 2>/dev/null || true
+        sleep 2
+    fi
+    
+    if lsof -ti:3000 > /dev/null 2>&1; then
+        log "Liberando porta 3000..."
+        lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+        sleep 1
+    fi
+    
+    if lsof -ti:3001 > /dev/null 2>&1; then
+        log "Liberando porta 3001..."
+        lsof -ti:3001 | xargs kill -9 2>/dev/null || true
+        sleep 1
+    fi
+    
+    # 2. Limpar caches
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "2️⃣  LIMPANDO CACHES..."
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # Limpar cache do npm global
+    log "Limpando cache do npm..."
+    npm cache clean --force 2>/dev/null || true
+    
+    # Limpar caches do backend
+    if [[ -d "$INSTALL_DIR/backend" ]]; then
+        log "Limpando caches do backend..."
+        cd "$INSTALL_DIR/backend" || error "Não foi possível acessar $INSTALL_DIR/backend"
+        rm -rf node_modules/.cache 2>/dev/null || true
+        rm -rf dist 2>/dev/null || true
+        rm -rf .cache 2>/dev/null || true
+        rm -rf .eslintcache 2>/dev/null || true
+        npm cache clean --force 2>/dev/null || true
+        log "✅ Cache do backend limpo"
+    fi
+    
+    # Limpar caches do frontend
+    if [[ -d "$INSTALL_DIR/frontend" ]]; then
+        log "Limpando caches do frontend..."
+        cd "$INSTALL_DIR/frontend" || error "Não foi possível acessar $INSTALL_DIR/frontend"
+        rm -rf node_modules/.cache 2>/dev/null || true
+        rm -rf build 2>/dev/null || true
+        rm -rf dist 2>/dev/null || true
+        rm -rf .cache 2>/dev/null || true
+        rm -rf .eslintcache 2>/dev/null || true
+        npm cache clean --force 2>/dev/null || true
+        log "✅ Cache do frontend limpo"
+    fi
+    
+    # 3. Reconstruir builds
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "3️⃣  RECONSTRUINDO BUILDS..."
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # Rebuild backend
+    if [[ -d "$INSTALL_DIR/backend" ]]; then
+        log "Reconstruindo backend..."
+        cd "$INSTALL_DIR/backend" || error "Não foi possível acessar $INSTALL_DIR/backend"
+        
+        # Instalar dependências se necessário
+        if [[ ! -d "node_modules" ]] || [[ "package.json" -nt "node_modules" ]]; then
+            log "Instalando dependências do backend..."
+            npm install --legacy-peer-deps 2>&1 | tee -a "$INSTALL_DIR/logs/backend-install.log" || {
+                warn "⚠️  Alguns avisos durante instalação de dependências (pode ser normal)"
+            }
+        fi
+        
+        # Compilar TypeScript
+        log "Compilando TypeScript do backend..."
+        npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/backend-build.log" || {
+            error "❌ Erro ao compilar backend. Verifique os logs em $INSTALL_DIR/logs/backend-build.log"
+        }
+        log "✅ Backend compilado com sucesso"
+    fi
+    
+    # Rebuild frontend
+    if [[ -d "$INSTALL_DIR/frontend" ]]; then
+        log "Reconstruindo frontend..."
+        cd "$INSTALL_DIR/frontend" || error "Não foi possível acessar $INSTALL_DIR/frontend"
+        
+        # Instalar dependências se necessário
+        if [[ ! -d "node_modules" ]] || [[ "package.json" -nt "node_modules" ]]; then
+            log "Instalando dependências do frontend..."
+            npm install --legacy-peer-deps 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-install.log" || {
+                warn "⚠️  Alguns avisos durante instalação de dependências (pode ser normal)"
+            }
+        fi
+        
+        # Compilar React
+        log "Compilando frontend (React)..."
+        npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-build.log" || {
+            error "❌ Erro ao compilar frontend. Verifique os logs em $INSTALL_DIR/logs/frontend-build.log"
+        }
+        log "✅ Frontend compilado com sucesso"
+    fi
+    
+    # 4. Reiniciar serviços
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "4️⃣  REINICIANDO SERVIÇOS..."
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # Reiniciar serviços systemd
+    if command -v systemctl &> /dev/null; then
+        if sudo systemctl list-unit-files | grep -q "smart-signage-backend"; then
+            log "Reiniciando serviço smart-signage-backend..."
+            sudo systemctl restart smart-signage-backend 2>/dev/null || {
+                warn "⚠️  Falha ao reiniciar smart-signage-backend via systemd"
+            }
+        fi
+        if sudo systemctl list-unit-files | grep -q "smart-signage-frontend"; then
+            log "Reiniciando serviço smart-signage-frontend..."
+            sudo systemctl restart smart-signage-frontend 2>/dev/null || {
+                warn "⚠️  Falha ao reiniciar smart-signage-frontend via systemd"
+            }
+        fi
+    fi
+    
+    # Se não houver systemd, tentar iniciar manualmente
+    if [[ -d "$INSTALL_DIR/backend" ]] && ! pgrep -f "node.*dist/index.js" > /dev/null; then
+        log "Iniciando backend manualmente..."
+        cd "$INSTALL_DIR/backend" || error "Não foi possível acessar $INSTALL_DIR/backend"
+        nohup npm start > "$INSTALL_DIR/logs/backend.log" 2>&1 &
+        sleep 3
+        if pgrep -f "node.*dist/index.js" > /dev/null; then
+            log "✅ Backend iniciado"
+        else
+            warn "⚠️  Backend pode não ter iniciado corretamente. Verifique os logs."
+        fi
+    fi
+    
+    # 5. Verificar status
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "5️⃣  VERIFICANDO STATUS DOS SERVIÇOS..."
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    sleep 5  # Aguardar serviços iniciarem
+    
+    # Verificar backend
+    if lsof -ti:3000 > /dev/null 2>&1 || pgrep -f "node.*dist/index.js" > /dev/null; then
+        log "✅ Backend está rodando"
+    else
+        warn "⚠️  Backend não está rodando. Verifique os logs."
+    fi
+    
+    # Verificar frontend (Nginx)
+    if command -v systemctl &> /dev/null; then
+        if sudo systemctl is-active --quiet nginx; then
+            log "✅ Nginx está rodando"
+        else
+            warn "⚠️  Nginx não está rodando"
+        fi
+    fi
+    
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "✅ REBUILD E RESTART CONCLUÍDO!"
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log ""
+    log "📋 Resumo:"
+    log "  • Caches limpos"
+    log "  • Backend reconstruído e reiniciado"
+    log "  • Frontend reconstruído"
+    log "  • Serviços reiniciados"
+    log ""
+    log "🌐 Acesse o sistema em: http://localhost"
+    log ""
+}
+
 rebuild_preserve_data() {
     log "🔄 Iniciando rebuild preservando dados..."
     
@@ -8761,8 +8971,9 @@ show_menu() {
     echo -e "${CYAN}Selecione o modo de instalação:${NC}"
     echo -e "${GREEN}1)${NC} Single-Server (Appliance dedicado)"
     echo -e "${GREEN}2)${NC} Docker (Produção - PostgreSQL)"
+    echo -e "${GREEN}3)${NC} Rebuild e Restart (Limpa cache, reconstrói builds e reinicia serviços)"
     echo
-    read -p "Digite sua escolha (1-2) [padrão: 1]: " choice
+    read -p "Digite sua escolha (1-3) [padrão: 1]: " choice
     choice=${choice:-1}
     
     case $choice in
@@ -8779,6 +8990,10 @@ show_menu() {
             INSTALL_MODE="docker"
             DB_DRIVER="postgresql"
             DATABASE_URL="postgresql://smartsignage:smartsignage123@postgres:5432/smartsignage"
+            ;;
+        3)
+            INSTALL_MODE="rebuild-restart"
+            SKIP_MENU=true
             ;;
         *)
             error "Opção inválida!"
@@ -9594,6 +9809,12 @@ main() {
     fi
     
     show_menu
+    
+    # Se modo rebuild-restart, executar e sair
+    if [[ "$INSTALL_MODE" == "rebuild-restart" ]]; then
+        rebuild_and_restart
+        exit 0
+    fi
     
     # AGORA definir INSTALL_DIR baseado no modo escolhido
     setup_project

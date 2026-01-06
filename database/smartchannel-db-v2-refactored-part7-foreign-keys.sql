@@ -39,6 +39,17 @@ BEGIN
             FOREIGN KEY (publisher_id) REFERENCES publishers(publisher_id) 
             ON DELETE CASCADE;
     END IF;
+    
+    -- Foreign key para subscriber_id em locals
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'fk_locals_subscriber'
+    ) THEN
+        ALTER TABLE locals
+            ADD CONSTRAINT fk_locals_subscriber 
+            FOREIGN KEY (subscriber_id) REFERENCES subscribers(subscriber_id) 
+            ON DELETE CASCADE;
+    END IF;
 END $$;
 
 -- =============================================

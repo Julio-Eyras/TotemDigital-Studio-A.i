@@ -25,7 +25,8 @@ CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active) WHERE is_active 
 CREATE INDEX IF NOT EXISTS idx_users_user_type ON users(user_type);
 
 -- Locals
-CREATE INDEX IF NOT EXISTS idx_locals_publisher ON locals(publisher_id);
+CREATE INDEX IF NOT EXISTS idx_locals_publisher ON locals(publisher_id) WHERE publisher_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_locals_subscriber ON locals(subscriber_id) WHERE subscriber_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_locals_active ON locals(is_active) WHERE is_active = true;
 
 -- Totems

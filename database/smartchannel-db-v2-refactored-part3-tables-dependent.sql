@@ -9,7 +9,8 @@
 
 CREATE TABLE IF NOT EXISTS locals (
     local_id SERIAL PRIMARY KEY,
-    publisher_id INTEGER NOT NULL, -- FK para publishers
+    publisher_id INTEGER, -- FK para publishers (opcional)
+    subscriber_id INTEGER, -- FK para subscribers (opcional)
     name TEXT NOT NULL,
     address TEXT,
     city TEXT,
@@ -22,11 +23,19 @@ CREATE TABLE IF NOT EXISTS locals (
     description TEXT,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraint: local deve ter publisher_id OU subscriber_id (não ambos)
+    CONSTRAINT chk_local_owner 
+        CHECK (
+            (publisher_id IS NOT NULL AND subscriber_id IS NULL) OR
+            (publisher_id IS NULL AND subscriber_id IS NOT NULL)
+        )
 );
 
 COMMENT ON TABLE locals IS 'Locais físicos onde totens estão instalados';
-COMMENT ON COLUMN locals.publisher_id IS 'Publisher (host) dono deste local';
+COMMENT ON COLUMN locals.publisher_id IS 'Publisher (host) dono deste local (alternativa a subscriber_id)';
+COMMENT ON COLUMN locals.subscriber_id IS 'Subscriber (assinante) dono deste local (alternativa a publisher_id)';
 
 -- =============================================
 -- TOTEMS (Edge Nodes - Micro-servidores)

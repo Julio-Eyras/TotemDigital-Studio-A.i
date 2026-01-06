@@ -2481,6 +2481,7 @@ export interface Subscriber {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  description?: string;
   is_active: boolean;
   created_at: string;
   updated_at?: string;
@@ -2493,6 +2494,7 @@ export interface CreateSubscriberRequest {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  description?: string;
 }
 
 export interface UpdateSubscriberRequest {
@@ -2502,6 +2504,7 @@ export interface UpdateSubscriberRequest {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  description?: string;
   isActive?: boolean;
 }
 
@@ -2517,6 +2520,7 @@ export const subscriberApi = {
     page?: number;
     limit?: number;
     search?: string;
+    active_only?: boolean;
   }): Promise<SubscriberListResponse> => {
     const response = await api.get('/subscribers', { params });
     return response.data;
@@ -2539,6 +2543,26 @@ export const subscriberApi = {
 
   delete: async (id: number): Promise<void> => {
     await api.delete(`/subscribers/${id}`);
+  },
+
+  getLocals: async (subscriberId: number): Promise<any[]> => {
+    const response = await api.get(`/subscribers/${subscriberId}/locals`);
+    return response.data.data || [];
+  },
+
+  getTotems: async (subscriberId: number): Promise<any[]> => {
+    const response = await api.get(`/subscribers/${subscriberId}/totems`);
+    return response.data.data || [];
+  },
+
+  getSmartTvs: async (subscriberId: number): Promise<any[]> => {
+    const response = await api.get(`/subscribers/${subscriberId}/smart-tvs`);
+    return response.data.data || [];
+  },
+
+  getStats: async (subscriberId: number): Promise<any> => {
+    const response = await api.get(`/subscribers/${subscriberId}/stats`);
+    return response.data.data || {};
   },
 };
 
@@ -2566,7 +2590,8 @@ export interface Local {
 }
 
 export interface CreateLocalRequest {
-  publisher_id: number;
+  publisher_id?: number; // Opcional: para publishers
+  subscriber_id?: number; // Opcional: para subscribers
   name: string;
   address?: string;
   city?: string;

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS subscribers (
     phone TEXT,
     whatsapp TEXT,
     address TEXT,
+    description TEXT,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -24,6 +25,7 @@ COMMENT ON TABLE subscribers IS 'Anunciantes/Assinantes que compram espaço publ
 COMMENT ON COLUMN subscribers.subscriber_id IS 'ID único do assinante (anunciante)';
 COMMENT ON COLUMN subscribers.name IS 'Nome/razão social do assinante';
 COMMENT ON COLUMN subscribers.email IS 'Email único do assinante';
+COMMENT ON COLUMN subscribers.description IS 'Descrição/observações sobre o assinante';
 COMMENT ON COLUMN subscribers.is_active IS 'Se false, assinante está inativo';
 
 -- =============================================

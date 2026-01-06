@@ -16,7 +16,9 @@ router.use(authMiddleware);
 
 // Validações
 const createLocalValidator = [
-  body('publisher_id').notEmpty().isInt({ min: 1 }).withMessage('publisher_id é obrigatório'),
+  // publisher_id OU subscriber_id (não ambos)
+  body('publisher_id').optional().isInt({ min: 1 }),
+  body('subscriber_id').optional().isInt({ min: 1 }),
   body('name').notEmpty().isString().withMessage('Nome é obrigatório'),
   body('address').optional().isString(),
   body('city').optional().isString(),
@@ -27,6 +29,18 @@ const createLocalValidator = [
   body('longitude').optional().isFloat(),
   body('timezone').optional().isString(),
   body('description').optional().isString(),
+  // Validação customizada: deve ter publisher_id OU subscriber_id (não ambos)
+  body().custom((value) => {
+    const hasPublisher = value.publisher_id && value.publisher_id > 0;
+    const hasSubscriber = value.subscriber_id && value.subscriber_id > 0;
+    if (!hasPublisher && !hasSubscriber) {
+      throw new Error('É necessário fornecer publisher_id ou subscriber_id');
+    }
+    if (hasPublisher && hasSubscriber) {
+      throw new Error('Não é possível fornecer publisher_id e subscriber_id ao mesmo tempo');
+    }
+    return true;
+  }),
 ];
 
 const updateLocalValidator = [
@@ -133,7 +147,7 @@ router.post('/',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { publisher_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = req.body;
+      const { publisher_id, subscriber_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = req.body;
       
       if (!req.user?.id) {
         return res.status(401).json({ error: 'Usuário não autenticado' });
@@ -141,9 +155,11 @@ router.post('/',
 
       const isAdmin = req.user.role === 'admin';
       const requestPublisherId = req.user?.publisherId || undefined;
+      const requestSubscriberId = req.user?.subscriberId || undefined;
 
       const newLocal = await getLocalService().createLocal({
         publisher_id,
+        subscriber_id,
         name,
         address,
         city,
@@ -154,7 +170,7 @@ router.post('/',
         longitude,
         timezone,
         description,
-      }, req.user.id, requestPublisherId, isAdmin);
+      }, req.user.id, requestPublisherId, requestSubscriberId, isAdmin);
       
       return res.status(201).json({ success: true, data: newLocal });
     } catch (error: any) {

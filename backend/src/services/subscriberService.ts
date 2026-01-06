@@ -30,6 +30,7 @@ export interface UpdateSubscriberRequest {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  description?: string;
   isActive?: boolean;
 }
 
@@ -117,6 +118,7 @@ export class SubscriberService {
           s.phone,
           s.whatsapp,
           s.address,
+          s.description,
           s.is_active,
           s.created_at,
           s.updated_at
@@ -136,7 +138,7 @@ export class SubscriberService {
    */
   async createSubscriber(data: CreateSubscriberRequest): Promise<Subscriber> {
     try {
-      const { name, contact_name, email, phone, whatsapp, address } = data;
+      const { name, contact_name, email, phone, whatsapp, address, description } = data;
 
       // Verificar se subscriber já existe
       const existingSubscriber = await this.db.findFirst(`
@@ -160,10 +162,10 @@ export class SubscriberService {
 
       // Criar subscriber
       const result = await this.db.executeRaw(`
-        INSERT INTO subscribers (name, contact_name, email, phone, whatsapp, address, is_active, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO subscribers (name, contact_name, email, phone, whatsapp, address, description, is_active, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING subscriber_id
-      `, [name, contact_name, email, phone, whatsapp, address]);
+      `, [name, contact_name, email, phone, whatsapp, address, description || null]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar subscriber');
@@ -188,7 +190,7 @@ export class SubscriberService {
    */
   async updateSubscriber(id: number, data: UpdateSubscriberRequest): Promise<Subscriber> {
     try {
-      const { name, contact_name, email, phone, whatsapp, address, isActive } = data;
+      const { name, contact_name, email, phone, whatsapp, address, description, isActive } = data;
 
       // Verificar se subscriber existe
       const existingSubscriber = await this.getSubscriberById(id);
@@ -306,6 +308,208 @@ export class SubscriberService {
     } catch (error: any) {
       await logError('Erro ao excluir subscriber', error, { id });
       throw error;
+    }
+  }
+
+  /**
+   * Listar locals de um subscriber
+   */
+  async getLocalsBySubscriber(subscriberId: number): Promise<any[]> {
+    try {
+      const locals = await this.db.findMany(`
+        SELECT 
+          l.local_id,
+          l.name,
+          l.address,
+          l.city,
+          l.state,
+          l.zip_code,
+          l.country,
+          l.latitude,
+          l.longitude,
+          l.timezone,
+          l.description,
+          l.is_active,
+          l.created_at,
+          l.updated_at
+        FROM locals l
+        WHERE l.subscriber_id = $1
+          AND l.is_active = true
+        ORDER BY l.name
+      `, [subscriberId]);
+
+      return locals;
+    } catch (error: any) {
+      await logError('Erro ao buscar locals do subscriber', error, { subscriberId });
+      throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Listar totems de um subscriber (via locals)
+   */
+  async getTotemsBySubscriber(subscriberId: number): Promise<any[]> {
+    try {
+      const totems = await this.db.findMany(`
+        SELECT 
+          t.totem_id,
+          t.identifier,
+          t.uin,
+          t.device_id,
+          t.name,
+          t.description,
+          t.model,
+          t.manufacturer,
+          t.firmware_version,
+          t.hardware_version,
+          t.os_version,
+          t.status,
+          t.last_heartbeat,
+          t.heartbeat_interval,
+          t.network_info,
+          t.capabilities,
+          t.is_active,
+          t.created_at,
+          t.updated_at,
+          l.name as local_name,
+          l.local_id
+        FROM totems t
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.subscriber_id = $1
+          AND t.is_active = true
+        ORDER BY l.name, t.name
+      `, [subscriberId]);
+
+      return totems;
+    } catch (error: any) {
+      await logError('Erro ao buscar totems do subscriber', error, { subscriberId });
+      throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Listar smart TVs de um subscriber (via totems)
+   */
+  async getSmartTvsBySubscriber(subscriberId: number): Promise<any[]> {
+    try {
+      const smartTvs = await this.db.findMany(`
+        SELECT 
+          st.tv_id,
+          st.identifier,
+          st.device_id,
+          st.name,
+          st.brand,
+          st.model,
+          st.platform,
+          st.firmware_version,
+          st.resolution_width,
+          st.resolution_height,
+          st.orientation,
+          st.status,
+          st.last_seen,
+          st.capabilities,
+          st.settings,
+          st.is_active,
+          st.created_at,
+          st.updated_at,
+          t.name as totem_name,
+          t.totem_id,
+          t.identifier as totem_identifier,
+          l.name as local_name
+        FROM smart_tvs st
+        JOIN totems t ON st.totem_id = t.totem_id
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.subscriber_id = $1
+          AND st.is_active = true
+        ORDER BY l.name, t.name, st.name
+      `, [subscriberId]);
+
+      return smartTvs;
+    } catch (error: any) {
+      await logError('Erro ao buscar smart TVs do subscriber', error, { subscriberId });
+      throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Obter estatísticas de um subscriber
+   */
+  async getSubscriberStats(subscriberId: number): Promise<{
+    localsCount: number;
+    totemsCount: number;
+    smartTvsCount: number;
+    activeCampaignsCount: number;
+    onlineTotems: number;
+    playingTvs: number;
+  }> {
+    try {
+      // Contar locals
+      const localsCountResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM locals
+        WHERE subscriber_id = $1 AND is_active = true
+      `, [subscriberId]);
+
+      // Contar totems
+      const totemsCountResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM totems t
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.subscriber_id = $1 AND t.is_active = true
+      `, [subscriberId]);
+
+      // Contar smart TVs
+      const smartTvsCountResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM smart_tvs st
+        JOIN totems t ON st.totem_id = t.totem_id
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.subscriber_id = $1 AND st.is_active = true
+      `, [subscriberId]);
+
+      // Contar campanhas ativas
+      const campaignsCountResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM campaigns
+        WHERE subscriber_id = $1 
+          AND is_active = true 
+          AND status = 'active'
+          AND (start_date IS NULL OR start_date <= CURRENT_DATE)
+          AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+      `, [subscriberId]);
+
+      // Contar totens online
+      const onlineTotemsResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM totems t
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.subscriber_id = $1 
+          AND t.is_active = true 
+          AND t.status = 'online'
+      `, [subscriberId]);
+
+      // Contar smart TVs reproduzindo
+      const playingTvsResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM smart_tvs st
+        JOIN totems t ON st.totem_id = t.totem_id
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.subscriber_id = $1 
+          AND st.is_active = true 
+          AND st.status = 'playing'
+      `, [subscriberId]);
+
+      return {
+        localsCount: parseInt(localsCountResult?.count || '0'),
+        totemsCount: parseInt(totemsCountResult?.count || '0'),
+        smartTvsCount: parseInt(smartTvsCountResult?.count || '0'),
+        activeCampaignsCount: parseInt(campaignsCountResult?.count || '0'),
+        onlineTotems: parseInt(onlineTotemsResult?.count || '0'),
+        playingTvs: parseInt(playingTvsResult?.count || '0'),
+      };
+    } catch (error: any) {
+      await logError('Erro ao buscar estatísticas do subscriber', error, { subscriberId });
+      throw new Error('Erro interno do servidor');
     }
   }
 }

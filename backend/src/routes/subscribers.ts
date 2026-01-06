@@ -92,7 +92,7 @@ router.post('/',
   validateRequest,
     async (req: any, res: any) => {
       try {
-        const { name, contact_name, email, phone, whatsapp, address } = req.body;
+        const { name, contact_name, email, phone, whatsapp, address, description } = req.body;
         
         const newSubscriber = await getSubscriberService().createSubscriber({
           name,
@@ -101,6 +101,7 @@ router.post('/',
           phone,
           whatsapp,
           address,
+          description,
         });
 
       return res.status(201).json(newSubscriber);
@@ -136,6 +137,7 @@ router.put('/:id',
         phone,
         whatsapp,
         address,
+        description,
       });
 
       return res.json(updatedSubscriber);
@@ -163,6 +165,82 @@ router.delete('/:id',
     } catch (error: any) {
       await logError('Erro ao excluir subscriber', error);
       return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/subscribers/:id/locals
+ * @desc Listar locals de um subscriber
+ */
+router.get('/:id/locals',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const locals = await getSubscriberService().getLocalsBySubscriber(parseInt(id));
+      return res.json({ success: true, data: locals });
+    } catch (error: any) {
+      await logError('Erro ao listar locals do subscriber', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/subscribers/:id/totems
+ * @desc Listar totems de um subscriber
+ */
+router.get('/:id/totems',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const totems = await getSubscriberService().getTotemsBySubscriber(parseInt(id));
+      return res.json({ success: true, data: totems });
+    } catch (error: any) {
+      await logError('Erro ao listar totems do subscriber', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/subscribers/:id/smart-tvs
+ * @desc Listar smart TVs de um subscriber
+ */
+router.get('/:id/smart-tvs',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const smartTvs = await getSubscriberService().getSmartTvsBySubscriber(parseInt(id));
+      return res.json({ success: true, data: smartTvs });
+    } catch (error: any) {
+      await logError('Erro ao listar smart TVs do subscriber', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/subscribers/:id/stats
+ * @desc Obter estatísticas de um subscriber
+ */
+router.get('/:id/stats',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const stats = await getSubscriberService().getSubscriberStats(parseInt(id));
+      return res.json({ success: true, data: stats });
+    } catch (error: any) {
+      await logError('Erro ao obter estatísticas do subscriber', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
 );
