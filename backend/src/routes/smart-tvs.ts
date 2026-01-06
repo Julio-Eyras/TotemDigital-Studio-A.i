@@ -3,7 +3,7 @@
  * Rotas para gerenciamento de Smart TVs (controladas pelos totens)
  */
 
-import { Router, Response } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import { getSmartTvService } from '../services/smartTvService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { requireFlag } from '../middleware/flagAuth.middleware';
@@ -185,11 +185,44 @@ router.get('/:id',
 /**
  * @route POST /api/smart-tvs
  * @desc Criar nova Smart TV (um totem pode ter múltiplas TVs - relação 1:N)
- * @access Private (Admin, Owner System - requer flag_smart_0)
+ * @access Private 
+ *   - Admins/Owners: Requer flag_smart_0
+ *   - Publishers: Podem criar Smart TVs para seus próprios totens
  */
 router.post('/',
-  requireFlag('flag_smart_0'),
-  authorizeRole(['admin', 'owner_system', 'admin_sql']),
+  // Permitir publishers sem flag/role específica (será verificado no handler)
+  (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const userRole = req.user?.role;
+    const userType = req.user?.userType;
+    const isPublisher = userType === 'publisher_user' || userType === 'publisher_subscriber' || req.user?.publisherId;
+    const isOwnerOrAdminSql = userRole === 'owner_system' || userRole === 'admin_sql';
+    
+    // Permitir owners/admins sem verificação de flag aqui (será verificado depois)
+    if (isOwnerOrAdminSql) {
+      return next();
+    }
+    
+    // Permitir publishers
+    if (isPublisher) {
+      return next();
+    }
+    
+    // Para admins comuns e outros, verificar flag
+    if (userRole === 'admin') {
+      if (!req.user?.flags?.flag_smart_0) {
+        return res.status(403).json({ 
+          error: 'Acesso negado',
+          details: [{ msg: 'Requer flag_smart_0 para criar Smart TVs' }]
+        });
+      }
+      return next();
+    }
+    
+    return res.status(403).json({ 
+      error: 'Acesso negado',
+      details: [{ msg: 'Apenas administradores e publishers podem criar Smart TVs' }]
+    });
+  },
   createSmartTvValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {

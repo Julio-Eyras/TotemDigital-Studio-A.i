@@ -35,10 +35,14 @@ function getPublisherCampaignMixService(): PublisherCampaignMixService {
 // Validações
 const createPublisherValidator = [
   body('name').notEmpty().withMessage('Nome é obrigatório'),
+  body('contact_name').optional().isString(),
   body('email').optional().isEmail().withMessage('Email inválido'),
   body('phone').optional().isString(),
   body('whatsapp').optional().isString(),
   body('description').optional().isString(),
+  body('is_subscriber').optional().isBoolean(),
+  body('is_publisher').optional().isBoolean(),
+  body('client_type').optional().isIn(['subscriber', 'publisher', 'both']).withMessage('client_type deve ser subscriber, publisher ou both'),
 ];
 
 const validateRequest = (req: any, res: any, next: any) => {
