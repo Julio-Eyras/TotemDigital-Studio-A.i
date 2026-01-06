@@ -97,9 +97,9 @@ const Subscribers: React.FC = () => {
     email: '',
     phone: '',
     whatsapp: '',
+    address: '',
     description: '',
-        is_Subscriber: true,
-      });
+  });
   // NOVO: Estados para gerenciar locais, totens, smart TVs e subscribers durante a criação
   const [tempLocals, setTempLocals] = useState<CreateLocalRequest[]>([]);
   const [tempTotems, setTempTotems] = useState<(CreatePlayerRequest & { tempId: string })[]>([]);
@@ -840,9 +840,9 @@ const Subscribers: React.FC = () => {
         email: '',
         phone: '',
         whatsapp: '',
+        address: '',
         description: '',
-                is_Subscriber: true,
-              });
+      });
       setTempLocals([]);
       setTempTotems([]);
       setTempSmartTvs([]);
@@ -2532,9 +2532,9 @@ const Subscribers: React.FC = () => {
                     <TableCell sx={{ fontWeight: 'bold' }}>Tipo de Cliente</TableCell>
                     <TableCell>
                       <Chip
-                        label={getClientTypeLabel(selectedSubscriber.client_type)}
+                        label="Assinante"
                         size="small"
-                        color={getClientTypeColor(selectedSubscriber.client_type) as any}
+                        color="primary"
                       />
                     </TableCell>
                   </TableRow>
