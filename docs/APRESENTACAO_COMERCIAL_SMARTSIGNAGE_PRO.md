@@ -45,6 +45,14 @@ O **SmartSignage Pro** é uma plataforma completa e robusta de sinalização dig
 - **Docker nativo** - Deploy simplificado
 - **API REST completa** - 100+ endpoints documentados
 
+#### Sistema Multi-Tenant Avançado
+- **Publicadores e Assinantes** - Modelo de negócio flexível
+- **Isolamento completo de dados** - Segurança garantida
+- **Hierarquia Publisher → Local → Totem → Smart TV** - Gestão estruturada
+- **RBAC completo** - Controle de acesso por roles e flags
+- **10 flags de permissão** - Controle granular de recursos
+- **Subdomínios dedicados** - Interfaces personalizadas por tipo de usuário
+
 ### 2. **Multi-Plataforma Real**
 
 ✅ **webOS** (LG Smart TV)  
@@ -257,11 +265,21 @@ O **SmartSignage Pro** é uma plataforma completa e robusta de sinalização dig
 - ✅ Campanhas agendadas
 - ✅ Templates personalizáveis
 
+### Gestão de Publicadores e Assinantes
+- ✅ CRUD completo de publicadores
+- ✅ Gestão hierárquica: Publicador → Locais → Totens → Smart TVs
+- ✅ Interface com abas para criação e edição
+- ✅ Isolamento completo de dados por publicador
+- ✅ Sistema de assinantes com regras próprias
+- ✅ Suporte a publicador-assinante (híbrido)
+
 ### Gestão de Totens
 - ✅ Monitoramento em tempo real
 - ✅ Heartbeat automático
-- ✅ Status de saúde
+- ✅ Status de saúde (offline, online, error, maintenance, syncing)
 - ✅ Controle remoto
+- ✅ Aprovação de totens offline
+- ✅ Gestão por local e publicador
 
 ### Analytics e Relatórios
 - ✅ Dashboard em tempo real
@@ -287,10 +305,14 @@ O **SmartSignage Pro** é uma plataforma completa e robusta de sinalização dig
 
 ### Segurança
 - ✅ **Autenticação JWT** - Tokens seguros
-- ✅ **RBAC** - Controle de acesso por roles
+- ✅ **RBAC Completo** - Controle de acesso por roles (owner_system, admin_sql, admin, operadores)
+- ✅ **Sistema de Flags** - 10 flags de permissão granular (flag_smart_0 a flag_smart_9)
+- ✅ **Isolamento de Dados** - Publicadores e assinantes com dados completamente isolados
+- ✅ **Subdomínios Dedicados** - publisher.sistema.com e subscriber.sistema.com
 - ✅ **Auditoria completa** - Logs de todas as ações
 - ✅ **2FA** - Autenticação de dois fatores
 - ✅ **Criptografia** - Dados protegidos
+- ✅ **DNS Local** - Suporte a dnsmasq para resolução interna
 
 ### Confiabilidade
 - ✅ **99.9% uptime** - SLA garantido
@@ -309,6 +331,9 @@ O **SmartSignage Pro** é uma plataforma completa e robusta de sinalização dig
 - ✅ **100% TypeScript** - Código profissional
 - ✅ **Zero mocks** - Implementação real
 - ✅ **Docker nativo** - Deploy simplificado
+- ✅ **PostgreSQL único** - Driver único suportado (performance otimizada)
+- ✅ **Scripts de instalação** - Setup automatizado completo
+- ✅ **Sistema de build** - Compilação otimizada para produção
 
 ### Qualidade
 - ✅ **0 erros críticos** - Código limpo
@@ -324,26 +349,42 @@ O **SmartSignage Pro** é uma plataforma completa e robusta de sinalização dig
 - Único sistema com SmartDisplayFX
 - IA integrada nativa
 - Multi-plataforma real
+- Sistema multi-tenant avançado
+- RBAC completo com flags de permissão
 
 ### 2. **Facilidade de Uso**
-- Interface intuitiva
-- Setup em minutos
-- Documentação completa
+- Interface intuitiva com Material-UI
+- Sistema de abas para gestão completa
+- Setup em minutos com script automatizado
+- Documentação completa e atualizada
+- Interface em português
 
 ### 3. **Escalabilidade**
 - De 1 a 1000+ totens
 - Arquitetura distribuída
 - Performance otimizada
+- Suporte a múltiplos publicadores
+- Isolamento completo de dados
 
-### 4. **Suporte**
+### 4. **Segurança e Controle**
+- RBAC completo com múltiplas roles
+- 10 flags de permissão granular
+- Isolamento de dados por publicador/assinante
+- Subdomínios dedicados
+- Auditoria completa
+
+### 5. **Suporte**
 - Equipe especializada
 - Suporte prioritário
 - Treinamento incluído
+- Scripts de instalação automatizados
+- Documentação técnica completa
 
-### 5. **ROI Comprovado**
+### 6. **ROI Comprovado**
 - Aumento de 15-30% em conversão
 - Redução de 40-60% em tempo de gestão
 - ROI em 2-4 meses
+- Gestão hierárquica eficiente
 
 ---
 
@@ -376,5 +417,6 @@ O **SmartSignage Pro** é a solução mais completa e avançada do mercado para 
 📞 +55 (11) 3000-0000  
 🌐 www.smartsignage.pro
 
-**Versão**: 2.1  
-**Data**: 2025-01-15
+**Versão**: 2.1.0  
+**Data**: 2025-01-15  
+**Última Atualização**: 2025-01-15
