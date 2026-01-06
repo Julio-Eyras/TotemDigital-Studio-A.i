@@ -292,9 +292,11 @@ export class SmartTvService {
       }
 
       // Validação de ownership: não-admin só pode criar Smart TVs em totens do seu publisher
+      // Se requestPublisherId não estiver definido (admin criando publisher novo), permitir
       if (!isAdmin && requestPublisherId && totem.publisher_id !== requestPublisherId) {
         throw new Error('Acesso negado: Você só pode criar Smart TVs em totens do seu próprio publisher');
       }
+      // Se for admin sem publisherId (criando publisher novo), permitir criação
 
       // Verificar se identifier já existe
       const existingTv = await this.db.findFirst(`

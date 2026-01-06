@@ -199,12 +199,8 @@ router.post('/',
     const isAdmin = userRole === 'admin';
     
     // Permitir owners/admins sem verificação de flag aqui (será verificado depois)
-    if (isOwnerOrAdminSql) {
-      return next();
-    }
-    
-    // Permitir admins comuns (mesmo sem flag, podem criar Smart TVs)
-    if (isAdmin) {
+    // Admins podem criar Smart TVs mesmo sem publisherId (durante criação de publishers)
+    if (isOwnerOrAdminSql || isAdmin) {
       return next();
     }
     
