@@ -807,14 +807,14 @@ router.post('/register',
       // Criar cliente padrão se não existir
       await logDebug(`[${requestId}] Verificando cliente padrão`, { requestId });
       const clientExists = await db.findFirst(`
-        SELECT client_id FROM clients WHERE client_id = 1
+        SELECT subscriber_id FROM subscribers WHERE subscriber_id = 1
       `);
       if (!clientExists) {
-        await logDebug(`[${requestId}] Criando cliente padrão`, { requestId });
+        await logDebug(`[${requestId}] Criando subscriber padrão`, { requestId });
         await db.executeRaw(`
-          INSERT INTO clients (client_id, name) 
-          VALUES (1, 'Cliente Padrão') 
-          ON CONFLICT DO NOTHING
+          INSERT INTO subscribers (subscriber_id, name, email, is_active) 
+          VALUES (1, 'Subscriber Padrão', 'default@example.com', true) 
+          ON CONFLICT (subscriber_id) DO NOTHING
         `);
         await logDebug(`[${requestId}] Cliente padrão criado`, { requestId });
       } else {

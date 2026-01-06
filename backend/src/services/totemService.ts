@@ -13,8 +13,9 @@ import { getTotemPlaylistMixService } from './totemPlaylistMixService';
 export interface CreateTotemRequest {
   name?: string;
   identifier: string;
+  uin?: string; // Unique Identifier Number
   deviceId?: string;
-  localId?: string;
+  localId?: number; // OBRIGATÓRIO: totem deve pertencer a um local
   location?: string;
   description?: string;
   config?: any;
@@ -29,8 +30,9 @@ export interface CreateTotemRequest {
 export interface UpdateTotemRequest {
   name?: string;
   identifier?: string;
+  uin?: string; // Unique Identifier Number
   deviceId?: string;
-  localId?: string;
+  localId?: number; // Totem deve pertencer a um local
   location?: string;
   description?: string;
   config?: any;
@@ -200,7 +202,7 @@ export class TotemService {
         params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
       }
 
-      // Buscar totems
+      // Buscar totems (schema v2 - colunas ajustadas)
       const totems = await this.db.findMany(`
         SELECT 
           t.totem_id as id,
@@ -208,28 +210,27 @@ export class TotemService {
           t.identifier,
           t.device_id as deviceId,
           t.local_id as localId,
-          t.location,
+          l.name as location,
           t.description,
-          t.config,
+          t.network_info as config,
           t.status,
-          t.version,
           t.firmware_version as firmwareVersion,
-          t.ip_address as ipAddress,
-          t.last_seen as lastSeen,
+          t.network_info->>'ip' as ipAddress,
+          t.last_heartbeat as lastSeen,
           t.last_heartbeat as lastHeartbeat,
-          t.active,
+          t.is_active as active,
           t.is_active as is_active,
-          t.current_playlist_id,
+          NULL as current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
-          l.description as localName,
+          l.name as localName,
           p.name as hostName,
           p.publisher_id as publisherId
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         ${whereClause}
-        ORDER BY t.last_heartbeat DESC, t.created_at DESC
+        ORDER BY t.last_heartbeat DESC NULLS LAST, t.created_at DESC
         LIMIT ? OFFSET ?
       `, [...params, limit, offset]);
 
@@ -275,19 +276,19 @@ export class TotemService {
           t.name,
           t.identifier,
           t.uin,
-          t.location,
+          l.name as location,
           t.description,
           t.local_id,
           t.status,
-          t.active,
+          t.is_active as active,
           t.is_active as is_active,
-          t.current_playlist_id,
-          t.blocked,
-          t.blocked_until,
+          NULL as current_playlist_id,
+          false as blocked,
+          NULL as blocked_until,
           t.last_heartbeat as lastHeartbeat,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
-          l.description as location,
+          l.name as localName,
           p.name as hostName,
           p.publisher_id as publisherId
         FROM totems t
@@ -315,21 +316,20 @@ export class TotemService {
           t.identifier,
           t.device_id as deviceId,
           t.local_id as localId,
-          t.location,
+          l.name as location,
           t.description,
-          t.config,
+          t.network_info as config,
           t.status,
-          t.version,
           t.firmware_version as firmwareVersion,
-          t.ip_address as ipAddress,
-          t.last_seen as lastSeen,
+          t.network_info->>'ip' as ipAddress,
+          t.last_heartbeat as lastSeen,
           t.last_heartbeat as lastHeartbeat,
-          t.active,
+          t.is_active as active,
           t.is_active as is_active,
-          t.current_playlist_id,
+          NULL as current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
-          l.description as localName,
+          l.name as localName,
           p.name as hostName,
           p.publisher_id as publisherId
         FROM totems t
@@ -365,21 +365,20 @@ export class TotemService {
           t.identifier,
           t.device_id as deviceId,
           t.local_id as localId,
-          t.location,
+          l.name as location,
           t.description,
-          t.config,
+          t.network_info as config,
           t.status,
-          t.version,
           t.firmware_version as firmwareVersion,
-          t.ip_address as ipAddress,
-          t.last_seen as lastSeen,
+          t.network_info->>'ip' as ipAddress,
+          t.last_heartbeat as lastSeen,
           t.last_heartbeat as lastHeartbeat,
-          t.active,
+          t.is_active as active,
           t.is_active as is_active,
-          t.current_playlist_id,
+          NULL as current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
-          l.description as localName,
+          l.name as localName,
           p.name as hostName,
           p.publisher_id as publisherId
         FROM totems t
@@ -415,21 +414,20 @@ export class TotemService {
           t.identifier,
           t.device_id as deviceId,
           t.local_id as localId,
-          t.location,
+          l.name as location,
           t.description,
-          t.config,
+          t.network_info as config,
           t.status,
-          t.version,
           t.firmware_version as firmwareVersion,
-          t.ip_address as ipAddress,
-          t.last_seen as lastSeen,
+          t.network_info->>'ip' as ipAddress,
+          t.last_heartbeat as lastSeen,
           t.last_heartbeat as lastHeartbeat,
-          t.active,
+          t.is_active as active,
           t.is_active as is_active,
-          t.current_playlist_id,
+          NULL as current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
-          l.description as localName,
+          l.name as localName,
           p.name as hostName,
           p.publisher_id as publisherId
         FROM totems t
@@ -456,20 +454,22 @@ export class TotemService {
   /**
    * Cria novo totem
    */
-  async createTotem(data: CreateTotemRequest, createdBy: number): Promise<TotemResponse> {
+  async createTotem(
+    data: CreateTotemRequest,
+    createdBy: number,
+    requestPublisherId?: number,
+    isAdmin: boolean = false
+  ): Promise<TotemResponse> {
     try {
       const { 
         name,
         identifier, 
+        uin,
         deviceId, 
         localId, 
-        location,
         description, 
         config, 
-        version, 
         firmwareVersion, 
-        ipAddress, 
-        active = true,
         isActive = true
       } = data;
 
@@ -479,6 +479,31 @@ export class TotemService {
         throw new Error('Identifier é obrigatório');
       }
 
+      if (!localId) {
+        throw new Error('local_id é obrigatório. Totem deve pertencer a um local.');
+      }
+
+      // Validar se local existe e obter publisher_id
+      const local = await this.db.findFirst(`
+        SELECT 
+          l.local_id,
+          l.name as local_name,
+          p.publisher_id,
+          p.name as publisher_name
+        FROM locals l
+        JOIN publishers p ON l.publisher_id = p.publisher_id
+        WHERE l.local_id = ?
+      `, [localId]);
+
+      if (!local) {
+        throw new Error('Local não encontrado');
+      }
+
+      // Validação de ownership: não-admin só pode criar totens em locals do seu publisher
+      if (!isAdmin && requestPublisherId && local.publisher_id !== requestPublisherId) {
+        throw new Error('Acesso negado: Você só pode criar totens em locals do seu próprio publisher');
+      }
+
       // Verificar se identifier já existe
       const existingTotem = await this.db.findFirst(`
         SELECT totem_id FROM totems WHERE identifier = ?
@@ -486,6 +511,17 @@ export class TotemService {
 
       if (existingTotem) {
         throw new Error('Identifier já existe');
+      }
+
+      // Verificar se UIN já existe (se fornecido)
+      if (uin) {
+        const existingUin = await this.db.findFirst(`
+          SELECT totem_id FROM totems WHERE uin = ?
+        `, [uin]);
+
+        if (existingUin) {
+          throw new Error('UIN já existe');
+        }
       }
 
       // Verificar se device ID já existe (se fornecido)
@@ -504,34 +540,28 @@ export class TotemService {
         INSERT INTO totems (
           name,
           identifier,
+          uin,
           device_id,
           local_id,
-          location,
           description,
-          config,
-          version,
+          network_info,
           firmware_version,
-          ip_address,
-          active,
           is_active,
           status,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING totem_id
       `, [
         name || identifier,
         totemIdentifier,
-        deviceId,
+        uin || null,
+        deviceId || null,
         localId,
-        location || null,
-        description,
+        description || null,
         config ? JSON.stringify(config) : null,
-        version,
-        firmwareVersion,
-        ipAddress,
-        active,
+        firmwareVersion || null,
         isActive
       ]);
 
@@ -567,12 +597,40 @@ export class TotemService {
   /**
    * Atualiza totem
    */
-  async updateTotem(totemId: number, data: UpdateTotemRequest, updatedBy: number): Promise<TotemResponse> {
+  async updateTotem(
+    totemId: number,
+    data: UpdateTotemRequest,
+    updatedBy: number,
+    requestPublisherId?: number,
+    isAdmin: boolean = false
+  ): Promise<TotemResponse> {
     try {
-      // Verificar se totem existe
+      // Verificar se totem existe e obter publisher_id
       const existingTotem = await this.getTotemById(totemId);
       if (!existingTotem) {
         throw new Error('Totem não encontrado');
+      }
+
+      // Se localId está sendo alterado, validar ownership
+      const existingLocalId = typeof existingTotem.localId === 'string' ? parseInt(existingTotem.localId) : existingTotem.localId;
+      if (data.localId !== undefined && data.localId !== existingLocalId) {
+        const local = await this.db.findFirst(`
+          SELECT 
+            l.local_id,
+            p.publisher_id
+          FROM locals l
+          JOIN publishers p ON l.publisher_id = p.publisher_id
+          WHERE l.local_id = ?
+        `, [data.localId]);
+
+        if (!local) {
+          throw new Error('Local não encontrado');
+        }
+
+        // Validação de ownership: não-admin só pode mover totem para local do seu publisher
+        if (!isAdmin && requestPublisherId && local.publisher_id !== requestPublisherId) {
+          throw new Error('Acesso negado: Você só pode mover totem para locals do seu próprio publisher');
+        }
       }
 
       // Verificar se identifier já existe (se estiver sendo alterado)
@@ -583,6 +641,19 @@ export class TotemService {
 
         if (identifierExists) {
           throw new Error('Identifier já existe');
+        }
+      }
+
+      // Verificar se UIN já existe (se estiver sendo alterado)
+      if (data.uin !== undefined && data.uin !== existingTotem.uin) {
+        if (data.uin) {
+          const uinExists = await this.db.findFirst(`
+            SELECT totem_id FROM totems WHERE uin = ? AND totem_id != ?
+          `, [data.uin, totemId]);
+
+          if (uinExists) {
+            throw new Error('UIN já existe');
+          }
         }
       }
 
@@ -611,6 +682,11 @@ export class TotemService {
         params.push(data.identifier);
       }
 
+      if (data.uin !== undefined) {
+        updates.push('uin = ?');
+        params.push(data.uin || null);
+      }
+
       if (data.deviceId !== undefined) {
         updates.push('device_id = ?');
         params.push(data.deviceId);
@@ -621,10 +697,8 @@ export class TotemService {
         params.push(data.localId);
       }
 
-      if (data.location !== undefined) {
-        updates.push('location = ?');
-        params.push(data.location);
-      }
+      // location não existe mais na tabela totems (vem de locals.name)
+      // Removido: if (data.location !== undefined) { ... }
 
       if (data.description !== undefined) {
         updates.push('description = ?');
@@ -632,14 +706,12 @@ export class TotemService {
       }
 
       if (data.config !== undefined) {
-        updates.push('config = ?');
+        updates.push('network_info = ?');
         params.push(JSON.stringify(data.config));
       }
 
-      if (data.version !== undefined) {
-        updates.push('version = ?');
-        params.push(data.version);
-      }
+      // version não existe mais no schema v2
+      // Removido: if (data.version !== undefined) { ... }
 
       if (data.firmwareVersion !== undefined) {
         updates.push('firmware_version = ?');
@@ -1352,25 +1424,24 @@ export class TotemService {
           t.device_id as deviceId,
           t.local_id as localId,
           t.description,
-          t.config,
+          t.network_info as config,
           t.status,
-          t.version,
           t.firmware_version as firmwareVersion,
-          t.ip_address as ipAddress,
-          t.last_seen as lastSeen,
+          t.network_info->>'ip' as ipAddress,
+          t.last_heartbeat as lastSeen,
           t.last_heartbeat as lastHeartbeat,
-          t.active,
+          t.is_active as active,
           t.created_at as createdAt,
           t.updated_at as updatedAt,
-          l.description as localName,
+          l.name as localName,
           p.name as hostName,
           p.publisher_id as publisherId
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
-        WHERE t.active = 1 AND (
+        WHERE t.is_active = true AND (
           t.last_heartbeat IS NULL OR 
-          t.last_heartbeat < datetime('now', '-${minutes} minutes')
+          t.last_heartbeat < NOW() - INTERVAL '${minutes} minutes'
         )
         ORDER BY t.last_heartbeat ASC
       `);

@@ -1,9 +1,11 @@
-import { Router, Response } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import { TotemService } from '../services/totemService';
 import { getRemoteCommandService } from '../services/remoteCommandService';
 import { getTotemLogService } from '../services/totemLogService';
+import { getSmartTvService } from '../services/smartTvService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
+import { requireFlag } from '../middleware/flagAuth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import { logError, logWarn, logInfo } from '../utils/loggerHelper';
@@ -168,6 +170,40 @@ router.get('/:id',
 );
 
 /**
+ * @route GET /api/totems/:id/smart-tvs
+ * @desc Listar Smart TVs de um totem (relação 1:N)
+ * @access Private (requer flag_smart_0 - acesso técnico)
+ */
+router.get('/:id/smart-tvs',
+  requireFlag('flag_smart_0'),
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id);
+      
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'owner_system' || req.user?.role === 'admin_sql';
+      const requestPublisherId = req.user?.publisherId || undefined;
+
+      const smartTvs = await getSmartTvService().getSmartTvsByTotem(totemId, requestPublisherId, isAdmin);
+      
+      return res.json({ 
+        success: true, 
+        data: smartTvs,
+        count: smartTvs.length,
+        totem_id: totemId
+      });
+    } catch (error: any) {
+      await logError('Erro ao listar Smart TVs do totem', error);
+      if (error.message.includes('Acesso negado') || error.message.includes('não encontrado')) {
+        return res.status(403).json({ error: error.message });
+      }
+      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
  * @route GET /api/totems/uin/:uin
  * @desc Obter totem por UIN
  * @access Private
@@ -192,12 +228,30 @@ router.get('/uin/:uin',
 /**
  * @route POST /api/totems
  * @desc Criar novo totem
- * @access Private (Admin/Manager)
+ * @access Private (Admin only)
  */
 router.post('/',
+  // Permitir admin, admin_sql, owner_system e publishers
+  (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const userRole = req.user?.role;
+    const userType = req.user?.userType;
+    const isPublisher = userType === 'publisher_user' || userType === 'publisher_subscriber' || req.user?.publisherId;
+    
+    // Permitir admins e publishers
+    if (['admin', 'admin_sql', 'owner_system'].includes(userRole || '') || isPublisher) {
+      return next();
+    }
+    
+    return res.status(403).json({ 
+      error: 'Acesso negado',
+      details: [{ msg: 'Apenas administradores e publishers podem criar totens' }]
+    });
+  },
   body('identifier').optional().isString().isLength({ min: 2, max: 100 }),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
-  body('clientId').optional().isInt({ min: 1 }),
+  body('uin').optional().isString(),
+  body('localId').notEmpty().isInt({ min: 1 }).withMessage('localId é obrigatório'),
+  body('deviceId').optional().isString(),
   body('location').optional().isString().isLength({ min: 2, max: 200 }),
   body('description').optional().isString(),
   body('ipAddress').optional().isIP(),
@@ -206,10 +260,11 @@ router.post('/',
   body('serialNumber').optional().isString(),
   body('resolution').optional().isString(),
   body('orientation').optional().isString().isIn(['portrait', 'landscape']),
+  body('firmwareVersion').optional().isString(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { name, identifier, location, ...rest } = req.body;
+      const { name, identifier, uin, localId, deviceId, location, firmwareVersion, ...rest } = req.body;
       
       // Validar que name ou identifier foi fornecido
       if (!name && !identifier) {
@@ -218,11 +273,23 @@ router.post('/',
           details: [{ msg: 'É necessário fornecer pelo menos um nome ou identificador para o totem' }]
         });
       }
+
+      // Validar que localId foi fornecido
+      if (!localId) {
+        return res.status(400).json({ 
+          error: 'localId é obrigatório',
+          details: [{ msg: 'Totem deve pertencer a um local' }]
+        });
+      }
       
       const totemData = {
         identifier: identifier || name,
         name: name || identifier,
+        uin: uin || undefined,
+        localId: parseInt(localId),
+        deviceId: deviceId || undefined,
         location,
+        firmwareVersion: firmwareVersion || undefined,
         ...rest,
         description: rest.description || location
       };
@@ -232,11 +299,19 @@ router.post('/',
       if (!userId) {
         return res.status(401).json({ error: 'Usuário não autenticado' });
       }
+
+      // Determinar publisherId do usuário (se não for admin)
+      const userRole = req.user?.role;
+      const isAdmin = ['admin', 'admin_sql', 'owner_system'].includes(userRole || '');
+      const requestPublisherId = req.user?.publisherId || undefined;
       
-      const totem = await getTotemService().createTotem(totemData, userId);
+      const totem = await getTotemService().createTotem(totemData, userId, requestPublisherId, isAdmin);
       return res.status(201).json(totem);
     } catch (error: any) {
       await logError('Erro ao criar totem', error);
+      if (error.message.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
       return res.status(400).json({ 
         error: error.message || 'Erro ao criar totem',
         details: error.message ? [{ msg: error.message }] : undefined
@@ -248,9 +323,10 @@ router.post('/',
 /**
  * @route PUT /api/totems/:id
  * @desc Atualizar totem
- * @access Private (Admin/Manager)
+ * @access Private (Admin only)
  */
 router.put('/:id',
+  authorizeRole(['admin']),
   param('id').isInt({ min: 1 }),
   body('identifier').optional().isString().isLength({ min: 2, max: 100 }),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
@@ -294,9 +370,10 @@ router.put('/:id',
 /**
  * @route DELETE /api/totems/:id
  * @desc Deletar totem
- * @access Private (Admin)
+ * @access Private (Admin only)
  */
 router.delete('/:id',
+  authorizeRole(['admin']),
   param('id').isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {

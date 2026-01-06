@@ -112,9 +112,34 @@ export interface ChangePasswordRequest {
   newPassword: string;
 }
 
+export interface SubscriberLoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface SubscriberLoginResponse {
+  message: string;
+  token: string;
+  refreshToken?: string;
+  user: {
+    id: number;
+    username: string;
+    role: string;
+    subscriberId?: number;
+    publisherId?: number;
+    subscriberName?: string;
+    clientId?: number;
+  };
+}
+
 export const authApi = {
   login: async (credentials: LoginRequest) => {
     const response = await api.post<LoginResponse>('/auth/login', credentials);
+    return response;
+  },
+
+  subscriberLogin: async (credentials: SubscriberLoginRequest) => {
+    const response = await api.post<SubscriberLoginResponse>('/auth/subscriber-login', credentials);
     return response;
   },
 

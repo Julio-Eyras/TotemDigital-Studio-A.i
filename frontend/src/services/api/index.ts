@@ -34,7 +34,14 @@ api.interceptors.response.use(
       const retryAfter = error.response.headers['retry-after'] || 
                         error.response.data?.error?.retryAfter || 
                         60;
-      const retryAfterSeconds = parseInt(String(retryAfter), 10);
+      // Converter para número com segurança, tratando NaN e valores inválidos
+      const retryAfterSeconds = (() => {
+        if (typeof retryAfter === 'number') {
+          return isNaN(retryAfter) ? 60 : Math.max(1, retryAfter);
+        }
+        const parsed = parseInt(String(retryAfter), 10);
+        return isNaN(parsed) ? 60 : Math.max(1, parsed); // Fallback para 60s se inválido, mínimo 1s
+      })();
       const retryAfterMinutes = Math.ceil(retryAfterSeconds / 60);
       
       // Mensagem mais amigável

@@ -176,10 +176,10 @@ router.post('/', async (req: any, res) => {
         // Para admin/manager, buscar primeiro cliente ativo se não fornecido
         try {
           await logDebug('[Smart Playlist] Buscando primeiro cliente ativo');
-          const firstClient = await getSmartPlaylistService().getFirstActiveClient();
-          if (firstClient) {
-            playlistData.clientId = firstClient.client_id;
-            await logDebug('[Smart Playlist] Cliente encontrado', { clientId: playlistData.clientId });
+          const firstSubscriber = await getSmartPlaylistService().getFirstActiveClient();
+          if (firstSubscriber) {
+            playlistData.clientId = firstSubscriber.subscriber_id;
+            await logDebug('[Smart Playlist] Subscriber encontrado', { clientId: playlistData.clientId });
           } else {
             await logError('[Smart Playlist] Nenhum cliente ativo encontrado');
             return res.status(400).json({

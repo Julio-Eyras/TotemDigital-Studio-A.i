@@ -8,11 +8,12 @@ import jwt from 'jsonwebtoken';
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import { config } from '../config/env';
+import { UserFlags } from '../utils/flagChecker';
 
 // Declaração de módulo para estender tipos do Express
 declare global {
   namespace Express {
-    interface Request {
+      interface Request {
       user?: {
         id: number;
         userId: number; // Alias para id (compatibilidade)
@@ -22,8 +23,9 @@ declare global {
         publisherId?: number; // NOVO: FK para publishers
         subscriberId?: number; // NOVO: Para subscribers (derivado de publisher ou direto)
         clientId?: number; // DEPRECADO: Mantido para compatibilidade
-        userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
+        userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber'; // NOVO
         isTenantUser?: boolean; // NOVO
+        flags?: UserFlags; // NOVO: Flags de permissão do usuário
       };
       subscriberId?: number; // Adicionado pelo subscriberIsolationMiddleware
     }
@@ -40,8 +42,9 @@ export interface AuthenticatedRequest extends Request {
     publisherId?: number; // NOVO
     subscriberId?: number; // NOVO
     clientId?: number; // DEPRECADO
-    userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
+    userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber'; // NOVO
     isTenantUser?: boolean; // NOVO
+    flags?: UserFlags; // NOVO: Flags de permissão do usuário
   };
   subscriberId?: number; // Adicionado pelo subscriberIsolationMiddleware
 }
@@ -57,8 +60,9 @@ export interface AuthenticatedRequestWithUser extends Request {
     publisherId?: number; // NOVO
     subscriberId?: number; // NOVO
     clientId?: number; // DEPRECADO
-    userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
+    userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber'; // NOVO
     isTenantUser?: boolean; // NOVO
+    flags?: UserFlags; // NOVO
   };
   subscriberId?: number;
 }
@@ -101,7 +105,6 @@ export const authMiddleware = async (
       SELECT 
         id, username, email, role, 
         publisher_id, user_type, is_tenant_user,
-        client_id, -- Mantido para compatibilidade
         is_active
       FROM users 
       WHERE id = $1 AND is_active = true
@@ -116,20 +119,77 @@ export const authMiddleware = async (
     }
 
     // Determinar subscriberId se aplicável
-    // Se user é publisher e publisher tem is_subscriber = true, pode ter subscriberId
+    // Prioridade: 1) subscriberId do token (login subscriber), 2) publisher com is_subscriber, 3) clientId do token
     let subscriberId: number | undefined = undefined;
-    if (user.publisher_id) {
+    
+    // 1. Se o token tem subscriberId (login subscriber)
+    if (decoded.subscriberId) {
+      subscriberId = decoded.subscriberId;
+    } else if (user.publisher_id) {
+      // 2. Buscar publisher e verificar se é subscriber
       const publisher = await db.findFirst(`
-        SELECT publisher_id, is_subscriber 
+        SELECT publisher_id, is_subscriber, email
         FROM publishers 
         WHERE publisher_id = $1 AND COALESCE(active, true) = true
       `, [user.publisher_id]);
       
-      // Se publisher também é subscriber, usar publisher_id como subscriberId temporariamente
-      // TODO: Criar tabela de mapeamento se necessário
       if (publisher?.is_subscriber) {
-        subscriberId = user.publisher_id;
+        // Buscar subscriber pelo email do publisher
+        const subscriber = await db.findFirst(`
+          SELECT subscriber_id
+          FROM subscribers
+          WHERE email = $1 AND is_active = true
+        `, [publisher.email]);
+        
+        if (subscriber) {
+          subscriberId = subscriber.subscriber_id;
+        }
       }
+    }
+    
+    // 3. Fallback: usar clientId do token se disponível (compatibilidade)
+    if (!subscriberId && decoded.clientId) {
+      subscriberId = decoded.clientId;
+    }
+
+    // Carregar flags efetivas do usuário (personalizadas + padrão da role)
+    // Usa função SQL get_user_effective_flags() quando disponível
+    let userFlags: UserFlags | undefined = undefined;
+    try {
+      const flagsTableExists = await db.tableExists('user_flags');
+      if (flagsTableExists) {
+        // Tentar usar função SQL (mais eficiente)
+        try {
+          const effectiveFlags = await db.findFirst(`
+            SELECT * FROM get_user_effective_flags($1)
+          `, [user.id]) as UserFlags | null;
+          
+          if (effectiveFlags) {
+            userFlags = effectiveFlags;
+          } else {
+            // Fallback: usar função TypeScript
+            const { getUserEffectiveFlags } = await import('../utils/flagChecker');
+            userFlags = await getUserEffectiveFlags({
+              id: user.id,
+              role: user.role,
+              user_type: user.user_type,
+              publisher_id: user.publisher_id
+            });
+          }
+        } catch (sqlError) {
+          // Se função SQL não existir, usar função TypeScript
+          const { getUserEffectiveFlags } = await import('../utils/flagChecker');
+          userFlags = await getUserEffectiveFlags({
+            id: user.id,
+            role: user.role,
+            user_type: user.user_type,
+            publisher_id: user.publisher_id
+          });
+        }
+      }
+    } catch (error) {
+      // Se tabela não existir ainda, continuar sem flags
+      console.warn('Sistema de flags não disponível, continuando sem flags');
     }
 
     // Adicionar dados do usuário à requisição
@@ -141,9 +201,10 @@ export const authMiddleware = async (
       role: user.role,
       publisherId: user.publisher_id || undefined,
       subscriberId: subscriberId,
-      clientId: user.client_id || undefined, // DEPRECADO: Mantido para compatibilidade
+      clientId: subscriberId || undefined, // DEPRECADO: Usar subscriberId como fallback para compatibilidade
       userType: user.user_type || undefined,
-      isTenantUser: user.is_tenant_user || false
+      isTenantUser: user.is_tenant_user || false,
+      flags: userFlags // NOVO: Flags de permissão
     };
 
     next();
@@ -188,6 +249,21 @@ export const authorizeRole = (roles: string[]) => {
         error: 'Usuário não autenticado',
         code: 'NOT_AUTHENTICATED'
       });
+      return;
+    }
+
+    // owner_system tem acesso total a todos os recursos (bypass completo)
+    // admin_sql tem acesso a recursos técnicos e administrativos, mas ainda precisa de flags para operações específicas
+    // Para operações que requerem flags específicas, use requireFlag() em conjunto com authorizeRole()
+    if (req.user.role === 'owner_system') {
+      next();
+      return;
+    }
+
+    // admin_sql pode acessar rotas de admin, mas ainda precisa verificar flags quando aplicável
+    // Se a rota requer uma role específica e admin_sql não está na lista, verificar se é admin_sql
+    if (req.user.role === 'admin_sql' && (roles.includes('admin') || roles.includes('admin_sql'))) {
+      next();
       return;
     }
 
@@ -362,20 +438,37 @@ export const optionalAuth = async (
       SELECT 
         id, username, email, role, 
         publisher_id, user_type, is_tenant_user,
-        client_id, -- Mantido para compatibilidade
         is_active
       FROM users 
       WHERE id = $1 AND is_active = true
     `, [decoded.userId]);
 
     if (user) {
+      // Determinar subscriberId se aplicável (mesma lógica do authMiddleware)
+      let subscriberId: number | undefined = undefined;
+      if (user.publisher_id) {
+        const publisher = await db.findFirst(`
+          SELECT publisher_id, is_subscriber 
+          FROM publishers 
+          WHERE publisher_id = $1 AND COALESCE(active, true) = true
+        `, [user.publisher_id]);
+        
+        if (publisher?.is_subscriber) {
+          subscriberId = user.publisher_id;
+        }
+      }
+
       req.user = {
         id: user.id,
         userId: user.id, // Alias para compatibilidade
         username: user.username,
         email: user.email || '',
         role: user.role,
-        clientId: user.client_id
+        publisherId: user.publisher_id || undefined,
+        subscriberId: subscriberId,
+        clientId: subscriberId || undefined, // DEPRECADO: Usar subscriberId como fallback
+        userType: user.user_type || undefined,
+        isTenantUser: user.is_tenant_user || false
       };
     }
 

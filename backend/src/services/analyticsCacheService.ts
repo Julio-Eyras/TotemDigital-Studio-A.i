@@ -23,6 +23,9 @@ export class AnalyticsCacheService {
    */
   async get<T>(key: string): Promise<T | null> {
     try {
+      if (!this.redis) {
+        return null;
+      }
       const cached = await this.redis.get(key);
       if (cached) {
         await logDebug('Cache hit', { key });
@@ -41,6 +44,9 @@ export class AnalyticsCacheService {
    */
   async set<T>(key: string, value: T, ttl: number = this.defaultTTL): Promise<void> {
     try {
+      if (!this.redis) {
+        return;
+      }
       const serialized = JSON.stringify(value);
       await this.redis.setex(key, ttl, serialized);
       await logDebug('Valor armazenado no cache', { key, ttl });
@@ -54,6 +60,9 @@ export class AnalyticsCacheService {
    */
   async delete(key: string): Promise<void> {
     try {
+      if (!this.redis) {
+        return;
+      }
       await this.redis.del(key);
       await logDebug('Valor removido do cache', { key });
     } catch (error: any) {
@@ -66,6 +75,9 @@ export class AnalyticsCacheService {
    */
   async deletePattern(pattern: string): Promise<void> {
     try {
+      if (!this.redis) {
+        return;
+      }
       const keys = await this.redis.keys(pattern);
       if (keys.length > 0) {
         await this.redis.del(...keys);
@@ -196,6 +208,13 @@ export class AnalyticsCacheService {
     memoryUsage: string;
   }> {
     try {
+      if (!this.redis) {
+        return {
+          hitRate: 0,
+          totalKeys: 0,
+          memoryUsage: 'Redis desabilitado'
+        };
+      }
       await this.redis.info('stats');
       await this.redis.info('keyspace');
       

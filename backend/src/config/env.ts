@@ -81,8 +81,19 @@ export const serverConfig = {
 /**
  * Configuração do banco de dados
  */
+const dbDriver = getEnv('DB_DRIVER', 'postgresql');
+
+// Validar que apenas PostgreSQL é suportado
+if (dbDriver !== 'postgresql' && dbDriver !== 'postgres') {
+  throw new Error(
+    `❌ ERRO: Driver de banco de dados '${dbDriver}' não é suportado. ` +
+    `Apenas PostgreSQL é suportado (DB_DRIVER=postgresql). ` +
+    `Verifique SQL (único suportado).`
+  );
+}
+
 export const databaseConfig = {
-  driver: getEnv('DB_DRIVER', 'postgresql'),
+  driver: dbDriver,
   url: requireEnv('DATABASE_URL'),
   host: getEnv('DB_HOST', 'localhost'),
   port: getEnvNumber('DB_PORT', 5432),

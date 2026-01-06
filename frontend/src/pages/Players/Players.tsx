@@ -61,6 +61,8 @@ const Players: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [error, setError] = useState<string | null>(null);
   const [newPlayer, setNewPlayer] = useState<CreatePlayerRequest>({
+    identifier: '',
+    localId: 0,
     name: '',
     location: '',
     clientId: undefined,
@@ -101,7 +103,7 @@ const Players: React.FC = () => {
     try {
       await playerApi.create(newPlayer);
       setCreateDialogOpen(false);
-      setNewPlayer({ name: '', location: '', clientId: undefined });
+      setNewPlayer({ identifier: '', localId: 0, name: '', location: '', clientId: undefined });
       loadPlayers();
     } catch (error) {
       console.error('Erro ao criar player:', error);

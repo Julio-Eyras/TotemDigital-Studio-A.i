@@ -169,9 +169,9 @@ export class DashboardService {
     activePlayerCount: number;
   }> {
     try {
-      // Contar mídia do cliente
+      // Contar mídia do subscriber
       const mediaCount = await this.db.findFirst(`
-        SELECT COUNT(*) as total FROM medias WHERE subscriber_id = $1 AND status = 'active'
+        SELECT COUNT(*) as total FROM medias WHERE subscriber_id = $1 AND is_active = true
       `, [clientId]);
 
       // Contar playlists do cliente

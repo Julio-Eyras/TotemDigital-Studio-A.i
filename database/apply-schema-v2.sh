@@ -49,18 +49,24 @@ execute_sql_script() {
     print_color "$CYAN" "   Executando: $description..."
     
     # Executar psql
-    if PGPASSWORD="${PGPASSWORD}" psql \
+    local psql_output
+    if psql_output=$(PGPASSWORD="${PGPASSWORD}" psql \
         -h "$DB_HOST" \
         -p "$DB_PORT" \
         -U "$DB_USER" \
         -d "$DB_NAME" \
         -f "$script_path" \
         -v ON_ERROR_STOP=1 \
-        -q; then
+        2>&1); then
         print_color "$GREEN" "   ✅ Sucesso!"
+        # Mostrar warnings/notices se houver
+        if echo "$psql_output" | grep -q "NOTICE\|WARNING"; then
+            echo "$psql_output" | grep -E "NOTICE|WARNING" | head -5
+        fi
         return 0
     else
         print_color "$RED" "   ❌ Erro ao executar script"
+        echo "$psql_output" | tail -20
         return 1
     fi
 }
@@ -88,6 +94,7 @@ main() {
         "smartchannel-db-v2-refactored-part4-billing-contracts.sql|Parte 4: Billing e Contratos"
         "smartchannel-db-v2-refactored-part5-tables-relationships.sql|Parte 5: Relacionamentos N:N"
         "smartchannel-db-v2-refactored-part6-tables-other.sql|Parte 6: Outras Tabelas"
+        "seeds-default-settings.sql|Seeds: Configurações Padrão do Sistema"
         "smartchannel-db-v2-refactored-part7-foreign-keys.sql|Parte 7: Foreign Keys"
         "smartchannel-db-v2-refactored-part8-indexes.sql|Parte 8: Índices"
         "smartchannel-db-v2-refactored-part9-triggers-functions.sql|Parte 9: Triggers e Funções"

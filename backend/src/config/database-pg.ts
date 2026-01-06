@@ -35,6 +35,15 @@ export const DATABASE_URL = config.url;
  */
 export async function initializeDatabase(): Promise<pg.Pool> {
   try {
+    // Validar que o driver configurado é PostgreSQL
+    if (config.driver !== 'postgresql' && config.driver !== 'postgres') {
+      throw new Error(
+        `❌ ERRO: Driver de banco de dados '${config.driver}' não é suportado. ` +
+        `Apenas PostgreSQL é suportado (DB_DRIVER=postgresql). ` +
+        `Verifique SQL (único suportado).`
+      );
+    }
+
     if (!pool) {
       // Usar DATABASE_URL se disponível (tem precedência sobre parâmetros individuais)
       // Isso garante que a senha seja corretamente parseada da URL

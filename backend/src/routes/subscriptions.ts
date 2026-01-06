@@ -38,12 +38,30 @@ router.get('/', async (req: any, res) => {
   try {
     const filters: any = {};
 
-    // Clientes só veem suas próprias assinaturas
-    if (req.user.role === 'client') {
+    // NOVO: Usuários só veem suas próprias assinaturas baseado em subscriberId/publisherId
+    const userSubscriberId = req.user.subscriberId;
+    const userPublisherId = req.user.publisherId;
+    const userType = req.user.userType;
+
+    if (userType === 'subscriber_user' && userSubscriberId) {
+      // Subscribers veem assinaturas do seu publisher
+      filters.publisherId = userPublisherId || userSubscriberId;
+    } else if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+      if (userPublisherId) {
+        filters.publisherId = userPublisherId;
+      }
+    } else if (req.user.role === 'client' && req.user.clientId) {
+      // DEPRECADO: Compatibilidade com clientId antigo
       filters.clientId = req.user.clientId;
     } else {
-      const { clientId, planId, status } = req.query;
-      if (clientId) filters.clientId = parseInt(clientId as string);
+      // Admins podem filtrar
+      const { clientId, publisherId, planId, status } = req.query;
+      if (publisherId) {
+        filters.publisherId = parseInt(publisherId as string);
+      } else if (clientId) {
+        // DEPRECADO: Compatibilidade
+        filters.clientId = parseInt(clientId as string);
+      }
       if (planId) filters.planId = parseInt(planId as string);
       if (status) filters.status = status as string;
     }
@@ -72,14 +90,32 @@ router.get('/', async (req: any, res) => {
  */
 router.get('/my-subscription', async (req: any, res) => {
   try {
-    if (req.user.role !== 'client' || !req.user.clientId) {
+    // NOVO: Suportar subscriberId/publisherId além de clientId
+    const userSubscriberId = req.user.subscriberId;
+    const userPublisherId = req.user.publisherId;
+    const userType = req.user.userType;
+    const clientId = req.user.clientId; // DEPRECADO: Compatibilidade
+
+    let publisherId: number | undefined;
+
+    if (userType === 'subscriber_user' && userSubscriberId) {
+      // Subscribers veem assinatura do seu publisher
+      publisherId = userPublisherId || userSubscriberId;
+    } else if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+      publisherId = userPublisherId;
+    } else if (req.user.role === 'client' && clientId) {
+      // DEPRECADO: Compatibilidade
+      publisherId = clientId;
+    }
+
+    if (!publisherId) {
       return res.status(403).json({
         success: false,
-        message: 'Acesso negado'
+        message: 'Acesso negado: Usuário não possui publisherId/subscriberId'
       });
     }
 
-    const subscription = await getSubscriptionService().getSubscriptionByClient(req.user.clientId);
+    const subscription = await getSubscriptionService().getSubscriptionByPublisher(publisherId);
 
     if (!subscription) {
       return res.status(404).json({
@@ -120,8 +156,28 @@ router.get('/:id', async (req: any, res) => {
       });
     }
 
-    // Verificar permissão
-    if (req.user.role === 'client' && req.user.clientId !== subscription.clientId) {
+    // NOVO: Verificar permissão baseado em userType
+    const userType = req.user.userType;
+    const userPublisherId = req.user.publisherId;
+    const userSubscriberId = req.user.subscriberId;
+    const clientId = req.user.clientId; // DEPRECADO
+
+    let hasAccess = false;
+
+    if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+      hasAccess = userPublisherId === subscription.publisherId;
+    } else if (userType === 'subscriber_user' && userSubscriberId) {
+      // Subscribers veem assinaturas do seu publisher
+      hasAccess = userPublisherId === subscription.publisherId;
+    } else if (req.user.role === 'client' && clientId) {
+      // DEPRECADO: Compatibilidade
+      hasAccess = clientId === subscription.clientId || clientId === subscription.publisherId;
+    } else {
+      // Admins têm acesso
+      hasAccess = ['admin', 'admin_sql', 'owner_system'].includes(req.user.role);
+    }
+
+    if (!hasAccess) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode ver suas próprias assinaturas'
@@ -150,21 +206,37 @@ router.get('/:id', async (req: any, res) => {
  */
 router.post('/', async (req: any, res) => {
   try {
-    const { clientId, planId, billingInterval, trialDays } = req.body;
+    const { clientId, publisherId, planId, billingInterval, trialDays } = req.body;
 
-    // Determinar clientId
-    let finalClientId = clientId;
-    if (req.user.role === 'client') {
-      finalClientId = req.user.clientId;
-    } else if (!finalClientId) {
+    // NOVO: Determinar publisherId baseado em userType
+    let finalPublisherId: number | undefined;
+    const userType = req.user.userType;
+    const userPublisherId = req.user.publisherId;
+    const userSubscriberId = req.user.subscriberId;
+
+    if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+      // Publishers criam assinaturas para si mesmos
+      finalPublisherId = userPublisherId;
+    } else if (userType === 'subscriber_user' && userSubscriberId) {
+      // Subscribers criam assinaturas para seu publisher
+      finalPublisherId = userPublisherId || userSubscriberId;
+    } else if (req.user.role === 'client' && req.user.clientId) {
+      // DEPRECADO: Compatibilidade
+      finalPublisherId = req.user.clientId;
+    } else {
+      // Admins podem especificar publisherId
+      finalPublisherId = publisherId || clientId; // clientId para compatibilidade
+    }
+
+    if (!finalPublisherId) {
       return res.status(400).json({
         success: false,
-        message: 'clientId é obrigatório'
+        message: 'publisherId é obrigatório'
       });
     }
 
     const subscription = await getSubscriptionService().createSubscription({
-      publisherId: finalClientId, // subscriptions pertencem a publishers
+      publisherId: finalPublisherId,
       planId,
       billingInterval: billingInterval || 'month',
       trialDays,
@@ -232,8 +304,25 @@ router.post('/:id/cancel', async (req: any, res) => {
       });
     }
 
-    // Verificar permissão
-    if (req.user.role === 'client' && req.user.clientId !== subscription.clientId) {
+    // NOVO: Verificar permissão baseado em userType
+    const userType = req.user.userType;
+    const userPublisherId = req.user.publisherId;
+    const userSubscriberId = req.user.subscriberId;
+    const clientId = req.user.clientId; // DEPRECADO
+
+    let hasAccess = false;
+
+    if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+      hasAccess = userPublisherId === subscription.publisherId;
+    } else if (userType === 'subscriber_user' && userSubscriberId) {
+      hasAccess = userPublisherId === subscription.publisherId;
+    } else if (req.user.role === 'client' && clientId) {
+      hasAccess = clientId === subscription.clientId || clientId === subscription.publisherId;
+    } else {
+      hasAccess = ['admin', 'admin_sql', 'owner_system'].includes(req.user.role);
+    }
+
+    if (!hasAccess) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode cancelar suas próprias assinaturas'
@@ -280,8 +369,25 @@ router.post('/:id/resume', async (req: any, res) => {
       });
     }
 
-    // Verificar permissão
-    if (req.user.role === 'client' && req.user.clientId !== subscription.clientId) {
+    // NOVO: Verificar permissão baseado em userType
+    const userType = req.user.userType;
+    const userPublisherId = req.user.publisherId;
+    const userSubscriberId = req.user.subscriberId;
+    const clientId = req.user.clientId; // DEPRECADO
+
+    let hasAccess = false;
+
+    if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+      hasAccess = userPublisherId === subscription.publisherId;
+    } else if (userType === 'subscriber_user' && userSubscriberId) {
+      hasAccess = userPublisherId === subscription.publisherId;
+    } else if (req.user.role === 'client' && clientId) {
+      hasAccess = clientId === subscription.clientId || clientId === subscription.publisherId;
+    } else {
+      hasAccess = ['admin', 'admin_sql', 'owner_system'].includes(req.user.role);
+    }
+
+    if (!hasAccess) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado'
@@ -315,10 +421,26 @@ router.post('/:id/resume', async (req: any, res) => {
  */
 router.post('/checkout', async (req: any, res) => {
   try {
-    if (req.user.role !== 'client' || !req.user.clientId) {
+    // NOVO: Suportar subscriberId/publisherId além de clientId
+    const userType = req.user.userType;
+    const userPublisherId = req.user.publisherId;
+    const userSubscriberId = req.user.subscriberId;
+    const clientId = req.user.clientId; // DEPRECADO
+
+    let publisherId: number | undefined;
+
+    if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+      publisherId = userPublisherId;
+    } else if (userType === 'subscriber_user' && userSubscriberId) {
+      publisherId = userPublisherId || userSubscriberId;
+    } else if (req.user.role === 'client' && clientId) {
+      publisherId = clientId;
+    }
+
+    if (!publisherId) {
       return res.status(403).json({
         success: false,
-        message: 'Acesso negado'
+        message: 'Acesso negado: Usuário não possui publisherId/subscriberId'
       });
     }
 
@@ -351,23 +473,39 @@ router.post('/checkout', async (req: any, res) => {
       });
     }
 
-    // Buscar cliente
-    const client = await (await import('../config/database')).getDatabase().findFirst(`
-      SELECT client_id, name, email FROM clients WHERE client_id = ?
-    `, [req.user.clientId]);
+    // NOVO: Buscar publisher (substitui subscriber)
+    const db = (await import('../config/database')).getDatabase();
+    let publisher: any = null;
+    let subscriber: any = null;
 
-    if (!client) {
+    // Tentar buscar publisher primeiro
+    publisher = await db.findFirst(`
+      SELECT publisher_id, name, email FROM publishers WHERE publisher_id = $1
+    `, [publisherId]);
+
+    // Se não encontrar publisher, tentar subscriber (compatibilidade)
+    if (!publisher) {
+      subscriber = await db.findFirst(`
+        SELECT subscriber_id, name, email FROM subscribers WHERE subscriber_id = $1
+      `, [publisherId]);
+    }
+
+    if (!publisher && !subscriber) {
       return res.status(404).json({
         success: false,
-        message: 'Cliente não encontrado'
+        message: 'Publisher/Subscriber não encontrado'
       });
     }
 
+    // Determinar email e nome
+    const clientEmail = publisher?.email || subscriber?.email || `${publisherId}@smartsignage.com`;
+    const clientName = publisher?.name || subscriber?.name || undefined;
+
     // Criar ou buscar customer
     const customer = await stripeService.createOrGetCustomer(
-      req.user.clientId,
-      client.email || `${client.client_id}@smartsignage.com`,
-      client.name || undefined
+      publisherId,
+      clientEmail,
+      clientName
     );
 
     // Selecionar price ID
@@ -390,7 +528,7 @@ router.post('/checkout', async (req: any, res) => {
       `${frontendUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
       `${frontendUrl}/billing/cancel`,
       {
-        clientId: req.user.clientId.toString(),
+        publisherId: publisherId.toString(),
         planId: planId.toString(),
         billingInterval,
       }

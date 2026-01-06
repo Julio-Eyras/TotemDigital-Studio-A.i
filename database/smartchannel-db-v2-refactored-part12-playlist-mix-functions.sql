@@ -204,6 +204,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_playlist_mix_rules_updated_at ON playlist_mix_rules;
 CREATE TRIGGER trigger_update_playlist_mix_rules_updated_at
     BEFORE UPDATE ON playlist_mix_rules
     FOR EACH ROW
@@ -221,6 +222,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_ai_context_data_updated_at ON ai_context_data;
 CREATE TRIGGER trigger_update_ai_context_data_updated_at
     BEFORE UPDATE ON ai_context_data
     FOR EACH ROW
@@ -238,6 +240,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_totem_playlist_mix_updated_at ON totem_playlist_mix;
 CREATE TRIGGER trigger_update_totem_playlist_mix_updated_at
     BEFORE UPDATE ON totem_playlist_mix
     FOR EACH ROW
@@ -264,6 +267,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_ensure_single_default_mix_rule ON playlist_mix_rules;
 CREATE TRIGGER trigger_ensure_single_default_mix_rule
     BEFORE INSERT OR UPDATE ON playlist_mix_rules
     FOR EACH ROW
@@ -292,6 +296,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_ensure_single_current_mix_per_totem ON totem_playlist_mix;
 CREATE TRIGGER trigger_ensure_single_current_mix_per_totem
     BEFORE INSERT OR UPDATE ON totem_playlist_mix
     FOR EACH ROW
@@ -337,6 +342,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_log_mix_history_on_apply ON totem_playlist_mix;
 CREATE TRIGGER trigger_log_mix_history_on_apply
     AFTER UPDATE ON totem_playlist_mix
     FOR EACH ROW

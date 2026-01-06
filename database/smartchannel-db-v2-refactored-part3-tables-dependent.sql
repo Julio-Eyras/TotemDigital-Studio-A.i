@@ -75,7 +75,7 @@ COMMENT ON COLUMN totems.status IS 'Status atual do totem';
 
 CREATE TABLE IF NOT EXISTS smart_tvs (
     tv_id SERIAL PRIMARY KEY,
-    totem_id INTEGER NOT NULL, -- FK para totems (1 totem : 1 TV)
+    totem_id INTEGER NOT NULL, -- FK para totems (1 totem : N TVs)
     
     identifier TEXT UNIQUE NOT NULL,
     device_id TEXT UNIQUE,
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS smart_tvs (
 );
 
 COMMENT ON TABLE smart_tvs IS 'Smart TVs controladas pelos totens';
-COMMENT ON COLUMN smart_tvs.totem_id IS 'Totem que controla esta TV (1:1)';
+COMMENT ON COLUMN smart_tvs.totem_id IS 'Totem que controla estas TVs (1:N) - Um totem pode controlar múltiplas Smart TVs';
 
 -- =============================================
 -- CAMPAIGNS (Campanhas dos Subscribers)

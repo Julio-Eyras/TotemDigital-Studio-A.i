@@ -10,7 +10,6 @@
 CREATE OR REPLACE VIEW totems_with_publisher AS
 SELECT 
     t.*,
-    l.local_id,
     l.name as local_name,
     l.address as local_address,
     p.publisher_id,
@@ -118,6 +117,46 @@ LEFT JOIN medias m ON s.subscriber_id = m.subscriber_id
 GROUP BY s.subscriber_id, s.name;
 
 COMMENT ON VIEW campaign_stats_by_subscriber IS 'Estatísticas agregadas de campanhas e mídias por subscriber';
+
+-- =============================================
+-- VIEW: Acesso ativo Subscriber → Publisher
+-- =============================================
+
+CREATE OR REPLACE VIEW subscriber_publisher_access_active AS
+SELECT DISTINCT
+    spa.subscriber_id,
+    spa.publisher_id,
+    spa.contract_id,
+    spa.plan_id,
+    spa.access_type,
+    spa.granted_at,
+    spa.expires_at,
+    spa.metadata,
+    -- Dados do subscriber
+    s.name as subscriber_name,
+    s.email as subscriber_email,
+    -- Dados do publisher
+    p.name as publisher_name,
+    p.email as publisher_email,
+    -- Dados do contrato (se aplicável)
+    sc.contract_number,
+    sc.status as contract_status,
+    -- Dados do plano (se aplicável)
+    pl.name as plan_name,
+    pl.slug as plan_slug
+FROM subscriber_publisher_access spa
+JOIN subscribers s ON spa.subscriber_id = s.subscriber_id
+JOIN publishers p ON spa.publisher_id = p.publisher_id
+LEFT JOIN subscriber_contracts sc ON spa.contract_id = sc.contract_id
+LEFT JOIN plans pl ON spa.plan_id = pl.plan_id
+WHERE spa.is_active = true
+  AND spa.revoked_at IS NULL
+  AND (spa.expires_at IS NULL OR spa.expires_at > CURRENT_TIMESTAMP)
+  AND s.is_active = true
+  AND COALESCE(p.active, true) = true;
+
+COMMENT ON VIEW subscriber_publisher_access_active IS 
+    'View que retorna apenas acessos ativos e válidos de subscribers a publishers';
 
 -- =============================================
 -- VIEW: Estatísticas de totens por publisher

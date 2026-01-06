@@ -75,7 +75,7 @@ router.get('/',
         active_only: active_only === 'true'
       });
       
-      return res.json(result);
+      return res.json({ success: true, ...result });
     } catch (error: any) {
       await logError('Erro ao listar publishers', error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
@@ -245,6 +245,82 @@ router.get('/:id/campaigns/mixed',
 );
 
 /**
+ * @route GET /api/publishers/:id/locals
+ * @desc Listar locals de um publisher
+ */
+router.get('/:id/locals',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const locals = await getPublisherService().getLocalsByPublisher(parseInt(id));
+      return res.json({ success: true, data: locals });
+    } catch (error: any) {
+      await logError('Erro ao listar locals do publisher', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/publishers/:id/totems
+ * @desc Listar totems de um publisher
+ */
+router.get('/:id/totems',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const totems = await getPublisherService().getTotemsByPublisher(parseInt(id));
+      return res.json({ success: true, data: totems });
+    } catch (error: any) {
+      await logError('Erro ao listar totems do publisher', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/publishers/:id/smart-tvs
+ * @desc Listar smart TVs de um publisher
+ */
+router.get('/:id/smart-tvs',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const smartTvs = await getPublisherService().getSmartTvsByPublisher(parseInt(id));
+      return res.json({ success: true, data: smartTvs });
+    } catch (error: any) {
+      await logError('Erro ao listar smart TVs do publisher', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/publishers/:id/stats
+ * @desc Obter estatísticas de um publisher
+ */
+router.get('/:id/stats',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const stats = await getPublisherService().getPublisherStats(parseInt(id));
+      return res.json({ success: true, data: stats });
+    } catch (error: any) {
+      await logError('Erro ao obter estatísticas do publisher', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
  * @route GET /api/publishers/:id
  * @desc Obter publisher por ID
  * 
@@ -263,7 +339,7 @@ router.get('/:id',
         return res.status(404).json({ error: 'Publisher não encontrado' });
       }
 
-      return res.json(publisher);
+      return res.json({ success: true, data: publisher });
     } catch (error: any) {
       await logError('Erro ao obter publisher', error);
       return res.status(500).json({ error: 'Erro interno do servidor' });

@@ -50,12 +50,15 @@ import {
   Image,
   AudioFile,
 } from '@mui/icons-material';
-import { playlistApi, PlaylistItem, CreatePlaylistRequest, PlaylistMediaItem, mediaApi, MediaItem } from '../../services/api';
+import { playlistApi, PlaylistItem, CreatePlaylistRequest, PlaylistMediaItem, mediaApi, MediaItem, clientApi, Client } from '../../services/api';
+import { useAppSelector } from '../../store/hooks';
 
 const Playlists: React.FC = () => {
   const theme = useTheme();
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [subscribers, setSubscribers] = useState<Client[]>([]);
+  const [selectedSubscriberId, setSelectedSubscriberId] = useState<number | 'all'>('all');
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -64,23 +67,54 @@ const Playlists: React.FC = () => {
   const [playlistMedia, setPlaylistMedia] = useState<PlaylistMediaItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState<string | null>(null);
+  
+  const user = useAppSelector((state) => state.auth.user);
+  const isAdmin = user?.role === 'admin' || user?.role === 'admin_sql';
+  const userSubscriberId = user?.subscriberId || user?.clientId;
+
   const [newPlaylist, setNewPlaylist] = useState<CreatePlaylistRequest>({
     name: '',
     description: '',
-    clientId: undefined,
+    subscriberId: userSubscriberId, // NOVO: Usar subscriberId do usuário por padrão
+    clientId: userSubscriberId, // DEPRECATED: Compatibilidade
   });
 
   useEffect(() => {
+    if (isAdmin) {
+      loadSubscribers();
+    }
     loadPlaylists();
     loadMediaItems();
-  }, []);
+  }, [selectedSubscriberId, searchTerm]);
+
+  const loadSubscribers = async () => {
+    try {
+      const response = await clientApi.getAll({ limit: 1000 });
+      setSubscribers(response.data || []);
+    } catch (error) {
+      console.error('Erro ao carregar subscribers:', error);
+    }
+  };
 
   const loadPlaylists = async () => {
     try {
       setLoading(true);
       setError(null);
+      
+      // Determinar subscriberId para filtro
+      let subscriberId: number | undefined = undefined;
+      if (!isAdmin && userSubscriberId) {
+        // Não-admin: filtrar automaticamente por seu subscriber
+        subscriberId = userSubscriberId;
+      } else if (isAdmin && selectedSubscriberId !== 'all' && typeof selectedSubscriberId === 'number') {
+        // Admin: usar subscriber selecionado
+        subscriberId = selectedSubscriberId;
+      }
+      
       const response = await playlistApi.getAll({
         search: searchTerm || undefined,
+        subscriberId: subscriberId, // NOVO
+        clientId: subscriberId, // DEPRECATED (compatibilidade)
       });
       const data = response?.data || response || [];
       setPlaylists(Array.isArray(data) ? data : []);
@@ -95,7 +129,20 @@ const Playlists: React.FC = () => {
 
   const loadMediaItems = async () => {
     try {
-      const response = await mediaApi.getAll();
+      // Filtrar mídias por subscriber da playlist selecionada (se houver)
+      // ou pelo subscriber do usuário (se não-admin)
+      let subscriberId: number | undefined = undefined;
+      if (selectedPlaylist) {
+        subscriberId = selectedPlaylist.subscriber_id || selectedPlaylist.client_id;
+      } else if (!isAdmin && userSubscriberId) {
+        subscriberId = userSubscriberId;
+      } else if (isAdmin && selectedSubscriberId !== 'all' && typeof selectedSubscriberId === 'number') {
+        subscriberId = selectedSubscriberId;
+      }
+      
+      const response = await mediaApi.getAll({
+        subscriberId: subscriberId, // Filtrar por subscriber
+      });
       // mediaApi.getAll já retorna { data: [...], total, page, limit }
       setMediaItems(Array.isArray(response?.data) ? response.data : []);
     } catch (error) {
@@ -117,13 +164,26 @@ const Playlists: React.FC = () => {
 
   const handleCreatePlaylist = async () => {
     try {
-      await playlistApi.create(newPlaylist);
+      // Garantir que subscriberId está definido
+      const playlistData: CreatePlaylistRequest = {
+        ...newPlaylist,
+        subscriberId: newPlaylist.subscriberId || userSubscriberId, // Usar subscriberId do usuário se não especificado
+        clientId: newPlaylist.clientId || userSubscriberId, // DEPRECATED (compatibilidade)
+      };
+      
+      await playlistApi.create(playlistData);
       setCreateDialogOpen(false);
-      setNewPlaylist({ name: '', description: '', clientId: undefined });
+      setNewPlaylist({ 
+        name: '', 
+        description: '', 
+        subscriberId: userSubscriberId,
+        clientId: userSubscriberId 
+      });
       loadPlaylists();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao criar playlist:', error);
-      setError('Erro ao criar playlist');
+      const errorMessage = error?.response?.data?.error || error?.message || 'Erro ao criar playlist';
+      setError(errorMessage);
     }
   };
 
@@ -134,15 +194,17 @@ const Playlists: React.FC = () => {
       await playlistApi.update(selectedPlaylist.playlist_id, {
         name: selectedPlaylist.name,
         description: selectedPlaylist.description,
-        clientId: selectedPlaylist.client_id,
+        subscriberId: selectedPlaylist.subscriber_id || selectedPlaylist.client_id, // NOVO
+        clientId: selectedPlaylist.client_id, // DEPRECATED (compatibilidade)
         isActive: selectedPlaylist.is_active,
       });
       setEditDialogOpen(false);
       setSelectedPlaylist(null);
       loadPlaylists();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao atualizar playlist:', error);
-      setError('Erro ao atualizar playlist');
+      const errorMessage = error?.response?.data?.error || error?.message || 'Erro ao atualizar playlist';
+      setError(errorMessage);
     }
   };
 
@@ -162,11 +224,26 @@ const Playlists: React.FC = () => {
     if (!selectedPlaylist) return;
     
     try {
+      // VALIDAÇÃO: Verificar se mídia pertence ao mesmo subscriber da playlist
+      const media = mediaItems.find(m => m.media_id === mediaId);
+      const playlistSubscriberId = selectedPlaylist.subscriber_id || selectedPlaylist.client_id;
+      const mediaSubscriberId = media?.subscriberId || media?.clientId;
+      
+      if (media && playlistSubscriberId && mediaSubscriberId && playlistSubscriberId !== mediaSubscriberId) {
+        setError(
+          `Esta mídia pertence a outro subscriber (${media.subscriberName || media.clientName || 'Desconhecido'}). ` +
+          `Você só pode adicionar mídias do mesmo subscriber da playlist.`
+        );
+        return;
+      }
+      
       await playlistApi.addMedia(selectedPlaylist.playlist_id, mediaId);
       loadPlaylistMedia(selectedPlaylist.playlist_id);
-    } catch (error) {
+      setError(null); // Limpar erro anterior se sucesso
+    } catch (error: any) {
       console.error('Erro ao adicionar mídia:', error);
-      setError('Erro ao adicionar mídia à playlist');
+      const errorMessage = error?.response?.data?.error || error?.message || 'Erro ao adicionar mídia à playlist';
+      setError(errorMessage);
     }
   };
 
@@ -247,7 +324,26 @@ const Playlists: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={8}>
+            {isAdmin && (
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth>
+                  <InputLabel>Subscriber (Anunciante)</InputLabel>
+                  <Select
+                    value={selectedSubscriberId}
+                    onChange={(e) => setSelectedSubscriberId(e.target.value as number | 'all')}
+                    label="Subscriber (Anunciante)"
+                  >
+                    <MenuItem value="all">Todos</MenuItem>
+                    {subscribers.map((subscriber) => (
+                      <MenuItem key={subscriber.client_id} value={subscriber.client_id}>
+                        {subscriber.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
+            <Grid item xs={12} md={isAdmin ? 6 : 8}>
               <TextField
                 fullWidth
                 placeholder="Buscar playlists..."
@@ -258,7 +354,7 @@ const Playlists: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={isAdmin ? 2 : 4}>
               <Button
                 fullWidth
                 variant="outlined"
@@ -348,6 +444,12 @@ const Playlists: React.FC = () => {
                   </Typography>
                 )}
 
+                {(playlist.subscriber_name || (playlist as any).client_name) && (
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
+                    Subscriber: {playlist.subscriber_name || (playlist as any).client_name}
+                  </Typography>
+                )}
+
                 <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Chip
                     label={playlist.is_active ? 'Ativa' : 'Inativa'}
@@ -413,6 +515,29 @@ const Playlists: React.FC = () => {
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Criar Playlist</DialogTitle>
         <DialogContent>
+          {isAdmin && (
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Subscriber (Anunciante)</InputLabel>
+              <Select
+                value={newPlaylist.subscriberId || newPlaylist.clientId || ''}
+                onChange={(e) => {
+                  const subscriberId = e.target.value ? parseInt(String(e.target.value), 10) : undefined;
+                  setNewPlaylist({ 
+                    ...newPlaylist, 
+                    subscriberId: subscriberId,
+                    clientId: subscriberId 
+                  });
+                }}
+                label="Subscriber (Anunciante)"
+              >
+                {subscribers.map((subscriber) => (
+                  <MenuItem key={subscriber.client_id} value={subscriber.client_id}>
+                    {subscriber.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
           <TextField
             fullWidth
             label="Nome da Playlist"
@@ -476,28 +601,58 @@ const Playlists: React.FC = () => {
             <Grid item xs={12} md={6}>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Mídia Disponível
+                {selectedPlaylist && (
+                  <Typography variant="caption" sx={{ ml: 1, color: theme.palette.text.secondary }}>
+                    (Filtrado por subscriber: {selectedPlaylist.subscriber_name || (selectedPlaylist as any).client_name || 'N/A'})
+                  </Typography>
+                )}
               </Typography>
+              {Array.isArray(mediaItems) && mediaItems.length === 0 && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Nenhuma mídia disponível para este subscriber. Certifique-se de que as mídias pertencem ao mesmo subscriber da playlist.
+                </Alert>
+              )}
               <List sx={{ maxHeight: 400, overflow: 'auto' }}>
-                {Array.isArray(mediaItems) && mediaItems.map((media) => (
-                  <ListItem
-                    key={media.media_id}
-                    button
-                    onClick={() => handleAddMediaToPlaylist(media.media_id)}
-                  >
-                    <Avatar sx={{ mr: 2, backgroundColor: alpha(theme.palette.primary.main, 0.1) }}>
-                      {getMediaIcon(media.media_type)}
-                    </Avatar>
-                    <ListItemText
-                      primary={media.name}
-                      secondary={media.media_type}
-                    />
-                    <ListItemSecondaryAction>
-                      <IconButton edge="end">
-                        <Add />
-                      </IconButton>
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                ))}
+                {Array.isArray(mediaItems) && mediaItems.map((media) => {
+                  const playlistSubscriberId = selectedPlaylist?.subscriber_id || selectedPlaylist?.client_id;
+                  const mediaSubscriberId = media.subscriberId || media.clientId;
+                  const canAdd = !playlistSubscriberId || !mediaSubscriberId || playlistSubscriberId === mediaSubscriberId;
+                  
+                  return (
+                    <ListItem
+                      key={media.media_id}
+                      button
+                      onClick={() => canAdd && handleAddMediaToPlaylist(media.media_id)}
+                      disabled={!canAdd}
+                      sx={{
+                        opacity: canAdd ? 1 : 0.5,
+                        '&:hover': canAdd ? {} : { cursor: 'not-allowed' }
+                      }}
+                    >
+                      <Avatar sx={{ mr: 2, backgroundColor: alpha(theme.palette.primary.main, 0.1) }}>
+                        {getMediaIcon(media.media_type)}
+                      </Avatar>
+                      <ListItemText
+                        primary={media.name}
+                        secondary={
+                          <>
+                            {media.media_type}
+                            {!canAdd && (
+                              <Typography variant="caption" sx={{ color: theme.palette.error.main, display: 'block' }}>
+                                Pertence a outro subscriber
+                              </Typography>
+                            )}
+                          </>
+                        }
+                      />
+                      <ListItemSecondaryAction>
+                        <IconButton edge="end" disabled={!canAdd}>
+                          <Add />
+                        </IconButton>
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  );
+                })}
               </List>
             </Grid>
 

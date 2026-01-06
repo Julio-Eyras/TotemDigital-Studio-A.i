@@ -7,6 +7,7 @@ import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
+import { getSubscriberAccessServiceInstance } from './subscriberAccessService';
 
 export interface CreateCampaignRequest {
   // Mantemos o nome clientId por compatibilidade com o frontend atual,
@@ -23,6 +24,9 @@ export interface CreateCampaignRequest {
   daysOfWeek?: string[];
   status?: string;
   isActive?: boolean;
+  publisherIds?: number[]; // IDs dos publishers onde a campanha será exibida
+  playlistIds?: number[]; // IDs das playlists associadas à campanha
+  mediaIds?: number[]; // IDs das mídias associadas diretamente à campanha (sem playlist)
 }
 
 export interface UpdateCampaignRequest {
@@ -37,6 +41,9 @@ export interface UpdateCampaignRequest {
   daysOfWeek?: string[];
   status?: string;
   isActive?: boolean;
+  publisherIds?: number[]; // IDs dos publishers onde a campanha será exibida
+  playlistIds?: number[]; // IDs das playlists associadas à campanha
+  mediaIds?: number[]; // IDs das mídias associadas diretamente à campanha (sem playlist)
 }
 
 export interface CampaignResponse {
@@ -57,6 +64,10 @@ export interface CampaignResponse {
   createdAt: string;
   updatedAt: string;
   clientName?: string;
+  publisherIds?: number[]; // IDs dos publishers associados
+  publisherNames?: string[]; // Nomes dos publishers associados
+  playlistIds?: number[]; // IDs das playlists associadas
+  playlistNames?: string[]; // Nomes das playlists associadas
   totemCount?: number;
   playlistCount?: number;
   mediaCount?: number;
@@ -128,30 +139,36 @@ export class CampaignService {
       const params: any[] = [];
 
       // Aplicar filtros
+      let paramIndex = 1;
       if (filters.clientId) {
         // Filtro por subscriber (antes client)
-        whereClause += ' AND c.subscriber_id = ?';
+        whereClause += ` AND c.subscriber_id = $${paramIndex}`;
         params.push(filters.clientId);
+        paramIndex++;
       }
 
       if (filters.status) {
-        whereClause += ' AND c.status = ?';
+        whereClause += ` AND c.status = $${paramIndex}`;
         params.push(filters.status);
+        paramIndex++;
       }
 
       if (filters.campaignType) {
-        whereClause += ' AND c.campaign_type = ?';
+        whereClause += ` AND c.campaign_type = $${paramIndex}`;
         params.push(filters.campaignType);
+        paramIndex++;
       }
 
       if (filters.isActive !== undefined) {
-        whereClause += ' AND c.is_active = ?';
+        whereClause += ` AND c.is_active = $${paramIndex}`;
         params.push(filters.isActive);
+        paramIndex++;
       }
 
       if (filters.search) {
-        whereClause += ' AND (c.title LIKE ? OR c.description LIKE ?)';
+        whereClause += ` AND (c.title LIKE $${paramIndex} OR c.description LIKE $${paramIndex + 1})`;
         params.push(`%${filters.search}%`, `%${filters.search}%`);
+        paramIndex += 2;
       }
 
       // Buscar campanhas
@@ -177,7 +194,7 @@ export class CampaignService {
         LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         ${whereClause}
         ORDER BY c.priority DESC, c.created_at DESC
-        LIMIT ? OFFSET ?
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `, [...params, limit, offset]);
 
       // Contar total
@@ -189,12 +206,58 @@ export class CampaignService {
 
       const total = totalResult?.total || 0;
 
-      // Buscar estatísticas para cada campanha
+      // Buscar estatísticas e publishers para cada campanha
       const campaignsWithStats = await Promise.all(
         campaigns.map(async (campaign) => {
           const stats = await this.getCampaignStats(campaign.id);
           const scheduleInfo = this.getScheduleInfo(campaign);
-          return { ...campaign, ...stats, ...scheduleInfo };
+          
+          // Buscar publishers associados
+          const publishers = await this.db.findMany(`
+            SELECT 
+              cp.publisher_id,
+              p.name as publisher_name
+            FROM campaign_publishers cp
+            JOIN publishers p ON cp.publisher_id = p.publisher_id
+            WHERE cp.campaign_id = $1 AND cp.is_active = true
+            ORDER BY p.name
+          `, [campaign.id]);
+
+          // Buscar playlists associadas
+          const playlists = await this.db.findMany(`
+            SELECT 
+              cp.playlist_id,
+              p.name as playlist_name
+            FROM campaign_playlists cp
+            JOIN playlists p ON cp.playlist_id = p.playlist_id
+            WHERE cp.campaign_id = $1 AND cp.is_active = true
+            ORDER BY cp.priority, p.name
+          `, [campaign.id]);
+
+          // Buscar mídias diretamente associadas
+          const directMedias = await this.db.findMany(`
+            SELECT 
+              cm.media_id,
+              m.name as media_name,
+              m.file_name,
+              m.media_type
+            FROM campaign_medias cm
+            JOIN medias m ON cm.media_id = m.media_id
+            WHERE cm.campaign_id = $1 AND cm.is_active = true
+            ORDER BY cm.order_index, cm.priority
+          `, [campaign.id]);
+
+          return { 
+            ...campaign, 
+            ...stats, 
+            ...scheduleInfo,
+            publisherIds: publishers.map(p => p.publisher_id),
+            publisherNames: publishers.map(p => p.publisher_name),
+            playlistIds: playlists.map(p => p.playlist_id),
+            playlistNames: playlists.map(p => p.playlist_name),
+            mediaIds: directMedias.map(m => m.media_id),
+            mediaNames: directMedias.map(m => m.media_name || m.file_name)
+          };
         })
       );
 
@@ -243,6 +306,51 @@ export class CampaignService {
         return null;
       }
 
+      // Buscar publishers associados
+      const publishers = await this.db.findMany(`
+        SELECT 
+          cp.publisher_id,
+          p.name as publisher_name
+        FROM campaign_publishers cp
+        JOIN publishers p ON cp.publisher_id = p.publisher_id
+        WHERE cp.campaign_id = $1 AND cp.is_active = true
+        ORDER BY p.name
+      `, [campaignId]);
+
+      campaign.publisherIds = publishers.map(p => p.publisher_id);
+      campaign.publisherNames = publishers.map(p => p.publisher_name);
+
+      // Buscar playlists associadas
+      const playlists = await this.db.findMany(`
+        SELECT 
+          cp.playlist_id,
+          p.name as playlist_name
+        FROM campaign_playlists cp
+        JOIN playlists p ON cp.playlist_id = p.playlist_id
+        WHERE cp.campaign_id = $1 AND cp.is_active = true
+        ORDER BY cp.priority, p.name
+      `, [campaignId]);
+
+      campaign.playlistIds = playlists.map(p => p.playlist_id);
+      campaign.playlistNames = playlists.map(p => p.playlist_name);
+
+      // Buscar mídias diretamente associadas
+      const directMedias = await this.db.findMany(`
+        SELECT 
+          cm.media_id,
+          m.name as media_name,
+          m.file_name,
+          m.media_type,
+          m.duration_seconds
+        FROM campaign_medias cm
+        JOIN medias m ON cm.media_id = m.media_id
+        WHERE cm.campaign_id = $1 AND cm.is_active = true
+        ORDER BY cm.order_index, cm.priority
+      `, [campaignId]);
+
+      campaign.mediaIds = directMedias.map(m => m.media_id);
+      campaign.mediaNames = directMedias.map(m => m.media_name || m.file_name);
+
       // Buscar estatísticas
       const stats = await this.getCampaignStats(campaignId);
       const scheduleInfo = this.getScheduleInfo(campaign);
@@ -285,11 +393,24 @@ export class CampaignService {
 
       // Verificar se subscriber (antes client) existe
       const subscriber = await this.db.findFirst(`
-        SELECT subscriber_id FROM subscribers WHERE subscriber_id = ? AND COALESCE(is_active, true) = true
+        SELECT subscriber_id FROM subscribers WHERE subscriber_id = $1 AND COALESCE(is_active, true) = true
       `, [clientId]);
 
       if (!subscriber) {
         throw new Error('Subscriber (anunciante) não encontrado ou inativo');
+      }
+
+      // Validar acesso a publishers se publishers foram fornecidos
+      if (data.publisherIds && Array.isArray(data.publisherIds) && data.publisherIds.length > 0) {
+        const accessService = getSubscriberAccessServiceInstance();
+        const validation = await accessService.validateCampaignPublishers(clientId, data.publisherIds);
+        
+        if (!validation.valid) {
+          throw new Error(
+            `Subscriber não tem acesso aos seguintes publishers: ${validation.invalidPublishers.join(', ')}. ` +
+            `Verifique o contrato e plano do subscriber.`
+          );
+        }
       }
 
       // Criar campanha
@@ -352,11 +473,29 @@ export class CampaignService {
         throw new Error('Erro ao buscar campanha criada');
       }
 
+      // Associar publishers se fornecidos
+      if (data.publisherIds && Array.isArray(data.publisherIds) && data.publisherIds.length > 0) {
+        await this.associatePublishers(insertedCampaign.campaign_id, data.publisherIds, createdBy);
+      }
+
+      // Associar playlists se fornecidas
+      if (data.playlistIds && Array.isArray(data.playlistIds) && data.playlistIds.length > 0) {
+        await this.associatePlaylists(insertedCampaign.campaign_id, data.playlistIds, clientId, createdBy);
+      }
+
+      // Associar mídias diretamente se fornecidas
+      if (data.mediaIds && Array.isArray(data.mediaIds) && data.mediaIds.length > 0) {
+        await this.associateMedias(insertedCampaign.campaign_id, data.mediaIds, clientId, createdBy);
+      }
+
       // Log de auditoria
       await this.getAuditService().log('campaign', 'created', createdBy, {
         campaignId: newCampaign.id,
         title: newCampaign.title,
-        clientId: newCampaign.clientId
+        clientId: newCampaign.clientId,
+        publisherIds: data.publisherIds || [],
+        playlistIds: data.playlistIds || [],
+        mediaIds: data.mediaIds || []
       });
 
       // Invalidar cache relacionado
@@ -448,11 +587,41 @@ export class CampaignService {
       params.push(campaignId);
 
       // Atualizar campanha
+      params.push(campaignId);
       await this.db.executeRaw(`
         UPDATE campaigns 
         SET ${updates.join(', ')}
         WHERE campaign_id = ?
       `, params);
+
+      // Atualizar publishers se fornecidos
+      if (data.publisherIds !== undefined) {
+        // Buscar subscriber_id da campanha para validação
+        const campaign = await this.db.findFirst(`
+          SELECT subscriber_id FROM campaigns WHERE campaign_id = $1
+        `, [campaignId]);
+
+        if (campaign) {
+          // Validar acesso a publishers
+          if (data.publisherIds.length > 0) {
+            const accessService = getSubscriberAccessServiceInstance();
+            const validation = await accessService.validateCampaignPublishers(
+              campaign.subscriber_id,
+              data.publisherIds
+            );
+
+            if (!validation.valid) {
+              throw new Error(
+                `Subscriber não tem acesso aos seguintes publishers: ${validation.invalidPublishers.join(', ')}. ` +
+                `Verifique o contrato e plano do subscriber.`
+              );
+            }
+          }
+
+          // Atualizar associações de publishers
+          await this.associatePublishers(campaignId, data.publisherIds, updatedBy);
+        }
+      }
 
       // Buscar campanha atualizada
       const updatedCampaign = await this.getCampaignById(campaignId);
@@ -463,7 +632,8 @@ export class CampaignService {
       // Log de auditoria
       await this.getAuditService().log('campaign', 'updated', updatedBy, {
         campaignId,
-        changes: data
+        changes: data,
+        publisherIds: data.publisherIds || []
       });
 
       // Invalidar cache relacionado
@@ -490,15 +660,19 @@ export class CampaignService {
 
       // Verificar se tem dados associados
       const hasPlaylists = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM playlists WHERE campaign_id = ?
+        SELECT COUNT(*) as count FROM campaign_playlists WHERE campaign_id = $1 AND is_active = true
       `, [campaignId]);
 
       const hasTotems = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM campaign_totems WHERE campaign_id = ?
+        SELECT COUNT(*) as count FROM campaign_totems WHERE campaign_id = $1 AND is_active = true
       `, [campaignId]);
 
-      if (hasPlaylists.count > 0 || hasTotems.count > 0) {
-        throw new Error('Não é possível remover campanha com dados associados. Desative-a primeiro.');
+      const hasMedias = await this.db.findFirst(`
+        SELECT COUNT(*) as count FROM campaign_medias WHERE campaign_id = $1 AND is_active = true
+      `, [campaignId]);
+
+      if (hasPlaylists.count > 0 || hasTotems.count > 0 || hasMedias.count > 0) {
+        throw new Error('Não é possível remover campanha com dados associados (playlists, totems ou mídias). Desative-a primeiro.');
       }
 
       // Remover campanha
@@ -662,7 +836,7 @@ export class CampaignService {
       await this.db.executeRaw(`
         UPDATE campaigns 
         SET is_active = false, status = 'paused', updated_at = CURRENT_TIMESTAMP 
-        WHERE campaign_id = ?
+        WHERE campaign_id = $1
       `, [campaignId]);
 
       // Log de auditoria
@@ -692,7 +866,7 @@ export class CampaignService {
       await this.db.executeRaw(`
         UPDATE campaigns 
         SET is_active = false, status = 'finished', updated_at = CURRENT_TIMESTAMP 
-        WHERE campaign_id = ?
+        WHERE campaign_id = $1
       `, [campaignId]);
 
       // Log de auditoria
@@ -732,21 +906,33 @@ export class CampaignService {
             SELECT COUNT(*) as count FROM playlists WHERE campaign_id = ? AND is_active = true
           `, [campaignId]);
 
-          // Contar mídia (via playlists)
+          // Contar mídias únicas (via playlists associadas)
           const mediaCountResult = await this.db.findFirst(`
             SELECT COUNT(DISTINCT pi.media_id) as count
             FROM playlist_items pi
-            JOIN playlists p ON pi.playlist_id = p.playlist_id
-            WHERE p.campaign_id = ? AND p.is_active = true
+            JOIN campaign_playlists cp ON pi.playlist_id = cp.playlist_id
+            JOIN playlists p ON cp.playlist_id = p.playlist_id
+            WHERE cp.campaign_id = $1 AND cp.is_active = true AND p.is_active = true
           `, [campaignId]);
 
-          // Calcular duração total
+          // Calcular duração total (via playlists associadas + mídias diretas)
           const durationResult = await this.db.findFirst(`
-            SELECT SUM(COALESCE(pi.display_seconds, m.duration_seconds, 0)) as total
-            FROM playlist_items pi
-            JOIN playlists p ON pi.playlist_id = p.playlist_id
-            JOIN medias m ON pi.media_id = m.media_id
-            WHERE p.campaign_id = ? AND p.is_active = true
+            SELECT COALESCE(SUM(duration), 0) as total
+            FROM (
+              -- Duração via playlists
+              SELECT COALESCE(pi.display_seconds, m.duration_seconds, 0) as duration
+              FROM playlist_items pi
+              JOIN campaign_playlists cp ON pi.playlist_id = cp.playlist_id
+              JOIN playlists p ON cp.playlist_id = p.playlist_id
+              JOIN medias m ON pi.media_id = m.media_id
+              WHERE cp.campaign_id = $1 AND cp.is_active = true AND p.is_active = true
+              UNION ALL
+              -- Duração de mídias diretamente associadas
+              SELECT COALESCE(cm.display_seconds, m.duration_seconds, 0) as duration
+              FROM campaign_medias cm
+              JOIN medias m ON cm.media_id = m.media_id
+              WHERE cm.campaign_id = $1 AND cm.is_active = true
+            ) all_durations
           `, [campaignId]);
 
           return {
@@ -1079,6 +1265,205 @@ export class CampaignService {
     } catch (error: any) {
       await logError('Erro ao buscar campanhas por cliente', error);
       throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Associa playlists a uma campanha
+   * Valida que todas as playlists pertencem ao mesmo subscriber da campanha
+   */
+  async associatePlaylists(
+    campaignId: number,
+    playlistIds: number[],
+    campaignSubscriberId: number,
+    userId: number
+  ): Promise<void> {
+    try {
+      // Buscar informações das playlists
+      const playlists = await this.db.findMany(`
+        SELECT playlist_id, subscriber_id, name
+        FROM playlists
+        WHERE playlist_id = ANY($1::int[])
+        AND is_active = true
+      `, [playlistIds]);
+
+      if (playlists.length !== playlistIds.length) {
+        const foundIds = playlists.map(p => p.playlist_id);
+        const missingIds = playlistIds.filter(id => !foundIds.includes(id));
+        throw new Error(`Playlists não encontradas ou inativas: ${missingIds.join(', ')}`);
+      }
+
+      // VALIDAÇÃO CRÍTICA: Todas as playlists devem pertencer ao mesmo subscriber da campanha
+      const invalidPlaylists = playlists.filter(p => p.subscriber_id !== campaignSubscriberId);
+      if (invalidPlaylists.length > 0) {
+        const invalidNames = invalidPlaylists.map(p => `${p.name} (ID: ${p.playlist_id})`).join(', ');
+        throw new Error(
+          `As seguintes playlists pertencem a outro subscriber: ${invalidNames}. ` +
+          `A campanha pertence ao subscriber ${campaignSubscriberId}, mas essas playlists pertencem a outros subscribers.`
+        );
+      }
+
+      // Remover associações existentes
+      await this.db.executeRaw(`
+        DELETE FROM campaign_playlists WHERE campaign_id = $1
+      `, [campaignId]);
+
+      // Criar novas associações
+      for (const playlistId of playlistIds) {
+        await this.db.executeRaw(`
+          INSERT INTO campaign_playlists (campaign_id, playlist_id, priority, is_active)
+          VALUES ($1, $2, 1, true)
+          ON CONFLICT (campaign_id, playlist_id) DO UPDATE
+          SET is_active = true, priority = 1
+        `, [campaignId, playlistId]);
+      }
+
+      // Log de auditoria
+      await this.getAuditService().log('campaign', 'playlists_associated', userId, {
+        campaignId,
+        playlistIds,
+        campaignSubscriberId
+      });
+
+    } catch (error: any) {
+      await logError('Erro ao associar playlists à campanha', error, {
+        campaignId,
+        playlistIds,
+        campaignSubscriberId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Associa mídias diretamente a uma campanha (sem playlist)
+   * Valida que todas as mídias pertencem ao mesmo subscriber da campanha
+   */
+  async associateMedias(
+    campaignId: number,
+    mediaIds: number[],
+    campaignSubscriberId: number,
+    userId: number
+  ): Promise<void> {
+    try {
+      // Buscar informações das mídias
+      const medias = await this.db.findMany(`
+        SELECT media_id, subscriber_id, name, status
+        FROM medias
+        WHERE media_id = ANY($1::int[])
+        AND is_active = true
+      `, [mediaIds]);
+
+      if (medias.length !== mediaIds.length) {
+        const foundIds = medias.map(m => m.media_id);
+        const missingIds = mediaIds.filter(id => !foundIds.includes(id));
+        throw new Error(`Mídias não encontradas ou inativas: ${missingIds.join(', ')}`);
+      }
+
+      // VALIDAÇÃO CRÍTICA: Todas as mídias devem pertencer ao mesmo subscriber da campanha
+      const invalidMedias = medias.filter(m => m.subscriber_id !== campaignSubscriberId);
+      if (invalidMedias.length > 0) {
+        const invalidNames = invalidMedias.map(m => `${m.name} (ID: ${m.media_id})`).join(', ');
+        throw new Error(
+          `As seguintes mídias pertencem a outro subscriber: ${invalidNames}. ` +
+          `A campanha pertence ao subscriber ${campaignSubscriberId}, mas essas mídias pertencem a outros subscribers.`
+        );
+      }
+
+      // Remover associações existentes
+      await this.db.executeRaw(`
+        DELETE FROM campaign_medias WHERE campaign_id = $1
+      `, [campaignId]);
+
+      // Criar novas associações
+      for (let i = 0; i < mediaIds.length; i++) {
+        const mediaId = mediaIds[i];
+        await this.db.executeRaw(`
+          INSERT INTO campaign_medias (campaign_id, media_id, order_index, priority, is_active)
+          VALUES ($1, $2, $3, 1, true)
+          ON CONFLICT (campaign_id, media_id) DO UPDATE
+          SET is_active = true, order_index = $3, priority = 1, updated_at = CURRENT_TIMESTAMP
+        `, [campaignId, mediaId, i]);
+      }
+
+      // Log de auditoria
+      await this.getAuditService().log('campaign', 'medias_associated', userId, {
+        campaignId,
+        mediaIds,
+        campaignSubscriberId
+      });
+
+    } catch (error: any) {
+      await logError('Erro ao associar mídias à campanha', error, {
+        campaignId,
+        mediaIds,
+        campaignSubscriberId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Associa publishers a uma campanha
+   * Valida acesso antes de associar
+   */
+  async associatePublishers(
+    campaignId: number,
+    publisherIds: number[],
+    userId: number
+  ): Promise<void> {
+    try {
+      // Buscar subscriber_id da campanha
+      const campaign = await this.db.findFirst(`
+        SELECT subscriber_id
+        FROM campaigns
+        WHERE campaign_id = $1
+      `, [campaignId]);
+
+      if (!campaign) {
+        throw new Error('Campanha não encontrada');
+      }
+
+      // Validar acesso
+      const accessService = getSubscriberAccessServiceInstance();
+      const validation = await accessService.validateCampaignPublishers(
+        campaign.subscriber_id,
+        publisherIds
+      );
+
+      if (!validation.valid) {
+        throw new Error(
+          `Subscriber não tem acesso aos seguintes publishers: ${validation.invalidPublishers.join(', ')}`
+        );
+      }
+
+      // Associar publishers
+      for (const publisherId of publisherIds) {
+        await this.db.executeRaw(`
+          INSERT INTO campaign_publishers (
+            campaign_id,
+            publisher_id,
+            is_active
+          )
+          VALUES ($1, $2, true)
+          ON CONFLICT (campaign_id, publisher_id)
+          DO UPDATE SET
+            is_active = true,
+            updated_at = CURRENT_TIMESTAMP
+        `, [campaignId, publisherId]);
+      }
+
+      await logDebug('Publishers associados à campanha', {
+        campaignId,
+        publisherIds,
+        userId
+      });
+    } catch (error: any) {
+      await logError('Erro ao associar publishers à campanha', error, {
+        campaignId,
+        publisherIds
+      });
+      throw error;
     }
   }
 }

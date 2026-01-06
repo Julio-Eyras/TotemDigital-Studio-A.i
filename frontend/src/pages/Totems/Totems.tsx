@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Grid, Card, CardContent, Avatar, Chip, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControlLabel, Switch, Alert, Tab, Tabs, Badge, Tooltip, IconButton, LinearProgress } from '@mui/material';
+import { Box, Typography, Grid, Card, CardContent, Avatar, Chip, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControlLabel, Switch, Alert, Tab, Tabs, Badge, Tooltip, IconButton, LinearProgress, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import { Tv, Add, Refresh, LocationOn, CheckCircle, Pending, Warning, Settings } from '@mui/icons-material';
-import { totemApi, Player, CreatePlayerRequest } from '../../services/api';
+import { totemApi, Player, CreatePlayerRequest, localApi, Local } from '../../services/api';
 import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteControl';
+import { useAppSelector } from '../../store';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -20,8 +21,13 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const Totems: React.FC = () => {
+  const { user } = useAppSelector((state) => state.auth);
+  const isAdmin = user?.role === 'admin';
+  const userPublisherId = user?.publisherId;
+
   const [totems, setTotems] = useState<Player[]>([]);
   const [pendingTotems, setPendingTotems] = useState<Player[]>([]);
+  const [locals, setLocals] = useState<Local[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -30,14 +36,35 @@ const Totems: React.FC = () => {
   const [selectedTotem, setSelectedTotem] = useState<Player | null>(null);
   const [generateConfig, setGenerateConfig] = useState(true);
   const [approving, setApproving] = useState(false);
-  const [newTotem, setNewTotem] = useState<CreatePlayerRequest>({ name: '', location: '' });
+  const [newTotem, setNewTotem] = useState<CreatePlayerRequest>({ 
+    identifier: '', 
+    localId: 0,
+    uin: '',
+    deviceId: '',
+    name: '',
+    description: '',
+    firmwareVersion: '',
+  });
   const [tabValue, setTabValue] = useState(0);
   const [remoteControlOpen, setRemoteControlOpen] = useState(false);
   const [selectedTotemForControl, setSelectedTotemForControl] = useState<Player | null>(null);
 
   useEffect(() => {
     loadAll();
+    loadLocals();
   }, []);
+
+  const loadLocals = async () => {
+    try {
+      const response = await localApi.getAll({
+        publisherId: isAdmin ? undefined : userPublisherId,
+        active_only: true,
+      });
+      setLocals(response.data);
+    } catch (error) {
+      console.error('Erro ao carregar locals:', error);
+    }
+  };
 
   const loadAll = async () => {
     try {
@@ -57,13 +84,29 @@ const Totems: React.FC = () => {
 
   const handleCreate = async () => {
     try {
+      if (!newTotem.identifier) {
+        setError('Identifier é obrigatório');
+        return;
+      }
+      if (!newTotem.localId) {
+        setError('Local é obrigatório');
+        return;
+      }
       await totemApi.create(newTotem);
       setCreateOpen(false);
-      setNewTotem({ name: '', location: '' });
+      setNewTotem({ 
+        identifier: '', 
+        localId: 0,
+        uin: '',
+        deviceId: '',
+        name: '',
+        description: '',
+        firmwareVersion: '',
+      });
       setSuccess('Totem criado com sucesso');
       loadAll();
     } catch (e: any) {
-      setError('Erro ao criar totem: ' + (e.message || 'Erro desconhecido'));
+      setError('Erro ao criar totem: ' + (e.response?.data?.error || e.message || 'Erro desconhecido'));
     }
   };
 
@@ -139,7 +182,9 @@ const Totems: React.FC = () => {
       )}
 
       <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
-        <Button startIcon={<Add />} variant="contained" onClick={() => setCreateOpen(true)}>Adicionar Totem</Button>
+        {isAdmin && (
+          <Button startIcon={<Add />} variant="contained" onClick={() => setCreateOpen(true)}>Adicionar Totem</Button>
+        )}
         <Button startIcon={<Refresh />} variant="outlined" onClick={loadAll} disabled={loading}>Atualizar</Button>
       </Box>
 
@@ -244,18 +289,20 @@ const Totems: React.FC = () => {
                         )}
                       </Box>
                     </Box>
-                    <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                      <Button
-                        variant="contained"
-                        color="success"
-                        size="small"
-                        startIcon={<CheckCircle />}
-                        onClick={() => openApproveDialog(t)}
-                        fullWidth
-                      >
-                        Aprovar
-                      </Button>
-                    </Box>
+                    {isAdmin && (
+                      <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                        <Button
+                          variant="contained"
+                          color="success"
+                          size="small"
+                          startIcon={<CheckCircle />}
+                          onClick={() => openApproveDialog(t)}
+                          fullWidth
+                        >
+                          Aprovar
+                        </Button>
+                      </Box>
+                    )}
                   </CardContent>
                 </Card>
               </Grid>
@@ -264,27 +311,73 @@ const Totems: React.FC = () => {
         </Grid>
       </TabPanel>
 
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Novo Totem</DialogTitle>
         <DialogContent>
+          <FormControl fullWidth margin="normal" required>
+            <InputLabel>Local *</InputLabel>
+            <Select
+              value={newTotem.localId || ''}
+              label="Local *"
+              onChange={(e) => setNewTotem({ ...newTotem, localId: Number(e.target.value) })}
+            >
+              {locals.map((local) => (
+                <MenuItem key={local.local_id} value={local.local_id}>
+                  {local.name} {local.publisher_name && `(${local.publisher_name})`}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField 
+            fullWidth 
+            label="Identifier *" 
+            margin="normal" 
+            value={newTotem.identifier} 
+            onChange={(e) => setNewTotem({ ...newTotem, identifier: e.target.value })} 
+            required
+          />
+          <TextField 
+            fullWidth 
+            label="UIN (Unique Identifier Number)" 
+            margin="normal" 
+            value={newTotem.uin || ''} 
+            onChange={(e) => setNewTotem({ ...newTotem, uin: e.target.value })} 
+            helperText="Número único de identificação do totem"
+          />
+          <TextField 
+            fullWidth 
+            label="Device ID" 
+            margin="normal" 
+            value={newTotem.deviceId || ''} 
+            onChange={(e) => setNewTotem({ ...newTotem, deviceId: e.target.value })} 
+          />
           <TextField 
             fullWidth 
             label="Nome" 
             margin="normal" 
-            value={newTotem.name} 
+            value={newTotem.name || ''} 
             onChange={(e) => setNewTotem({ ...newTotem, name: e.target.value })} 
           />
           <TextField 
             fullWidth 
-            label="Localização" 
+            label="Descrição" 
             margin="normal" 
-            value={newTotem.location} 
-            onChange={(e) => setNewTotem({ ...newTotem, location: e.target.value })} 
+            value={newTotem.description || ''} 
+            onChange={(e) => setNewTotem({ ...newTotem, description: e.target.value })} 
+            multiline
+            rows={2}
+          />
+          <TextField 
+            fullWidth 
+            label="Versão do Firmware" 
+            margin="normal" 
+            value={newTotem.firmwareVersion || ''} 
+            onChange={(e) => setNewTotem({ ...newTotem, firmwareVersion: e.target.value })} 
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleCreate} disabled={!newTotem.name}>Criar</Button>
+          <Button variant="contained" onClick={handleCreate} disabled={!newTotem.identifier || !newTotem.localId}>Criar</Button>
         </DialogActions>
       </Dialog>
 

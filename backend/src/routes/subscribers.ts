@@ -13,6 +13,7 @@ router.use(authMiddleware);
 // Validações
 const createSubscriberValidator = [
   body('name').notEmpty().withMessage('Nome é obrigatório'),
+  body('contact_name').optional().isString(),
   body('email').optional().isEmail().withMessage('Email inválido'),
   body('phone').optional().isString(),
   body('whatsapp').optional().isString(),
@@ -89,17 +90,18 @@ router.get('/:id',
 router.post('/',
   createSubscriberValidator,
   validateRequest,
-  async (req: any, res: any) => {
-    try {
-      const { name, email, phone, whatsapp, address } = req.body;
-      
-      const newSubscriber = await getSubscriberService().createSubscriber({
-        name,
-        email,
-        phone,
-        whatsapp,
-        address,
-      });
+    async (req: any, res: any) => {
+      try {
+        const { name, contact_name, email, phone, whatsapp, address } = req.body;
+        
+        const newSubscriber = await getSubscriberService().createSubscriber({
+          name,
+          contact_name,
+          email,
+          phone,
+          whatsapp,
+          address,
+        });
 
       return res.status(201).json(newSubscriber);
     } catch (error: any) {
@@ -116,6 +118,7 @@ router.post('/',
 router.put('/:id',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   body('name').optional().notEmpty().withMessage('Nome não pode ser vazio'),
+  body('contact_name').optional().isString(),
   body('email').optional().isEmail().withMessage('Email inválido'),
   body('phone').optional().isString(),
   body('whatsapp').optional().isString(),
@@ -124,10 +127,11 @@ router.put('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const { name, email, phone, whatsapp, address } = req.body;
+      const { name, contact_name, email, phone, whatsapp, address } = req.body;
       
       const updatedSubscriber = await getSubscriberService().updateSubscriber(parseInt(id), {
         name,
+        contact_name,
         email,
         phone,
         whatsapp,

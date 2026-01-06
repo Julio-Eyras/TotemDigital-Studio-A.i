@@ -197,43 +197,113 @@ COMMENT ON COLUMN playlist_mix_history.engagement_score IS 'Score de engajamento
 -- =============================================
 
 -- playlist_mix_rules
-ALTER TABLE playlist_mix_rules
-    ADD CONSTRAINT fk_playlist_mix_rules_totem 
-    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) 
-    ON DELETE CASCADE;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_playlist_mix_rules_totem'
+        AND t.relname = 'playlist_mix_rules'
+    ) THEN
+        ALTER TABLE playlist_mix_rules
+            ADD CONSTRAINT fk_playlist_mix_rules_totem 
+            FOREIGN KEY (totem_id) REFERENCES totems(totem_id) 
+            ON DELETE CASCADE;
+    END IF;
+END $$;
 
 -- ai_context_data
-ALTER TABLE ai_context_data
-    ADD CONSTRAINT fk_ai_context_data_totem 
-    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) 
-    ON DELETE CASCADE;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_ai_context_data_totem'
+        AND t.relname = 'ai_context_data'
+    ) THEN
+        ALTER TABLE ai_context_data
+            ADD CONSTRAINT fk_ai_context_data_totem 
+            FOREIGN KEY (totem_id) REFERENCES totems(totem_id) 
+            ON DELETE CASCADE;
+    END IF;
+END $$;
 
 -- totem_playlist_mix
-ALTER TABLE totem_playlist_mix
-    ADD CONSTRAINT fk_totem_playlist_mix_totem 
-    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) 
-    ON DELETE CASCADE;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_totem_playlist_mix_totem'
+        AND t.relname = 'totem_playlist_mix'
+    ) THEN
+        ALTER TABLE totem_playlist_mix
+            ADD CONSTRAINT fk_totem_playlist_mix_totem 
+            FOREIGN KEY (totem_id) REFERENCES totems(totem_id) 
+            ON DELETE CASCADE;
+    END IF;
+END $$;
 
-ALTER TABLE totem_playlist_mix
-    ADD CONSTRAINT fk_totem_playlist_mix_rule 
-    FOREIGN KEY (rule_id) REFERENCES playlist_mix_rules(rule_id) 
-    ON DELETE SET NULL;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_totem_playlist_mix_rule'
+        AND t.relname = 'totem_playlist_mix'
+    ) THEN
+        ALTER TABLE totem_playlist_mix
+            ADD CONSTRAINT fk_totem_playlist_mix_rule 
+            FOREIGN KEY (rule_id) REFERENCES playlist_mix_rules(rule_id) 
+            ON DELETE SET NULL;
+    END IF;
+END $$;
 
 -- playlist_mix_history
-ALTER TABLE playlist_mix_history
-    ADD CONSTRAINT fk_playlist_mix_history_totem 
-    FOREIGN KEY (totem_id) REFERENCES totems(totem_id) 
-    ON DELETE CASCADE;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_playlist_mix_history_totem'
+        AND t.relname = 'playlist_mix_history'
+    ) THEN
+        ALTER TABLE playlist_mix_history
+            ADD CONSTRAINT fk_playlist_mix_history_totem 
+            FOREIGN KEY (totem_id) REFERENCES totems(totem_id) 
+            ON DELETE CASCADE;
+    END IF;
+END $$;
 
-ALTER TABLE playlist_mix_history
-    ADD CONSTRAINT fk_playlist_mix_history_mix 
-    FOREIGN KEY (mix_id) REFERENCES totem_playlist_mix(mix_id) 
-    ON DELETE SET NULL;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_playlist_mix_history_mix'
+        AND t.relname = 'playlist_mix_history'
+    ) THEN
+        ALTER TABLE playlist_mix_history
+            ADD CONSTRAINT fk_playlist_mix_history_mix 
+            FOREIGN KEY (mix_id) REFERENCES totem_playlist_mix(mix_id) 
+            ON DELETE SET NULL;
+    END IF;
+END $$;
 
-ALTER TABLE playlist_mix_history
-    ADD CONSTRAINT fk_playlist_mix_history_rule 
-    FOREIGN KEY (rule_id) REFERENCES playlist_mix_rules(rule_id) 
-    ON DELETE SET NULL;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_playlist_mix_history_rule'
+        AND t.relname = 'playlist_mix_history'
+    ) THEN
+        ALTER TABLE playlist_mix_history
+            ADD CONSTRAINT fk_playlist_mix_history_rule 
+            FOREIGN KEY (rule_id) REFERENCES playlist_mix_rules(rule_id) 
+            ON DELETE SET NULL;
+    END IF;
+END $$;
 
 -- =============================================
 -- INDEXES

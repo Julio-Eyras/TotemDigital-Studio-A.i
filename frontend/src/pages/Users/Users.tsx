@@ -47,18 +47,22 @@ import {
   Warning,
   Error,
 } from '@mui/icons-material';
-import { userApi, User, CreateUserRequest, clientApi, Client } from '../../services/api';
+import { userApi, User, CreateUserRequest, UserFlags, publisherApi, Publisher, subscriberApi, Subscriber } from '../../services/api';
 
 const Users: React.FC = () => {
   const theme = useTheme();
   const [users, setUsers] = useState<User[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
+  const [publishers, setPublishers] = useState<Publisher[]>([]);
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [flagsDialogOpen, setFlagsDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUserFlags, setSelectedUserFlags] = useState<UserFlags | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [userTypeFilter, setUserTypeFilter] = useState('all');
   const [error, setError] = useState<string | null>(null);
   const [newUser, setNewUser] = useState<CreateUserRequest>({
     username: '',
@@ -66,13 +70,25 @@ const Users: React.FC = () => {
     password: '',
     name: '',
     role: 'user',
-    clientId: undefined,
+    userType: 'system_user',
+    isTenantUser: false,
+    flags: undefined,
   });
 
   useEffect(() => {
     loadUsers();
-    loadClients();
+    loadPublishers();
+    loadSubscribers();
   }, []);
+
+  const loadSubscribers = async () => {
+    try {
+      const response = await subscriberApi.getAll();
+      setSubscribers(response.data || []);
+    } catch (error) {
+      console.error('Erro ao carregar subscribers:', error);
+    }
+  };
 
   const loadUsers = async () => {
     try {
@@ -81,6 +97,7 @@ const Users: React.FC = () => {
       const response = await userApi.getAll({
         search: searchTerm || undefined,
         role: roleFilter !== 'all' ? roleFilter : undefined,
+        userType: userTypeFilter !== 'all' ? userTypeFilter : undefined,
       });
       setUsers(response.data);
     } catch (error) {
@@ -91,12 +108,12 @@ const Users: React.FC = () => {
     }
   };
 
-  const loadClients = async () => {
+  const loadPublishers = async () => {
     try {
-      const response = await clientApi.getAll();
-      setClients(response.data);
+      const response = await publisherApi.getAll({ active_only: true });
+      setPublishers(response.data || []);
     } catch (error) {
-      console.error('Erro ao carregar clientes:', error);
+      console.error('Erro ao carregar publishers:', error);
     }
   };
 
@@ -104,7 +121,16 @@ const Users: React.FC = () => {
     try {
       await userApi.create(newUser);
       setCreateDialogOpen(false);
-      setNewUser({ username: '', email: '', password: '', name: '', role: 'user', clientId: undefined });
+      setNewUser({ 
+        username: '', 
+        email: '', 
+        password: '', 
+        name: '', 
+        role: 'user',
+        userType: 'system_user',
+        isTenantUser: false,
+        flags: undefined,
+      });
       loadUsers();
     } catch (error) {
       console.error('Erro ao criar usuário:', error);
@@ -121,7 +147,10 @@ const Users: React.FC = () => {
         email: selectedUser.email,
         name: selectedUser.name,
         role: selectedUser.role,
-        clientId: selectedUser.client_id,
+        userType: selectedUser.user_type,
+        publisherId: selectedUser.publisher_id,
+        subscriberId: selectedUser.subscriber_id,
+        isTenantUser: selectedUser.is_tenant_user,
         isActive: selectedUser.is_active,
       });
       setEditDialogOpen(false);
@@ -145,11 +174,37 @@ const Users: React.FC = () => {
     }
   };
 
+  const handleOpenFlagsDialog = async (user: User) => {
+    try {
+      setSelectedUser(user);
+      const flags = await userApi.getFlags(user.user_id);
+      setSelectedUserFlags(flags);
+      setFlagsDialogOpen(true);
+    } catch (error) {
+      console.error('Erro ao carregar flags:', error);
+      setError('Erro ao carregar flags do usuário');
+    }
+  };
+
+  const handleSaveFlags = async () => {
+    if (!selectedUser || !selectedUserFlags) return;
+    
+    try {
+      await userApi.updateFlags(selectedUser.user_id, selectedUserFlags);
+      setFlagsDialogOpen(false);
+      setSelectedUser(null);
+      setSelectedUserFlags(null);
+      loadUsers();
+    } catch (error) {
+      console.error('Erro ao salvar flags:', error);
+      setError('Erro ao salvar flags');
+    }
+  };
+
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'admin':
         return <AdminPanelSettings />;
-      case 'client':
         return <Business />;
       default:
         return <Person />;
@@ -160,7 +215,6 @@ const Users: React.FC = () => {
     switch (role) {
       case 'admin':
         return theme.palette.error.main;
-      case 'client':
         return theme.palette.warning.main;
       default:
         return theme.palette.primary.main;
@@ -240,13 +294,39 @@ const Users: React.FC = () => {
                   label="Função"
                 >
                   <MenuItem value="all">Todas</MenuItem>
+                  <MenuItem value="owner_system">Owner System</MenuItem>
+                  <MenuItem value="admin_sql">Admin SQL</MenuItem>
                   <MenuItem value="admin">Administrador</MenuItem>
+                  <MenuItem value="operador_tecnico">Operador Técnico</MenuItem>
+                  <MenuItem value="operador_faturamento">Operador Faturamento</MenuItem>
+                  <MenuItem value="operador_comercial">Operador Comercial</MenuItem>
+                  <MenuItem value="gerente_marketing">Gerente Marketing</MenuItem>
+                  <MenuItem value="editoracao">Edição</MenuItem>
+                  <MenuItem value="visualizador">Visualizador</MenuItem>
                   <MenuItem value="user">Usuário</MenuItem>
-                  <MenuItem value="client">Cliente</MenuItem>
+                  <MenuItem value="publisher_user">Publisher</MenuItem>
+                  <MenuItem value="subscriber_user">Subscriber</MenuItem>
+                  <MenuItem value="publisher_subscriber">Publisher/Subscriber</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth>
+                <InputLabel>Tipo</InputLabel>
+                <Select
+                  value={userTypeFilter}
+                  onChange={(e) => setUserTypeFilter(e.target.value)}
+                  label="Tipo"
+                >
+                  <MenuItem value="all">Todos</MenuItem>
+                  <MenuItem value="system_user">Sistema</MenuItem>
+                  <MenuItem value="publisher_user">Publisher</MenuItem>
+                  <MenuItem value="subscriber_user">Subscriber</MenuItem>
+                  <MenuItem value="publisher_subscriber">Publisher/Subscriber</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={1}>
               <Button
                 fullWidth
                 variant="outlined"
@@ -276,7 +356,8 @@ const Users: React.FC = () => {
                 <TableCell>Usuário</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Função</TableCell>
-                <TableCell>Cliente</TableCell>
+                <TableCell>Tipo</TableCell>
+                <TableCell>Publisher/Subscriber</TableCell>
                 <TableCell>Último Login</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
@@ -320,14 +401,45 @@ const Users: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
-                      {user.client_id ? `Cliente ${user.client_id}` : 'N/A'}
-                    </Typography>
+                    <Chip
+                      label={user.user_type ? user.user_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A'}
+                      size="small"
+                      sx={{
+                        backgroundColor: alpha(theme.palette.info.main, 0.1),
+                        color: theme.palette.info.main,
+                      }}
+                      variant="outlined"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      {user.publisher_id && (
+                        <Chip
+                          label={`Publisher #${user.publisher_id}`}
+                          size="small"
+                          color="primary"
+                          variant="outlined"
+                        />
+                      )}
+                      {user.subscriber_id && (
+                        <Chip
+                          label={`Subscriber #${user.subscriber_id}`}
+                          size="small"
+                          color="secondary"
+                          variant="outlined"
+                        />
+                      )}
+                      {!user.publisher_id && !user.subscriber_id && (
+                        <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                          N/A
+                        </Typography>
+                      )}
+                    </Box>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
                       {formatLastLogin(user.last_login)}
-      </Typography>
+                    </Typography>
                   </TableCell>
                   <TableCell>
                     <Chip
@@ -338,6 +450,15 @@ const Users: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell align="right">
+                    <Tooltip title="Gerenciar Flags">
+                      <IconButton 
+                        size="small" 
+                        onClick={() => handleOpenFlagsDialog(user)}
+                        sx={{ color: theme.palette.info.main }}
+                      >
+                        <AdminPanelSettings />
+                      </IconButton>
+                    </Tooltip>
                     <Tooltip title="Editar">
                       <IconButton 
                         size="small" 
@@ -429,42 +550,109 @@ const Users: React.FC = () => {
             <Select
               value={newUser.role}
               onChange={(e) => {
-                const value = e.target.value;
+                const value = e.target.value as any;
                 setNewUser({ 
                   ...newUser, 
-                  role: (value === 'admin' || value === 'user' || value === 'client') 
-                    ? value as 'admin' | 'user' | 'client'
-                    : 'user'
+                  role: value
                 });
               }}
               label="Função"
             >
+              <MenuItem value="owner_system">Owner System</MenuItem>
+              <MenuItem value="admin_sql">Admin SQL</MenuItem>
               <MenuItem value="admin">Administrador</MenuItem>
+              <MenuItem value="operador_tecnico">Operador Técnico</MenuItem>
+              <MenuItem value="operador_faturamento">Operador Faturamento</MenuItem>
+              <MenuItem value="operador_comercial">Operador Comercial</MenuItem>
+              <MenuItem value="gerente_marketing">Gerente Marketing</MenuItem>
+              <MenuItem value="editoracao">Edição</MenuItem>
+              <MenuItem value="visualizador">Visualizador</MenuItem>
               <MenuItem value="user">Usuário</MenuItem>
-              <MenuItem value="client">Cliente</MenuItem>
+              <MenuItem value="publisher_user">Publisher</MenuItem>
+              <MenuItem value="subscriber_user">Subscriber</MenuItem>
+              <MenuItem value="publisher_subscriber">Publisher/Subscriber</MenuItem>
             </Select>
           </FormControl>
           <FormControl fullWidth margin="normal">
-            <InputLabel>Cliente</InputLabel>
+            <InputLabel>Tipo de Usuário</InputLabel>
             <Select
-              value={newUser.clientId || ''}
+              value={newUser.userType || 'system_user'}
               onChange={(e) => {
-                const value = e.target.value;
+                const value = e.target.value as any;
                 setNewUser({ 
                   ...newUser, 
-                  clientId: value && value !== '' ? parseInt(String(value), 10) : undefined 
+                  userType: value,
+                  publisherId: undefined,
+                  subscriberId: undefined,
+                  isTenantUser: value === 'system_user',
                 });
               }}
-              label="Cliente"
+              label="Tipo de Usuário"
             >
-              <MenuItem value="">Nenhum</MenuItem>
-              {clients.map((client) => (
-                <MenuItem key={client.client_id} value={client.client_id}>
-                  {client.name}
-                </MenuItem>
-              ))}
+              <MenuItem value="system_user">Sistema</MenuItem>
+              <MenuItem value="publisher_user">Publisher</MenuItem>
+              <MenuItem value="subscriber_user">Subscriber</MenuItem>
+              <MenuItem value="publisher_subscriber">Publisher/Subscriber</MenuItem>
             </Select>
           </FormControl>
+          {(newUser.userType === 'publisher_user' || newUser.userType === 'publisher_subscriber') && (
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Publisher</InputLabel>
+              <Select
+                value={newUser.publisherId || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNewUser({ 
+                    ...newUser, 
+                    publisherId: value && value !== '' ? parseInt(String(value), 10) : undefined 
+                  });
+                }}
+                label="Publisher"
+              >
+                <MenuItem value="">Selecione um Publisher</MenuItem>
+                {publishers.map((publisher) => (
+                  <MenuItem key={publisher.publisher_id} value={publisher.publisher_id}>
+                    {publisher.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+          {(newUser.userType === 'subscriber_user' || newUser.userType === 'publisher_subscriber') && (
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Subscriber</InputLabel>
+              <Select
+                value={newUser.subscriberId || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNewUser({ 
+                    ...newUser, 
+                    subscriberId: value && value !== '' ? parseInt(String(value), 10) : undefined 
+                  });
+                }}
+                label="Subscriber"
+              >
+                <MenuItem value="">Selecione um Subscriber</MenuItem>
+                {subscribers.map((subscriber) => (
+                  <MenuItem key={subscriber.subscriber_id} value={subscriber.subscriber_id}>
+                    {subscriber.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+          {newUser.userType === 'system_user' && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={newUser.isTenantUser || false}
+                  onChange={(e) => setNewUser({ ...newUser, isTenantUser: e.target.checked })}
+                />
+              }
+              label="Usuário Tenant (Admin/Operador do Sistema)"
+              sx={{ mt: 1 }}
+            />
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateDialogOpen(false)}>Cancelar</Button>
@@ -505,42 +693,109 @@ const Users: React.FC = () => {
             <Select
               value={selectedUser?.role || 'user'}
               onChange={(e) => {
-                const value = e.target.value;
+                const value = e.target.value as any;
                 setSelectedUser({ 
                   ...selectedUser!, 
-                  role: (value === 'admin' || value === 'user' || value === 'client') 
-                    ? value as 'admin' | 'user' | 'client'
-                    : selectedUser!.role
+                  role: value
                 });
               }}
               label="Função"
             >
+              <MenuItem value="owner_system">Owner System</MenuItem>
+              <MenuItem value="admin_sql">Admin SQL</MenuItem>
               <MenuItem value="admin">Administrador</MenuItem>
+              <MenuItem value="operador_tecnico">Operador Técnico</MenuItem>
+              <MenuItem value="operador_faturamento">Operador Faturamento</MenuItem>
+              <MenuItem value="operador_comercial">Operador Comercial</MenuItem>
+              <MenuItem value="gerente_marketing">Gerente Marketing</MenuItem>
+              <MenuItem value="editoracao">Edição</MenuItem>
+              <MenuItem value="visualizador">Visualizador</MenuItem>
               <MenuItem value="user">Usuário</MenuItem>
-              <MenuItem value="client">Cliente</MenuItem>
+              <MenuItem value="publisher_user">Publisher</MenuItem>
+              <MenuItem value="subscriber_user">Subscriber</MenuItem>
+              <MenuItem value="publisher_subscriber">Publisher/Subscriber</MenuItem>
             </Select>
           </FormControl>
           <FormControl fullWidth margin="normal">
-            <InputLabel>Cliente</InputLabel>
+            <InputLabel>Tipo de Usuário</InputLabel>
             <Select
-              value={selectedUser?.client_id || ''}
+              value={selectedUser?.user_type || 'system_user'}
               onChange={(e) => {
-                const value = e.target.value;
+                const value = e.target.value as any;
                 setSelectedUser({ 
                   ...selectedUser!, 
-                  client_id: value && value !== '' ? parseInt(String(value), 10) : undefined 
+                  user_type: value,
+                  publisher_id: value !== 'publisher_user' && value !== 'publisher_subscriber' ? undefined : selectedUser?.publisher_id,
+                  subscriber_id: value !== 'subscriber_user' && value !== 'publisher_subscriber' ? undefined : selectedUser?.subscriber_id,
+                  is_tenant_user: value === 'system_user' ? (selectedUser?.is_tenant_user || false) : false,
                 });
               }}
-              label="Cliente"
+              label="Tipo de Usuário"
             >
-              <MenuItem value="">Nenhum</MenuItem>
-              {clients.map((client) => (
-                <MenuItem key={client.client_id} value={client.client_id}>
-                  {client.name}
-                </MenuItem>
-              ))}
+              <MenuItem value="system_user">Sistema</MenuItem>
+              <MenuItem value="publisher_user">Publisher</MenuItem>
+              <MenuItem value="subscriber_user">Subscriber</MenuItem>
+              <MenuItem value="publisher_subscriber">Publisher/Subscriber</MenuItem>
             </Select>
           </FormControl>
+          {(selectedUser?.user_type === 'publisher_user' || selectedUser?.user_type === 'publisher_subscriber') && (
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Publisher</InputLabel>
+              <Select
+                value={selectedUser?.publisher_id || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedUser({ 
+                    ...selectedUser!, 
+                    publisher_id: value && value !== '' ? parseInt(String(value), 10) : undefined 
+                  });
+                }}
+                label="Publisher"
+              >
+                <MenuItem value="">Selecione um Publisher</MenuItem>
+                {publishers.map((publisher) => (
+                  <MenuItem key={publisher.publisher_id} value={publisher.publisher_id}>
+                    {publisher.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+          {(selectedUser?.user_type === 'subscriber_user' || selectedUser?.user_type === 'publisher_subscriber') && (
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Subscriber</InputLabel>
+              <Select
+                value={selectedUser?.subscriber_id || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedUser({ 
+                    ...selectedUser!, 
+                    subscriber_id: value && value !== '' ? parseInt(String(value), 10) : undefined 
+                  });
+                }}
+                label="Subscriber"
+              >
+                <MenuItem value="">Selecione um Subscriber</MenuItem>
+                {subscribers.map((subscriber) => (
+                  <MenuItem key={subscriber.subscriber_id} value={subscriber.subscriber_id}>
+                    {subscriber.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+          {selectedUser?.user_type === 'system_user' && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={selectedUser?.is_tenant_user || false}
+                  onChange={(e) => setSelectedUser({ ...selectedUser!, is_tenant_user: e.target.checked })}
+                />
+              }
+              label="Usuário Tenant (Admin/Operador do Sistema)"
+              sx={{ mt: 1 }}
+            />
+          )}
           <FormControlLabel
             control={
               <Switch
@@ -549,11 +804,59 @@ const Users: React.FC = () => {
               />
             }
             label="Usuário Ativo"
+            sx={{ mt: 1 }}
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
           <Button variant="contained" onClick={handleEditUser}>Salvar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Flags Dialog */}
+      <Dialog open={flagsDialogOpen} onClose={() => setFlagsDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Gerenciar Flags - {selectedUser?.name}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 3, color: theme.palette.text.secondary }}>
+            Configure as permissões específicas deste usuário. As flags sobrescrevem as permissões padrão da role.
+          </Typography>
+          <Grid container spacing={2}>
+            {selectedUserFlags && Object.entries(selectedUserFlags).map(([flagName, value]) => (
+              <Grid item xs={12} sm={6} key={flagName}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={value}
+                      onChange={(e) => {
+                        setSelectedUserFlags({
+                          ...selectedUserFlags,
+                          [flagName]: e.target.checked,
+                        });
+                      }}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        {flagName.replace('flag_smart_', 'Flag ').toUpperCase()}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                        {flagName === 'flag_smart_0' && 'Acesso técnico (totens, Smart TVs, players)'}
+                        {flagName === 'flag_smart_1' && 'OTA Updates'}
+                        {flagName === 'flag_smart_2' && 'Admin Tools'}
+                        {flagName === 'flag_smart_3' && 'Faturamento'}
+                        {flagName.startsWith('flag_smart_') && !['flag_smart_0', 'flag_smart_1', 'flag_smart_2', 'flag_smart_3'].includes(flagName) && 'Reservado'}
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Grid>
+            ))}
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setFlagsDialogOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleSaveFlags}>Salvar Flags</Button>
         </DialogActions>
       </Dialog>
     </Box>

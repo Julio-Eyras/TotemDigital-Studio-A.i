@@ -396,6 +396,22 @@ $importantRootFiles = @(
     "install-smartsignage.sh",
     "fix-frontend-ajv.ps1",
     "criar-zip-distribuicao.ps1",
+    # Scripts de validação e execução (Windows)
+    "VALIDAR-SISTEMA.ps1",
+    "EXECUTAR-E-VALIDAR.ps1",
+    "LEVANTAR-SISTEMA.ps1",
+    "PARAR-SERVICOS.ps1",
+    # Scripts de validação e execução (Linux)
+    "VALIDAR-SISTEMA.sh",
+    "EXECUTAR-E-VALIDAR.sh",
+    "LEVANTAR-SISTEMA.sh",
+    "PARAR-SERVICOS.sh",
+    # Documentação de validação e instalação
+    "README-VALIDACAO.md",
+    "README-INSTALACAO-WINDOWS.md",
+    "README-INSTALACAO-LINUX.md",
+    "CHANGELOG-VALIDACAO-INSTALL-SH.md",
+    # Docker
     "docker-compose.yml",
     "Dockerfile",
     "Dockerfile.backend",
@@ -490,15 +506,44 @@ Esta é uma distribuição limpa do SmartSignage Pro contendo apenas os arquivos
 
 ### Linux/Ubuntu
 
+**Instalação completa com validação automática:**
 \`\`\`bash
 chmod +x install-smartsignage.sh
 sudo ./install-smartsignage.sh
 \`\`\`
 
+**Instalação e validação em um único comando:**
+\`\`\`bash
+chmod +x EXECUTAR-E-VALIDAR.sh
+./EXECUTAR-E-VALIDAR.sh
+\`\`\`
+
+**Apenas validar sistema (se já estiver instalado):**
+\`\`\`bash
+chmod +x VALIDAR-SISTEMA.sh
+./VALIDAR-SISTEMA.sh
+\`\`\`
+
 ### Windows
 
+**Instalação completa com validação automática:**
 \`\`\`powershell
-.\install-windows.ps1
+.\EXECUTAR-E-VALIDAR.ps1
+\`\`\`
+
+**Apenas instalar e iniciar:**
+\`\`\`powershell
+.\LEVANTAR-SISTEMA.ps1
+\`\`\`
+
+**Apenas validar sistema (se já estiver instalado):**
+\`\`\`powershell
+.\VALIDAR-SISTEMA.ps1
+\`\`\`
+
+**Parar serviços:**
+\`\`\`powershell
+.\PARAR-SERVICOS.ps1
 \`\`\`
 
 O script de instalação do Windows irá:
@@ -507,6 +552,7 @@ O script de instalação do Windows irá:
 - Compilar o backend TypeScript
 - Configurar o banco de dados automaticamente
 - Corrigir problemas comuns (como o módulo ajv no frontend)
+- Executar validação automática completa do sistema
 
 ## Pré-requisitos
 
@@ -531,6 +577,10 @@ O script de instalação do Windows irá:
 - docs/README.md - Índice da documentação completa
 - docs/GUIA_INSTALACAO_PLAYERS.md - Guia de instalação de players
 - docs/CONFIGURACAO_BANCO_DADOS.md - Configuração do banco de dados
+- README-VALIDACAO.md - Guia de validação automática do sistema
+- README-INSTALACAO-WINDOWS.md - Guia completo de instalação no Windows
+- README-INSTALACAO-LINUX.md - Guia completo de instalação no Linux/macOS
+- CHANGELOG-VALIDACAO-INSTALL-SH.md - Changelog das melhorias de validação
 
 ---
 

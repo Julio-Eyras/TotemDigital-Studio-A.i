@@ -40,16 +40,50 @@ import {
   CheckCircle,
   Warning,
   Error,
+  VideoLibrary,
 } from '@mui/icons-material';
-import { campaignApi, Campaign, CreateCampaignRequest, UpdateCampaignRequest, clientApi, Client, playlistApi, PlaylistItem, playerApi, Player } from '../../services/api';
+import { campaignApi, Campaign, CreateCampaignRequest, UpdateCampaignRequest, clientApi, Client, playlistApi, PlaylistItem, playerApi, Player, publisherApi, Publisher, subscriberAccessApi, AccessiblePublisher, mediaApi, MediaItem } from '../../services/api';
+import { useAppSelector } from '../../store/hooks';
+
+interface PublisherOption {
+  publisher_id: number;
+  name: string;
+  email?: string;
+}
 
 const Campaigns: React.FC = () => {
   const theme = useTheme();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]); // NOVO: Para mídias diretas
   const [players, setPlayers] = useState<Player[]>([]);
+  const [publishers, setPublishers] = useState<Publisher[]>([]);
+  const [accessiblePublishers, setAccessiblePublishers] = useState<AccessiblePublisher[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const user = useAppSelector((state) => state.auth.user);
+  const isAdmin = user?.role === 'admin' || user?.role === 'admin_sql';
+  const userSubscriberId = user?.subscriberId || user?.clientId;
+
+  // Converter publishers para formato comum
+  const getPublisherOptions = (): PublisherOption[] => {
+    if (isAdmin) {
+      return publishers.map(p => ({
+        publisher_id: p.publisher_id,
+        name: p.name,
+        email: p.email
+      }));
+    }
+    if (!Array.isArray(accessiblePublishers)) {
+      return [];
+    }
+    return accessiblePublishers.map(ap => ({
+      publisher_id: ap.publisher_id,
+      name: ap.publisher_name || '',
+      email: ap.publisher_email
+    }));
+  };
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
@@ -66,6 +100,7 @@ const Campaigns: React.FC = () => {
     end_date: '',
     playlistIds: [],
     totemIds: [],
+    publisherIds: [], // Publishers onde a campanha será exibida
     // Novos campos comerciais (frontend envia para backend usar comercial_tier e time_share)
     commercial_tier: 'standard' as any,
     default_time_share_percent: 0,
@@ -76,8 +111,13 @@ const Campaigns: React.FC = () => {
     loadCampaigns();
     loadClients();
     loadPlaylists();
+    loadMediaItems(); // NOVO: Carregar mídias
     loadPlayers();
-  }, []);
+    loadPublishers();
+    if (userSubscriberId) {
+      loadAccessiblePublishers(userSubscriberId);
+    }
+  }, [userSubscriberId]);
 
   const loadCampaigns = async () => {
     try {
@@ -122,10 +162,29 @@ const Campaigns: React.FC = () => {
 
   const loadPlaylists = async () => {
     try {
-      const response = await playlistApi.getAll();
+      // Filtrar playlists por subscriber se não for admin
+      const subscriberId = !isAdmin && userSubscriberId ? userSubscriberId : undefined;
+      const response = await playlistApi.getAll({
+        subscriberId: subscriberId,
+        clientId: subscriberId, // DEPRECATED (compatibilidade)
+      });
       setPlaylists(response.data || []);
     } catch (error) {
       console.error('Erro ao carregar playlists:', error);
+    }
+  };
+
+  const loadMediaItems = async () => {
+    try {
+      // Filtrar mídias por subscriber se não for admin
+      const subscriberId = !isAdmin && userSubscriberId ? userSubscriberId : undefined;
+      const response = await mediaApi.getAll({
+        subscriberId: subscriberId,
+      });
+      setMediaItems(Array.isArray(response?.data) ? response.data : []);
+    } catch (error) {
+      console.error('Erro ao carregar mídias:', error);
+      setMediaItems([]);
     }
   };
 
@@ -138,9 +197,39 @@ const Campaigns: React.FC = () => {
     }
   };
 
+  const loadPublishers = async () => {
+    try {
+      const response = await publisherApi.getAll({ active_only: true });
+      setPublishers(response.data || []);
+    } catch (error) {
+      console.error('Erro ao carregar publishers:', error);
+    }
+  };
+
+  const loadAccessiblePublishers = async (subscriberId: number) => {
+    try {
+      const accessible = await subscriberAccessApi.getAccessiblePublishers(subscriberId);
+      setAccessiblePublishers(accessible);
+    } catch (error) {
+      console.error('Erro ao carregar publishers acessíveis:', error);
+    }
+  };
+
   const handleCreateCampaign = async () => {
     try {
       setError(null); // Limpar erro anterior
+      
+      // Validar acesso a publishers antes de criar (para não-admins)
+      if (!isAdmin && newCampaign.publisherIds && newCampaign.publisherIds.length > 0 && newCampaign.clientId) {
+        const accessiblePublisherIds = accessiblePublishers.map(ap => ap.publisher_id);
+        const invalidPublishers = newCampaign.publisherIds.filter(id => !accessiblePublisherIds.includes(id));
+        
+        if (invalidPublishers.length > 0) {
+          setError(`Você não tem acesso aos seguintes publishers: ${invalidPublishers.join(', ')}. Verifique seu contrato e plano.`);
+          return;
+        }
+      }
+      
       const createdCampaign = await campaignApi.create(newCampaign as any);
       console.log('Campanha criada com sucesso:', createdCampaign);
       
@@ -156,6 +245,8 @@ const Campaigns: React.FC = () => {
         end_date: '',
         playlistIds: [],
         totemIds: [],
+        publisherIds: [],
+        mediaIds: [], // NOVO
         commercial_tier: 'standard' as any,
         default_time_share_percent: 0,
         max_consecutive_slots: 2,
@@ -187,6 +278,9 @@ const Campaigns: React.FC = () => {
         start_date: selectedCampaign.start_date || (selectedCampaign as any).startDate,
         end_date: selectedCampaign.end_date || (selectedCampaign as any).endDate,
         isActive: selectedCampaign.is_active !== undefined ? selectedCampaign.is_active : ((selectedCampaign as any).isActive !== undefined ? (selectedCampaign as any).isActive : true),
+        playlistIds: selectedCampaign.playlistIds || [], // NOVO
+        mediaIds: selectedCampaign.mediaIds || [], // NOVO
+        publisherIds: (selectedCampaign as any).publisherIds || [], // NOVO
         // Campos comerciais
         commercial_tier: (selectedCampaign as any).commercial_tier || 'standard',
         default_time_share_percent: (selectedCampaign as any).default_time_share_percent ?? 0,
@@ -419,6 +513,39 @@ const Campaigns: React.FC = () => {
                       Fim: {formatDate(campaign.end_date || (campaign as any).endDate)}
                     </Typography>
                   </Box>
+                  {/* Publishers associados */}
+                  {((campaign as any).publisherIds && (campaign as any).publisherIds.length > 0) || 
+                   ((campaign as any).publisherNames && (campaign as any).publisherNames.length > 0) ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
+                      <People fontSize="small" color="action" />
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                        Publishers: {((campaign as any).publisherNames || []).join(', ') || 
+                        ((campaign as any).publisherIds || []).map((id: number) => `Publisher ${id}`).join(', ')}
+                      </Typography>
+                    </Box>
+                  ) : null}
+                  {/* Playlists associadas */}
+                  {(campaign.playlistIds && campaign.playlistIds.length > 0) || 
+                   (campaign.playlistNames && campaign.playlistNames.length > 0) ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
+                      <CampaignIcon fontSize="small" color="action" />
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                        Playlists: {(campaign.playlistNames || []).join(', ') || 
+                        (campaign.playlistIds || []).map((id: number) => `Playlist ${id}`).join(', ')}
+                      </Typography>
+                    </Box>
+                  ) : null}
+                  {/* Mídias diretamente associadas */}
+                  {(campaign.mediaIds && campaign.mediaIds.length > 0) || 
+                   (campaign.mediaNames && campaign.mediaNames.length > 0) ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
+                      <VideoLibrary fontSize="small" color="action" />
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                        Mídias Diretas: {(campaign.mediaNames || []).join(', ') || 
+                        (campaign.mediaIds || []).map((id: number) => `Mídia ${id}`).join(', ')}
+                      </Typography>
+                    </Box>
+                  ) : null}
                 </Box>
 
                 <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -431,8 +558,13 @@ const Campaigns: React.FC = () => {
                   
                   <Box>
                     <Tooltip title="Editar">
-                      <IconButton size="small" onClick={() => {
+                      <IconButton size="small" onClick={async () => {
                         setSelectedCampaign(campaign);
+                        // Carregar publishers acessíveis se houver subscriberId
+                        const subscriberId = campaign.client_id || (campaign as any).clientId;
+                        if (subscriberId && !isAdmin) {
+                          await loadAccessiblePublishers(subscriberId);
+                        }
                         setEditDialogOpen(true);
                       }}>
                         <Edit />
@@ -522,14 +654,29 @@ const Campaigns: React.FC = () => {
             <InputLabel>Cliente</InputLabel>
             <Select
               value={newCampaign.clientId || ''}
-              onChange={(e) => {
+              onChange={async (e) => {
                 const value = e.target.value;
+                const clientId = value && value !== '' ? parseInt(String(value), 10) : undefined;
                 setNewCampaign({ 
                   ...newCampaign, 
-                  clientId: value && value !== '' ? parseInt(String(value), 10) : undefined 
+                  clientId,
+                  publisherIds: [] // Limpar publishers ao mudar cliente
                 });
+                
+                // Carregar publishers acessíveis para o subscriber selecionado
+                if (clientId) {
+                  try {
+                    const accessible = await subscriberAccessApi.getAccessiblePublishers(clientId);
+                    setAccessiblePublishers(accessible);
+                  } catch (error) {
+                    console.error('Erro ao carregar publishers acessíveis:', error);
+                    setAccessiblePublishers([]);
+                  }
+                } else {
+                  setAccessiblePublishers([]);
+                }
               }}
-              label="Cliente"
+              label="Cliente (Subscriber)"
             >
               <MenuItem value="">Nenhum</MenuItem>
               {clients.map((client) => (
@@ -539,6 +686,40 @@ const Campaigns: React.FC = () => {
               ))}
             </Select>
           </FormControl>
+          
+          {/* Seleção de Publishers */}
+          {newCampaign.clientId && (
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Publishers (Onde a campanha será exibida)</InputLabel>
+              <Autocomplete<PublisherOption, true>
+                multiple
+                options={getPublisherOptions()}
+                getOptionLabel={(option) => option.name || `Publisher ${option.publisher_id}`}
+                value={getPublisherOptions().filter(p => newCampaign.publisherIds?.includes(p.publisher_id))}
+                onChange={(_, newValue) => {
+                  setNewCampaign({ 
+                    ...newCampaign, 
+                    publisherIds: newValue.map(p => p.publisher_id) 
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField 
+                    {...params} 
+                    label="Publishers" 
+                    margin="normal"
+                    helperText={
+                      isAdmin 
+                        ? "Selecione os publishers onde a campanha será exibida"
+                        : !Array.isArray(accessiblePublishers) || accessiblePublishers.length === 0
+                        ? "Nenhum publisher acessível encontrado. Verifique o contrato e plano do subscriber."
+                        : "Selecione os publishers acessíveis onde a campanha será exibida"
+                    }
+                  />
+                )}
+                disabled={!newCampaign.clientId || (!isAdmin && (!Array.isArray(accessiblePublishers) || accessiblePublishers.length === 0))}
+              />
+            </FormControl>
+          )}
           <TextField
             fullWidth
             label="Data de Início"
@@ -559,7 +740,11 @@ const Campaigns: React.FC = () => {
           />
           <Autocomplete
             multiple
-            options={playlists}
+            options={playlists.filter(p => {
+              // Filtrar playlists por subscriber da campanha
+              const campaignSubscriberId = newCampaign.clientId;
+              return !campaignSubscriberId || (p.subscriber_id || p.client_id) === campaignSubscriberId;
+            })}
             getOptionLabel={(option) => option.name}
             value={playlists.filter(p => newCampaign.playlistIds?.includes(p.playlist_id))}
             onChange={(_, newValue) => {
@@ -567,6 +752,22 @@ const Campaigns: React.FC = () => {
             }}
             renderInput={(params) => (
               <TextField {...params} label="Playlists" margin="normal" />
+            )}
+          />
+          <Autocomplete
+            multiple
+            options={mediaItems.filter(m => {
+              // Filtrar mídias por subscriber da campanha
+              const campaignSubscriberId = newCampaign.clientId;
+              return !campaignSubscriberId || (m.subscriberId || m.clientId) === campaignSubscriberId;
+            })}
+            getOptionLabel={(option) => option.name}
+            value={mediaItems.filter(m => newCampaign.mediaIds?.includes(m.media_id))}
+            onChange={(_, newValue) => {
+              setNewCampaign({ ...newCampaign, mediaIds: newValue.map(m => m.media_id) });
+            }}
+            renderInput={(params) => (
+              <TextField {...params} label="Mídias Diretas (sem playlist)" margin="normal" helperText="Selecione mídias para associar diretamente à campanha, sem usar playlist" />
             )}
           />
           <Autocomplete
@@ -675,6 +876,107 @@ const Campaigns: React.FC = () => {
               />
             }
             label="Campanha Ativa"
+          />
+          
+          {/* Seleção de Publishers */}
+          {selectedCampaign && (
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Publishers (Onde a campanha será exibida)</InputLabel>
+              <Autocomplete
+                multiple
+                options={isAdmin ? publishers : accessiblePublishers.map(ap => ({
+                  publisher_id: ap.publisher_id,
+                  name: ap.publisher_name,
+                  email: ap.publisher_email
+                }))}
+                getOptionLabel={(option) => option.name || `Publisher ${option.publisher_id}`}
+                value={(() => {
+                  const publisherOptions: PublisherOption[] = isAdmin 
+                    ? publishers.map(p => ({
+                        publisher_id: p.publisher_id,
+                        name: p.name,
+                        email: p.email
+                      }))
+                    : accessiblePublishers.map(ap => ({
+                        publisher_id: ap.publisher_id,
+                        name: ap.publisher_name || '',
+                        email: ap.publisher_email
+                      }));
+                  const selectedIds = ((selectedCampaign as any).publisherIds || []) as number[];
+                  return publisherOptions.filter(p => selectedIds.includes(p.publisher_id));
+                })()}
+                onChange={(_, newValue) => {
+                  setSelectedCampaign({ 
+                    ...selectedCampaign!, 
+                    publisherIds: newValue.map((p: any) => p.publisher_id) 
+                  } as any);
+                }}
+                renderInput={(params) => {
+                  const selectedIds = ((selectedCampaign as any).publisherIds || []) as number[];
+                  const accessibleIds = accessiblePublishers.map(ap => ap.publisher_id);
+                  const hasInvalidPublishers = !isAdmin && selectedIds.some(id => !accessibleIds.includes(id));
+                  
+                  return (
+                    <TextField 
+                      {...params} 
+                      label="Publishers" 
+                      margin="normal"
+                      error={hasInvalidPublishers}
+                      helperText={
+                        hasInvalidPublishers
+                          ? "⚠️ Alguns publishers selecionados não estão acessíveis. Remova-os ou verifique seu contrato."
+                          : isAdmin 
+                          ? "Selecione os publishers onde a campanha será exibida"
+                          : accessiblePublishers.length === 0
+                          ? "Nenhum publisher acessível encontrado. Verifique o contrato e plano do subscriber."
+                          : "Selecione os publishers acessíveis onde a campanha será exibida"
+                      }
+                    />
+                  );
+                }}
+                disabled={!isAdmin && accessiblePublishers.length === 0}
+              />
+            </FormControl>
+          )}
+          
+          {/* Seleção de Playlists */}
+          <Autocomplete
+            multiple
+            options={playlists.filter(p => {
+              const campaignSubscriberId = selectedCampaign?.client_id || (selectedCampaign as any)?.clientId;
+              return !campaignSubscriberId || (p.subscriber_id || p.client_id) === campaignSubscriberId;
+            })}
+            getOptionLabel={(option) => option.name}
+            value={playlists.filter(p => (selectedCampaign?.playlistIds || []).includes(p.playlist_id))}
+            onChange={(_, newValue) => {
+              setSelectedCampaign({ 
+                ...selectedCampaign!, 
+                playlistIds: newValue.map(p => p.playlist_id)
+              });
+            }}
+            renderInput={(params) => (
+              <TextField {...params} label="Playlists" margin="normal" />
+            )}
+          />
+          
+          {/* Seleção de Mídias Diretas */}
+          <Autocomplete
+            multiple
+            options={mediaItems.filter(m => {
+              const campaignSubscriberId = selectedCampaign?.client_id || (selectedCampaign as any)?.clientId;
+              return !campaignSubscriberId || (m.subscriberId || m.clientId) === campaignSubscriberId;
+            })}
+            getOptionLabel={(option) => option.name}
+            value={mediaItems.filter(m => (selectedCampaign?.mediaIds || []).includes(m.media_id))}
+            onChange={(_, newValue) => {
+              setSelectedCampaign({ 
+                ...selectedCampaign!, 
+                mediaIds: newValue.map(m => m.media_id)
+              });
+            }}
+            renderInput={(params) => (
+              <TextField {...params} label="Mídias Diretas (sem playlist)" margin="normal" helperText="Selecione mídias para associar diretamente à campanha, sem usar playlist" />
+            )}
           />
           
           {/* Campos Comerciais */}

@@ -45,7 +45,7 @@ import {
   MoreVert,
   Refresh,
 } from '@mui/icons-material';
-import { mediaApi, MediaItem, CreateMediaRequest } from '../../services/api';
+import { mediaApi, MediaItem, CreateMediaRequest, clientApi, Client } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 
 const Media: React.FC = () => {
@@ -57,19 +57,55 @@ const Media: React.FC = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [mediaTypeFilter, setMediaTypeFilter] = useState('all');
+  const [subscriberFilter, setSubscriberFilter] = useState<number | 'all'>('all');
+  const [subscribers, setSubscribers] = useState<Client[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userSubscriberId, setUserSubscriberId] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Verificar se é admin e carregar subscribers
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userRole = user?.role || '';
+    const userType = user?.userType || '';
+    const admin = userRole === 'admin' || userType === 'system_user';
+    setIsAdmin(admin);
+    setUserSubscriberId(user?.subscriberId || user?.clientId);
+
+    if (admin) {
+      loadSubscribers();
+    }
     loadMediaItems();
   }, []);
+
+  const loadSubscribers = async () => {
+    try {
+      const response = await clientApi.getAll({ limit: 1000 });
+      setSubscribers(response.data || []);
+    } catch (error) {
+      console.error('Erro ao carregar subscribers:', error);
+    }
+  };
 
   const loadMediaItems = async () => {
     try {
       setLoading(true);
       setError(null);
+      
+      // Determinar subscriberId para filtro
+      let subscriberId: number | undefined = undefined;
+      if (!isAdmin && userSubscriberId) {
+        // Se não é admin, usar subscriberId do usuário
+        subscriberId = userSubscriberId;
+      } else if (isAdmin && subscriberFilter !== 'all' && typeof subscriberFilter === 'number') {
+        // Se é admin e selecionou um subscriber, filtrar por ele
+        subscriberId = subscriberFilter;
+      }
+      
       const response = await mediaApi.getAll({
         search: searchTerm || undefined,
         mediaType: mediaTypeFilter !== 'all' ? mediaTypeFilter : undefined,
+        subscriberId: subscriberId,
       });
       // mediaApi.getAll já retorna { data: [...], total, page, limit }
       setMediaItems(Array.isArray(response?.data) ? response.data : []);
@@ -81,6 +117,10 @@ const Media: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadMediaItems();
+  }, [searchTerm, mediaTypeFilter, subscriberFilter]);
 
   const handleUploadSuccess = () => {
     setUploadDialogOpen(false);
@@ -187,7 +227,7 @@ const Media: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} md={isAdmin ? 4 : 6}>
               <TextField
                 fullWidth
                 placeholder="Buscar mídia..."
@@ -198,7 +238,26 @@ const Media: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} md={3}>
+            {isAdmin && (
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth>
+                  <InputLabel>Subscriber (Anunciante)</InputLabel>
+                  <Select
+                    value={subscriberFilter}
+                    onChange={(e) => setSubscriberFilter(e.target.value as number | 'all')}
+                    label="Subscriber (Anunciante)"
+                  >
+                    <MenuItem value="all">Todos os Subscribers</MenuItem>
+                    {subscribers.map((subscriber) => (
+                      <MenuItem key={subscriber.client_id} value={subscriber.client_id}>
+                        {subscriber.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
+            <Grid item xs={12} md={isAdmin ? 2 : 3}>
               <FormControl fullWidth>
                 <InputLabel>Tipo de Mídia</InputLabel>
                 <Select
@@ -213,7 +272,7 @@ const Media: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} md={isAdmin ? 3 : 3}>
               <Button
                 fullWidth
                 variant="outlined"
@@ -438,23 +497,81 @@ const Media: React.FC = () => {
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                 <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
                   {media.name}
-      </Typography>
+                </Typography>
       
-                {media.title && (
+                {media.description && (
                   <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1 }} noWrap>
-                    {media.title}
+                    {media.description}
+                  </Typography>
+                )}
+
+                {/* Dados do Subscriber */}
+                {media.subscriberName && (
+                  <Box sx={{ mb: 1 }}>
+                    <Chip
+                      label={`Subscriber: ${media.subscriberName}`}
+                      size="small"
+                      color="primary"
+                      variant="outlined"
+                      sx={{ fontSize: '0.7rem' }}
+                    />
+                  </Box>
+                )}
+
+                {/* Tags */}
+                {media.tags && media.tags.length > 0 && (
+                  <Box sx={{ mb: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {media.tags.slice(0, 3).map((tag, idx) => (
+                      <Chip
+                        key={idx}
+                        label={tag}
+                        size="small"
+                        sx={{ fontSize: '0.65rem', height: '20px' }}
+                      />
+                    ))}
+                    {media.tags.length > 3 && (
+                      <Chip
+                        label={`+${media.tags.length - 3}`}
+                        size="small"
+                        sx={{ fontSize: '0.65rem', height: '20px' }}
+                      />
+                    )}
+                  </Box>
+                )}
+
+                {/* Status e Aprovação */}
+                <Box sx={{ mb: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                  <Chip
+                    label={media.status || 'draft'}
+                    size="small"
+                    color={
+                      media.status === 'approved' ? 'success' :
+                      media.status === 'rejected' ? 'error' :
+                      media.status === 'pending_approval' ? 'warning' :
+                      'default'
+                    }
+                    variant="outlined"
+                  />
+                  {media.approvalStatus && (
+                    <Chip
+                      label={`Aprovação: ${media.approvalStatus}`}
+                      size="small"
+                      color={media.approvalStatus === 'approved' ? 'success' : 'default'}
+                      variant="outlined"
+                    />
+                  )}
+                </Box>
+
+                {/* Informações de aprovação */}
+                {media.approvedByName && (
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
+                    Aprovado por: {media.approvedByName}
+                    {media.approvedAt && ` em ${new Date(media.approvedAt).toLocaleDateString('pt-BR')}`}
                   </Typography>
                 )}
 
                 <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Chip
-                    label={media.status || 'draft'}
-                    size="small"
-                    color={media.status === 'active' ? 'success' : 'default'}
-                    variant="outlined"
-                  />
-                  
-                  <Box>
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
                     <Tooltip title="Visualizar">
                       <IconButton size="small">
                         <Visibility />
@@ -505,6 +622,9 @@ const Media: React.FC = () => {
         open={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
         onSuccess={handleUploadSuccess}
+        isAdmin={isAdmin}
+        subscribers={subscribers}
+        userSubscriberId={userSubscriberId}
       />
 
       {/* Edit Dialog */}
@@ -519,18 +639,41 @@ const Media: React.FC = () => {
           />
           <TextField
             fullWidth
-            label="Título"
-            defaultValue={selectedMedia?.title}
-            margin="normal"
-          />
-          <TextField
-            fullWidth
             label="Descrição"
             defaultValue={selectedMedia?.description}
             margin="normal"
             multiline
             rows={3}
           />
+          <TextField
+            fullWidth
+            label="Tags (separadas por vírgula)"
+            defaultValue={selectedMedia?.tags?.join(', ')}
+            margin="normal"
+            placeholder="tag1, tag2, tag3"
+          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Status</InputLabel>
+            <Select
+              defaultValue={selectedMedia?.status || 'draft'}
+              label="Status"
+            >
+              <MenuItem value="draft">Rascunho</MenuItem>
+              <MenuItem value="pending_approval">Aguardando Aprovação</MenuItem>
+              <MenuItem value="approved">Aprovado</MenuItem>
+              <MenuItem value="rejected">Rejeitado</MenuItem>
+              <MenuItem value="archived">Arquivado</MenuItem>
+            </Select>
+          </FormControl>
+          {selectedMedia?.subscriberName && (
+            <TextField
+              fullWidth
+              label="Subscriber"
+              value={selectedMedia.subscriberName}
+              margin="normal"
+              disabled
+            />
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>

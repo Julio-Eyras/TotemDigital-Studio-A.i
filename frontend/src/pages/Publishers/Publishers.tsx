@@ -241,7 +241,8 @@ const Publishers: React.FC = () => {
     }
     if (editingTotemIndex !== null) {
       const updated = [...tempTotems];
-      updated[editingTotemIndex] = { ...totemForm };
+      // Preservar tempId ao editar
+      updated[editingTotemIndex] = { ...totemForm, tempId: tempTotems[editingTotemIndex].tempId };
       setTempTotems(updated);
       setEditingTotemIndex(null);
     } else {
@@ -285,7 +286,8 @@ const Publishers: React.FC = () => {
     }
     if (editingSmartTvIndex !== null) {
       const updated = [...tempSmartTvs];
-      updated[editingSmartTvIndex] = { ...smartTvForm };
+      // Preservar tempId ao editar
+      updated[editingSmartTvIndex] = { ...smartTvForm, tempId: tempSmartTvs[editingSmartTvIndex].tempId };
       setTempSmartTvs(updated);
       setEditingSmartTvIndex(null);
     } else {
@@ -308,7 +310,8 @@ const Publishers: React.FC = () => {
   };
 
   const handleEditSmartTv = (index: number) => {
-    setSmartTvForm({ ...tempSmartTvs[index] });
+    // Preservar tempId ao editar
+    setSmartTvForm({ ...tempSmartTvs[index], tempId: tempSmartTvs[index].tempId });
     setEditingSmartTvIndex(index);
   };
 
@@ -389,6 +392,7 @@ const Publishers: React.FC = () => {
           }
           
           console.log(`Criando totem ${totem.identifier || totem.name} com localId:`, localId);
+          console.log('Dados do totem antes de preparar:', totem);
           
           // Preparar dados do totem (identifier é obrigatório na interface, mas backend aceita name OU identifier)
           const totemData: any = {
@@ -396,31 +400,69 @@ const Publishers: React.FC = () => {
           };
           
           // Adicionar identifier OU name (backend requer pelo menos um)
-          if (totem.identifier) {
-            totemData.identifier = totem.identifier;
+          // Backend valida: identifier deve ter entre 2 e 100 caracteres se fornecido
+          if (totem.identifier && totem.identifier.trim().length >= 2) {
+            totemData.identifier = totem.identifier.trim();
           }
-          if (totem.name) {
-            totemData.name = totem.name;
+          if (totem.name && totem.name.trim().length >= 2) {
+            totemData.name = totem.name.trim();
+          }
+          
+          // Validar que temos pelo menos um (name ou identifier)
+          if (!totemData.identifier && !totemData.name) {
+            const errorMessage = `Totem na posição ${localIndex + 1}: Nome ou identificador é obrigatório e deve ter pelo menos 2 caracteres`;
+            console.error(errorMessage, { identifier: totem.identifier, name: totem.name });
+            setError(errorMessage);
+            return;
           }
           
           // Adicionar campos opcionais apenas se tiverem valor
-          if (totem.uin) {
-            totemData.uin = totem.uin;
+          if (totem.uin && totem.uin.trim()) {
+            totemData.uin = totem.uin.trim();
           }
-          if (totem.deviceId) {
-            totemData.deviceId = totem.deviceId;
+          if (totem.deviceId && totem.deviceId.trim()) {
+            totemData.deviceId = totem.deviceId.trim();
           }
-          if (totem.description) {
-            totemData.description = totem.description;
+          if (totem.description && totem.description.trim()) {
+            totemData.description = totem.description.trim();
           }
-          if (totem.firmwareVersion) {
-            totemData.firmwareVersion = totem.firmwareVersion;
+          if (totem.firmwareVersion && totem.firmwareVersion.trim()) {
+            totemData.firmwareVersion = totem.firmwareVersion.trim();
           }
           
-          const createdTotem = await totemApi.create(totemData);
+          console.log('Dados do totem sendo enviados:', totemData);
           
-          console.log('Totem criado com sucesso:', createdTotem);
-          createdTotems.push(createdTotem);
+          try {
+            const createdTotem = await totemApi.create(totemData);
+            console.log('Totem criado com sucesso:', createdTotem);
+            createdTotems.push(createdTotem);
+          } catch (totemError: any) {
+            console.error('Erro ao criar totem:', totemError);
+            console.error('Response completa:', totemError?.response);
+            console.error('Dados enviados:', totemData);
+            
+            let errorMessage = `Erro ao criar totem "${totem.identifier || totem.name}": `;
+            
+            if (totemError?.response?.data) {
+              if (totemError.response.data.details && Array.isArray(totemError.response.data.details)) {
+                const validationErrors = totemError.response.data.details
+                  .map((detail: any) => detail.msg || detail.message || JSON.stringify(detail))
+                  .join(', ');
+                errorMessage += validationErrors;
+              } else if (totemError.response.data.error) {
+                errorMessage += totemError.response.data.error;
+              } else if (totemError.response.data.message) {
+                errorMessage += totemError.response.data.message;
+              }
+            } else if (totemError?.message) {
+              errorMessage += totemError.message;
+            } else {
+              errorMessage += 'Erro desconhecido';
+            }
+            
+            setError(errorMessage);
+            return;
+          }
         } else {
           const errorMessage = `Totem na posição ${localIndex + 1}: Local inválido ou não encontrado`;
           console.error(errorMessage, { localIndex, createdLocals });

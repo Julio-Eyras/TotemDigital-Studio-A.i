@@ -7,10 +7,10 @@ export interface User {
   username: string;
   email?: string;
   name: string;
-  role: 'admin' | 'user' | 'client' | 'subscriber' | 'publisher'; // Mantido para compatibilidade
-  publisher_id?: number; // NOVO: FK para publishers (NULL se for tenant user)
-  client_id?: number; // DEPRECADO: Mantido para compatibilidade - usar publisher_id
-  user_type?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
+  role: 'admin' | 'user' | 'client' | 'subscriber' | 'publisher';
+  publisher_id?: number;
+  subscriber_id?: number;
+  user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
   is_tenant_user?: boolean; // NOVO: True se for admin/operador do sistema
   is_active: boolean;
   last_login?: string;
@@ -19,16 +19,30 @@ export interface User {
   publisher_name?: string; // Nome do publisher (do JOIN)
 }
 
+export interface UserFlags {
+  flag_smart_0: boolean;
+  flag_smart_1: boolean;
+  flag_smart_2: boolean;
+  flag_smart_3: boolean;
+  flag_smart_4: boolean;
+  flag_smart_5: boolean;
+  flag_smart_6: boolean;
+  flag_smart_7: boolean;
+  flag_smart_8: boolean;
+  flag_smart_9: boolean;
+}
+
 export interface CreateUserRequest {
   username: string;
   email?: string;
   password: string;
   name: string;
-  role: 'admin' | 'user' | 'client' | 'subscriber' | 'publisher';
-  publisherId?: number; // NOVO: FK para publishers
-  clientId?: number; // DEPRECADO: Mantido para compatibilidade
-  userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
-  isTenantUser?: boolean; // NOVO
+  role: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
+  publisherId?: number;
+  subscriberId?: number;
+  userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+  isTenantUser?: boolean;
+  flags?: Partial<UserFlags>;
 }
 
 export interface UpdateUserRequest {
@@ -36,12 +50,13 @@ export interface UpdateUserRequest {
   email?: string;
   password?: string;
   name?: string;
-  role?: 'admin' | 'user' | 'client' | 'subscriber' | 'publisher';
-  publisherId?: number; // NOVO
-  clientId?: number; // DEPRECADO
-  userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
-  isTenantUser?: boolean; // NOVO
+  role?: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
+  publisherId?: number;
+  subscriberId?: number;
+  userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+  isTenantUser?: boolean;
   isActive?: boolean;
+  flags?: Partial<UserFlags>;
 }
 
 export interface UserListResponse {
@@ -158,13 +173,13 @@ export class UserService {
     limit?: number;
     search?: string;
     role?: string;
-    publisherId?: number; // NOVO
-    clientId?: number; // DEPRECADO: Mantido para compatibilidade
-    userType?: 'system_user' | 'subscriber_user' | 'publisher_user';
+    publisherId?: number;
+    subscriberId?: number;
+    userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
     isTenantUser?: boolean;
   }): Promise<UserListResponse> {
     try {
-      const { page = 1, limit = 10, search, role, publisherId, clientId, userType, isTenantUser } = params;
+      const { page = 1, limit = 10, search, role, publisherId, subscriberId, userType, isTenantUser } = params;
       const offset = (page - 1) * limit;
 
       let whereClause = 'WHERE u.is_active = true';
@@ -189,10 +204,12 @@ export class UserService {
         queryParams.push(publisherId);
       }
 
-      // DEPRECADO: Filtrar por client_id (compatibilidade)
-      if (clientId !== undefined) {
-        whereClause += ' AND u.publisher_id = $' + (queryParams.length + 1);
-        queryParams.push(clientId);
+      // Filtrar por subscriber_id (via publisher ou direto)
+      if (subscriberId !== undefined) {
+        // Subscribers podem estar vinculados a publishers ou diretamente
+        whereClause += ' AND (u.publisher_id = $' + (queryParams.length + 1) + ' OR EXISTS (SELECT 1 FROM subscribers s WHERE s.subscriber_id = $' + (queryParams.length + 1) + ' AND s.publisher_id = u.publisher_id))';
+        queryParams.push(subscriberId);
+        queryParams.push(subscriberId);
       }
 
       if (userType) {
@@ -214,7 +231,7 @@ export class UserService {
           u.name,
           u.role,
           u.publisher_id,
-          u.client_id, -- Mantido para compatibilidade
+          -- u.client_id removido - não existe mais no schema v2
           u.user_type,
           u.is_tenant_user,
           u.is_active,
@@ -261,7 +278,7 @@ export class UserService {
           u.name,
           u.role,
           u.publisher_id,
-          u.client_id, -- Mantido para compatibilidade
+          -- u.client_id removido - não existe mais no schema v2
           u.user_type,
           u.is_tenant_user,
           u.is_active,
@@ -286,7 +303,7 @@ export class UserService {
    */
   async createUser(data: CreateUserRequest): Promise<User> {
     try {
-      const { username, email, password, name, role, publisherId, clientId, userType, isTenantUser } = data;
+      const { username, email, password, name, role, publisherId, subscriberId, userType, isTenantUser, flags } = data;
 
       // Verificar se username já existe
       const existingUser = await this.db.findFirst(`
@@ -297,20 +314,66 @@ export class UserService {
         throw new Error('Nome de usuário já existe');
       }
 
-      // Determinar publisher_id e user_type
+      // Mapeamento de roles para recursos
+      const ROLE_RESOURCE_MAPPING: Record<string, 'publisher' | 'subscriber' | 'system' | 'both'> = {
+        'owner_system': 'system',
+        'admin_sql': 'system',
+        'admin': 'system',
+        'operador_tecnico': 'system',
+        'operador_faturamento': 'system',
+        'operador_comercial': 'system',
+        'gerente_marketing': 'system',
+        'editoracao': 'system',
+        'visualizador': 'system',
+        'user': 'system',
+        'publisher_user': 'publisher',
+        'subscriber_user': 'subscriber',
+        'publisher_subscriber': 'both',
+      };
+
+      // Determinar publisher_id, subscriber_id e user_type
       let finalPublisherId: number | null = null;
-      let finalUserType: string = 'publisher_user';
+      let finalSubscriberId: number | null = null;
+      let finalUserType: string = 'system_user';
       let finalIsTenantUser: boolean = false;
 
-      // Se isTenantUser = true, publisher_id deve ser NULL
+      // Se isTenantUser = true, publisher_id e subscriber_id devem ser NULL
       if (isTenantUser === true) {
         finalIsTenantUser = true;
         finalPublisherId = null;
+        finalSubscriberId = null;
         finalUserType = 'system_user';
       } else {
-        // Usar publisherId se fornecido, senão usar clientId (compatibilidade)
-        finalPublisherId = publisherId || clientId || null;
-        finalUserType = userType || (finalPublisherId ? 'publisher_user' : 'system_user');
+        const resourceType = ROLE_RESOURCE_MAPPING[role] || 'system';
+        
+        // Validar mapeamento de role para recurso
+        if (resourceType === 'publisher') {
+          if (!publisherId) {
+            throw new Error(`Role '${role}' requer publisher_id`);
+          }
+          finalPublisherId = publisherId;
+          finalSubscriberId = null;
+          finalUserType = userType || 'publisher_user';
+        } else if (resourceType === 'subscriber') {
+          if (!subscriberId) {
+            throw new Error(`Role '${role}' requer subscriber_id`);
+          }
+          finalPublisherId = null;
+          finalSubscriberId = subscriberId;
+          finalUserType = userType || 'subscriber_user';
+        } else if (resourceType === 'both') {
+          if (!publisherId && !subscriberId) {
+            throw new Error(`Role '${role}' requer publisher_id ou subscriber_id`);
+          }
+          finalPublisherId = publisherId || null;
+          finalSubscriberId = subscriberId || null;
+          finalUserType = userType || 'publisher_subscriber';
+        } else {
+          // system roles
+          finalPublisherId = null;
+          finalSubscriberId = null;
+          finalUserType = userType || 'system_user';
+        }
         finalIsTenantUser = false;
       }
 
@@ -326,6 +389,18 @@ export class UserService {
         }
       }
 
+      // Validar subscriber existe se fornecido
+      if (finalSubscriberId) {
+        const subscriber = await this.db.findFirst(`
+          SELECT subscriber_id FROM subscribers 
+          WHERE subscriber_id = $1 AND is_active = true
+        `, [finalSubscriberId]);
+
+        if (!subscriber) {
+          throw new Error('Subscriber não encontrado ou inativo');
+        }
+      }
+
       // Hash da senha
       const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash(password, 12);
@@ -334,18 +409,24 @@ export class UserService {
       const result = await this.db.executeRaw(`
         INSERT INTO users (
           username, email, password_hash, name, role, 
-          publisher_id, user_type, is_tenant_user,
+          publisher_id, subscriber_id, user_type, is_tenant_user,
           is_active, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING id as user_id
-      `, [username, email, hashedPassword, name, role, finalPublisherId, finalUserType, finalIsTenantUser]);
+      `, [username, email, hashedPassword, name, role, finalPublisherId, finalSubscriberId, finalUserType, finalIsTenantUser]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar usuário');
       }
 
       const userId = result.rows[0].user_id;
+
+      // Criar flags do usuário se fornecidas
+      if (flags && Object.keys(flags).length > 0) {
+        await this.updateUserFlags(userId, flags, userId);
+      }
+
       const newUser = await this.getUserById(userId);
 
       if (!newUser) {
@@ -364,7 +445,7 @@ export class UserService {
    */
   async updateUser(id: number, data: UpdateUserRequest): Promise<User> {
     try {
-      const { username, email, password, name, role, publisherId, clientId, userType, isTenantUser, isActive } = data;
+      const { username, email, password, name, role, publisherId, subscriberId, userType, isTenantUser, isActive, flags } = data;
 
       // Verificar se usuário existe
       const existingUser = await this.getUserById(id);
@@ -432,10 +513,21 @@ export class UserService {
         updateParams.push(publisherId);
       }
 
-      // DEPRECADO: clientId (compatibilidade - mapear para publisher_id)
-      if (clientId !== undefined && publisherId === undefined) {
-        updateFields.push(`publisher_id = $${paramIndex++}`);
-        updateParams.push(clientId);
+      // Atualizar subscriber_id
+      if (subscriberId !== undefined) {
+        // Validar subscriber existe
+        if (subscriberId !== null) {
+          const subscriber = await this.db.findFirst(`
+            SELECT subscriber_id FROM subscribers 
+            WHERE subscriber_id = $1 AND is_active = true
+          `, [subscriberId]);
+
+          if (!subscriber) {
+            throw new Error('Subscriber não encontrado ou inativo');
+          }
+        }
+        updateFields.push(`subscriber_id = $${paramIndex++}`);
+        updateParams.push(subscriberId);
       }
 
       if (userType) {
@@ -466,6 +558,11 @@ export class UserService {
         SET ${updateFields.join(', ')}
         WHERE id = $${paramIndex}
       `, [...updateParams, id]);
+
+      // Atualizar flags se fornecidas
+      if (flags && Object.keys(flags).length > 0) {
+        await this.updateUserFlags(id, flags, id);
+      }
 
       const updatedUser = await this.getUserById(id);
       if (!updatedUser) {
@@ -498,6 +595,138 @@ export class UserService {
       `, [id]);
     } catch (error: any) {
       await logError('Erro ao excluir usuário', error, { id });
+      throw error;
+    }
+  }
+
+  /**
+   * Obter flags de um usuário
+   */
+  async getUserFlags(userId: number): Promise<UserFlags> {
+    try {
+      // Buscar flags do usuário (user_flags) ou usar flags padrão da role
+      const userFlags = await this.db.findFirst(`
+        SELECT 
+          COALESCE(uf.flag_smart_0, rfd.flag_smart_0, false) as flag_smart_0,
+          COALESCE(uf.flag_smart_1, rfd.flag_smart_1, false) as flag_smart_1,
+          COALESCE(uf.flag_smart_2, rfd.flag_smart_2, false) as flag_smart_2,
+          COALESCE(uf.flag_smart_3, rfd.flag_smart_3, false) as flag_smart_3,
+          COALESCE(uf.flag_smart_4, rfd.flag_smart_4, false) as flag_smart_4,
+          COALESCE(uf.flag_smart_5, rfd.flag_smart_5, false) as flag_smart_5,
+          COALESCE(uf.flag_smart_6, rfd.flag_smart_6, false) as flag_smart_6,
+          COALESCE(uf.flag_smart_7, rfd.flag_smart_7, false) as flag_smart_7,
+          COALESCE(uf.flag_smart_8, rfd.flag_smart_8, false) as flag_smart_8,
+          COALESCE(uf.flag_smart_9, rfd.flag_smart_9, false) as flag_smart_9
+        FROM users u
+        LEFT JOIN user_flags uf ON u.id = uf.user_id
+        LEFT JOIN roles r ON u.role = r.name
+        LEFT JOIN role_flags_default rfd ON r.role_id = rfd.role_id
+        WHERE u.id = $1
+      `, [userId]);
+
+      if (!userFlags) {
+        // Retornar flags padrão (todas false) se usuário não encontrado
+        return {
+          flag_smart_0: false,
+          flag_smart_1: false,
+          flag_smart_2: false,
+          flag_smart_3: false,
+          flag_smart_4: false,
+          flag_smart_5: false,
+          flag_smart_6: false,
+          flag_smart_7: false,
+          flag_smart_8: false,
+          flag_smart_9: false,
+        };
+      }
+
+      return userFlags as UserFlags;
+    } catch (error: any) {
+      await logError('Erro ao buscar flags do usuário', error, { userId });
+      throw error;
+    }
+  }
+
+  /**
+   * Atualizar flags de um usuário
+   */
+  async updateUserFlags(userId: number, flags: Partial<UserFlags>, updatedBy: number): Promise<void> {
+    try {
+      // Verificar se usuário existe
+      const user = await this.getUserById(userId);
+      if (!user) {
+        throw new Error('Usuário não encontrado');
+      }
+
+      // Verificar se já existe registro de flags para o usuário
+      const existingFlags = await this.db.findFirst(`
+        SELECT user_id FROM user_flags WHERE user_id = $1
+      `, [userId]);
+
+      if (existingFlags) {
+        // Atualizar flags existentes
+        const updateFields: string[] = [];
+        const updateParams: any[] = [];
+        let paramIndex = 1;
+
+        for (const flagName of ['flag_smart_0', 'flag_smart_1', 'flag_smart_2', 'flag_smart_3', 'flag_smart_4', 
+                                'flag_smart_5', 'flag_smart_6', 'flag_smart_7', 'flag_smart_8', 'flag_smart_9'] as const) {
+          if (flags[flagName] !== undefined) {
+            updateFields.push(`${flagName} = $${paramIndex++}`);
+            updateParams.push(flags[flagName]);
+          }
+        }
+
+        if (updateFields.length > 0) {
+          updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+          updateFields.push(`updated_by = $${paramIndex++}`);
+          updateParams.push(updatedBy);
+          updateParams.push(userId);
+
+          await this.db.executeRaw(`
+            UPDATE user_flags 
+            SET ${updateFields.join(', ')}
+            WHERE user_id = $${paramIndex}
+          `, updateParams);
+        }
+      } else {
+        // Criar novo registro de flags
+        await this.db.executeRaw(`
+          INSERT INTO user_flags (
+            user_id, flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4,
+            flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9,
+            updated_by, created_at, updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `, [
+          userId,
+          flags.flag_smart_0 ?? false,
+          flags.flag_smart_1 ?? false,
+          flags.flag_smart_2 ?? false,
+          flags.flag_smart_3 ?? false,
+          flags.flag_smart_4 ?? false,
+          flags.flag_smart_5 ?? false,
+          flags.flag_smart_6 ?? false,
+          flags.flag_smart_7 ?? false,
+          flags.flag_smart_8 ?? false,
+          flags.flag_smart_9 ?? false,
+          updatedBy,
+        ]);
+      }
+    } catch (error: any) {
+      await logError('Erro ao atualizar flags do usuário', error, { userId, flags });
+      throw error;
+    }
+  }
+
+  /**
+   * Ativar/desativar flag específica de um usuário
+   */
+  async setUserFlag(userId: number, flagName: keyof UserFlags, value: boolean, updatedBy: number): Promise<void> {
+    try {
+      await this.updateUserFlags(userId, { [flagName]: value }, updatedBy);
+    } catch (error: any) {
+      await logError('Erro ao definir flag do usuário', error, { userId, flagName, value });
       throw error;
     }
   }

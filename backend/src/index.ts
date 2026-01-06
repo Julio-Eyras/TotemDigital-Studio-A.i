@@ -18,11 +18,14 @@ import { registerExportWorker } from './workers/exportWorker';
 import { registerAdvancedScheduleWorker } from './workers/advancedScheduleWorker';
 import { exportScheduleService } from './services/exportScheduleService';
 import { InvoiceWorker } from './workers/invoiceWorker';
+import { SubscriberAccessNotificationWorker } from './workers/subscriberAccessNotificationWorker';
+import { getPlaylistEngineWorkerInstance } from './workers/playlistEngineWorker';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
 import { authMiddleware } from './middleware/auth.middleware';
 import { blockClientDataAccess } from './middleware/operatorProtection.middleware';
 import { auditSystemUsers } from './middleware/auditSystemUsers.middleware';
+import { detectSubdomain, validateSubdomainAccess } from './middleware/subdomain.middleware';
 import { getLogger } from './config/logger';
 import { LogRotationService } from './services/logRotationService';
 import { logInfo, logError, logWarn, logInfoSync } from './utils/loggerHelper';
@@ -34,12 +37,16 @@ import userRoutes from './routes/users';
 import clientRoutes from './routes/clients'; // TODO: Deprecar - usar subscribers
 import subscriberRoutes from './routes/subscribers'; // NOVO: Subscribers (anunciantes)
 import publisherRoutes from './routes/publishers'; // NOVO: Publishers (publicadores)
+import localRoutes from './routes/locals'; // NOVO: Locals (locais físicos dos publishers)
+import smartTvRoutes from './routes/smart-tvs'; // NOVO: Smart TVs (controladas pelos totens)
+import subscriberAccessRoutes from './routes/subscriber-access'; // NOVO: Controle de acesso Subscriber → Publisher
 import dashboardRoutes from './routes/dashboard';
 import playerRoutes from './routes/players'; // API de gerenciamento de players
 import totemRoutes from './routes/totems';
 import mediaRoutes from './routes/media';
 import playlistRoutes from './routes/playlists';
 import playlistMixRoutes from './routes/playlist-mix';
+import playlistEngineRoutes from './routes/playlist-engine';
 import campaignRoutes from './routes/campaigns';
 import qrcodeRoutes from './routes/qrcodes';
 import analyticsRoutes from './routes/analytics';
@@ -99,6 +106,8 @@ const HOST = config.server.host;
 app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 
 // Security
+// Configurar Helmet com headers compatíveis com HTTP (desenvolvimento)
+// Em produção com HTTPS, esses headers funcionam normalmente
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -113,6 +122,9 @@ app.use(helmet({
       frameSrc: ["'none'"],
     },
   },
+  // Desabilitar headers que causam avisos em HTTP
+  // Em HTTPS (produção), esses headers funcionam normalmente
+  crossOriginOpenerPolicy: config.server.isProduction ? { policy: 'same-origin' } : false,
   crossOriginEmbedderPolicy: false
 }));
 
@@ -159,6 +171,9 @@ app.use((req, res, next) => {
 // Logging
 app.use(morgan('combined'));
 app.use(requestLogger);
+
+// Detecção de subdomínio (deve vir antes das rotas)
+app.use(detectSubdomain);
 
 // Security middlewares
 app.use(validateOrigin);
@@ -263,17 +278,24 @@ app.get('/api/health', async (_req, res) => {
 // Middleware de auditoria para ADMIN_SQL e OPERATOR (aplicar antes das rotas)
 app.use('/api', auditSystemUsers as any);
 
+// Validação de acesso por subdomínio (aplicar antes das rotas autenticadas)
+app.use('/api', validateSubdomainAccess);
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', authMiddleware as any, userRoutes);
 app.use('/api/clients', authMiddleware as any, blockClientDataAccess as any, clientRoutes); // TODO: Deprecar - usar /api/subscribers
 app.use('/api/subscribers', authMiddleware as any, blockClientDataAccess as any, subscriberRoutes); // NOVO: Subscribers (anunciantes)
 app.use('/api/publishers', authMiddleware as any, publisherRoutes); // NOVO: Publishers (publicadores)
+app.use('/api/locals', authMiddleware as any, localRoutes); // NOVO: Locals (locais físicos dos publishers)
+app.use('/api/smart-tvs', authMiddleware as any, smartTvRoutes); // NOVO: Smart TVs (controladas pelos totens)
+app.use('/api/subscriber-access', subscriberAccessRoutes); // NOVO: Controle de acesso Subscriber → Publisher
 app.use('/api/totems', totemRoutes);
 app.use('/api/players', authMiddleware as any, playerRoutes);
 app.use('/api/media', blockClientDataAccess as any, mediaRoutes);
 app.use('/api/playlists', blockClientDataAccess as any, playlistRoutes);
 app.use('/api/playlist-mix', authMiddleware as any, playlistMixRoutes);
+app.use('/api/playlist-engine', playlistEngineRoutes);
 app.use('/api/campaigns', blockClientDataAccess as any, campaignRoutes);
 app.use('/api/qrcodes', blockClientDataAccess as any, qrcodeRoutes);
 app.use('/api/qr-codes', blockClientDataAccess as any, qrcodeRoutes); // Alias para compatibilidade com frontend
@@ -416,6 +438,20 @@ process.on('SIGTERM', async () => {
       shutdownFailed = true;
     }
     
+    // Subscriber Access Notification Worker
+    try {
+      if ((global as any).subscriberAccessNotificationWorker) {
+        (global as any).subscriberAccessNotificationWorker.stop();
+        await logInfo('Subscriber Access Notification Worker parado');
+      }
+      if ((global as any).playlistEngineWorker) {
+        (global as any).playlistEngineWorker.stop();
+        await logInfo('Playlist Engine Worker parado');
+      }
+    } catch {
+      shutdownFailed = true;
+    }
+    
     // Playlist Mix Worker
     try {
       if ((global as any).playlistMixWorker) {
@@ -486,6 +522,20 @@ process.on('SIGINT', async () => {
       if ((global as any).invoiceWorker) {
         (global as any).invoiceWorker.stop();
         await logInfo('Invoice Worker parado');
+      }
+    } catch {
+      shutdownFailed = true;
+    }
+    
+    // Subscriber Access Notification Worker
+    try {
+      if ((global as any).subscriberAccessNotificationWorker) {
+        (global as any).subscriberAccessNotificationWorker.stop();
+        await logInfo('Subscriber Access Notification Worker parado');
+      }
+      if ((global as any).playlistEngineWorker) {
+        (global as any).playlistEngineWorker.stop();
+        await logInfo('Playlist Engine Worker parado');
       }
     } catch {
       shutdownFailed = true;
@@ -580,10 +630,22 @@ async function startServer() {
     invoiceWorker.start();
     (global as any).invoiceWorker = invoiceWorker; // Salvar para graceful shutdown
     
+    // Inicializar Subscriber Access Notification Worker
+    await logInfo('Inicializando Subscriber Access Notification Worker...');
+    const subscriberAccessNotificationWorker = new SubscriberAccessNotificationWorker();
+    subscriberAccessNotificationWorker.start();
+    (global as any).subscriberAccessNotificationWorker = subscriberAccessNotificationWorker; // Salvar para graceful shutdown
+    
     // Inicializar Playlist Mix Worker
     await logInfo('Inicializando Playlist Mix Worker...');
     const { getPlaylistMixWorker } = await import('./workers/playlistMixWorker');
     const playlistMixWorker = getPlaylistMixWorker();
+    
+    // Inicializar Playlist Engine Worker
+    await logInfo('Inicializando Playlist Engine Worker...');
+    const playlistEngineWorker = getPlaylistEngineWorkerInstance();
+    playlistEngineWorker.start();
+    (global as any).playlistEngineWorker = playlistEngineWorker; // Salvar para graceful shutdown
     playlistMixWorker.start();
     (global as any).playlistMixWorker = playlistMixWorker; // Salvar para graceful shutdown
     

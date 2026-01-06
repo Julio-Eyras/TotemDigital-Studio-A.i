@@ -150,12 +150,13 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     
-    -- NOVO: Relacionamento com publisher
-    publisher_id INTEGER, -- NULL se for tenant user
+    -- NOVO: Relacionamentos com publisher e subscriber
+    publisher_id INTEGER, -- NULL se for tenant user ou subscriber
+    subscriber_id INTEGER, -- NULL se for tenant user ou publisher
     
     -- NOVO: Tipo de usuário
     user_type TEXT NOT NULL DEFAULT 'publisher_user', 
-        -- 'system_user' (tenant/admin), 'subscriber_user', 'publisher_user'
+        -- 'system_user' (tenant/admin), 'subscriber_user', 'publisher_user', 'publisher_subscriber'
     is_tenant_user BOOLEAN DEFAULT false, -- True se for admin/operador do sistema
     
     role TEXT, -- Role direta (mantido para compatibilidade)
@@ -171,18 +172,105 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT chk_users_user_type 
-        CHECK (user_type IN ('system_user', 'subscriber_user', 'publisher_user')),
+        CHECK (user_type IN ('system_user', 'subscriber_user', 'publisher_user', 'publisher_subscriber')),
     CONSTRAINT chk_users_tenant_logic 
         CHECK (
-            (is_tenant_user = true AND publisher_id IS NULL) OR
-            (is_tenant_user = false AND publisher_id IS NOT NULL)
-        )
+            -- Se for tenant user, ambos devem ser NULL
+            (is_tenant_user = true AND publisher_id IS NULL AND subscriber_id IS NULL) OR
+            -- Se não for tenant user, pode ter publisher_id OU subscriber_id (ou ambos para publisher_subscriber)
+            (is_tenant_user = false)
+        ),
+    
+    -- Foreign Keys
+    CONSTRAINT fk_users_publisher 
+        FOREIGN KEY (publisher_id) 
+        REFERENCES publishers(publisher_id) 
+        ON DELETE SET NULL,
+    CONSTRAINT fk_users_subscriber 
+        FOREIGN KEY (subscriber_id) 
+        REFERENCES subscribers(subscriber_id) 
+        ON DELETE SET NULL
 );
 
 COMMENT ON TABLE users IS 'Usuários do sistema SmartSignage';
-COMMENT ON COLUMN users.publisher_id IS 'FK para publisher (NULL se for tenant user)';
-COMMENT ON COLUMN users.user_type IS 'Tipo: system_user, subscriber_user, publisher_user';
+COMMENT ON COLUMN users.publisher_id IS 'FK para publisher (NULL se for tenant user ou subscriber)';
+COMMENT ON COLUMN users.subscriber_id IS 'FK para subscriber (NULL se for tenant user ou publisher)';
+COMMENT ON COLUMN users.user_type IS 'Tipo: system_user, subscriber_user, publisher_user, publisher_subscriber (Publisher que também anuncia)';
 COMMENT ON COLUMN users.is_tenant_user IS 'True se for admin/operador do sistema (tenant)';
+
+-- =============================================
+-- USER_FLAGS (Flags de Permissão Personalizadas)
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS user_flags (
+    user_id INTEGER NOT NULL PRIMARY KEY,
+    
+    -- Flags de Permissão (0-9)
+    flag_smart_0 BOOLEAN DEFAULT false,  -- FLAG_TECHNICAL_ACCESS
+    flag_smart_1 BOOLEAN DEFAULT false,  -- FLAG_OTA_UPDATES
+    flag_smart_2 BOOLEAN DEFAULT false,  -- FLAG_SYSTEM_LOGS
+    flag_smart_3 BOOLEAN DEFAULT false,  -- FLAG_BILLING_VIEW
+    flag_smart_4 BOOLEAN DEFAULT false,  -- FLAG_BILLING_MANAGE
+    flag_smart_5 BOOLEAN DEFAULT false,  -- FLAG_CONTRACTS
+    flag_smart_6 BOOLEAN DEFAULT false,  -- FLAG_COMMERCIAL_VIEW
+    flag_smart_7 BOOLEAN DEFAULT false,  -- FLAG_REPORTS_COMMERCIAL
+    flag_smart_8 BOOLEAN DEFAULT false,  -- FLAG_PUBLISHER_FULL
+    flag_smart_9 BOOLEAN DEFAULT false,  -- FLAG_SUBSCRIBER_FULL
+    
+    -- Metadados
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by INTEGER,  -- FK para users (quem atualizou)
+    
+    -- Constraints
+    CONSTRAINT fk_user_flags_user 
+        FOREIGN KEY (user_id) 
+        REFERENCES users(id) 
+        ON DELETE CASCADE,
+    CONSTRAINT fk_user_flags_updated_by 
+        FOREIGN KEY (updated_by) 
+        REFERENCES users(id) 
+        ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_flags_updated_at ON user_flags(updated_at);
+
+COMMENT ON TABLE user_flags IS 'Flags de permissão personalizadas por usuário';
+COMMENT ON COLUMN user_flags.flag_smart_0 IS 'Acesso técnico (totens, TVs, players)';
+COMMENT ON COLUMN user_flags.flag_smart_1 IS 'Gerenciar atualizações OTA';
+COMMENT ON COLUMN user_flags.flag_smart_2 IS 'Acessar logs do sistema';
+COMMENT ON COLUMN user_flags.flag_smart_3 IS 'Visualizar faturamento';
+COMMENT ON COLUMN user_flags.flag_smart_4 IS 'Gerenciar faturamento';
+COMMENT ON COLUMN user_flags.flag_smart_5 IS 'Gerenciar contratos';
+COMMENT ON COLUMN user_flags.flag_smart_6 IS 'Visualizar dados comerciais';
+COMMENT ON COLUMN user_flags.flag_smart_7 IS 'Acessar relatórios comerciais';
+COMMENT ON COLUMN user_flags.flag_smart_8 IS 'Acesso completo de publisher';
+COMMENT ON COLUMN user_flags.flag_smart_9 IS 'Acesso completo de subscriber';
+
+-- =============================================
+-- ROLE_FLAGS_DEFAULT (Flags Padrão por Role)
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS role_flags_default (
+    role TEXT NOT NULL PRIMARY KEY,
+    
+    -- Flags de Permissão (0-9)
+    flag_smart_0 BOOLEAN DEFAULT false,
+    flag_smart_1 BOOLEAN DEFAULT false,
+    flag_smart_2 BOOLEAN DEFAULT false,
+    flag_smart_3 BOOLEAN DEFAULT false,
+    flag_smart_4 BOOLEAN DEFAULT false,
+    flag_smart_5 BOOLEAN DEFAULT false,
+    flag_smart_6 BOOLEAN DEFAULT false,
+    flag_smart_7 BOOLEAN DEFAULT false,
+    flag_smart_8 BOOLEAN DEFAULT false,
+    flag_smart_9 BOOLEAN DEFAULT false,
+    
+    -- Metadados
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE role_flags_default IS 'Flags padrão por role (aplicadas quando usuário não tem flags personalizadas)';
 
 -- =============================================
 -- OUTRAS TABELAS BASE (sem FKs externas)

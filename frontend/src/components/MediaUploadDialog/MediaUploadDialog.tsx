@@ -17,6 +17,10 @@ import {
   ListItem,
   ListItemText,
   ListItemSecondaryAction,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   CloudUpload,
@@ -25,7 +29,7 @@ import {
   Error,
   Close,
 } from '@mui/icons-material';
-import { mediaApi, CreateMediaRequest } from '../../services/api';
+import { mediaApi, CreateMediaRequest, Client } from '../../services/api';
 import { validateFileSize, validateFileType, VALIDATION_CONSTANTS } from '../../utils/validation';
 import { useNotification } from '../../hooks/useNotification';
 
@@ -33,12 +37,18 @@ interface UploadDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  isAdmin?: boolean;
+  subscribers?: Client[];
+  userSubscriberId?: number;
 }
 
 const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   open,
   onClose,
   onSuccess,
+  isAdmin = false,
+  subscribers = [],
+  userSubscriberId,
 }) => {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -49,6 +59,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     name: '',
     description: '',
     tags: '',
+    subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? subscribers[0].client_id : undefined),
   });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -89,7 +100,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -109,12 +120,20 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
       setError(null);
       setUploadProgress(0);
 
+      // Validar subscriberId
+      if (!formData.subscriberId) {
+        setError('É necessário selecionar um subscriber (anunciante)');
+        setUploadStatus('error');
+        setUploading(false);
+        return;
+      }
+
       const uploadPromises = files.map(async (file, index) => {
         const mediaData: CreateMediaRequest = {
           name: formData.name || file.name.split('.')[0],
-          title: formData.name || file.name.split('.')[0],
           description: formData.description,
-          tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()) : [],
+          tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
+          subscriberId: formData.subscriberId,
         };
 
         const result = await mediaApi.upload(file, mediaData);
@@ -147,7 +166,12 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
 
   const handleClose = () => {
     setFiles([]);
-    setFormData({ name: '', description: '', tags: '' });
+    setFormData({ 
+      name: '', 
+      description: '', 
+      tags: '',
+      subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? subscribers[0].client_id : undefined),
+    });
     setUploading(false);
     setUploadProgress(0);
     setUploadStatus('idle');
@@ -179,6 +203,36 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
         <Box sx={{ pt: 2 }}>
           {/* Informações gerais */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
+            {isAdmin && subscribers.length > 0 && (
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Subscriber (Anunciante) *</InputLabel>
+                  <Select
+                    value={formData.subscriberId || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, subscriberId: e.target.value as number }))}
+                    label="Subscriber (Anunciante) *"
+                    disabled={uploading}
+                  >
+                    {subscribers.map((subscriber) => (
+                      <MenuItem key={subscriber.client_id} value={subscriber.client_id}>
+                        {subscriber.name} {subscriber.email ? `(${subscriber.email})` : ''}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
+            {!isAdmin && userSubscriberId && (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Subscriber"
+                  value={subscribers.find(s => s.client_id === userSubscriberId)?.name || 'Seu Subscriber'}
+                  disabled
+                  margin="normal"
+                />
+              </Grid>
+            )}
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -187,6 +241,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                 value={formData.name}
                 onChange={handleInputChange}
                 placeholder="Deixe em branco para usar o nome do arquivo"
+                disabled={uploading}
               />
             </Grid>
             <Grid item xs={12}>
@@ -198,6 +253,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                 rows={3}
                 value={formData.description}
                 onChange={handleInputChange}
+                disabled={uploading}
               />
             </Grid>
             <Grid item xs={12}>
@@ -208,6 +264,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                 value={formData.tags}
                 onChange={handleInputChange}
                 placeholder="promoção, verão, produto"
+                disabled={uploading}
               />
             </Grid>
           </Grid>

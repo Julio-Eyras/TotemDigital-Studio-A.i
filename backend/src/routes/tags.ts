@@ -5,13 +5,23 @@
 
 import { Router, Response } from 'express';
 import { getTagService } from '../services/tagService';
-import { AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
+import { AuthenticatedRequest, authorizeRole, authMiddleware } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
 
 const router = Router();
+
+// Middleware de autenticação para todas as rotas (exceto rotas públicas)
+router.use((req: AuthenticatedRequest, res, next) => {
+  // Permitir rotas públicas de players (sem autenticação)
+  if (req.path.includes('/content') && !req.headers.authorization) {
+    return next();
+  }
+  // Aplicar autenticação para outras rotas
+  return authMiddleware(req as AuthenticatedRequest, res, next);
+});
 
 // Aplicar bloqueio de dados de clientes para OPERATOR (exceto rotas públicas de players)
 router.use((req: AuthenticatedRequest, res, next) => {

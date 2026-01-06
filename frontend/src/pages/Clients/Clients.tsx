@@ -70,8 +70,10 @@ const Clients: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [newClient, setNewClient] = useState<CreateClientRequest>({
     name: '',
+    contact_name: '',
     email: '',
     phone: '',
+    whatsapp: '',
     address: '',
   });
 
@@ -89,7 +91,7 @@ const Clients: React.FC = () => {
       setClients(response.data);
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
-      setError('Erro ao carregar lista de clientes');
+      setError('Erro ao carregar lista de assinantes');
     } finally {
       setLoading(false);
     }
@@ -97,11 +99,13 @@ const Clients: React.FC = () => {
 
   const loadClientStats = async (clientId: number) => {
     try {
+      // clientId aqui é na verdade subscriber_id (compatibilidade com código legado)
+      const subscriberId = clientId;
       const [usersResponse, playersResponse, playlistsResponse, mediaResponse] = await Promise.all([
-        userApi.getAll({ clientId }),
-        playerApi.getAll({ clientId }),
-        playlistApi.getAll({ clientId }),
-        mediaApi.getAll({ clientId }),
+        userApi.getAll({ subscriberId }),
+        playerApi.getAll({ subscriberId }),
+        playlistApi.getAll({ subscriberId }),
+        mediaApi.getAll({ subscriberId }),
       ]);
 
       setClientStats({
@@ -119,11 +123,11 @@ const Clients: React.FC = () => {
     try {
       await clientApi.create(newClient);
       setCreateDialogOpen(false);
-      setNewClient({ name: '', email: '', phone: '', address: '' });
+      setNewClient({ name: '', contact_name: '', email: '', phone: '', whatsapp: '', address: '' });
       loadClients();
     } catch (error) {
       console.error('Erro ao criar cliente:', error);
-      setError('Erro ao criar cliente');
+      setError('Erro ao criar assinante');
     }
   };
 
@@ -143,18 +147,18 @@ const Clients: React.FC = () => {
       loadClients();
     } catch (error) {
       console.error('Erro ao atualizar cliente:', error);
-      setError('Erro ao atualizar cliente');
+      setError('Erro ao atualizar assinante');
     }
   };
 
   const handleDeleteClient = async (id: number) => {
-    if (window.confirm('Tem certeza que deseja excluir este cliente?')) {
+    if (window.confirm('Tem certeza que deseja excluir este assinante?')) {
       try {
         await clientApi.delete(id);
         loadClients();
       } catch (error) {
         console.error('Erro ao excluir cliente:', error);
-        setError('Erro ao excluir cliente');
+        setError('Erro ao excluir assinante');
       }
     }
   };
@@ -174,7 +178,7 @@ const Clients: React.FC = () => {
       <Box sx={{ p: 3 }}>
         <LinearProgress />
         <Typography variant="h6" sx={{ mt: 2, textAlign: 'center' }}>
-          Carregando clientes...
+          Carregando assinantes...
         </Typography>
       </Box>
     );
@@ -186,10 +190,10 @@ const Clients: React.FC = () => {
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            Clientes
+            Assinantes
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie seus clientes e suas informações
+            Gerencie seus assinantes e suas informações
           </Typography>
         </Box>
         <Button
@@ -201,7 +205,7 @@ const Clients: React.FC = () => {
             '&:hover': { backgroundColor: theme.palette.primary.dark }
           }}
         >
-          Adicionar Cliente
+          Adicionar Assinante
         </Button>
       </Box>
 
@@ -212,7 +216,7 @@ const Clients: React.FC = () => {
             <Grid item xs={12} md={8}>
               <TextField
                 fullWidth
-                placeholder="Buscar clientes..."
+                placeholder="Buscar assinantes..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 InputProps={{
@@ -298,6 +302,15 @@ const Clients: React.FC = () => {
                   {client.name}
                 </Typography>
                 
+                {client.contact_name && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                    <People fontSize="small" color="action" />
+                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
+                      Contato: {client.contact_name}
+                    </Typography>
+                  </Box>
+                )}
+
                 {client.email && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                     <Email fontSize="small" color="action" />
@@ -312,6 +325,15 @@ const Clients: React.FC = () => {
                     <Phone fontSize="small" color="action" />
                     <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
                       {client.phone}
+                    </Typography>
+                  </Box>
+                )}
+
+                {client.whatsapp && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                    <Phone fontSize="small" color="action" />
+                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
+                      WhatsApp: {client.whatsapp}
                     </Typography>
                   </Box>
                 )}
@@ -363,17 +385,17 @@ const Clients: React.FC = () => {
           <CardContent>
             <Business sx={{ fontSize: 64, color: theme.palette.text.secondary, mb: 2 }} />
             <Typography variant="h6" sx={{ mb: 1 }}>
-              Nenhum cliente encontrado
+              Nenhum assinante encontrado
             </Typography>
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
-              Comece adicionando seus primeiros clientes
+              Comece adicionando seus primeiros assinantes
             </Typography>
             <Button
               variant="contained"
               startIcon={<Add />}
               onClick={() => setCreateDialogOpen(true)}
             >
-              Adicionar Primeiro Cliente
+              Adicionar Primeiro Assinante
             </Button>
           </CardContent>
         </Card>
@@ -381,7 +403,7 @@ const Clients: React.FC = () => {
 
       {/* Create Dialog */}
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Adicionar Cliente</DialogTitle>
+        <DialogTitle>Adicionar Assinante</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
@@ -424,15 +446,24 @@ const Clients: React.FC = () => {
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Editar Cliente</DialogTitle>
+        <DialogTitle>Editar Assinante</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
-            label="Nome da Empresa"
+            label="Nome da Empresa / Razão Social"
             value={selectedClient?.name || ''}
             onChange={(e) => setSelectedClient({ ...selectedClient!, name: e.target.value })}
             margin="normal"
             required
+            helperText="Nome completo da empresa ou razão social"
+          />
+          <TextField
+            fullWidth
+            label="Nome do Contato"
+            value={selectedClient?.contact_name || ''}
+            onChange={(e) => setSelectedClient({ ...selectedClient!, contact_name: e.target.value })}
+            margin="normal"
+            helperText="Nome da pessoa responsável pelo contato"
           />
           <TextField
             fullWidth
@@ -448,6 +479,15 @@ const Clients: React.FC = () => {
             value={selectedClient?.phone || ''}
             onChange={(e) => setSelectedClient({ ...selectedClient!, phone: e.target.value })}
             margin="normal"
+            helperText="Telefone comercial (formato: +55 11 1234-5678)"
+          />
+          <TextField
+            fullWidth
+            label="WhatsApp"
+            value={selectedClient?.whatsapp || ''}
+            onChange={(e) => setSelectedClient({ ...selectedClient!, whatsapp: e.target.value })}
+            margin="normal"
+            helperText="Número do WhatsApp (formato: +55 11 98765-4321)"
           />
           <TextField
             fullWidth
@@ -457,6 +497,7 @@ const Clients: React.FC = () => {
             margin="normal"
             multiline
             rows={3}
+            helperText="Endereço completo da empresa"
           />
         </DialogContent>
         <DialogActions>
@@ -468,7 +509,7 @@ const Clients: React.FC = () => {
       {/* Details Dialog */}
       <Dialog open={detailsDialogOpen} onClose={() => setDetailsDialogOpen(false)} maxWidth="lg" fullWidth>
         <DialogTitle>
-          Detalhes do Cliente - {selectedClient?.name}
+          Detalhes do Assinante - {selectedClient?.name}
         </DialogTitle>
         <DialogContent>
           {clientStats && (
@@ -523,6 +564,75 @@ const Clients: React.FC = () => {
                     <Typography variant="body2" color="text.secondary">
                       Mídia
                     </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Informações do Assinante */}
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      Informações do Assinante
+                    </Typography>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableBody>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', width: '30%' }}>Nome da Empresa</TableCell>
+                            <TableCell>{selectedClient?.name || 'N/A'}</TableCell>
+                          </TableRow>
+                          {selectedClient?.contact_name && (
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold' }}>Nome do Contato</TableCell>
+                              <TableCell>{selectedClient.contact_name}</TableCell>
+                            </TableRow>
+                          )}
+                          {selectedClient?.email && (
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold' }}>Email</TableCell>
+                              <TableCell>{selectedClient.email}</TableCell>
+                            </TableRow>
+                          )}
+                          {selectedClient?.phone && (
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold' }}>Telefone</TableCell>
+                              <TableCell>{selectedClient.phone}</TableCell>
+                            </TableRow>
+                          )}
+                          {selectedClient?.whatsapp && (
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold' }}>WhatsApp</TableCell>
+                              <TableCell>{selectedClient.whatsapp}</TableCell>
+                            </TableRow>
+                          )}
+                          {selectedClient?.address && (
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold' }}>Endereço</TableCell>
+                              <TableCell>{selectedClient.address}</TableCell>
+                            </TableRow>
+                          )}
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
+                            <TableCell>
+                              <Chip
+                                label={selectedClient?.is_active ? 'Ativo' : 'Inativo'}
+                                size="small"
+                                color={selectedClient?.is_active ? 'success' : 'error'}
+                              />
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Criado em</TableCell>
+                            <TableCell>{selectedClient?.created_at ? formatDate(selectedClient.created_at) : 'N/A'}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Atualizado em</TableCell>
+                            <TableCell>{selectedClient?.updated_at ? formatDate(selectedClient.updated_at) : 'N/A'}</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
                   </CardContent>
                 </Card>
               </Grid>

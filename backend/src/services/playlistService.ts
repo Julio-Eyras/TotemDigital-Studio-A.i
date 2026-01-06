@@ -5,24 +5,29 @@ export interface PlaylistItem {
   playlist_id: number;
   name: string;
   description?: string;
-  client_id?: number;
+  subscriber_id: number; // OBRIGATÓRIO: Playlist pertence a um subscriber
+  subscriber_name?: string; // Nome do subscriber
   is_active: boolean;
   created_at: string;
   updated_at: string;
   media_count?: number;
   total_duration?: number;
+  // Mantido para compatibilidade com frontend (deprecated)
+  client_id?: number;
 }
 
 export interface CreatePlaylistRequest {
   name: string;
   description?: string;
-  clientId?: number;
+  subscriberId?: number; // NOVO: Use subscriberId
+  clientId?: number; // DEPRECATED: Mantido para compatibilidade
 }
 
 export interface UpdatePlaylistRequest {
   name?: string;
   description?: string;
-  clientId?: number;
+  subscriberId?: number; // NOVO: Use subscriberId
+  clientId?: number; // DEPRECATED: Mantido para compatibilidade
   isActive?: boolean;
 }
 
@@ -49,28 +54,39 @@ export class PlaylistService {
 
   /**
    * Listar playlists com paginação e filtros
+   * @param params Parâmetros de busca
+   * @param requestSubscriberId ID do subscriber do usuário autenticado (para isolamento de dados)
+   * @param isAdmin Se o usuário é admin (pode ver todas as playlists)
    */
   async getAllPlaylists(params: {
     page?: number;
     limit?: number;
     search?: string;
-    clientId?: number;
-  }): Promise<PlaylistListResponse> {
+    subscriberId?: number; // NOVO: Use subscriberId
+    clientId?: number; // DEPRECATED: Mantido para compatibilidade
+  }, requestSubscriberId?: number, isAdmin: boolean = false): Promise<PlaylistListResponse> {
     try {
-      const { page = 1, limit = 10, search, clientId } = params;
+      const { page = 1, limit = 10, search } = params;
+      // Priorizar subscriberId, depois clientId (compatibilidade)
+      const subscriberId = params.subscriberId || params.clientId;
       const offset = (page - 1) * limit;
 
       let whereClause = 'WHERE COALESCE(p.is_active, true) = true';
       const queryParams: any[] = [];
 
+      // Isolamento de dados: não-admin só vê playlists do seu subscriber
+      if (!isAdmin && requestSubscriberId) {
+        whereClause += ' AND p.subscriber_id = $' + (queryParams.length + 1);
+        queryParams.push(requestSubscriberId);
+      } else if (subscriberId) {
+        // Admin pode filtrar por subscriber específico
+        whereClause += ' AND p.subscriber_id = $' + (queryParams.length + 1);
+        queryParams.push(subscriberId);
+      }
+
       if (search) {
         whereClause += ' AND (p.name ILIKE $' + (queryParams.length + 1) + ' OR p.description ILIKE $' + (queryParams.length + 1) + ')';
         queryParams.push(`%${search}%`);
-      }
-
-      if (clientId) {
-        whereClause += ' AND p.subscriber_id = $' + (queryParams.length + 1);
-        queryParams.push(clientId);
       }
 
       // Buscar playlists
@@ -79,11 +95,11 @@ export class PlaylistService {
           p.playlist_id,
           p.name,
           p.description,
-          p.subscriber_id as client_id,
+          p.subscriber_id,
+          s.name as subscriber_name,
           COALESCE(p.is_active, true) as is_active,
           p.created_at,
           p.updated_at as updated_at,
-          s.name as client_name,
           COUNT(pi.item_id) as media_count,
           COALESCE(SUM(COALESCE(pi.display_seconds, m.duration_seconds, 0)), 0) as total_duration
         FROM playlists p
@@ -104,6 +120,12 @@ export class PlaylistService {
         LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
       `, [...queryParams, limit, offset]);
 
+      // Mapear para incluir client_id (compatibilidade) e subscriber_id
+      const mappedPlaylists = playlists.map(p => ({
+        ...p,
+        client_id: p.subscriber_id, // Compatibilidade
+      }));
+
       // Contar total
       const totalResult = await this.db.findFirst(`
         SELECT COUNT(DISTINCT p.playlist_id) as total
@@ -112,7 +134,7 @@ export class PlaylistService {
       `, queryParams);
 
       return {
-        data: playlists,
+        data: mappedPlaylists,
         total: parseInt(totalResult?.total || '0'),
         page,
         limit,
@@ -125,19 +147,22 @@ export class PlaylistService {
 
   /**
    * Obter playlist por ID
+   * @param id ID da playlist
+   * @param requestSubscriberId ID do subscriber do usuário autenticado (para validação de ownership)
+   * @param isAdmin Se o usuário é admin (pode ver todas as playlists)
    */
-  async getPlaylistById(id: number): Promise<PlaylistItem | null> {
+  async getPlaylistById(id: number, requestSubscriberId?: number, isAdmin: boolean = false): Promise<PlaylistItem | null> {
     try {
       const playlist = await this.db.findFirst(`
         SELECT 
           p.playlist_id,
           p.name,
           p.description,
-          p.subscriber_id as client_id,
+          p.subscriber_id,
+          s.name as subscriber_name,
           COALESCE(p.is_active, true) as is_active,
-          COALESCE(p.created_at, p.generated_at) as created_at,
+          p.created_at,
           p.updated_at as updated_at,
-          s.name as client_name,
           COUNT(pi.item_id) as media_count,
           COALESCE(SUM(COALESCE(pi.display_seconds, m.duration_seconds, 0)), 0) as total_duration
         FROM playlists p
@@ -149,14 +174,27 @@ export class PlaylistService {
           p.playlist_id, 
           p.name, 
           p.description, 
-          p.client_id, 
+          p.subscriber_id, 
           COALESCE(p.is_active, true),
-          COALESCE(p.created_at, p.generated_at),
+          p.created_at,
           p.updated_at,
-          c.name
+          s.name
       `, [id]);
 
-      return playlist;
+      if (!playlist) {
+        return null;
+      }
+
+      // Validar ownership: não-admin só pode ver playlists do seu subscriber
+      if (!isAdmin && requestSubscriberId && playlist.subscriber_id !== requestSubscriberId) {
+        throw new Error('Acesso negado: Você não tem permissão para ver esta playlist');
+      }
+
+      // Mapear para incluir client_id (compatibilidade)
+      return {
+        ...playlist,
+        client_id: playlist.subscriber_id, // Compatibilidade
+      };
     } catch (error: any) {
       await logError('Erro ao obter playlist', error, { id });
       throw new Error('Erro interno do servidor');
@@ -165,47 +203,62 @@ export class PlaylistService {
 
   /**
    * Criar nova playlist
+   * @param data Dados da playlist
+   * @param requestSubscriberId ID do subscriber do usuário autenticado (obrigatório para não-admin)
+   * @param isAdmin Se o usuário é admin
    */
-  async createPlaylist(data: CreatePlaylistRequest): Promise<PlaylistItem> {
+  async createPlaylist(data: CreatePlaylistRequest, requestSubscriberId?: number, isAdmin: boolean = false): Promise<PlaylistItem> {
     try {
-      let { name, description, clientId } = data;
+      let { name, description } = data;
+      // Priorizar subscriberId, depois clientId (compatibilidade)
+      let subscriberId = data.subscriberId || data.clientId;
 
-      // Se clientId não foi fornecido, buscar primeiro subscriber ativo
-      if (!clientId) {
-        const firstSubscriber = await this.db.findFirst(`
-          SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
-        `);
-        if (firstSubscriber) {
-          clientId = firstSubscriber.subscriber_id;
+      // Se não fornecido e não é admin, usar subscriber do usuário autenticado
+      if (!subscriberId) {
+        if (!isAdmin && requestSubscriberId) {
+          subscriberId = requestSubscriberId;
+        } else if (isAdmin) {
+          // Admin pode criar sem subscriber, buscar primeiro ativo
+          const firstSubscriber = await this.db.findFirst(`
+            SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
+          `);
+          if (firstSubscriber) {
+            subscriberId = firstSubscriber.subscriber_id;
+          } else {
+            throw new Error('Nenhum subscriber (anunciante) ativo encontrado. É necessário ter pelo menos um subscriber para criar playlists.');
+          }
         } else {
-          throw new Error('Nenhum subscriber (anunciante) ativo encontrado. É necessário ter pelo menos um subscriber para criar playlists.');
+          throw new Error('subscriberId é obrigatório para criar playlists');
         }
       }
 
-      // Verificar se playlist já existe para este subscriber (anunciante)
-      const existingPlaylist = await this.db.findFirst(`
-        SELECT playlist_id FROM playlists WHERE name = $1 AND subscriber_id = $2
-      `, [name, clientId]);
-
-      if (existingPlaylist) {
-        throw new Error('Playlist com este nome já existe para este cliente');
+      // Validar: não-admin só pode criar playlists para seu próprio subscriber
+      if (!isAdmin && requestSubscriberId && subscriberId !== requestSubscriberId) {
+        throw new Error('Acesso negado: Você só pode criar playlists para seu próprio subscriber');
       }
 
-      // Criar playlist (apenas subscriber_id é necessário)
-      // Playlist não pertence a totem ou campanha específica
-      // Relacionamento com campanhas é feito via campaign_playlists (N:M)
+      // Verificar se playlist já existe para este subscriber
+      const existingPlaylist = await this.db.findFirst(`
+        SELECT playlist_id FROM playlists WHERE name = $1 AND subscriber_id = $2
+      `, [name, subscriberId]);
+
+      if (existingPlaylist) {
+        throw new Error('Playlist com este nome já existe para este subscriber');
+      }
+
+      // Criar playlist
       const result = await this.db.executeRaw(`
         INSERT INTO playlists (name, description, subscriber_id, is_active)
         VALUES ($1, $2, $3, true)
         RETURNING playlist_id
-      `, [name, description, clientId]);
+      `, [name, description, subscriberId]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar playlist');
       }
 
       const playlistId = result.rows[0].playlist_id;
-      const newPlaylist = await this.getPlaylistById(playlistId);
+      const newPlaylist = await this.getPlaylistById(playlistId, requestSubscriberId, isAdmin);
 
       if (!newPlaylist) {
         throw new Error('Erro ao buscar playlist criada');
@@ -213,32 +266,48 @@ export class PlaylistService {
 
       return newPlaylist;
     } catch (error: any) {
-      await logError('Erro ao criar playlist', error, { name: data.name, clientId: data.clientId });
+      await logError('Erro ao criar playlist', error, { name: data.name, subscriberId: data.subscriberId || data.clientId });
       throw error;
     }
   }
 
   /**
    * Atualizar playlist
+   * @param id ID da playlist
+   * @param data Dados para atualizar
+   * @param requestSubscriberId ID do subscriber do usuário autenticado (para validação de ownership)
+   * @param isAdmin Se o usuário é admin
    */
-  async updatePlaylist(id: number, data: UpdatePlaylistRequest): Promise<PlaylistItem> {
+  async updatePlaylist(id: number, data: UpdatePlaylistRequest, requestSubscriberId?: number, isAdmin: boolean = false): Promise<PlaylistItem> {
     try {
-      const { name, description, clientId, isActive } = data;
+      const { name, description, isActive } = data;
+      // Priorizar subscriberId, depois clientId (compatibilidade)
+      const subscriberId = data.subscriberId || data.clientId;
 
-      // Verificar se playlist existe
-      const existingPlaylist = await this.getPlaylistById(id);
+      // Verificar se playlist existe e validar ownership
+      const existingPlaylist = await this.getPlaylistById(id, requestSubscriberId, isAdmin);
       if (!existingPlaylist) {
         throw new Error('Playlist não encontrada');
+      }
+
+      // Validar: não-admin não pode mudar subscriber_id
+      if (!isAdmin && subscriberId !== undefined && subscriberId !== existingPlaylist.subscriber_id) {
+        throw new Error('Acesso negado: Você não pode transferir playlists para outro subscriber');
+      }
+
+      // Validar: não-admin só pode atualizar suas próprias playlists
+      if (!isAdmin && requestSubscriberId && existingPlaylist.subscriber_id !== requestSubscriberId) {
+        throw new Error('Acesso negado: Você só pode atualizar suas próprias playlists');
       }
 
       // Verificar se nome já existe (se mudou)
       if (name && name !== existingPlaylist.name) {
         const playlistWithSameName = await this.db.findFirst(`
           SELECT playlist_id FROM playlists WHERE name = $1 AND subscriber_id = $2 AND playlist_id != $3
-        `, [name, clientId || existingPlaylist.client_id, id]);
+        `, [name, existingPlaylist.subscriber_id, id]);
 
         if (playlistWithSameName) {
-          throw new Error('Playlist com este nome já existe para este cliente');
+          throw new Error('Playlist com este nome já existe para este subscriber');
         }
       }
 
@@ -259,9 +328,10 @@ export class PlaylistService {
         paramIndex++;
       }
 
-      if (clientId !== undefined) {
+      if (subscriberId !== undefined && isAdmin) {
+        // Apenas admin pode mudar subscriber_id
         updateFields.push(`subscriber_id = $${paramIndex}`);
-        updateParams.push(clientId);
+        updateParams.push(subscriberId);
         paramIndex++;
       }
 
@@ -280,7 +350,7 @@ export class PlaylistService {
         WHERE playlist_id = $${paramIndex}
       `, [...updateParams, id]);
 
-      const updatedPlaylist = await this.getPlaylistById(id);
+      const updatedPlaylist = await this.getPlaylistById(id, requestSubscriberId, isAdmin);
       if (!updatedPlaylist) {
         throw new Error('Erro ao buscar playlist atualizada');
       }
@@ -294,13 +364,21 @@ export class PlaylistService {
 
   /**
    * Excluir playlist (soft delete)
+   * @param id ID da playlist
+   * @param requestSubscriberId ID do subscriber do usuário autenticado (para validação de ownership)
+   * @param isAdmin Se o usuário é admin
    */
-  async deletePlaylist(id: number): Promise<void> {
+  async deletePlaylist(id: number, requestSubscriberId?: number, isAdmin: boolean = false): Promise<void> {
     try {
-      // Verificar se playlist existe
-      const existingPlaylist = await this.getPlaylistById(id);
+      // Verificar se playlist existe e validar ownership
+      const existingPlaylist = await this.getPlaylistById(id, requestSubscriberId, isAdmin);
       if (!existingPlaylist) {
         throw new Error('Playlist não encontrada');
+      }
+
+      // Validar: não-admin só pode excluir suas próprias playlists
+      if (!isAdmin && requestSubscriberId && existingPlaylist.subscriber_id !== requestSubscriberId) {
+        throw new Error('Acesso negado: Você só pode excluir suas próprias playlists');
       }
 
       // Soft delete - marcar como inativo
@@ -364,22 +442,47 @@ export class PlaylistService {
 
   /**
    * Adicionar mídia à playlist
+   * @param playlistId ID da playlist
+   * @param mediaId ID da mídia
+   * @param orderIndex Ordem na playlist (opcional)
+   * @param duration Duração de exibição em segundos (opcional)
+   * @param requestSubscriberId ID do subscriber do usuário autenticado (para validação de ownership)
+   * @param isAdmin Se o usuário é admin
    */
-  async addMediaToPlaylist(playlistId: number, mediaId: number, orderIndex?: number, duration?: number): Promise<void> {
+  async addMediaToPlaylist(
+    playlistId: number, 
+    mediaId: number, 
+    orderIndex?: number, 
+    duration?: number,
+    requestSubscriberId?: number,
+    isAdmin: boolean = false
+  ): Promise<void> {
     try {
-      // Verificar se playlist existe
-      const playlist = await this.getPlaylistById(playlistId);
+      // Verificar se playlist existe e validar ownership
+      const playlist = await this.getPlaylistById(playlistId, requestSubscriberId, isAdmin);
       if (!playlist) {
         throw new Error('Playlist não encontrada');
       }
 
-      // Verificar se mídia existe
+      // Validar: não-admin só pode adicionar mídias às suas próprias playlists
+      if (!isAdmin && requestSubscriberId && playlist.subscriber_id !== requestSubscriberId) {
+        throw new Error('Acesso negado: Você só pode adicionar mídias às suas próprias playlists');
+      }
+
+      // Verificar se mídia existe e validar ownership
       const media = await this.db.findFirst(`
-        SELECT media_id FROM medias WHERE media_id = $1 AND status = 'active'
+        SELECT media_id, subscriber_id, status 
+        FROM medias 
+        WHERE media_id = $1 AND status = 'active'
       `, [mediaId]);
 
       if (!media) {
-        throw new Error('Mídia não encontrada');
+        throw new Error('Mídia não encontrada ou inativa');
+      }
+
+      // VALIDAÇÃO CRÍTICA: Mídia deve pertencer ao mesmo subscriber da playlist
+      if (media.subscriber_id !== playlist.subscriber_id) {
+        throw new Error(`Mídia pertence a outro subscriber. A playlist pertence ao subscriber ${playlist.subscriber_id}, mas a mídia pertence ao subscriber ${media.subscriber_id}`);
       }
 
       // Se não especificado, usar o próximo índice
@@ -408,9 +511,29 @@ export class PlaylistService {
 
   /**
    * Remover mídia da playlist
+   * @param playlistId ID da playlist
+   * @param itemId ID do item
+   * @param requestSubscriberId ID do subscriber do usuário autenticado (para validação de ownership)
+   * @param isAdmin Se o usuário é admin
    */
-  async removeMediaFromPlaylist(playlistId: number, itemId: number): Promise<void> {
+  async removeMediaFromPlaylist(
+    playlistId: number, 
+    itemId: number,
+    requestSubscriberId?: number,
+    isAdmin: boolean = false
+  ): Promise<void> {
     try {
+      // Verificar se playlist existe e validar ownership
+      const playlist = await this.getPlaylistById(playlistId, requestSubscriberId, isAdmin);
+      if (!playlist) {
+        throw new Error('Playlist não encontrada');
+      }
+
+      // Validar: não-admin só pode remover mídias das suas próprias playlists
+      if (!isAdmin && requestSubscriberId && playlist.subscriber_id !== requestSubscriberId) {
+        throw new Error('Acesso negado: Você só pode remover mídias das suas próprias playlists');
+      }
+
       // Verificar se item existe
       const item = await this.db.findFirst(`
         SELECT item_id FROM playlist_items WHERE item_id = $1 AND playlist_id = $2
@@ -432,13 +555,27 @@ export class PlaylistService {
 
   /**
    * Reordenar mídia da playlist
+   * @param playlistId ID da playlist
+   * @param items Array de itens com nova ordem
+   * @param requestSubscriberId ID do subscriber do usuário autenticado (para validação de ownership)
+   * @param isAdmin Se o usuário é admin
    */
-  async reorderPlaylistMedia(playlistId: number, items: { itemId: number; orderIndex: number }[]): Promise<void> {
+  async reorderPlaylistMedia(
+    playlistId: number, 
+    items: { itemId: number; orderIndex: number }[],
+    requestSubscriberId?: number,
+    isAdmin: boolean = false
+  ): Promise<void> {
     try {
-      // Verificar se playlist existe
-      const playlist = await this.getPlaylistById(playlistId);
+      // Verificar se playlist existe e validar ownership
+      const playlist = await this.getPlaylistById(playlistId, requestSubscriberId, isAdmin);
       if (!playlist) {
         throw new Error('Playlist não encontrada');
+      }
+
+      // Validar: não-admin só pode reordenar suas próprias playlists
+      if (!isAdmin && requestSubscriberId && playlist.subscriber_id !== requestSubscriberId) {
+        throw new Error('Acesso negado: Você só pode reordenar suas próprias playlists');
       }
 
       // Atualizar ordem de cada item

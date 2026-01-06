@@ -2,7 +2,8 @@ import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 
 export interface Client {
-  client_id: number;
+  client_id: number; // Mantido para compatibilidade - mapeia para subscriber_id
+  subscriber_id?: number; // Novo campo do schema v2
   name: string;
   email?: string;
   phone?: string;
@@ -54,11 +55,11 @@ export class ClientService {
       const { page = 1, limit = 10, search } = params;
       const offset = (page - 1) * limit;
 
-      let whereClause = 'WHERE c.is_active = true';
+      let whereClause = 'WHERE s.is_active = true';
       const queryParams: any[] = [];
 
       if (search) {
-        whereClause += ' AND (c.name ILIKE $' + (queryParams.length + 1) + ' OR c.email ILIKE $' + (queryParams.length + 1) + ')';
+        whereClause += ' AND (s.name ILIKE $' + (queryParams.length + 1) + ' OR s.email ILIKE $' + (queryParams.length + 1) + ')';
         queryParams.push(`%${search}%`);
       }
 
@@ -66,20 +67,21 @@ export class ClientService {
       fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:62',message:'Before query execution',data:{whereClause,queryParams:queryParams.length,limit,offset},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
 
-      // Buscar clientes
+      // Buscar subscribers (clientes no schema v2)
       const clients = await this.db.findMany(`
         SELECT 
-          c.client_id,
-          c.name,
-          c.email,
-          c.phone,
-          c.address,
-          c.is_active,
-          c.created_at,
-          c.updated_at
-        FROM clients c
-        ${whereClause}
-        ORDER BY c.created_at DESC
+          s.subscriber_id as client_id,
+          s.subscriber_id,
+          s.name,
+          s.email,
+          s.phone,
+          s.address,
+          s.is_active,
+          s.created_at,
+          s.updated_at
+        FROM subscribers s
+        ${whereClause.replace('c.', 's.')}
+        ORDER BY s.created_at DESC
         LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
       `, [...queryParams, limit, offset]);
 
@@ -91,21 +93,24 @@ export class ClientService {
       fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:81',message:'Checking if totems join needed',data:{hasPlatformInfo:false,queryIncludesTotems:false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
       // #endregion
 
-      // Verificar se há totens com plataforma para esses clientes
-      const clientIds = clients.map(c => c.client_id);
-      if (clientIds.length > 0) {
+      // Verificar se há totens com plataforma para esses subscribers
+      // Nota: Totems não têm mais client_id direto - usar subscriber_id via campaigns
+      const subscriberIds = clients.map(c => c.client_id || c.subscriber_id);
+      if (subscriberIds.length > 0) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:88',message:'Querying totems for platforms',data:{clientIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:88',message:'Querying totems for platforms',data:{subscriberIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
         // #endregion
         try {
+          // Totems não têm client_id direto - buscar via campaigns
           const totemsWithPlatform = await this.db.findMany(`
-            SELECT 
-              t.client_id,
+            SELECT DISTINCT
+              c.subscriber_id as client_id,
               t.config::jsonb->'hardware'->>'platform' as platform
             FROM totems t
-            WHERE t.client_id = ANY($1)
+            JOIN campaigns c ON c.totem_id = t.totem_id
+            WHERE c.subscriber_id = ANY($1)
             AND t.config::jsonb->'hardware'->>'platform' IS NOT NULL
-          `, [clientIds]);
+          `, [subscriberIds]);
           // #region agent log
           fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:97',message:'Totems with platform found',data:{totemsCount:totemsWithPlatform.length,totemsByPlatform:totemsWithPlatform.reduce((acc:any,t:any)=>{const p=t.platform||'unknown';acc[p]=(acc[p]||0)+1;return acc;},{})},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
           // #endregion
@@ -119,7 +124,7 @@ export class ClientService {
       // Contar total
       const totalResult = await this.db.findFirst(`
         SELECT COUNT(*) as total
-        FROM clients c
+        FROM subscribers s
         ${whereClause}
       `, queryParams);
 
@@ -149,16 +154,17 @@ export class ClientService {
     try {
       const client = await this.db.findFirst(`
         SELECT 
-          c.client_id,
-          c.name,
-          c.email,
-          c.phone,
-          c.address,
-          c.is_active,
-          c.created_at,
-          c.updated_at
-        FROM clients c
-        WHERE c.client_id = $1
+          s.subscriber_id as client_id,
+          s.subscriber_id,
+          s.name,
+          s.email,
+          s.phone,
+          s.address,
+          s.is_active,
+          s.created_at,
+          s.updated_at
+        FROM subscribers s
+        WHERE s.subscriber_id = $1
       `, [id]);
 
       return client;
@@ -175,27 +181,27 @@ export class ClientService {
     try {
       const { name, email, phone, address } = data;
 
-      // Verificar se cliente já existe
+      // Verificar se subscriber já existe
       const existingClient = await this.db.findFirst(`
-        SELECT client_id FROM clients WHERE name = $1
+        SELECT subscriber_id FROM subscribers WHERE name = $1
       `, [name]);
 
       if (existingClient) {
         throw new Error('Cliente com este nome já existe');
       }
 
-      // Criar cliente
+      // Criar subscriber
       const result = await this.db.executeRaw(`
-        INSERT INTO clients (name, email, phone, address, is_active, created_at, updated_at)
+        INSERT INTO subscribers (name, email, phone, address, is_active, created_at, updated_at)
         VALUES ($1, $2, $3, $4, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        RETURNING client_id
+        RETURNING subscriber_id
       `, [name, email, phone, address]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar cliente');
       }
 
-      const clientId = result.rows[0].client_id;
+      const clientId = result.rows[0].subscriber_id;
       const newClient = await this.getClientById(clientId);
 
       if (!newClient) {
@@ -225,7 +231,7 @@ export class ClientService {
       // Verificar se nome já existe (se mudou)
       if (name && name !== existingClient.name) {
         const clientWithSameName = await this.db.findFirst(`
-          SELECT client_id FROM clients WHERE name = $1 AND client_id != $2
+          SELECT subscriber_id FROM subscribers WHERE name = $1 AND subscriber_id != $2
         `, [name, id]);
 
         if (clientWithSameName) {
@@ -272,9 +278,9 @@ export class ClientService {
 
       // Executar atualização
       await this.db.executeRaw(`
-        UPDATE clients 
+        UPDATE subscribers 
         SET ${updateFields.join(', ')}
-        WHERE client_id = $${paramIndex}
+        WHERE subscriber_id = $${paramIndex}
       `, [...updateParams, id]);
 
       const updatedClient = await this.getClientById(id);
@@ -302,9 +308,9 @@ export class ClientService {
 
       // Soft delete - marcar como inativo
       await this.db.executeRaw(`
-        UPDATE clients 
+        UPDATE subscribers 
         SET is_active = false, updated_at = CURRENT_TIMESTAMP
-        WHERE client_id = $1
+        WHERE subscriber_id = $1
       `, [id]);
     } catch (error: any) {
       await logError('Erro ao excluir cliente', error, { id });

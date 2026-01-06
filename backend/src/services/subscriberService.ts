@@ -4,6 +4,7 @@ import { logError } from '../utils/loggerHelper';
 export interface Subscriber {
   subscriber_id: number;
   name: string;
+  contact_name?: string;
   email?: string;
   phone?: string;
   whatsapp?: string;
@@ -15,6 +16,7 @@ export interface Subscriber {
 
 export interface CreateSubscriberRequest {
   name: string;
+  contact_name?: string;
   email?: string;
   phone?: string;
   whatsapp?: string;
@@ -23,6 +25,7 @@ export interface CreateSubscriberRequest {
 
 export interface UpdateSubscriberRequest {
   name?: string;
+  contact_name?: string;
   email?: string;
   phone?: string;
   whatsapp?: string;
@@ -67,6 +70,7 @@ export class SubscriberService {
         SELECT 
           s.subscriber_id,
           s.name,
+          s.contact_name,
           s.email,
           s.phone,
           s.whatsapp,
@@ -108,6 +112,7 @@ export class SubscriberService {
         SELECT 
           s.subscriber_id,
           s.name,
+          s.contact_name,
           s.email,
           s.phone,
           s.whatsapp,
@@ -131,7 +136,7 @@ export class SubscriberService {
    */
   async createSubscriber(data: CreateSubscriberRequest): Promise<Subscriber> {
     try {
-      const { name, email, phone, whatsapp, address } = data;
+      const { name, contact_name, email, phone, whatsapp, address } = data;
 
       // Verificar se subscriber já existe
       const existingSubscriber = await this.db.findFirst(`
@@ -155,10 +160,10 @@ export class SubscriberService {
 
       // Criar subscriber
       const result = await this.db.executeRaw(`
-        INSERT INTO subscribers (name, email, phone, whatsapp, address, is_active, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO subscribers (name, contact_name, email, phone, whatsapp, address, is_active, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING subscriber_id
-      `, [name, email, phone, whatsapp, address]);
+      `, [name, contact_name, email, phone, whatsapp, address]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar subscriber');
@@ -183,7 +188,7 @@ export class SubscriberService {
    */
   async updateSubscriber(id: number, data: UpdateSubscriberRequest): Promise<Subscriber> {
     try {
-      const { name, email, phone, whatsapp, address, isActive } = data;
+      const { name, contact_name, email, phone, whatsapp, address, isActive } = data;
 
       // Verificar se subscriber existe
       const existingSubscriber = await this.getSubscriberById(id);
@@ -221,6 +226,12 @@ export class SubscriberService {
       if (name) {
         updateFields.push(`name = $${paramIndex}`);
         updateParams.push(name);
+        paramIndex++;
+      }
+
+      if (contact_name !== undefined) {
+        updateFields.push(`contact_name = $${paramIndex}`);
+        updateParams.push(contact_name);
         paramIndex++;
       }
 

@@ -58,6 +58,7 @@ SEEDS_OPTION_FORCED=false
 DB_ONLY_MODE=false                # Reinstala apenas o banco (drop + schema + seeds), sem rebuild de backend/frontend
 BACKEND_BUILD_ONLY=false          # Faz apenas build do backend (sem mexer em banco/Nginx/etc.)
 FRONTEND_BUILD_ONLY=false         # Faz apenas build do frontend (sem mexer em banco/backend/etc.)
+BACKFRONT_BUILD_ONLY=false        # Faz build do backend e do frontend (deps + TypeScript + React), sem tocar no banco
 
 # Flags internas para controlar o comportamento de install_project_dependencies
 SKIP_BACKEND_DEPS_BUILD=false     # Quando true, pula instalação/build do backend dentro de install_project_dependencies
@@ -382,6 +383,10 @@ execute_psql_file() {
         sudo chmod 644 "$schema_file" 2>/dev/null || true
     fi
 
+    # Obter diretório do arquivo para usar com \i
+    local schema_dir=$(dirname "$schema_file")
+    local schema_filename=$(basename "$schema_file")
+
     if [[ ! -r "$schema_file" ]]; then
         error "❌ Permissão de leitura negada para $schema_file"
         exit 1
@@ -400,6 +405,15 @@ execute_psql_file() {
         rm -f "$temp_schema" 2>/dev/null || true
         error "❌ Falha ao copiar ${schema_file} para ${temp_schema}"
         exit 1
+    fi
+
+    # Substituir caminhos relativos \i por caminhos absolutos se necessário
+    if grep -q "\\\\i " "$temp_schema"; then
+        # Substituir \i caminho_relativo por \i caminho_absoluto
+        sed -i "s|\\\\i \\([^/].*\\.sql\\)|\\\\i ${schema_dir}/\\1|g" "$temp_schema" 2>/dev/null || {
+            # Fallback: usar perl ou python se sed -i não funcionar
+            perl -i -pe "s|\\\\i ([^/].*\.sql)|\\\\i ${schema_dir}/\$1|g" "$temp_schema" 2>/dev/null || true
+        }
     fi
 
     chmod 644 "$temp_schema" 2>/dev/null || true
@@ -536,6 +550,12 @@ parse_arguments() {
                 SKIP_MENU=true
                 shift
                 ;;
+            --backfront-build)
+                # Instala dependências e compila backend e frontend (sem tocar no banco)
+                BACKFRONT_BUILD_ONLY=true
+                SKIP_MENU=true
+                shift
+                ;;
             --load-seeds|--with-seeds)
                 LOAD_SEEDS=true
                 SEEDS_OPTION_FORCED=true
@@ -565,6 +585,7 @@ parse_arguments() {
                 echo "  --db-only            Reinstala APENAS o banco (drop + schema + seeds), sem rebuild de backend/frontend"
                 echo "  --backend-only       Faz apenas build do backend (deps + TypeScript), sem tocar no banco"
                 echo "  --frontend-only      Faz apenas build do frontend (deps + build React), sem tocar no banco"
+                echo "  --backfront-build    Faz build do backend e do frontend (deps + TypeScript + React), sem tocar no banco"
                 echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt)"
                 echo "  --no-seeds           Não carrega dados de demonstração"
                 echo "  --help               Mostra esta ajuda"
@@ -643,6 +664,248 @@ install_dependencies() {
         ffmpeg
     
     log "Dependências básicas instaladas!"
+}
+
+# Configurar DNS local para Publishers e Subscribers (opcional)
+setup_local_dns() {
+    # Perguntar ao usuário se deseja configurar DNS local
+    echo
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}                    Configuração de DNS Local (Publishers e Subscribers)${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo
+    echo -e "${YELLOW}DNS local permite usar domínios como:${NC}"
+    echo "  • publisher1.local, publisher2.local, etc."
+    echo "  • subscriber1.local, subscriber2.local, etc."
+    echo "  • api.publisher1.local, mqtt.publisher1.local, etc."
+    echo
+    echo -e "${GREEN}Benefícios:${NC}"
+    echo "  ✓ Funciona offline (não requer internet)"
+    echo "  ✓ Facilita desenvolvimento e testes"
+    echo "  ✓ Ideal para totens/players"
+    echo "  ✓ Não requer DNS externo para serviços internos"
+    echo
+    read -p "Deseja configurar DNS local para publishers e subscribers? (s/N): " configure_dns_local
+    
+    if [[ ! "$configure_dns_local" =~ ^[Ss]$ ]]; then
+        log "DNS local não será configurado"
+        return 0
+    fi
+    
+    log "Configurando DNS local para publishers e subscribers..."
+    
+    # 1. Instalar dnsmasq
+    if ! command -v dnsmasq &> /dev/null; then
+        log "Instalando dnsmasq..."
+        sudo apt install -y dnsmasq || {
+            error "Falha ao instalar dnsmasq"
+            return 1
+        }
+    else
+        log "✅ dnsmasq já está instalado"
+    fi
+    
+    # 2. Configurar systemd-resolved (liberar porta 53)
+    log "Configurando systemd-resolved..."
+    
+    RESOLVED_CONF="/etc/systemd/resolved.conf"
+    if [[ -f "$RESOLVED_CONF" ]]; then
+        # Fazer backup
+        sudo cp "$RESOLVED_CONF" "${RESOLVED_CONF}.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+        
+        # Verificar se já está configurado
+        if grep -q "DNSStubListener=no" "$RESOLVED_CONF" 2>/dev/null; then
+            log "✅ systemd-resolved já está configurado (DNSStubListener=no)"
+        else
+            # Configurar systemd-resolved
+            if grep -q "^\[Resolve\]" "$RESOLVED_CONF" 2>/dev/null; then
+                # Seção [Resolve] existe, adicionar/modificar configurações
+                sudo sed -i '/^\[Resolve\]/,/^\[/ {
+                    /^DNS=/d
+                    /^FallbackDNS=/d
+                    /^DNSStubListener=/d
+                }' "$RESOLVED_CONF" 2>/dev/null || true
+                
+                # Adicionar configurações após [Resolve]
+                sudo sed -i '/^\[Resolve\]/a\
+DNS=127.0.0.1\
+FallbackDNS=8.8.8.8\
+DNSStubListener=no' "$RESOLVED_CONF" 2>/dev/null || true
+            else
+                # Seção [Resolve] não existe, criar
+                echo "[Resolve]
+DNS=127.0.0.1
+FallbackDNS=8.8.8.8
+DNSStubListener=no" | sudo tee -a "$RESOLVED_CONF" > /dev/null
+            fi
+            
+            log "✅ systemd-resolved configurado"
+        fi
+    else
+        warn "⚠️  Arquivo /etc/systemd/resolved.conf não encontrado"
+    fi
+    
+    # 3. Ajustar resolv.conf
+    log "Ajustando resolv.conf..."
+    if [[ -L /etc/resolv.conf ]]; then
+        # Já é um link simbólico, verificar se aponta para o lugar certo
+        RESOLV_TARGET=$(readlink /etc/resolv.conf)
+        if [[ "$RESOLV_TARGET" != "/run/systemd/resolve/resolv.conf" ]]; then
+            sudo rm /etc/resolv.conf
+            sudo ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+            log "✅ resolv.conf ajustado"
+        else
+            log "✅ resolv.conf já está configurado corretamente"
+        fi
+    elif [[ -f /etc/resolv.conf ]]; then
+        # É um arquivo, fazer backup e criar link
+        sudo cp /etc/resolv.conf /etc/resolv.conf.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+        sudo rm /etc/resolv.conf
+        sudo ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+        log "✅ resolv.conf convertido para link simbólico"
+    else
+        # Não existe, criar link
+        sudo ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+        log "✅ resolv.conf criado"
+    fi
+    
+    # 4. Criar configuração dnsmasq para publishers e subscribers
+    log "Criando configuração dnsmasq..."
+    
+    DNSMASQ_CONF="/etc/dnsmasq.d/smartsignage-publishers-subscribers.conf"
+    
+    # Criar configuração com publishers e subscribers de exemplo
+    sudo tee "$DNSMASQ_CONF" > /dev/null << 'DNSMASQ_EOF'
+# Smart Signage Pro - DNS Local para Publishers e Subscribers
+# Configurado automaticamente pelo script de instalação
+
+domain-needed
+bogus-priv
+no-resolv
+
+# DNS externo fallback
+server=8.8.8.8
+server=1.1.1.1
+
+# Bind local
+listen-address=127.0.0.1
+bind-interfaces
+
+# Domínios base
+local=/publisher.local/
+local=/subscriber.local/
+
+# ============================================
+# PUBLISHERS (Exemplo: 5 publishers)
+# ============================================
+address=/publisher1.local/127.0.0.1
+address=/publisher2.local/127.0.0.1
+address=/publisher3.local/127.0.0.1
+address=/publisher4.local/127.0.0.1
+address=/publisher5.local/127.0.0.1
+
+# Serviços por Publisher
+address=/api.publisher1.local/127.0.0.1
+address=/mqtt.publisher1.local/127.0.0.1
+address=/player.publisher1.local/127.0.0.1
+
+address=/api.publisher2.local/127.0.0.1
+address=/mqtt.publisher2.local/127.0.0.1
+address=/player.publisher2.local/127.0.0.1
+
+address=/api.publisher3.local/127.0.0.1
+address=/mqtt.publisher3.local/127.0.0.1
+address=/player.publisher3.local/127.0.0.1
+
+address=/api.publisher4.local/127.0.0.1
+address=/mqtt.publisher4.local/127.0.0.1
+address=/player.publisher4.local/127.0.0.1
+
+address=/api.publisher5.local/127.0.0.1
+address=/mqtt.publisher5.local/127.0.0.1
+address=/player.publisher5.local/127.0.0.1
+
+# ============================================
+# SUBSCRIBERS (Exemplo: 5 subscribers)
+# ============================================
+address=/subscriber1.local/127.0.0.1
+address=/subscriber2.local/127.0.0.1
+address=/subscriber3.local/127.0.0.1
+address=/subscriber4.local/127.0.0.1
+address=/subscriber5.local/127.0.0.1
+
+# Serviços por Subscriber
+address=/api.subscriber1.local/127.0.0.1
+address=/mqtt.subscriber1.local/127.0.0.1
+
+address=/api.subscriber2.local/127.0.0.1
+address=/mqtt.subscriber2.local/127.0.0.1
+
+address=/api.subscriber3.local/127.0.0.1
+address=/mqtt.subscriber3.local/127.0.0.1
+
+address=/api.subscriber4.local/127.0.0.1
+address=/mqtt.subscriber4.local/127.0.0.1
+
+address=/api.subscriber5.local/127.0.0.1
+address=/mqtt.subscriber5.local/127.0.0.1
+DNSMASQ_EOF
+    
+    log "✅ Configuração dnsmasq criada: $DNSMASQ_CONF"
+    
+    # 5. Reiniciar serviços na ordem correta
+    log "Reiniciando serviços..."
+    
+    # Reiniciar systemd-resolved primeiro
+    sudo systemctl restart systemd-resolved || {
+        warn "⚠️  Falha ao reiniciar systemd-resolved (pode não estar instalado)"
+    }
+    
+    # Aguardar um pouco para garantir que porta 53 está livre
+    sleep 2
+    
+    # Reiniciar dnsmasq
+    sudo systemctl restart dnsmasq || {
+        error "❌ Falha ao reiniciar dnsmasq"
+        error "Verifique os logs: sudo journalctl -xeu dnsmasq.service"
+        return 1
+    }
+    
+    # 6. Validar funcionamento
+    log "Validando DNS local..."
+    sleep 2
+    
+    if command -v nslookup &> /dev/null; then
+        if nslookup publisher1.local 127.0.0.1 >/dev/null 2>&1; then
+            log "✅ DNS local funcionando (publisher1.local resolvido)"
+        else
+            warn "⚠️  DNS local pode não estar funcionando corretamente"
+            warn "   Teste manualmente: nslookup publisher1.local 127.0.0.1"
+        fi
+        
+        if nslookup subscriber1.local 127.0.0.1 >/dev/null 2>&1; then
+            log "✅ DNS local funcionando (subscriber1.local resolvido)"
+        else
+            warn "⚠️  DNS local pode não estar funcionando corretamente"
+            warn "   Teste manualmente: nslookup subscriber1.local 127.0.0.1"
+        fi
+    else
+        warn "⚠️  nslookup não está instalado (não é possível validar DNS)"
+    fi
+    
+    # 7. Verificar status do serviço
+    if systemctl is-active --quiet dnsmasq 2>/dev/null; then
+        log "✅ dnsmasq está rodando"
+    else
+        error "❌ dnsmasq não está rodando"
+        error "Verifique os logs: sudo journalctl -xeu dnsmasq.service"
+        return 1
+    fi
+    
+    log "✅ DNS local configurado com sucesso!"
+    log "💡 Use os scripts auxiliares para adicionar mais publishers/subscribers:"
+    log "   scripts/add-publisher-dns.sh <publisher_id>"
+    log "   scripts/add-subscriber-dns.sh <subscriber_id>"
 }
 
 # Garantir que Python3 está instalado (necessário para correções automáticas)
@@ -1311,6 +1574,13 @@ setup_project() {
                 [[ -d "$SOURCE_DIR/nginx" ]] && rsync -av --delete "$SOURCE_DIR/nginx/" "$INSTALL_DIR/nginx/"
                 
                 log "✅ Cópia recursiva completa com rsync concluída"
+                
+                # Garantir permissões corretas no diretório database após cópia
+                if [[ -d "$INSTALL_DIR/database" ]]; then
+                    log "Garantindo permissões corretas no diretório database..."
+                    chmod -R 755 "$INSTALL_DIR/database" 2>/dev/null || true
+                    log "✅ Permissões do diretório database corrigidas (755)"
+                fi
             else
                 # Fallback para cp -a (preserva permissões e links simbólicos)
                 log "Usando cp -a para cópia recursiva (rsync não disponível)..."
@@ -1340,6 +1610,13 @@ setup_project() {
                 fi
                 
                 log "✅ Cópia recursiva completa com cp -a concluída"
+                
+                # Garantir permissões corretas no diretório database após cópia
+                if [[ -d "$INSTALL_DIR/database" ]]; then
+                    log "Garantindo permissões corretas no diretório database..."
+                    chmod -R 755 "$INSTALL_DIR/database" 2>/dev/null || true
+                    log "✅ Permissões do diretório database corrigidas (755)"
+                fi
             fi
         
             # Copiar arquivos essenciais (docker-compose.yml, Dockerfiles, etc)
@@ -3619,12 +3896,14 @@ NODE
     fi
 
     if ! sudo -u postgres psql -d "$target_db" -v ON_ERROR_STOP=1 <<SQL
-INSERT INTO users (client_id, username, email, password_hash, name, role, is_active, last_login, created_at, updated_at)
-VALUES (NULL, 'admin', 'admin@smart-signage.com', '${admin_hash}', 'Administrador', 'admin', true, NOW(), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+INSERT INTO users (publisher_id, username, email, password_hash, name, role, user_type, is_tenant_user, is_active, last_login, created_at, updated_at)
+VALUES (NULL, 'admin', 'admin@smart-signage.com', '${admin_hash}', 'Administrador', 'admin', 'system_user', true, true, NOW(), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (username)
 DO UPDATE SET
   password_hash = EXCLUDED.password_hash,
   role = EXCLUDED.role,
+  user_type = EXCLUDED.user_type,
+  is_tenant_user = EXCLUDED.is_tenant_user,
   is_active = EXCLUDED.is_active,
   updated_at = CURRENT_TIMESTAMP,
   last_login = NOW();
@@ -4258,60 +4537,28 @@ server {
 }
 EOF
     else
-        # Configuração separada: Porta 80 (Player) e Porta 8080 (Admin)
+        # Configuração com suporte a subdomínios na porta 80
+        # Determinar domínio base para subdomínios
+        if [[ -n "$DOMAIN_NAME" ]]; then
+            MAIN_DOMAIN="$DOMAIN_NAME"
+            MAIN_SERVER_NAME="$DOMAIN_NAME www.$DOMAIN_NAME"
+            PUBLISHER_DOMAIN="publisher.$DOMAIN_NAME"
+            SUBSCRIBER_DOMAIN="subscriber.$DOMAIN_NAME"
+        else
+            MAIN_DOMAIN="_"
+            MAIN_SERVER_NAME="_"
+            PUBLISHER_DOMAIN="publisher.*"
+            SUBSCRIBER_DOMAIN="subscriber.*"
+        fi
+        
         sudo tee $NGINX_CONFIG > /dev/null << EOF
 # ============================================
-# PORTA 80 - PLAYER (Público, sem autenticação)
+# SERVER: Domínio Principal (${MAIN_DOMAIN})
 # ============================================
 server {
     listen 80;
-    server_name _;
-    
-    # Backend API para player
-    location /api/player/ {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-    
-    # Player - redirect raiz e arquivos
-    location = /player { return 301 /player/; }
-    location /player/ {
-        alias /opt/smart-signage/player-web/;
-        index index.html;
-        try_files \$uri \$uri/ /player/index.html;
-    }
-    
-    # Redirecionar raiz para player
-    location = / {
-        return 301 /player;
-    }
-    
-    # Health check (sem redirecionamento)
-    location = /health {
-        proxy_pass http://localhost:3000/health;
-        proxy_set_header Host \$host;
-    }
-    
-    # Compressão Gzip
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
-}
-
-# ============================================
-# PORTA 8080 - PAINEL ADMINISTRATIVO (Login)
-# ============================================
-server {
-    listen 8080;
-    server_name _;
+    listen [::]:80;
+    server_name ${MAIN_SERVER_NAME};
     
     # Diretório raiz e arquivo índice
     root $FRONTEND_BUILD_DIR;
@@ -4354,11 +4601,20 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Subdomain-Type main;
         proxy_cache_bypass \$http_upgrade;
         # Timeouts aumentados para uploads grandes
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;
         proxy_read_timeout 300s;
+    }
+    
+    # Player - redirect raiz e arquivos
+    location = /player { return 301 /player/; }
+    location /player/ {
+        alias /opt/smart-signage/player-web/;
+        index index.html;
+        try_files \$uri \$uri/ /player/index.html;
     }
     
     # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
@@ -4368,7 +4624,161 @@ server {
         add_header Cache-Control "public, immutable";
     }
     
+    # Health check (sem redirecionamento)
+    location = /health {
+        proxy_pass http://localhost:3000/health;
+        proxy_set_header Host \$host;
+    }
+    
     # Frontend SPA - todas as rotas vão para index.html
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+    
+    # Compressão Gzip
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
+}
+
+# ============================================
+# SERVER: Subdomínio Publisher (${PUBLISHER_DOMAIN})
+# ============================================
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${PUBLISHER_DOMAIN};
+    
+    # Diretório raiz e arquivo índice
+    root $FRONTEND_BUILD_DIR;
+    index index.html;
+    
+    # Configurações gerais
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    
+    # Arquivos estáticos
+    location /static/ {
+        alias $FRONTEND_BUILD_DIR/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
+        root $FRONTEND_BUILD_DIR;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    
+    # Configurações de upload
+    client_max_body_size 500M;
+    client_body_buffer_size 512k;
+    
+    # Backend API com header de subdomínio
+    location /api/ {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Subdomain-Type publisher;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }
+    
+    # Assets
+    location /assets/ {
+        alias /opt/smart-signage/public/assets/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+    
+    # Frontend SPA
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+    
+    # Compressão Gzip
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
+}
+
+# ============================================
+# SERVER: Subdomínio Subscriber (${SUBSCRIBER_DOMAIN})
+# ============================================
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${SUBSCRIBER_DOMAIN};
+    
+    # Diretório raiz e arquivo índice
+    root $FRONTEND_BUILD_DIR;
+    index index.html;
+    
+    # Configurações gerais
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    
+    # Arquivos estáticos
+    location /static/ {
+        alias $FRONTEND_BUILD_DIR/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
+        root $FRONTEND_BUILD_DIR;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    
+    # Configurações de upload
+    client_max_body_size 500M;
+    client_body_buffer_size 512k;
+    
+    # Backend API com header de subdomínio
+    location /api/ {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Subdomain-Type subscriber;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }
+    
+    # Assets
+    location /assets/ {
+        alias /opt/smart-signage/public/assets/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+    
+    # Frontend SPA
     location / {
         try_files \$uri \$uri/ /index.html;
     }
@@ -5177,6 +5587,335 @@ test_endpoints() {
     echo
     
     log "Teste de endpoints concluído!"
+}
+
+# =============================================================================
+# VALIDAÇÃO AUTOMÁTICA COMPLETA DO SISTEMA
+# =============================================================================
+# Função para validar automaticamente todos os componentes do sistema
+# Similar ao VALIDAR-SISTEMA.ps1 do Windows
+# =============================================================================
+validate_system_complete() {
+    log "========================================="
+    log "Validação Automática Completa do Sistema"
+    log "========================================="
+    echo ""
+    
+    # Contadores de validação
+    local total_tests=0
+    local passed_tests=0
+    local failed_tests=0
+    local errors=()
+    local report_file="$INSTALL_DIR/validacao-sistema-$(date +%Y%m%d-%H%M%S).txt"
+    
+    # Função auxiliar para testar resultados
+    test_result() {
+        local test_name="$1"
+        local passed="$2"
+        local message="${3:-}"
+        
+        total_tests=$((total_tests + 1))
+        if [ "$passed" = true ]; then
+            passed_tests=$((passed_tests + 1))
+            log "✅ $test_name"
+            [ -n "$message" ] && log "   $message"
+        else
+            failed_tests=$((failed_tests + 1))
+            warning "❌ $test_name"
+            [ -n "$message" ] && warning "   $message"
+            errors+=("$test_name: $message")
+        fi
+    }
+    
+    # Obter IP do servidor
+    SERVER_IP=$(hostname -I | awk '{print $1}')
+    API="http://$SERVER_IP:3000"
+    
+    # ============================================
+    # 1. VALIDAÇÕES DE CONECTIVIDADE
+    # ============================================
+    log "===> 1. Validando Conectividade"
+    
+    # Backend Health Check
+    log "Testando Backend Health Check..."
+    if curl -fsS --max-time 5 "$API/api/health/check" > /dev/null 2>&1 || \
+       curl -fsS --max-time 5 "$API/api/health" > /dev/null 2>&1 || \
+       curl -fsS --max-time 5 "$API/health" > /dev/null 2>&1; then
+        test_result "Backend Health Check" true "URL: $API/api/health/check"
+    else
+        test_result "Backend Health Check" false "Nao foi possivel conectar a $API"
+    fi
+    
+    # Frontend
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        FRONTEND_URL="http://$SERVER_IP:80"
+    elif [[ "$INSTALL_MODE" == "single-server" ]]; then
+        FRONTEND_URL="http://$SERVER_IP:8080"
+    else
+        FRONTEND_URL="http://$SERVER_IP:3001"
+    fi
+    
+    log "Testando Frontend..."
+    if curl -fsS --max-time 5 "$FRONTEND_URL" > /dev/null 2>&1; then
+        test_result "Frontend acessivel" true "URL: $FRONTEND_URL"
+    else
+        test_result "Frontend acessivel" false "URL: $FRONTEND_URL"
+    fi
+    
+    echo ""
+    
+    # ============================================
+    # 2. VALIDAÇÕES DE API DETALHADAS
+    # ============================================
+    log "===> 2. Validando APIs Detalhadas"
+    
+    # Health Check completo
+    log "Testando Health Check completo..."
+    HEALTH_RESPONSE=$(curl -fsS --max-time 5 "$API/api/health/check" 2>/dev/null || curl -fsS --max-time 5 "$API/api/health" 2>/dev/null || echo "")
+    if [ -n "$HEALTH_RESPONSE" ]; then
+        # Tentar extrair status do JSON
+        if command -v jq &> /dev/null; then
+            HEALTH_STATUS=$(echo "$HEALTH_RESPONSE" | jq -r '.status // .services.database.status // "unknown"' 2>/dev/null || echo "unknown")
+            DB_STATUS=$(echo "$HEALTH_RESPONSE" | jq -r '.services.database.status // "unknown"' 2>/dev/null || echo "unknown")
+            test_result "Health Check API completo" true "Status: $HEALTH_STATUS"
+            if [ "$DB_STATUS" != "unknown" ]; then
+                if [ "$DB_STATUS" = "healthy" ]; then
+                    test_result "Banco de dados conectado (via Health Check)" true "Status: $DB_STATUS"
+                else
+                    test_result "Banco de dados conectado (via Health Check)" false "Status: $DB_STATUS"
+                fi
+            fi
+        else
+            test_result "Health Check API completo" true "Resposta recebida"
+        fi
+    else
+        test_result "Health Check API completo" false "Nao recebeu resposta"
+    fi
+    
+    # API Docs
+    log "Testando API Docs..."
+    if curl -fsS --max-time 5 "$API/api-docs" > /dev/null 2>&1 || \
+       curl -fsS --max-time 5 "$API/api/docs.json" > /dev/null 2>&1; then
+        test_result "API Docs acessivel" true
+    else
+        test_result "API Docs acessivel" false "Nao foi possivel acessar"
+    fi
+    
+    echo ""
+    
+    # ============================================
+    # 3. VALIDAÇÕES DE BANCO DE DADOS
+    # ============================================
+    log "===> 3. Validando Banco de Dados"
+    
+    # Verificar conexão PostgreSQL
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        # Docker: verificar container
+        if $COMPOSE_CMD ps 2>/dev/null | grep -q smartsignage-postgres || docker ps 2>/dev/null | grep -q smartsignage-postgres; then
+            DB_CONTAINER_STATUS=$(docker ps --filter "name=smartsignage-postgres" --format "{{.Status}}" 2>/dev/null | head -1 || echo "")
+            if echo "$DB_CONTAINER_STATUS" | grep -q "Up"; then
+                test_result "PostgreSQL container rodando" true "$DB_CONTAINER_STATUS"
+            else
+                test_result "PostgreSQL container rodando" false "$DB_CONTAINER_STATUS"
+            fi
+        else
+            test_result "PostgreSQL container rodando" false "Container nao encontrado"
+        fi
+    else
+        # Single-Server: verificar serviço systemd
+        if systemctl is-active --quiet postgresql 2>/dev/null; then
+            test_result "PostgreSQL serviço ativo" true
+        else
+            test_result "PostgreSQL serviço ativo" false "Servico nao esta ativo"
+        fi
+    fi
+    
+    # Testar conexão ao banco
+    log "Testando conexao ao banco de dados..."
+    if command -v psql &> /dev/null; then
+        # Tentar ler configurações do .env
+        if [ -f "$INSTALL_DIR/.env" ] || [ -f "$INSTALL_DIR/backend/.env" ]; then
+            ENV_FILE="$INSTALL_DIR/.env"
+            [ ! -f "$ENV_FILE" ] && ENV_FILE="$INSTALL_DIR/backend/.env"
+            
+            DB_NAME=$(grep "^DB_NAME=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "smartsignage")
+            DB_USER=$(grep "^DB_USER=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "smartsignage")
+            DB_HOST=$(grep "^DB_HOST=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "localhost")
+            DB_PORT=$(grep "^DB_PORT=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "5432")
+            
+            export PGPASSWORD="${DB_PASSWORD:-smartsignage123}"
+            if PGPASSWORD="$PGPASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1;" > /dev/null 2>&1; then
+                test_result "Conexao ao banco de dados" true "Database: $DB_NAME"
+            else
+                test_result "Conexao ao banco de dados" false "Nao foi possivel conectar"
+            fi
+            unset PGPASSWORD
+        fi
+    fi
+    
+    echo ""
+    
+    # ============================================
+    # 4. VALIDAÇÕES DE LOGS
+    # ============================================
+    log "===> 4. Validando Logs"
+    
+    # Verificar logs do backend
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        log "Analisando logs dos containers..."
+        BACKEND_LOGS=$(docker compose logs --tail 100 backend 2>/dev/null || docker-compose logs --tail 100 backend 2>/dev/null || echo "")
+        if [ -n "$BACKEND_LOGS" ]; then
+            ERROR_COUNT=$(echo "$BACKEND_LOGS" | grep -i "error\|ERROR\|Error" | wc -l || echo "0")
+            CRITICAL_ERRORS=$(echo "$BACKEND_LOGS" | grep -i "FATAL\|CRITICAL\|ECONNREFUSED\|Cannot.*connect\|Failed.*connect" | head -5 || true)
+            
+            if [ -z "$CRITICAL_ERRORS" ]; then
+                test_result "Logs sem erros criticos" true
+            else
+                test_result "Logs sem erros criticos" false "Encontrados erros criticos"
+                warning "Erros encontrados nos logs:"
+                echo "$CRITICAL_ERRORS" | while read -r line; do
+                    log "   $line"
+                done
+            fi
+        fi
+    else
+        # Single-Server: verificar logs do arquivo
+        LOG_FILE="$INSTALL_DIR/backend/logs/app.log"
+        if [ -f "$LOG_FILE" ]; then
+            log "Analisando logs do backend..."
+            ERROR_COUNT=$(grep -i "error\|ERROR\|Error" "$LOG_FILE" 2>/dev/null | wc -l || echo "0")
+            CRITICAL_ERRORS=$(grep -i "FATAL\|CRITICAL\|ECONNREFUSED\|Cannot\|Failed" "$LOG_FILE" 2>/dev/null | head -5 || true)
+            
+            if [ -z "$CRITICAL_ERRORS" ]; then
+                test_result "Logs sem erros criticos" true
+            else
+                test_result "Logs sem erros criticos" false "Encontrados erros criticos"
+            fi
+        else
+            test_result "Arquivo de log existe" false "Log file nao encontrado: $LOG_FILE"
+        fi
+    fi
+    
+    echo ""
+    
+    # ============================================
+    # 5. VALIDAÇÕES DE PORTAS
+    # ============================================
+    log "===> 5. Validando Portas"
+    
+    # Verificar porta do backend
+    log "Verificando porta 3000 (Backend)..."
+    if command -v ss &> /dev/null; then
+        if sudo ss -tlnp 2>/dev/null | grep -q ":3000 " || ss -tlnp 2>/dev/null | grep -q ":3000 "; then
+            test_result "Porta 3000 em uso (Backend)" true
+        else
+            test_result "Porta 3000 em uso (Backend)" false "Porta nao esta em uso"
+        fi
+    elif command -v netstat &> /dev/null; then
+        if netstat -tlnp 2>/dev/null | grep -q ":3000 " || sudo netstat -tlnp 2>/dev/null | grep -q ":3000 "; then
+            test_result "Porta 3000 em uso (Backend)" true
+        else
+            test_result "Porta 3000 em uso (Backend)" false "Porta nao esta em uso"
+        fi
+    fi
+    
+    # Verificar porta do frontend (depende do modo)
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        FRONTEND_PORT="80"
+    elif [[ "$INSTALL_MODE" == "single-server" ]]; then
+        FRONTEND_PORT="8080"
+    else
+        FRONTEND_PORT="3001"
+    fi
+    
+    log "Verificando porta $FRONTEND_PORT (Frontend)..."
+    if command -v ss &> /dev/null; then
+        if sudo ss -tlnp 2>/dev/null | grep -q ":$FRONTEND_PORT " || ss -tlnp 2>/dev/null | grep -q ":$FRONTEND_PORT "; then
+            test_result "Porta $FRONTEND_PORT em uso (Frontend)" true
+        else
+            test_result "Porta $FRONTEND_PORT em uso (Frontend)" false "Porta nao esta em uso"
+        fi
+    elif command -v netstat &> /dev/null; then
+        if netstat -tlnp 2>/dev/null | grep -q ":$FRONTEND_PORT " || sudo netstat -tlnp 2>/dev/null | grep -q ":$FRONTEND_PORT "; then
+            test_result "Porta $FRONTEND_PORT em uso (Frontend)" true
+        else
+            test_result "Porta $FRONTEND_PORT em uso (Frontend)" false "Porta nao esta em uso"
+        fi
+    fi
+    
+    echo ""
+    
+    # ============================================
+    # 6. RELATÓRIO FINAL
+    # ============================================
+    log "===> 6. Relatorio Final"
+    
+    if [ $total_tests -gt 0 ]; then
+        success_rate=$(echo "scale=2; $passed_tests * 100 / $total_tests" | bc 2>/dev/null || echo "0")
+    else
+        success_rate=0
+    fi
+    
+    echo ""
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}RESUMO DA VALIDACAO${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    log "Total de testes: $total_tests"
+    log "Testes aprovados: $passed_tests"
+    warning "Testes falhados: $failed_tests"
+    log "Taxa de sucesso: ${success_rate}%"
+    echo ""
+    
+    # Gerar relatório em arquivo
+    cat > "$report_file" << EOF
+========================================
+VALIDACAO DO SISTEMA SMART SIGNAGE PRO
+========================================
+Data: $(date '+%Y-%m-%d %H:%M:%S')
+Versao: $SYSTEM_VERSION
+Modo de Instalacao: $INSTALL_MODE
+
+RESUMO:
+- Total de testes: $total_tests
+- Aprovados: $passed_tests
+- Falhados: $failed_tests
+- Taxa de sucesso: ${success_rate}%
+
+SERVICOS:
+- Backend: $API
+- Frontend: $FRONTEND_URL
+- IP do Servidor: $SERVER_IP
+
+ERROS ENCONTRADOS:
+$(printf '%s\n' "${errors[@]}")
+
+========================================
+EOF
+    
+    log "Relatorio salvo em: $report_file"
+    
+    if [ $failed_tests -eq 0 ]; then
+        echo -e "${GREEN}========================================${NC}"
+        echo -e "${GREEN}SISTEMA VALIDADO COM SUCESSO!${NC}"
+        echo -e "${GREEN}========================================${NC}"
+    else
+        echo -e "${YELLOW}========================================${NC}"
+        echo -e "${YELLOW}VALIDACAO CONCLUIDA COM ERROS${NC}"
+        echo -e "${YELLOW}========================================${NC}"
+        warning "Alguns testes falharam. Verifique o relatorio para detalhes."
+    fi
+    
+    echo ""
+    log "Validação automática completa concluída!"
+    echo ""
+    
+    # Garantir que informações finais sejam sempre exibidas
+    # (mesmo se houver algum problema no fluxo principal)
+    if [[ "${SHOW_FINAL_INFO_CALLED:-false}" != "true" ]]; then
+        export SHOW_FINAL_INFO_CALLED=true
+        show_final_info
+    fi
 }
 
 # Iniciar serviços na ordem correta
@@ -6541,6 +7280,15 @@ setup_first_boot() {
         log "⚠️  PRIMARY_DB_USER não estava definido, usando: ${PRIMARY_DB_USER}"
     fi
     
+    # Garantir permissões corretas no diretório database antes de executar scripts SQL
+    log "Garantindo permissões corretas no diretório database..."
+    if [[ -d "$INSTALL_DIR/database" ]]; then
+        chmod -R 755 "$INSTALL_DIR/database" 2>/dev/null || true
+        log "✅ Permissões do diretório database corrigidas (755)"
+    else
+        warn "⚠️  Diretório database não encontrado: $INSTALL_DIR/database"
+    fi
+    
     # Verificar se existe script de aplicação do schema v2.0
     local APPLY_SCHEMA_SCRIPT="$INSTALL_DIR/database/apply-schema-v2.sh"
     local APPLY_SCHEMA_ALL="$INSTALL_DIR/database/smartchannel-db-v2-refactored-apply-all.sql"
@@ -6652,7 +7400,7 @@ setup_first_boot() {
         "analytics_sessions" # AnalyticsSession - Depende de totems (usada em JOINs)
         "analytics_emotions" # AnalyticsEmotion - Depende de analytics_sessions
         "analytics_gestures" # AnalyticsGesture - Depende de analytics_sessions
-        "analytics_qr_scans" # AnalyticsQRScan - Depende de qr_codes, totems
+        # "analytics_qr_scans" # REMOVIDO no schema v2 refatorado
         "event_logs"          # EventLog - Depende de totems, campaigns, playlists, medias (v2.1)
         "ai_models"        # AIModel - Sem dependências
         "execution_logs"   # ExecutionLog - Depende de totems, subscribers, campaigns, medias
@@ -6662,28 +7410,28 @@ setup_first_boot() {
         "campaign_publishers" # CampaignPublisher - Depende de campaigns, publishers (NOVO v2.0)
         "system_logs"       # SystemLog - Sem dependências
         "webhook_configs"  # WebhookConfig - Sem dependências
-        "webhook_deliveries" # WebhookDelivery - Depende de webhook_configs
+        # "webhook_deliveries" # REMOVIDO no schema v2 refatorado
         "alert_rules"       # AlertRule - Sem dependências
-        "alert_logs"        # AlertLog - Depende de alert_rules
+        # "alert_logs"        # REMOVIDO no schema v2 refatorado
         "emotion_data"      # EmotionData - Depende de totems, analytics_sessions
         "gesture_data"      # GestureData - Depende de totems, analytics_sessions
         "behavior_data"     # BehaviorData - Depende de totems, analytics_sessions
         "ml_models"        # MLModel - Sem dependências
         "totem_ml_config"  # TotemMLConfig - Depende de totems
-        "ml_sessions"      # MLSession - Depende de totems
+        # "ml_sessions"      # REMOVIDO no schema v2 refatorado
         "roles"            # Role - Sem dependências
         "permissions"      # Permission - Sem dependências
         "user_roles"       # UserRole - Depende de users, roles
         "role_permissions" # RolePermission - Depende de roles, permissions
-        "approval_workflows" # ApprovalWorkflow - Depende de medias, users
+        # "approval_workflows" # REMOVIDO no schema v2 refatorado (playlists não requerem aprovação)
         "audit_logs"       # AuditLog - Depende de users (usada em JOINs)
-        "aggregated_metrics" # AggregatedMetric - Depende de totems, campaigns, medias
-        "device_certificates" # DeviceCertificate - Depende de totems
+        # "aggregated_metrics" # REMOVIDO no schema v2 refatorado
+        # "device_certificates" # REMOVIDO no schema v2 refatorado
         "advanced_schedules" # Agendamentos avançados
-        "schedule_executions" # Histórico de execuções de agendamentos
-        "export_queries"     # CronSQL queries
-        "export_schedules"   # CronSQL schedules
-        "export_executions"  # CronSQL executions
+        # "schedule_executions" # REMOVIDO no schema v2 refatorado
+        # "export_queries"     # REMOVIDO no schema v2 refatorado
+        # "export_schedules"   # REMOVIDO no schema v2 refatorado
+        # "export_executions"  # REMOVIDO no schema v2 refatorado
         "reports"            # Relatórios gerados
         "report_templates"   # Templates de relatórios
         "system_settings"    # Configurações do sistema/logs
@@ -6753,7 +7501,7 @@ setup_first_boot() {
     
     # Garantir privilégios para tabelas específicas que podem ter sido criadas dentro de blocos DO $$
     log "Garantindo privilégios específicos em tabelas críticas..."
-    for table in system_settings export_schedules export_queries export_executions; do
+    for table in system_settings; do
         if sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$table'" | grep -q 1; then
             sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "ALTER TABLE $table OWNER TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
             sudo -u "$POSTGRES_USER" psql -d "$TARGET_DB" -c "GRANT ALL ON TABLE $table TO ${PRIMARY_DB_USER};" >/dev/null 2>&1 || true
@@ -6788,11 +7536,12 @@ setup_first_boot() {
         if [[ "$TABLE_EXISTS" == "t" ]]; then
             error "   Tabela system_settings existe, mas não há configurações de logs"
             error "   Tentando reaplicar schema v2.0 para registros padrão..."
-            # Tentar reaplicar usando schema v2.0
-            if [[ -f "$APPLY_SCHEMA_ALL" ]]; then
-                execute_psql_file "$TARGET_DB" "$APPLY_SCHEMA_ALL" "Reaplicação do schema v2.0 (logs)"
-            elif [[ -f "$APPLY_SCHEMA_SCRIPT" ]] && [[ -x "$APPLY_SCHEMA_SCRIPT" ]]; then
+            # Tentar reaplicar usando schema v2.0 (priorizar script shell)
+            if [[ -f "$APPLY_SCHEMA_SCRIPT" ]] && [[ -x "$APPLY_SCHEMA_SCRIPT" ]]; then
                 cd "$INSTALL_DIR/database" && bash "$APPLY_SCHEMA_SCRIPT"
+            elif [[ -f "$APPLY_SCHEMA_ALL" ]]; then
+                # Usar script shell apply-schema-v2.sh em vez do arquivo SQL com \i
+                cd "$INSTALL_DIR/database" && bash "$APPLY_SCHEMA_SCRIPT" 2>/dev/null || execute_psql_file "$TARGET_DB" "$APPLY_SCHEMA_ALL" "Reaplicação do schema v2.0 (logs)"
             else
                 error "   ❌ Arquivos de schema v2.0 não encontrados para reaplicação"
             fi
@@ -6800,18 +7549,34 @@ setup_first_boot() {
             if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
                 log "✅ Configurações de logs criadas após reaplicação ($LOGS_CONFIG_COUNT configurações encontradas)"
             else
-                error "❌ Não foi possível inserir configurações de logs mesmo após reaplicação"
+                # Tentar inserir configurações de logs diretamente
+                log "   Tentando inserir configurações de logs diretamente..."
+                local SEEDS_FILE="$INSTALL_DIR/database/seeds-default-settings.sql"
+                if [[ -f "$SEEDS_FILE" ]]; then
+                    execute_psql_file "$TARGET_DB" "$SEEDS_FILE" "Inserção de configurações padrão"
+                    LOGS_CONFIG_COUNT=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
+                    if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
+                        log "✅ Configurações de logs inseridas via seeds ($LOGS_CONFIG_COUNT configurações encontradas)"
+                    else
+                        error "❌ Não foi possível inserir configurações de logs mesmo após tentativa de seeds"
                 exit 1
+                    fi
+                else
+                    error "❌ Arquivo seeds-default-settings.sql não encontrado"
+                    error "❌ Não foi possível inserir configurações de logs"
+                    exit 1
+                fi
             fi
         else
             error "   Tabela system_settings NÃO existe!"
             error "   O schema de logs deve criar esta tabela primeiro"
             error "   Reaplicando schema v2.0..."
-            # Tentar reaplicar usando schema v2.0
-            if [[ -f "$APPLY_SCHEMA_ALL" ]]; then
-                execute_psql_file "$TARGET_DB" "$APPLY_SCHEMA_ALL" "Reaplicação do schema v2.0 (recriar system_settings)"
-            elif [[ -f "$APPLY_SCHEMA_SCRIPT" ]] && [[ -x "$APPLY_SCHEMA_SCRIPT" ]]; then
+            # Tentar reaplicar usando schema v2.0 (priorizar script shell)
+            if [[ -f "$APPLY_SCHEMA_SCRIPT" ]] && [[ -x "$APPLY_SCHEMA_SCRIPT" ]]; then
                 cd "$INSTALL_DIR/database" && bash "$APPLY_SCHEMA_SCRIPT"
+            elif [[ -f "$APPLY_SCHEMA_ALL" ]]; then
+                # Usar script shell apply-schema-v2.sh em vez do arquivo SQL com \i
+                cd "$INSTALL_DIR/database" && bash "$APPLY_SCHEMA_SCRIPT" 2>/dev/null || execute_psql_file "$TARGET_DB" "$APPLY_SCHEMA_ALL" "Reaplicação do schema v2.0 (recriar system_settings)"
             else
                 error "   ❌ Arquivos de schema v2.0 não encontrados para reaplicação"
             fi
@@ -6824,8 +7589,23 @@ setup_first_boot() {
             if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
                 log "✅ Configurações de logs criadas após recriação ($LOGS_CONFIG_COUNT configurações encontradas)"
             else
+                # Tentar inserir configurações de logs diretamente
+                log "   Tentando inserir configurações de logs diretamente..."
+                local SEEDS_FILE="$INSTALL_DIR/database/seeds-default-settings.sql"
+                if [[ -f "$SEEDS_FILE" ]]; then
+                    execute_psql_file "$TARGET_DB" "$SEEDS_FILE" "Inserção de configurações padrão"
+                    LOGS_CONFIG_COUNT=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")
+                    if [[ -n "$LOGS_CONFIG_COUNT" ]] && [[ "$LOGS_CONFIG_COUNT" -gt 0 ]]; then
+                        log "✅ Configurações de logs inseridas via seeds ($LOGS_CONFIG_COUNT configurações encontradas)"
+                    else
+                        error "❌ Configurações de logs ainda ausentes após tentativa de seeds"
+                        exit 1
+                    fi
+                else
+                    error "❌ Arquivo seeds-default-settings.sql não encontrado"
                 error "❌ Configurações de logs ainda ausentes após recriação do schema"
                 exit 1
+                fi
             fi
         fi
     fi
@@ -7030,15 +7810,16 @@ DELETE FROM playlists WHERE playlist_id IN (
 );
 
 -- Legado: remover totem default-demo e dependências, se existirem
-DELETE FROM device_certificates WHERE totem_id IN (
-  SELECT totem_id FROM totems WHERE uin = 'default-demo'
-);
+-- Tabelas removidas no schema v2 refatorado: device_certificates, ml_sessions
+-- DELETE FROM device_certificates WHERE totem_id IN (
+--   SELECT totem_id FROM totems WHERE uin = 'default-demo'
+-- );
 DELETE FROM totem_ml_config WHERE totem_id IN (
   SELECT totem_id FROM totems WHERE uin = 'default-demo'
 );
-DELETE FROM ml_sessions WHERE totem_id IN (
-  SELECT totem_id FROM totems WHERE uin = 'default-demo'
-);
+-- DELETE FROM ml_sessions WHERE totem_id IN (
+--   SELECT totem_id FROM totems WHERE uin = 'default-demo'
+-- );
 DELETE FROM campaign_totems WHERE totem_id IN (
   SELECT totem_id FROM totems WHERE uin = 'default-demo'
 );
@@ -7069,20 +7850,21 @@ DELETE FROM playlist_items WHERE media_id IN (
      OR name ILIKE 'Smart Signage-Pro %'
      OR (tags::text ILIKE '%demo%')
 );
-DELETE FROM aggregated_metrics WHERE media_id IN (
-  SELECT media_id FROM medias 
-  WHERE title ILIKE 'Smart Signage-Pro %' 
-     OR file_path ILIKE '%smart-signage-pro-%' 
-     OR name ILIKE 'Smart Signage-Pro %'
-     OR (tags::text ILIKE '%demo%')
-);
-DELETE FROM approval_workflows WHERE media_id IN (
-  SELECT media_id FROM medias 
-  WHERE title ILIKE 'Smart Signage-Pro %' 
-     OR file_path ILIKE '%smart-signage-pro-%' 
-     OR name ILIKE 'Smart Signage-Pro %'
-     OR (tags::text ILIKE '%demo%')
-);
+-- Tabelas removidas no schema v2 refatorado: aggregated_metrics, approval_workflows
+-- DELETE FROM aggregated_metrics WHERE media_id IN (
+--   SELECT media_id FROM medias 
+--   WHERE title ILIKE 'Smart Signage-Pro %' 
+--      OR file_path ILIKE '%smart-signage-pro-%' 
+--      OR name ILIKE 'Smart Signage-Pro %'
+--      OR (tags::text ILIKE '%demo%')
+-- );
+-- DELETE FROM approval_workflows WHERE media_id IN (
+--   SELECT media_id FROM medias 
+--   WHERE title ILIKE 'Smart Signage-Pro %' 
+--      OR file_path ILIKE '%smart-signage-pro-%' 
+--      OR name ILIKE 'Smart Signage-Pro %'
+--      OR (tags::text ILIKE '%demo%')
+-- );
 DELETE FROM execution_logs WHERE media_id IN (
   SELECT media_id FROM medias 
   WHERE title ILIKE 'Smart Signage-Pro %' 
@@ -7539,12 +8321,105 @@ show_final_info() {
     echo -e "${GREEN}║                    🌐 LINKS DE ACESSO                        ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo
-    echo -e "${CYAN}📱 PAINEL ADMINISTRATIVO (Login):${NC}"
-    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-    echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:8080${NC} ${GREEN}(Acesso remoto)${NC}"
+    
+    # Determinar URLs base (porta 80 para frontend em single-server)
+    BASE_URL_IP="http://$LOCAL_IP"
+    BASE_URL_DOMAIN=""
+    DNS_VALIDATED=false
+    SERVER_IP_FOR_DNS=$(hostname -I | awk '{print $1}' || echo "$LOCAL_IP")
+    
+    # Se DOMAIN_NAME estiver configurado, validar DNS e usar domínio
+    if [[ -n "$DOMAIN_NAME" ]] && [[ "$DOMAIN_NAME" != "_" ]]; then
+        log "Validando configuração DNS para $DOMAIN_NAME..."
+        
+        # Verificar DNS
+        if command -v dig &> /dev/null; then
+            DOMAIN_IP=$(dig +short "$DOMAIN_NAME" A 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || echo "")
+        elif command -v host &> /dev/null; then
+            DOMAIN_IP=$(host -t A "$DOMAIN_NAME" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "")
+        else
+            DOMAIN_IP=""
+        fi
+        
+        if [[ -n "$DOMAIN_IP" ]]; then
+            if [[ "$DOMAIN_IP" == "$SERVER_IP_FOR_DNS" ]] || [[ "$DOMAIN_IP" == "$LOCAL_IP" ]] || [[ "$DOMAIN_IP" == "$EXTERNAL_IP" ]]; then
+                DNS_VALIDATED=true
+                BASE_URL_DOMAIN="http://$DOMAIN_NAME"
+                echo -e "${GREEN}✅ DNS validado: $DOMAIN_NAME → $DOMAIN_IP${NC}"
+            else
+                echo -e "${YELLOW}⚠️  DNS aponta para IP diferente: $DOMAIN_NAME → $DOMAIN_IP (servidor: $SERVER_IP_FOR_DNS)${NC}"
+                BASE_URL_DOMAIN="http://$DOMAIN_NAME"
+            fi
+        else
+            echo -e "${YELLOW}⚠️  DNS não resolvido para $DOMAIN_NAME (usando IP)${NC}"
+        fi
+        echo
     fi
-    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:8080${NC} ${BLUE}(Rede interna)${NC}"
-    echo -e "   ${BLUE}   (Interface administrativa com login)${NC}"
+    
+    echo -e "${CYAN}🔐 LOGIN PRINCIPAL (Administradores/Operadores):${NC}"
+    if [[ -n "$BASE_URL_DOMAIN" ]]; then
+        echo -e "   ${YELLOW}👉 Domínio:    $BASE_URL_DOMAIN/login${NC} ${GREEN}(Recomendado)${NC}"
+    fi
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP/login${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}👉 IP Local:   $BASE_URL_IP/login${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${BLUE}   (Login para administradores, operadores e publishers)${NC}"
+    echo
+    
+    echo -e "${CYAN}👥 LOGIN SUBSCRIBER (Assinantes):${NC}"
+    if [[ -n "$BASE_URL_DOMAIN" ]]; then
+        echo -e "   ${YELLOW}👉 Domínio:    $BASE_URL_DOMAIN/subscriber-login${NC} ${GREEN}(Recomendado)${NC}"
+    fi
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP/subscriber-login${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}👉 IP Local:   $BASE_URL_IP/subscriber-login${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${BLUE}   (Login específico para assinantes)${NC}"
+    echo
+    
+    # Mostrar subdomínios se DOMAIN_NAME estiver configurado
+    if [[ -n "$DOMAIN_NAME" ]] && [[ "$DOMAIN_NAME" != "_" ]]; then
+        echo -e "${CYAN}🏢 PUBLISHER (via subdomínio):${NC}"
+        echo -e "   ${YELLOW}👉 http://publisher.$DOMAIN_NAME${NC} ${GREEN}(Interface Publisher)${NC}"
+        if [[ "$DNS_VALIDATED" == false ]]; then
+            echo -e "   ${YELLOW}   ⚠️  Configure DNS: publisher.$DOMAIN_NAME → $SERVER_IP_FOR_DNS${NC}"
+        fi
+        echo
+        
+        echo -e "${CYAN}📺 SUBSCRIBER (via subdomínio):${NC}"
+        echo -e "   ${YELLOW}👉 http://subscriber.$DOMAIN_NAME${NC} ${GREEN}(Interface Subscriber)${NC}"
+        if [[ "$DNS_VALIDATED" == false ]]; then
+            echo -e "   ${YELLOW}   ⚠️  Configure DNS: subscriber.$DOMAIN_NAME → $SERVER_IP_FOR_DNS${NC}"
+        fi
+        echo
+    fi
+    
+    # Mostrar DNS local se configurado
+    if [[ -f "/etc/dnsmasq.d/smartsignage-publishers-subscribers.conf" ]] && systemctl is-active --quiet dnsmasq 2>/dev/null; then
+        echo -e "${CYAN}🏠 DNS LOCAL (Publishers e Subscribers):${NC}"
+        echo -e "   ${GREEN}✅ DNS local configurado e ativo${NC}"
+        echo -e "   ${BLUE}   Publishers:${NC}"
+        echo -e "      • http://publisher1.local, http://publisher2.local, etc."
+        echo -e "      • http://api.publisher1.local, http://mqtt.publisher1.local, etc."
+        echo -e "   ${BLUE}   Subscribers:${NC}"
+        echo -e "      • http://subscriber1.local, http://subscriber2.local, etc."
+        echo -e "      • http://api.subscriber1.local, http://mqtt.subscriber1.local, etc."
+        echo -e "   ${YELLOW}   💡 Para adicionar mais:${NC}"
+        echo -e "      scripts/add-publisher-dns.sh <publisher_id>"
+        echo -e "      scripts/add-subscriber-dns.sh <subscriber_id>"
+        echo
+    fi
+    
+    echo -e "${CYAN}📱 PAINEL ADMINISTRATIVO (Dashboard):${NC}"
+    if [[ -n "$BASE_URL_DOMAIN" ]]; then
+        echo -e "   ${YELLOW}👉 Domínio:    $BASE_URL_DOMAIN/dashboard${NC} ${GREEN}(Recomendado)${NC}"
+    fi
+    if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP/dashboard${NC} ${GREEN}(Acesso remoto)${NC}"
+    fi
+    echo -e "   ${YELLOW}👉 IP Local:   $BASE_URL_IP/dashboard${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${BLUE}   (Após login - interface administrativa completa)${NC}"
     echo
     echo -e "${CYAN}📺 PLAYER DE MÍDIA (Totem):${NC}"
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
@@ -8541,9 +9416,9 @@ main() {
         return 0
     fi
 
-    # 2) Build APENAS do backend e/ou APENAS do frontend
-    if [[ "$BACKEND_BUILD_ONLY" == "true" || "$FRONTEND_BUILD_ONLY" == "true" ]]; then
-        log "Modo especial: build seletivo (backend/frontend) sem tocar no banco ou serviços..."
+    # 2) Build APENAS do backend e/ou APENAS do frontend ou AMBOS
+    if [[ "$BACKEND_BUILD_ONLY" == "true" || "$FRONTEND_BUILD_ONLY" == "true" || "$BACKFRONT_BUILD_ONLY" == "true" ]]; then
+        log "Modo especial: build seletivo (backend/frontend) sem tocar no banco..."
 
         # Detectar diretório e carregar configurações básicas
         detect_project_directory
@@ -8553,23 +9428,120 @@ main() {
         setup_project
 
         if [[ "$INSTALL_MODE" == "docker" ]]; then
-            error "❌ Modos --backend-only / --frontend-only não são suportados para INSTALL_MODE=docker."
+            error "❌ Modos --backend-only / --frontend-only / --backfront-build não são suportados para INSTALL_MODE=docker."
             error "   Use 'docker compose build' para rebuild em ambientes Docker."
             exit 1
         fi
 
-        if [[ "$BACKEND_BUILD_ONLY" == "true" ]]; then
+        # =====================================================================
+        # 1. PARAR SERVIÇOS ANTES DO BUILD
+        # =====================================================================
+        log "🛑 Parando serviços antes do build..."
+        
+        if [[ -f "$INSTALL_DIR/scripts/stop-services.sh" ]]; then
+            if [[ "$BACKFRONT_BUILD_ONLY" == "true" ]]; then
+                log "Parando backend e frontend..."
+                bash "$INSTALL_DIR/scripts/stop-services.sh" all || warn "⚠️  Alguns serviços podem não ter sido parados"
+            elif [[ "$BACKEND_BUILD_ONLY" == "true" ]]; then
+                log "Parando backend..."
+                bash "$INSTALL_DIR/scripts/stop-services.sh" backend || warn "⚠️  Backend pode não ter sido parado"
+            elif [[ "$FRONTEND_BUILD_ONLY" == "true" ]]; then
+                log "Parando frontend..."
+                bash "$INSTALL_DIR/scripts/stop-services.sh" frontend || warn "⚠️  Frontend pode não ter sido parado"
+            fi
+            sleep 2  # Aguardar serviços pararem completamente
+        else
+            warn "⚠️  Script stop-services.sh não encontrado. Tentando parar processos manualmente..."
+            # Parar por porta (fallback)
+            if [[ "$BACKFRONT_BUILD_ONLY" == "true" ]] || [[ "$BACKEND_BUILD_ONLY" == "true" ]]; then
+                if lsof -ti:3000 &> /dev/null; then
+                    log "Parando processo na porta 3000 (backend)..."
+                    lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+                fi
+            fi
+            if [[ "$BACKFRONT_BUILD_ONLY" == "true" ]] || [[ "$FRONTEND_BUILD_ONLY" == "true" ]]; then
+                if lsof -ti:3001 &> /dev/null || lsof -ti:8080 &> /dev/null; then
+                    log "Parando processos nas portas 3001/8080 (frontend)..."
+                    lsof -ti:3001 | xargs kill -9 2>/dev/null || true
+                    lsof -ti:8080 | xargs kill -9 2>/dev/null || true
+                fi
+            fi
+        fi
+
+        # =====================================================================
+        # 2. REALIZAR BUILDS
+        # =====================================================================
+        if [[ "$BACKFRONT_BUILD_ONLY" == "true" ]]; then
+            SKIP_BACKEND_DEPS_BUILD=false
+            SKIP_FRONTEND_DEPS_BUILD=false
+            log "➡️  Executando instalação/compilação do backend E frontend (--backfront-build)..."
+            install_project_dependencies
+        elif [[ "$BACKEND_BUILD_ONLY" == "true" ]]; then
             SKIP_BACKEND_DEPS_BUILD=false
             SKIP_FRONTEND_DEPS_BUILD=true
             log "➡️  Executando apenas instalação/compilação do backend (--backend-only)..."
             install_project_dependencies
-        fi
-
-        if [[ "$FRONTEND_BUILD_ONLY" == "true" ]]; then
+        elif [[ "$FRONTEND_BUILD_ONLY" == "true" ]]; then
             SKIP_BACKEND_DEPS_BUILD=true
             SKIP_FRONTEND_DEPS_BUILD=false
             log "➡️  Executando apenas instalação/compilação do frontend (--frontend-only)..."
             install_project_dependencies
+        fi
+
+        # =====================================================================
+        # 3. INICIAR SERVIÇOS APÓS O BUILD
+        # =====================================================================
+        log "▶️  Iniciando serviços após o build..."
+        
+        # Função auxiliar para iniciar backend
+        start_backend_service() {
+            # Tentar systemd primeiro
+            if systemctl is-enabled smart-signage &>/dev/null || systemctl is-enabled smartsignage-backend &>/dev/null; then
+                if systemctl is-enabled smart-signage &>/dev/null; then
+                    log "Iniciando serviço systemd: smart-signage..."
+                    sudo systemctl start smart-signage && log "✅ Backend iniciado via systemd" || warn "⚠️  Falha ao iniciar via systemd"
+                elif systemctl is-enabled smartsignage-backend &>/dev/null; then
+                    log "Iniciando serviço systemd: smartsignage-backend..."
+                    sudo systemctl start smartsignage-backend && log "✅ Backend iniciado via systemd" || warn "⚠️  Falha ao iniciar via systemd"
+                fi
+            else
+                # Fallback: iniciar manualmente via npm start
+                if [[ -d "$INSTALL_DIR/backend" ]] && [[ -f "$INSTALL_DIR/backend/dist/index.js" ]]; then
+                    log "Iniciando backend via npm start..."
+                    cd "$INSTALL_DIR/backend"
+                    nohup npm start > "$INSTALL_DIR/logs/backend.log" 2>&1 &
+                    sleep 3
+                    if curl -s http://localhost:3000/health > /dev/null 2>&1; then
+                        log "✅ Backend iniciado e respondendo"
+                    else
+                        warn "⚠️  Backend iniciado mas não respondeu ao health check"
+                    fi
+                    cd "$INSTALL_DIR"
+                else
+                    warn "⚠️  Não foi possível iniciar backend (dist/index.js não encontrado)"
+                fi
+            fi
+        }
+
+        # Função auxiliar para reiniciar Nginx (frontend é servido via Nginx)
+        restart_nginx_if_needed() {
+            if command -v nginx &> /dev/null || command -v systemctl &> /dev/null; then
+                if systemctl is-enabled nginx &>/dev/null || systemctl is-active nginx &>/dev/null; then
+                    log "Reiniciando Nginx para servir novo build do frontend..."
+                    sudo systemctl reload nginx 2>/dev/null || sudo systemctl restart nginx 2>/dev/null || warn "⚠️  Falha ao reiniciar Nginx"
+                    log "✅ Nginx reiniciado"
+                fi
+            fi
+        }
+
+        # Iniciar serviços conforme o modo
+        if [[ "$BACKFRONT_BUILD_ONLY" == "true" ]]; then
+            start_backend_service
+            restart_nginx_if_needed
+        elif [[ "$BACKEND_BUILD_ONLY" == "true" ]]; then
+            start_backend_service
+        elif [[ "$FRONTEND_BUILD_ONLY" == "true" ]]; then
+            restart_nginx_if_needed
         fi
 
         log "✅ Modo especial de build seletivo concluído."
@@ -8611,6 +9583,7 @@ main() {
                     sleep 20  # Dar tempo para containers iniciarem
                     check_startup_order
                     test_endpoints
+                    validate_system_complete
                     show_final_info
                     exit 0
                 fi
@@ -8643,6 +9616,9 @@ main() {
     setup_database
     setup_environment
     
+    # Configurar DNS local (opcional, antes do Nginx)
+    setup_local_dns
+    
     # Para single-server: setup_first_boot DEVE ser antes de create_systemd_service
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
         setup_first_boot  # Executar migrations e seed ANTES de iniciar o serviço
@@ -8669,6 +9645,7 @@ main() {
             sleep 20  # Dar tempo suficiente para containers iniciarem
             check_startup_order
             test_endpoints
+            validate_system_complete
             show_final_info
             exit 0
         fi
@@ -8681,6 +9658,7 @@ main() {
         check_startup_order
     fi
     test_endpoints
+    validate_system_complete
     
     # Para Docker: setup_first_boot é executado dentro do container
     if [[ "$INSTALL_MODE" == "docker" ]]; then
@@ -8766,6 +9744,8 @@ main() {
         save_build_info
     fi
     
+    # Garantir que informações finais sejam sempre exibidas
+    export SHOW_FINAL_INFO_CALLED=true
     show_final_info
 }
 

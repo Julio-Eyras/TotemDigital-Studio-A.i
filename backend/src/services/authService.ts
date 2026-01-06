@@ -32,8 +32,26 @@ export interface AuthResponse {
   user?: {
     id: number;
     username: string;
+    email: string;
     role: string;
     clientId?: number;
+    subscriberId?: number;
+    publisherId?: number;
+    subscriberName?: string;
+    user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+    isTenantUser?: boolean;
+    flags?: {
+      flag_smart_0: boolean;
+      flag_smart_1: boolean;
+      flag_smart_2: boolean;
+      flag_smart_3: boolean;
+      flag_smart_4: boolean;
+      flag_smart_5: boolean;
+      flag_smart_6: boolean;
+      flag_smart_7: boolean;
+      flag_smart_8: boolean;
+      flag_smart_9: boolean;
+    };
   };
   error?: string;
   requiresTwoFactor?: boolean; // Indica se 2FA é necessário
@@ -143,10 +161,29 @@ export class AuthService {
           user: {
             id: user.id,
             username: user.username,
+            email: user.email || '',
             role: user.role,
-            clientId: user.client_id
+            clientId: user.client_id,
+            user_type: user.user_type, // NOVO: Incluir user_type
+            publisherId: user.publisher_id,
+            subscriberId: user.subscriber_id
           }
         };
+      }
+
+      // Buscar flags efetivas do usuário
+      let effectiveFlags: any = null;
+      try {
+        const { getUserEffectiveFlags } = await import('../utils/flagChecker');
+        effectiveFlags = await getUserEffectiveFlags({
+          id: user.id,
+          role: user.role,
+          user_type: user.user_type,
+          publisher_id: user.publisher_id
+        });
+      } catch (error) {
+        await logWarn(`[AUTH] Erro ao buscar flags do usuário`, { userId: user.id, error });
+        // Continuar sem flags se houver erro
       }
 
       // Gerar tokens (2FA não habilitado)
@@ -167,8 +204,13 @@ export class AuthService {
         user: {
           id: user.id,
           username: user.username,
+          email: user.email || '',
           role: user.role,
-          clientId: user.client_id
+          clientId: user.client_id,
+          user_type: user.user_type, // NOVO: Incluir user_type para detecção automática
+          publisherId: user.publisher_id, // NOVO: Incluir publisherId se existir
+          subscriberId: user.subscriber_id, // NOVO: Incluir subscriberId se existir (derivado)
+          flags: effectiveFlags
         }
       };
 
@@ -262,6 +304,7 @@ export class AuthService {
         user: {
           id: newUser.id,
           username: newUser.username,
+          email: newUser.email || '',
           role: newUser.role,
           clientId: newUser.client_id
         }
@@ -319,6 +362,7 @@ export class AuthService {
         user: {
           id: user.id,
           username: user.username,
+          email: user.email || '',
           role: user.role,
           clientId: user.client_id
         }
@@ -327,6 +371,166 @@ export class AuthService {
     } catch (error: any) {
       await logError('Erro no refresh token', error);
       return { success: false, error: 'Token inválido' };
+    }
+  }
+
+  /**
+   * Login específico para subscribers
+   * Permite login usando email do subscriber e senha de um usuário associado
+   */
+  async subscriberLogin(credentials: { email: string; password: string }): Promise<AuthResponse> {
+    try {
+      const { email, password } = credentials;
+      
+      await logDebug(`[AUTH] Tentativa de login subscriber`, { email, passwordLength: password ? password.length : 0 });
+
+      // 1. Buscar subscriber pelo email
+      const subscriber = await this.db.findFirst(`
+        SELECT subscriber_id, name, email, is_active
+        FROM subscribers
+        WHERE email = $1 AND is_active = true
+      `, [email]);
+
+      if (!subscriber) {
+        await logWarn(`[AUTH] Subscriber não encontrado ou inativo`, { email });
+        await this.getAuditService().log('auth', 'subscriber_login_failed', undefined, { email, reason: 'subscriber_not_found' }).catch(e => logError('[AUTH] Erro ao registrar log', e));
+        return { success: false, error: 'Subscriber não encontrado ou inativo' };
+      }
+
+      await logDebug(`[AUTH] Subscriber encontrado`, { subscriberId: subscriber.subscriber_id, email });
+
+      // 2. Buscar publisher relacionado ao subscriber
+      // Estratégia: buscar publisher que tem o mesmo email OU que tem is_subscriber = true
+      // e verificar se há relação direta (futuro: tabela subscriber_publishers)
+      const publisher = await this.db.findFirst(`
+        SELECT publisher_id, name, email, is_subscriber, active
+        FROM publishers
+        WHERE (email = $1 OR is_subscriber = true)
+        AND COALESCE(active, true) = true
+        ORDER BY CASE WHEN email = $1 THEN 1 ELSE 2 END
+        LIMIT 1
+      `, [email]);
+
+      if (!publisher) {
+        await logWarn(`[AUTH] Publisher não encontrado para subscriber`, { subscriberId: subscriber.subscriber_id, email });
+        await this.getAuditService().log('auth', 'subscriber_login_failed', undefined, { email, reason: 'publisher_not_found' }).catch(e => logError('[AUTH] Erro ao registrar log', e));
+        return { success: false, error: 'Nenhum publisher associado encontrado para este subscriber' };
+      }
+
+      await logDebug(`[AUTH] Publisher encontrado`, { publisherId: publisher.publisher_id, email });
+
+      // 3. Buscar usuários do publisher
+      const users = await this.db.findMany(`
+        SELECT id, username, email, password_hash, role, publisher_id, user_type, is_active
+        FROM users
+        WHERE publisher_id = $1 AND is_active = true
+        ORDER BY created_at ASC
+      `, [publisher.publisher_id]);
+
+      if (!users || users.length === 0) {
+        await logWarn(`[AUTH] Nenhum usuário encontrado para publisher`, { publisherId: publisher.publisher_id });
+        await this.getAuditService().log('auth', 'subscriber_login_failed', undefined, { email, reason: 'no_users_found' }).catch(e => logError('[AUTH] Erro ao registrar log', e));
+        return { success: false, error: 'Nenhum usuário encontrado para este subscriber. Contate o administrador.' };
+      }
+
+      await logDebug(`[AUTH] Usuários encontrados`, { count: users.length, publisherId: publisher.publisher_id });
+
+      // 4. Tentar validar senha com cada usuário até encontrar um válido
+      let authenticatedUser: any = null;
+      for (const user of users) {
+        const isValidPassword = await bcrypt.compare(password, user.password_hash);
+        if (isValidPassword) {
+          authenticatedUser = user;
+          break;
+        }
+      }
+
+      if (!authenticatedUser) {
+        await logWarn(`[AUTH] Senha inválida para subscriber`, { email, subscriberId: subscriber.subscriber_id });
+        await this.getAuditService().log('auth', 'subscriber_login_failed', undefined, { email, reason: 'invalid_password' }).catch(e => logError('[AUTH] Erro ao registrar log', e));
+        return { success: false, error: 'Credenciais inválidas' };
+      }
+
+      await logDebug(`[AUTH] Usuário autenticado`, { userId: authenticatedUser.id, username: authenticatedUser.username });
+
+      // 5. Atualizar último login
+      await this.db.executeRaw(`
+        UPDATE users 
+        SET last_login = CURRENT_TIMESTAMP 
+        WHERE id = $1
+      `, [authenticatedUser.id]).catch(e => logError('[AUTH] Erro ao atualizar last_login', e));
+
+      // 6. Verificar se 2FA está habilitado
+      const { getTwoFactorService } = await import('./twoFactorService');
+      const twoFactorService = getTwoFactorService();
+      const requiresTwoFactor = await twoFactorService.isTwoFactorEnabled(authenticatedUser.id);
+
+      if (requiresTwoFactor) {
+        await logInfo(`[AUTH] 2FA requerido para subscriber`, { email, userId: authenticatedUser.id });
+        
+        return {
+          success: true,
+          requiresTwoFactor: true,
+          user: {
+            id: authenticatedUser.id,
+            username: authenticatedUser.username,
+            email: authenticatedUser.email || '',
+            role: authenticatedUser.role,
+            subscriberId: subscriber.subscriber_id,
+            publisherId: publisher.publisher_id
+          }
+        };
+      }
+
+      // 7. Gerar tokens
+      await logDebug(`[AUTH] Gerando tokens JWT para subscriber`, { userId: authenticatedUser.id });
+      
+      // Criar objeto user com subscriberId para o token
+      const userForToken = {
+        ...authenticatedUser,
+        subscriber_id: subscriber.subscriber_id,
+        client_id: subscriber.subscriber_id // Compatibilidade
+      };
+      
+      const token = this.generateToken(userForToken);
+      const refreshToken = this.generateRefreshToken(userForToken);
+      
+      await logDebug(`[AUTH] Tokens gerados com sucesso para subscriber`, { userId: authenticatedUser.id });
+
+      // 8. Log de sucesso
+      await this.getAuditService().log('auth', 'subscriber_login_success', authenticatedUser.id, { 
+        email, 
+        subscriberId: subscriber.subscriber_id,
+        publisherId: publisher.publisher_id
+      }).catch(e => logError('[AUTH] Erro ao registrar log de sucesso', e));
+
+      await logInfo(`[AUTH] Login subscriber bem-sucedido`, { email, userId: authenticatedUser.id, subscriberId: subscriber.subscriber_id });
+
+      return {
+        success: true,
+        token,
+        refreshToken,
+        user: {
+          id: authenticatedUser.id,
+          username: authenticatedUser.username,
+          email: authenticatedUser.email || '',
+          role: authenticatedUser.role,
+          subscriberId: subscriber.subscriber_id,
+          publisherId: publisher.publisher_id,
+          subscriberName: subscriber.name,
+          clientId: subscriber.subscriber_id // Compatibilidade
+        }
+      };
+
+    } catch (error: any) {
+      await logError('[AUTH] Erro no login subscriber', error, { email: credentials.email });
+      
+      if (error.message && error.message.includes('relation') && error.message.includes('does not exist')) {
+        await logError('[AUTH] ERRO CRÍTICO: Tabela não existe no banco de dados', error);
+        return { success: false, error: 'Erro interno: Estrutura do banco de dados não encontrada.' };
+      }
+      
+      return { success: false, error: `Erro interno do servidor: ${error.message}` };
     }
   }
 
@@ -473,12 +677,17 @@ export class AuthService {
    * Gera token JWT
    */
   private generateToken(user: any): string {
-    const payload = {
+    const payload: any = {
       userId: user.id,
       username: user.username,
       role: user.role,
-      clientId: user.client_id
+      clientId: user.client_id || user.subscriber_id
     };
+
+    // Adicionar subscriberId se disponível
+    if (user.subscriber_id) {
+      payload.subscriberId = user.subscriber_id;
+    }
 
     return jwt.sign(payload, config.jwt.secret, {
       expiresIn: config.jwt.expiresIn

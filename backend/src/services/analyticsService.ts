@@ -199,14 +199,12 @@ export class AnalyticsService {
       `);
 
       const totalViews = await this.db.findFirst(`
-        SELECT COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int AS count
+        SELECT COUNT(*)::int AS count
         FROM execution_logs el
+        WHERE el.event_type = 'play_end'
       `);
 
-      await this.db.findFirst(`
-        SELECT COALESCE(SUM(CASE WHEN el.play_success = true THEN el.duration_seconds ELSE 0 END), 0)::int AS total
-        FROM execution_logs el
-      `);
+      // Removido: totalDuration não é usado no retorno
 
       const activeUsers = await this.db.findFirst(`
         SELECT COUNT(*)::int AS count FROM users WHERE is_active = true
@@ -238,19 +236,19 @@ export class AnalyticsService {
       `);
 
       const newViews = await this.db.findFirst(`
-        SELECT COALESCE(SUM(CASE WHEN play_success = true THEN 1 ELSE 0 END), 0)::int AS count
+        SELECT COUNT(*)::int AS count
         FROM execution_logs
-        WHERE executed_at >= ${recentWindow}
+        WHERE event_type = 'play_end' AND timestamp >= ${recentWindow}
       `);
 
       const topCampaigns = await this.db.findMany(`
         SELECT 
           c.campaign_id AS "campaignId",
           c.title,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int AS views,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN el.duration_seconds ELSE 0 END), 0)::int AS duration
+          COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+          COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS duration
         FROM campaigns c
-        LEFT JOIN execution_logs el ON el.campaign_id = c.campaign_id
+        LEFT JOIN execution_logs el ON el.campaign_id = c.campaign_id AND el.event_type = 'play_end'
         GROUP BY c.campaign_id, c.title
         ORDER BY views DESC
         LIMIT 5
@@ -261,9 +259,12 @@ export class AnalyticsService {
           t.totem_id AS "totemId",
           t.name,
           t.location,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int AS views,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::float /
-          GREATEST(COUNT(el.log_id), 1) * 100 AS effectiveness
+          COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+          CASE 
+            WHEN COUNT(el.log_id) > 0 THEN 
+              (COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::float / COUNT(el.log_id) * 100)
+            ELSE 0
+          END AS effectiveness
         FROM totems t
         LEFT JOIN execution_logs el ON el.totem_id = t.totem_id
         WHERE t.is_active = true
@@ -276,10 +277,10 @@ export class AnalyticsService {
         SELECT 
           m.media_id AS "mediaId",
           m.title,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int AS views,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN el.duration_seconds ELSE 0 END), 0)::int AS duration
+          COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+          COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS duration
         FROM medias m
-        LEFT JOIN execution_logs el ON el.media_id = m.media_id
+        LEFT JOIN execution_logs el ON el.media_id = m.media_id AND el.event_type = 'play_end'
         GROUP BY m.media_id, m.title
         ORDER BY views DESC
         LIMIT 5
@@ -367,25 +368,28 @@ export class AnalyticsService {
         whereClause += ' AND el.campaign_id = ?';
         params.push(campaignId);
       }
+      // Adicionar filtro para event_type = 'play_end' na cláusula WHERE
+      whereClause += ' AND el.event_type = \'play_end\'';
+      
       if (startDate) {
-        whereClause += ' AND el.executed_at >= ?';
+        whereClause += ' AND el.timestamp >= ?';
         params.push(startDate);
       }
       if (endDate) {
-        whereClause += ' AND el.executed_at <= ?';
+        whereClause += ' AND el.timestamp <= ?';
         params.push(endDate);
       }
 
       const totalViewsResult = await this.db.findFirst(`
-        SELECT COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int AS total
+        SELECT COUNT(*)::int AS total
         FROM execution_logs el
         ${whereClause}
       `, params);
 
       const totalDurationResult = await this.db.findFirst(`
-        SELECT COALESCE(SUM(CASE WHEN el.play_success = true THEN el.duration_seconds ELSE 0 END), 0)::int AS total
+        SELECT COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS total
         FROM execution_logs el
-        ${whereClause}
+        ${whereClause} AND el.event_data->>'duration' IS NOT NULL
       `, params);
 
       const totalViews = totalViewsResult?.total || 0;
@@ -405,8 +409,8 @@ export class AnalyticsService {
         SELECT 
           el.media_id AS "mediaId",
           COALESCE(m.title, 'Mídia desconhecida') AS title,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int AS views,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN el.duration_seconds ELSE 0 END), 0)::int AS duration
+          COUNT(*)::int AS views,
+          COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS duration
         FROM execution_logs el
         LEFT JOIN medias m ON m.media_id = el.media_id
         ${whereClause}
@@ -418,10 +422,10 @@ export class AnalyticsService {
       const validGroup = ['day', 'week', 'month', 'year'].includes(groupBy) ? groupBy : 'day';
       const viewingTrendsRows = await this.db.findMany(`
         SELECT 
-          DATE_TRUNC('${validGroup}', el.executed_at) AS bucket,
+          DATE_TRUNC('${validGroup}', el.timestamp) AS bucket,
           COUNT(*)::int AS total_events,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int AS views,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN el.duration_seconds ELSE 0 END), 0)::int AS duration,
+          COUNT(*)::int AS views,
+          COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS duration,
           COUNT(DISTINCT el.totem_id)::int AS unique_viewers
         FROM execution_logs el
         ${whereClause}
@@ -456,7 +460,7 @@ export class AnalyticsService {
       const locationStatsRows = await this.db.findMany(`
         SELECT 
           COALESCE(t.location, 'Não informado') AS location,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int AS views
+          COUNT(*)::int AS views
         FROM execution_logs el
         LEFT JOIN totems t ON t.totem_id = el.totem_id
         ${whereClause}
@@ -471,32 +475,37 @@ export class AnalyticsService {
         percentage: Math.round((row.views / totalLocationViews) * 100)
       }));
 
+      // Construir whereClause sem o filtro de event_type para LEFT JOIN
+      const campaignWhereClause = whereClause.replace(' AND el.event_type = \'play_end\'', '');
       const campaignPerformance = await this.db.findMany(`
         SELECT 
           c.campaign_id AS "campaignId",
           c.title,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int AS views,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN el.duration_seconds ELSE 0 END), 0)::int AS duration
+          COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+          COALESCE(SUM(CASE WHEN el.event_type = 'play_end' THEN (el.event_data->>'duration')::int ELSE 0 END), 0)::int AS duration
         FROM campaigns c
-        LEFT JOIN execution_logs el ON el.campaign_id = c.campaign_id
-        ${whereClause}
+        LEFT JOIN execution_logs el ON el.campaign_id = c.campaign_id ${campaignWhereClause}
         GROUP BY c.campaign_id, c.title
         ORDER BY views DESC
         LIMIT 10
       `, params);
 
+      // Remover filtro de event_type da whereClause para LEFT JOIN funcionar corretamente
+      const totemWhereClause = whereClause.replace(' AND el.event_type = \'play_end\'', '');
       const totemPerformance = await this.db.findMany(`
         SELECT 
           t.totem_id AS "totemId",
           COALESCE(t.name, CONCAT('Totem ', t.totem_id::text)) AS name,
           COALESCE(t.location, 'Não informado') AS location,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END), 0)::int AS views,
-          COALESCE(SUM(CASE WHEN el.play_success = true THEN el.duration_seconds ELSE 0 END), 0)::int AS duration,
-          SUM(CASE WHEN el.play_success = true THEN 1 ELSE 0 END)::float /
-          GREATEST(COUNT(el.log_id), 1) * 100 AS effectiveness
+          COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+          COALESCE(SUM(CASE WHEN el.event_type = 'play_end' THEN (el.event_data->>'duration')::int ELSE 0 END), 0)::int AS duration,
+          CASE 
+            WHEN COUNT(el.log_id) > 0 THEN 
+              (COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::float / COUNT(el.log_id) * 100)
+            ELSE 0
+          END AS effectiveness
         FROM totems t
-        LEFT JOIN execution_logs el ON el.totem_id = t.totem_id
-        ${whereClause}
+        LEFT JOIN execution_logs el ON el.totem_id = t.totem_id ${totemWhereClause.replace('el.', 'el.')}
         GROUP BY t.totem_id, t.name, t.location
         ORDER BY views DESC
         LIMIT 10

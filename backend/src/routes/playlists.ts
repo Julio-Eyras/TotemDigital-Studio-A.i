@@ -21,13 +21,15 @@ router.use(subscriberIsolationMiddleware);
 const createPlaylistValidator = [
   body('name').notEmpty().withMessage('Nome é obrigatório'),
   body('description').optional({ nullable: true, checkFalsy: true }).isString(),
-  body('clientId').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1 }).withMessage('clientId deve ser um número inteiro maior que 0'),
+  body('subscriberId').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1 }).withMessage('subscriberId deve ser um número inteiro maior que 0'),
+  body('clientId').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1 }).withMessage('clientId (deprecated) deve ser um número inteiro maior que 0'),
 ];
 
 const updatePlaylistValidator = [
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   body('name').optional().notEmpty().withMessage('Nome não pode ser vazio'),
   body('description').optional().isString(),
+  body('subscriberId').optional().isInt({ min: 1 }),
   body('clientId').optional().isInt({ min: 1 }),
 ];
 
@@ -55,18 +57,22 @@ router.get('/',
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
   query('search').optional().isString(),
-  query('clientId').optional().isInt({ min: 1 }),
+  query('subscriberId').optional().isInt({ min: 1 }),
+  query('clientId').optional().isInt({ min: 1 }), // Deprecated, mantido para compatibilidade
   validateRequest,
   async (req: any, res: any) => {
     try {
-      const { page = 1, limit = 10, search, clientId } = req.query;
+      const { page = 1, limit = 10, search, subscriberId, clientId } = req.query;
+      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
       
       const result = await getPlaylistService().getAllPlaylists({
         page: parseInt(page as string),
         limit: parseInt(limit as string),
         search: search as string,
-        clientId: clientId ? parseInt(clientId as string) : undefined,
-      });
+        subscriberId: subscriberId ? parseInt(subscriberId as string) : undefined,
+        clientId: clientId ? parseInt(clientId as string) : undefined, // Deprecated
+      }, userSubscriberId, isAdmin);
       
       res.json(result);
     } catch (error) {
@@ -86,16 +92,21 @@ router.get('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
       
-      const playlist = await getPlaylistService().getPlaylistById(parseInt(id));
+      const playlist = await getPlaylistService().getPlaylistById(parseInt(id), userSubscriberId, isAdmin);
       
       if (!playlist) {
         return res.status(404).json({ error: 'Playlist não encontrada' });
       }
 
       res.json(playlist);
-    } catch (error) {
+    } catch (error: any) {
       await logError('Erro ao obter playlist', error);
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -111,8 +122,10 @@ router.get('/:id/preview',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
       
-      const playlist = await getPlaylistService().getPlaylistById(parseInt(id));
+      const playlist = await getPlaylistService().getPlaylistById(parseInt(id), userSubscriberId, isAdmin);
       
       if (!playlist) {
         return res.status(404).json({ error: 'Playlist não encontrada' });
@@ -158,22 +171,28 @@ router.get('/:id/preview',
  * @access Private (Admin, Gerente Marketing)
  */
 router.post('/',
-  authorizeRole(['admin', 'gerente_marketing']),
+  authorizeRole(['admin', 'gerente_marketing', 'subscriber']), // Adicionado 'subscriber'
   createPlaylistValidator,
   validateRequest,
   async (req: any, res: any) => {
     try {
-      const { name, description, clientId } = req.body;
+      const { name, description, subscriberId, clientId } = req.body; // Aceita subscriberId e clientId (deprecated)
+      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
       
       const newPlaylist = await getPlaylistService().createPlaylist({
         name,
         description,
-        clientId,
-      });
+        subscriberId: subscriberId || clientId, // Priorizar subscriberId
+        clientId, // Deprecated, mantido para compatibilidade
+      }, userSubscriberId, isAdmin);
 
       res.status(201).json(newPlaylist);
     } catch (error: any) {
       await logError('Erro ao criar playlist', error);
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -185,24 +204,30 @@ router.post('/',
  * @access Private (Admin, Gerente Marketing)
  */
 router.put('/:id',
-  authorizeRole(['admin', 'gerente_marketing']),
+  authorizeRole(['admin', 'gerente_marketing', 'subscriber']), // Adicionado 'subscriber'
   updatePlaylistValidator,
   validateRequest,
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const { name, description, clientId, isActive } = req.body;
+      const { name, description, subscriberId, clientId, isActive } = req.body;
+      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
       
       const updatedPlaylist = await getPlaylistService().updatePlaylist(parseInt(id), {
         name,
         description,
-        clientId,
+        subscriberId: subscriberId || clientId, // Priorizar subscriberId
+        clientId, // Deprecated
         isActive,
-      });
+      }, userSubscriberId, isAdmin);
 
       res.json(updatedPlaylist);
     } catch (error: any) {
       await logError('Erro ao atualizar playlist', error);
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -214,18 +239,23 @@ router.put('/:id',
  * @access Private (Admin, Gerente Marketing)
  */
 router.delete('/:id',
-  authorizeRole(['admin', 'gerente_marketing']),
+  authorizeRole(['admin', 'gerente_marketing', 'subscriber']), // Adicionado 'subscriber'
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
       
-      await getPlaylistService().deletePlaylist(parseInt(id));
+      await getPlaylistService().deletePlaylist(parseInt(id), userSubscriberId, isAdmin);
       
       res.status(204).send();
     } catch (error: any) {
       await logError('Erro ao excluir playlist', error);
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -266,14 +296,26 @@ router.post('/:id/media',
     try {
       const { id } = req.params;
       const { mediaId, orderIndex, duration } = req.body;
+      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
       
-      await getPlaylistService().addMediaToPlaylist(parseInt(id), mediaId, orderIndex, duration);
+      await getPlaylistService().addMediaToPlaylist(
+        parseInt(id), 
+        mediaId, 
+        orderIndex, 
+        duration,
+        userSubscriberId,
+        isAdmin
+      );
       
       res.status(201).json({
         message: 'Mídia adicionada à playlist com sucesso'
       });
     } catch (error: any) {
       await logError('Erro ao adicionar mídia à playlist', error);
+      if (error.message?.includes('Acesso negado') || error.message?.includes('pertence a outro subscriber')) {
+        return res.status(403).json({ error: error.message });
+      }
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -290,12 +332,17 @@ router.delete('/:id/media/:itemId',
   async (req: any, res: any) => {
     try {
       const { id, itemId } = req.params;
+      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
       
-      await getPlaylistService().removeMediaFromPlaylist(parseInt(id), parseInt(itemId));
+      await getPlaylistService().removeMediaFromPlaylist(parseInt(id), parseInt(itemId), userSubscriberId, isAdmin);
       
       res.status(204).send();
     } catch (error: any) {
       await logError('Erro ao remover mídia da playlist', error);
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }

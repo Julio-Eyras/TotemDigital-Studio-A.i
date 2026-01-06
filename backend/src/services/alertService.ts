@@ -125,41 +125,33 @@ export class AlertService {
   /**
    * Verifica FPS baixo
    */
-  private async checkFpsLow(rule: AlertRule): Promise<Alert | null> {
+  private async checkFpsLow(_rule: AlertRule): Promise<Alert | null> {
+    // Tabela fx_telemetry não existe no schema v2 - desabilitar verificação
+    // TODO: Implementar quando tabela de telemetria for criada no schema v2
+    return null;
+    
+    /* Código original comentado - tabela fx_telemetry não existe no schema v2
     const durationMinutes = rule.duration || 5;
     const threshold = rule.threshold;
-
     const lowFpsTotems = await this.db.findMany(`
-      SELECT 
-        totem_id,
-        COUNT(*) as count,
-        AVG(avg_fps) as avg_fps
+      SELECT totem_id, COUNT(*) as count, AVG(avg_fps) as avg_fps
       FROM fx_telemetry
       WHERE created_at >= NOW() - INTERVAL '${durationMinutes} minutes'
-        AND avg_fps < $1
-        AND avg_fps IS NOT NULL
-      GROUP BY totem_id
-      HAVING COUNT(*) >= 3
+        AND avg_fps < $1 AND avg_fps IS NOT NULL
+      GROUP BY totem_id HAVING COUNT(*) >= 3
     `, [threshold]);
-
-    if (lowFpsTotems.length === 0) {
-      return null;
-    }
-
+    if (lowFpsTotems.length === 0) return null;
     return {
       id: `alert_${Date.now()}_${rule.id}`,
       ruleId: rule.id,
       type: rule.type,
       severity: rule.severity,
-      message: `${lowFpsTotems.length} totem(s) com FPS abaixo de ${threshold} por ${durationMinutes} minutos`,
-      details: {
-        totems: lowFpsTotems,
-        threshold,
-        duration: durationMinutes,
-      },
+      message: `${lowFpsTotems.length} totem(s) com FPS abaixo de ${threshold}`,
+      details: { totems: lowFpsTotems, threshold, duration: durationMinutes },
       timestamp: new Date().toISOString(),
       acknowledged: false,
     };
+    */
   }
 
   /**
@@ -207,44 +199,32 @@ export class AlertService {
   /**
    * Verifica taxa de falha alta
    */
-  private async checkFailureRate(rule: AlertRule): Promise<Alert | null> {
+  private async checkFailureRate(_rule: AlertRule): Promise<Alert | null> {
+    // Tabela fx_telemetry não existe no schema v2 - desabilitar verificação
+    // TODO: Implementar quando tabela de telemetria for criada no schema v2
+    return null;
+    
+    /* Código original comentado - tabela fx_telemetry não existe no schema v2
     const durationMinutes = rule.duration || 60;
     const threshold = rule.threshold;
-
     const stats = await this.db.findFirst(`
-      SELECT 
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE status = 'failed') as failed
-      FROM fx_telemetry
-      WHERE created_at >= NOW() - INTERVAL '${durationMinutes} minutes'
+      SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'failed') as failed
+      FROM fx_telemetry WHERE created_at >= NOW() - INTERVAL '${durationMinutes} minutes'
     `);
-
-    if (!stats || stats.total === 0) {
-      return null;
-    }
-
+    if (!stats || stats.total === 0) return null;
     const failureRate = (stats.failed / stats.total) * 100;
-
-    if (failureRate < threshold) {
-      return null;
-    }
-
+    if (failureRate < threshold) return null;
     return {
       id: `alert_${Date.now()}_${rule.id}`,
       ruleId: rule.id,
       type: rule.type,
       severity: rule.severity,
-      message: `Taxa de falha de ${failureRate.toFixed(2)}% nos últimos ${durationMinutes} minutos (threshold: ${threshold}%)`,
-      details: {
-        failureRate: Math.round(failureRate),
-        threshold,
-        total: stats.total,
-        failed: stats.failed,
-        duration: durationMinutes,
-      },
+      message: `Taxa de falha de ${failureRate.toFixed(2)}% nos últimos ${durationMinutes} minutos`,
+      details: { failureRate: Math.round(failureRate), threshold, total: stats.total, failed: stats.failed, duration: durationMinutes },
       timestamp: new Date().toISOString(),
       acknowledged: false,
     };
+    */
   }
 
   /**
@@ -448,11 +428,27 @@ ${JSON.stringify(alert.details, null, 2)}
       const axios = (await import('axios')).default;
       
       // Buscar webhooks configurados do banco
-      const webhooks = await this.db.findMany(`
+      // Nota: webhooks pode não existir no schema v2 - usar webhook_configs se disponível
+      let webhooks: any[] = [];
+      try {
+        webhooks = await this.db.findMany(`
+          SELECT url, secret, is_active as enabled 
+          FROM webhook_configs 
+          WHERE is_active = true AND events::jsonb @> $1::jsonb
+        `, [JSON.stringify(['alerts'])]);
+      } catch (error: any) {
+        // Se webhook_configs não existir ou falhar, tentar webhooks
+        try {
+          webhooks = await this.db.findMany(`
         SELECT url, secret, enabled 
         FROM webhooks 
         WHERE enabled = true AND channels @> $1::jsonb
       `, [JSON.stringify(['alerts'])]);
+        } catch (err: any) {
+          await logWarn('Tabela de webhooks não encontrada', { error: err.message });
+          webhooks = [];
+        }
+      }
 
       if (webhooks.length === 0) {
         await logWarn('Nenhum webhook configurado para alertas', { alertId: alert.id });

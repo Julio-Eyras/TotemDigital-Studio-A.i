@@ -141,6 +141,7 @@ COMMENT ON COLUMN publisher_billing.approved_by IS 'User (tenant) que aprovou o 
 CREATE TABLE IF NOT EXISTS subscriber_contracts (
     contract_id SERIAL PRIMARY KEY,
     subscriber_id INTEGER NOT NULL, -- FK para subscribers
+    plan_id INTEGER, -- FK para plans - Plano associado ao contrato
     
     contract_number TEXT UNIQUE NOT NULL,
     contract_type TEXT NOT NULL, 
@@ -185,6 +186,7 @@ CREATE TABLE IF NOT EXISTS subscriber_contracts (
 );
 
 COMMENT ON TABLE subscriber_contracts IS 'Contratos com subscribers (anunciantes)';
+COMMENT ON COLUMN subscriber_contracts.plan_id IS 'FK para plans - Plano associado ao contrato do subscriber';
 COMMENT ON COLUMN subscriber_contracts.document_path IS 'Caminho do arquivo do contrato (PDF/DOC/DOCX)';
 
 -- =============================================

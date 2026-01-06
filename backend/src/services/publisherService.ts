@@ -375,6 +375,209 @@ export class PublisherService {
       throw error;
     }
   }
+
+  /**
+   * Listar locals de um publisher
+   */
+  async getLocalsByPublisher(publisherId: number): Promise<any[]> {
+    try {
+      const locals = await this.db.findMany(`
+        SELECT 
+          l.local_id,
+          l.name,
+          l.address,
+          l.city,
+          l.state,
+          l.zip_code,
+          l.country,
+          l.latitude,
+          l.longitude,
+          l.timezone,
+          l.description,
+          l.is_active,
+          l.created_at,
+          l.updated_at
+        FROM locals l
+        WHERE l.publisher_id = $1
+          AND l.is_active = true
+        ORDER BY l.name
+      `, [publisherId]);
+
+      return locals;
+    } catch (error: any) {
+      await logError('Erro ao buscar locals do publisher', error, { publisherId });
+      throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Listar totems de um publisher (via locals)
+   */
+  async getTotemsByPublisher(publisherId: number): Promise<any[]> {
+    try {
+      const totems = await this.db.findMany(`
+        SELECT 
+          t.totem_id,
+          t.identifier,
+          t.uin,
+          t.device_id,
+          t.name,
+          t.description,
+          t.model,
+          t.manufacturer,
+          t.firmware_version,
+          t.hardware_version,
+          t.os_version,
+          t.status,
+          t.last_heartbeat,
+          t.heartbeat_interval,
+          t.network_info,
+          t.capabilities,
+          t.is_active,
+          t.created_at,
+          t.updated_at,
+          l.name as local_name,
+          l.local_id
+        FROM totems t
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.publisher_id = $1
+          AND t.is_active = true
+        ORDER BY l.name, t.name
+      `, [publisherId]);
+
+      return totems;
+    } catch (error: any) {
+      await logError('Erro ao buscar totems do publisher', error, { publisherId });
+      throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Listar smart TVs de um publisher (via totems)
+   */
+  async getSmartTvsByPublisher(publisherId: number): Promise<any[]> {
+    try {
+      const smartTvs = await this.db.findMany(`
+        SELECT 
+          st.tv_id,
+          st.identifier,
+          st.device_id,
+          st.name,
+          st.brand,
+          st.model,
+          st.platform,
+          st.firmware_version,
+          st.resolution_width,
+          st.resolution_height,
+          st.orientation,
+          st.status,
+          st.last_seen,
+          st.capabilities,
+          st.settings,
+          st.is_active,
+          st.created_at,
+          st.updated_at,
+          t.name as totem_name,
+          t.totem_id,
+          t.identifier as totem_identifier,
+          l.name as local_name
+        FROM smart_tvs st
+        JOIN totems t ON st.totem_id = t.totem_id
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.publisher_id = $1
+          AND st.is_active = true
+        ORDER BY l.name, t.name, st.name
+      `, [publisherId]);
+
+      return smartTvs;
+    } catch (error: any) {
+      await logError('Erro ao buscar smart TVs do publisher', error, { publisherId });
+      throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Obter estatísticas de um publisher
+   */
+  async getPublisherStats(publisherId: number): Promise<{
+    localsCount: number;
+    totemsCount: number;
+    smartTvsCount: number;
+    activeCampaignsCount: number;
+    onlineTotems: number;
+    playingTvs: number;
+  }> {
+    try {
+      // Contar locals
+      const localsCountResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM locals
+        WHERE publisher_id = $1 AND is_active = true
+      `, [publisherId]);
+
+      // Contar totems
+      const totemsCountResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM totems t
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.publisher_id = $1 AND t.is_active = true
+      `, [publisherId]);
+
+      // Contar smart TVs
+      const smartTvsCountResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM smart_tvs st
+        JOIN totems t ON st.totem_id = t.totem_id
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.publisher_id = $1 AND st.is_active = true
+      `, [publisherId]);
+
+      // Contar campanhas ativas (via campaign_publishers)
+      const campaignsCountResult = await this.db.findFirst(`
+        SELECT COUNT(DISTINCT cp.campaign_id) as count
+        FROM campaign_publishers cp
+        JOIN campaigns c ON cp.campaign_id = c.campaign_id
+        WHERE cp.publisher_id = $1
+          AND cp.is_active = true
+          AND c.is_active = true
+          AND c.status = 'active'
+          AND (c.end_date IS NULL OR c.end_date >= CURRENT_DATE)
+      `, [publisherId]);
+
+      // Contar totens online
+      const onlineTotemsResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM totems t
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.publisher_id = $1 
+          AND t.is_active = true
+          AND t.status = 'online'
+      `, [publisherId]);
+
+      // Contar Smart TVs playing
+      const playingTvsResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM smart_tvs st
+        JOIN totems t ON st.totem_id = t.totem_id
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE l.publisher_id = $1 
+          AND st.is_active = true
+          AND st.status = 'playing'
+      `, [publisherId]);
+
+      return {
+        localsCount: parseInt(localsCountResult?.count || '0'),
+        totemsCount: parseInt(totemsCountResult?.count || '0'),
+        smartTvsCount: parseInt(smartTvsCountResult?.count || '0'),
+        activeCampaignsCount: parseInt(campaignsCountResult?.count || '0'),
+        onlineTotems: parseInt(onlineTotemsResult?.count || '0'),
+        playingTvs: parseInt(playingTvsResult?.count || '0'),
+      };
+    } catch (error: any) {
+      await logError('Erro ao buscar estatísticas do publisher', error, { publisherId });
+      throw new Error('Erro interno do servidor');
+    }
+  }
 }
 
 // Instância global do serviço

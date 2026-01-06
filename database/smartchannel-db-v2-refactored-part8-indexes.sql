@@ -19,6 +19,7 @@ CREATE INDEX IF NOT EXISTS idx_publishers_client_type ON publishers(client_type)
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_publisher ON users(publisher_id) WHERE publisher_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_subscriber ON users(subscriber_id) WHERE subscriber_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(is_tenant_user) WHERE is_tenant_user = true;
 CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_users_user_type ON users(user_type);
@@ -83,8 +84,44 @@ CREATE INDEX IF NOT EXISTS idx_publisher_billing_created ON publisher_billing(cr
 
 CREATE INDEX IF NOT EXISTS idx_subscriber_contracts_subscriber ON subscriber_contracts(subscriber_id);
 CREATE INDEX IF NOT EXISTS idx_subscriber_contracts_status ON subscriber_contracts(status);
+CREATE INDEX IF NOT EXISTS idx_subscriber_contracts_plan ON subscriber_contracts(plan_id) WHERE plan_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_publisher_contracts_publisher ON publisher_contracts(publisher_id);
 CREATE INDEX IF NOT EXISTS idx_publisher_contracts_status ON publisher_contracts(status);
+
+-- =============================================
+-- ÍNDICES DE CONTROLE DE ACESSO SUBSCRIBER → PUBLISHER
+-- =============================================
+
+-- Plan Publisher Access
+CREATE INDEX IF NOT EXISTS idx_plan_publisher_access_plan 
+    ON plan_publisher_access(plan_id) 
+    WHERE is_allowed = true;
+
+CREATE INDEX IF NOT EXISTS idx_plan_publisher_access_publisher 
+    ON plan_publisher_access(publisher_id) 
+    WHERE is_allowed = true;
+
+-- Subscriber Publisher Access
+CREATE INDEX IF NOT EXISTS idx_subscriber_publisher_access_subscriber 
+    ON subscriber_publisher_access(subscriber_id, is_active) 
+    WHERE is_active = true AND revoked_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_subscriber_publisher_access_publisher 
+    ON subscriber_publisher_access(publisher_id, is_active) 
+    WHERE is_active = true AND revoked_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_subscriber_publisher_access_contract 
+    ON subscriber_publisher_access(contract_id) 
+    WHERE contract_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_subscriber_publisher_access_expires 
+    ON subscriber_publisher_access(expires_at) 
+    WHERE expires_at IS NOT NULL AND is_active = true;
+
+-- Índice composto para validação rápida
+CREATE INDEX IF NOT EXISTS idx_subscriber_publisher_access_lookup 
+    ON subscriber_publisher_access(subscriber_id, publisher_id, is_active, expires_at) 
+    WHERE is_active = true AND revoked_at IS NULL;
 
 -- =============================================
 -- ÍNDICES DE RELACIONAMENTO N:M
@@ -101,6 +138,46 @@ CREATE INDEX IF NOT EXISTS idx_campaign_publishers_publisher ON campaign_publish
 
 CREATE INDEX IF NOT EXISTS idx_campaign_playlists_campaign ON campaign_playlists(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_campaign_playlists_playlist ON campaign_playlists(playlist_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_playlists_active ON campaign_playlists(is_active) WHERE is_active = true;
+
+CREATE INDEX IF NOT EXISTS idx_campaign_medias_campaign ON campaign_medias(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_medias_media ON campaign_medias(media_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_medias_active ON campaign_medias(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_campaign_medias_order ON campaign_medias(campaign_id, order_index) WHERE is_active = true;
+
+-- =============================================
+-- ÍNDICES DE TOTEM_PLAYLISTS (Motor de Playlists)
+-- =============================================
+
+CREATE INDEX IF NOT EXISTS idx_totem_playlists_totem ON totem_playlists(totem_id);
+-- Index para smart_tv_id (apenas se a coluna existir)
+DO $$ 
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'totem_playlists' 
+        AND column_name = 'smart_tv_id'
+    ) THEN
+        CREATE INDEX IF NOT EXISTS idx_totem_playlists_smart_tv ON totem_playlists(smart_tv_id) WHERE smart_tv_id IS NOT NULL;
+    END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_totem_playlists_publisher ON totem_playlists(publisher_id);
+CREATE INDEX IF NOT EXISTS idx_totem_playlists_active ON totem_playlists(is_active, status) WHERE is_active = true AND status = 'active';
+CREATE INDEX IF NOT EXISTS idx_totem_playlists_hash ON totem_playlists(playlist_hash) WHERE playlist_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_totem_playlists_generated ON totem_playlists(generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_totem_playlists_expires ON totem_playlists(expires_at) WHERE expires_at IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_totem_playlist_items_playlist ON totem_playlist_items(totem_playlist_id);
+CREATE INDEX IF NOT EXISTS idx_totem_playlist_items_media ON totem_playlist_items(media_id);
+CREATE INDEX IF NOT EXISTS idx_totem_playlist_items_campaign ON totem_playlist_items(campaign_id) WHERE campaign_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_totem_playlist_items_subscriber ON totem_playlist_items(subscriber_id);
+CREATE INDEX IF NOT EXISTS idx_totem_playlist_items_order ON totem_playlist_items(totem_playlist_id, order_index) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_totem_playlist_items_tier ON totem_playlist_items(commercial_tier) WHERE commercial_tier IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_totem_playlist_gen_log_totem ON totem_playlist_generation_log(totem_id);
+CREATE INDEX IF NOT EXISTS idx_totem_playlist_gen_log_status ON totem_playlist_generation_log(status, generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_totem_playlist_gen_log_playlist ON totem_playlist_generation_log(totem_playlist_id) WHERE totem_playlist_id IS NOT NULL;
 
 -- =============================================
 -- ÍNDICES DE ANALYTICS E LOGS (CRÍTICOS PARA PERFORMANCE)

@@ -150,6 +150,18 @@ export class HealthCheckService {
     const startTime = Date.now();
     try {
       const redis = this.redis;
+      if (!redis) {
+        // Redis está desabilitado, retornar como "healthy" mas com status especial
+        return {
+          status: 'healthy',
+          responseTime: Date.now() - startTime,
+          details: {
+            connected: false,
+            enabled: false,
+            message: 'Redis desabilitado (CACHE_ENABLED=false)'
+          }
+        };
+      }
       await redis.ping();
       
       await redis.info('memory');

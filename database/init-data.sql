@@ -402,6 +402,63 @@ INSERT INTO audit_logs (user_id, action, entity, entity_id, metadata, timestamp)
 (1, 'scan', 'qr_code', 1, '{"qr_code_id": 1, "totem_id": 1, "location": "entrance"}', NOW() - INTERVAL '1 hour 50 minutes');
 
 -- =============================================
+-- NOVAS ROLES (Sistema de Flags e Operadores)
+-- =============================================
+
+INSERT INTO roles (name, description, is_active) VALUES
+    ('owner_system', 'Proprietário do sistema - acesso total incluindo SQL e configurações críticas', true),
+    ('operador_tecnico', 'Operador técnico - gestão de hardware (totens, TVs, players, OTA)', true),
+    ('operador_faturamento', 'Operador de faturamento - gestão de faturamento, contratos e planos', true),
+    ('operador_comercial', 'Operador comercial - visualização de publishers, subscribers e campanhas', true)
+ON CONFLICT (name) DO NOTHING;
+
+-- =============================================
+-- FLAGS PADRÃO POR ROLE
+-- =============================================
+
+INSERT INTO role_flags_default (
+    role, 
+    flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4, 
+    flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9
+) VALUES
+-- Owner System: Todas as flags
+('owner_system', true, true, true, true, true, true, true, true, true, true),
+
+-- Admin SQL: Técnico + Faturamento + Comercial
+('admin_sql', true, true, true, true, true, true, true, true, false, false),
+
+-- Admin: Faturamento + Comercial
+('admin', false, false, false, true, true, true, true, true, false, false),
+
+-- Operador Técnico: Apenas flags técnicas
+('operador_tecnico', true, true, true, false, false, false, false, false, false, false),
+
+-- Operador Faturamento: Apenas flags de faturamento
+('operador_faturamento', false, false, false, true, true, true, false, false, false, false),
+
+-- Operador Comercial: Apenas flags comerciais
+('operador_comercial', false, false, false, false, false, false, true, true, false, false),
+
+-- Publisher User: Flag de publisher
+('publisher_user', false, false, false, false, false, false, false, false, true, false),
+
+-- Subscriber User: Flag de subscriber
+('subscriber_user', false, false, false, false, false, false, false, false, false, true)
+
+ON CONFLICT (role) DO UPDATE SET
+    flag_smart_0 = EXCLUDED.flag_smart_0,
+    flag_smart_1 = EXCLUDED.flag_smart_1,
+    flag_smart_2 = EXCLUDED.flag_smart_2,
+    flag_smart_3 = EXCLUDED.flag_smart_3,
+    flag_smart_4 = EXCLUDED.flag_smart_4,
+    flag_smart_5 = EXCLUDED.flag_smart_5,
+    flag_smart_6 = EXCLUDED.flag_smart_6,
+    flag_smart_7 = EXCLUDED.flag_smart_7,
+    flag_smart_8 = EXCLUDED.flag_smart_8,
+    flag_smart_9 = EXCLUDED.flag_smart_9,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- =============================================
 -- FINALIZAÇÃO
 -- =============================================
 

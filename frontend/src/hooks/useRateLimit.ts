@@ -12,7 +12,8 @@ export const useRateLimit = () => {
   useEffect(() => {
     const handleRateLimit = (event: CustomEvent) => {
       const { retryAfter, message } = event.detail;
-      showWarning(message || `Muitas requisições. Aguarde ${retryAfter} segundos.`);
+      const retryAfterMinutes = retryAfter ? Math.ceil(retryAfter / 60) : 1;
+      showWarning(message || `Muitas requisições. Aguarde ${retryAfterMinutes} minuto(s) antes de tentar novamente.`);
     };
 
     const handlePayloadTooLarge = (event: CustomEvent) => {

@@ -1,13 +1,31 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { authApi, LoginResponse } from '../../services/api';
 
+export interface UserFlags {
+  flag_smart_0: boolean;
+  flag_smart_1: boolean;
+  flag_smart_2: boolean;
+  flag_smart_3: boolean;
+  flag_smart_4: boolean;
+  flag_smart_5: boolean;
+  flag_smart_6: boolean;
+  flag_smart_7: boolean;
+  flag_smart_8: boolean;
+  flag_smart_9: boolean;
+}
+
 export interface User {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'manager' | 'operator';
+  role: 'owner_system' | 'admin' | 'admin_sql' | 'manager' | 'operator' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
   isActive: boolean;
-  clientId?: number;
+  user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber'; // NOVO: Tipo de usuário para detecção automática
+  clientId?: number; // DEPRECADO: usar subscriberId
+  subscriberId?: number; // NOVO: ID do subscriber (anunciante)
+  publisherId?: number; // NOVO: ID do publisher (publicador)
+  subscriberName?: string; // NOVO: Nome do subscriber
+  flags?: UserFlags; // NOVO: Flags de permissão do usuário
   createdAt: string;
   updatedAt: string;
 }
@@ -162,32 +180,56 @@ const authSlice = createSlice({
         
         // Garantir que o role seja um dos valores permitidos e mapear campos
         const apiUser = action.payload.user;
+        if (!apiUser) {
+          throw new Error('User data not found in login response');
+        }
+        
+        const userRole = (apiUser as any).role as string;
+        let mappedRole: 'admin' | 'admin_sql' | 'manager' | 'operator' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'owner_system' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber' = 'operator';
+        
+        if (userRole === 'admin' || userRole === 'admin_sql' || userRole === 'owner_system') {
+          mappedRole = userRole === 'admin_sql' ? 'admin_sql' : userRole === 'owner_system' ? 'owner_system' : 'admin';
+        } else if (userRole === 'user') {
+          mappedRole = 'operator';
+        } else if (['gerente_marketing', 'editoracao', 'visualizador', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user', 'subscriber_user', 'publisher_subscriber'].includes(userRole)) {
+          mappedRole = userRole as any;
+        } else {
+          // Fallback: manter role original ou usar 'operator'
+          mappedRole = (userRole as any) || 'operator';
+        }
+        
+        // Extrair ID (pode vir como id, user_id, ou userId)
+        const userId = (apiUser as any).id || (apiUser as any).user_id || (apiUser as any).userId || 0;
+        
         state.user = {
-          id: apiUser.user_id || 0,
-          name: apiUser.name || '',
-          email: apiUser.email || '',
-          role: apiUser.role === 'admin' 
-            ? 'admin' as const
-            : apiUser.role === 'user' || apiUser.role === 'client'
-            ? 'operator' as const
-            : 'operator' as const,
-          isActive: apiUser.is_active !== undefined ? apiUser.is_active : true,
-          clientId: apiUser.client_id,
-          createdAt: apiUser.created_at || new Date().toISOString(),
-          updatedAt: apiUser.updated_at || new Date().toISOString(),
+          id: userId,
+          name: (apiUser as any).name || (apiUser as any).username || '',
+          email: (apiUser as any).email || '',
+          role: mappedRole,
+          isActive: (apiUser as any).is_active !== undefined ? (apiUser as any).is_active : (apiUser as any).isActive !== undefined ? (apiUser as any).isActive : true,
+          user_type: (apiUser as any).user_type || (apiUser as any).userType, // NOVO: Salvar user_type
+          clientId: (apiUser as any).client_id || (apiUser as any).clientId || (apiUser as any).subscriber_id || (apiUser as any).subscriberId, // DEPRECADO
+          subscriberId: (apiUser as any).subscriberId || (apiUser as any).subscriber_id || (apiUser as any).client_id || (apiUser as any).clientId, // NOVO
+          publisherId: (apiUser as any).publisherId || (apiUser as any).publisher_id,
+          subscriberName: (apiUser as any).subscriberName || (apiUser as any).subscriber_name,
+          flags: (apiUser as any).flags, // NOVO: Flags de permissão
+          createdAt: (apiUser as any).created_at || (apiUser as any).createdAt || new Date().toISOString(),
+          updatedAt: (apiUser as any).updated_at || (apiUser as any).updatedAt || new Date().toISOString(),
         };
         state.token = action.payload.token;
         state.refreshToken = action.payload.refreshToken || '';
         state.isAuthenticated = true;
         state.error = null;
         
-        // Salvar tokens no localStorage
+        // Salvar tokens e dados do usuário no localStorage
         if (action.payload.token) {
           localStorage.setItem('token', action.payload.token);
         }
         if (action.payload.refreshToken) {
           localStorage.setItem('refreshToken', action.payload.refreshToken);
         }
+        // Salvar user completo no localStorage (incluindo user_type)
+        localStorage.setItem('user', JSON.stringify(state.user));
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
@@ -255,13 +297,18 @@ const authSlice = createSlice({
           id: apiUser.user_id || 0,
           name: apiUser.name || '',
           email: apiUser.email || '',
-          role: apiUser.role === 'admin' 
+          role: apiUser.role === 'admin'
             ? 'admin' as const
-            : apiUser.role === 'user' || apiUser.role === 'client'
+            : apiUser.role === 'user'
             ? 'operator' as const
-            : 'operator' as const,
+            : apiUser.role as any, // Manter o role original do backend
           isActive: apiUser.is_active !== undefined ? apiUser.is_active : true,
-          clientId: apiUser.client_id,
+          user_type: (apiUser as any).user_type || (apiUser as any).userType, // NOVO: Extrair user_type
+          subscriberId: (apiUser as any).subscriberId || (apiUser as any).subscriber_id, // NOVO
+          clientId: (apiUser as any).subscriberId || (apiUser as any).subscriber_id, // DEPRECADO: compatibilidade
+          publisherId: (apiUser as any).publisherId || (apiUser as any).publisher_id,
+          subscriberName: (apiUser as any).subscriberName || (apiUser as any).subscriber_name,
+          flags: (apiUser as any).flags, // NOVO: Flags de permissão
           createdAt: apiUser.created_at || new Date().toISOString(),
           updatedAt: apiUser.updated_at || new Date().toISOString(),
         };
@@ -290,13 +337,18 @@ const authSlice = createSlice({
           email: apiUser.email || state.user?.email || '',
           role: apiUser.role === 'admin' 
             ? 'admin' as const
-            : apiUser.role === 'user' || apiUser.role === 'client'
+            : apiUser.role === 'user'
             ? 'operator' as const
-            : (state.user?.role || 'operator') as 'admin' | 'manager' | 'operator',
+            : (apiUser.role as any) || (state.user?.role || 'operator') as any,
           isActive: apiUser.is_active !== undefined ? apiUser.is_active : (state.user?.isActive ?? true),
-          clientId: apiUser.client_id ?? state.user?.clientId,
+          user_type: (apiUser as any).user_type || (apiUser as any).userType || state.user?.user_type, // NOVO: Extrair user_type
+          subscriberId: (apiUser as any).subscriberId || (apiUser as any).subscriber_id || state.user?.subscriberId,
+          clientId: (apiUser as any).subscriberId || (apiUser as any).subscriber_id || state.user?.clientId, // DEPRECADO: compatibilidade
+          publisherId: (apiUser as any).publisherId || (apiUser as any).publisher_id || state.user?.publisherId,
+          subscriberName: (apiUser as any).subscriberName || (apiUser as any).subscriber_name || state.user?.subscriberName,
+          flags: (apiUser as any).flags || state.user?.flags, // NOVO: Flags de permissão
           createdAt: apiUser.created_at || state.user?.createdAt || new Date().toISOString(),
-          updatedAt: apiUser.updated_at || new Date().toISOString(),
+          updatedAt: apiUser.updated_at || state.user?.updatedAt || new Date().toISOString(),
         };
       })
       

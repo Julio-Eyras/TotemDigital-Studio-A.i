@@ -79,8 +79,22 @@ const Login: React.FC = () => {
     }
 
     try {
-      await dispatch(login(formData)).unwrap();
-      navigate('/dashboard');
+      const result = await dispatch(login(formData)).unwrap();
+      
+      // Detectar user_type e redirecionar automaticamente
+      const user = result.user || JSON.parse(localStorage.getItem('user') || '{}');
+      const userType = user.user_type || user.userType;
+      
+      if (userType === 'subscriber_user') {
+        // Subscriber: redirecionar para dashboard de subscriber
+        navigate('/subscriber/dashboard');
+      } else if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+        // Publisher ou Publisher que também anuncia: redirecionar para dashboard (PublisherLayout será aplicado automaticamente)
+        navigate('/dashboard');
+      } else {
+        // System user: redirecionar para dashboard padrão
+        navigate('/dashboard');
+      }
     } catch (error) {
       // Error is handled by the auth slice
     }

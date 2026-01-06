@@ -13,7 +13,7 @@ import { securityConfig } from '../config/env';
  */
 export const apiLimiter = rateLimit({
   windowMs: securityConfig.rateLimit.windowMs,
-  max: securityConfig.rateLimit.maxRequests,
+  max: securityConfig.rateLimit.maxRequests * 2, // Dobrar limite para evitar bloqueios
   message: {
     error: 'Muitas requisições. Tente novamente em alguns minutos.',
     retryAfter: '15 minutos'
@@ -21,8 +21,11 @@ export const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req: Request) => {
-    // Pular rate limit para health checks
-    return req.path === '/health' || req.path === '/api/health';
+    // Pular rate limit para health checks e rotas estáticas
+    return req.path === '/health' || 
+           req.path === '/api/health' ||
+           req.path.startsWith('/static/') ||
+           req.path.startsWith('/assets/');
   }
 });
 

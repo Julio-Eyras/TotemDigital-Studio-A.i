@@ -17,8 +17,8 @@ export interface RateLimitConfig {
 
 const defaultConfig: RateLimitConfig = {
   windowMs: 60 * 1000, // 1 minuto
-  maxRequests: 100, // 100 requisições por minuto
-  message: 'Muitas requisições. Tente novamente mais tarde.',
+  maxRequests: 200, // 200 requisições por minuto (aumentado para evitar bloqueios)
+  message: 'Muitas requisições.',
   skipSuccessfulRequests: false,
   skipFailedRequests: false
 };
@@ -31,6 +31,11 @@ export const rateLimitByUser = (config: Partial<RateLimitConfig> = {}) => {
   const redis = getRedisClient();
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // Se Redis não está disponível, permitir requisição (sem rate limiting)
+    if (!redis) {
+      return next();
+    }
+    
     // Aplicar apenas para usuários autenticados
     const user = (req as any).user;
     if (!user || !user.id) {
@@ -55,14 +60,19 @@ export const rateLimitByUser = (config: Partial<RateLimitConfig> = {}) => {
           path: req.path
         });
 
+        // Calcular tempo restante até o próximo window
+        const timeUntilNextWindow = finalConfig.windowMs - (Date.now() % finalConfig.windowMs);
+        const retryAfterSeconds = Math.ceil(timeUntilNextWindow / 1000);
+        
         res.status(429).json({
           success: false,
           error: {
-            message: finalConfig.message,
+            message: `${finalConfig.message} Aguarde ${Math.ceil(retryAfterSeconds / 60)} minuto(s) antes de tentar novamente.`,
             code: 'RATE_LIMIT_EXCEEDED',
-            retryAfter: finalConfig.windowMs / 1000
+            retryAfter: retryAfterSeconds
           }
         });
+        res.setHeader('Retry-After', retryAfterSeconds.toString());
         return;
       }
 
@@ -92,8 +102,8 @@ export const rateLimitByUser = (config: Partial<RateLimitConfig> = {}) => {
  */
 export const rateLimitHeavyOperations = rateLimitByUser({
   windowMs: 60 * 1000, // 1 minuto
-  maxRequests: 10, // Apenas 10 operações pesadas por minuto
-  message: 'Muitas operações pesadas. Aguarde antes de tentar novamente.'
+  maxRequests: 20, // 20 operações pesadas por minuto (aumentado)
+  message: 'Muitas operações pesadas.'
 });
 
 /**

@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { MediaService } from '../services/mediaService';
 import { StorageService } from '../services/storageService';
-import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
@@ -131,18 +131,26 @@ router.get('/',
   query('limit').optional().isInt({ min: 1, max: 100 }),
   query('search').optional().isString(),
   query('type').optional().isString().isIn(['image', 'video', 'audio']),
-  query('clientId').optional().isInt({ min: 1 }),
+  query('subscriberId').optional().isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { page = 1, limit = 10, search, type, clientId } = req.query;
+      const { page = 1, limit = 10, search, type, subscriberId } = req.query;
+      
+      // Determinar se é admin (role 'admin' ou 'system_user')
+      const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
+      
+      // Obter subscriberId do request (do middleware de isolamento ou do query param)
+      const requestSubscriberId = req.subscriberId || req.user?.subscriberId || (subscriberId ? parseInt(subscriberId as string) : undefined);
+      
       const result = await getMediaService().getAllMedia({
         page: parseInt(page as string),
         limit: parseInt(limit as string),
         search: search as string,
         type: type as string,
-        clientId: clientId ? parseInt(clientId as string) : undefined
-      });
+        subscriberId: subscriberId ? parseInt(subscriberId as string) : undefined
+      }, requestSubscriberId, isAdmin);
+      
       return res.json(result);
     } catch (error: any) {
       await logError('Erro ao listar mídia', error);
@@ -165,12 +173,22 @@ router.get('/:id',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
-      const media = await getMediaService().getMediaById(mediaId);
+      
+      // Determinar se é admin
+      const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
+      
+      // Obter subscriberId do request
+      const requestSubscriberId = req.subscriberId || req.user?.subscriberId;
+      
+      const media = await getMediaService().getMediaById(mediaId, requestSubscriberId, isAdmin);
       if (!media) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
       return res.json(media);
-    } catch (error) {
+    } catch (error: any) {
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
       return res.status(500).json({ error: 'Erro ao obter arquivo de mídia' });
     }
   }
@@ -234,7 +252,7 @@ router.post('/upload', uploadLimiter,
   body('name').optional().isString().isLength({ min: 1, max: 100 }),
   body('description').optional().isString(),
   body('tags').optional().isString(),
-  body('clientId').optional().isInt({ min: 1 }),
+  body('subscriberId').optional().isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -260,76 +278,106 @@ router.post('/upload', uploadLimiter,
         });
       }
 
-      const mediaData = {
-        name: req.body.name || req.file.originalname,
-        description: req.body.description,
-        tags: req.body.tags,
-        clientId: req.body.clientId ? parseInt(req.body.clientId) : undefined,
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        path: req.file.path
-      };
-
-      // Se clientId não foi fornecido e usuário é client, usar clientId do usuário
-      let finalClientId = mediaData.clientId;
-      if (!finalClientId && req.user.role === 'client' && req.user.clientId) {
-        finalClientId = req.user.clientId;
+      // Determinar se é admin
+      const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
+      
+      // Obter subscriberId do request (do middleware ou do body)
+      const requestSubscriberId = req.subscriberId || req.user?.subscriberId || req.user?.clientId;
+      
+      // Determinar subscriberId final
+      let finalSubscriberId: number | undefined = req.body.subscriberId ? parseInt(req.body.subscriberId) : undefined;
+      
+      // Se não foi fornecido e usuário não é admin, usar subscriberId do usuário
+      if (!finalSubscriberId && !isAdmin && requestSubscriberId) {
+        finalSubscriberId = requestSubscriberId;
       }
-      // Se ainda não tem clientId, buscar primeiro subscriber ativo (anunciante)
-      if (!finalClientId) {
+      
+      // Se admin não forneceu subscriberId, buscar primeiro subscriber ativo
+      if (!finalSubscriberId && isAdmin) {
         try {
           const db = require('../config/database').getDatabase();
           const firstSubscriber = await db.findFirst(`
             SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
           `);
           if (firstSubscriber) {
-            finalClientId = firstSubscriber.subscriber_id;
-            await logDebug('[Media] Usando primeiro subscriber ativo', { subscriberId: finalClientId });
+            finalSubscriberId = firstSubscriber.subscriber_id;
+            await logDebug('[Media] Admin usando primeiro subscriber ativo', { subscriberId: finalSubscriberId });
           } else {
             return res.status(400).json({
               success: false,
-              error: 'Nenhum subscriber ativo encontrado',
-              message: 'É necessário ter pelo menos um subscriber (anunciante) ativo para criar mídias'
+              error: 'subscriberId é obrigatório',
+              message: 'É necessário fornecer subscriberId ou ter pelo menos um subscriber ativo'
             });
           }
         } catch (dbError: any) {
           await logError('Erro ao buscar subscriber', dbError);
           return res.status(400).json({
             success: false,
-            error: 'clientId é obrigatório',
-            message: 'Não foi possível determinar o subscriber. Forneça clientId explicitamente.'
+            error: 'subscriberId é obrigatório',
+            message: 'Não foi possível determinar o subscriber. Forneça subscriberId explicitamente.'
           });
         }
       }
 
+      // Validar que finalSubscriberId foi definido
+      if (!finalSubscriberId || finalSubscriberId <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'subscriber_id é obrigatório',
+          message: 'Não foi possível determinar o subscriber. Forneça subscriberId explicitamente.'
+        });
+      }
+
       const buffer = fs.readFileSync(req.file.path);
 
+      // Processar tags
+      let processedTags: string[] = [];
+      if (req.body.tags) {
+        const tagsStr = String(req.body.tags);
+        processedTags = tagsStr.includes(',') 
+          ? tagsStr.split(',').map(t => t.trim()).filter(Boolean)
+          : [tagsStr.trim()].filter(Boolean);
+      }
+
       const media = await getMediaService().createMedia({
-        name: mediaData.name,
-        title: mediaData.name,
-        description: mediaData.description,
-        tags: mediaData.tags ? String(mediaData.tags).split(',').map(t => t.trim()).filter(Boolean) : [],
-        clientId: finalClientId || 0, // Garantir que não é undefined
-        createdBy: req.user?.id || 0, // Usar ID do usuário autenticado (userId é alias de id)
+        name: req.body.name || req.file.originalname,
+        description: req.body.description,
+        tags: processedTags,
+        subscriberId: finalSubscriberId,
+        createdBy: req.user?.id || 0,
         file: {
           buffer,
-          originalname: mediaData.originalName,
-          mimetype: mediaData.mimetype,
-          size: mediaData.size,
+          originalname: req.file.originalname,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
         },
-      });
+      }, requestSubscriberId, isAdmin);
       
       return res.status(201).json({
         success: true,
         data: media
       });
     } catch (error: any) {
-      await logError('Erro ao fazer upload do arquivo', error);
+      await logError('Erro ao fazer upload do arquivo', error, {
+        fileName: req.file?.originalname,
+        fileSize: req.file?.size,
+        mimeType: req.file?.mimetype,
+        subscriberId: req.body.subscriberId,
+        userId: req.user?.id
+      });
+      
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({
+          success: false,
+          error: error.message
+        });
+      }
+      
       return res.status(400).json({ 
+        success: false,
         error: 'Erro ao fazer upload do arquivo',
-        message: error.message || 'Erro desconhecido ao processar upload'
+        message: error.message || 'Erro desconhecido ao processar upload',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   }
@@ -341,10 +389,9 @@ router.post('/upload', uploadLimiter,
  * @access Private
  */
 router.post('/upload-multiple', 
-  authorizeRole(['admin', 'gerente_marketing', 'editoracao']),
   uploadLimiter,
   (req, res, next) => getMulterUpload().array('files', 10)(req, res, next), // Máximo 10 arquivos
-  body('clientId').optional().isInt({ min: 1 }),
+  body('subscriberId').optional().isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -361,62 +408,75 @@ router.post('/upload-multiple',
         });
       }
 
-      const clientId = req.body.clientId ? parseInt(req.body.clientId) : undefined;
+      // Determinar se é admin
+      const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
       
-      // Se clientId não foi fornecido e usuário é client, usar clientId do usuário
-      let finalClientId = clientId;
-      if (!finalClientId && req.user.role === 'client' && req.user.clientId) {
-        finalClientId = req.user.clientId;
+      // Obter subscriberId do request
+      const requestSubscriberId = req.subscriberId || req.user?.subscriberId || req.user?.clientId;
+      
+      // Determinar subscriberId final
+      let finalSubscriberId: number | undefined = req.body.subscriberId ? parseInt(req.body.subscriberId) : undefined;
+      
+      // Se não foi fornecido e usuário não é admin, usar subscriberId do usuário
+      if (!finalSubscriberId && !isAdmin && requestSubscriberId) {
+        finalSubscriberId = requestSubscriberId;
       }
-      // Se ainda não tem clientId, buscar primeiro subscriber ativo (anunciante)
-      if (!finalClientId) {
+      
+      // Se admin não forneceu subscriberId, buscar primeiro subscriber ativo
+      if (!finalSubscriberId && isAdmin) {
         try {
           const db = require('../config/database').getDatabase();
           const firstSubscriber = await db.findFirst(`
             SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
           `);
           if (firstSubscriber) {
-            finalClientId = firstSubscriber.subscriber_id;
-            await logDebug('[Media] Usando primeiro subscriber ativo para upload múltiplo', { subscriberId: finalClientId });
+            finalSubscriberId = firstSubscriber.subscriber_id;
+            await logDebug('[Media] Admin usando primeiro subscriber ativo para upload múltiplo', { subscriberId: finalSubscriberId });
           } else {
             return res.status(400).json({
               success: false,
-              error: 'Nenhum subscriber ativo encontrado',
-              message: 'É necessário ter pelo menos um subscriber (anunciante) ativo para criar mídias'
+              error: 'subscriberId é obrigatório',
+              message: 'É necessário fornecer subscriberId ou ter pelo menos um subscriber ativo'
             });
           }
         } catch (dbError: any) {
           await logError('Erro ao buscar subscriber', dbError);
           return res.status(400).json({
             success: false,
-            error: 'clientId é obrigatório',
-            message: 'Não foi possível determinar o subscriber. Forneça clientId explicitamente.'
+            error: 'subscriberId é obrigatório',
+            message: 'Não foi possível determinar o subscriber. Forneça subscriberId explicitamente.'
           });
         }
       }
 
-      const created: any[] = [];
-      for (const file of files) {
-        const buffer = fs.readFileSync(file.path);
-        const media = await getMediaService().createMedia({
-          name: file.originalname,
-          title: file.originalname,
-          description: '',
-          tags: [],
-          clientId: finalClientId || 0, // Garantir que não é undefined
-          createdBy: req.user?.id || 0, // Usar ID do usuário autenticado (userId é alias de id)
-          file: {
-            buffer,
-            originalname: file.originalname,
-            mimetype: file.mimetype,
-            size: file.size,
-          },
+      // Validar que finalSubscriberId foi definido
+      if (!finalSubscriberId || finalSubscriberId <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'subscriber_id é obrigatório',
+          message: 'Não foi possível determinar o subscriber. Forneça subscriberId explicitamente.'
         });
-        created.push(media);
       }
+
+      const created = await getMediaService().createMultipleMedia(
+        files.map(file => ({
+          buffer: fs.readFileSync(file.path),
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+        })),
+        finalSubscriberId,
+        req.user?.id || 0,
+        requestSubscriberId,
+        isAdmin
+      );
+      
       return res.status(201).json(created);
-    } catch (error) {
-      return res.status(400).json({ error: 'Erro ao fazer upload dos arquivos' });
+    } catch (error: any) {
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
+      return res.status(400).json({ error: error.message || 'Erro ao fazer upload dos arquivos' });
     }
   }
 );
@@ -427,29 +487,58 @@ router.post('/upload-multiple',
  * @access Private (Admin, Gerente Marketing, Editoração)
  */
 router.put('/:id',
-  authorizeRole(['admin', 'gerente_marketing', 'editoracao']),
   param('id').isInt({ min: 1 }),
   body('name').optional().isString().isLength({ min: 1, max: 100 }),
   body('description').optional().isString(),
   body('tags').optional().isString(),
-  body('isActive').optional().isBoolean(),
+  body('status').optional().isString(),
+  body('approvalStatus').optional().isString(),
+  body('rejectionReason').optional().isString(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
-      const mediaData = req.body;
+      
+      // Determinar se é admin
+      const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
+      
+      // Obter subscriberId do request
+      const requestSubscriberId = req.subscriberId || req.user?.subscriberId || req.user?.clientId;
+      
       // Usar ID do usuário autenticado
       const userId = req.user?.id || req.user?.userId;
       if (!userId) {
         return res.status(401).json({ error: 'Usuário não autenticado' });
       }
-      const media = await getMediaService().updateMedia(mediaId, mediaData, userId);
+      
+      // Processar tags se fornecidas
+      let processedTags: string[] | undefined = undefined;
+      if (req.body.tags) {
+        const tagsStr = String(req.body.tags);
+        processedTags = tagsStr.includes(',') 
+          ? tagsStr.split(',').map(t => t.trim()).filter(Boolean)
+          : [tagsStr.trim()].filter(Boolean);
+      }
+      
+      const mediaData = {
+        name: req.body.name,
+        description: req.body.description,
+        tags: processedTags,
+        status: req.body.status,
+        approvalStatus: req.body.approvalStatus,
+        rejectionReason: req.body.rejectionReason
+      };
+      
+      const media = await getMediaService().updateMedia(mediaId, mediaData, userId, requestSubscriberId, isAdmin);
       if (!media) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
       return res.json(media);
-    } catch (error) {
-      return res.status(400).json({ error: 'Erro ao atualizar arquivo de mídia' });
+    } catch (error: any) {
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
+      return res.status(400).json({ error: error.message || 'Erro ao atualizar arquivo de mídia' });
     }
   }
 );
@@ -460,21 +549,31 @@ router.put('/:id',
  * @access Private (Admin, Gerente Marketing, Editoração)
  */
 router.delete('/:id',
-  authorizeRole(['admin', 'gerente_marketing', 'editoracao']),
   param('id').isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
+      
+      // Determinar se é admin
+      const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
+      
+      // Obter subscriberId do request
+      const requestSubscriberId = req.subscriberId || req.user?.subscriberId || req.user?.clientId;
+      
       // Usar ID do usuário autenticado
       const userId = req.user?.id || req.user?.userId;
       if (!userId) {
         return res.status(401).json({ error: 'Usuário não autenticado' });
       }
-      await getMediaService().deleteMedia(mediaId, userId);
+      
+      await getMediaService().deleteMedia(mediaId, userId, requestSubscriberId, isAdmin);
       return res.json({ message: 'Arquivo de mídia deletado com sucesso' });
-    } catch (error) {
-      return res.status(500).json({ error: 'Erro ao deletar arquivo de mídia' });
+    } catch (error: any) {
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
+      return res.status(500).json({ error: error.message || 'Erro ao deletar arquivo de mídia' });
     }
   }
 );
@@ -581,9 +680,18 @@ router.post('/:id/process',
  * @desc Obter estatísticas de mídia
  * @access Private
  */
-router.get('/stats/overview', async (_req: AuthenticatedRequest, res: Response) => {
+router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const stats = await getMediaService().getMediaStats();
+    // Determinar se é admin
+    const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
+    
+    // Obter subscriberId do request
+    const requestSubscriberId = req.subscriberId || req.user?.subscriberId || req.user?.clientId;
+    
+    // Obter subscriberId do query param (se admin especificou)
+    const subscriberId = req.query.subscriberId ? parseInt(req.query.subscriberId as string) : undefined;
+    
+    const stats = await getMediaService().getMediaStats(subscriberId, requestSubscriberId, isAdmin);
     return res.json(stats);
   } catch (error) {
     return res.status(500).json({ error: 'Erro ao obter estatísticas' });

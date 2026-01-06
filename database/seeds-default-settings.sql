@@ -1,0 +1,191 @@
+-- =============================================
+-- Seeds para Configurações Padrão do Sistema
+-- =============================================
+-- Este arquivo insere configurações padrão necessárias para o funcionamento do sistema
+-- Inclui configurações de logs, mídia e outras configurações essenciais
+-- =============================================
+
+-- =============================================
+-- CONFIGURAÇÕES DE LOGS
+-- =============================================
+
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options) 
+VALUES
+  -- Configurações de rotação de logs
+  (
+    'log.rotation.max_size',
+    '100MB',
+    'string',
+    'logs',
+    'Tamanho máximo de cada arquivo de log antes de rotacionar (ex: 100MB, 1GB)',
+    false,
+    true,
+    '100MB',
+    '^\d+(\.\d+)?\s*(B|KB|MB|GB|TB)$',
+    NULL
+  ),
+  (
+    'log.rotation.max_days',
+    '30',
+    'number',
+    'logs',
+    'Número de dias para manter logs antigos antes de excluir',
+    false,
+    true,
+    '30',
+    '^[1-9]\d*$',
+    NULL
+  ),
+  (
+    'log.rotation.min_free_space',
+    '1GB',
+    'string',
+    'logs',
+    'Espaço livre mínimo em disco antes de iniciar rotação agressiva (ex: 1GB, 500MB)',
+    false,
+    true,
+    '1GB',
+    '^\d+(\.\d+)?\s*(B|KB|MB|GB|TB)$',
+    NULL
+  ),
+  (
+    'log.level',
+    'info',
+    'string',
+    'logs',
+    'Nível de log (error, warn, info, debug)',
+    false,
+    true,
+    'info',
+    '^(error|warn|info|debug)$',
+    '["error", "warn", "info", "debug"]'
+  ),
+  (
+    'log.rotation.enabled',
+    'true',
+    'boolean',
+    'logs',
+    'Habilitar rotação automática de logs',
+    false,
+    true,
+    'true',
+    NULL,
+    NULL
+  ),
+  (
+    'log.rotation.compress',
+    'true',
+    'boolean',
+    'logs',
+    'Compactar logs antigos após rotação',
+    false,
+    true,
+    'true',
+    NULL,
+    NULL
+  ),
+  (
+    'log.alerts.enabled',
+    'true',
+    'boolean',
+    'logs',
+    'Habilitar alertas administrativos sobre rotação de logs',
+    false,
+    true,
+    'true',
+    NULL,
+    NULL
+  ),
+  (
+    'log.alerts.email',
+    'false',
+    'boolean',
+    'logs',
+    'Enviar alertas por email (requer configuração de email)',
+    false,
+    true,
+    'false',
+    NULL,
+    NULL
+  ),
+  (
+    'log.directory',
+    '/opt/smart-signage/Logs',
+    'string',
+    'logs',
+    'Diretório onde os logs são armazenados',
+    false,
+    true,
+    '/opt/smart-signage/Logs',
+    '^/.+$',
+    NULL
+  )
+ON CONFLICT (setting_key) DO UPDATE SET
+  description = EXCLUDED.description,
+  is_editable = EXCLUDED.is_editable,
+  validation = EXCLUDED.validation,
+  options = EXCLUDED.options,
+  updated_at = CURRENT_TIMESTAMP;
+
+-- =============================================
+-- CONFIGURAÇÕES DE MÍDIA
+-- =============================================
+
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options) 
+VALUES
+  -- Configurações de upload de mídia
+  (
+    'media.upload.max_size',
+    '500MB',
+    'string',
+    'media',
+    'Tamanho máximo de arquivo para upload (ex: 100MB, 500MB, 1GB)',
+    false,
+    true,
+    '500MB',
+    '^\d+(\.\d+)?\s*(B|KB|MB|GB|TB)$',
+    NULL
+  ),
+  (
+    'media.upload.nginx_max_size',
+    '500M',
+    'string',
+    'media',
+    'Limite máximo do Nginx para upload (client_max_body_size)',
+    false,
+    true,
+    '500M',
+    '^\d+(\.\d+)?\s*(B|K|M|G|T)$',
+    NULL
+  ),
+  (
+    'media.storage.path',
+    '/opt/smart-signage/public/assets/uploads',
+    'string',
+    'media',
+    'Caminho base para armazenamento de mídias',
+    false,
+    true,
+    '/opt/smart-signage/public/assets/uploads',
+    '^/.+$',
+    NULL
+  ),
+  (
+    'media.allowed_types',
+    '["image/jpeg","image/png","image/gif","image/webp","video/mp4","video/webm"]',
+    'json',
+    'media',
+    'Tipos MIME permitidos para upload de mídia',
+    false,
+    true,
+    '["image/jpeg","image/png","image/gif","image/webp","video/mp4","video/webm"]',
+    NULL,
+    NULL
+  )
+ON CONFLICT (setting_key) DO UPDATE SET
+  description = EXCLUDED.description,
+  is_editable = EXCLUDED.is_editable,
+  validation = EXCLUDED.validation,
+  options = EXCLUDED.options,
+  updated_at = CURRENT_TIMESTAMP;
+

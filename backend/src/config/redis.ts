@@ -34,6 +34,11 @@ let redisClient: Redis | null = null;
  * Inicializa conexão com Redis
  */
 export function initializeRedis(): Redis {
+  // Verificar se Redis está habilitado
+  if (!config.enabled) {
+    throw new Error('Redis está desabilitado (CACHE_ENABLED=false)');
+  }
+  
   if (!redisClient) {
     redisClient = new Redis(redisConfig);
     
@@ -72,7 +77,12 @@ export function initializeRedis(): Redis {
 /**
  * Obtém cliente Redis
  */
-export function getRedisClient(): Redis {
+export function getRedisClient(): Redis | null {
+  // Se Redis está desabilitado, retornar null
+  if (!config.enabled) {
+    return null;
+  }
+  
   if (!redisClient) {
     return initializeRedis();
   }
@@ -94,8 +104,16 @@ export async function closeRedis(): Promise<void> {
  * Testa conexão com Redis
  */
 export async function testRedisConnection(): Promise<boolean> {
+  // Se Redis está desabilitado, retornar false
+  if (!config.enabled) {
+    return false;
+  }
+  
   try {
     const client = getRedisClient();
+    if (!client) {
+      return false;
+    }
     const result = await client.ping();
     return result === 'PONG';
   } catch (error) {

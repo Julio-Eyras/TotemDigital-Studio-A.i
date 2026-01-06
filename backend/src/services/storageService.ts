@@ -95,8 +95,8 @@ export class StorageService {
    */
   async checkClientQuota(clientId: number, fileSize: number): Promise<{ allowed: boolean; currentUsage: number; quota: number; available: number }> {
     try {
-      const { uploadConfig } = require('../config/env').config;
-      const quota = uploadConfig.mediaQuotaPerClient;
+      const envConfig = require('../config/env');
+      const quota = envConfig.uploadConfig?.mediaQuotaPerClient || envConfig.config?.upload?.mediaQuotaPerClient || (5 * 1024 * 1024 * 1024); // Default 5GB se não configurado
       const currentUsage = await this.getClientStorageUsage(clientId);
       const available = quota - currentUsage;
       const allowed = fileSize <= available;

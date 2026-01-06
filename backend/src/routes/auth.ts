@@ -116,6 +116,90 @@ const resetPasswordValidator = [
 // =============================================
 
 /**
+ * POST /api/auth/subscriber-login
+ * Autentica subscriber usando email do subscriber
+ */
+const subscriberLoginValidator = [
+  body('email')
+    .notEmpty()
+    .withMessage('Email é obrigatório')
+    .isEmail()
+    .withMessage('Email deve ser válido'),
+  body('password')
+    .notEmpty()
+    .withMessage('Senha é obrigatória')
+    .isLength({ min: 6 })
+    .withMessage('Senha deve ter pelo menos 6 caracteres')
+];
+
+router.post('/subscriber-login', authLimiter, subscriberLoginValidator, async (req: Request, res: Response) => {
+  const email = req.body?.email;
+  try {
+    await logInfo('[Auth] POST /api/auth/subscriber-login - Recebendo requisição', {
+      email,
+      ip: req.ip
+    });
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      await logWarn('[Auth] Erros de validação em /subscriber-login', {
+        email,
+        errors: errors.array()
+      });
+      return res.status(400).json({
+        error: 'Dados inválidos',
+        details: errors.array()
+      });
+    }
+
+    await logInfo('[Auth] Chamando AuthService.subscriberLogin()', { email });
+    const result = await getAuthService().subscriberLogin(req.body);
+    await logInfo('[Auth] Resultado do subscriber login', {
+      email,
+      success: result.success
+    });
+    
+    if (!result.success) {
+      return res.status(401).json({
+        error: result.error
+      });
+    }
+
+    // Se 2FA é necessário, retornar sem tokens
+    if (result.requiresTwoFactor) {
+      await logInfo('[Auth] 2FA requerido - aguardando verificação', {
+        email,
+        userId: result.user?.id
+      });
+      return res.json({
+        message: 'Autenticação de dois fatores necessária',
+        requiresTwoFactor: true,
+        user: result.user
+      });
+    }
+
+    await logInfo('[Auth] Subscriber login bem-sucedido - retornando tokens', {
+      email,
+      userId: result.user?.id,
+      subscriberId: result.user?.subscriberId
+    });
+    return res.json({
+      message: 'Login realizado com sucesso',
+      token: result.token,
+      refreshToken: result.refreshToken,
+      user: result.user
+    });
+
+  } catch (error: any) {
+    await logError('Erro no endpoint /subscriber-login', error, { email });
+    return res.status(500).json({
+      error: `Erro interno do servidor: ${error.message}`,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+/**
  * POST /api/auth/login
  * Autentica usuário
  */

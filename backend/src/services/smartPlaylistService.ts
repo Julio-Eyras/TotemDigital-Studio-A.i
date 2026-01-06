@@ -114,20 +114,20 @@ export class SmartPlaylistService {
   }
 
   /**
-   * Busca o primeiro cliente ativo (para uso quando clientId não é fornecido)
+   * Busca o primeiro subscriber ativo (para uso quando clientId não é fornecido)
    */
-  async getFirstActiveClient(): Promise<{ client_id: number } | null> {
+  async getFirstActiveClient(): Promise<{ subscriber_id: number } | null> {
     try {
-      const client = await this.db.findFirst(`
-        SELECT client_id 
-        FROM clients 
+      const subscriber = await this.db.findFirst(`
+        SELECT subscriber_id 
+        FROM subscribers 
         WHERE COALESCE(is_active, true) = true 
-        ORDER BY client_id ASC 
+        ORDER BY subscriber_id ASC 
         LIMIT 1
       `);
-      return client;
+      return subscriber ? { subscriber_id: subscriber.subscriber_id } : null;
     } catch (error: any) {
-      await logError('Erro ao buscar primeiro cliente', error, { service: 'SmartPlaylistService' });
+      await logError('Erro ao buscar primeiro subscriber', error, { service: 'SmartPlaylistService' });
       return null;
     }
   }
@@ -223,11 +223,11 @@ export class SmartPlaylistService {
           sp.effectiveness,
           sp.created_at as createdAt,
           sp.updated_at as updatedAt,
-          cl.name as clientName,
+          s.name as clientName,
           c.title as campaignTitle,
           t.name as totemName
         FROM smart_playlists sp
-        LEFT JOIN clients cl ON sp.client_id = cl.client_id
+        LEFT JOIN subscribers s ON sp.client_id = s.subscriber_id
         LEFT JOIN campaigns c ON sp.campaign_id = c.campaign_id
         LEFT JOIN totems t ON sp.totem_id = t.totem_id
         ${whereClause}
@@ -317,11 +317,11 @@ export class SmartPlaylistService {
           sp.effectiveness,
           sp.created_at as createdAt,
           sp.updated_at as updatedAt,
-          cl.name as clientName,
+          s.name as clientName,
           c.title as campaignTitle,
           t.name as totemName
         FROM smart_playlists sp
-        LEFT JOIN clients cl ON sp.client_id = cl.client_id
+        LEFT JOIN subscribers s ON sp.client_id = s.subscriber_id
         LEFT JOIN campaigns c ON sp.campaign_id = c.campaign_id
         LEFT JOIN totems t ON sp.totem_id = t.totem_id
         WHERE sp.smart_playlist_id = ?
@@ -397,13 +397,13 @@ export class SmartPlaylistService {
         throw new Error('name é obrigatório e não pode estar vazio');
       }
 
-      // Verificar se cliente existe
-      const client = await this.db.findFirst(`
-        SELECT client_id FROM clients WHERE client_id = ? AND COALESCE(is_active, true) = true
+      // Verificar se subscriber existe
+      const subscriber = await this.db.findFirst(`
+        SELECT subscriber_id FROM subscribers WHERE subscriber_id = ? AND COALESCE(is_active, true) = true
       `, [clientId]);
 
-      if (!client) {
-        throw new Error('Cliente não encontrado ou inativo');
+      if (!subscriber) {
+        throw new Error('Subscriber não encontrado ou inativo');
       }
 
       // Verificar se campanha existe (se fornecida)
@@ -718,8 +718,8 @@ export class SmartPlaylistService {
           COALESCE(m.tags, '[]') AS tags,
           m.metadata
         FROM medias m
-        WHERE COALESCE(m.is_active, true) = true AND m.client_id = ?
-        ORDER BY COALESCE(m.view_count, 0) DESC
+        WHERE COALESCE(m.is_active, true) = true AND m.subscriber_id = ?
+        ORDER BY m.created_at DESC
       `, [playlist.clientId]);
 
       // Construir prompt para IA
@@ -846,7 +846,7 @@ export class SmartPlaylistService {
           COALESCE(m.tags, '[]') AS tags,
           m.metadata
         FROM medias m
-        WHERE COALESCE(m.is_active, true) = true AND m.client_id = ?
+        WHERE COALESCE(m.is_active, true) = true AND m.subscriber_id = ?
       `;
 
       const params = [playlist.clientId];
@@ -862,7 +862,7 @@ export class SmartPlaylistService {
         params.push(playlist.duration);
       }
 
-      query += ' ORDER BY COALESCE(m.view_count, 0) DESC';
+      query += ' ORDER BY m.created_at DESC';
 
       if (playlist.maxItems) {
         query += ' LIMIT ?';
@@ -938,7 +938,7 @@ export class SmartPlaylistService {
     - Máximo de itens: ${playlist.maxItems || 'Sem limite'}
     
     Mídia Disponível:
-    ${media.map(m => `- ${m.title} (${m.duration_seconds}s, ${m.view_count} views, ${m.media_type})`).join('\n')}
+    ${media.map(m => `- ${m.title || m.name} (${m.duration_seconds || 0}s, ${m.media_type || 'unknown'})`).join('\n')}
     
     Regras:
     ${playlist.rules.map(r => `- ${r.type}: ${r.condition} -> ${r.action}`).join('\n')}
@@ -1008,8 +1008,8 @@ export class SmartPlaylistService {
       score += 10;
     }
 
-    // Ajustar baseado nas visualizações
-    score += Math.min(item.view_count / 100, 20);
+    // Ajustar baseado nas visualizações (view_count não existe no schema v2 - usar 0)
+    score += Math.min((item.view_count || 0) / 100, 20);
 
     return Math.max(0, Math.min(100, score));
   }
@@ -1028,9 +1028,10 @@ export class SmartPlaylistService {
       reasons.push('Duração adequada');
     }
 
-    if (item.view_count > 100) {
-      reasons.push('Alto engajamento');
-    }
+    // view_count não existe no schema v2 - remover verificação
+    // if (item.view_count > 100) {
+    //   reasons.push('Alto engajamento');
+    // }
 
     return reasons.join(', ') || 'Seleção baseada em regras gerais';
   }
@@ -1078,11 +1079,11 @@ export class SmartPlaylistService {
       const byClient = await this.db.findMany(`
         SELECT 
           sp.client_id as clientId,
-          cl.name as clientName,
+          s.name as clientName,
           COUNT(*) as count
         FROM smart_playlists sp
-        LEFT JOIN clients cl ON sp.client_id = cl.client_id
-        GROUP BY sp.client_id, cl.name
+        LEFT JOIN subscribers s ON sp.client_id = s.subscriber_id
+        GROUP BY sp.client_id, s.name
         ORDER BY count DESC
         LIMIT 10
       `);

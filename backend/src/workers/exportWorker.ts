@@ -258,6 +258,9 @@ async function executeQuery(
 async function executeRedisQuery(query: string, _databaseConfig: any): Promise<any[]> {
   try {
     const redis = getRedisClient();
+    if (!redis) {
+      throw new Error('Redis não está disponível (CACHE_ENABLED=false)');
+    }
     const results: any[] = [];
 
     // Parse da query Redis (formato simplificado: comando chave padrão)
