@@ -250,7 +250,16 @@ router.post('/',
   body('identifier').optional().isString().isLength({ min: 2, max: 100 }),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
   body('uin').optional().isString(),
-  body('localId').notEmpty().isInt({ min: 1 }).withMessage('localId é obrigatório'),
+  body('localId')
+    .notEmpty()
+    .withMessage('localId é obrigatório')
+    .custom((value) => {
+      const num = typeof value === 'string' ? parseInt(value, 10) : value;
+      if (isNaN(num) || num < 1) {
+        throw new Error('localId deve ser um número inteiro maior que 0');
+      }
+      return true;
+    }),
   body('deviceId').optional().isString(),
   body('location').optional().isString().isLength({ min: 2, max: 200 }),
   body('description').optional().isString(),
