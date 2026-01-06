@@ -50,6 +50,9 @@ if [[ ! -d "backend" ]] || [[ ! -d "frontend" ]]; then
     error "Execute este script na raiz do projeto (onde estão os diretórios backend/ e frontend/)"
 fi
 
+# Definir diretório raiz do projeto
+PROJECT_ROOT="$(pwd)"
+
 # Criar diretório de logs se não existir
 mkdir -p logs
 
@@ -60,25 +63,52 @@ log "━━━━━━━━━━━━━━━━━━━━━━━━━
 log "1️⃣  PARANDO SERVIÇOS EXISTENTES..."
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Parar backend (processo Node.js na porta 3000 ou processo dist/index.js)
-if pgrep -f "node.*dist/index.js" > /dev/null || lsof -ti:3000 > /dev/null 2>&1; then
-    log "Parando backend..."
-    pkill -f "node.*dist/index.js" 2>/dev/null || true
-    lsof -ti:3000 | xargs kill -9 2>/dev/null || true
-    sleep 2
-    log "✅ Backend parado"
+# Usar script stop-services.sh se disponível (mais robusto)
+if [[ -f "$PROJECT_ROOT/scripts/stop-services.sh" ]]; then
+    log "Usando script stop-services.sh para parar serviços..."
+    bash "$PROJECT_ROOT/scripts/stop-services.sh" all || warning "⚠️  Alguns serviços podem não ter sido parados"
+    sleep 2  # Aguardar serviços pararem completamente
 else
-    log "Backend não estava rodando"
-fi
+    warning "⚠️  Script stop-services.sh não encontrado. Parando processos manualmente..."
+    
+    # Parar backend (processo Node.js na porta 3000 ou processo dist/index.js)
+    if pgrep -f "node.*dist/index.js" > /dev/null || lsof -ti:3000 > /dev/null 2>&1; then
+        log "Parando backend..."
+        pkill -f "node.*dist/index.js" 2>/dev/null || true
+        lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+        sleep 2
+        log "✅ Backend parado"
+    else
+        log "Backend não estava rodando"
+    fi
 
-# Parar frontend dev server (porta 3001)
-if lsof -ti:3001 > /dev/null 2>&1; then
-    log "Parando frontend dev server..."
-    lsof -ti:3001 | xargs kill -9 2>/dev/null || true
-    sleep 1
-    log "✅ Frontend dev server parado"
-else
-    log "Frontend dev server não estava rodando"
+    # Parar frontend dev server (porta 3001)
+    if lsof -ti:3001 > /dev/null 2>&1; then
+        log "Parando frontend dev server..."
+        lsof -ti:3001 | xargs kill -9 2>/dev/null || true
+        sleep 1
+        log "✅ Frontend dev server parado"
+    else
+        log "Frontend dev server não estava rodando"
+    fi
+    
+    # Parar serviços systemd se existirem
+    if command -v systemctl &> /dev/null; then
+        if sudo systemctl is-active --quiet smart-signage 2>/dev/null; then
+            log "Parando serviço systemd: smart-signage..."
+            sudo systemctl stop smart-signage 2>/dev/null || true
+        fi
+        
+        if sudo systemctl is-active --quiet smartsignage-backend 2>/dev/null; then
+            log "Parando serviço systemd: smartsignage-backend..."
+            sudo systemctl stop smartsignage-backend 2>/dev/null || true
+        fi
+        
+        if sudo systemctl is-active --quiet smartsignage-frontend 2>/dev/null; then
+            log "Parando serviço systemd: smartsignage-frontend..."
+            sudo systemctl stop smartsignage-frontend 2>/dev/null || true
+        fi
+    fi
 fi
 
 # Parar serviços systemd se existirem
