@@ -21,6 +21,7 @@ export interface CreateSubscriberRequest {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  description?: string;
 }
 
 export interface UpdateSubscriberRequest {
@@ -258,6 +259,12 @@ export class SubscriberService {
       if (address !== undefined) {
         updateFields.push(`address = $${paramIndex}`);
         updateParams.push(address);
+        paramIndex++;
+      }
+
+      if (description !== undefined) {
+        updateFields.push(`description = $${paramIndex}`);
+        updateParams.push(description);
         paramIndex++;
       }
 

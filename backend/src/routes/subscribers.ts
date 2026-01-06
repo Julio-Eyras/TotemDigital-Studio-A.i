@@ -128,7 +128,7 @@ router.put('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const { name, contact_name, email, phone, whatsapp, address } = req.body;
+      const { name, contact_name, email, phone, whatsapp, address, description } = req.body;
       
       const updatedSubscriber = await getSubscriberService().updateSubscriber(parseInt(id), {
         name,

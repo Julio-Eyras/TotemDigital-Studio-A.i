@@ -1,0 +1,13 @@
+.sd-safe {
+  width:100vw;
+  height:100vh;
+  padding:4vh 4vw;
+  overflow:hidden;
+}
+
+.sd-grid {
+  display:grid;
+  grid-template-columns: 1fr 2fr;
+  gap:3vw;
+  height:100%;
+}

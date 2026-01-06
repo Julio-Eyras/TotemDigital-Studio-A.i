@@ -29,18 +29,6 @@ const createLocalValidator = [
   body('longitude').optional().isFloat(),
   body('timezone').optional().isString(),
   body('description').optional().isString(),
-  // Validação customizada: deve ter publisher_id OU subscriber_id (não ambos)
-  body().custom((value) => {
-    const hasPublisher = value.publisher_id && value.publisher_id > 0;
-    const hasSubscriber = value.subscriber_id && value.subscriber_id > 0;
-    if (!hasPublisher && !hasSubscriber) {
-      throw new Error('É necessário fornecer publisher_id ou subscriber_id');
-    }
-    if (hasPublisher && hasSubscriber) {
-      throw new Error('Não é possível fornecer publisher_id e subscriber_id ao mesmo tempo');
-    }
-    return true;
-  }),
 ];
 
 const updateLocalValidator = [
@@ -148,6 +136,20 @@ router.post('/',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { publisher_id, subscriber_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = req.body;
+      
+      // Validação customizada: deve ter publisher_id OU subscriber_id (não ambos)
+      if (!publisher_id && !subscriber_id) {
+        return res.status(400).json({
+          error: 'Dados inválidos',
+          details: [{ msg: 'É necessário fornecer publisher_id ou subscriber_id' }]
+        });
+      }
+      if (publisher_id && subscriber_id) {
+        return res.status(400).json({
+          error: 'Dados inválidos',
+          details: [{ msg: 'Não é possível fornecer publisher_id e subscriber_id ao mesmo tempo' }]
+        });
+      }
       
       if (!req.user?.id) {
         return res.status(401).json({ error: 'Usuário não autenticado' });
