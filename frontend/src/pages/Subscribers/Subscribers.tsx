@@ -427,7 +427,8 @@ const Subscribers: React.FC = () => {
   const handleEditEditLocal = (index: number) => {
     const local = editLocals[index];
     setEditLocalForm({
-      subscriber_id: local.subscriber_id,
+      subscriber_id: local.subscriber_id || 0,
+      publisher_id: local.publisher_id || 0,
       name: local.name || '',
       address: local.address || '',
       city: local.city || '',
