@@ -112,6 +112,46 @@ const Publishers: React.FC = () => {
   const [editingLocalIndex, setEditingLocalIndex] = useState<number | null>(null);
   const [editingTotemIndex, setEditingTotemIndex] = useState<number | null>(null);
   const [editingSmartTvIndex, setEditingSmartTvIndex] = useState<number | null>(null);
+  
+  // Estados para edição de publicador (carregar dados existentes)
+  const [editLocals, setEditLocals] = useState<Local[]>([]);
+  const [editTotems, setEditTotems] = useState<any[]>([]);
+  const [editSmartTvs, setEditSmartTvs] = useState<any[]>([]);
+  const [editingEditLocalIndex, setEditingEditLocalIndex] = useState<number | null>(null);
+  const [editingEditTotemIndex, setEditingEditTotemIndex] = useState<number | null>(null);
+  const [editingEditSmartTvIndex, setEditingEditSmartTvIndex] = useState<number | null>(null);
+  const [editLocalForm, setEditLocalForm] = useState<CreateLocalRequest>({
+    publisher_id: 0,
+    name: '',
+    address: '',
+    city: '',
+    state: '',
+    zip_code: '',
+    country: '',
+    description: '',
+  });
+  const [editTotemForm, setEditTotemForm] = useState<any>({
+    localId: 0,
+    identifier: '',
+    name: '',
+    uin: '',
+    deviceId: '',
+    description: '',
+    firmwareVersion: '',
+  });
+  const [editSmartTvForm, setEditSmartTvForm] = useState<any>({
+    totem_id: 0,
+    identifier: '',
+    name: '',
+    device_id: '',
+    brand: '',
+    model: '',
+    platform: '',
+    firmware_version: '',
+    resolution_width: undefined,
+    resolution_height: undefined,
+    orientation: 'landscape',
+  });
   const [localForm, setLocalForm] = useState<CreateLocalRequest>({
     publisher_id: 0, // Será preenchido após criar o publisher
     name: '',
@@ -151,6 +191,13 @@ const Publishers: React.FC = () => {
     loadPublishers();
   }, [clientTypeFilter, activeOnlyFilter]);
 
+  // Carregar dados quando dialog de edição abre
+  useEffect(() => {
+    if (editDialogOpen && selectedPublisher) {
+      loadPublisherDataForEdit(selectedPublisher.publisher_id);
+    }
+  }, [editDialogOpen, selectedPublisher?.publisher_id]);
+
   const loadPublishers = async () => {
     try {
       setLoading(true);
@@ -186,6 +233,24 @@ const Publishers: React.FC = () => {
       });
     } catch (error) {
       console.error('Erro ao carregar estatísticas do publisher:', error);
+    }
+  };
+
+  // Carregar dados para edição
+  const loadPublisherDataForEdit = async (publisherId: number) => {
+    try {
+      const [localsResponse, totemsResponse, smartTvsResponse] = await Promise.all([
+        publisherApi.getLocals(publisherId),
+        publisherApi.getTotems(publisherId),
+        publisherApi.getSmartTvs(publisherId),
+      ]);
+
+      setEditLocals(Array.isArray(localsResponse) ? localsResponse : []);
+      setEditTotems(Array.isArray(totemsResponse) ? totemsResponse : []);
+      setEditSmartTvs(Array.isArray(smartTvsResponse) ? smartTvsResponse : []);
+    } catch (error) {
+      console.error('Erro ao carregar dados do publisher para edição:', error);
+      setError('Erro ao carregar dados do publicador');
     }
   };
 
@@ -320,6 +385,282 @@ const Publishers: React.FC = () => {
     setTempSmartTvs(tempSmartTvs.filter((_, i) => i !== index));
   };
 
+  // ============================================================================
+  // FUNÇÕES DE CRUD PARA EDIÇÃO DE PUBLICADOR
+  // ============================================================================
+
+  // Funções para gerenciar locais na edição
+  const handleAddEditLocal = async () => {
+    if (!selectedPublisher || !editLocalForm.name) {
+      setError('Nome do local é obrigatório');
+      return;
+    }
+
+    try {
+      if (editingEditLocalIndex !== null) {
+        // Atualizar local existente
+        const localToUpdate = editLocals[editingEditLocalIndex];
+        await localApi.update(localToUpdate.local_id, editLocalForm);
+        // Recarregar dados
+        await loadPublisherDataForEdit(selectedPublisher.publisher_id);
+        setEditingEditLocalIndex(null);
+      } else {
+        // Criar novo local
+        await localApi.create({
+          ...editLocalForm,
+          publisher_id: selectedPublisher.publisher_id,
+        });
+        // Recarregar dados
+        await loadPublisherDataForEdit(selectedPublisher.publisher_id);
+      }
+      setEditLocalForm({
+        publisher_id: selectedPublisher.publisher_id,
+        name: '',
+        address: '',
+        city: '',
+        state: '',
+        zip_code: '',
+        country: '',
+        description: '',
+      });
+    } catch (error: any) {
+      console.error('Erro ao salvar local:', error);
+      setError(error?.response?.data?.error || 'Erro ao salvar local');
+    }
+  };
+
+  const handleEditEditLocal = (index: number) => {
+    const local = editLocals[index];
+    setEditLocalForm({
+      publisher_id: local.publisher_id,
+      name: local.name || '',
+      address: local.address || '',
+      city: local.city || '',
+      state: local.state || '',
+      zip_code: local.zip_code || '',
+      country: local.country || '',
+      description: local.description || '',
+    });
+    setEditingEditLocalIndex(index);
+  };
+
+  const handleDeleteEditLocal = async (index: number) => {
+    if (!selectedPublisher || !window.confirm('Tem certeza que deseja excluir este local?')) return;
+    
+    try {
+      const local = editLocals[index];
+      // Remover totens e smart TVs associados a este local primeiro
+      const totemsToRemove = editTotems.filter(t => t.local_id === local.local_id);
+      for (const totem of totemsToRemove) {
+        try {
+          const smartTvsToRemove = editSmartTvs.filter(tv => tv.totem_id === totem.totem_id);
+          for (const tv of smartTvsToRemove) {
+            await smartTvApi.delete(tv.smart_tv_id || tv.tv_id);
+          }
+          await totemApi.delete(totem.totem_id);
+        } catch (err) {
+          console.error('Erro ao excluir totem/smart TVs:', err);
+        }
+      }
+      await localApi.delete(local.local_id);
+      // Recarregar dados
+      await loadPublisherDataForEdit(selectedPublisher.publisher_id);
+    } catch (error: any) {
+      console.error('Erro ao excluir local:', error);
+      setError(error?.response?.data?.error || 'Erro ao excluir local');
+    }
+  };
+
+  // Funções para gerenciar totens na edição
+  const handleAddEditTotem = async () => {
+    if (!selectedPublisher || !editTotemForm.identifier) {
+      setError('Identifier do totem é obrigatório');
+      return;
+    }
+    if (editLocals.length === 0) {
+      setError('É necessário ter ao menos 1 local antes de adicionar totens');
+      return;
+    }
+    if (editTotemForm.localId < 0 || editTotemForm.localId >= editLocals.length) {
+      setError('Local é obrigatório para o totem');
+      return;
+    }
+
+    try {
+      const selectedLocal = editLocals[editTotemForm.localId];
+      const totemData = {
+        localId: selectedLocal.local_id,
+        identifier: editTotemForm.identifier,
+        name: editTotemForm.name || undefined,
+        uin: editTotemForm.uin || undefined,
+        deviceId: editTotemForm.deviceId || undefined,
+        description: editTotemForm.description || undefined,
+        firmwareVersion: editTotemForm.firmwareVersion || undefined,
+      };
+
+      if (editingEditTotemIndex !== null) {
+        // Atualizar totem existente
+        const totemToUpdate = editTotems[editingEditTotemIndex];
+        await totemApi.update(totemToUpdate.totem_id, totemData);
+        // Recarregar dados
+        await loadPublisherDataForEdit(selectedPublisher.publisher_id);
+        setEditingEditTotemIndex(null);
+      } else {
+        // Criar novo totem
+        await totemApi.create(totemData);
+        // Recarregar dados
+        await loadPublisherDataForEdit(selectedPublisher.publisher_id);
+      }
+      setEditTotemForm({
+        localId: 0,
+        identifier: '',
+        name: '',
+        uin: '',
+        deviceId: '',
+        description: '',
+        firmwareVersion: '',
+      });
+    } catch (error: any) {
+      console.error('Erro ao salvar totem:', error);
+      setError(error?.response?.data?.error || 'Erro ao salvar totem');
+    }
+  };
+
+  const handleEditEditTotem = (index: number) => {
+    const totem = editTotems[index];
+    // Encontrar índice do local no array editLocals
+    const localIndex = editLocals.findIndex(l => l.local_id === totem.local_id);
+    setEditTotemForm({
+      localId: localIndex >= 0 ? localIndex : 0,
+      identifier: totem.identifier || '',
+      name: totem.name || '',
+      uin: totem.uin || '',
+      deviceId: totem.device_id || totem.deviceId || '',
+      description: totem.description || '',
+      firmwareVersion: totem.firmware_version || totem.firmwareVersion || '',
+    });
+    setEditingEditTotemIndex(index);
+  };
+
+  const handleDeleteEditTotem = async (index: number) => {
+    if (!selectedPublisher || !window.confirm('Tem certeza que deseja excluir este totem?')) return;
+    
+    try {
+      const totem = editTotems[index];
+      // Remover smart TVs associadas a este totem primeiro
+      const smartTvsToRemove = editSmartTvs.filter(tv => tv.totem_id === totem.totem_id);
+      for (const tv of smartTvsToRemove) {
+        try {
+          await smartTvApi.delete(tv.smart_tv_id || tv.tv_id);
+        } catch (err) {
+          console.error('Erro ao excluir Smart TV:', err);
+        }
+      }
+      await totemApi.delete(totem.totem_id);
+      // Recarregar dados
+      await loadPublisherDataForEdit(selectedPublisher.publisher_id);
+    } catch (error: any) {
+      console.error('Erro ao excluir totem:', error);
+      setError(error?.response?.data?.error || 'Erro ao excluir totem');
+    }
+  };
+
+  // Funções para gerenciar Smart TVs na edição
+  const handleAddEditSmartTv = async () => {
+    if (!selectedPublisher || !editSmartTvForm.identifier) {
+      setError('Identifier da Smart TV é obrigatório');
+      return;
+    }
+    if (editTotems.length === 0) {
+      setError('É necessário ter ao menos 1 totem antes de adicionar Smart TVs');
+      return;
+    }
+    if (editSmartTvForm.totem_id < 0 || editSmartTvForm.totem_id >= editTotems.length) {
+      setError('Totem é obrigatório para a Smart TV');
+      return;
+    }
+
+    try {
+      const selectedTotem = editTotems[editSmartTvForm.totem_id];
+      const smartTvData = {
+        totem_id: selectedTotem.totem_id,
+        identifier: editSmartTvForm.identifier,
+        name: editSmartTvForm.name || undefined,
+        device_id: editSmartTvForm.device_id || undefined,
+        brand: editSmartTvForm.brand || undefined,
+        model: editSmartTvForm.model || undefined,
+        platform: editSmartTvForm.platform || undefined,
+        firmware_version: editSmartTvForm.firmware_version || undefined,
+        resolution_width: editSmartTvForm.resolution_width,
+        resolution_height: editSmartTvForm.resolution_height,
+        orientation: editSmartTvForm.orientation || 'landscape',
+      };
+
+      if (editingEditSmartTvIndex !== null) {
+        // Atualizar Smart TV existente
+        const tvToUpdate = editSmartTvs[editingEditSmartTvIndex];
+        await smartTvApi.update(tvToUpdate.smart_tv_id || tvToUpdate.tv_id, smartTvData);
+        // Recarregar dados
+        await loadPublisherDataForEdit(selectedPublisher.publisher_id);
+        setEditingEditSmartTvIndex(null);
+      } else {
+        // Criar nova Smart TV
+        await smartTvApi.create(smartTvData);
+        // Recarregar dados
+        await loadPublisherDataForEdit(selectedPublisher.publisher_id);
+      }
+      setEditSmartTvForm({
+        totem_id: 0,
+        identifier: '',
+        name: '',
+        device_id: '',
+        brand: '',
+        model: '',
+        platform: '',
+        firmware_version: '',
+        resolution_width: undefined,
+        resolution_height: undefined,
+        orientation: 'landscape',
+      });
+    } catch (error: any) {
+      console.error('Erro ao salvar Smart TV:', error);
+      setError(error?.response?.data?.error || 'Erro ao salvar Smart TV');
+    }
+  };
+
+  const handleEditEditSmartTv = (index: number) => {
+    const smartTv = editSmartTvs[index];
+    // Encontrar índice do totem no array editTotems
+    const totemIndex = editTotems.findIndex(t => t.totem_id === smartTv.totem_id);
+    setEditSmartTvForm({
+      totem_id: totemIndex >= 0 ? totemIndex : 0,
+      identifier: smartTv.identifier || '',
+      name: smartTv.name || '',
+      device_id: smartTv.device_id || '',
+      brand: smartTv.brand || '',
+      model: smartTv.model || '',
+      platform: smartTv.platform || '',
+      firmware_version: smartTv.firmware_version || '',
+      resolution_width: smartTv.resolution_width,
+      resolution_height: smartTv.resolution_height,
+      orientation: smartTv.orientation || 'landscape',
+    });
+    setEditingEditSmartTvIndex(index);
+  };
+
+  const handleDeleteEditSmartTv = async (index: number) => {
+    if (!selectedPublisher || !window.confirm('Tem certeza que deseja excluir esta Smart TV?')) return;
+    
+    try {
+      const smartTv = editSmartTvs[index];
+      await smartTvApi.delete(smartTv.smart_tv_id || smartTv.tv_id);
+      // Recarregar dados
+      await loadPublisherDataForEdit(selectedPublisher.publisher_id);
+    } catch (error: any) {
+      console.error('Erro ao excluir Smart TV:', error);
+      setError(error?.response?.data?.error || 'Erro ao excluir Smart TV');
+    }
+  };
 
   // NOVO: handleCreatePublisher modificado para criar publisher, locais e totens
   const handleCreatePublisher = async () => {
@@ -597,6 +938,13 @@ const Publishers: React.FC = () => {
       };
       await publisherApi.update(selectedPublisher.publisher_id, updateData);
       setEditDialogOpen(false);
+      setEditTab(0);
+      setEditLocals([]);
+      setEditTotems([]);
+      setEditSmartTvs([]);
+      setEditingEditLocalIndex(null);
+      setEditingEditTotemIndex(null);
+      setEditingEditSmartTvIndex(null);
       setSelectedPublisher(null);
       loadPublishers();
     } catch (error: any) {
@@ -1522,6 +1870,12 @@ const Publishers: React.FC = () => {
         onClose={() => {
           setEditDialogOpen(false);
           setEditTab(0);
+          setEditLocals([]);
+          setEditTotems([]);
+          setEditSmartTvs([]);
+          setEditingEditLocalIndex(null);
+          setEditingEditTotemIndex(null);
+          setEditingEditSmartTvIndex(null);
         }} 
         maxWidth="lg" 
         fullWidth
@@ -1626,30 +1980,491 @@ const Publishers: React.FC = () => {
           {/* Aba Locais */}
           {editTab === 1 && selectedPublisher && (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>Locais</Typography>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Para editar locais, use a aba "Detalhes" e clique em "Editar" em cada local.
-              </Alert>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Locais {editLocals.length > 0 && `(${editLocals.length})`}
+              </Typography>
+              
+              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Local</Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Nome do Local *"
+                      value={editLocalForm.name}
+                      onChange={(e) => setEditLocalForm({ ...editLocalForm, name: e.target.value })}
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Endereço"
+                      value={editLocalForm.address || ''}
+                      onChange={(e) => setEditLocalForm({ ...editLocalForm, address: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Cidade"
+                      value={editLocalForm.city || ''}
+                      onChange={(e) => setEditLocalForm({ ...editLocalForm, city: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Estado"
+                      value={editLocalForm.state || ''}
+                      onChange={(e) => setEditLocalForm({ ...editLocalForm, state: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="CEP"
+                      value={editLocalForm.zip_code || ''}
+                      onChange={(e) => setEditLocalForm({ ...editLocalForm, zip_code: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Descrição"
+                      value={editLocalForm.description || ''}
+                      onChange={(e) => setEditLocalForm({ ...editLocalForm, description: e.target.value })}
+                      size="small"
+                      multiline
+                      rows={2}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      variant="contained"
+                      startIcon={<Add />}
+                      onClick={handleAddEditLocal}
+                      disabled={!editLocalForm.name}
+                    >
+                      {editingEditLocalIndex !== null ? 'Atualizar Local' : 'Adicionar Local'}
+                    </Button>
+                    {editingEditLocalIndex !== null && (
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setEditingEditLocalIndex(null);
+                          setEditLocalForm({
+                            publisher_id: selectedPublisher.publisher_id,
+                            name: '',
+                            address: '',
+                            city: '',
+                            state: '',
+                            zip_code: '',
+                            country: '',
+                            description: '',
+                          });
+                        }}
+                        sx={{ ml: 1 }}
+                      >
+                        Cancelar Edição
+                      </Button>
+                    )}
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {editLocals.length > 0 ? (
+                <List>
+                  {editLocals.map((local, index) => (
+                    <ListItem key={local.local_id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
+                      <ListItemIcon><Store /></ListItemIcon>
+                      <ListItemText
+                        primary={local.name}
+                        secondary={`${local.address || ''} ${local.city || ''} ${local.state || ''}`.trim() || 'Sem endereço'}
+                      />
+                      <IconButton size="small" onClick={() => handleEditEditLocal(index)}>
+                        <Edit />
+                      </IconButton>
+                      <IconButton size="small" onClick={() => handleDeleteEditLocal(index)}>
+                        <Delete />
+                      </IconButton>
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Alert severity="info">Nenhum local cadastrado ainda. Adicione ao menos 1 local.</Alert>
+              )}
             </Box>
           )}
 
           {/* Aba Totens */}
           {editTab === 2 && selectedPublisher && (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>Totens</Typography>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Para editar totens, use a aba "Detalhes" e clique em "Editar" em cada totem.
-              </Alert>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Totens {editTotems.length > 0 && `(${editTotems.length})`}
+              </Typography>
+              {editLocals.length === 0 ? (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Você precisa cadastrar ao menos 1 local na aba "Locais" antes de adicionar totens.
+                </Alert>
+              ) : (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Os totens (players) devem estar atrelados a um local. Selecione um local no campo abaixo.
+                  <strong> Nota:</strong> Os totens são players com player embutido.
+                </Alert>
+              )}
+
+              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Totem</Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small" required>
+                      <InputLabel>Local *</InputLabel>
+                      <Select
+                        value={editTotemForm.localId}
+                        label="Local *"
+                        onChange={(e) => setEditTotemForm({ ...editTotemForm, localId: Number(e.target.value) })}
+                      >
+                        {editLocals.map((local, index) => (
+                          <MenuItem key={local.local_id} value={index}>
+                            {local.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Identifier *"
+                      value={editTotemForm.identifier}
+                      onChange={(e) => setEditTotemForm({ ...editTotemForm, identifier: e.target.value })}
+                      size="small"
+                      required
+                      helperText="Identificador único do totem"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Nome"
+                      value={editTotemForm.name || ''}
+                      onChange={(e) => setEditTotemForm({ ...editTotemForm, name: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Device ID"
+                      value={editTotemForm.deviceId || ''}
+                      onChange={(e) => setEditTotemForm({ ...editTotemForm, deviceId: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="UIN"
+                      value={editTotemForm.uin || ''}
+                      onChange={(e) => setEditTotemForm({ ...editTotemForm, uin: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Firmware Version"
+                      value={editTotemForm.firmwareVersion || ''}
+                      onChange={(e) => setEditTotemForm({ ...editTotemForm, firmwareVersion: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Descrição"
+                      value={editTotemForm.description || ''}
+                      onChange={(e) => setEditTotemForm({ ...editTotemForm, description: e.target.value })}
+                      size="small"
+                      multiline
+                      rows={2}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      variant="contained"
+                      startIcon={<Add />}
+                      onClick={handleAddEditTotem}
+                      disabled={!editTotemForm.identifier || editLocals.length === 0 || editTotemForm.localId < 0 || editTotemForm.localId >= editLocals.length}
+                    >
+                      {editingEditTotemIndex !== null ? 'Atualizar Totem' : 'Adicionar Totem'}
+                    </Button>
+                    {editingEditTotemIndex !== null && (
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setEditingEditTotemIndex(null);
+                          setEditTotemForm({
+                            localId: 0,
+                            identifier: '',
+                            name: '',
+                            uin: '',
+                            deviceId: '',
+                            description: '',
+                            firmwareVersion: '',
+                          });
+                        }}
+                        sx={{ ml: 1 }}
+                      >
+                        Cancelar Edição
+                      </Button>
+                    )}
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {editTotems.length > 0 ? (
+                <List>
+                  {editTotems.map((totem, index) => {
+                    const local = editLocals.find(l => l.local_id === totem.local_id);
+                    const localName = local?.name || 'Local não encontrado';
+                    return (
+                      <ListItem key={totem.totem_id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
+                        <ListItemIcon><Computer /></ListItemIcon>
+                        <ListItemText
+                          primary={totem.name || totem.identifier}
+                          secondary={`Local: ${localName} | Identifier: ${totem.identifier}`}
+                        />
+                        <IconButton size="small" onClick={() => handleEditEditTotem(index)}>
+                          <Edit />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => handleDeleteEditTotem(index)}>
+                          <Delete />
+                        </IconButton>
+                      </ListItem>
+                    );
+                  })}
+                </List>
+              ) : (
+                <Alert severity="info">
+                  {editLocals.length === 0 
+                    ? 'Cadastre locais na aba "Locais" para poder adicionar totens (players).'
+                    : 'Nenhum totem cadastrado ainda. Os totens são players com player embutido.'}
+                </Alert>
+              )}
             </Box>
           )}
 
           {/* Aba Smart TVs */}
           {editTab === 3 && selectedPublisher && (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>Smart TVs</Typography>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Para editar Smart TVs, use a aba "Detalhes" e clique em "Editar" em cada Smart TV.
-              </Alert>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Smart TVs {editSmartTvs.length > 0 && `(${editSmartTvs.length})`}
+              </Typography>
+              {editTotems.length === 0 ? (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Para adicionar Smart TVs, você precisa cadastrar ao menos 1 totem na aba "Totens". 
+                  <strong> Nota:</strong> As Smart TVs são opcionais - o próprio totem já possui um player embutido.
+                </Alert>
+              ) : (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  As Smart TVs são opcionais e devem estar atreladas a um totem. 
+                  <strong> Nota:</strong> O totem já possui um player embutido, então as Smart TVs são apenas para conectividade adicional.
+                </Alert>
+              )}
+
+              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Smart TV</Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small" required>
+                      <InputLabel>Totem *</InputLabel>
+                      <Select
+                        value={editSmartTvForm.totem_id}
+                        label="Totem *"
+                        onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, totem_id: Number(e.target.value) })}
+                      >
+                        {editTotems.map((totem, index) => {
+                          const local = editLocals.find(l => l.local_id === totem.local_id);
+                          return (
+                            <MenuItem key={totem.totem_id} value={index}>
+                              {totem.name || totem.identifier} {local && `(${local.name})`}
+                            </MenuItem>
+                          );
+                        })}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Identifier *"
+                      value={editSmartTvForm.identifier}
+                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, identifier: e.target.value })}
+                      size="small"
+                      required
+                      helperText="Identificador único da Smart TV"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Nome"
+                      value={editSmartTvForm.name || ''}
+                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, name: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Device ID"
+                      value={editSmartTvForm.device_id || ''}
+                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, device_id: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Marca"
+                      value={editSmartTvForm.brand || ''}
+                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, brand: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Modelo"
+                      value={editSmartTvForm.model || ''}
+                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, model: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Plataforma"
+                      value={editSmartTvForm.platform || ''}
+                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, platform: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Versão do Firmware"
+                      value={editSmartTvForm.firmware_version || ''}
+                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, firmware_version: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      label="Largura (px)"
+                      type="number"
+                      value={editSmartTvForm.resolution_width || ''}
+                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, resolution_width: e.target.value ? Number(e.target.value) : undefined })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      label="Altura (px)"
+                      type="number"
+                      value={editSmartTvForm.resolution_height || ''}
+                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, resolution_height: e.target.value ? Number(e.target.value) : undefined })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Orientação</InputLabel>
+                      <Select
+                        value={editSmartTvForm.orientation || 'landscape'}
+                        label="Orientações"
+                        onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, orientation: e.target.value as 'landscape' | 'portrait' })}
+                      >
+                        <MenuItem value="landscape">Paisagem</MenuItem>
+                        <MenuItem value="portrait">Retrato</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      variant="contained"
+                      startIcon={<Add />}
+                      onClick={handleAddEditSmartTv}
+                      disabled={!editSmartTvForm.identifier || editTotems.length === 0 || editSmartTvForm.totem_id < 0 || editSmartTvForm.totem_id >= editTotems.length}
+                    >
+                      {editingEditSmartTvIndex !== null ? 'Atualizar Smart TV' : 'Adicionar Smart TV'}
+                    </Button>
+                    {editingEditSmartTvIndex !== null && (
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setEditingEditSmartTvIndex(null);
+                          setEditSmartTvForm({
+                            totem_id: 0,
+                            identifier: '',
+                            name: '',
+                            device_id: '',
+                            brand: '',
+                            model: '',
+                            platform: '',
+                            firmware_version: '',
+                            resolution_width: undefined,
+                            resolution_height: undefined,
+                            orientation: 'landscape',
+                          });
+                        }}
+                        sx={{ ml: 1 }}
+                      >
+                        Cancelar Edição
+                      </Button>
+                    )}
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {editSmartTvs.length > 0 ? (
+                <List>
+                  {editSmartTvs.map((smartTv, index) => {
+                    const totem = editTotems.find(t => t.totem_id === smartTv.totem_id);
+                    const totemName = totem?.name || totem?.identifier || 'Totem não encontrado';
+                    return (
+                      <ListItem key={smartTv.smart_tv_id || smartTv.tv_id || index} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
+                        <ListItemIcon><Tv /></ListItemIcon>
+                        <ListItemText
+                          primary={smartTv.name || smartTv.identifier}
+                          secondary={`Totem: ${totemName} | Identifier: ${smartTv.identifier}${smartTv.brand ? ` | ${smartTv.brand} ${smartTv.model || ''}` : ''}`}
+                        />
+                        <IconButton size="small" onClick={() => handleEditEditSmartTv(index)}>
+                          <Edit />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => handleDeleteEditSmartTv(index)}>
+                          <Delete />
+                        </IconButton>
+                      </ListItem>
+                    );
+                  })}
+                </List>
+              ) : (
+                <Alert severity="info">
+                  {editTotems.length === 0 
+                    ? 'Cadastre totens na aba "Totens" para poder adicionar Smart TVs. Lembre-se: o totem já possui um player embutido, então as Smart TVs são opcionais.'
+                    : 'Nenhuma Smart TV cadastrada ainda. As Smart TVs são opcionais - o totem já possui um player embutido.'}
+                </Alert>
+              )}
             </Box>
           )}
         </DialogContent>
@@ -1657,6 +2472,12 @@ const Publishers: React.FC = () => {
           <Button onClick={() => {
             setEditDialogOpen(false);
             setEditTab(0);
+            setEditLocals([]);
+            setEditTotems([]);
+            setEditSmartTvs([]);
+            setEditingEditLocalIndex(null);
+            setEditingEditTotemIndex(null);
+            setEditingEditSmartTvIndex(null);
           }}>Cancelar</Button>
           <Button variant="contained" onClick={handleEditPublisher}>Salvar</Button>
         </DialogActions>
