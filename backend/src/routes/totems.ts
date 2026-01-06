@@ -84,7 +84,7 @@ router.get('/pending',
       const result = await getTotemService().getAllTotems({
         page: parseInt(page as string) || 1,
         limit: parseInt(limit as string) || 10,
-        status: 'pending_approval'
+        status: 'offline'
       });
       // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
       return res.json({
@@ -542,7 +542,7 @@ router.put('/:id/approve',
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
 
-      // Verificar se totem está pendente de aprovação
+      // Verificar se totem pode ser aprovado (não pode estar já online)
       const db = require('../config/database').getDatabase();
       const totemFull = await db.findFirst(`
         SELECT status, uin, identifier, config
@@ -550,10 +550,17 @@ router.put('/:id/approve',
         WHERE totem_id = ?
       `, [totemId]);
 
-      if (!totemFull || totemFull.status !== 'pending_approval') {
+      if (!totemFull) {
+        return res.status(404).json({ 
+          error: 'Totem não encontrado'
+        });
+      }
+
+      // Totem já está online, não precisa aprovar novamente
+      if (totemFull.status === 'online') {
         return res.status(400).json({ 
-          error: 'Totem não está pendente de aprovação',
-          currentStatus: totemFull?.status || 'unknown'
+          error: 'Totem já está aprovado e online',
+          currentStatus: totemFull.status
         });
       }
 
