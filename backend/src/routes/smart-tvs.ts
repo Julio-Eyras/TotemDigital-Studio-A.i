@@ -196,25 +196,20 @@ router.post('/',
     const userType = req.user?.userType;
     const isPublisher = userType === 'publisher_user' || userType === 'publisher_subscriber' || req.user?.publisherId;
     const isOwnerOrAdminSql = userRole === 'owner_system' || userRole === 'admin_sql';
+    const isAdmin = userRole === 'admin';
     
     // Permitir owners/admins sem verificação de flag aqui (será verificado depois)
     if (isOwnerOrAdminSql) {
       return next();
     }
     
-    // Permitir publishers
-    if (isPublisher) {
+    // Permitir admins comuns (mesmo sem flag, podem criar Smart TVs)
+    if (isAdmin) {
       return next();
     }
     
-    // Para admins comuns e outros, verificar flag
-    if (userRole === 'admin') {
-      if (!req.user?.flags?.flag_smart_0) {
-        return res.status(403).json({ 
-          error: 'Acesso negado',
-          details: [{ msg: 'Requer flag_smart_0 para criar Smart TVs' }]
-        });
-      }
+    // Permitir publishers
+    if (isPublisher) {
       return next();
     }
     
