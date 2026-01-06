@@ -93,6 +93,7 @@ const Publishers: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [detailsTab, setDetailsTab] = useState(0);
   const [createTab, setCreateTab] = useState(0); // NOVO: Aba do dialog de criação
+  const [editTab, setEditTab] = useState(0); // NOVO: Aba do dialog de edição
   const [newPublisher, setNewPublisher] = useState<CreatePublisherRequest>({
     name: '',
     contact_name: '',
@@ -325,21 +326,21 @@ const Publishers: React.FC = () => {
     try {
       // Validação: nome do publisher é obrigatório
       if (!newPublisher.name || newPublisher.name.trim() === '') {
-        setError('Nome do publisher é obrigatório');
+        setError('Nome do publicador é obrigatório');
         setCreateTab(0); // Ir para aba de Informações
         return;
       }
 
       // Validação: ao menos 1 local obrigatório
       if (tempLocals.length === 0) {
-        setError('É obrigatório cadastrar ao menos 1 local antes de criar o publisher');
+        setError('É obrigatório cadastrar ao menos 1 local antes de criar o publicador');
         setCreateTab(1); // Ir para aba de Locais
         return;
       }
 
       // Validação: ao menos 1 totem obrigatório
       if (tempTotems.length === 0) {
-        setError('É obrigatório cadastrar ao menos 1 totem (player) antes de criar o publisher');
+        setError('É obrigatório cadastrar ao menos 1 totem (player) antes de criar o publicador');
         setCreateTab(2); // Ir para aba de Totens
         return;
       }
@@ -351,7 +352,7 @@ const Publishers: React.FC = () => {
       const publisherId = createdPublisher.publisher_id;
       
       if (!publisherId) {
-        const errorMessage = 'Erro: Publisher criado mas não retornou ID válido';
+        const errorMessage = 'Erro: Publicador criado mas não retornou ID válido';
         console.error(errorMessage);
         setError(errorMessage);
         return;
@@ -600,12 +601,12 @@ const Publishers: React.FC = () => {
       loadPublishers();
     } catch (error: any) {
       console.error('Erro ao atualizar publisher:', error);
-      setError(error?.response?.data?.error || error?.message || 'Erro ao atualizar publisher');
+      setError(error?.response?.data?.error || error?.message || 'Erro ao atualizar publicador');
     }
   };
 
   const handleDeletePublisher = async (id: number) => {
-    if (window.confirm('Tem certeza que deseja excluir este publisher?')) {
+    if (window.confirm('Tem certeza que deseja excluir este publicador?')) {
       try {
         await publisherApi.delete(id);
         loadPublishers();
@@ -677,7 +678,7 @@ const Publishers: React.FC = () => {
             '&:hover': { backgroundColor: theme.palette.primary.dark }
           }}
         >
-          Adicionar Publisher
+          Adicionar Publicador
         </Button>
       </Box>
 
@@ -688,7 +689,7 @@ const Publishers: React.FC = () => {
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
-                placeholder="Buscar publishers..."
+                placeholder="Buscar publicadores..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => {
@@ -888,17 +889,17 @@ const Publishers: React.FC = () => {
           <CardContent>
             <Business sx={{ fontSize: 64, color: theme.palette.text.secondary, mb: 2 }} />
             <Typography variant="h6" sx={{ mb: 1 }}>
-              Nenhum publisher encontrado
+              Nenhum publicador encontrado
             </Typography>
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
-              Comece adicionando seus primeiros publishers
+              Comece adicionando seus primeiros publicadores
             </Typography>
             <Button
               variant="contained"
               startIcon={<Add />}
               onClick={() => setCreateDialogOpen(true)}
             >
-              Adicionar Primeiro Publisher
+              Adicionar Primeiro Publicador
             </Button>
           </CardContent>
         </Card>
@@ -917,7 +918,7 @@ const Publishers: React.FC = () => {
         maxWidth="lg" 
         fullWidth
       >
-        <DialogTitle>Adicionar Publisher</DialogTitle>
+        <DialogTitle>Adicionar Publicador</DialogTitle>
         <DialogContent>
           <Tabs value={createTab} onChange={(_, newValue) => setCreateTab(newValue)} sx={{ mb: 3 }}>
             <Tab label="Informações" />
@@ -929,7 +930,7 @@ const Publishers: React.FC = () => {
           {/* Aba Informações */}
           {createTab === 0 && (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>Dados do Publisher</Typography>
+              <Typography variant="h6" sx={{ mb: 2 }}>Dados do Publicador</Typography>
               <TextField
                 fullWidth
                 label="Nome da Empresa / Razão Social"
@@ -1011,7 +1012,7 @@ const Publishers: React.FC = () => {
                 Locais {tempLocals.length > 0 && `(${tempLocals.length})`}
               </Typography>
               <Alert severity="warning" sx={{ mb: 2 }}>
-                É obrigatório cadastrar ao menos 1 local antes de criar o publisher.
+                É obrigatório cadastrar ao menos 1 local antes de criar o publicador.
               </Alert>
               
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
@@ -1510,99 +1511,153 @@ const Publishers: React.FC = () => {
             onClick={handleCreatePublisher}
             disabled={tempLocals.length === 0 || tempTotems.length === 0}
           >
-            Criar Publisher
+            Criar Publicador
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Editar Publisher</DialogTitle>
+      {/* Edit Dialog com Abas */}
+      <Dialog 
+        open={editDialogOpen} 
+        onClose={() => {
+          setEditDialogOpen(false);
+          setEditTab(0);
+        }} 
+        maxWidth="lg" 
+        fullWidth
+      >
+        <DialogTitle>Editar Publicador</DialogTitle>
         <DialogContent>
-          <TextField
-            fullWidth
-            label="Nome da Empresa / Razão Social"
-            value={selectedPublisher?.name || ''}
-            onChange={(e) => setSelectedPublisher({ ...selectedPublisher!, name: e.target.value })}
-            margin="normal"
-            required
-            helperText="Nome completo da empresa ou razão social"
-          />
-          <TextField
-            fullWidth
-            label="Nome do Contato"
-            value={selectedPublisher?.contact_name || ''}
-            onChange={(e) => setSelectedPublisher({ ...selectedPublisher!, contact_name: e.target.value })}
-            margin="normal"
-            helperText="Nome da pessoa responsável pelo contato"
-          />
-          <TextField
-            fullWidth
-            label="Email"
-            type="email"
-            value={selectedPublisher?.email || ''}
-            onChange={(e) => setSelectedPublisher({ ...selectedPublisher!, email: e.target.value })}
-            margin="normal"
-          />
-          <TextField
-            fullWidth
-            label="Telefone"
-            value={selectedPublisher?.phone || ''}
-            onChange={(e) => setSelectedPublisher({ ...selectedPublisher!, phone: e.target.value })}
-            margin="normal"
-            helperText="Telefone comercial (formato: +55 11 1234-5678)"
-          />
-          <TextField
-            fullWidth
-            label="WhatsApp"
-            value={selectedPublisher?.whatsapp || ''}
-            onChange={(e) => setSelectedPublisher({ ...selectedPublisher!, whatsapp: e.target.value })}
-            margin="normal"
-            helperText="Número do WhatsApp (formato: +55 11 98765-4321)"
-          />
-          <TextField
-            fullWidth
-            label="Descrição"
-            value={selectedPublisher?.description || ''}
-            onChange={(e) => setSelectedPublisher({ ...selectedPublisher!, description: e.target.value })}
-            margin="normal"
-            multiline
-            rows={3}
-          />
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Tipo de Cliente</InputLabel>
-            <Select
-              value={selectedPublisher?.client_type || 'publisher'}
-              label="Tipo de Cliente"
-              onChange={(e) => {
-                const value = e.target.value as 'subscriber' | 'publisher' | 'both';
-                setSelectedPublisher({
-                  ...selectedPublisher!,
-                  client_type: value,
-                  is_subscriber: value === 'subscriber' || value === 'both',
-                  is_publisher: value === 'publisher' || value === 'both',
-                });
-              }}
-            >
-              <MenuItem value="publisher">Apenas Publicador</MenuItem>
-              <MenuItem value="subscriber">Apenas Assinante</MenuItem>
-              <MenuItem value="both">Ambos (Publicador e Assinante)</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={selectedPublisher?.active ? 'active' : 'inactive'}
-              label="Status"
-              onChange={(e) => setSelectedPublisher({ ...selectedPublisher!, active: e.target.value === 'active' })}
-            >
-              <MenuItem value="active">Ativo</MenuItem>
-              <MenuItem value="inactive">Inativo</MenuItem>
-            </Select>
-          </FormControl>
+          <Tabs value={editTab} onChange={(_, newValue) => setEditTab(newValue)} sx={{ mb: 3 }}>
+            <Tab label="Informações" />
+            <Tab label="Locais" />
+            <Tab label="Totens" />
+            <Tab label="Smart TVs" />
+          </Tabs>
+
+          {/* Aba Informações */}
+          {editTab === 0 && selectedPublisher && (
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2 }}>Dados do Publicador</Typography>
+              <TextField
+                fullWidth
+                label="Nome da Empresa / Razão Social"
+                value={selectedPublisher.name || ''}
+                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, name: e.target.value })}
+                margin="normal"
+                required
+                helperText="Nome completo da empresa ou razão social"
+              />
+              <TextField
+                fullWidth
+                label="Nome do Contato"
+                value={selectedPublisher.contact_name || ''}
+                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, contact_name: e.target.value })}
+                margin="normal"
+                helperText="Nome da pessoa responsável pelo contato"
+              />
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                value={selectedPublisher.email || ''}
+                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, email: e.target.value })}
+                margin="normal"
+              />
+              <TextField
+                fullWidth
+                label="Telefone"
+                value={selectedPublisher.phone || ''}
+                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, phone: e.target.value })}
+                margin="normal"
+                helperText="Telefone comercial (formato: +55 11 1234-5678)"
+              />
+              <TextField
+                fullWidth
+                label="WhatsApp"
+                value={selectedPublisher.whatsapp || ''}
+                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, whatsapp: e.target.value })}
+                margin="normal"
+                helperText="Número do WhatsApp (formato: +55 11 98765-4321)"
+              />
+              <TextField
+                fullWidth
+                label="Descrição"
+                value={selectedPublisher.description || ''}
+                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, description: e.target.value })}
+                margin="normal"
+                multiline
+                rows={3}
+              />
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Tipo de Cliente</InputLabel>
+                <Select
+                  value={selectedPublisher.client_type || 'publisher'}
+                  label="Tipo de Cliente"
+                  onChange={(e) => {
+                    const value = e.target.value as 'subscriber' | 'publisher' | 'both';
+                    setSelectedPublisher({
+                      ...selectedPublisher,
+                      client_type: value,
+                      is_subscriber: value === 'subscriber' || value === 'both',
+                      is_publisher: value === 'publisher' || value === 'both',
+                    });
+                  }}
+                >
+                  <MenuItem value="publisher">Apenas Publicador</MenuItem>
+                  <MenuItem value="subscriber">Apenas Assinante</MenuItem>
+                  <MenuItem value="both">Ambos (Publicador e Assinante)</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={selectedPublisher.active ? 'active' : 'inactive'}
+                  label="Status"
+                  onChange={(e) => setSelectedPublisher({ ...selectedPublisher, active: e.target.value === 'active' })}
+                >
+                  <MenuItem value="active">Ativo</MenuItem>
+                  <MenuItem value="inactive">Inativo</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+          )}
+
+          {/* Aba Locais */}
+          {editTab === 1 && selectedPublisher && (
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2 }}>Locais</Typography>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Para editar locais, use a aba "Detalhes" e clique em "Editar" em cada local.
+              </Alert>
+            </Box>
+          )}
+
+          {/* Aba Totens */}
+          {editTab === 2 && selectedPublisher && (
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2 }}>Totens</Typography>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Para editar totens, use a aba "Detalhes" e clique em "Editar" em cada totem.
+              </Alert>
+            </Box>
+          )}
+
+          {/* Aba Smart TVs */}
+          {editTab === 3 && selectedPublisher && (
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2 }}>Smart TVs</Typography>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Para editar Smart TVs, use a aba "Detalhes" e clique em "Editar" em cada Smart TV.
+              </Alert>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+          <Button onClick={() => {
+            setEditDialogOpen(false);
+            setEditTab(0);
+          }}>Cancelar</Button>
           <Button variant="contained" onClick={handleEditPublisher}>Salvar</Button>
         </DialogActions>
       </Dialog>
@@ -1610,7 +1665,7 @@ const Publishers: React.FC = () => {
       {/* Details Dialog */}
       <Dialog open={detailsDialogOpen} onClose={() => setDetailsDialogOpen(false)} maxWidth="lg" fullWidth>
         <DialogTitle>
-          Detalhes do Publisher - {selectedPublisher?.name}
+          Detalhes do Publicador - {selectedPublisher?.name}
         </DialogTitle>
         <DialogContent>
           <Tabs value={detailsTab} onChange={(_, newValue) => setDetailsTab(newValue)} sx={{ mb: 2 }}>
