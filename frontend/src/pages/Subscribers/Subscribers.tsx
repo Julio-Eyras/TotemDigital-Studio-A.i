@@ -293,20 +293,29 @@ const Subscribers: React.FC = () => {
   // Carregar dados para edição
   const loadSubscriberDataForEdit = async (subscriberId: number) => {
     try {
-      const [mediasResponse, playlistsResponse, campaignsResponse] = await Promise.all([
+      const [mediasResponse, playlistsResponse, campaignsResponse, contractsResponse] = await Promise.all([
         mediaApi.getAll({ subscriberId, limit: 1000 }),
         playlistApi.getAll({ subscriberId, limit: 1000 }),
         campaignApi.getAll({ subscriberId, limit: 1000 }),
+        subscriberApi.getContracts(subscriberId).catch(() => []), // Carregar contratos
       ]);
 
       setEditMedias(Array.isArray(mediasResponse?.data) ? mediasResponse.data : []);
       setEditPlaylists(Array.isArray(playlistsResponse?.data) ? playlistsResponse.data : []);
       setEditCampaigns(Array.isArray(campaignsResponse?.data) ? campaignsResponse.data : []);
+      setActiveContracts(Array.isArray(contractsResponse) ? contractsResponse : []);
     } catch (error) {
       console.error('Erro ao carregar dados do Subscriber para edição:', error);
       setError('Erro ao carregar dados do Assinante');
     }
   };
+
+  // Carregar dados automaticamente quando o dialog de edição abrir
+  useEffect(() => {
+    if (editDialogOpen && selectedSubscriber) {
+      loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+    }
+  }, [editDialogOpen, selectedSubscriber?.subscriber_id]);
 
   // NOVO: Funções para gerenciar locais temporários
   const handleAddLocal = () => {
@@ -1302,7 +1311,7 @@ const Subscribers: React.FC = () => {
       <Box sx={{ p: 3 }}>
         <LinearProgress />
         <Typography variant="h6" sx={{ mt: 2, textAlign: 'center' }}>
-          Carregando Assinantees...
+          Carregando Assinantes...
         </Typography>
       </Box>
     );
@@ -1317,7 +1326,7 @@ const Subscribers: React.FC = () => {
             📢 Assinante
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie Assinantees e suas informações
+            Gerencie Assinantes e suas informações, mídias, playlists e campanhas
           </Typography>
         </Box>
         <Button
@@ -1340,7 +1349,7 @@ const Subscribers: React.FC = () => {
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
-                placeholder="Buscar Assinantees..."
+                placeholder="Buscar Assinantes..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => {
@@ -1502,9 +1511,11 @@ const Subscribers: React.FC = () => {
                   
                   <Box>
                     <Tooltip title="Editar">
-                      <IconButton size="small" onClick={() => {
+                      <IconButton size="small" onClick={async () => {
                         setSelectedSubscriber(Subscriber);
                         setEditDialogOpen(true);
+                        // Carregar dados ao abrir o dialog
+                        await loadSubscriberDataForEdit(Subscriber.subscriber_id);
                       }}>
                         <Edit />
                       </IconButton>
@@ -1531,7 +1542,7 @@ const Subscribers: React.FC = () => {
               Nenhum Assinante encontrado
             </Typography>
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
-              Comece adicionando seus primeiros Assinantees
+              Comece adicionando seus primeiros Assinantes
             </Typography>
             <Button
               variant="contained"
@@ -2171,7 +2182,9 @@ const Subscribers: React.FC = () => {
         maxWidth="lg" 
         fullWidth
       >
-        <DialogTitle>Editar Assinante</DialogTitle>
+        <DialogTitle>
+          Editar Assinante - {selectedSubscriber?.name || ''}
+        </DialogTitle>
         <DialogContent>
           <Tabs value={editTab} onChange={(_, newValue) => setEditTab(newValue)} sx={{ mb: 3 }}>
             <Tab label="Informações" />
@@ -2246,26 +2259,9 @@ const Subscribers: React.FC = () => {
                 multiline
                 rows={3}
               />
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Tipo de Cliente</InputLabel>
-                <Select
-                  value={'subscriber'}
-                  label="Tipo de Cliente"
-                  onChange={(e) => {
-                    const value = e.target.value as 'subscriber' | 'Subscriber' | 'both';
-                    setSelectedSubscriber({
-                      ...selectedSubscriber,
-                      
-                      
-                      
-                    });
-                  }}
-                >
-                  <MenuItem value="Subscriber">Apenas Assinante</MenuItem>
-                  <MenuItem value="subscriber">Apenas Assinante</MenuItem>
-                  <MenuItem value="both">Ambos (Assinante e Assinante)</MenuItem>
-                </Select>
-              </FormControl>
+              <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
+                Tipo: Assinante - Este assinante pode criar mídias, playlists e campanhas vinculadas a contratos.
+              </Alert>
               <FormControl fullWidth margin="normal">
                 <InputLabel>Status</InputLabel>
                 <Select
@@ -2713,7 +2709,7 @@ const Subscribers: React.FC = () => {
                   </Grid>
                   
                   {/* Seção de Conteúdo: Mídias e Playlists */}
-                  {editingEditCampaignIndex !== null && (
+                  {(editingEditCampaignIndex !== null || editCampaignForm.title) && (
                     <>
                       <Grid item xs={12}>
                         <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
@@ -2890,15 +2886,21 @@ const Subscribers: React.FC = () => {
                               Tipo: {campaign.campaign_type} | Prioridade: {campaign.priority} | Status: {campaign.status}
                             </Typography>
                             {campaign.contract_id ? (
-                              <Typography variant="caption" color="success.main">
+                              <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
                                 ✓ Vinculada ao contrato: {campaign.contract_number || campaign.contract_title || `#${campaign.contract_id}`}
                                 {campaign.plan_name && ` (Plano: ${campaign.plan_name})`}
                               </Typography>
                             ) : (
-                              <Typography variant="caption" color="warning.main">
+                              <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 0.5 }}>
                                 ⚠ Sem contrato vinculado - não pode ser executada nos totens
                               </Typography>
                             )}
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                              {campaign.mediaIds && campaign.mediaIds.length > 0 && `${campaign.mediaIds.length} mídia(s)`}
+                              {campaign.mediaIds && campaign.mediaIds.length > 0 && campaign.playlistIds && campaign.playlistIds.length > 0 && ' • '}
+                              {campaign.playlistIds && campaign.playlistIds.length > 0 && `${campaign.playlistIds.length} playlist(s)`}
+                              {(!campaign.mediaIds || campaign.mediaIds.length === 0) && (!campaign.playlistIds || campaign.playlistIds.length === 0) && 'Sem conteúdo'}
+                            </Typography>
                           </Box>
                         }
                       />
