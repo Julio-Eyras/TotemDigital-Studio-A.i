@@ -931,10 +931,7 @@ const Subscribers: React.FC = () => {
         phone: selectedSubscriber.phone,
         whatsapp: selectedSubscriber.whatsapp,
         description: selectedSubscriber.description,
-        
-        
-        
-        active: selectedSubscriber.active,
+        isActive: selectedSubscriber.is_active,
       };
       await subscriberApi.update(selectedSubscriber.subscriber_id, updateData);
       setEditDialogOpen(false);
@@ -1127,14 +1124,14 @@ const Subscribers: React.FC = () => {
                 </Avatar>
                 
                 <Chip
-                  label={Subscriber.active ? 'Ativo' : 'Inativo'}
+                  label={Subscriber.is_active ? 'Ativo' : 'Inativo'}
                   size="small"
                   sx={{
                     position: 'absolute',
                     top: 16,
                     right: 16,
-                    backgroundColor: alpha(Subscriber.active ? theme.palette.success.main : theme.palette.error.main, 0.1),
-                    color: Subscriber.active ? theme.palette.success.main : theme.palette.error.main,
+                    backgroundColor: alpha(Subscriber.is_active ? theme.palette.success.main : theme.palette.error.main, 0.1),
+                    color: Subscriber.is_active ? theme.palette.success.main : theme.palette.error.main,
                     fontWeight: 'bold',
                   }}
                 />
@@ -1966,9 +1963,9 @@ const Subscribers: React.FC = () => {
               <FormControl fullWidth margin="normal">
                 <InputLabel>Status</InputLabel>
                 <Select
-                  value={selectedSubscriber.active ? 'active' : 'inactive'}
+                  value={selectedSubscriber.is_active ? 'active' : 'inactive'}
                   label="Status"
-                  onChange={(e) => setSelectedSubscriber({ ...selectedSubscriber, active: e.target.value === 'active' })}
+                  onChange={(e) => setSelectedSubscriber({ ...selectedSubscriber, is_active: e.target.value === 'active' })}
                 >
                   <MenuItem value="active">Ativo</MenuItem>
                   <MenuItem value="inactive">Inativo</MenuItem>
@@ -2550,9 +2547,9 @@ const Subscribers: React.FC = () => {
                     <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
                     <TableCell>
                       <Chip
-                        label={selectedSubscriber.active ? 'Ativo' : 'Inativo'}
+                        label={selectedSubscriber.is_active ? 'Ativo' : 'Inativo'}
                         size="small"
-                        color={selectedSubscriber.active ? 'success' : 'error'}
+                        color={selectedSubscriber.is_active ? 'success' : 'error'}
                       />
                     </TableCell>
                   </TableRow>
