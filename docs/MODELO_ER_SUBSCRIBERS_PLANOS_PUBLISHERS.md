@@ -27,7 +27,7 @@ Este documento explica o modelo Entidade-Relacionamento (E.R) atual do sistema S
 **Relacionamentos:**
 - **1:N** com `subscriber_contracts` (um subscriber pode ter múltiplos contratos)
 - **N:M** com `publishers` via `subscriber_publisher_access` (acesso a publishers)
-- **1:N** com `locals` (um subscriber pode ter múltiplos locais)
+- **N:M** com `locals` via `subscriber_publisher_access` → `publishers` → `locals` (acesso a locais dos publishers através de planos)
 
 ---
 

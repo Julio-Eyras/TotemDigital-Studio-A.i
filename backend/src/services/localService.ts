@@ -27,8 +27,7 @@ export interface Local {
 }
 
 export interface CreateLocalRequest {
-  publisher_id?: number; // Opcional: para publishers
-  subscriber_id?: number; // Opcional: para subscribers
+  publisher_id: number; // Obrigatório: local pertence a um publisher
   name: string;
   address?: string;
   city?: string;
@@ -226,76 +225,49 @@ export class LocalService {
     data: CreateLocalRequest,
     createdBy: number,
     requestPublisherId?: number,
-    requestSubscriberId?: number,
     isAdmin: boolean = false
   ): Promise<Local> {
     try {
-      const { publisher_id, subscriber_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = data;
+      const { publisher_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = data;
 
-      // Validar que tem publisher_id OU subscriber_id (não ambos)
-      if (!publisher_id && !subscriber_id) {
-        throw new Error('É necessário fornecer publisher_id ou subscriber_id');
-      }
-      if (publisher_id && subscriber_id) {
-        throw new Error('Não é possível fornecer publisher_id e subscriber_id ao mesmo tempo');
+      // Validar que tem publisher_id (obrigatório)
+      if (!publisher_id) {
+        throw new Error('publisher_id é obrigatório. Locais pertencem apenas a publishers.');
       }
 
-      // Validar se publisher existe (se fornecido)
-      if (publisher_id) {
-        const publisher = await this.db.findFirst(`
-          SELECT publisher_id, name FROM publishers WHERE publisher_id = $1
-        `, [publisher_id]);
+      // Validar se publisher existe
+      const publisher = await this.db.findFirst(`
+        SELECT publisher_id, name FROM publishers WHERE publisher_id = $1
+      `, [publisher_id]);
 
-        if (!publisher) {
-          throw new Error('Publisher não encontrado');
-        }
-
-        // Validação de ownership: não-admin só pode criar locals do seu publisher
-        if (!isAdmin && requestPublisherId && publisher_id !== requestPublisherId) {
-          throw new Error('Acesso negado: Você só pode criar locals para o seu próprio publisher');
-        }
+      if (!publisher) {
+        throw new Error('Publisher não encontrado');
       }
 
-      // Validar se subscriber existe (se fornecido)
-      if (subscriber_id) {
-        const subscriber = await this.db.findFirst(`
-          SELECT subscriber_id, name FROM subscribers WHERE subscriber_id = $1
-        `, [subscriber_id]);
-
-        if (!subscriber) {
-          throw new Error('Subscriber não encontrado');
-        }
-
-        // Validação de ownership: não-admin só pode criar locals do seu subscriber
-        if (!isAdmin && requestSubscriberId && subscriber_id !== requestSubscriberId) {
-          throw new Error('Acesso negado: Você só pode criar locals para o seu próprio subscriber');
-        }
+      // Validação de ownership: não-admin só pode criar locals do seu publisher
+      if (!isAdmin && requestPublisherId && publisher_id !== requestPublisherId) {
+        throw new Error('Acesso negado: Você só pode criar locals para o seu próprio publisher');
       }
 
-      // Verificar se local com mesmo nome já existe
-      const existingLocal = publisher_id 
-        ? await this.db.findFirst(`
-            SELECT local_id FROM locals WHERE name = $1 AND publisher_id = $2
-          `, [name, publisher_id])
-        : await this.db.findFirst(`
-            SELECT local_id FROM locals WHERE name = $1 AND subscriber_id = $2
-          `, [name, subscriber_id]);
+      // Verificar se local com mesmo nome já existe para este publisher
+      const existingLocal = await this.db.findFirst(`
+        SELECT local_id FROM locals WHERE name = $1 AND publisher_id = $2
+      `, [name, publisher_id]);
 
       if (existingLocal) {
-        const ownerType = publisher_id ? 'publisher' : 'subscriber';
-        throw new Error(`Local com este nome já existe para este ${ownerType}`);
+        throw new Error('Local com este nome já existe para este publisher');
       }
 
       // Criar local
       const result = await this.db.executeRaw(`
         INSERT INTO locals (
-          publisher_id, subscriber_id, name, address, city, state, zip_code, country,
+          publisher_id, name, address, city, state, zip_code, country,
           latitude, longitude, timezone, description, is_active,
           created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING local_id
-      `, [publisher_id || null, subscriber_id || null, name, address || null, city || null, state || null, zip_code || null, country || 'BR', latitude || null, longitude || null, timezone || 'America/Sao_Paulo', description || null]);
+      `, [publisher_id, name, address || null, city || null, state || null, zip_code || null, country || 'BR', latitude || null, longitude || null, timezone || 'America/Sao_Paulo', description || null]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar local');
@@ -312,8 +284,7 @@ export class LocalService {
       await this.getAuditService().log('local', 'created', createdBy, {
         localId,
         name,
-        publisher_id: publisher_id || undefined,
-        subscriber_id: subscriber_id || undefined,
+        publisher_id,
       });
 
       return newLocal;

@@ -16,9 +16,8 @@ router.use(authMiddleware);
 
 // Validações
 const createLocalValidator = [
-  // publisher_id OU subscriber_id (não ambos)
-  body('publisher_id').optional().isInt({ min: 1 }),
-  body('subscriber_id').optional().isInt({ min: 1 }),
+  // publisher_id é obrigatório - locais pertencem apenas a publishers
+  body('publisher_id').notEmpty().isInt({ min: 1 }).withMessage('publisher_id é obrigatório'),
   body('name').notEmpty().isString().withMessage('Nome é obrigatório'),
   body('address').optional().isString(),
   body('city').optional().isString(),
@@ -135,19 +134,13 @@ router.post('/',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { publisher_id, subscriber_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = req.body;
+      const { publisher_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = req.body;
       
-      // Validação customizada: deve ter publisher_id OU subscriber_id (não ambos)
-      if (!publisher_id && !subscriber_id) {
+      // publisher_id é obrigatório - locais pertencem apenas a publishers
+      if (!publisher_id) {
         return res.status(400).json({
           error: 'Dados inválidos',
-          details: [{ msg: 'É necessário fornecer publisher_id ou subscriber_id' }]
-        });
-      }
-      if (publisher_id && subscriber_id) {
-        return res.status(400).json({
-          error: 'Dados inválidos',
-          details: [{ msg: 'Não é possível fornecer publisher_id e subscriber_id ao mesmo tempo' }]
+          details: [{ msg: 'publisher_id é obrigatório. Locais pertencem apenas a publishers.' }]
         });
       }
       
@@ -157,11 +150,9 @@ router.post('/',
 
       const isAdmin = req.user.role === 'admin';
       const requestPublisherId = req.user?.publisherId || undefined;
-      const requestSubscriberId = req.user?.subscriberId || undefined;
 
       const newLocal = await getLocalService().createLocal({
         publisher_id,
-        subscriber_id,
         name,
         address,
         city,
@@ -172,7 +163,7 @@ router.post('/',
         longitude,
         timezone,
         description,
-      }, req.user.id, requestPublisherId, requestSubscriberId, isAdmin);
+      }, req.user.id, requestPublisherId, isAdmin);
       
       return res.status(201).json({ success: true, data: newLocal });
     } catch (error: any) {

@@ -1974,107 +1974,20 @@ const Subscribers: React.FC = () => {
             </Box>
           )}
 
-          {/* Aba Locais */}
+          {/* Aba Locais Acessíveis */}
           {editTab === 1 && selectedSubscriber && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                Locais {editLocals.length > 0 && `(${editLocals.length})`}
+                Locais Acessíveis {editLocals.length > 0 && `(${editLocals.length})`}
               </Typography>
               
-              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Local</Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Nome do Local *"
-                      value={editLocalForm.name}
-                      onChange={(e) => setEditLocalForm({ ...editLocalForm, name: e.target.value })}
-                      size="small"
-                      required
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Endereço"
-                      value={editLocalForm.address || ''}
-                      onChange={(e) => setEditLocalForm({ ...editLocalForm, address: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Cidade"
-                      value={editLocalForm.city || ''}
-                      onChange={(e) => setEditLocalForm({ ...editLocalForm, city: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Estado"
-                      value={editLocalForm.state || ''}
-                      onChange={(e) => setEditLocalForm({ ...editLocalForm, state: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="CEP"
-                      value={editLocalForm.zip_code || ''}
-                      onChange={(e) => setEditLocalForm({ ...editLocalForm, zip_code: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Descrição"
-                      value={editLocalForm.description || ''}
-                      onChange={(e) => setEditLocalForm({ ...editLocalForm, description: e.target.value })}
-                      size="small"
-                      multiline
-                      rows={2}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Button
-                      variant="contained"
-                      startIcon={<Add />}
-                      onClick={handleAddEditLocal}
-                      disabled={!editLocalForm.name}
-                    >
-                      {editingEditLocalIndex !== null ? 'Atualizar Local' : 'Adicionar Local'}
-                    </Button>
-                    {editingEditLocalIndex !== null && (
-                      <Button
-                        variant="outlined"
-                        onClick={() => {
-                          setEditingEditLocalIndex(null);
-                          setEditLocalForm({
-                            subscriber_id: selectedSubscriber.subscriber_id,
-                            publisher_id: 0,
-                            name: '',
-                            address: '',
-                            city: '',
-                            state: '',
-                            zip_code: '',
-                            country: '',
-                            description: '',
-                          });
-                        }}
-                        sx={{ ml: 1 }}
-                      >
-                        Cancelar Edição
-                      </Button>
-                    )}
-                  </Grid>
-                </Grid>
-              </Box>
+              <Alert severity="info" sx={{ mb: 3 }}>
+                <Typography variant="body2">
+                  <strong>Nota:</strong> Subscribers não possuem locais próprios. 
+                  Os locais listados abaixo são dos publishers que você pode acessar através de seus planos contratados.
+                  Para criar locais, você precisa ser um Publisher.
+                </Typography>
+              </Alert>
 
               {editLocals.length > 0 ? (
                 <List>
@@ -2082,20 +1995,32 @@ const Subscribers: React.FC = () => {
                     <ListItem key={local.local_id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
                       <ListItemIcon><Store /></ListItemIcon>
                       <ListItemText
-                        primary={local.name}
+                        primary={
+                          <Box>
+                            <Typography variant="body1" fontWeight="bold">{local.name}</Typography>
+                            {local.publisher_name && (
+                              <Typography variant="caption" color="text.secondary">
+                                Publisher: {local.publisher_name}
+                              </Typography>
+                            )}
+                          </Box>
+                        }
                         secondary={`${local.address || ''} ${local.city || ''} ${local.state || ''}`.trim() || 'Sem endereço'}
                       />
-                      <IconButton size="small" onClick={() => handleEditEditLocal(index)}>
-                        <Edit />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteEditLocal(index)}>
-                        <Delete />
-                      </IconButton>
+                      <Chip 
+                        label={local.is_active ? 'Ativo' : 'Inativo'} 
+                        size="small" 
+                        color={local.is_active ? 'success' : 'default'}
+                        sx={{ mr: 1 }}
+                      />
                     </ListItem>
                   ))}
                 </List>
               ) : (
-                <Alert severity="info">Nenhum local cadastrado ainda. Adicione ao menos 1 local.</Alert>
+                <Alert severity="warning">
+                  Nenhum local acessível encontrado. 
+                  Verifique se você possui planos contratados que dão acesso a publishers com locais cadastrados.
+                </Alert>
               )}
             </Box>
           )}

@@ -321,11 +321,16 @@ export class SubscriberService {
   /**
    * Listar locals de um subscriber
    */
+  /**
+   * Listar locais acessíveis por um subscriber através de planos e contratos
+   * Subscribers não possuem locais próprios - acessam locais dos publishers através de planos
+   */
   async getLocalsBySubscriber(subscriberId: number): Promise<any[]> {
     try {
       const locals = await this.db.findMany(`
-        SELECT 
+        SELECT DISTINCT
           l.local_id,
+          l.publisher_id,
           l.name,
           l.address,
           l.city,
@@ -338,27 +343,36 @@ export class SubscriberService {
           l.description,
           l.is_active,
           l.created_at,
-          l.updated_at
-        FROM locals l
-        WHERE l.subscriber_id = $1
+          l.updated_at,
+          p.name as publisher_name,
+          spa.access_type,
+          spa.expires_at
+        FROM subscriber_publisher_access spa
+        JOIN publishers pub ON spa.publisher_id = pub.publisher_id
+        JOIN locals l ON l.publisher_id = pub.publisher_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
+        WHERE spa.subscriber_id = $1
+          AND spa.is_active = true
+          AND (spa.expires_at IS NULL OR spa.expires_at > CURRENT_TIMESTAMP)
+          AND spa.revoked_at IS NULL
           AND l.is_active = true
         ORDER BY l.name
       `, [subscriberId]);
 
       return locals;
     } catch (error: any) {
-      await logError('Erro ao buscar locals do subscriber', error, { subscriberId });
+      await logError('Erro ao buscar locals acessíveis do subscriber', error, { subscriberId });
       throw new Error('Erro interno do servidor');
     }
   }
 
   /**
-   * Listar totems de um subscriber (via locals)
+   * Listar totems acessíveis por um subscriber (via locais dos publishers acessíveis)
    */
   async getTotemsBySubscriber(subscriberId: number): Promise<any[]> {
     try {
       const totems = await this.db.findMany(`
-        SELECT 
+        SELECT DISTINCT
           t.totem_id,
           t.identifier,
           t.uin,
@@ -379,10 +393,18 @@ export class SubscriberService {
           t.created_at,
           t.updated_at,
           l.name as local_name,
-          l.local_id
-        FROM totems t
-        JOIN locals l ON t.local_id = l.local_id
-        WHERE l.subscriber_id = $1
+          l.local_id,
+          p.name as publisher_name
+        FROM subscriber_publisher_access spa
+        JOIN publishers pub ON spa.publisher_id = pub.publisher_id
+        JOIN locals l ON l.publisher_id = pub.publisher_id
+        JOIN totems t ON t.local_id = l.local_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
+        WHERE spa.subscriber_id = $1
+          AND spa.is_active = true
+          AND (spa.expires_at IS NULL OR spa.expires_at > CURRENT_TIMESTAMP)
+          AND spa.revoked_at IS NULL
+          AND l.is_active = true
           AND t.is_active = true
         ORDER BY l.name, t.name
       `, [subscriberId]);
@@ -395,12 +417,12 @@ export class SubscriberService {
   }
 
   /**
-   * Listar smart TVs de um subscriber (via totems)
+   * Listar smart TVs acessíveis por um subscriber (via locais dos publishers acessíveis)
    */
   async getSmartTvsBySubscriber(subscriberId: number): Promise<any[]> {
     try {
       const smartTvs = await this.db.findMany(`
-        SELECT 
+        SELECT DISTINCT
           st.tv_id,
           st.identifier,
           st.device_id,
@@ -422,11 +444,20 @@ export class SubscriberService {
           t.name as totem_name,
           t.totem_id,
           t.identifier as totem_identifier,
-          l.name as local_name
-        FROM smart_tvs st
-        JOIN totems t ON st.totem_id = t.totem_id
-        JOIN locals l ON t.local_id = l.local_id
-        WHERE l.subscriber_id = $1
+          l.name as local_name,
+          p.name as publisher_name
+        FROM subscriber_publisher_access spa
+        JOIN publishers pub ON spa.publisher_id = pub.publisher_id
+        JOIN locals l ON l.publisher_id = pub.publisher_id
+        JOIN totems t ON t.local_id = l.local_id
+        JOIN smart_tvs st ON st.totem_id = t.totem_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
+        WHERE spa.subscriber_id = $1
+          AND spa.is_active = true
+          AND (spa.expires_at IS NULL OR spa.expires_at > CURRENT_TIMESTAMP)
+          AND spa.revoked_at IS NULL
+          AND l.is_active = true
+          AND t.is_active = true
           AND st.is_active = true
         ORDER BY l.name, t.name, st.name
       `, [subscriberId]);

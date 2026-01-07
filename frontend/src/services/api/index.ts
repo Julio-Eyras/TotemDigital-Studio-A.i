@@ -2572,8 +2572,7 @@ export const subscriberApi = {
 
 export interface Local {
   local_id: number;
-  publisher_id?: number; // Opcional: para publishers
-  subscriber_id?: number; // Opcional: para subscribers
+  publisher_id: number; // Obrigatório: locais pertencem apenas a publishers
   name: string;
   address?: string;
   city?: string;
@@ -2588,12 +2587,10 @@ export interface Local {
   created_at: string;
   updated_at: string;
   publisher_name?: string;
-  subscriber_name?: string;
 }
 
 export interface CreateLocalRequest {
-  publisher_id?: number; // Opcional: para publishers
-  subscriber_id?: number; // Opcional: para subscribers
+  publisher_id: number; // Obrigatório: locais pertencem apenas a publishers
   name: string;
   address?: string;
   city?: string;
