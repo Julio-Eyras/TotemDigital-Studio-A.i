@@ -818,18 +818,73 @@ const Publishers: React.FC = () => {
       for (const smartTv of tempSmartTvs) {
         const totemIndex = smartTv.totem_id; // totem_id já é o índice
         if (totemIndex >= 0 && totemIndex < createdTotems.length && createdTotems[totemIndex]) {
-          await smartTvApi.create({
-            totem_id: createdTotems[totemIndex].totem_id,
-            identifier: smartTv.identifier,
-            device_id: smartTv.device_id,
-            name: smartTv.name,
-            brand: smartTv.brand,
-            model: smartTv.model,
-            platform: smartTv.platform,
-            firmware_version: smartTv.firmware_version,
-            resolution_width: smartTv.resolution_width,
-            resolution_height: smartTv.resolution_height,
-            orientation: smartTv.orientation,
+          const totem = createdTotems[totemIndex];
+          // Obter o ID do totem (pode ser totem_id ou id)
+          const totemId = totem.totem_id || totem.id;
+          
+          // Validar que temos identifier (obrigatório)
+          if (!smartTv.identifier || !smartTv.identifier.trim()) {
+            console.warn(`Smart TV ignorada: identifier é obrigatório`, smartTv);
+            continue;
+          }
+          
+          // Validar que temos totemId válido
+          if (!totemId || totemId <= 0) {
+            console.warn(`Smart TV ignorada: totemId inválido`, { totem, totemId });
+            continue;
+          }
+          
+          try {
+            // Preparar dados da Smart TV (remover campos undefined/null)
+            const smartTvData: any = {
+              totem_id: totemId,
+              identifier: smartTv.identifier.trim(),
+            };
+            
+            // Adicionar campos opcionais apenas se tiverem valor
+            if (smartTv.device_id && smartTv.device_id.trim()) {
+              smartTvData.device_id = smartTv.device_id.trim();
+            }
+            if (smartTv.name && smartTv.name.trim()) {
+              smartTvData.name = smartTv.name.trim();
+            }
+            if (smartTv.brand && smartTv.brand.trim()) {
+              smartTvData.brand = smartTv.brand.trim();
+            }
+            if (smartTv.model && smartTv.model.trim()) {
+              smartTvData.model = smartTv.model.trim();
+            }
+            if (smartTv.platform && smartTv.platform.trim()) {
+              smartTvData.platform = smartTv.platform.trim();
+            }
+            if (smartTv.firmware_version && smartTv.firmware_version.trim()) {
+              smartTvData.firmware_version = smartTv.firmware_version.trim();
+            }
+            if (smartTv.resolution_width && smartTv.resolution_width > 0) {
+              smartTvData.resolution_width = smartTv.resolution_width;
+            }
+            if (smartTv.resolution_height && smartTv.resolution_height > 0) {
+              smartTvData.resolution_height = smartTv.resolution_height;
+            }
+            if (smartTv.orientation && (smartTv.orientation === 'landscape' || smartTv.orientation === 'portrait')) {
+              smartTvData.orientation = smartTv.orientation;
+            }
+            
+            console.log(`Criando Smart TV ${smartTv.identifier} para totem ${totemId}`, smartTvData);
+            await smartTvApi.create(smartTvData);
+            console.log(`Smart TV ${smartTv.identifier} criada com sucesso`);
+          } catch (smartTvError: any) {
+            console.error(`Erro ao criar Smart TV ${smartTv.identifier}:`, smartTvError);
+            console.error('Response:', smartTvError?.response?.data);
+            // Continuar com as próximas Smart TVs mesmo se uma falhar
+            const errorMessage = smartTvError?.response?.data?.error || smartTvError?.message || 'Erro desconhecido';
+            setError(`Erro ao criar Smart TV "${smartTv.identifier}": ${errorMessage}`);
+          }
+        } else {
+          console.warn(`Smart TV ignorada: totemIndex inválido ou totem não encontrado`, { 
+            totemIndex, 
+            createdTotemsLength: createdTotems.length,
+            smartTv 
           });
         }
       }
