@@ -117,6 +117,7 @@ const Subscribers: React.FC = () => {
   const [editingEditSmartTvIndex, setEditingEditSmartTvIndex] = useState<number | null>(null);
   const [editLocalForm, setEditLocalForm] = useState<CreateLocalRequest>({
     subscriber_id: 0,
+    publisher_id: 0,
     name: '',
     address: '',
     city: '',
@@ -395,14 +396,18 @@ const Subscribers: React.FC = () => {
       if (editingEditLocalIndex !== null) {
         // Atualizar local existente
         const localToUpdate = editLocals[editingEditLocalIndex];
-        await localApi.update(localToUpdate.local_id, editLocalForm);
+        // Excluir publisher_id e subscriber_id do update (UpdateLocalRequest não inclui esses campos)
+        const { publisher_id, subscriber_id, ...updateData } = editLocalForm;
+        await localApi.update(localToUpdate.local_id, updateData);
         // Recarregar dados
         await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
         setEditingEditLocalIndex(null);
       } else {
         // Criar novo local
+        // Excluir publisher_id para subscriber-scoped locals
+        const { publisher_id, ...createData } = editLocalForm;
         await localApi.create({
-          ...editLocalForm,
+          ...createData,
           subscriber_id: selectedSubscriber.subscriber_id,
         });
         // Recarregar dados
@@ -410,6 +415,7 @@ const Subscribers: React.FC = () => {
       }
       setEditLocalForm({
         subscriber_id: selectedSubscriber.subscriber_id,
+        publisher_id: 0,
         name: '',
         address: '',
         city: '',
@@ -2054,6 +2060,7 @@ const Subscribers: React.FC = () => {
                           setEditingEditLocalIndex(null);
                           setEditLocalForm({
                             subscriber_id: selectedSubscriber.subscriber_id,
+                            publisher_id: 0,
                             name: '',
                             address: '',
                             city: '',
