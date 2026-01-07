@@ -116,7 +116,6 @@ const Subscribers: React.FC = () => {
   const [editingEditTotemIndex, setEditingEditTotemIndex] = useState<number | null>(null);
   const [editingEditSmartTvIndex, setEditingEditSmartTvIndex] = useState<number | null>(null);
   const [editLocalForm, setEditLocalForm] = useState<CreateLocalRequest>({
-    subscriber_id: 0,
     publisher_id: 0,
     name: '',
     address: '',
@@ -149,7 +148,7 @@ const Subscribers: React.FC = () => {
     orientation: 'landscape',
   });
   const [localForm, setLocalForm] = useState<CreateLocalRequest>({
-    subscriber_id: 0, // Será preenchido após criar o Subscriber
+    publisher_id: 0, // NOTA: Subscribers não podem criar locais - este formulário não deve ser usado
     name: '',
     address: '',
     city: '',
@@ -266,7 +265,7 @@ const Subscribers: React.FC = () => {
     }
     // CORRIGIDO: Resetar o formulário corretamente
     setLocalForm({
-      subscriber_id: 0,
+      publisher_id: 0,
       name: '',
       address: '',
       city: '',
@@ -278,7 +277,18 @@ const Subscribers: React.FC = () => {
   };
 
   const handleEditLocal = (index: number) => {
-    setLocalForm({ ...tempLocals[index], subscriber_id: 0 });
+    // NOTA: Subscribers não podem criar/editar locais
+    const local = tempLocals[index];
+    setLocalForm({ 
+      publisher_id: local.publisher_id || 0,
+      name: local.name || '',
+      address: local.address || '',
+      city: local.city || '',
+      state: local.state || '',
+      zip_code: local.zip_code || '',
+      country: local.country || '',
+      description: local.description || '',
+    });
     setEditingLocalIndex(index);
   };
 
@@ -396,25 +406,18 @@ const Subscribers: React.FC = () => {
       if (editingEditLocalIndex !== null) {
         // Atualizar local existente
         const localToUpdate = editLocals[editingEditLocalIndex];
-        // Excluir publisher_id e subscriber_id do update (UpdateLocalRequest não inclui esses campos)
-        const { publisher_id, subscriber_id, ...updateData } = editLocalForm;
+        // Excluir publisher_id do update (UpdateLocalRequest não inclui esse campo)
+        const { publisher_id, ...updateData } = editLocalForm;
         await localApi.update(localToUpdate.local_id, updateData);
         // Recarregar dados
         await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
         setEditingEditLocalIndex(null);
       } else {
-        // Criar novo local
-        // Excluir publisher_id para subscriber-scoped locals
-        const { publisher_id, ...createData } = editLocalForm;
-        await localApi.create({
-          ...createData,
-          subscriber_id: selectedSubscriber.subscriber_id,
-        });
-        // Recarregar dados
-        await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+        // Criar novo local - NOTA: Subscribers não podem criar locais
+        // Esta função não deve ser chamada para subscribers
+        throw new Error('Subscribers não podem criar locais. Locais pertencem apenas a publishers.');
       }
       setEditLocalForm({
-        subscriber_id: selectedSubscriber.subscriber_id,
         publisher_id: 0,
         name: '',
         address: '',
@@ -431,9 +434,9 @@ const Subscribers: React.FC = () => {
   };
 
   const handleEditEditLocal = (index: number) => {
+    // NOTA: Subscribers não podem editar locais - esta função não deve ser chamada
     const local = editLocals[index];
     setEditLocalForm({
-      subscriber_id: local.subscriber_id || 0,
       publisher_id: local.publisher_id || 0,
       name: local.name || '',
       address: local.address || '',
@@ -701,15 +704,11 @@ const Subscribers: React.FC = () => {
         return;
       }
 
-      // 2. Criar os locais
+      // 2. NOTA: Subscribers não podem criar locais próprios
+      // Locais pertencem apenas a publishers
+      // Subscribers acessam locais através de planos e contratos
       const createdLocals: Local[] = [];
-      for (const local of tempLocals) {
-        const createdLocal = await localApi.create({
-          ...local,
-          subscriber_id: subscriberId,
-        });
-        createdLocals.push(createdLocal);
-      }
+      // Removido: criação de locais para subscribers
 
       // 3. Criar os totens (usando os IDs dos locais criados)
       // O localId no totem é o índice do local na lista tempTotems
@@ -854,7 +853,7 @@ const Subscribers: React.FC = () => {
       setTempTotems([]);
       setTempSmartTvs([]);
       setLocalForm({
-        subscriber_id: 0,
+        publisher_id: 0,
         name: '',
         address: '',
         city: '',
@@ -1048,19 +1047,7 @@ const Subscribers: React.FC = () => {
               />
             </Grid>
             <Grid item xs={12} md={3}>
-              <FormControl fullWidth>
-                <InputLabel>Tipo</InputLabel>
-                <Select
-                  value={clientTypeFilter}
-                  label="Tipo"
-                  onChange={(e) => setClientTypeFilter(e.target.value)}
-                >
-                  <MenuItem value="all">Todos</MenuItem>
-                  <MenuItem value="subscriber">Assinante</MenuItem>
-                  <MenuItem value="Subscriber">Assinante</MenuItem>
-                  <MenuItem value="both">Ambos</MenuItem>
-                </Select>
-              </FormControl>
+              {/* Removido: Subscribers não têm tipos - todos são "Assinante" */}
             </Grid>
             <Grid item xs={12} md={2}>
               <FormControl fullWidth>
@@ -1435,7 +1422,7 @@ const Subscribers: React.FC = () => {
                         onClick={() => {
                           setEditingLocalIndex(null);
                           setLocalForm({
-                            subscriber_id: 0,
+                            publisher_id: 0,
                             name: '',
                             address: '',
                             city: '',
