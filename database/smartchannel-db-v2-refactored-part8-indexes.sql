@@ -43,6 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_smart_tvs_status ON smart_tvs(status);
 
 -- Campaigns
 CREATE INDEX IF NOT EXISTS idx_campaigns_subscriber ON campaigns(subscriber_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_contract_id ON campaigns(contract_id) WHERE contract_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
 CREATE INDEX IF NOT EXISTS idx_campaigns_active ON campaigns(is_active) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_campaigns_dates ON campaigns(start_date, end_date) WHERE is_active = true;

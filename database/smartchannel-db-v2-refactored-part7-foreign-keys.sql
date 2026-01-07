@@ -107,6 +107,19 @@ BEGIN
             FOREIGN KEY (subscriber_id) REFERENCES subscribers(subscriber_id) 
             ON DELETE CASCADE;
     END IF;
+    
+    -- FK para contract_id (opcional)
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_campaign_contract'
+        AND t.relname = 'campaigns'
+    ) THEN
+        ALTER TABLE campaigns
+            ADD CONSTRAINT fk_campaign_contract 
+            FOREIGN KEY (contract_id) REFERENCES subscriber_contracts(contract_id) 
+            ON DELETE SET NULL;
+    END IF;
 END $$;
 
 -- =============================================

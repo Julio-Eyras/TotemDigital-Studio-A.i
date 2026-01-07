@@ -124,6 +124,7 @@ COMMENT ON COLUMN smart_tvs.totem_id IS 'Totem que controla estas TVs (1:N) - Um
 CREATE TABLE IF NOT EXISTS campaigns (
     campaign_id SERIAL PRIMARY KEY,
     subscriber_id INTEGER NOT NULL, -- FK para subscribers (anunciante)
+    contract_id INTEGER, -- FK para subscriber_contracts (opcional, mas necessário para execução nos totens)
     
     title TEXT NOT NULL,
     description TEXT,
@@ -167,8 +168,9 @@ CREATE TABLE IF NOT EXISTS campaigns (
         CHECK (max_consecutive_slots IS NULL OR max_consecutive_slots >= 1)
 );
 
-COMMENT ON TABLE campaigns IS 'Campanhas publicitárias criadas por subscribers (anunciantes)';
+COMMENT ON TABLE campaigns IS 'Campanhas publicitárias criadas por subscribers (anunciantes). Apenas campanhas vinculadas a contratos ativos podem ser executadas nos totens.';
 COMMENT ON COLUMN campaigns.subscriber_id IS 'Subscriber (anunciante) dono da campanha';
+COMMENT ON COLUMN campaigns.contract_id IS 'Contrato do subscriber vinculado à campanha. Opcional, mas necessário para execução nos totens.';
 COMMENT ON COLUMN campaigns.status IS 'Status: draft, pending_approval, approved, active, paused, finished';
 
 -- =============================================
