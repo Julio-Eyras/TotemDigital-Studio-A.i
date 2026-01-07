@@ -106,6 +106,50 @@ export class SubscriberService {
   }
 
   /**
+   * Listar contratos ativos de um subscriber
+   */
+  async getActiveContracts(subscriberId: number): Promise<any[]> {
+    try {
+      const contracts = await this.db.findMany(`
+        SELECT 
+          sc.contract_id,
+          sc.contract_number,
+          sc.title,
+          sc.description,
+          sc.start_date,
+          sc.end_date,
+          sc.status,
+          sc.total_amount,
+          sc.currency,
+          p.plan_id,
+          p.name AS plan_name,
+          p.slug AS plan_slug,
+          p.price_monthly,
+          p.price_yearly,
+          CASE 
+            WHEN sc.status = 'active' 
+              AND sc.start_date <= CURRENT_DATE 
+              AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+            THEN true
+            ELSE false
+          END AS is_valid
+        FROM subscriber_contracts sc
+        LEFT JOIN plans p ON sc.plan_id = p.plan_id
+        WHERE sc.subscriber_id = $1
+          AND sc.status = 'active'
+          AND sc.start_date <= CURRENT_DATE
+          AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+        ORDER BY sc.start_date DESC
+      `, [subscriberId]);
+
+      return contracts || [];
+    } catch (error: any) {
+      await logError('Erro ao buscar contratos ativos do subscriber', error);
+      throw error;
+    }
+  }
+
+  /**
    * Obter subscriber por ID
    */
   async getSubscriberById(id: number): Promise<Subscriber | null> {

@@ -54,21 +54,44 @@ import {
   Computer,
   Tv,
   Store,
+  VideoLibrary,
+  Image as ImageIcon,
+  AudioFile,
+  CloudUpload,
+  PlayArrow,
+  Visibility,
+  DragIndicator,
+  Campaign as CampaignIcon,
+  QueueMusic,
 } from '@mui/icons-material';
 import { 
   subscriberApi, 
   Subscriber, 
   CreateSubscriberRequest, 
   UpdateSubscriberRequest,
-  localApi,
-  Local,
+  mediaApi,
+  MediaItem,
+  CreateMediaRequest,
+  UpdateMediaRequest,
+  playlistApi,
+  PlaylistItem,
+  PlaylistMediaItem,
+  CreatePlaylistRequest,
+  UpdatePlaylistRequest,
+  campaignApi,
+  Campaign,
+  CreateCampaignRequest,
+  UpdateCampaignRequest,
+  Contract,
   CreateLocalRequest,
-  totemApi,
   CreatePlayerRequest,
-  smartTvApi,
   CreateSmartTvRequest,
-  SmartTv
+  Local,
+  localApi,
+  totemApi,
+  smartTvApi,
 } from '../../services/api';
+import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 
 const Subscribers: React.FC = () => {
   const theme = useTheme();
@@ -109,12 +132,48 @@ const Subscribers: React.FC = () => {
   const [editingSmartTvIndex, setEditingSmartTvIndex] = useState<number | null>(null);
   
   // Estados para edição de Assinante (carregar dados existentes)
-  const [editLocals, setEditLocals] = useState<Local[]>([]);
-  const [editTotems, setEditTotems] = useState<any[]>([]);
-  const [editSmartTvs, setEditSmartTvs] = useState<any[]>([]);
-  const [editingEditLocalIndex, setEditingEditLocalIndex] = useState<number | null>(null);
-  const [editingEditTotemIndex, setEditingEditTotemIndex] = useState<number | null>(null);
-  const [editingEditSmartTvIndex, setEditingEditSmartTvIndex] = useState<number | null>(null);
+  const [editMedias, setEditMedias] = useState<MediaItem[]>([]);
+  const [editPlaylists, setEditPlaylists] = useState<PlaylistItem[]>([]);
+  const [editCampaigns, setEditCampaigns] = useState<Campaign[]>([]);
+  const [editingEditMediaIndex, setEditingEditMediaIndex] = useState<number | null>(null);
+  const [editingEditPlaylistIndex, setEditingEditPlaylistIndex] = useState<number | null>(null);
+  const [editingEditCampaignIndex, setEditingEditCampaignIndex] = useState<number | null>(null);
+  
+  // Estados para upload de mídia
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  
+  // Estados para formulários de edição
+  const [editMediaForm, setEditMediaForm] = useState<UpdateMediaRequest>({
+    name: '',
+    description: '',
+    tags: [],
+  });
+  const [editPlaylistForm, setEditPlaylistForm] = useState<UpdatePlaylistRequest>({
+    name: '',
+    description: '',
+    isActive: true,
+  });
+  const [editCampaignForm, setEditCampaignForm] = useState<Partial<UpdateCampaignRequest>>({
+    title: '',
+    description: '',
+    campaign_type: 'general',
+    priority: 1,
+    contractId: undefined,
+    status: 'draft',
+    isActive: true,
+  });
+  
+  // Estados para itens de playlist
+  const [playlistItems, setPlaylistItems] = useState<PlaylistMediaItem[]>([]);
+  const [editingPlaylistItemIndex, setEditingPlaylistItemIndex] = useState<number | null>(null);
+  
+  // Estados para campanha (mídias e playlists associadas)
+  const [campaignMedias, setCampaignMedias] = useState<any[]>([]);
+  const [campaignPlaylists, setCampaignPlaylists] = useState<any[]>([]);
+  
+  // Estados para contratos
+  const [activeContracts, setActiveContracts] = useState<any[]>([]);
+  const [loadingContracts, setLoadingContracts] = useState(false);
   const [editLocalForm, setEditLocalForm] = useState<CreateLocalRequest>({
     publisher_id: 0,
     name: '',
@@ -234,15 +293,15 @@ const Subscribers: React.FC = () => {
   // Carregar dados para edição
   const loadSubscriberDataForEdit = async (subscriberId: number) => {
     try {
-      const [localsResponse, totemsResponse, smartTvsResponse] = await Promise.all([
-        subscriberApi.getLocals(subscriberId),
-        subscriberApi.getTotems(subscriberId),
-        subscriberApi.getSmartTvs(subscriberId),
+      const [mediasResponse, playlistsResponse, campaignsResponse] = await Promise.all([
+        mediaApi.getAll({ subscriberId, limit: 1000 }),
+        playlistApi.getAll({ subscriberId, limit: 1000 }),
+        campaignApi.getAll({ subscriberId, limit: 1000 }),
       ]);
 
-      setEditLocals(Array.isArray(localsResponse) ? localsResponse : []);
-      setEditTotems(Array.isArray(totemsResponse) ? totemsResponse : []);
-      setEditSmartTvs(Array.isArray(smartTvsResponse) ? smartTvsResponse : []);
+      setEditMedias(Array.isArray(mediasResponse?.data) ? mediasResponse.data : []);
+      setEditPlaylists(Array.isArray(playlistsResponse?.data) ? playlistsResponse.data : []);
+      setEditCampaigns(Array.isArray(campaignsResponse?.data) ? campaignsResponse.data : []);
     } catch (error) {
       console.error('Erro ao carregar dados do Subscriber para edição:', error);
       setError('Erro ao carregar dados do Assinante');
@@ -394,7 +453,11 @@ const Subscribers: React.FC = () => {
   // ============================================================================
   // FUNÇÕES DE CRUD PARA EDIÇÃO DE Assinante
   // ============================================================================
+  // NOTA: Funções antigas para gerenciar locais, totens e smart TVs foram removidas
+  // pois subscribers não podem mais gerenciar esses recursos diretamente.
+  // Eles acessam locais através de planos e contratos.
 
+  /* Funções antigas comentadas (não mais usadas):
   // Funções para gerenciar locais na edição
   const handleAddEditLocal = async () => {
     if (!selectedSubscriber || !editLocalForm.name) {
@@ -666,6 +729,248 @@ const Subscribers: React.FC = () => {
       setError(error?.response?.data?.error || 'Erro ao excluir Smart TV');
     }
   };
+  */
+
+  // ============================================================================
+  // FUNÇÕES AUXILIARES
+  // ============================================================================
+
+  const getMediaIcon = (mediaType?: string) => {
+    if (!mediaType) return <VideoLibrary />;
+    switch (mediaType.toLowerCase()) {
+      case 'video': return <VideoLibrary />;
+      case 'image': return <ImageIcon />;
+      case 'audio': return <AudioFile />;
+      default: return <VideoLibrary />;
+    }
+  };
+
+  const getMediaTypeColor = (mediaType?: string) => {
+    if (!mediaType) return theme.palette.primary.main;
+    switch (mediaType.toLowerCase()) {
+      case 'video': return theme.palette.error.main;
+      case 'image': return theme.palette.success.main;
+      case 'audio': return theme.palette.warning.main;
+      default: return theme.palette.primary.main;
+    }
+  };
+
+  const formatFileSize = (bytes?: number | null) => {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formatDuration = (seconds?: number) => {
+    if (!seconds) return 'N/A';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // ============================================================================
+  // FUNÇÕES CRUD PARA MÍDIAS
+  // ============================================================================
+
+  const handleUploadMediaSuccess = async () => {
+    if (selectedSubscriber) {
+      await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+    }
+  };
+
+  const handleEditMedia = async () => {
+    if (!selectedSubscriber || editingEditMediaIndex === null) return;
+    
+    try {
+      const media = editMedias[editingEditMediaIndex];
+      await mediaApi.update(media.media_id, editMediaForm);
+      await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+      setEditingEditMediaIndex(null);
+      setEditMediaForm({ name: '', description: '', tags: [] });
+    } catch (error: any) {
+      console.error('Erro ao atualizar mídia:', error);
+      setError(error?.response?.data?.error || 'Erro ao atualizar mídia');
+    }
+  };
+
+  const handleStartEditMedia = (index: number) => {
+    const media = editMedias[index];
+    setEditMediaForm({
+      name: media.name || '',
+      description: media.description || '',
+      tags: media.tags || [],
+    });
+    setEditingEditMediaIndex(index);
+  };
+
+  const handleDeleteMedia = async (index: number) => {
+    if (!selectedSubscriber || !window.confirm('Tem certeza que deseja excluir esta mídia?')) return;
+    
+    try {
+      const media = editMedias[index];
+      await mediaApi.delete(media.media_id);
+      await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+    } catch (error: any) {
+      console.error('Erro ao excluir mídia:', error);
+      setError(error?.response?.data?.error || 'Erro ao excluir mídia');
+    }
+  };
+
+  // ============================================================================
+  // FUNÇÕES CRUD PARA PLAYLISTS
+  // ============================================================================
+
+  const handleAddPlaylist = async () => {
+    if (!selectedSubscriber || !editPlaylistForm.name) {
+      setError('Nome da playlist é obrigatório');
+      return;
+    }
+
+    try {
+      if (editingEditPlaylistIndex !== null) {
+        const playlist = editPlaylists[editingEditPlaylistIndex];
+        await playlistApi.update(playlist.playlist_id, editPlaylistForm);
+        await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+        setEditingEditPlaylistIndex(null);
+      } else {
+        await playlistApi.create({
+          name: editPlaylistForm.name,
+          description: editPlaylistForm.description,
+          subscriberId: selectedSubscriber.subscriber_id,
+        });
+        await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+      }
+      setEditPlaylistForm({ name: '', description: '', isActive: true });
+    } catch (error: any) {
+      console.error('Erro ao salvar playlist:', error);
+      setError(error?.response?.data?.error || 'Erro ao salvar playlist');
+    }
+  };
+
+  const handleStartEditPlaylist = async (index: number) => {
+    const playlist = editPlaylists[index];
+    setEditPlaylistForm({
+      name: playlist.name || '',
+      description: playlist.description || '',
+      isActive: playlist.is_active !== undefined ? playlist.is_active : true,
+    });
+    setEditingEditPlaylistIndex(index);
+    
+    // Carregar itens da playlist
+    try {
+      const items = await playlistApi.getMedia(playlist.playlist_id);
+      setPlaylistItems(items || []);
+    } catch (error) {
+      console.error('Erro ao carregar itens da playlist:', error);
+      setPlaylistItems([]);
+    }
+  };
+
+  const handleDeletePlaylist = async (index: number) => {
+    if (!selectedSubscriber || !window.confirm('Tem certeza que deseja excluir esta playlist?')) return;
+    
+    try {
+      const playlist = editPlaylists[index];
+      await playlistApi.delete(playlist.playlist_id);
+      await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+    } catch (error: any) {
+      console.error('Erro ao excluir playlist:', error);
+      setError(error?.response?.data?.error || 'Erro ao excluir playlist');
+    }
+  };
+
+  // ============================================================================
+  // FUNÇÕES CRUD PARA CAMPANHAS
+  // ============================================================================
+
+  const handleAddCampaign = async () => {
+    if (!selectedSubscriber || !editCampaignForm.title) {
+      setError('Título da campanha é obrigatório');
+      return;
+    }
+
+    try {
+      if (editingEditCampaignIndex !== null) {
+        const campaign = editCampaigns[editingEditCampaignIndex];
+        const updateData: UpdateCampaignRequest = {
+          ...editCampaignForm,
+          mediaIds: campaignMedias.map(m => m.media_id),
+          playlistIds: campaignPlaylists.map(p => p.playlist_id),
+        };
+        await campaignApi.update(campaign.campaign_id, updateData);
+        await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+        setEditingEditCampaignIndex(null);
+        setCampaignMedias([]);
+        setCampaignPlaylists([]);
+      } else {
+        await campaignApi.create({
+          title: editCampaignForm.title || '',
+          description: editCampaignForm.description,
+          campaign_type: editCampaignForm.campaign_type || 'general',
+          priority: editCampaignForm.priority || 1,
+          contractId: editCampaignForm.contractId,
+          subscriberId: selectedSubscriber.subscriber_id,
+          mediaIds: campaignMedias.map(m => m.media_id),
+          playlistIds: campaignPlaylists.map(p => p.playlist_id),
+        } as CreateCampaignRequest);
+        await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+        setCampaignMedias([]);
+        setCampaignPlaylists([]);
+      }
+      setEditCampaignForm({ title: '', description: '', campaign_type: 'general', priority: 1, contractId: undefined, status: 'draft', isActive: true });
+    } catch (error: any) {
+      console.error('Erro ao salvar campanha:', error);
+      setError(error?.response?.data?.error || 'Erro ao salvar campanha');
+    }
+  };
+
+  const handleStartEditCampaign = async (index: number) => {
+    const campaign = editCampaigns[index];
+    setEditCampaignForm({
+      title: campaign.title || '',
+      description: campaign.description,
+      campaign_type: campaign.campaign_type || 'general',
+      priority: campaign.priority || 1,
+      contractId: campaign.contract_id,
+      status: campaign.status || 'draft',
+      isActive: campaign.is_active !== undefined ? campaign.is_active : true,
+    });
+    setEditingEditCampaignIndex(index);
+    
+    // Carregar mídias e playlists associadas à campanha
+    try {
+      // Buscar mídias associadas
+      const campaignMediasList = editMedias.filter(m => 
+        campaign.mediaIds?.includes(m.media_id) || false
+      );
+      setCampaignMedias(campaignMediasList);
+      
+      // Buscar playlists associadas
+      const campaignPlaylistsList = editPlaylists.filter(p => 
+        campaign.playlistIds?.includes(p.playlist_id) || false
+      );
+      setCampaignPlaylists(campaignPlaylistsList);
+    } catch (error) {
+      console.error('Erro ao carregar conteúdo da campanha:', error);
+      setCampaignMedias([]);
+      setCampaignPlaylists([]);
+    }
+  };
+
+  const handleDeleteCampaign = async (index: number) => {
+    if (!selectedSubscriber || !window.confirm('Tem certeza que deseja excluir esta campanha?')) return;
+    
+    try {
+      const campaign = editCampaigns[index];
+      await campaignApi.delete(campaign.campaign_id);
+      await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+    } catch (error: any) {
+      console.error('Erro ao excluir campanha:', error);
+      setError(error?.response?.data?.error || 'Erro ao excluir campanha');
+    }
+  };
 
   // NOVO: handleCreateSubscriber modificado para criar Subscriber, locais e totens
   const handleCreateSubscriber = async () => {
@@ -935,12 +1240,14 @@ const Subscribers: React.FC = () => {
       await subscriberApi.update(selectedSubscriber.subscriber_id, updateData);
       setEditDialogOpen(false);
       setEditTab(0);
-      setEditLocals([]);
-      setEditTotems([]);
-      setEditSmartTvs([]);
-      setEditingEditLocalIndex(null);
-      setEditingEditTotemIndex(null);
-      setEditingEditSmartTvIndex(null);
+      // Limpar estados de edição
+      setEditMedias([]);
+      setEditPlaylists([]);
+      setEditCampaigns([]);
+      setEditingEditMediaIndex(null);
+      setEditingEditPlaylistIndex(null);
+      setEditingEditCampaignIndex(null);
+      setActiveContracts([]);
       setSelectedSubscriber(null);
       loadSubscribers();
     } catch (error: any) {
@@ -1854,12 +2161,12 @@ const Subscribers: React.FC = () => {
         onClose={() => {
           setEditDialogOpen(false);
           setEditTab(0);
-          setEditLocals([]);
-          setEditTotems([]);
-          setEditSmartTvs([]);
-          setEditingEditLocalIndex(null);
-          setEditingEditTotemIndex(null);
-          setEditingEditSmartTvIndex(null);
+          setEditMedias([]);
+          setEditPlaylists([]);
+          setEditCampaigns([]);
+          setEditingEditMediaIndex(null);
+          setEditingEditPlaylistIndex(null);
+          setEditingEditCampaignIndex(null);
         }} 
         maxWidth="lg" 
         fullWidth
@@ -1868,9 +2175,21 @@ const Subscribers: React.FC = () => {
         <DialogContent>
           <Tabs value={editTab} onChange={(_, newValue) => setEditTab(newValue)} sx={{ mb: 3 }}>
             <Tab label="Informações" />
-            <Tab label="Locais" />
-            <Tab label="Totens" />
-            <Tab label="Smart TVs" />
+            <Tab 
+              label="Mídias" 
+              icon={editMedias.length > 0 ? <Chip label={editMedias.length} size="small" color="primary" /> : undefined} 
+              iconPosition="end" 
+            />
+            <Tab 
+              label="Playlists" 
+              icon={editPlaylists.length > 0 ? <Chip label={editPlaylists.length} size="small" color="primary" /> : undefined} 
+              iconPosition="end" 
+            />
+            <Tab 
+              label="Campanhas" 
+              icon={editCampaigns.length > 0 ? <Chip label={editCampaigns.length} size="small" color="primary" /> : undefined} 
+              iconPosition="end" 
+            />
           </Tabs>
 
           {/* Aba Informações */}
@@ -1961,146 +2280,220 @@ const Subscribers: React.FC = () => {
             </Box>
           )}
 
-          {/* Aba Locais Acessíveis */}
+          {/* Aba Mídias */}
           {editTab === 1 && selectedSubscriber && (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Locais Acessíveis {editLocals.length > 0 && `(${editLocals.length})`}
-              </Typography>
-              
-              <Alert severity="info" sx={{ mb: 3 }}>
-                <Typography variant="body2">
-                  <strong>Nota:</strong> Subscribers não possuem locais próprios. 
-                  Os locais listados abaixo são dos publishers que você pode acessar através de seus planos contratados.
-                  Para criar locais, você precisa ser um Publisher.
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  Mídias {editMedias.length > 0 && `(${editMedias.length})`}
                 </Typography>
-              </Alert>
+                <Button
+                  variant="contained"
+                  startIcon={<CloudUpload />}
+                  onClick={() => setUploadDialogOpen(true)}
+                >
+                  Adicionar Mídia
+                </Button>
+              </Box>
 
-              {editLocals.length > 0 ? (
-                <List>
-                  {editLocals.map((local, index) => (
-                    <ListItem key={local.local_id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
-                      <ListItemIcon><Store /></ListItemIcon>
-                      <ListItemText
-                        primary={
-                          <Box>
-                            <Typography variant="body1" fontWeight="bold">{local.name}</Typography>
-                            {local.publisher_name && (
-                              <Typography variant="caption" color="text.secondary">
-                                Publisher: {local.publisher_name}
+              {editingEditMediaIndex !== null && (
+                <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                  <Typography variant="subtitle2" sx={{ mb: 2 }}>Editar Mídia</Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Nome *"
+                        value={editMediaForm.name}
+                        onChange={(e) => setEditMediaForm({ ...editMediaForm, name: e.target.value })}
+                        size="small"
+                        required
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Descrição"
+                        value={editMediaForm.description || ''}
+                        onChange={(e) => setEditMediaForm({ ...editMediaForm, description: e.target.value })}
+                        size="small"
+                        multiline
+                        rows={2}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Tags (separadas por vírgula)"
+                        value={Array.isArray(editMediaForm.tags) ? editMediaForm.tags.join(', ') : ''}
+                        onChange={(e) => setEditMediaForm({ 
+                          ...editMediaForm, 
+                          tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) 
+                        })}
+                        size="small"
+                        helperText="Ex: promoção, verão, 2024"
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Button variant="contained" onClick={handleEditMedia} sx={{ mr: 1 }}>
+                        Salvar
+                      </Button>
+                      <Button variant="outlined" onClick={() => {
+                        setEditingEditMediaIndex(null);
+                        setEditMediaForm({ name: '', description: '', tags: [] });
+                      }}>
+                        Cancelar
+                      </Button>
+                    </Grid>
+                  </Grid>
+                </Box>
+              )}
+
+              {editMedias.length > 0 ? (
+                <Grid container spacing={2}>
+                  {editMedias.map((media, index) => {
+                    let previewUrl = media.thumbnailUrl || media.previewUrl || media.file_path;
+                    if (previewUrl && previewUrl.startsWith('/opt/smart-signage/public/assets/')) {
+                      previewUrl = previewUrl.replace('/opt/smart-signage/public/assets/', '/assets/');
+                    }
+                    
+                    return (
+                      <Grid item xs={12} sm={6} md={4} key={media.media_id}>
+                        <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                          <Box sx={{ position: 'relative', height: 150, bgcolor: theme.palette.grey[100], overflow: 'hidden' }}>
+                            {previewUrl && media.media_type === 'image' ? (
+                              <Box
+                                component="img"
+                                src={previewUrl}
+                                alt={media.name}
+                                sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                            ) : previewUrl && media.media_type === 'video' ? (
+                              <Box
+                                component="video"
+                                src={previewUrl}
+                                sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                muted
+                                onMouseEnter={(e: any) => e.target.play()}
+                                onMouseLeave={(e: any) => { e.target.pause(); e.target.currentTime = 0; }}
+                              />
+                            ) : (
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                                <Avatar sx={{ bgcolor: alpha(getMediaTypeColor(media.media_type), 0.1), color: getMediaTypeColor(media.media_type), width: 64, height: 64 }}>
+                                  {getMediaIcon(media.media_type)}
+                                </Avatar>
+                              </Box>
+                            )}
+                            <Chip
+                              label={media.status || 'draft'}
+                              size="small"
+                              sx={{
+                                position: 'absolute',
+                                top: 8,
+                                right: 8,
+                                bgcolor: alpha(theme.palette.common.black, 0.7),
+                                color: 'white',
+                              }}
+                            />
+                          </Box>
+                          <CardContent sx={{ flexGrow: 1, p: 2 }}>
+                            <Typography variant="subtitle2" fontWeight="bold" noWrap>
+                              {media.name}
+                            </Typography>
+                            {media.description && (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }} noWrap>
+                                {media.description}
                               </Typography>
                             )}
+                            <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                              <Chip
+                                icon={getMediaIcon(media.media_type)}
+                                label={media.media_type?.toUpperCase() || 'MÍDIA'}
+                                size="small"
+                                sx={{ bgcolor: alpha(getMediaTypeColor(media.media_type), 0.1), color: getMediaTypeColor(media.media_type) }}
+                              />
+                              {media.size_bytes && (
+                                <Typography variant="caption" color="text.secondary">
+                                  {formatFileSize(media.size_bytes)}
+                                </Typography>
+                              )}
+                              {media.duration_seconds && (
+                                <Typography variant="caption" color="text.secondary">
+                                  {formatDuration(media.duration_seconds)}
+                                </Typography>
+                              )}
+                            </Box>
+                          </CardContent>
+                          <Box sx={{ p: 1, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                            <IconButton size="small" onClick={() => handleStartEditMedia(index)}>
+                              <Edit />
+                            </IconButton>
+                            <IconButton size="small" onClick={() => handleDeleteMedia(index)}>
+                              <Delete />
+                            </IconButton>
                           </Box>
-                        }
-                        secondary={`${local.address || ''} ${local.city || ''} ${local.state || ''}`.trim() || 'Sem endereço'}
-                      />
-                      <Chip 
-                        label={local.is_active ? 'Ativo' : 'Inativo'} 
-                        size="small" 
-                        color={local.is_active ? 'success' : 'default'}
-                        sx={{ mr: 1 }}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
               ) : (
-                <Alert severity="warning">
-                  Nenhum local acessível encontrado. 
-                  Verifique se você possui planos contratados que dão acesso a publishers com locais cadastrados.
+                <Alert severity="info">
+                  Nenhuma mídia cadastrada ainda. Clique em "Adicionar Mídia" para fazer upload de arquivos.
                 </Alert>
               )}
+
+              <MediaUploadDialog
+                open={uploadDialogOpen}
+                onClose={() => setUploadDialogOpen(false)}
+                onSuccess={handleUploadMediaSuccess}
+                isAdmin={false}
+                userSubscriberId={selectedSubscriber.subscriber_id}
+              />
             </Box>
           )}
 
-          {/* Aba Totens */}
+          {/* Aba Playlists */}
           {editTab === 2 && selectedSubscriber && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                Totens {editTotems.length > 0 && `(${editTotems.length})`}
+                Playlists {editPlaylists.length > 0 && `(${editPlaylists.length})`}
               </Typography>
-              {editLocals.length === 0 ? (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  Você precisa cadastrar ao menos 1 local na aba "Locais" antes de adicionar totens.
-                </Alert>
-              ) : (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  Os totens (players) devem estar atrelados a um local. Selecione um local no campo abaixo.
-                  <strong> Nota:</strong> Os totens são players com player embutido.
-                </Alert>
-              )}
 
-              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Totem</Typography>
+              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingEditPlaylistIndex !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                  {editingEditPlaylistIndex !== null ? 'Editar Playlist' : 'Adicionar Playlist'}
+                </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small" required>
-                      <InputLabel>Local *</InputLabel>
-                      <Select
-                        value={editTotemForm.localId}
-                        label="Local *"
-                        onChange={(e) => setEditTotemForm({ ...editTotemForm, localId: Number(e.target.value) })}
-                      >
-                        {editLocals.map((local, index) => (
-                          <MenuItem key={local.local_id} value={index}>
-                            {local.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
                     <TextField
                       fullWidth
-                      label="Identifier *"
-                      value={editTotemForm.identifier}
-                      onChange={(e) => setEditTotemForm({ ...editTotemForm, identifier: e.target.value })}
+                      label="Nome *"
+                      value={editPlaylistForm.name}
+                      onChange={(e) => setEditPlaylistForm({ ...editPlaylistForm, name: e.target.value })}
                       size="small"
                       required
-                      helperText="Identificador único do totem"
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Nome"
-                      value={editTotemForm.name || ''}
-                      onChange={(e) => setEditTotemForm({ ...editTotemForm, name: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Device ID"
-                      value={editTotemForm.deviceId || ''}
-                      onChange={(e) => setEditTotemForm({ ...editTotemForm, deviceId: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="UIN"
-                      value={editTotemForm.uin || ''}
-                      onChange={(e) => setEditTotemForm({ ...editTotemForm, uin: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Firmware Version"
-                      value={editTotemForm.firmwareVersion || ''}
-                      onChange={(e) => setEditTotemForm({ ...editTotemForm, firmwareVersion: e.target.value })}
-                      size="small"
-                    />
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Status</InputLabel>
+                      <Select
+                        value={editPlaylistForm.isActive ? 'active' : 'inactive'}
+                        label="Status"
+                        onChange={(e) => setEditPlaylistForm({ ...editPlaylistForm, isActive: e.target.value === 'active' })}
+                      >
+                        <MenuItem value="active">Ativa</MenuItem>
+                        <MenuItem value="inactive">Inativa</MenuItem>
+                      </Select>
+                    </FormControl>
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
                       label="Descrição"
-                      value={editTotemForm.description || ''}
-                      onChange={(e) => setEditTotemForm({ ...editTotemForm, description: e.target.value })}
+                      value={editPlaylistForm.description || ''}
+                      onChange={(e) => setEditPlaylistForm({ ...editPlaylistForm, description: e.target.value })}
                       size="small"
                       multiline
                       rows={2}
@@ -2110,25 +2503,18 @@ const Subscribers: React.FC = () => {
                     <Button
                       variant="contained"
                       startIcon={<Add />}
-                      onClick={handleAddEditTotem}
-                      disabled={!editTotemForm.identifier || editLocals.length === 0 || editTotemForm.localId < 0 || editTotemForm.localId >= editLocals.length}
+                      onClick={handleAddPlaylist}
+                      disabled={!editPlaylistForm.name}
                     >
-                      {editingEditTotemIndex !== null ? 'Atualizar Totem' : 'Adicionar Totem'}
+                      {editingEditPlaylistIndex !== null ? 'Atualizar Playlist' : 'Adicionar Playlist'}
                     </Button>
-                    {editingEditTotemIndex !== null && (
+                    {editingEditPlaylistIndex !== null && (
                       <Button
                         variant="outlined"
                         onClick={() => {
-                          setEditingEditTotemIndex(null);
-                          setEditTotemForm({
-                            localId: 0,
-                            identifier: '',
-                            name: '',
-                            uin: '',
-                            deviceId: '',
-                            description: '',
-                            firmwareVersion: '',
-                          });
+                          setEditingEditPlaylistIndex(null);
+                          setEditPlaylistForm({ name: '', description: '', isActive: true });
+                          setPlaylistItems([]);
                         }}
                         sx={{ ml: 1 }}
                       >
@@ -2139,203 +2525,339 @@ const Subscribers: React.FC = () => {
                 </Grid>
               </Box>
 
-              {editTotems.length > 0 ? (
-                <List>
-                  {editTotems.map((totem, index) => {
-                    const local = editLocals.find(l => l.local_id === totem.local_id);
-                    const localName = local?.name || 'Local não encontrado';
-                    return (
-                      <ListItem key={totem.totem_id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
-                        <ListItemIcon><Computer /></ListItemIcon>
+              {editingEditPlaylistIndex !== null && playlistItems.length > 0 && (
+                <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 2 }}>Itens da Playlist</Typography>
+                  <List>
+                    {playlistItems.map((item, index) => (
+                      <ListItem key={item.item_id || index} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
+                        <ListItemIcon><DragIndicator /></ListItemIcon>
                         <ListItemText
-                          primary={totem.name || totem.identifier}
-                          secondary={`Local: ${localName} | Identifier: ${totem.identifier}`}
+                          primary={(item as any).mediaName || (item as any).media_name || `Item ${index + 1}`}
+                          secondary={`Duração: ${(item as any).display_seconds || (item as any).display_duration || 10}s | Ordem: ${item.order_index || index}`}
                         />
-                        <IconButton size="small" onClick={() => handleEditEditTotem(index)}>
-                          <Edit />
-                        </IconButton>
-                        <IconButton size="small" onClick={() => handleDeleteEditTotem(index)}>
+                        <IconButton size="small" onClick={async () => {
+                          const playlist = editPlaylists[editingEditPlaylistIndex];
+                          await playlistApi.removeMedia(playlist.playlist_id, item.item_id);
+                          await handleStartEditPlaylist(editingEditPlaylistIndex);
+                        }}>
                           <Delete />
                         </IconButton>
                       </ListItem>
-                    );
-                  })}
+                    ))}
+                  </List>
+                </Box>
+              )}
+
+              {editPlaylists.length > 0 ? (
+                <List>
+                  {editPlaylists.map((playlist, index) => (
+                    <ListItem key={playlist.playlist_id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
+                      <ListItemIcon><QueueMusic /></ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Box>
+                            <Typography variant="body1" fontWeight="bold">{playlist.name}</Typography>
+                            {playlist.description && (
+                              <Typography variant="caption" color="text.secondary">
+                                {playlist.description}
+                              </Typography>
+                            )}
+                          </Box>
+                        }
+                        secondary={`Status: ${playlist.is_active ? 'Ativa' : 'Inativa'}`}
+                      />
+                      <Chip
+                        label={playlist.is_active ? 'Ativa' : 'Inativa'}
+                        size="small"
+                        color={playlist.is_active ? 'success' : 'default'}
+                        sx={{ mr: 1 }}
+                      />
+                      <IconButton size="small" onClick={() => handleStartEditPlaylist(index)}>
+                        <Edit />
+                      </IconButton>
+                      <IconButton size="small" onClick={() => handleDeletePlaylist(index)}>
+                        <Delete />
+                      </IconButton>
+                    </ListItem>
+                  ))}
                 </List>
               ) : (
                 <Alert severity="info">
-                  {editLocals.length === 0 
-                    ? 'Cadastre locais na aba "Locais" para poder adicionar totens (players).'
-                    : 'Nenhum totem cadastrado ainda. Os totens são players com player embutido.'}
+                  Nenhuma playlist cadastrada ainda. Crie uma playlist para organizar suas mídias.
                 </Alert>
               )}
             </Box>
           )}
 
-          {/* Aba Smart TVs */}
+          {/* Aba Campanhas */}
           {editTab === 3 && selectedSubscriber && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                Smart TVs {editSmartTvs.length > 0 && `(${editSmartTvs.length})`}
+                Campanhas {editCampaigns.length > 0 && `(${editCampaigns.length})`}
               </Typography>
-              {editTotems.length === 0 ? (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  Para adicionar Smart TVs, você precisa cadastrar ao menos 1 totem na aba "Totens". 
-                  <strong> Nota:</strong> As Smart TVs são opcionais - o próprio totem já possui um player embutido.
-                </Alert>
-              ) : (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  As Smart TVs são opcionais e devem estar atreladas a um totem. 
-                  <strong> Nota:</strong> O totem já possui um player embutido, então as Smart TVs são apenas para conectividade adicional.
-                </Alert>
-              )}
 
-              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Smart TV</Typography>
+              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingEditCampaignIndex !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                  {editingEditCampaignIndex !== null ? 'Editar Campanha' : 'Adicionar Campanha'}
+                </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small" required>
-                      <InputLabel>Totem *</InputLabel>
-                      <Select
-                        value={editSmartTvForm.totem_id}
-                        label="Totem *"
-                        onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, totem_id: Number(e.target.value) })}
-                      >
-                        {editTotems.map((totem, index) => {
-                          const local = editLocals.find(l => l.local_id === totem.local_id);
-                          return (
-                            <MenuItem key={totem.totem_id} value={index}>
-                              {totem.name || totem.identifier} {local && `(${local.name})`}
-                            </MenuItem>
-                          );
-                        })}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
                     <TextField
                       fullWidth
-                      label="Identifier *"
-                      value={editSmartTvForm.identifier}
-                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, identifier: e.target.value })}
+                      label="Título *"
+                      value={editCampaignForm.title || ''}
+                      onChange={(e) => setEditCampaignForm({ ...editCampaignForm, title: e.target.value })}
                       size="small"
                       required
-                      helperText="Identificador único da Smart TV"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Nome"
-                      value={editSmartTvForm.name || ''}
-                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, name: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Device ID"
-                      value={editSmartTvForm.device_id || ''}
-                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, device_id: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Marca"
-                      value={editSmartTvForm.brand || ''}
-                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, brand: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Modelo"
-                      value={editSmartTvForm.model || ''}
-                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, model: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Plataforma"
-                      value={editSmartTvForm.platform || ''}
-                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, platform: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Versão do Firmware"
-                      value={editSmartTvForm.firmware_version || ''}
-                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, firmware_version: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      fullWidth
-                      label="Largura (px)"
-                      type="number"
-                      value={editSmartTvForm.resolution_width || ''}
-                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, resolution_width: e.target.value ? Number(e.target.value) : undefined })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      fullWidth
-                      label="Altura (px)"
-                      type="number"
-                      value={editSmartTvForm.resolution_height || ''}
-                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, resolution_height: e.target.value ? Number(e.target.value) : undefined })}
-                      size="small"
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
                     <FormControl fullWidth size="small">
-                      <InputLabel>Orientação</InputLabel>
+                      <InputLabel>Contrato</InputLabel>
                       <Select
-                        value={editSmartTvForm.orientation || 'landscape'}
-                        label="Orientações"
-                        onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, orientation: e.target.value as 'landscape' | 'portrait' })}
+                        value={editCampaignForm.contractId || ''}
+                        label="Contrato"
+                        onChange={(e) => setEditCampaignForm({ ...editCampaignForm, contractId: e.target.value ? Number(e.target.value) : undefined })}
                       >
-                        <MenuItem value="landscape">Paisagem</MenuItem>
-                        <MenuItem value="portrait">Retrato</MenuItem>
+                        <MenuItem value="">
+                          <em>Nenhum (Rascunho)</em>
+                        </MenuItem>
+                        {activeContracts.map((contract) => (
+                          <MenuItem key={contract.contract_id} value={contract.contract_id}>
+                            {contract.contract_number} - {contract.plan_name || 'Sem plano'} 
+                            {contract.start_date && contract.end_date && 
+                              ` (${new Date(contract.start_date).toLocaleDateString('pt-BR')} a ${new Date(contract.end_date).toLocaleDateString('pt-BR')})`
+                            }
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    {activeContracts.length === 0 && (
+                      <Alert severity="warning" sx={{ mt: 1 }}>
+                        Você precisa ter um contrato ativo para executar campanhas nos totens.
+                      </Alert>
+                    )}
+                    {editCampaignForm.contractId === undefined && (
+                      <Alert severity="info" sx={{ mt: 1 }}>
+                        Esta campanha não está vinculada a um contrato. Vincule a um contrato ativo para executá-la nos totens.
+                      </Alert>
+                    )}
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Tipo</InputLabel>
+                      <Select
+                        value={editCampaignForm.campaign_type || 'general'}
+                        label="Tipo"
+                        onChange={(e) => setEditCampaignForm({ ...editCampaignForm, campaign_type: e.target.value as any })}
+                      >
+                        <MenuItem value="general">Geral</MenuItem>
+                        <MenuItem value="scheduled">Agendada</MenuItem>
+                        <MenuItem value="interactive">Interativa</MenuItem>
+                        <MenuItem value="recurring">Recorrente</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      label="Prioridade (1-10)"
+                      type="number"
+                      value={editCampaignForm.priority || 1}
+                      onChange={(e) => setEditCampaignForm({ ...editCampaignForm, priority: Number(e.target.value) })}
+                      size="small"
+                      inputProps={{ min: 1, max: 10 }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Status</InputLabel>
+                      <Select
+                        value={editCampaignForm.status || 'draft'}
+                        label="Status"
+                        onChange={(e) => setEditCampaignForm({ ...editCampaignForm, status: e.target.value as any })}
+                      >
+                        <MenuItem value="draft">Rascunho</MenuItem>
+                        <MenuItem value="pending_approval">Aguardando Aprovação</MenuItem>
+                        <MenuItem value="approved">Aprovada</MenuItem>
+                        <MenuItem value="active">Ativa</MenuItem>
+                        <MenuItem value="paused">Pausada</MenuItem>
+                        <MenuItem value="finished">Finalizada</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Status Ativo</InputLabel>
+                      <Select
+                        value={editCampaignForm.isActive ? 'active' : 'inactive'}
+                        label="Status Ativo"
+                        onChange={(e) => setEditCampaignForm({ ...editCampaignForm, isActive: e.target.value === 'active' })}
+                      >
+                        <MenuItem value="active">Ativa</MenuItem>
+                        <MenuItem value="inactive">Inativa</MenuItem>
                       </Select>
                     </FormControl>
                   </Grid>
                   <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Descrição"
+                      value={editCampaignForm.description || ''}
+                      onChange={(e) => setEditCampaignForm({ ...editCampaignForm, description: e.target.value })}
+                      size="small"
+                      multiline
+                      rows={3}
+                    />
+                  </Grid>
+                  
+                  {/* Seção de Conteúdo: Mídias e Playlists */}
+                  {editingEditCampaignIndex !== null && (
+                    <>
+                      <Grid item xs={12}>
+                        <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
+                          Conteúdo da Campanha
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Box sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
+                          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                            Mídias Individuais
+                          </Typography>
+                          <FormControl fullWidth size="small">
+                            <InputLabel>Selecionar Mídias</InputLabel>
+                            <Select
+                              multiple
+                              value={campaignMedias.map(m => m.media_id) || []}
+                              onChange={(e) => {
+                                const selectedIds = e.target.value as number[];
+                                const selectedMedias = editMedias.filter(m => selectedIds.includes(m.media_id));
+                                setCampaignMedias(selectedMedias);
+                              }}
+                              renderValue={(selected) => (
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                  {(selected as number[]).map((id) => {
+                                    const media = editMedias.find(m => m.media_id === id);
+                                    return media ? (
+                                      <Chip key={id} label={media.name} size="small" />
+                                    ) : null;
+                                  })}
+                                </Box>
+                              )}
+                            >
+                              {editMedias.map((media) => (
+                                <MenuItem key={media.media_id} value={media.media_id}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    {getMediaIcon(media.media_type)}
+                                    <Typography variant="body2">{media.name}</Typography>
+                                  </Box>
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                          {campaignMedias.length > 0 && (
+                            <List dense sx={{ mt: 1, maxHeight: 200, overflow: 'auto' }}>
+                              {campaignMedias.map((media) => (
+                                <ListItem key={media.media_id} sx={{ py: 0.5 }}>
+                                  <ListItemIcon sx={{ minWidth: 32 }}>
+                                    {getMediaIcon(media.media_type)}
+                                  </ListItemIcon>
+                                  <ListItemText 
+                                    primary={media.name}
+                                    secondary={formatFileSize(media.size_bytes)}
+                                  />
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => setCampaignMedias(campaignMedias.filter(m => m.media_id !== media.media_id))}
+                                  >
+                                    <Delete fontSize="small" />
+                                  </IconButton>
+                                </ListItem>
+                              ))}
+                            </List>
+                          )}
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Box sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
+                          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                            Playlists
+                          </Typography>
+                          <FormControl fullWidth size="small">
+                            <InputLabel>Selecionar Playlists</InputLabel>
+                            <Select
+                              multiple
+                              value={campaignPlaylists.map(p => p.playlist_id) || []}
+                              onChange={(e) => {
+                                const selectedIds = e.target.value as number[];
+                                const selectedPlaylists = editPlaylists.filter(p => selectedIds.includes(p.playlist_id));
+                                setCampaignPlaylists(selectedPlaylists);
+                              }}
+                              renderValue={(selected) => (
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                  {(selected as number[]).map((id) => {
+                                    const playlist = editPlaylists.find(p => p.playlist_id === id);
+                                    return playlist ? (
+                                      <Chip key={id} label={playlist.name} size="small" />
+                                    ) : null;
+                                  })}
+                                </Box>
+                              )}
+                            >
+                              {editPlaylists.map((playlist) => (
+                                <MenuItem key={playlist.playlist_id} value={playlist.playlist_id}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <QueueMusic />
+                                    <Typography variant="body2">{playlist.name}</Typography>
+                                  </Box>
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                          {campaignPlaylists.length > 0 && (
+                            <List dense sx={{ mt: 1, maxHeight: 200, overflow: 'auto' }}>
+                              {campaignPlaylists.map((playlist) => (
+                                <ListItem key={playlist.playlist_id} sx={{ py: 0.5 }}>
+                                  <ListItemIcon sx={{ minWidth: 32 }}>
+                                    <QueueMusic />
+                                  </ListItemIcon>
+                                  <ListItemText 
+                                    primary={playlist.name}
+                                    secondary={playlist.description || 'Sem descrição'}
+                                  />
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => setCampaignPlaylists(campaignPlaylists.filter(p => p.playlist_id !== playlist.playlist_id))}
+                                  >
+                                    <Delete fontSize="small" />
+                                  </IconButton>
+                                </ListItem>
+                              ))}
+                            </List>
+                          )}
+                        </Box>
+                      </Grid>
+                    </>
+                  )}
+                  
+                  <Grid item xs={12}>
                     <Button
                       variant="contained"
                       startIcon={<Add />}
-                      onClick={handleAddEditSmartTv}
-                      disabled={!editSmartTvForm.identifier || editTotems.length === 0 || editSmartTvForm.totem_id < 0 || editSmartTvForm.totem_id >= editTotems.length}
+                      onClick={handleAddCampaign}
+                      disabled={!editCampaignForm.title}
                     >
-                      {editingEditSmartTvIndex !== null ? 'Atualizar Smart TV' : 'Adicionar Smart TV'}
+                      {editingEditCampaignIndex !== null ? 'Atualizar Campanha' : 'Adicionar Campanha'}
                     </Button>
-                    {editingEditSmartTvIndex !== null && (
+                    {editingEditCampaignIndex !== null && (
                       <Button
                         variant="outlined"
                         onClick={() => {
-                          setEditingEditSmartTvIndex(null);
-                          setEditSmartTvForm({
-                            totem_id: 0,
-                            identifier: '',
-                            name: '',
-                            device_id: '',
-                            brand: '',
-                            model: '',
-                            platform: '',
-                            firmware_version: '',
-                            resolution_width: undefined,
-                            resolution_height: undefined,
-                            orientation: 'landscape',
-                          });
+                          setEditingEditCampaignIndex(null);
+                          setEditCampaignForm({ title: '', description: '', campaign_type: 'general', priority: 1, contractId: undefined, status: 'draft', isActive: true });
+                          setCampaignMedias([]);
+                          setCampaignPlaylists([]);
                         }}
                         sx={{ ml: 1 }}
                       >
@@ -2346,33 +2868,64 @@ const Subscribers: React.FC = () => {
                 </Grid>
               </Box>
 
-              {editSmartTvs.length > 0 ? (
+              {editCampaigns.length > 0 ? (
                 <List>
-                  {editSmartTvs.map((smartTv, index) => {
-                    const totem = editTotems.find(t => t.totem_id === smartTv.totem_id);
-                    const totemName = totem?.name || totem?.identifier || 'Totem não encontrado';
-                    return (
-                      <ListItem key={smartTv.smart_tv_id || smartTv.tv_id || index} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
-                        <ListItemIcon><Tv /></ListItemIcon>
-                        <ListItemText
-                          primary={smartTv.name || smartTv.identifier}
-                          secondary={`Totem: ${totemName} | Identifier: ${smartTv.identifier}${smartTv.brand ? ` | ${smartTv.brand} ${smartTv.model || ''}` : ''}`}
-                        />
-                        <IconButton size="small" onClick={() => handleEditEditSmartTv(index)}>
-                          <Edit />
-                        </IconButton>
-                        <IconButton size="small" onClick={() => handleDeleteEditSmartTv(index)}>
-                          <Delete />
-                        </IconButton>
-                      </ListItem>
-                    );
-                  })}
+                  {editCampaigns.map((campaign, index) => (
+                    <ListItem key={campaign.campaign_id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
+                      <ListItemIcon><CampaignIcon /></ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Box>
+                            <Typography variant="body1" fontWeight="bold">{campaign.title}</Typography>
+                            {campaign.description && (
+                              <Typography variant="caption" color="text.secondary">
+                                {campaign.description}
+                              </Typography>
+                            )}
+                          </Box>
+                        }
+                        secondary={
+                          <Box>
+                            <Typography variant="body2">
+                              Tipo: {campaign.campaign_type} | Prioridade: {campaign.priority} | Status: {campaign.status}
+                            </Typography>
+                            {campaign.contract_id ? (
+                              <Typography variant="caption" color="success.main">
+                                ✓ Vinculada ao contrato: {campaign.contract_number || campaign.contract_title || `#${campaign.contract_id}`}
+                                {campaign.plan_name && ` (Plano: ${campaign.plan_name})`}
+                              </Typography>
+                            ) : (
+                              <Typography variant="caption" color="warning.main">
+                                ⚠ Sem contrato vinculado - não pode ser executada nos totens
+                              </Typography>
+                            )}
+                          </Box>
+                        }
+                      />
+                      <Chip
+                        label={campaign.is_active !== undefined ? (campaign.is_active ? 'Ativa' : 'Inativa') : 'N/A'}
+                        size="small"
+                        color={campaign.is_active ? 'success' : 'default'}
+                        sx={{ mr: 1 }}
+                      />
+                      <Chip
+                        label={campaign.status || 'draft'}
+                        size="small"
+                        color={campaign.status === 'active' ? 'success' : campaign.status === 'approved' ? 'info' : 'default'}
+                        sx={{ mr: 1 }}
+                      />
+                      <IconButton size="small" onClick={() => handleStartEditCampaign(index)}>
+                        <Edit />
+                      </IconButton>
+                      <IconButton size="small" onClick={() => handleDeleteCampaign(index)}>
+                        <Delete />
+                      </IconButton>
+                    </ListItem>
+                  ))}
                 </List>
               ) : (
                 <Alert severity="info">
-                  {editTotems.length === 0 
-                    ? 'Cadastre totens na aba "Totens" para poder adicionar Smart TVs. Lembre-se: o totem já possui um player embutido, então as Smart TVs são opcionais.'
-                    : 'Nenhuma Smart TV cadastrada ainda. As Smart TVs são opcionais - o totem já possui um player embutido.'}
+                  Nenhuma campanha cadastrada ainda. Crie uma campanha para organizar suas mídias e playlists.
                 </Alert>
               )}
             </Box>
@@ -2382,12 +2935,16 @@ const Subscribers: React.FC = () => {
           <Button onClick={() => {
             setEditDialogOpen(false);
             setEditTab(0);
-            setEditLocals([]);
-            setEditTotems([]);
-            setEditSmartTvs([]);
-            setEditingEditLocalIndex(null);
-            setEditingEditTotemIndex(null);
-            setEditingEditSmartTvIndex(null);
+            setEditMedias([]);
+            setEditPlaylists([]);
+            setEditCampaigns([]);
+            setEditingEditMediaIndex(null);
+            setEditingEditPlaylistIndex(null);
+            setEditingEditCampaignIndex(null);
+            setEditMediaForm({ name: '', description: '', tags: [] });
+            setEditPlaylistForm({ name: '', description: '', isActive: true });
+            setEditCampaignForm({ title: '', description: '', campaign_type: 'general', priority: 1, contractId: undefined, status: 'draft', isActive: true });
+            setPlaylistItems([]);
           }}>Cancelar</Button>
           <Button variant="contained" onClick={handleEditSubscriber}>Salvar</Button>
         </DialogActions>

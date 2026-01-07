@@ -245,5 +245,37 @@ router.get('/:id/stats',
   }
 );
 
+/**
+ * @route GET /api/subscribers/:id/contracts
+ * @desc Listar contratos ativos de um subscriber
+ */
+router.get('/:id/contracts',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      
+      // Verificar permissão: subscriber só pode ver seus próprios contratos
+      if (req.user.role === 'client' || req.user.role === 'subscriber') {
+        const userSubscriberId = req.subscriberId || req.user.clientId || req.user.subscriberId;
+        if (userSubscriberId !== parseInt(id)) {
+          return res.status(403).json({
+            success: false,
+            error: 'Acesso negado',
+            message: 'Você só pode ver seus próprios contratos'
+          });
+        }
+      }
+      
+      const contracts = await getSubscriberService().getActiveContracts(parseInt(id));
+      return res.json({ success: true, data: contracts });
+    } catch (error: any) {
+      await logError('Erro ao listar contratos do subscriber', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
 export default router;
 

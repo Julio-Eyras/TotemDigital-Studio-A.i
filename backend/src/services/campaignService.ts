@@ -13,20 +13,24 @@ export interface CreateCampaignRequest {
   // Mantemos o nome clientId por compatibilidade com o frontend atual,
   // mas no banco usamos subscriber_id (tabela subscribers)
   clientId: number;
+  subscriberId?: number; // NOVO: subscriber_id explícito
+  contractId?: number; // ⭐ NOVO: Contrato vinculado (opcional, mas recomendado para execução)
   title: string;
   description?: string;
   campaignType?: string;
   priority?: number;
+  commercialTier?: string;
   startDate?: string;
   endDate?: string;
   startTime?: string;
   endTime?: string;
   daysOfWeek?: string[];
+  timezone?: string;
   status?: string;
   isActive?: boolean;
-  publisherIds?: number[]; // IDs dos publishers onde a campanha será exibida
-  playlistIds?: number[]; // IDs das playlists associadas à campanha
-  mediaIds?: number[]; // IDs das mídias associadas diretamente à campanha (sem playlist)
+  publisherIds?: number[];
+  playlistIds?: number[];
+  mediaIds?: number[];
 }
 
 export interface UpdateCampaignRequest {
@@ -34,40 +38,49 @@ export interface UpdateCampaignRequest {
   description?: string;
   campaignType?: string;
   priority?: number;
+  contractId?: number; // ⭐ NOVO: Contrato vinculado
+  commercialTier?: string;
   startDate?: string;
   endDate?: string;
   startTime?: string;
   endTime?: string;
   daysOfWeek?: string[];
+  timezone?: string;
   status?: string;
   isActive?: boolean;
-  publisherIds?: number[]; // IDs dos publishers onde a campanha será exibida
-  playlistIds?: number[]; // IDs das playlists associadas à campanha
-  mediaIds?: number[]; // IDs das mídias associadas diretamente à campanha (sem playlist)
+  publisherIds?: number[];
+  playlistIds?: number[];
+  mediaIds?: number[];
 }
 
 export interface CampaignResponse {
   id: number;
   // Mantemos clientId no contrato de resposta, mas internamente mapeia para subscriber_id
   clientId: number;
+  contractId?: number; // ⭐ NOVO: Contrato vinculado
   title: string;
   description?: string;
   campaignType: string;
   priority: number;
+  commercialTier?: string;
   startDate?: string;
   endDate?: string;
   startTime?: string;
   endTime?: string;
   daysOfWeek: string[];
+  timezone?: string;
   status: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
   clientName?: string;
-  publisherIds?: number[]; // IDs dos publishers associados
-  publisherNames?: string[]; // Nomes dos publishers associados
-  playlistIds?: number[]; // IDs das playlists associadas
-  playlistNames?: string[]; // Nomes das playlists associadas
+  contractNumber?: string; // Dados do contrato
+  contractTitle?: string;
+  planName?: string;
+  publisherIds?: number[];
+  publisherNames?: string[];
+  playlistIds?: number[];
+  playlistNames?: string[];
   totemCount?: number;
   playlistCount?: number;
   mediaCount?: number;
@@ -176,22 +189,30 @@ export class CampaignService {
         SELECT 
           c.campaign_id as id,
           c.subscriber_id as clientId,
+          c.contract_id,
           c.title,
           c.description,
           c.campaign_type as campaignType,
           c.priority,
+          c.commercial_tier as commercialTier,
           c.start_date as startDate,
           c.end_date as endDate,
           c.start_time as startTime,
           c.end_time as endTime,
           c.days_of_week as daysOfWeek,
+          c.timezone,
           c.status,
           c.is_active as isActive,
           c.created_at as createdAt,
           c.updated_at as updatedAt,
-          s.name as clientName
+          s.name as clientName,
+          sc.contract_number,
+          sc.title as contract_title,
+          p.name as plan_name
         FROM campaigns c
         LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
+        LEFT JOIN subscriber_contracts sc ON c.contract_id = sc.contract_id
+        LEFT JOIN plans p ON sc.plan_id = p.plan_id
         ${whereClause}
         ORDER BY c.priority DESC, c.created_at DESC
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -283,22 +304,30 @@ export class CampaignService {
         SELECT 
           c.campaign_id as id,
           c.subscriber_id as clientId,
+          c.contract_id,
           c.title,
           c.description,
           c.campaign_type as campaignType,
           c.priority,
+          c.commercial_tier as commercialTier,
           c.start_date as startDate,
           c.end_date as endDate,
           c.start_time as startTime,
           c.end_time as endTime,
           c.days_of_week as daysOfWeek,
+          c.timezone,
           c.status,
           c.is_active as isActive,
           c.created_at as createdAt,
           c.updated_at as updatedAt,
-          s.name as clientName
+          s.name as clientName,
+          sc.contract_number,
+          sc.title as contract_title,
+          p.name as plan_name
         FROM campaigns c
         LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
+        LEFT JOIN subscriber_contracts sc ON c.contract_id = sc.contract_id
+        LEFT JOIN plans p ON sc.plan_id = p.plan_id
         WHERE c.campaign_id = ?
       `, [campaignId]);
 
@@ -369,35 +398,74 @@ export class CampaignService {
     try {
       const {
         clientId,
+        subscriberId,
+        contractId,
         title,
         description,
         campaignType = 'general',
         priority = 1,
+        commercialTier = 'standard',
         startDate,
         endDate,
         startTime,
         endTime,
         daysOfWeek = [],
+        timezone = 'America/Sao_Paulo',
         status = 'draft',
         isActive = true
       } = data;
 
       // Validar campos obrigatórios
-      if (!clientId) {
-        throw new Error('clientId é obrigatório');
+      const finalSubscriberId = subscriberId || clientId;
+      if (!finalSubscriberId) {
+        throw new Error('subscriberId/clientId é obrigatório');
       }
 
       if (!title || title.trim() === '') {
         throw new Error('title é obrigatório');
       }
 
-      // Verificar se subscriber (antes client) existe
+      // Verificar se subscriber existe
       const subscriber = await this.db.findFirst(`
         SELECT subscriber_id FROM subscribers WHERE subscriber_id = $1 AND COALESCE(is_active, true) = true
-      `, [clientId]);
+      `, [finalSubscriberId]);
 
       if (!subscriber) {
         throw new Error('Subscriber (anunciante) não encontrado ou inativo');
+      }
+
+      // Validar contrato se fornecido
+      if (contractId) {
+        const contract = await this.db.findFirst(`
+          SELECT 
+            contract_id, 
+            subscriber_id, 
+            status, 
+            start_date, 
+            end_date
+          FROM subscriber_contracts 
+          WHERE contract_id = $1 AND subscriber_id = $2
+        `, [contractId, finalSubscriberId]);
+
+        if (!contract) {
+          throw new Error('Contrato não encontrado ou não pertence a este subscriber');
+        }
+
+        if (contract.status !== 'active') {
+          throw new Error('Contrato não está ativo. Apenas contratos ativos podem ser vinculados a campanhas.');
+        }
+
+        const now = new Date();
+        const startDateObj = new Date(contract.start_date);
+        const endDateObj = contract.end_date ? new Date(contract.end_date) : null;
+
+        if (startDateObj > now) {
+          throw new Error('Contrato ainda não está no período válido (start_date no futuro)');
+        }
+
+        if (endDateObj && endDateObj < now) {
+          throw new Error('Contrato está expirado (end_date no passado)');
+        }
       }
 
       // Validar acesso a publishers se publishers foram fornecidos
@@ -428,23 +496,26 @@ export class CampaignService {
 
       const result = await this.db.executeRaw(`
         INSERT INTO campaigns (
-          subscriber_id, title, description, campaign_type, priority,
-          start_date, end_date, start_time, end_time, days_of_week,
-          status, is_active
+          subscriber_id, contract_id, title, description, campaign_type, priority,
+          commercial_tier, start_date, end_date, start_time, end_time, days_of_week,
+          timezone, status, is_active
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING campaign_id
       `, [
-        clientId, // subscriber_id
+        finalSubscriberId, // subscriber_id
+        contractId || null, // contract_id (opcional)
         title,
         description,
         campaignType,
         priority,
+        commercialTier,
         startDate || null,
         endDate || null,
         startTime || null,
         endTime || null,
         daysOfWeek && daysOfWeek.length > 0 ? JSON.stringify(daysOfWeek) : null,
+        timezone,
         status,
         isActive
       ]);
@@ -542,6 +613,54 @@ export class CampaignService {
       if (data.priority !== undefined) {
         updates.push('priority = ?');
         params.push(data.priority);
+      }
+
+      if (data.contractId !== undefined) {
+        // Validar contrato se fornecido
+        if (data.contractId !== null) {
+          const contract = await this.db.findFirst(`
+            SELECT 
+              contract_id, 
+              subscriber_id, 
+              status, 
+              start_date, 
+              end_date
+            FROM subscriber_contracts 
+            WHERE contract_id = $1 AND subscriber_id = $2
+          `, [data.contractId, existingCampaign.clientId]);
+
+          if (!contract) {
+            throw new Error('Contrato não encontrado ou não pertence a este subscriber');
+          }
+
+          if (contract.status !== 'active') {
+            throw new Error('Contrato não está ativo. Apenas contratos ativos podem ser vinculados a campanhas.');
+          }
+
+          const now = new Date();
+          const startDateObj = new Date(contract.start_date);
+          const endDateObj = contract.end_date ? new Date(contract.end_date) : null;
+
+          if (startDateObj > now) {
+            throw new Error('Contrato ainda não está no período válido (start_date no futuro)');
+          }
+
+          if (endDateObj && endDateObj < now) {
+            throw new Error('Contrato está expirado (end_date no passado)');
+          }
+        }
+        updates.push('contract_id = ?');
+        params.push(data.contractId);
+      }
+
+      if (data.commercialTier !== undefined) {
+        updates.push('commercial_tier = ?');
+        params.push(data.commercialTier);
+      }
+
+      if (data.timezone !== undefined) {
+        updates.push('timezone = ?');
+        params.push(data.timezone);
       }
 
       if (data.startDate !== undefined) {

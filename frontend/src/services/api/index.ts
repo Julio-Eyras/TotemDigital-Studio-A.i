@@ -921,31 +921,51 @@ export interface Campaign {
   campaign_type: string;
   status: string;
   client_id?: number;
+  subscriber_id?: number;
+  contract_id?: number; // ⭐ NOVO: Contrato vinculado
+  priority?: number;
+  commercial_tier?: string;
   start_date?: string;
   end_date?: string;
+  start_time?: string;
+  end_time?: string;
+  days_of_week?: string[];
+  timezone?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
   playlist_count?: number;
   totem_count?: number;
-  playlistIds?: number[]; // NOVO: IDs das playlists associadas
-  playlistNames?: string[]; // NOVO: Nomes das playlists associadas
-  mediaIds?: number[]; // NOVO: IDs das mídias diretamente associadas (sem playlist)
-  mediaNames?: string[]; // NOVO: Nomes das mídias diretamente associadas
+  playlistIds?: number[];
+  playlistNames?: string[];
+  mediaIds?: number[];
+  mediaNames?: string[];
+  // Dados do contrato (quando disponível)
+  contract_number?: string;
+  contract_title?: string;
+  plan_name?: string;
 }
 
 export interface CreateCampaignRequest {
   title: string;
   description?: string;
-  campaign_type: string;
+  campaign_type?: string;
   status?: string;
   clientId?: number;
+  subscriberId?: number;
+  contractId?: number; // ⭐ NOVO: Contrato vinculado (opcional, mas recomendado)
+  priority?: number;
+  commercial_tier?: string;
   start_date?: string;
   end_date?: string;
+  start_time?: string;
+  end_time?: string;
+  days_of_week?: string[];
+  timezone?: string;
   playlistIds?: number[];
   totemIds?: number[];
-  publisherIds?: number[]; // IDs dos publishers onde a campanha será exibida
-  mediaIds?: number[]; // NOVO: IDs das mídias diretamente associadas (sem playlist)
+  publisherIds?: number[];
+  mediaIds?: number[];
 }
 
 export interface UpdateCampaignRequest {
@@ -954,12 +974,20 @@ export interface UpdateCampaignRequest {
   campaign_type?: string;
   status?: string;
   clientId?: number;
+  subscriberId?: number;
+  contractId?: number; // ⭐ NOVO: Contrato vinculado
+  priority?: number;
+  commercial_tier?: string;
   start_date?: string;
   end_date?: string;
+  start_time?: string;
+  end_time?: string;
+  days_of_week?: string[];
+  timezone?: string;
   isActive?: boolean;
-  playlistIds?: number[]; // NOVO: IDs das playlists associadas
-  publisherIds?: number[]; // IDs dos publishers onde a campanha será exibida
-  mediaIds?: number[]; // NOVO: IDs das mídias diretamente associadas (sem playlist)
+  playlistIds?: number[];
+  publisherIds?: number[];
+  mediaIds?: number[];
 }
 
 export interface CampaignListResponse {
@@ -2515,6 +2543,24 @@ export interface SubscriberListResponse {
   limit: number;
 }
 
+export interface Contract {
+  contract_id: number;
+  contract_number: string;
+  title: string;
+  description?: string;
+  start_date: string;
+  end_date?: string;
+  status: string;
+  total_amount?: number;
+  currency?: string;
+  plan_id?: number;
+  plan_name?: string;
+  plan_slug?: string;
+  price_monthly?: number;
+  price_yearly?: number;
+  is_valid: boolean;
+}
+
 export const subscriberApi = {
   getAll: async (params?: {
     page?: number;
@@ -2563,6 +2609,11 @@ export const subscriberApi = {
   getStats: async (subscriberId: number): Promise<any> => {
     const response = await api.get(`/subscribers/${subscriberId}/stats`);
     return response.data.data || {};
+  },
+
+  getContracts: async (subscriberId: number): Promise<Contract[]> => {
+    const response = await api.get(`/subscribers/${subscriberId}/contracts`);
+    return response.data.data || [];
   },
 };
 
