@@ -5,20 +5,31 @@ import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { protectContractValues } from '../middleware/contractValuesProtection.middleware';
 import { getSubscriberService } from '../services/subscriberService';
 import { logError } from '../utils/loggerHelper';
+import { 
+  paginationValidators, 
+  searchValidators, 
+  sortValidators, 
+  dateRangeValidators,
+  idParamValidator,
+  nameValidators,
+  emailValidators,
+  phoneValidators,
+  descriptionValidators
+} from '../validators/common.validators';
+import { planLimitsValidators, storageValidators, totemAccessValidators } from '../validators/plan.validators';
 
 const router = express.Router();
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
 
-// Validações
+// Validações - usando validadores centralizados
 const createSubscriberValidator = [
-  body('name').notEmpty().withMessage('Nome é obrigatório'),
+  ...nameValidators,
   body('contract_id').isInt({ min: 1 }).withMessage('Contract ID é obrigatório'),
   body('contact_name').optional().isString(),
-  body('email').optional().isEmail().withMessage('Email inválido'),
-  body('phone').optional().isString(),
-  body('whatsapp').optional().isString(),
+  ...emailValidators,
+  ...phoneValidators,
   body('address').optional().isString(),
 ];
 
@@ -38,14 +49,11 @@ const validateRequest = (req: any, res: any, next: any) => {
  * @desc Listar todos os subscribers (anunciantes)
  */
 router.get('/', 
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('search').optional().isString(),
+  ...paginationValidators,
+  ...searchValidators,
+  ...sortValidators,
+  ...dateRangeValidators,
   query('is_active').optional().isBoolean(),
-  query('sortBy').optional().isIn(['name', 'email', 'created_at', 'updated_at']),
-  query('sortOrder').optional().isIn(['asc', 'desc']),
-  query('createdFrom').optional().isISO8601(),
-  query('createdTo').optional().isISO8601(),
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -84,7 +92,7 @@ router.get('/',
  * @desc Obter subscriber por ID
  */
 router.get('/:id',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  ...idParamValidator,
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -274,7 +282,7 @@ router.get('/:id/stats',
  * @desc Listar contratos ativos de um subscriber
  */
 router.get('/:id/contracts',
-  param('id').isInt({ min: 1 }),
+  ...idParamValidator,
   validateRequest,
   protectContractValues,
   async (req: any, res: any) => {
@@ -307,8 +315,8 @@ router.get('/:id/contracts',
  * @desc Validar limites de plano antes de criar recurso
  */
 router.get('/:id/validate/plan-limits',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
-  query('resourceType').isIn(['media', 'playlist', 'campaign']).withMessage('Tipo de recurso inválido'),
+  ...idParamValidator,
+  ...planLimitsValidators,
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -349,8 +357,8 @@ router.get('/:id/validate/plan-limits',
  * @desc Validar limite de storage antes de fazer upload
  */
 router.get('/:id/validate/storage',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
-  query('fileSizeBytes').isInt({ min: 0 }).withMessage('Tamanho do arquivo inválido'),
+  ...idParamValidator,
+  ...storageValidators,
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -397,8 +405,8 @@ router.get('/:id/validate/storage',
  * @desc Validar acesso a totem antes de associar campanha
  */
 router.get('/:id/validate/totem-access',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
-  query('totemId').isInt({ min: 1 }).withMessage('Totem ID inválido'),
+  ...idParamValidator,
+  ...totemAccessValidators,
   validateRequest,
   async (req: any, res: any) => {
     try {

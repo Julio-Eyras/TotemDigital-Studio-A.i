@@ -6,39 +6,23 @@ import { protectContractValues } from '../middleware/contractValuesProtection.mi
 import { getContractService } from '../services/contractService';
 import { getPublisherContractService } from '../services/publisherContractService';
 import { logError } from '../utils/loggerHelper';
+import { 
+  createSubscriberContractValidators, 
+  updateSubscriberContractValidators,
+  createPublisherContractValidators,
+  updatePublisherContractValidators,
+  contractFilterValidators
+} from '../validators/contract.validators';
+import { paginationValidators, searchValidators, idParamValidator } from '../validators/common.validators';
 
 const router = express.Router();
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
 
-// Validações
-const createContractValidator = [
-  body('subscriber_id').optional().isInt({ min: 1 }).withMessage('Subscriber ID inválido'),
-  body('contract_number').notEmpty().withMessage('Número do contrato é obrigatório'),
-  body('contract_type').isIn(['advertising', 'subscription', 'partnership']).withMessage('Tipo de contrato inválido'),
-  body('title').notEmpty().withMessage('Título é obrigatório'),
-  body('start_date').isISO8601().withMessage('Data de início inválida'),
-  body('end_date').optional().isISO8601().withMessage('Data de término inválida'),
-  body('plan_id').optional().isInt({ min: 1 }),
-  body('total_amount').optional().isFloat({ min: 0 }),
-  body('currency').optional().isString(),
-  body('status').optional().isIn(['draft', 'active', 'expired', 'terminated', 'cancelled']),
-  body('publisherIds').optional().isArray(),
-  body('created_before_subscriber').optional().isBoolean(),
-];
-
-const updateContractValidator = [
-  body('contract_number').optional().notEmpty(),
-  body('contract_type').optional().isIn(['advertising', 'subscription', 'partnership']),
-  body('title').optional().notEmpty(),
-  body('start_date').optional().isISO8601(),
-  body('end_date').optional().isISO8601(),
-  body('plan_id').optional().isInt({ min: 1 }),
-  body('total_amount').optional().isFloat({ min: 0 }),
-  body('status').optional().isIn(['draft', 'active', 'expired', 'terminated', 'cancelled']),
-  body('publisherIds').optional().isArray(),
-];
+// Validações - usando validadores centralizados
+const createContractValidator = createSubscriberContractValidators;
+const updateContractValidator = updateSubscriberContractValidators;
 
 const validateRequest = (req: any, res: any, next: any) => {
   const errors = validationResult(req);
@@ -56,14 +40,9 @@ const validateRequest = (req: any, res: any, next: any) => {
  * @desc Listar todos os contratos
  */
 router.get('/', 
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('search').optional().isString(),
-  query('subscriberId').optional().isInt({ min: 1 }),
-  query('planId').optional().isInt({ min: 1 }),
-  query('status').optional().isString(),
-  query('contractType').optional().isString(),
-  query('activeOnly').optional().isBoolean(),
+  ...paginationValidators,
+  ...searchValidators,
+  ...contractFilterValidators,
   validateRequest,
   protectContractValues,
   async (req: any, res: any) => {
@@ -94,7 +73,7 @@ router.get('/',
  * @desc Obter contrato por ID
  */
 router.get('/:id',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  ...idParamValidator,
   validateRequest,
   protectContractValues,
   async (req: any, res: any) => {
@@ -120,7 +99,7 @@ router.get('/:id',
  * @desc Obter publishers associados a um contrato
  */
 router.get('/:id/publishers',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  ...idParamValidator,
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -167,8 +146,8 @@ router.post('/',
  * @desc Atualizar contrato
  */
 router.put('/:id',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
-  updateContractValidator,
+  ...idParamValidator,
+  ...updateContractValidator,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   async (req: any, res: any) => {
@@ -188,7 +167,7 @@ router.put('/:id',
  * @desc Excluir contrato (soft delete)
  */
 router.delete('/:id',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  ...idParamValidator,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento']),
   async (req: any, res: any) => {
@@ -212,13 +191,9 @@ router.delete('/:id',
  * @desc Listar todos os contratos de publishers
  */
 router.get('/publisher-contracts',
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('search').optional().isString(),
-  query('publisherId').optional().isInt({ min: 1 }),
-  query('status').optional().isString(),
-  query('contractType').optional().isString(),
-  query('activeOnly').optional().isBoolean(),
+  ...paginationValidators,
+  ...searchValidators,
+  ...contractFilterValidators,
   validateRequest,
   protectContractValues,
   async (req: any, res: any) => {
@@ -248,7 +223,7 @@ router.get('/publisher-contracts',
  * @desc Obter publisher contract por ID
  */
 router.get('/publisher-contracts/:id',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  ...idParamValidator,
   validateRequest,
   protectContractValues,
   async (req: any, res: any) => {
@@ -273,13 +248,7 @@ router.get('/publisher-contracts/:id',
  * @desc Criar novo publisher contract
  */
 router.post('/publisher-contracts',
-  body('contract_number').notEmpty().withMessage('Número do contrato é obrigatório'),
-  body('contract_type').isIn(['revenue_share', 'subscription', 'partnership', 'hybrid']).withMessage('Tipo de contrato inválido'),
-  body('title').notEmpty().withMessage('Título é obrigatório'),
-  body('start_date').isISO8601().withMessage('Data de início inválida'),
-  body('end_date').optional().isISO8601().withMessage('Data de término inválida'),
-  body('publisher_id').optional().isInt({ min: 1 }),
-  body('created_before_publisher').optional().isBoolean(),
+  ...createPublisherContractValidators,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   async (req: any, res: any) => {
@@ -305,9 +274,8 @@ router.post('/publisher-contracts',
  * @desc Atualizar publisher contract
  */
 router.put('/publisher-contracts/:id',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
-  body('contract_type').optional().isIn(['revenue_share', 'subscription', 'partnership', 'hybrid']),
-  body('status').optional().isIn(['draft', 'active', 'expired', 'terminated', 'cancelled']),
+  ...idParamValidator,
+  ...updatePublisherContractValidators,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   async (req: any, res: any) => {
@@ -327,7 +295,7 @@ router.put('/publisher-contracts/:id',
  * @desc Excluir publisher contract (soft delete)
  */
 router.delete('/publisher-contracts/:id',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  ...idParamValidator,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento']),
   async (req: any, res: any) => {
@@ -347,7 +315,7 @@ router.delete('/publisher-contracts/:id',
  * @desc Listar contratos de um publisher específico
  */
 router.get('/publishers/:id/contracts',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  ...idParamValidator,
   validateRequest,
   protectContractValues,
   async (req: any, res: any) => {
