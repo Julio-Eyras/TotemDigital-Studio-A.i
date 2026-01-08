@@ -201,7 +201,6 @@ const Subscribers: React.FC = () => {
   
   // Estados para contratos
   const [activeContracts, setActiveContracts] = useState<any[]>([]);
-  const [loadingContracts, setLoadingContracts] = useState(false);
   const [editLocalForm, setEditLocalForm] = useState<CreateLocalRequest>({
     publisher_id: 0,
     name: '',
