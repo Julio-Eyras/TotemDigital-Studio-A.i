@@ -316,7 +316,6 @@ const Publishers: React.FC = () => {
     try {
       setLoadingEditContracts(true);
       const response = await contractApi.getAll({
-        publisherId: publisherId,
         activeOnly: false,
       });
       setEditContracts(response.data || []);
