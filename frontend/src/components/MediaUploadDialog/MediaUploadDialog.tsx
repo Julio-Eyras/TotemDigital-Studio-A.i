@@ -360,7 +360,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                 >
                   <Typography variant="body2">
                     <strong>Storage:</strong> {validationInfo.storage.message}
-                    {validationInfo.storage.remainingGB !== null && validationInfo.storage.valid && (
+                    {validationInfo.storage.remainingGB !== null && validationInfo.storage.remainingGB !== undefined && validationInfo.storage.valid && (
                       <span> ({validationInfo.storage.remainingGB.toFixed(2)} GB disponíveis)</span>
                     )}
                   </Typography>
