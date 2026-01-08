@@ -2524,7 +2524,7 @@ export interface Subscriber {
 
 export interface CreateSubscriberRequest {
   name: string;
-  contract_id: number; // Obrigatório - contrato que gerou a criação do subscriber
+  contract_id?: number; // Obrigatório na criação - contrato que gerou a criação do subscriber
   contact_name?: string;
   email?: string;
   phone?: string;

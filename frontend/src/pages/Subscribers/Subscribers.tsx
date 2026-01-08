@@ -134,7 +134,7 @@ const Subscribers: React.FC = () => {
   const [editTab, setEditTab] = useState(0); // NOVO: Aba do dialog de edição
   const [newSubscriber, setNewSubscriber] = useState<CreateSubscriberRequest>({
     name: '',
-    contract_id: 0, // Obrigatório - será preenchido pelo usuário
+    contract_id: undefined, // Obrigatório - será preenchido pelo usuário
     contact_name: '',
     email: '',
     phone: '',
