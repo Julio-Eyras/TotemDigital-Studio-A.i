@@ -597,44 +597,44 @@ export class SubscriberService {
       const plans = await this.getActivePlans(subscriberId);
 
       if (plans.length === 0) {
-        // Se não tem planos, retornar limites infinitos (null = sem limite)
+        // Se não tem planos, retornar limites infinitos (undefined = sem limite)
         return {
-          medias: null,
-          playlists: null,
-          campaigns: null,
-          storage_gb: null,
+          medias: undefined,
+          playlists: undefined,
+          campaigns: undefined,
+          storage_gb: undefined,
         };
       }
 
       // Pegar o maior limite entre todos os planos
-      let maxMedias = null;
-      let maxPlaylists = null;
-      let maxCampaigns = null;
-      let maxStorageGb = null;
+      let maxMedias: number | undefined = undefined;
+      let maxPlaylists: number | undefined = undefined;
+      let maxCampaigns: number | undefined = undefined;
+      let maxStorageGb: number | undefined = undefined;
 
       for (const plan of plans) {
         const limits = plan.limits || {};
         
         if (limits.medias !== undefined && limits.medias !== null) {
-          if (maxMedias === null || limits.medias > maxMedias) {
+          if (maxMedias === undefined || limits.medias > maxMedias) {
             maxMedias = limits.medias;
           }
         }
 
         if (limits.playlists !== undefined && limits.playlists !== null) {
-          if (maxPlaylists === null || limits.playlists > maxPlaylists) {
+          if (maxPlaylists === undefined || limits.playlists > maxPlaylists) {
             maxPlaylists = limits.playlists;
           }
         }
 
         if (limits.campaigns !== undefined && limits.campaigns !== null) {
-          if (maxCampaigns === null || limits.campaigns > maxCampaigns) {
+          if (maxCampaigns === undefined || limits.campaigns > maxCampaigns) {
             maxCampaigns = limits.campaigns;
           }
         }
 
         if (limits.storage_gb !== undefined && limits.storage_gb !== null) {
-          if (maxStorageGb === null || limits.storage_gb > maxStorageGb) {
+          if (maxStorageGb === undefined || limits.storage_gb > maxStorageGb) {
             maxStorageGb = limits.storage_gb;
           }
         }
@@ -667,7 +667,7 @@ export class SubscriberService {
       const maxLimit = limits[limitKey];
 
       // Se não tem limite definido, permitir
-      if (maxLimit === null || maxLimit === undefined) {
+      if (maxLimit === undefined) {
         return;
       }
 
@@ -722,7 +722,7 @@ export class SubscriberService {
       const maxStorageGB = limits.storage_gb;
 
       // Se não tem limite definido, permitir
-      if (maxStorageGB === null || maxStorageGB === undefined) {
+      if (maxStorageGB === undefined) {
         return;
       }
 
@@ -752,6 +752,64 @@ export class SubscriberService {
       }
       await logError('Erro ao validar limite de armazenamento', error, { subscriberId, newFileSizeBytes });
       throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Obter contagem atual de recursos de um tipo específico
+   */
+  async getCurrentResourceCount(
+    subscriberId: number,
+    resourceType: 'media' | 'playlist' | 'campaign'
+  ): Promise<number> {
+    try {
+      let currentCount = 0;
+
+      if (resourceType === 'media') {
+        const result = await this.db.findFirst(`
+          SELECT COUNT(*) as count
+          FROM medias
+          WHERE subscriber_id = $1 AND is_active = true
+        `, [subscriberId]);
+        currentCount = parseInt(result?.count || '0');
+      } else if (resourceType === 'playlist') {
+        const result = await this.db.findFirst(`
+          SELECT COUNT(*) as count
+          FROM playlists
+          WHERE subscriber_id = $1 AND is_active = true
+        `, [subscriberId]);
+        currentCount = parseInt(result?.count || '0');
+      } else if (resourceType === 'campaign') {
+        const result = await this.db.findFirst(`
+          SELECT COUNT(*) as count
+          FROM campaigns
+          WHERE subscriber_id = $1 AND is_active = true
+        `, [subscriberId]);
+        currentCount = parseInt(result?.count || '0');
+      }
+
+      return currentCount;
+    } catch (error: any) {
+      await logError('Erro ao obter contagem de recursos', error, { subscriberId, resourceType });
+      return 0;
+    }
+  }
+
+  /**
+   * Obter storage atual em bytes
+   */
+  async getCurrentStorage(subscriberId: number): Promise<number> {
+    try {
+      const currentStorageResult = await this.db.findFirst(`
+        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes
+        FROM medias
+        WHERE subscriber_id = $1 AND is_active = true
+      `, [subscriberId]);
+
+      return parseInt(currentStorageResult?.total_bytes || '0');
+    } catch (error: any) {
+      await logError('Erro ao obter storage atual', error, { subscriberId });
+      return 0;
     }
   }
 

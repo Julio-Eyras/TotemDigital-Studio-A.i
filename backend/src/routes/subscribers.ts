@@ -305,15 +305,15 @@ router.get('/:id/validate/plan-limits',
                       'campaigns';
       const maxLimit = limits[limitKey];
       
-      const canCreate = maxLimit === null || maxLimit === undefined || currentCount < maxLimit;
+      const canCreate = maxLimit === undefined || currentCount < maxLimit;
       
       return res.json({
         valid: canCreate,
         current: currentCount,
         limit: maxLimit,
-        remaining: maxLimit !== null && maxLimit !== undefined ? maxLimit - currentCount : null,
+        remaining: maxLimit !== undefined ? maxLimit - currentCount : null,
         message: canCreate 
-          ? `Você pode criar ${maxLimit !== null && maxLimit !== undefined ? maxLimit - currentCount : 'ilimitados'} ${resourceType === 'media' ? 'mídia(s)' : resourceType === 'playlist' ? 'playlist(s)' : 'campanha(s)'}`
+          ? `Você pode criar ${maxLimit !== undefined ? maxLimit - currentCount : 'ilimitados'} ${resourceType === 'media' ? 'mídia(s)' : resourceType === 'playlist' ? 'playlist(s)' : 'campanha(s)'}`
           : `Limite atingido: você já possui ${currentCount} ${resourceType === 'media' ? 'mídia(s)' : resourceType === 'playlist' ? 'playlist(s)' : 'campanha(s)'} de ${maxLimit} permitidas`
       });
     } catch (error: any) {
@@ -339,7 +339,7 @@ router.get('/:id/validate/storage',
       const limits = await getSubscriberService().getMaxLimits(parseInt(id));
       const currentStorage = await getSubscriberService().getCurrentStorage(parseInt(id));
       
-      const maxStorageBytes = limits.storage_gb !== null && limits.storage_gb !== undefined
+      const maxStorageBytes = limits.storage_gb !== undefined
         ? limits.storage_gb * 1024 * 1024 * 1024
         : null;
       
@@ -361,8 +361,8 @@ router.get('/:id/validate/storage',
         remainingBytes: maxStorageBytes ? maxStorageBytes - currentStorage : null,
         remainingGB: maxStorageBytes ? (maxStorageBytes - currentStorage) / (1024 * 1024 * 1024) : null,
         message: canUpload
-          ? `Upload permitido. Storage disponível: ${maxStorageBytes ? ((maxStorageBytes - currentStorage) / (1024 * 1024 * 1024)).toFixed(2) : 'ilimitado'} GB`
-          : `Limite de storage excedido. Você tem ${(currentStorage / (1024 * 1024 * 1024)).toFixed(2)} GB de ${maxStorageBytes ? (maxStorageBytes / (1024 * 1024 * 1024)).toFixed(2) : 'ilimitado'} GB permitidos`
+          ? `Upload permitido. Storage disponível: ${maxStorageBytes !== null ? ((maxStorageBytes - currentStorage) / (1024 * 1024 * 1024)).toFixed(2) : 'ilimitado'} GB`
+          : `Limite de storage excedido. Você tem ${(currentStorage / (1024 * 1024 * 1024)).toFixed(2)} GB de ${maxStorageBytes !== null ? (maxStorageBytes / (1024 * 1024 * 1024)).toFixed(2) : 'ilimitado'} GB permitidos`
       });
     } catch (error: any) {
       await logError('Erro ao validar storage', error);
