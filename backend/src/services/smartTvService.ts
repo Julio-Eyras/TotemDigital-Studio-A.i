@@ -35,6 +35,7 @@ export interface SmartTv {
 
 export interface CreateSmartTvRequest {
   totem_id: number;
+  contract_id?: number; // Opcional: contrato que gerou a criação (rastreabilidade)
   identifier: string;
   device_id?: string;
   name?: string;
@@ -270,7 +271,7 @@ export class SmartTvService {
     isAdmin: boolean = false
   ): Promise<SmartTv> {
     try {
-      const { totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, capabilities, settings } = data;
+      const { totem_id, contract_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, capabilities, settings } = data;
 
       // Validar se totem existe e obter publisher_id
       const totem = await this.db.findFirst(`
@@ -295,6 +296,27 @@ export class SmartTvService {
       // Se requestPublisherId não estiver definido (admin criando publisher novo), permitir
       if (!isAdmin && requestPublisherId && totem.publisher_id !== requestPublisherId) {
         throw new Error('Acesso negado: Você só pode criar Smart TVs em totens do seu próprio publisher');
+      }
+
+      // Validar contract_id se fornecido (deve existir e estar ativo)
+      if (contract_id) {
+        const contract = await this.db.findFirst(`
+          SELECT contract_id, status, start_date, end_date
+          FROM subscriber_contracts 
+          WHERE contract_id = $1
+          UNION ALL
+          SELECT contract_id, status, start_date, end_date
+          FROM publisher_contracts 
+          WHERE contract_id = $1
+        `, [contract_id]);
+
+        if (!contract) {
+          throw new Error('Contrato não encontrado');
+        }
+
+        if (contract.status !== 'active' && contract.status !== 'draft') {
+          throw new Error('Contrato deve estar em status "active" ou "draft"');
+        }
       }
       // Se for admin sem publisherId (criando publisher novo), permitir criação
 
@@ -321,15 +343,16 @@ export class SmartTvService {
       // Criar Smart TV
       const result = await this.db.executeRaw(`
         INSERT INTO smart_tvs (
-          totem_id, identifier, device_id, name, brand, model, platform,
+          totem_id, created_via_contract_id, identifier, device_id, name, brand, model, platform,
           firmware_version, resolution_width, resolution_height, orientation,
           status, capabilities, settings, is_active,
           created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'offline', $12, $13, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'offline', $13, $14, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING tv_id
       `, [
         totem_id,
+        contract_id || null,
         identifier,
         device_id || null,
         name || null,

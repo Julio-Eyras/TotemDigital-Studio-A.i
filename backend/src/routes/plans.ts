@@ -134,9 +134,9 @@ router.get('/slug/:slug', async (req, res) => {
 /**
  * @route POST /api/plans
  * @desc Cria novo plano
- * @access Private (Admin)
+ * @access Private (Apenas roles administrativos - baseado em contrato)
  */
-router.post('/', authenticateToken, authorizeRole(['admin']), async (req: any, res) => {
+router.post('/', authenticateToken, authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']), async (req: any, res) => {
   try {
     const planData = req.body;
 

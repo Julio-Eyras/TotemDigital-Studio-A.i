@@ -18,6 +18,7 @@ router.use(authMiddleware);
 const createLocalValidator = [
   // publisher_id é obrigatório - locais pertencem apenas a publishers
   body('publisher_id').notEmpty().isInt({ min: 1 }).withMessage('publisher_id é obrigatório'),
+  body('contract_id').optional().isInt({ min: 1 }).withMessage('Contract ID inválido (opcional, para rastreabilidade)'),
   body('name').notEmpty().isString().withMessage('Nome é obrigatório'),
   body('address').optional().isString(),
   body('city').optional().isString(),
@@ -126,15 +127,15 @@ router.get('/:id',
 /**
  * @route POST /api/locals
  * @desc Criar novo local
- * @access Private (Admin only)
+ * @access Private (Apenas roles administrativos - baseado em contrato)
  */
 router.post('/',
-  authorizeRole(['admin']),
+  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   createLocalValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { publisher_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = req.body;
+      const { publisher_id, contract_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = req.body;
       
       // publisher_id é obrigatório - locais pertencem apenas a publishers
       if (!publisher_id) {
@@ -153,6 +154,7 @@ router.post('/',
 
       const newLocal = await getLocalService().createLocal({
         publisher_id,
+        contract_id, // Opcional - para rastreabilidade
         name,
         address,
         city,

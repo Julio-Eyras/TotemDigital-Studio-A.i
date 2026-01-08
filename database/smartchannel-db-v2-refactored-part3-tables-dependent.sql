@@ -9,8 +9,8 @@
 
 CREATE TABLE IF NOT EXISTS locals (
     local_id SERIAL PRIMARY KEY,
-    publisher_id INTEGER, -- FK para publishers (opcional)
-    subscriber_id INTEGER, -- FK para subscribers (opcional)
+    publisher_id INTEGER NOT NULL, -- FK para publishers (obrigatório - locals pertencem apenas a publishers)
+    created_via_contract_id INTEGER, -- FK para subscriber_contracts ou publisher_contracts (rastreabilidade)
     name TEXT NOT NULL,
     address TEXT,
     city TEXT,
@@ -25,17 +25,14 @@ CREATE TABLE IF NOT EXISTS locals (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Constraint: local deve ter publisher_id OU subscriber_id (não ambos)
+    -- Constraint: local deve ter publisher_id (obrigatório)
     CONSTRAINT chk_local_owner 
-        CHECK (
-            (publisher_id IS NOT NULL AND subscriber_id IS NULL) OR
-            (publisher_id IS NULL AND subscriber_id IS NOT NULL)
-        )
+        CHECK (publisher_id IS NOT NULL)
 );
 
 COMMENT ON TABLE locals IS 'Locais físicos onde totens estão instalados';
-COMMENT ON COLUMN locals.publisher_id IS 'Publisher (host) dono deste local (alternativa a subscriber_id)';
-COMMENT ON COLUMN locals.subscriber_id IS 'Subscriber (assinante) dono deste local (alternativa a publisher_id)';
+COMMENT ON COLUMN locals.publisher_id IS 'Publisher (publicador) dono deste local';
+COMMENT ON COLUMN locals.created_via_contract_id IS 'Contrato que gerou a criação deste local (rastreabilidade)';
 
 -- =============================================
 -- TOTEMS (Edge Nodes - Micro-servidores)
@@ -48,6 +45,7 @@ CREATE TABLE IF NOT EXISTS totems (
     device_id TEXT UNIQUE, -- Device ID único
     
     local_id INTEGER NOT NULL, -- FK para locals (totem pertence a local/publisher)
+    created_via_contract_id INTEGER, -- FK para subscriber_contracts ou publisher_contracts (rastreabilidade)
     -- REMOVIDO: client_id (erro conceitual - totem NÃO pertence a subscriber)
     
     name TEXT,
@@ -85,6 +83,7 @@ COMMENT ON COLUMN totems.status IS 'Status atual do totem';
 CREATE TABLE IF NOT EXISTS smart_tvs (
     tv_id SERIAL PRIMARY KEY,
     totem_id INTEGER NOT NULL, -- FK para totems (1 totem : N TVs)
+    created_via_contract_id INTEGER, -- FK para subscriber_contracts ou publisher_contracts (rastreabilidade)
     
     identifier TEXT UNIQUE NOT NULL,
     device_id TEXT UNIQUE,

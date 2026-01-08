@@ -18,6 +18,7 @@ router.use(authMiddleware);
 // Validações
 const createSmartTvValidator = [
   body('totem_id').notEmpty().isInt({ min: 1 }).withMessage('totem_id é obrigatório'),
+  body('contract_id').optional().isInt({ min: 1 }).withMessage('Contract ID inválido (opcional, para rastreabilidade)'),
   body('identifier').notEmpty().isString().withMessage('identifier é obrigatório'),
   body('device_id').optional().isString(),
   body('name').optional().isString(),
@@ -185,40 +186,15 @@ router.get('/:id',
 /**
  * @route POST /api/smart-tvs
  * @desc Criar nova Smart TV (um totem pode ter múltiplas TVs - relação 1:N)
- * @access Private 
- *   - Admins/Owners: Requer flag_smart_0
- *   - Publishers: Podem criar Smart TVs para seus próprios totens
+ * @access Private (Apenas roles administrativos - baseado em contrato)
  */
 router.post('/',
-  // Permitir publishers sem flag/role específica (será verificado no handler)
-  (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const userRole = req.user?.role;
-    const userType = req.user?.userType;
-    const isPublisher = userType === 'publisher_user' || userType === 'publisher_subscriber' || req.user?.publisherId;
-    const isOwnerOrAdminSql = userRole === 'owner_system' || userRole === 'admin_sql';
-    const isAdmin = userRole === 'admin';
-    
-    // Permitir owners/admins sem verificação de flag aqui (será verificado depois)
-    // Admins podem criar Smart TVs mesmo sem publisherId (durante criação de publishers)
-    if (isOwnerOrAdminSql || isAdmin) {
-      return next();
-    }
-    
-    // Permitir publishers
-    if (isPublisher) {
-      return next();
-    }
-    
-    return res.status(403).json({ 
-      error: 'Acesso negado',
-      details: [{ msg: 'Apenas administradores e publishers podem criar Smart TVs' }]
-    });
-  },
+  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   createSmartTvValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, capabilities, settings } = req.body;
+      const { totem_id, contract_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, capabilities, settings } = req.body;
       
       if (!req.user?.id) {
         return res.status(401).json({ error: 'Usuário não autenticado' });
@@ -229,6 +205,7 @@ router.post('/',
 
       const newSmartTv = await getSmartTvService().createSmartTv({
         totem_id,
+        contract_id, // Opcional - para rastreabilidade
         identifier,
         device_id,
         name,

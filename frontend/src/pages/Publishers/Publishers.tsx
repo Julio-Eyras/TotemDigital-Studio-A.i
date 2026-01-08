@@ -37,6 +37,7 @@ import {
   MenuItem,
   Tabs,
   Tab,
+  CircularProgress,
 } from '@mui/material';
 import {
   Add,
@@ -54,6 +55,10 @@ import {
   Computer,
   Tv,
   Store,
+  CalendarToday,
+  Assignment,
+  AttachMoney,
+  Link as LinkIcon,
 } from '@mui/icons-material';
 import { 
   publisherApi, 
@@ -70,7 +75,9 @@ import {
   Subscriber,
   smartTvApi,
   CreateSmartTvRequest,
-  SmartTv
+  SmartTv,
+  contractApi,
+  Contract
 } from '../../services/api';
 
 const Publishers: React.FC = () => {
@@ -104,7 +111,10 @@ const Publishers: React.FC = () => {
     is_subscriber: false,
     is_publisher: true,
     client_type: 'publisher',
+    contract_id: undefined,
   });
+  const [availableContracts, setAvailableContracts] = useState<Contract[]>([]);
+  const [loadingContracts, setLoadingContracts] = useState(false);
   // NOVO: Estados para gerenciar locais, totens, smart TVs e subscribers durante a criação
   const [tempLocals, setTempLocals] = useState<CreateLocalRequest[]>([]);
   const [tempTotems, setTempTotems] = useState<(CreatePlayerRequest & { tempId: string })[]>([]);
@@ -117,6 +127,8 @@ const Publishers: React.FC = () => {
   const [editLocals, setEditLocals] = useState<Local[]>([]);
   const [editTotems, setEditTotems] = useState<any[]>([]);
   const [editSmartTvs, setEditSmartTvs] = useState<any[]>([]);
+  const [editContracts, setEditContracts] = useState<Contract[]>([]);
+  const [loadingEditContracts, setLoadingEditContracts] = useState(false);
   const [editingEditLocalIndex, setEditingEditLocalIndex] = useState<number | null>(null);
   const [editingEditTotemIndex, setEditingEditTotemIndex] = useState<number | null>(null);
   const [editingEditSmartTvIndex, setEditingEditSmartTvIndex] = useState<number | null>(null);
@@ -161,6 +173,7 @@ const Publishers: React.FC = () => {
     zip_code: '',
     country: '',
     description: '',
+    contract_id: undefined,
   });
   const [totemForm, setTotemForm] = useState<CreatePlayerRequest & { tempId: string }>({
     tempId: '',
@@ -171,6 +184,7 @@ const Publishers: React.FC = () => {
     name: '',
     description: '',
     firmwareVersion: '',
+    contract_id: undefined,
   });
   const [smartTvForm, setSmartTvForm] = useState<CreateSmartTvRequest & { tempId: string }>({
     tempId: '',
@@ -185,6 +199,7 @@ const Publishers: React.FC = () => {
     resolution_width: undefined,
     resolution_height: undefined,
     orientation: 'landscape',
+    contract_id: undefined,
   });
 
   useEffect(() => {
@@ -197,6 +212,30 @@ const Publishers: React.FC = () => {
       loadPublisherDataForEdit(selectedPublisher.publisher_id);
     }
   }, [editDialogOpen, selectedPublisher?.publisher_id]);
+
+  // Carregar contratos disponíveis quando dialog de criação abre
+  useEffect(() => {
+    if (createDialogOpen) {
+      loadAvailableContracts();
+    }
+  }, [createDialogOpen]);
+
+  const loadAvailableContracts = async () => {
+    try {
+      setLoadingContracts(true);
+      // Buscar contratos onde publisher_id é NULL ou corresponde ao publisher atual (se estiver editando)
+      const response = await contractApi.getAll({
+        publisherId: undefined, // Buscar contratos sem publisher_id (pré-criados)
+        activeOnly: false, // Incluir todos os contratos, mesmo inativos
+      });
+      setAvailableContracts(response.data || []);
+    } catch (err: any) {
+      console.error('Erro ao carregar contratos:', err);
+      setAvailableContracts([]);
+    } finally {
+      setLoadingContracts(false);
+    }
+  };
 
   const loadPublishers = async () => {
     try {
@@ -248,9 +287,29 @@ const Publishers: React.FC = () => {
       setEditLocals(Array.isArray(localsResponse) ? localsResponse : []);
       setEditTotems(Array.isArray(totemsResponse) ? totemsResponse : []);
       setEditSmartTvs(Array.isArray(smartTvsResponse) ? smartTvsResponse : []);
+      
+      // Carregar contratos do publisher
+      await loadPublisherContracts(publisherId);
     } catch (error) {
       console.error('Erro ao carregar dados do publisher para edição:', error);
       setError('Erro ao carregar dados do publicador');
+    }
+  };
+
+  // Carregar contratos do publisher
+  const loadPublisherContracts = async (publisherId: number) => {
+    try {
+      setLoadingEditContracts(true);
+      const response = await contractApi.getAll({
+        publisherId: publisherId,
+        activeOnly: false,
+      });
+      setEditContracts(response.data || []);
+    } catch (error) {
+      console.error('Erro ao carregar contratos do publisher:', error);
+      setEditContracts([]);
+    } finally {
+      setLoadingEditContracts(false);
     }
   };
 
@@ -278,6 +337,7 @@ const Publishers: React.FC = () => {
       zip_code: '',
       country: '',
       description: '',
+      contract_id: newPublisher.contract_id, // Manter o contrato do publisher
     });
   };
 
@@ -323,6 +383,7 @@ const Publishers: React.FC = () => {
       name: '',
       description: '',
       firmwareVersion: '',
+      contract_id: newPublisher.contract_id, // Manter o contrato do publisher
     });
   };
 
@@ -372,6 +433,7 @@ const Publishers: React.FC = () => {
       resolution_width: undefined,
       resolution_height: undefined,
       orientation: 'landscape',
+      contract_id: newPublisher.contract_id, // Manter o contrato do publisher
     });
   };
 
@@ -662,26 +724,109 @@ const Publishers: React.FC = () => {
     }
   };
 
+  // Função auxiliar para validar email
+  const validateEmail = (email: string): boolean => {
+    if (!email || email.trim() === '') return true; // Email é opcional
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+  };
+
+  // Função auxiliar para validar telefone
+  const validatePhone = (phone: string): boolean => {
+    if (!phone || phone.trim() === '') return true; // Telefone é opcional
+    const phoneRegex = /^[\d\s\+\-\(\)]+$/;
+    return phoneRegex.test(phone.trim());
+  };
+
+  // Função para validar contrato
+  const validateContract = (contractId: number | undefined): { valid: boolean; error?: string } => {
+    if (!contractId || contractId <= 0) {
+      return { valid: false, error: 'Contrato é obrigatório. Selecione um contrato válido.' };
+    }
+    
+    const contract = availableContracts.find(c => c.contract_id === contractId);
+    if (!contract) {
+      return { valid: false, error: 'Contrato selecionado não foi encontrado. Por favor, recarregue a lista de contratos.' };
+    }
+
+    // Validar se o contrato está ativo (se tiver end_date, verificar se ainda está válido)
+    if (contract.end_date) {
+      const endDate = new Date(contract.end_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (endDate < today) {
+        return { valid: false, error: `O contrato "${contract.contract_number}" expirou em ${endDate.toLocaleDateString('pt-BR')}. Selecione um contrato válido.` };
+      }
+    }
+
+    // Validar se o contrato tem publisher_id (se não foi criado antes do publisher)
+    if (contract.publisher_id && !contract.created_before_publisher) {
+      return { valid: false, error: `O contrato "${contract.contract_number}" já está vinculado a outro Publicador. Selecione um contrato disponível.` };
+    }
+
+    return { valid: true };
+  };
+
   // NOVO: handleCreatePublisher modificado para criar publisher, locais e totens
   const handleCreatePublisher = async () => {
     try {
+      // Limpar erros anteriores
+      setError(null);
+
+      // Validação: contrato é obrigatório e válido
+      const contractValidation = validateContract(newPublisher.contract_id);
+      if (!contractValidation.valid) {
+        setError(contractValidation.error || 'Contrato inválido. Por favor, selecione um contrato válido.');
+        setCreateTab(0);
+        return;
+      }
+
       // Validação: nome do publisher é obrigatório
       if (!newPublisher.name || newPublisher.name.trim() === '') {
-        setError('Nome do publicador é obrigatório');
+        setError('Nome do Publicador é obrigatório. Por favor, preencha o campo "Nome da Empresa / Razão Social".');
         setCreateTab(0); // Ir para aba de Informações
+        return;
+      }
+
+      // Validação: nome deve ter pelo menos 3 caracteres
+      if (newPublisher.name.trim().length < 3) {
+        setError('O nome do Publicador deve ter pelo menos 3 caracteres.');
+        setCreateTab(0);
+        return;
+      }
+
+      // Validação: email (se fornecido)
+      if (newPublisher.email && newPublisher.email.trim() !== '' && !validateEmail(newPublisher.email)) {
+        setError('Email inválido. Por favor, insira um endereço de email válido (exemplo: nome@empresa.com).');
+        setCreateTab(0);
+        return;
+      }
+
+      // Validação: telefone (se fornecido)
+      if (newPublisher.phone && newPublisher.phone.trim() !== '' && !validatePhone(newPublisher.phone)) {
+        setError('Telefone inválido. Use apenas números, espaços, +, -, e parênteses.');
+        setCreateTab(0);
+        return;
+      }
+
+      // Validação: WhatsApp (se fornecido)
+      if (newPublisher.whatsapp && newPublisher.whatsapp.trim() !== '' && !validatePhone(newPublisher.whatsapp)) {
+        setError('WhatsApp inválido. Use apenas números, espaços, +, -, e parênteses.');
+        setCreateTab(0);
         return;
       }
 
       // Validação: ao menos 1 local obrigatório
       if (tempLocals.length === 0) {
-        setError('É obrigatório cadastrar ao menos 1 local antes de criar o publicador');
+        setError('É obrigatório cadastrar ao menos 1 local antes de criar o Publicador. Vá para a aba "Locais" e adicione pelo menos um local.');
         setCreateTab(1); // Ir para aba de Locais
         return;
       }
 
       // Validação: ao menos 1 totem obrigatório
       if (tempTotems.length === 0) {
-        setError('É obrigatório cadastrar ao menos 1 totem (player) antes de criar o publicador');
+        setError('É obrigatório cadastrar ao menos 1 totem (player) antes de criar o Publicador. Vá para a aba "Totens" e adicione pelo menos um totem.');
         setCreateTab(2); // Ir para aba de Totens
         return;
       }
@@ -705,6 +850,7 @@ const Publishers: React.FC = () => {
         const createdLocal = await localApi.create({
           ...local,
           publisher_id: publisherId,
+          contract_id: local.contract_id || newPublisher.contract_id, // Usar o contrato do local ou do publisher
         });
         createdLocals.push(createdLocal);
       }
@@ -739,6 +885,7 @@ const Publishers: React.FC = () => {
           // Preparar dados do totem (identifier é obrigatório na interface, mas backend aceita name OU identifier)
           const totemData: any = {
             localId: Number(localId), // Garantir que é número
+            contract_id: totem.contract_id || newPublisher.contract_id, // Usar o contrato do totem ou do publisher
           };
           
           // Adicionar identifier OU name (backend requer pelo menos um)
@@ -839,6 +986,7 @@ const Publishers: React.FC = () => {
             const smartTvData: any = {
               totem_id: totemId,
               identifier: smartTv.identifier.trim(),
+              contract_id: smartTv.contract_id || newPublisher.contract_id, // Usar o contrato da Smart TV ou do publisher
             };
             
             // Adicionar campos opcionais apenas se tiverem valor
@@ -917,6 +1065,7 @@ const Publishers: React.FC = () => {
         zip_code: '',
         country: '',
         description: '',
+        contract_id: undefined,
       });
       setTotemForm({
         tempId: '',
@@ -927,6 +1076,7 @@ const Publishers: React.FC = () => {
         name: '',
         description: '',
         firmwareVersion: '',
+        contract_id: undefined,
       });
       setSmartTvForm({
         tempId: '',
@@ -941,6 +1091,7 @@ const Publishers: React.FC = () => {
         resolution_width: undefined,
         resolution_height: undefined,
         orientation: 'landscape',
+        contract_id: undefined,
       });
       
       loadPublishers();
@@ -1334,6 +1485,55 @@ const Publishers: React.FC = () => {
           {createTab === 0 && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>Dados do Publicador</Typography>
+              
+              {/* Campo de seleção de contrato - OBRIGATÓRIO */}
+              <FormControl fullWidth margin="normal" required>
+                <InputLabel>Contrato *</InputLabel>
+                <Select
+                  value={newPublisher.contract_id || ''}
+                  label="Contrato *"
+                  onChange={(e) => setNewPublisher({ ...newPublisher, contract_id: Number(e.target.value) })}
+                  disabled={loadingContracts}
+                  error={!newPublisher.contract_id || newPublisher.contract_id <= 0}
+                >
+                  {loadingContracts ? (
+                    <MenuItem disabled>Carregando contratos...</MenuItem>
+                  ) : availableContracts.length === 0 ? (
+                    <MenuItem disabled>Nenhum contrato disponível. Crie um contrato primeiro.</MenuItem>
+                  ) : (
+                    availableContracts.map((contract) => (
+                      <MenuItem key={contract.contract_id} value={contract.contract_id}>
+                        {contract.contract_number} - {contract.title} {contract.created_before_publisher ? '(Pré-criado)' : ''}
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+                {!newPublisher.contract_id || newPublisher.contract_id <= 0 ? (
+                  <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
+                    Contrato é obrigatório. Selecione um contrato válido.
+                  </Typography>
+                ) : (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75 }}>
+                    Contrato selecionado: {availableContracts.find(c => c.contract_id === newPublisher.contract_id)?.title}
+                  </Typography>
+                )}
+              </FormControl>
+              
+              {availableContracts.length === 0 && !loadingContracts && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Nenhum contrato disponível. Você precisa criar um contrato antes de criar um Publicador.
+                  <br />
+                  <Button 
+                    size="small" 
+                    variant="outlined" 
+                    sx={{ mt: 1 }}
+                    onClick={() => window.location.href = '/contracts/new'}
+                  >
+                    Criar Contrato
+                  </Button>
+                </Alert>
+              )}
+              
               <TextField
                 fullWidth
                 label="Nome da Empresa / Razão Social"
@@ -1421,6 +1621,35 @@ const Publishers: React.FC = () => {
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Local</Typography>
                 <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <FormControl fullWidth size="small" required>
+                      <InputLabel>Contrato *</InputLabel>
+                      <Select
+                        value={localForm.contract_id || newPublisher.contract_id || ''}
+                        label="Contrato *"
+                        onChange={(e) => setLocalForm({ ...localForm, contract_id: Number(e.target.value) })}
+                        disabled={loadingContracts}
+                        error={!localForm.contract_id && !newPublisher.contract_id}
+                      >
+                        {loadingContracts ? (
+                          <MenuItem disabled>Carregando contratos...</MenuItem>
+                        ) : availableContracts.length === 0 ? (
+                          <MenuItem disabled>Nenhum contrato disponível</MenuItem>
+                        ) : (
+                          availableContracts.map((contract) => (
+                            <MenuItem key={contract.contract_id} value={contract.contract_id}>
+                              {contract.contract_number} - {contract.title}
+                            </MenuItem>
+                          ))
+                        )}
+                      </Select>
+                      {!localForm.contract_id && !newPublisher.contract_id && (
+                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
+                          Contrato é obrigatório. Selecione um contrato válido.
+                        </Typography>
+                      )}
+                    </FormControl>
+                  </Grid>
                   <Grid item xs={12} md={6}>
                     <TextField
                       fullWidth
@@ -1501,6 +1730,7 @@ const Publishers: React.FC = () => {
                             zip_code: '',
                             country: '',
                             description: '',
+                            contract_id: newPublisher.contract_id, // Manter o contrato do publisher
                           });
                         }}
                         sx={{ ml: 1 }}
@@ -1556,6 +1786,35 @@ const Publishers: React.FC = () => {
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Totem</Typography>
                 <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <FormControl fullWidth size="small" required>
+                      <InputLabel>Contrato *</InputLabel>
+                      <Select
+                        value={totemForm.contract_id || newPublisher.contract_id || ''}
+                        label="Contrato *"
+                        onChange={(e) => setTotemForm({ ...totemForm, contract_id: Number(e.target.value) })}
+                        disabled={loadingContracts}
+                        error={!totemForm.contract_id && !newPublisher.contract_id}
+                      >
+                        {loadingContracts ? (
+                          <MenuItem disabled>Carregando contratos...</MenuItem>
+                        ) : availableContracts.length === 0 ? (
+                          <MenuItem disabled>Nenhum contrato disponível</MenuItem>
+                        ) : (
+                          availableContracts.map((contract) => (
+                            <MenuItem key={contract.contract_id} value={contract.contract_id}>
+                              {contract.contract_number} - {contract.title}
+                            </MenuItem>
+                          ))
+                        )}
+                      </Select>
+                      {!totemForm.contract_id && !newPublisher.contract_id && (
+                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
+                          Contrato é obrigatório. Selecione um contrato válido.
+                        </Typography>
+                      )}
+                    </FormControl>
+                  </Grid>
                   <Grid item xs={12} md={6}>
                     <FormControl fullWidth size="small" required>
                       <InputLabel>Local *</InputLabel>
@@ -1653,6 +1912,7 @@ const Publishers: React.FC = () => {
                             name: '',
                             description: '',
                             firmwareVersion: '',
+                            contract_id: newPublisher.contract_id, // Manter o contrato do publisher
                           });
                         }}
                         sx={{ ml: 1 }}
@@ -1716,6 +1976,35 @@ const Publishers: React.FC = () => {
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Smart TV</Typography>
                 <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <FormControl fullWidth size="small" required>
+                      <InputLabel>Contrato *</InputLabel>
+                      <Select
+                        value={smartTvForm.contract_id || newPublisher.contract_id || ''}
+                        label="Contrato *"
+                        onChange={(e) => setSmartTvForm({ ...smartTvForm, contract_id: Number(e.target.value) })}
+                        disabled={loadingContracts}
+                        error={!smartTvForm.contract_id && !newPublisher.contract_id}
+                      >
+                        {loadingContracts ? (
+                          <MenuItem disabled>Carregando contratos...</MenuItem>
+                        ) : availableContracts.length === 0 ? (
+                          <MenuItem disabled>Nenhum contrato disponível</MenuItem>
+                        ) : (
+                          availableContracts.map((contract) => (
+                            <MenuItem key={contract.contract_id} value={contract.contract_id}>
+                              {contract.contract_number} - {contract.title}
+                            </MenuItem>
+                          ))
+                        )}
+                      </Select>
+                      {!smartTvForm.contract_id && !newPublisher.contract_id && (
+                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
+                          Contrato é obrigatório. Selecione um contrato válido.
+                        </Typography>
+                      )}
+                    </FormControl>
+                  </Grid>
                   <Grid item xs={12} md={6}>
                     <FormControl fullWidth size="small" required>
                       <InputLabel>Totem *</InputLabel>
@@ -1857,6 +2146,7 @@ const Publishers: React.FC = () => {
                             resolution_width: undefined,
                             resolution_height: undefined,
                             orientation: 'landscape',
+                            contract_id: newPublisher.contract_id, // Manter o contrato do publisher
                           });
                         }}
                         sx={{ ml: 1 }}
@@ -1912,7 +2202,7 @@ const Publishers: React.FC = () => {
           <Button 
             variant="contained" 
             onClick={handleCreatePublisher}
-            disabled={tempLocals.length === 0 || tempTotems.length === 0}
+            disabled={!newPublisher.contract_id || newPublisher.contract_id <= 0 || tempLocals.length === 0 || tempTotems.length === 0}
           >
             Criar Publicador
           </Button>
@@ -1942,6 +2232,7 @@ const Publishers: React.FC = () => {
             <Tab label="Locais" />
             <Tab label="Totens" />
             <Tab label="Smart TVs" />
+            <Tab label="Contratos" icon={editContracts && editContracts.length > 0 ? <Chip label={editContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
           </Tabs>
 
           {/* Aba Informações */}
@@ -2522,6 +2813,103 @@ const Publishers: React.FC = () => {
               )}
             </Box>
           )}
+
+          {/* Aba Contratos */}
+          {editTab === 4 && selectedPublisher && (
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2 }}>Contratos do Publicador</Typography>
+              
+              {loadingEditContracts ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress />
+                </Box>
+              ) : editContracts.length === 0 ? (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Nenhum contrato encontrado para este Publicador. Os contratos podem ser criados na seção "Contratos" do menu administrativo.
+                </Alert>
+              ) : (
+                <List>
+                  {editContracts.map((contract) => (
+                    <ListItem
+                      key={contract.contract_id}
+                      sx={{
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        mb: 2,
+                        flexDirection: 'column',
+                        alignItems: 'stretch',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', mb: 1 }}>
+                        <Box>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                            {contract.contract_number} - {contract.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {contract.description || 'Sem descrição'}
+                          </Typography>
+                        </Box>
+                        <Chip
+                          label={contract.status || 'draft'}
+                          color={
+                            contract.status === 'active'
+                              ? 'success'
+                              : contract.status === 'expired' || contract.status === 'terminated' || contract.status === 'cancelled'
+                              ? 'error'
+                              : 'default'
+                          }
+                          size="small"
+                          sx={{ ml: 2 }}
+                        />
+                      </Box>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <CalendarToday fontSize="small" color="action" />
+                          <Typography variant="caption" color="text.secondary">
+                            Início: {contract.start_date ? new Date(contract.start_date).toLocaleDateString('pt-BR') : 'N/A'}
+                          </Typography>
+                        </Box>
+                        {contract.end_date && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <CalendarToday fontSize="small" color="action" />
+                            <Typography variant="caption" color="text.secondary">
+                              Fim: {new Date(contract.end_date).toLocaleDateString('pt-BR')}
+                            </Typography>
+                          </Box>
+                        )}
+                        {contract.contract_type && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Assignment fontSize="small" color="action" />
+                            <Typography variant="caption" color="text.secondary">
+                              Tipo: {contract.contract_type}
+                            </Typography>
+                          </Box>
+                        )}
+                        {contract.total_amount && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <AttachMoney fontSize="small" color="action" />
+                            <Typography variant="caption" color="text.secondary">
+                              Valor: {contract.currency || 'BRL'} {contract.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                      <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<LinkIcon />}
+                          onClick={() => window.open(`/contracts?contractId=${contract.contract_id}`, '_blank')}
+                        >
+                          Ver Detalhes
+                        </Button>
+                      </Box>
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => {
@@ -2530,6 +2918,7 @@ const Publishers: React.FC = () => {
             setEditLocals([]);
             setEditTotems([]);
             setEditSmartTvs([]);
+            setEditContracts([]);
             setEditingEditLocalIndex(null);
             setEditingEditTotemIndex(null);
             setEditingEditSmartTvIndex(null);

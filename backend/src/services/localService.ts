@@ -28,6 +28,7 @@ export interface Local {
 
 export interface CreateLocalRequest {
   publisher_id: number; // Obrigatório: local pertence a um publisher
+  contract_id?: number; // Opcional: contrato que gerou a criação (rastreabilidade)
   name: string;
   address?: string;
   city?: string;
@@ -228,7 +229,7 @@ export class LocalService {
     isAdmin: boolean = false
   ): Promise<Local> {
     try {
-      const { publisher_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = data;
+      const { publisher_id, contract_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = data;
 
       // Validar que tem publisher_id (obrigatório)
       if (!publisher_id) {
@@ -258,16 +259,37 @@ export class LocalService {
         throw new Error('Local com este nome já existe para este publisher');
       }
 
+      // Validar contract_id se fornecido (deve existir e estar ativo)
+      if (contract_id) {
+        const contract = await this.db.findFirst(`
+          SELECT contract_id, status, start_date, end_date
+          FROM subscriber_contracts 
+          WHERE contract_id = $1
+          UNION ALL
+          SELECT contract_id, status, start_date, end_date
+          FROM publisher_contracts 
+          WHERE contract_id = $1
+        `, [contract_id]);
+
+        if (!contract) {
+          throw new Error('Contrato não encontrado');
+        }
+
+        if (contract.status !== 'active' && contract.status !== 'draft') {
+          throw new Error('Contrato deve estar em status "active" ou "draft"');
+        }
+      }
+
       // Criar local
       const result = await this.db.executeRaw(`
         INSERT INTO locals (
-          publisher_id, name, address, city, state, zip_code, country,
+          publisher_id, created_via_contract_id, name, address, city, state, zip_code, country,
           latitude, longitude, timezone, description, is_active,
           created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING local_id
-      `, [publisher_id, name, address || null, city || null, state || null, zip_code || null, country || 'BR', latitude || null, longitude || null, timezone || 'America/Sao_Paulo', description || null]);
+      `, [publisher_id, contract_id || null, name, address || null, city || null, state || null, zip_code || null, country || 'BR', latitude || null, longitude || null, timezone || 'America/Sao_Paulo', description || null]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar local');

@@ -51,6 +51,8 @@ const SubscriberPublisherAccess = React.lazy(() => import('./pages/SubscriberPub
 const SubscriberAccessExpiring = React.lazy(() => import('./pages/SubscriberAccessExpiring/SubscriberAccessExpiring'));
 const Locals = React.lazy(() => import('./pages/Locals/Locals'));
 const SmartTvs = React.lazy(() => import('./pages/SmartTvs/SmartTvs'));
+const Subscribers = React.lazy(() => import('./pages/Subscribers/Subscribers'));
+const Contracts = React.lazy(() => import('./pages/Contracts/Contracts'));
 
 /**
  * Detecta o tipo de subdomínio da requisição
@@ -343,6 +345,46 @@ const AppContent: React.FC = () => {
               <ProtectedRoute>
                 <Suspense fallback={<CircularProgress />}>
                   <Publishers />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/subscribers"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<CircularProgress />}>
+                  <Subscribers />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/contracts"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<CircularProgress />}>
+                  <Contracts />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/contracts/active"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<CircularProgress />}>
+                  <Contracts />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/contracts/expired"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<CircularProgress />}>
+                  <Contracts />
                 </Suspense>
               </ProtectedRoute>
             }

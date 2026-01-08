@@ -16,6 +16,7 @@ export interface Subscriber {
 
 export interface CreateSubscriberRequest {
   name: string;
+  contract_id: number; // Obrigatório - contrato que gerou a criação do subscriber
   contact_name?: string;
   email?: string;
   phone?: string;
@@ -179,11 +180,38 @@ export class SubscriberService {
   }
 
   /**
-   * Criar novo subscriber (anunciante)
+   * Criar novo subscriber (anunciante) - baseado em contrato
    */
   async createSubscriber(data: CreateSubscriberRequest): Promise<Subscriber> {
     try {
-      const { name, contact_name, email, phone, whatsapp, address, description } = data;
+      const { name, contract_id, contact_name, email, phone, whatsapp, address, description } = data;
+
+      // Validar que o contrato existe e está válido
+      const contract = await this.db.findFirst(`
+        SELECT 
+          contract_id, 
+          subscriber_id, 
+          status, 
+          created_before_subscriber,
+          start_date,
+          end_date
+        FROM subscriber_contracts 
+        WHERE contract_id = $1
+      `, [contract_id]);
+
+      if (!contract) {
+        throw new Error('Contrato não encontrado');
+      }
+
+      // Validar status do contrato (deve ser draft ou active)
+      if (contract.status !== 'draft' && contract.status !== 'active') {
+        throw new Error('Contrato deve estar em status "draft" ou "active" para criar subscriber');
+      }
+
+      // Se contrato já tem subscriber_id e não foi criado antes do subscriber, erro
+      if (contract.subscriber_id && !contract.created_before_subscriber) {
+        throw new Error('Contrato já está vinculado a outro subscriber');
+      }
 
       // Verificar se subscriber já existe
       const existingSubscriber = await this.db.findFirst(`
@@ -217,6 +245,14 @@ export class SubscriberService {
       }
 
       const subscriberId = result.rows[0].subscriber_id;
+
+      // Vincular subscriber ao contrato
+      await this.db.executeRaw(`
+        UPDATE subscriber_contracts 
+        SET subscriber_id = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE contract_id = $2
+      `, [subscriberId, contract_id]);
+
       const newSubscriber = await this.getSubscriberById(subscriberId);
 
       if (!newSubscriber) {

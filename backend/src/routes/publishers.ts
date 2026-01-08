@@ -6,7 +6,7 @@
 import { Router, Response } from 'express';
 import { PublisherService } from '../services/publisherService';
 import { PublisherCampaignMixService } from '../services/publisherCampaignMixService';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { validateRequest as validateRequestMiddleware } from '../middleware/validation.middleware';
 import { param, query, body, validationResult } from 'express-validator';
 import { logError, logDebug } from '../utils/loggerHelper';
@@ -35,6 +35,7 @@ function getPublisherCampaignMixService(): PublisherCampaignMixService {
 // Validações
 const createPublisherValidator = [
   body('name').notEmpty().withMessage('Nome é obrigatório'),
+  body('contract_id').isInt({ min: 1 }).withMessage('Contract ID é obrigatório'),
   body('contact_name').optional().isString(),
   body('email')
     .optional({ checkFalsy: true })
@@ -96,13 +97,15 @@ router.get('/',
 /**
  * @route POST /api/publishers
  * @desc Criar novo publisher
+ * @access Private (Apenas roles administrativos - baseado em contrato)
  */
 router.post('/',
   createPublisherValidator,
   validateRequest,
+  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { name, contact_name, email, phone, whatsapp, description, is_subscriber, is_publisher, client_type } = req.body;
+      const { name, contact_name, email, phone, whatsapp, description, is_subscriber, is_publisher, client_type, contract_id } = req.body;
       
       const newPublisher = await getPublisherService().createPublisher({
         name,
@@ -113,7 +116,8 @@ router.post('/',
         description,
         is_subscriber,
         is_publisher,
-        client_type
+        client_type,
+        contract_id, // Obrigatório - vincula publisher ao contrato
       });
       
       return res.status(201).json(newPublisher);

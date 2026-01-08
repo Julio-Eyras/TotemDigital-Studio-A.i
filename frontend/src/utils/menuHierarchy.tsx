@@ -27,6 +27,8 @@ import {
   QrCode,
   AutoAwesome,
   Analytics,
+  Description,
+  Assignment,
 } from '@mui/icons-material';
 import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
@@ -159,14 +161,26 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
       ],
     },
     {
-      text: 'Subscribers',
+      text: 'Assinantes',
       icon: <Business />,
-      path: '/clients',
+      path: '/subscribers',
       children: [
-        { text: 'Listar Subscribers', icon: <Business />, path: '/clients' },
-        { text: 'Criar Subscriber', icon: <Business />, path: '/clients/new' },
-        { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
+        { text: 'Listar Assinantes', icon: <Business />, path: '/subscribers' },
+        { text: 'Criar Assinante', icon: <Business />, path: '/subscribers/new' },
         { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
+        { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
+        { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
+      ],
+    },
+    {
+      text: 'Contratos',
+      icon: <Description />,
+      path: '/contracts',
+      children: [
+        { text: 'Listar Contratos', icon: <Description />, path: '/contracts' },
+        { text: 'Criar Contrato', icon: <Description />, path: '/contracts/new' },
+        { text: 'Contratos Ativos', icon: <Assignment />, path: '/contracts/active' },
+        { text: 'Contratos Expirados', icon: <Warning />, path: '/contracts/expired' },
       ],
     },
     { text: 'Faturamento Global', icon: <Payment />, path: '/billing' },
@@ -228,13 +242,25 @@ function getAdminMenu(): HierarchicalMenuItem[] {
       ],
     },
     {
-      text: 'Subscribers',
+      text: 'Assinantes',
       icon: <Business />,
-      path: '/clients',
+      path: '/subscribers',
       children: [
-        { text: 'Listar Subscribers', icon: <Business />, path: '/clients' },
-        { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
+        { text: 'Listar Assinantes', icon: <Business />, path: '/subscribers' },
         { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
+        { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
+        { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
+      ],
+    },
+    {
+      text: 'Contratos',
+      icon: <Description />,
+      path: '/contracts',
+      children: [
+        { text: 'Listar Contratos', icon: <Description />, path: '/contracts' },
+        { text: 'Criar Contrato', icon: <Description />, path: '/contracts/new' },
+        { text: 'Contratos Ativos', icon: <Assignment />, path: '/contracts/active' },
+        { text: 'Contratos Expirados', icon: <Warning />, path: '/contracts/expired' },
       ],
     },
     {
@@ -243,7 +269,7 @@ function getAdminMenu(): HierarchicalMenuItem[] {
       path: '/subscriber-publisher-access',
       children: [
         { text: 'Planos', icon: <Link />, path: '/plan-publisher-access' },
-        { text: 'Contratos', icon: <AdminPanelSettings />, path: '/subscriber-publisher-access' },
+        { text: 'Acessos Subscriber-Publisher', icon: <AdminPanelSettings />, path: '/subscriber-publisher-access' },
         { text: 'Acessos Expirando', icon: <Warning />, path: '/subscriber-access-expiring' },
       ],
     },
@@ -324,13 +350,14 @@ function getOperadorFaturamentoMenu(): HierarchicalMenuItem[] {
     },
     {
       text: 'Contratos',
-      icon: <AdminPanelSettings />,
-      path: '/subscriber-publisher-access',
+      icon: <Description />,
+      path: '/contracts',
       requiredFlag: 'flag_smart_5',
       children: [
-        { text: 'Listar Contratos', icon: <AdminPanelSettings />, path: '/subscriber-publisher-access' },
-        { text: 'Criar/Editar', icon: <AdminPanelSettings />, path: '/subscriber-publisher-access/new' },
-        { text: 'Renovações', icon: <Warning />, path: '/subscriber-access-expiring' },
+        { text: 'Listar Contratos', icon: <Description />, path: '/contracts' },
+        { text: 'Criar Contrato', icon: <Description />, path: '/contracts/new' },
+        { text: 'Contratos Ativos', icon: <Assignment />, path: '/contracts/active' },
+        { text: 'Renovações', icon: <Warning />, path: '/contracts/expiring' },
       ],
     },
     {
@@ -362,12 +389,21 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
       ],
     },
     {
-      text: 'Subscribers',
+      text: 'Assinantes',
       icon: <Business />,
-      path: '/clients',
+      path: '/subscribers',
       children: [
-        { text: 'Listar Subscribers', icon: <Business />, path: '/clients' },
-        { text: 'Detalhes', icon: <Business />, path: '/clients/details' },
+        { text: 'Listar Assinantes', icon: <Business />, path: '/subscribers' },
+        { text: 'Detalhes', icon: <Business />, path: '/subscribers/details' },
+      ],
+    },
+    {
+      text: 'Contratos',
+      icon: <Description />,
+      path: '/contracts',
+      children: [
+        { text: 'Listar Contratos', icon: <Description />, path: '/contracts' },
+        { text: 'Criar Contrato', icon: <Description />, path: '/contracts/new' },
       ],
     },
     {

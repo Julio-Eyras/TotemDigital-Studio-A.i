@@ -16,6 +16,7 @@ export interface CreateTotemRequest {
   uin?: string; // Unique Identifier Number
   deviceId?: string;
   localId?: number; // OBRIGATÓRIO: totem deve pertencer a um local
+  contract_id?: number; // Opcional: contrato que gerou a criação (rastreabilidade)
   location?: string;
   description?: string;
   config?: any;
@@ -466,7 +467,8 @@ export class TotemService {
         identifier, 
         uin,
         deviceId, 
-        localId, 
+        localId,
+        contract_id,
         description, 
         config, 
         firmwareVersion, 
@@ -535,6 +537,27 @@ export class TotemService {
         }
       }
 
+      // Validar contract_id se fornecido (deve existir e estar ativo)
+      if (contract_id) {
+        const contract = await this.db.findFirst(`
+          SELECT contract_id, status, start_date, end_date
+          FROM subscriber_contracts 
+          WHERE contract_id = $1
+          UNION ALL
+          SELECT contract_id, status, start_date, end_date
+          FROM publisher_contracts 
+          WHERE contract_id = $1
+        `, [contract_id]);
+
+        if (!contract) {
+          throw new Error('Contrato não encontrado');
+        }
+
+        if (contract.status !== 'active' && contract.status !== 'draft') {
+          throw new Error('Contrato deve estar em status "active" ou "draft"');
+        }
+      }
+
       // Criar totem
       const result = await this.db.executeRaw(`
         INSERT INTO totems (
@@ -543,6 +566,7 @@ export class TotemService {
           uin,
           device_id,
           local_id,
+          created_via_contract_id,
           description,
           network_info,
           firmware_version,
@@ -551,7 +575,7 @@ export class TotemService {
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'offline', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'offline', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING totem_id
       `, [
         name || identifier,
@@ -559,6 +583,7 @@ export class TotemService {
         uin || null,
         deviceId || null,
         localId,
+        contract_id || null,
         description || null,
         config ? JSON.stringify(config) : null,
         firmwareVersion || null,

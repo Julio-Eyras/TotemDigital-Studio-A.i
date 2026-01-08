@@ -26,11 +26,12 @@ CREATE INDEX IF NOT EXISTS idx_users_user_type ON users(user_type);
 
 -- Locals
 CREATE INDEX IF NOT EXISTS idx_locals_publisher ON locals(publisher_id) WHERE publisher_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_locals_subscriber ON locals(subscriber_id) WHERE subscriber_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_locals_contract ON locals(created_via_contract_id) WHERE created_via_contract_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_locals_active ON locals(is_active) WHERE is_active = true;
 
 -- Totems
 CREATE INDEX IF NOT EXISTS idx_totems_local ON totems(local_id);
+CREATE INDEX IF NOT EXISTS idx_totems_contract ON totems(created_via_contract_id) WHERE created_via_contract_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_totems_identifier ON totems(identifier);
 CREATE INDEX IF NOT EXISTS idx_totems_status ON totems(status);
 CREATE INDEX IF NOT EXISTS idx_totems_heartbeat ON totems(last_heartbeat) WHERE status = 'online';
@@ -38,6 +39,7 @@ CREATE INDEX IF NOT EXISTS idx_totems_active ON totems(is_active) WHERE is_activ
 
 -- Smart TVs
 CREATE INDEX IF NOT EXISTS idx_smart_tvs_totem ON smart_tvs(totem_id);
+CREATE INDEX IF NOT EXISTS idx_smart_tvs_contract ON smart_tvs(created_via_contract_id) WHERE created_via_contract_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_smart_tvs_identifier ON smart_tvs(identifier);
 CREATE INDEX IF NOT EXISTS idx_smart_tvs_status ON smart_tvs(status);
 
@@ -84,11 +86,13 @@ CREATE INDEX IF NOT EXISTS idx_publisher_billing_created ON publisher_billing(cr
 -- ÍNDICES DE CONTRATOS
 -- =============================================
 
-CREATE INDEX IF NOT EXISTS idx_subscriber_contracts_subscriber ON subscriber_contracts(subscriber_id);
+CREATE INDEX IF NOT EXISTS idx_subscriber_contracts_subscriber ON subscriber_contracts(subscriber_id) WHERE subscriber_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_subscriber_contracts_status ON subscriber_contracts(status);
 CREATE INDEX IF NOT EXISTS idx_subscriber_contracts_plan ON subscriber_contracts(plan_id) WHERE plan_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_publisher_contracts_publisher ON publisher_contracts(publisher_id);
+CREATE INDEX IF NOT EXISTS idx_subscriber_contracts_created_before ON subscriber_contracts(created_before_subscriber) WHERE created_before_subscriber = true;
+CREATE INDEX IF NOT EXISTS idx_publisher_contracts_publisher ON publisher_contracts(publisher_id) WHERE publisher_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_publisher_contracts_status ON publisher_contracts(status);
+CREATE INDEX IF NOT EXISTS idx_publisher_contracts_created_before ON publisher_contracts(created_before_publisher) WHERE created_before_publisher = true;
 
 -- =============================================
 -- ÍNDICES DE CONTROLE DE ACESSO SUBSCRIBER → PUBLISHER

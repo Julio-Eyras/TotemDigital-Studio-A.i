@@ -140,8 +140,9 @@ COMMENT ON COLUMN publisher_billing.approved_by IS 'User (tenant) que aprovou o 
 
 CREATE TABLE IF NOT EXISTS subscriber_contracts (
     contract_id SERIAL PRIMARY KEY,
-    subscriber_id INTEGER NOT NULL, -- FK para subscribers
+    subscriber_id INTEGER, -- FK para subscribers (NULL temporariamente até subscriber ser criado)
     plan_id INTEGER, -- FK para plans - Plano associado ao contrato
+    created_before_subscriber BOOLEAN DEFAULT false, -- Indica se contrato foi criado antes do subscriber
     
     contract_number TEXT UNIQUE NOT NULL,
     contract_type TEXT NOT NULL, 
@@ -182,7 +183,12 @@ CREATE TABLE IF NOT EXISTS subscriber_contracts (
     CONSTRAINT chk_subscriber_contract_status 
         CHECK (status IN ('draft', 'active', 'expired', 'terminated', 'cancelled')),
     CONSTRAINT chk_subscriber_contract_dates 
-        CHECK (end_date IS NULL OR start_date <= end_date)
+        CHECK (end_date IS NULL OR start_date <= end_date),
+    CONSTRAINT chk_subscriber_contract_creation
+        CHECK (
+            (subscriber_id IS NOT NULL) OR 
+            (created_before_subscriber = true AND subscriber_id IS NULL)
+        )
 );
 
 COMMENT ON TABLE subscriber_contracts IS 'Contratos com subscribers (anunciantes)';
@@ -195,7 +201,8 @@ COMMENT ON COLUMN subscriber_contracts.document_path IS 'Caminho do arquivo do c
 
 CREATE TABLE IF NOT EXISTS publisher_contracts (
     contract_id SERIAL PRIMARY KEY,
-    publisher_id INTEGER NOT NULL, -- FK para publishers
+    publisher_id INTEGER, -- FK para publishers (NULL temporariamente até publisher ser criado)
+    created_before_publisher BOOLEAN DEFAULT false, -- Indica se contrato foi criado antes do publisher
     
     contract_number TEXT UNIQUE NOT NULL,
     contract_type TEXT NOT NULL,
@@ -249,7 +256,12 @@ CREATE TABLE IF NOT EXISTS publisher_contracts (
             (revenue_share_percentage >= 0 AND revenue_share_percentage <= 100)
         ),
     CONSTRAINT chk_publisher_contract_dates 
-        CHECK (end_date IS NULL OR start_date <= end_date)
+        CHECK (end_date IS NULL OR start_date <= end_date),
+    CONSTRAINT chk_publisher_contract_creation
+        CHECK (
+            (publisher_id IS NOT NULL) OR 
+            (created_before_publisher = true AND publisher_id IS NULL)
+        )
 );
 
 COMMENT ON TABLE publisher_contracts IS 'Contratos com publishers (revenue share, subscription ou ambos)';

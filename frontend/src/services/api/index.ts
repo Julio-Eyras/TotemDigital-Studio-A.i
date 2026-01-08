@@ -389,6 +389,7 @@ export interface CreatePlayerRequest {
   identifier?: string; // Opcional: backend aceita name OU identifier
   uin?: string;
   localId: number; // OBRIGATÓRIO
+  contract_id?: number; // Opcional: contrato que gerou a criação (rastreabilidade)
   deviceId?: string;
   location?: string;
   description?: string;
@@ -2405,6 +2406,7 @@ export interface Publisher {
 
 export interface CreatePublisherRequest {
   name: string;
+  contract_id: number; // Obrigatório - contrato que gerou a criação do publisher
   contact_name?: string;
   email?: string;
   phone?: string;
@@ -2513,10 +2515,12 @@ export interface Subscriber {
   is_active: boolean;
   created_at: string;
   updated_at?: string;
+  contracts?: Contract[]; // Contratos do subscriber
 }
 
 export interface CreateSubscriberRequest {
   name: string;
+  contract_id: number; // Obrigatório - contrato que gerou a criação do subscriber
   contact_name?: string;
   email?: string;
   phone?: string;
@@ -2541,24 +2545,6 @@ export interface SubscriberListResponse {
   total: number;
   page: number;
   limit: number;
-}
-
-export interface Contract {
-  contract_id: number;
-  contract_number: string;
-  title: string;
-  description?: string;
-  start_date: string;
-  end_date?: string;
-  status: string;
-  total_amount?: number;
-  currency?: string;
-  plan_id?: number;
-  plan_name?: string;
-  plan_slug?: string;
-  price_monthly?: number;
-  price_yearly?: number;
-  is_valid: boolean;
 }
 
 export const subscriberApi = {
@@ -2618,6 +2604,153 @@ export const subscriberApi = {
 };
 
 // =============================================
+// CONTRACTS API
+// =============================================
+
+export interface Contract {
+  contract_id: number;
+  subscriber_id?: number; // Opcional - pode ser NULL se created_before_subscriber = true
+  publisher_id?: number; // Opcional - para publisher_contracts
+  plan_id?: number;
+  contract_number: string;
+  contract_type: 'advertising' | 'subscription' | 'partnership' | 'revenue_share' | 'hybrid';
+  title: string;
+  description?: string;
+  start_date: string;
+  end_date?: string;
+  total_amount?: number;
+  currency: string;
+  payment_terms?: string;
+  document_path?: string;
+  document_filename?: string;
+  document_mime_type?: string;
+  document_size_bytes?: number;
+  status: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
+  is_active: boolean;
+  signed_by_subscriber_at?: string;
+  signed_by_publisher_at?: string; // Para publisher contracts
+  signed_by_tenant_at?: string;
+  metadata?: any;
+  created_at: string;
+  updated_at: string;
+  created_before_subscriber?: boolean; // Indica se foi criado antes do subscriber
+  created_before_publisher?: boolean; // Indica se foi criado antes do publisher
+  subscriber_name?: string;
+  publisher_name?: string;
+  plan_name?: string;
+  // Publisher contract specific fields
+  revenue_share_percentage?: number;
+  revenue_share_rules?: any;
+  minimum_payout_amount?: number;
+  subscription_amount?: number;
+  subscription_interval?: string;
+}
+
+export interface CreateContractRequest {
+  subscriber_id?: number; // Opcional - pode ser NULL se created_before_subscriber = true
+  publisher_id?: number; // Opcional - para publisher_contracts
+  plan_id?: number;
+  contract_number: string;
+  contract_type: 'advertising' | 'subscription' | 'partnership' | 'revenue_share' | 'hybrid';
+  title: string;
+  description?: string;
+  start_date: string;
+  end_date?: string;
+  total_amount?: number;
+  currency?: string;
+  payment_terms?: string;
+  document_path?: string;
+  document_filename?: string;
+  document_mime_type?: string;
+  document_size_bytes?: number;
+  status?: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
+  is_active?: boolean;
+  signed_by_subscriber_at?: string;
+  signed_by_publisher_at?: string;
+  signed_by_tenant_at?: string;
+  metadata?: any;
+  publisherIds?: number[];
+  created_before_subscriber?: boolean; // Indica se contrato é criado antes do subscriber
+  created_before_publisher?: boolean; // Indica se contrato é criado antes do publisher
+  // Publisher contract specific fields
+  revenue_share_percentage?: number;
+  revenue_share_rules?: any;
+  minimum_payout_amount?: number;
+  subscription_amount?: number;
+  subscription_interval?: string;
+}
+
+export interface UpdateContractRequest {
+  plan_id?: number;
+  contract_number?: string;
+  contract_type?: 'advertising' | 'subscription' | 'partnership';
+  title?: string;
+  description?: string;
+  start_date?: string;
+  end_date?: string;
+  total_amount?: number;
+  currency?: string;
+  payment_terms?: string;
+  document_path?: string;
+  document_filename?: string;
+  document_mime_type?: string;
+  document_size_bytes?: number;
+  status?: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
+  is_active?: boolean;
+  signed_by_subscriber_at?: string;
+  signed_by_tenant_at?: string;
+  metadata?: any;
+  publisherIds?: number[];
+}
+
+export interface ContractListResponse {
+  data: Contract[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export const contractApi = {
+  getAll: async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    subscriberId?: number;
+    planId?: number;
+    status?: string;
+    contractType?: string;
+    activeOnly?: boolean;
+  }): Promise<ContractListResponse> => {
+    const response = await api.get('/contracts', { params });
+    return response.data.data || response.data;
+  },
+
+  getById: async (id: number): Promise<Contract> => {
+    const response = await api.get(`/contracts/${id}`);
+    return response.data.data || response.data;
+  },
+
+  create: async (data: CreateContractRequest): Promise<Contract> => {
+    const response = await api.post('/contracts', data);
+    return response.data.data || response.data;
+  },
+
+  update: async (id: number, data: UpdateContractRequest): Promise<Contract> => {
+    const response = await api.put(`/contracts/${id}`, data);
+    return response.data.data || response.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/contracts/${id}`);
+  },
+
+  getPublishers: async (contractId: number): Promise<any[]> => {
+    const response = await api.get(`/contracts/${contractId}/publishers`);
+    return response.data.data || [];
+  },
+};
+
+// =============================================
 // LOCALS API
 // =============================================
 
@@ -2642,6 +2775,7 @@ export interface Local {
 
 export interface CreateLocalRequest {
   publisher_id: number; // Obrigatório: locais pertencem apenas a publishers
+  contract_id?: number; // Opcional: contrato que gerou a criação (rastreabilidade)
   name: string;
   address?: string;
   city?: string;
@@ -2744,6 +2878,7 @@ export interface SmartTv {
 
 export interface CreateSmartTvRequest {
   totem_id: number;
+  contract_id?: number; // Opcional: contrato que gerou a criação (rastreabilidade)
   identifier: string;
   device_id?: string;
   name?: string;

@@ -90,6 +90,7 @@ import {
   localApi,
   totemApi,
   smartTvApi,
+  contractApi,
 } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 
@@ -116,6 +117,7 @@ const Subscribers: React.FC = () => {
   const [editTab, setEditTab] = useState(0); // NOVO: Aba do dialog de edição
   const [newSubscriber, setNewSubscriber] = useState<CreateSubscriberRequest>({
     name: '',
+    contract_id: 0, // Obrigatório - será preenchido pelo usuário
     contact_name: '',
     email: '',
     phone: '',
@@ -123,6 +125,10 @@ const Subscribers: React.FC = () => {
     address: '',
     description: '',
   });
+  
+  // Estados para contratos
+  const [availableContracts, setAvailableContracts] = useState<Contract[]>([]);
+  const [loadingContracts, setLoadingContracts] = useState(false);
   // NOVO: Estados para gerenciar locais, totens, smart TVs e subscribers durante a criação
   const [tempLocals, setTempLocals] = useState<CreateLocalRequest[]>([]);
   const [tempTotems, setTempTotems] = useState<(CreatePlayerRequest & { tempId: string })[]>([]);
@@ -243,7 +249,29 @@ const Subscribers: React.FC = () => {
 
   useEffect(() => {
     loadSubscribers();
+    loadAvailableContracts(); // Carregar contratos disponíveis
   }, [activeOnlyFilter]);
+  
+  const loadAvailableContracts = async () => {
+    try {
+      setLoadingContracts(true);
+      const response = await contractApi.getAll({ 
+        activeOnly: true,
+        status: 'draft',
+        limit: 1000 
+      });
+      // Filtrar apenas contratos sem subscriber_id (created_before_subscriber = true)
+      const contractsWithoutSubscriber = response.data.filter(
+        (c: Contract) => !c.subscriber_id || c.created_before_subscriber
+      );
+      setAvailableContracts(contractsWithoutSubscriber);
+    } catch (error) {
+      console.error('Erro ao carregar contratos:', error);
+      setError('Erro ao carregar lista de contratos');
+    } finally {
+      setLoadingContracts(false);
+    }
+  };
 
   // Carregar dados quando dialog de edição abre
   useEffect(() => {
@@ -981,38 +1009,107 @@ const Subscribers: React.FC = () => {
     }
   };
 
-  // NOVO: handleCreateSubscriber modificado para criar Subscriber, locais e totens
+  // Função auxiliar para validar email
+  const validateEmail = (email: string): boolean => {
+    if (!email || email.trim() === '') return true; // Email é opcional
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+  };
+
+  // Função auxiliar para validar telefone (formato básico: aceita números, +, -, espaços, parênteses)
+  const validatePhone = (phone: string): boolean => {
+    if (!phone || phone.trim() === '') return true; // Telefone é opcional
+    const phoneRegex = /^[\d\s\+\-\(\)]+$/;
+    return phoneRegex.test(phone.trim());
+  };
+
+  // Função para validar contrato
+  const validateContract = (contractId: number | undefined): { valid: boolean; error?: string } => {
+    if (!contractId || contractId <= 0) {
+      return { valid: false, error: 'Contrato é obrigatório. Selecione um contrato válido.' };
+    }
+    
+    const contract = availableContracts.find(c => c.contract_id === contractId);
+    if (!contract) {
+      return { valid: false, error: 'Contrato selecionado não foi encontrado. Por favor, recarregue a lista de contratos.' };
+    }
+
+    // Validar se o contrato está ativo (se tiver end_date, verificar se ainda está válido)
+    if (contract.end_date) {
+      const endDate = new Date(contract.end_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (endDate < today) {
+        return { valid: false, error: `O contrato "${contract.contract_number}" expirou em ${endDate.toLocaleDateString('pt-BR')}. Selecione um contrato válido.` };
+      }
+    }
+
+    // Validar se o contrato tem subscriber_id (se não foi criado antes do subscriber)
+    if (contract.subscriber_id && !contract.created_before_subscriber) {
+      return { valid: false, error: `O contrato "${contract.contract_number}" já está vinculado a outro Assinante. Selecione um contrato disponível.` };
+    }
+
+    return { valid: true };
+  };
+
+  // NOVO: handleCreateSubscriber modificado para criar Subscriber baseado em contrato
   const handleCreateSubscriber = async () => {
     try {
+      // Limpar erros anteriores
+      setError(null);
+
       // Validação: nome do Subscriber é obrigatório
       if (!newSubscriber.name || newSubscriber.name.trim() === '') {
-        setError('Nome do Assinante é obrigatório');
+        setError('Nome do Assinante é obrigatório. Por favor, preencha o campo "Nome da Empresa / Razão Social".');
         setCreateTab(0); // Ir para aba de Informações
         return;
       }
 
-      // Validação: ao menos 1 local obrigatório
-      if (tempLocals.length === 0) {
-        setError('É obrigatório cadastrar ao menos 1 local antes de criar o Assinante');
-        setCreateTab(1); // Ir para aba de Locais
+      // Validação: nome deve ter pelo menos 3 caracteres
+      if (newSubscriber.name.trim().length < 3) {
+        setError('O nome do Assinante deve ter pelo menos 3 caracteres.');
+        setCreateTab(0);
         return;
       }
 
-      // Validação: ao menos 1 totem obrigatório
-      if (tempTotems.length === 0) {
-        setError('É obrigatório cadastrar ao menos 1 totem (player) antes de criar o Assinante');
-        setCreateTab(2); // Ir para aba de Totens
+      // Validação: contract_id é obrigatório e válido
+      const contractValidation = validateContract(newSubscriber.contract_id);
+      if (!contractValidation.valid) {
+        setError(contractValidation.error || 'Contrato inválido. Por favor, selecione um contrato válido.');
+        setCreateTab(0);
         return;
       }
 
-      // 1. Criar o Subscriber
+      // Validação: email (se fornecido)
+      if (newSubscriber.email && newSubscriber.email.trim() !== '' && !validateEmail(newSubscriber.email)) {
+        setError('Email inválido. Por favor, insira um endereço de email válido (exemplo: nome@empresa.com).');
+        setCreateTab(0);
+        return;
+      }
+
+      // Validação: telefone (se fornecido)
+      if (newSubscriber.phone && newSubscriber.phone.trim() !== '' && !validatePhone(newSubscriber.phone)) {
+        setError('Telefone inválido. Use apenas números, espaços, +, -, e parênteses.');
+        setCreateTab(0);
+        return;
+      }
+
+      // Validação: WhatsApp (se fornecido)
+      if (newSubscriber.whatsapp && newSubscriber.whatsapp.trim() !== '' && !validatePhone(newSubscriber.whatsapp)) {
+        setError('WhatsApp inválido. Use apenas números, espaços, +, -, e parênteses.');
+        setCreateTab(0);
+        return;
+      }
+
+      // 1. Criar o Subscriber (vinculado ao contrato)
       console.log('Dados sendo enviados para criar Subscriber:', newSubscriber);
       const createdSubscriber = await subscriberApi.create(newSubscriber);
       console.log('Subscriber criado com sucesso:', createdSubscriber);
       const subscriberId = createdSubscriber.subscriber_id;
       
       if (!subscriberId) {
-        const errorMessage = 'Erro: Assinante criado mas não retornou ID válido';
+        const errorMessage = 'Erro: Assinante criado mas não retornou ID válido. Por favor, entre em contato com o suporte.';
         console.error(errorMessage);
         setError(errorMessage);
         return;
@@ -1151,9 +1248,10 @@ const Subscribers: React.FC = () => {
 
       // Subscribers não são criados aqui - são gerenciados separadamente
 
-      // Limpar estados
+      // Sucesso: limpar estados
       setCreateDialogOpen(false);
       setCreateTab(0);
+      setError(null);
       setNewSubscriber({
         name: '',
         contact_name: '',
@@ -1162,6 +1260,7 @@ const Subscribers: React.FC = () => {
         whatsapp: '',
         address: '',
         description: '',
+        contract_id: undefined,
       });
       setTempLocals([]);
       setTempTotems([]);
@@ -1581,6 +1680,55 @@ const Subscribers: React.FC = () => {
           {createTab === 0 && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>Dados do Assinante</Typography>
+              
+              {/* Campo de seleção de contrato - OBRIGATÓRIO */}
+              <FormControl fullWidth margin="normal" required>
+                <InputLabel>Contrato *</InputLabel>
+                <Select
+                  value={newSubscriber.contract_id || ''}
+                  label="Contrato *"
+                  onChange={(e) => setNewSubscriber({ ...newSubscriber, contract_id: Number(e.target.value) })}
+                  disabled={loadingContracts}
+                  error={!newSubscriber.contract_id || newSubscriber.contract_id <= 0}
+                >
+                  {loadingContracts ? (
+                    <MenuItem disabled>Carregando contratos...</MenuItem>
+                  ) : availableContracts.length === 0 ? (
+                    <MenuItem disabled>Nenhum contrato disponível. Crie um contrato primeiro.</MenuItem>
+                  ) : (
+                    availableContracts.map((contract) => (
+                      <MenuItem key={contract.contract_id} value={contract.contract_id}>
+                        {contract.contract_number} - {contract.title} {contract.created_before_subscriber ? '(Pré-criado)' : ''}
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+                {!newSubscriber.contract_id || newSubscriber.contract_id <= 0 ? (
+                  <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
+                    Contrato é obrigatório. Selecione um contrato válido.
+                  </Typography>
+                ) : (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75 }}>
+                    Contrato selecionado: {availableContracts.find(c => c.contract_id === newSubscriber.contract_id)?.title}
+                  </Typography>
+                )}
+              </FormControl>
+              
+              {availableContracts.length === 0 && !loadingContracts && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Nenhum contrato disponível. Você precisa criar um contrato antes de criar um Assinante.
+                  <br />
+                  <Button 
+                    size="small" 
+                    variant="outlined" 
+                    sx={{ mt: 1 }}
+                    onClick={() => window.location.href = '/contracts/new'}
+                  >
+                    Criar Contrato
+                  </Button>
+                </Alert>
+              )}
+              
               <TextField
                 fullWidth
                 label="Nome da Empresa / Razão Social"
@@ -1602,25 +1750,41 @@ const Subscribers: React.FC = () => {
                 fullWidth
                 label="Email"
                 type="email"
-                value={newSubscriber.email}
+                value={newSubscriber.email || ''}
                 onChange={(e) => setNewSubscriber({ ...newSubscriber, email: e.target.value })}
                 margin="normal"
+                error={newSubscriber.email ? !validateEmail(newSubscriber.email) : false}
+                helperText={
+                  newSubscriber.email && !validateEmail(newSubscriber.email)
+                    ? 'Email inválido. Use o formato: nome@empresa.com'
+                    : 'Email de contato (opcional)'
+                }
               />
               <TextField
                 fullWidth
                 label="Telefone"
-                value={newSubscriber.phone}
+                value={newSubscriber.phone || ''}
                 onChange={(e) => setNewSubscriber({ ...newSubscriber, phone: e.target.value })}
                 margin="normal"
-                helperText="Telefone comercial (formato: +55 11 1234-5678)"
+                error={newSubscriber.phone ? !validatePhone(newSubscriber.phone) : false}
+                helperText={
+                  newSubscriber.phone && !validatePhone(newSubscriber.phone)
+                    ? 'Telefone inválido. Use apenas números, espaços, +, -, e parênteses'
+                    : 'Telefone comercial (formato: +55 11 1234-5678) - opcional'
+                }
               />
               <TextField
                 fullWidth
                 label="WhatsApp"
-                value={newSubscriber.whatsapp}
+                value={newSubscriber.whatsapp || ''}
                 onChange={(e) => setNewSubscriber({ ...newSubscriber, whatsapp: e.target.value })}
                 margin="normal"
-                helperText="Número do WhatsApp (formato: +55 11 98765-4321)"
+                error={newSubscriber.whatsapp ? !validatePhone(newSubscriber.whatsapp) : false}
+                helperText={
+                  newSubscriber.whatsapp && !validatePhone(newSubscriber.whatsapp)
+                    ? 'WhatsApp inválido. Use apenas números, espaços, +, -, e parênteses'
+                    : 'Número do WhatsApp (formato: +55 11 98765-4321) - opcional'
+                }
               />
               <TextField
                 fullWidth
@@ -1631,38 +1795,23 @@ const Subscribers: React.FC = () => {
                 multiline
                 rows={3}
               />
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Tipo de Cliente</InputLabel>
-                <Select
-                  value={'subscriber'}
-                  label="Tipo de Cliente"
-                  onChange={(e) => {
-                    const value = e.target.value as 'subscriber' | 'Subscriber' | 'both';
-                    setNewSubscriber({
-                      ...newSubscriber,
-                      
-                      
-                      
-                    });
-                  }}
-                >
-                  <MenuItem value="Subscriber">Apenas Assinante</MenuItem>
-                  <MenuItem value="subscriber">Apenas Assinante</MenuItem>
-                  <MenuItem value="both">Ambos (Assinante e Assinante)</MenuItem>
-                </Select>
-              </FormControl>
+              <Alert severity="info" sx={{ mt: 2 }}>
+                Tipo: Assinante - Este assinante pode criar mídias, playlists e campanhas vinculadas a contratos.
+              </Alert>
 
             </Box>
           )}
 
-          {/* Aba Locais */}
+          {/* Aba Locais - REMOVIDA: Subscribers não criam locais próprios */}
           {createTab === 1 && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                Locais {tempLocals.length > 0 && `(${tempLocals.length})`}
+                Locais
               </Typography>
-              <Alert severity="warning" sx={{ mb: 2 }}>
-                É obrigatório cadastrar ao menos 1 local antes de criar o Assinante.
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <strong>Nota:</strong> Assinantes não criam locais próprios. 
+                Locais pertencem apenas a Publishers. 
+                Assinantes acessam locais através de planos e contratos.
               </Alert>
               
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
@@ -2159,7 +2308,7 @@ const Subscribers: React.FC = () => {
           <Button 
             variant="contained" 
             onClick={handleCreateSubscriber}
-            disabled={tempLocals.length === 0 || tempTotems.length === 0}
+            disabled={!newSubscriber.contract_id || newSubscriber.contract_id <= 0 || !newSubscriber.name}
           >
             Criar Assinante
           </Button>

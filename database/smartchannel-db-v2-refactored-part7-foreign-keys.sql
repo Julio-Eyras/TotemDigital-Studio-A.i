@@ -40,15 +40,17 @@ BEGIN
             ON DELETE CASCADE;
     END IF;
     
-    -- Foreign key para subscriber_id em locals
+    -- Foreign key para created_via_contract_id em locals (rastreabilidade)
     IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'fk_locals_subscriber'
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_locals_contract'
+        AND t.relname = 'locals'
     ) THEN
         ALTER TABLE locals
-            ADD CONSTRAINT fk_locals_subscriber 
-            FOREIGN KEY (subscriber_id) REFERENCES subscribers(subscriber_id) 
-            ON DELETE CASCADE;
+            ADD CONSTRAINT fk_locals_contract 
+            FOREIGN KEY (created_via_contract_id) REFERENCES subscriber_contracts(contract_id) 
+            ON DELETE SET NULL;
     END IF;
 END $$;
 
@@ -69,6 +71,19 @@ BEGIN
             FOREIGN KEY (local_id) REFERENCES locals(local_id) 
             ON DELETE CASCADE;
     END IF;
+    
+    -- Foreign key para created_via_contract_id em totems (rastreabilidade)
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_totems_contract'
+        AND t.relname = 'totems'
+    ) THEN
+        ALTER TABLE totems
+            ADD CONSTRAINT fk_totems_contract 
+            FOREIGN KEY (created_via_contract_id) REFERENCES subscriber_contracts(contract_id) 
+            ON DELETE SET NULL;
+    END IF;
 END $$;
 
 -- =============================================
@@ -87,6 +102,19 @@ BEGIN
             ADD CONSTRAINT fk_smart_tvs_totem 
             FOREIGN KEY (totem_id) REFERENCES totems(totem_id) 
             ON DELETE CASCADE;
+    END IF;
+    
+    -- Foreign key para created_via_contract_id em smart_tvs (rastreabilidade)
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_smart_tvs_contract'
+        AND t.relname = 'smart_tvs'
+    ) THEN
+        ALTER TABLE smart_tvs
+            ADD CONSTRAINT fk_smart_tvs_contract 
+            FOREIGN KEY (created_via_contract_id) REFERENCES subscriber_contracts(contract_id) 
+            ON DELETE SET NULL;
     END IF;
 END $$;
 
@@ -372,7 +400,7 @@ BEGIN
         ALTER TABLE subscriber_contracts
             ADD CONSTRAINT fk_subscriber_contracts_subscriber 
             FOREIGN KEY (subscriber_id) REFERENCES subscribers(subscriber_id) 
-            ON DELETE CASCADE;
+            ON DELETE SET NULL; -- Permite NULL temporariamente
     END IF;
 END $$;
 
@@ -418,7 +446,7 @@ BEGIN
         ALTER TABLE publisher_contracts
             ADD CONSTRAINT fk_publisher_contracts_publisher 
             FOREIGN KEY (publisher_id) REFERENCES publishers(publisher_id) 
-            ON DELETE CASCADE;
+            ON DELETE SET NULL; -- Permite NULL temporariamente
     END IF;
 END $$;
 

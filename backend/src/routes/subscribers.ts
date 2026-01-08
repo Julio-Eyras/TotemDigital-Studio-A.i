@@ -1,7 +1,7 @@
 import express from 'express';
 import { body, query, param } from 'express-validator';
 import { validationResult } from 'express-validator';
-import { authMiddleware } from '../middleware/auth.middleware';
+import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getSubscriberService } from '../services/subscriberService';
 import { logError } from '../utils/loggerHelper';
 
@@ -13,6 +13,7 @@ router.use(authMiddleware);
 // Validações
 const createSubscriberValidator = [
   body('name').notEmpty().withMessage('Nome é obrigatório'),
+  body('contract_id').isInt({ min: 1 }).withMessage('Contract ID é obrigatório'),
   body('contact_name').optional().isString(),
   body('email').optional().isEmail().withMessage('Email inválido'),
   body('phone').optional().isString(),
@@ -86,23 +87,26 @@ router.get('/:id',
 /**
  * @route POST /api/subscribers
  * @desc Criar novo subscriber (anunciante)
+ * @access Private (Apenas roles administrativos - baseado em contrato)
  */
 router.post('/',
   createSubscriberValidator,
   validateRequest,
-    async (req: any, res: any) => {
-      try {
-        const { name, contact_name, email, phone, whatsapp, address, description } = req.body;
-        
-        const newSubscriber = await getSubscriberService().createSubscriber({
-          name,
-          contact_name,
-          email,
-          phone,
-          whatsapp,
-          address,
-          description,
-        });
+  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
+  async (req: any, res: any) => {
+    try {
+      const { name, contact_name, email, phone, whatsapp, address, description, contract_id } = req.body;
+      
+      const newSubscriber = await getSubscriberService().createSubscriber({
+        name,
+        contact_name,
+        email,
+        phone,
+        whatsapp,
+        address,
+        description,
+        contract_id, // Obrigatório - vincula subscriber ao contrato
+      });
 
       return res.status(201).json(newSubscriber);
     } catch (error: any) {

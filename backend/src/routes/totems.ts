@@ -228,25 +228,10 @@ router.get('/uin/:uin',
 /**
  * @route POST /api/totems
  * @desc Criar novo totem
- * @access Private (Admin only)
+ * @access Private (Apenas roles administrativos - baseado em contrato)
  */
 router.post('/',
-  // Permitir admin, admin_sql, owner_system e publishers
-  (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const userRole = req.user?.role;
-    const userType = req.user?.userType;
-    const isPublisher = userType === 'publisher_user' || userType === 'publisher_subscriber' || req.user?.publisherId;
-    
-    // Permitir admins e publishers
-    if (['admin', 'admin_sql', 'owner_system'].includes(userRole || '') || isPublisher) {
-      return next();
-    }
-    
-    return res.status(403).json({ 
-      error: 'Acesso negado',
-      details: [{ msg: 'Apenas administradores e publishers podem criar totens' }]
-    });
-  },
+  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   body('identifier').optional().isString().isLength({ min: 2, max: 100 }),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
   body('uin').optional().isString(),
@@ -260,6 +245,7 @@ router.post('/',
       }
       return true;
     }),
+  body('contract_id').optional().isInt({ min: 1 }).withMessage('Contract ID inválido (opcional, para rastreabilidade)'),
   body('deviceId').optional().isString(),
   body('location').optional().isString().isLength({ min: 2, max: 200 }),
   body('description').optional().isString(),
@@ -273,7 +259,7 @@ router.post('/',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { name, identifier, uin, localId, deviceId, location, firmwareVersion, ...rest } = req.body;
+      const { name, identifier, uin, localId, contract_id, deviceId, location, firmwareVersion, ...rest } = req.body;
       
       // Validar que name ou identifier foi fornecido
       if (!name && !identifier) {
@@ -296,6 +282,7 @@ router.post('/',
         name: name || identifier,
         uin: uin || undefined,
         localId: parseInt(localId),
+        contract_id: contract_id || undefined, // Opcional - para rastreabilidade
         deviceId: deviceId || undefined,
         location,
         firmwareVersion: firmwareVersion || undefined,

@@ -40,6 +40,7 @@ import publisherRoutes from './routes/publishers'; // NOVO: Publishers (publicad
 import localRoutes from './routes/locals'; // NOVO: Locals (locais físicos dos publishers)
 import smartTvRoutes from './routes/smart-tvs'; // NOVO: Smart TVs (controladas pelos totens)
 import subscriberAccessRoutes from './routes/subscriber-access'; // NOVO: Controle de acesso Subscriber → Publisher
+import contractRoutes from './routes/contracts'; // NOVO: Contratos de Subscribers
 import dashboardRoutes from './routes/dashboard';
 import playerRoutes from './routes/players'; // API de gerenciamento de players
 import totemRoutes from './routes/totems';
@@ -290,6 +291,7 @@ app.use('/api/publishers', authMiddleware as any, publisherRoutes); // NOVO: Pub
 app.use('/api/locals', authMiddleware as any, localRoutes); // NOVO: Locals (locais físicos dos publishers)
 app.use('/api/smart-tvs', authMiddleware as any, smartTvRoutes); // NOVO: Smart TVs (controladas pelos totens)
 app.use('/api/subscriber-access', subscriberAccessRoutes); // NOVO: Controle de acesso Subscriber → Publisher
+app.use('/api/contracts', contractRoutes); // NOVO: Contratos de Subscribers
 app.use('/api/totems', totemRoutes);
 app.use('/api/players', authMiddleware as any, playerRoutes);
 app.use('/api/media', blockClientDataAccess as any, mediaRoutes);
