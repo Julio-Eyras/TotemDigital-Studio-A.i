@@ -4,6 +4,7 @@ import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation.middleware';
 import { getPlaylistService } from '../services/playlistService';
+import { getSubscriberService } from '../services/subscriberService';
 import { logError } from '../utils/loggerHelper';
 
 const router = express.Router();
@@ -179,11 +180,25 @@ router.post('/',
       const { name, description, subscriberId, clientId } = req.body; // Aceita subscriberId e clientId (deprecated)
       const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
       const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
+      const finalSubscriberId = subscriberId || clientId;
+      
+      // Validar limites do plano antes de criar playlist
+      if (finalSubscriberId) {
+        try {
+          const subscriberService = getSubscriberService();
+          await subscriberService.validatePlanLimits(finalSubscriberId, 'playlist');
+        } catch (limitError: any) {
+          return res.status(400).json({
+            error: 'Limite do plano excedido',
+            message: limitError.message || 'Limite de playlists do plano foi excedido'
+          });
+        }
+      }
       
       const newPlaylist = await getPlaylistService().createPlaylist({
         name,
         description,
-        subscriberId: subscriberId || clientId, // Priorizar subscriberId
+        subscriberId: finalSubscriberId, // Priorizar subscriberId
         clientId, // Deprecated, mantido para compatibilidade
       }, userSubscriberId, isAdmin);
 
@@ -314,6 +329,35 @@ router.post('/:id/media',
     } catch (error: any) {
       await logError('Erro ao adicionar mídia à playlist', error);
       if (error.message?.includes('Acesso negado') || error.message?.includes('pertence a outro subscriber')) {
+        return res.status(403).json({ error: error.message });
+      }
+      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route PATCH /api/playlists/:id/media/:itemId
+ * @desc Atualizar duração de um item da playlist
+ */
+router.patch('/:id/media/:itemId',
+  param('id').isInt({ min: 1 }).withMessage('ID da playlist inválido'),
+  param('itemId').isInt({ min: 1 }).withMessage('ID do item inválido'),
+  body('duration').isInt({ min: 1000, max: 300000 }).withMessage('Duração deve estar entre 1000ms (1s) e 300000ms (300s)'),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id, itemId } = req.params;
+      const { duration } = req.body;
+      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
+      
+      await getPlaylistService().updatePlaylistItemDuration(parseInt(id), parseInt(itemId), duration, userSubscriberId, isAdmin);
+      
+      res.json({ message: 'Duração do item atualizada com sucesso' });
+    } catch (error: any) {
+      await logError('Erro ao atualizar duração do item da playlist', error);
+      if (error.message?.includes('Acesso negado')) {
         return res.status(403).json({ error: error.message });
       }
       res.status(400).json({ error: error.message || 'Erro interno do servidor' });

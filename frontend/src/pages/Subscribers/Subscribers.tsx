@@ -37,6 +37,10 @@ import {
   MenuItem,
   Tabs,
   Tab,
+  Checkbox,
+  Autocomplete,
+  Pagination,
+  Stack,
 } from '@mui/material';
 import {
   Add,
@@ -112,6 +116,19 @@ const Subscribers: React.FC = () => {
   // clientTypeFilter removido - subscribers não têm tipos
   const [activeOnlyFilter, setActiveOnlyFilter] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  // Estados para paginação
+  const [page, setPage] = useState<number>(1);
+  const [limit, setLimit] = useState<number>(12);
+  const [total, setTotal] = useState<number>(0);
+  // Estados para dashboard
+  const [overallStats, setOverallStats] = useState<{
+    total: number;
+    active: number;
+    inactive: number;
+    totalMedias: number;
+    totalPlaylists: number;
+    totalCampaigns: number;
+  } | null>(null);
   const [detailsTab, setDetailsTab] = useState(0);
   const [createTab, setCreateTab] = useState(0); // NOVO: Aba do dialog de criação
   const [editTab, setEditTab] = useState(0); // NOVO: Aba do dialog de edição
@@ -172,6 +189,11 @@ const Subscribers: React.FC = () => {
   // Estados para itens de playlist
   const [playlistItems, setPlaylistItems] = useState<PlaylistMediaItem[]>([]);
   const [editingPlaylistItemIndex, setEditingPlaylistItemIndex] = useState<number | null>(null);
+  const [selectedMediasForPlaylist, setSelectedMediasForPlaylist] = useState<number[]>([]);
+  const [defaultPlaylistItemDuration, setDefaultPlaylistItemDuration] = useState<number>(10);
+  const [editingItemDuration, setEditingItemDuration] = useState<number | null>(null);
+  const [tempItemDuration, setTempItemDuration] = useState<{ [itemId: number]: number }>({});
+  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
   
   // Estados para campanha (mídias e playlists associadas)
   const [campaignMedias, setCampaignMedias] = useState<any[]>([]);
@@ -250,7 +272,21 @@ const Subscribers: React.FC = () => {
   useEffect(() => {
     loadSubscribers();
     loadAvailableContracts(); // Carregar contratos disponíveis
-  }, [activeOnlyFilter]);
+    loadOverallStats(); // Carregar estatísticas gerais
+  }, [activeOnlyFilter, page, limit]);
+
+  useEffect(() => {
+    // Debounce para busca
+    const timer = setTimeout(() => {
+      if (page === 1) {
+        loadSubscribers();
+      } else {
+        setPage(1); // Resetar para primeira página ao buscar
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
   
   const loadAvailableContracts = async () => {
     try {
@@ -286,15 +322,53 @@ const Subscribers: React.FC = () => {
       setError(null);
       const response = await subscriberApi.getAll({
         search: searchTerm || undefined,
-        
         active_only: activeOnlyFilter,
+        page,
+        limit,
       });
       setSubscribers(response.data || []);
+      setTotal(response.total || response.data?.length || 0);
     } catch (error) {
       console.error('Erro ao carregar Subscribers:', error);
       setError('Erro ao carregar lista de Subscribers');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadOverallStats = async () => {
+    try {
+      const allSubscribers = await subscriberApi.getAll({ limit: 10000 });
+      const subscribers = allSubscribers.data || [];
+      
+      let totalMedias = 0;
+      let totalPlaylists = 0;
+      let totalCampaigns = 0;
+
+      // Carregar estatísticas de cada subscriber
+      for (const subscriber of subscribers.slice(0, 50)) { // Limitar a 50 para não sobrecarregar
+        try {
+          const stats = await subscriberApi.getStats(subscriber.subscriber_id);
+          if (stats) {
+            totalMedias += stats.media_count || 0;
+            totalPlaylists += stats.playlist_count || 0;
+            totalCampaigns += stats.campaign_count || 0;
+          }
+        } catch (err) {
+          // Ignorar erros individuais
+        }
+      }
+
+      setOverallStats({
+        total: subscribers.length,
+        active: subscribers.filter(s => s.is_active).length,
+        inactive: subscribers.filter(s => !s.is_active).length,
+        totalMedias,
+        totalPlaylists,
+        totalCampaigns,
+      });
+    } catch (error) {
+      console.error('Erro ao carregar estatísticas gerais:', error);
     }
   };
 
@@ -865,6 +939,20 @@ const Subscribers: React.FC = () => {
       return;
     }
 
+    // Validação prévia de limites (apenas para criação)
+    if (editingEditPlaylistIndex === null) {
+      try {
+        const validation = await subscriberApi.validatePlanLimits(selectedSubscriber.subscriber_id, 'playlist');
+        if (!validation.valid) {
+          setError(validation.message);
+          return;
+        }
+      } catch (err: any) {
+        console.error('Erro na validação prévia:', err);
+        // Continuar mesmo se validação falhar (backend vai validar)
+      }
+    }
+
     try {
       if (editingEditPlaylistIndex !== null) {
         const playlist = editPlaylists[editingEditPlaylistIndex];
@@ -894,6 +982,7 @@ const Subscribers: React.FC = () => {
       isActive: playlist.is_active !== undefined ? playlist.is_active : true,
     });
     setEditingEditPlaylistIndex(index);
+    setSelectedMediasForPlaylist([]);
     
     // Carregar itens da playlist
     try {
@@ -902,6 +991,36 @@ const Subscribers: React.FC = () => {
     } catch (error) {
       console.error('Erro ao carregar itens da playlist:', error);
       setPlaylistItems([]);
+    }
+  };
+
+  const handleAddMediasToPlaylist = async () => {
+    if (editingEditPlaylistIndex === null || selectedMediasForPlaylist.length === 0) {
+      return;
+    }
+
+    try {
+      const playlist = editPlaylists[editingEditPlaylistIndex];
+      
+      // Adicionar cada mídia selecionada à playlist
+      for (const mediaId of selectedMediasForPlaylist) {
+        await playlistApi.addMedia(
+          playlist.playlist_id,
+          mediaId,
+          undefined, // orderIndex será calculado automaticamente
+          defaultPlaylistItemDuration * 1000 // Converter segundos para milissegundos
+        );
+      }
+
+      // Recarregar itens da playlist
+      const items = await playlistApi.getMedia(playlist.playlist_id);
+      setPlaylistItems(items || []);
+      
+      // Limpar seleção
+      setSelectedMediasForPlaylist([]);
+    } catch (error: any) {
+      console.error('Erro ao adicionar mídias à playlist:', error);
+      setError('Erro ao adicionar mídias à playlist: ' + (error.response?.data?.error || error.message));
     }
   };
 
@@ -926,6 +1045,20 @@ const Subscribers: React.FC = () => {
     if (!selectedSubscriber || !editCampaignForm.title) {
       setError('Título da campanha é obrigatório');
       return;
+    }
+
+    // Validação prévia de limites (apenas para criação)
+    if (editingEditCampaignIndex === null) {
+      try {
+        const validation = await subscriberApi.validatePlanLimits(selectedSubscriber.subscriber_id, 'campaign');
+        if (!validation.valid) {
+          setError(validation.message);
+          return;
+        }
+      } catch (err: any) {
+        console.error('Erro na validação prévia:', err);
+        // Continuar mesmo se validação falhar (backend vai validar)
+      }
     }
 
     try {
@@ -1631,6 +1764,29 @@ const Subscribers: React.FC = () => {
           </Grid>
         ))}
       </Grid>
+
+      {/* Paginação */}
+      {total > 0 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, mb: 2 }}>
+          <Stack spacing={2}>
+            <Pagination
+              count={Math.ceil(total / limit)}
+              page={page}
+              onChange={(_, value) => {
+                setPage(value);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              color="primary"
+              size="large"
+              showFirstButton
+              showLastButton
+            />
+            <Typography variant="body2" color="text.secondary" textAlign="center">
+              Mostrando {((page - 1) * limit) + 1} - {Math.min(page * limit, total)} de {total} assinantes
+            </Typography>
+          </Stack>
+        </Box>
+      )}
 
       {/* Empty State */}
       {Subscribers.length === 0 && !loading && (
@@ -2660,6 +2816,9 @@ const Subscribers: React.FC = () => {
                           setEditingEditPlaylistIndex(null);
                           setEditPlaylistForm({ name: '', description: '', isActive: true });
                           setPlaylistItems([]);
+                          setSelectedMediasForPlaylist([]);
+                          setEditingItemDuration(null);
+                          setTempItemDuration({});
                         }}
                         sx={{ ml: 1 }}
                       >
@@ -2670,26 +2829,253 @@ const Subscribers: React.FC = () => {
                 </Grid>
               </Box>
 
+              {/* Seção para adicionar mídias à playlist */}
+              {editingEditPlaylistIndex !== null && (
+                <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: alpha(theme.palette.info.main, 0.05) }}>
+                  <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                    Adicionar Mídias à Playlist
+                  </Typography>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      <Autocomplete
+                        multiple
+                        options={editMedias.filter(m => m.isActive)}
+                        getOptionLabel={(option) => option.name || `Mídia ${option.media_id}`}
+                        value={editMedias.filter(m => selectedMediasForPlaylist.includes(m.media_id))}
+                        onChange={(_, newValue) => {
+                          setSelectedMediasForPlaylist(newValue.map(m => m.media_id));
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Selecionar Mídias"
+                            placeholder="Escolha as mídias para adicionar"
+                            size="small"
+                          />
+                        )}
+                        renderOption={(props, option) => (
+                          <li {...props} key={option.media_id}>
+                            <Checkbox
+                              checked={selectedMediasForPlaylist.includes(option.media_id)}
+                            />
+                            <Box sx={{ ml: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                              {option.mediaType === 'image' && <ImageIcon fontSize="small" />}
+                              {option.mediaType === 'video' && <VideoLibrary fontSize="small" />}
+                              {option.mediaType === 'audio' && <AudioFile fontSize="small" />}
+                              <Typography>{option.name}</Typography>
+                              {option.mediaType && (
+                                <Chip label={option.mediaType} size="small" variant="outlined" />
+                              )}
+                            </Box>
+                          </li>
+                        )}
+                        filterSelectedOptions
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Duração por Item (segundos)"
+                        type="number"
+                        value={defaultPlaylistItemDuration}
+                        onChange={(e) => setDefaultPlaylistItemDuration(parseInt(e.target.value) || 10)}
+                        size="small"
+                        inputProps={{ min: 1, max: 300 }}
+                        helperText="Duração padrão para as mídias adicionadas (1-300 segundos)"
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Button
+                        variant="contained"
+                        startIcon={<Add />}
+                        onClick={handleAddMediasToPlaylist}
+                        disabled={selectedMediasForPlaylist.length === 0}
+                        fullWidth
+                        sx={{ mt: 1 }}
+                      >
+                        Adicionar {selectedMediasForPlaylist.length > 0 ? `${selectedMediasForPlaylist.length} ` : ''}Mídia{selectedMediasForPlaylist.length !== 1 ? 's' : ''}
+                      </Button>
+                    </Grid>
+                  </Grid>
+                  
+                  {editMedias.filter(m => m.isActive).length === 0 && (
+                    <Alert severity="warning" sx={{ mt: 2 }}>
+                      Nenhuma mídia ativa disponível. Faça upload de mídias na aba "Mídias" primeiro.
+                    </Alert>
+                  )}
+                </Box>
+              )}
+
               {editingEditPlaylistIndex !== null && playlistItems.length > 0 && (
                 <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
-                  <Typography variant="subtitle2" sx={{ mb: 2 }}>Itens da Playlist</Typography>
+                  <Typography variant="subtitle2" sx={{ mb: 2 }}>Itens da Playlist ({playlistItems.length})</Typography>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Arraste os itens para reordenar a playlist. Clique e segure no ícone de arrastar (⋮⋮) para mover.
+                  </Alert>
                   <List>
-                    {playlistItems.map((item, index) => (
-                      <ListItem key={item.item_id || index} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
-                        <ListItemIcon><DragIndicator /></ListItemIcon>
-                        <ListItemText
-                          primary={(item as any).mediaName || (item as any).media_name || `Item ${index + 1}`}
-                          secondary={`Duração: ${(item as any).display_seconds || (item as any).display_duration || 10}s | Ordem: ${item.order_index || index}`}
-                        />
-                        <IconButton size="small" onClick={async () => {
-                          const playlist = editPlaylists[editingEditPlaylistIndex];
-                          await playlistApi.removeMedia(playlist.playlist_id, item.item_id);
-                          await handleStartEditPlaylist(editingEditPlaylistIndex);
-                        }}>
-                          <Delete />
-                        </IconButton>
-                      </ListItem>
-                    ))}
+                    {playlistItems.map((item, index) => {
+                      const durationMs = (item as any).display_seconds || (item as any).display_duration || 10000;
+                      const durationSec = Math.round(durationMs / 1000);
+                      const isEditing = editingItemDuration === item.item_id;
+                      const tempDuration = tempItemDuration[item.item_id] ?? durationSec;
+                      const isDragging = draggedItemIndex === index;
+
+                      return (
+                        <ListItem
+                          key={item.item_id || index}
+                          sx={{
+                            border: `1px solid ${theme.palette.divider}`,
+                            borderRadius: 1,
+                            mb: 1,
+                            cursor: 'move',
+                            opacity: isDragging ? 0.5 : 1,
+                            bgcolor: isDragging ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                              bgcolor: alpha(theme.palette.primary.main, 0.05),
+                            },
+                          }}
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggedItemIndex(index);
+                            e.dataTransfer.effectAllowed = 'move';
+                            e.dataTransfer.setData('text/plain', index.toString());
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                          }}
+                          onDrop={async (e) => {
+                            e.preventDefault();
+                            const draggedIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                            const targetIndex = index;
+
+                            if (draggedIndex === targetIndex) {
+                              setDraggedItemIndex(null);
+                              return;
+                            }
+
+                            try {
+                              const playlist = editPlaylists[editingEditPlaylistIndex!];
+                              const reorderedItems = [...playlistItems];
+                              const [removed] = reorderedItems.splice(draggedIndex, 1);
+                              reorderedItems.splice(targetIndex, 0, removed);
+
+                              // Atualizar order_index de cada item
+                              const itemsToReorder = reorderedItems.map((item, idx) => ({
+                                itemId: item.item_id,
+                                orderIndex: idx + 1,
+                              }));
+
+                              await playlistApi.reorderMedia(playlist.playlist_id, itemsToReorder);
+                              await handleStartEditPlaylist(editingEditPlaylistIndex!);
+                            } catch (error: any) {
+                              console.error('Erro ao reordenar itens:', error);
+                              setError('Erro ao reordenar itens: ' + (error.response?.data?.error || error.message));
+                            } finally {
+                              setDraggedItemIndex(null);
+                            }
+                          }}
+                          onDragEnd={() => {
+                            setDraggedItemIndex(null);
+                          }}
+                        >
+                          <ListItemIcon
+                            sx={{
+                              cursor: 'grab',
+                              '&:active': {
+                                cursor: 'grabbing',
+                              },
+                            }}
+                          >
+                            <DragIndicator />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={(item as any).mediaName || (item as any).media_name || `Item ${index + 1}`}
+                            secondary={`Ordem: ${item.order_index !== undefined ? item.order_index : index + 1}`}
+                            sx={{ flex: 1 }}
+                          />
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1 }}>
+                            {isEditing ? (
+                              <>
+                                <TextField
+                                  type="number"
+                                  size="small"
+                                  value={tempDuration}
+                                  onChange={(e) => setTempItemDuration({ ...tempItemDuration, [item.item_id]: parseInt(e.target.value) || 10 })}
+                                  inputProps={{ min: 1, max: 300 }}
+                                  sx={{ width: '80px' }}
+                                />
+                                <Typography variant="caption">s</Typography>
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={async () => {
+                                    try {
+                                      const playlist = editPlaylists[editingEditPlaylistIndex!];
+                                      await playlistApi.updateItemDuration(
+                                        playlist.playlist_id,
+                                        item.item_id,
+                                        tempDuration * 1000 // Converter para milissegundos
+                                      );
+                                      await handleStartEditPlaylist(editingEditPlaylistIndex!);
+                                      setEditingItemDuration(null);
+                                      setTempItemDuration({});
+                                    } catch (error: any) {
+                                      console.error('Erro ao atualizar duração:', error);
+                                      setError('Erro ao atualizar duração: ' + (error.response?.data?.error || error.message));
+                                    }
+                                  }}
+                                >
+                                  <CheckCircle fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    setEditingItemDuration(null);
+                                    const newTemp = { ...tempItemDuration };
+                                    delete newTemp[item.item_id];
+                                    setTempItemDuration(newTemp);
+                                  }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </>
+                            ) : (
+                              <>
+                                <Typography variant="body2" color="text.secondary">
+                                  {durationSec}s
+                                </Typography>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    setEditingItemDuration(item.item_id);
+                                    setTempItemDuration({ ...tempItemDuration, [item.item_id]: durationSec });
+                                  }}
+                                  title="Editar duração"
+                                >
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </>
+                            )}
+                          </Box>
+                          <IconButton size="small" onClick={async () => {
+                            if (!window.confirm('Tem certeza que deseja remover este item da playlist?')) return;
+                            try {
+                              const playlist = editPlaylists[editingEditPlaylistIndex!];
+                              await playlistApi.removeMedia(playlist.playlist_id, item.item_id);
+                              await handleStartEditPlaylist(editingEditPlaylistIndex!);
+                            } catch (error: any) {
+                              console.error('Erro ao remover item:', error);
+                              setError('Erro ao remover item: ' + (error.response?.data?.error || error.message));
+                            }
+                          }}>
+                            <Delete />
+                          </IconButton>
+                        </ListItem>
+                      );
+                    })}
                   </List>
                 </Box>
               )}

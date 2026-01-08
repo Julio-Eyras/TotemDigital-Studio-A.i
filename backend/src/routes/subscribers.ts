@@ -281,5 +281,126 @@ router.get('/:id/contracts',
   }
 );
 
+/**
+ * @route GET /api/subscribers/:id/validate/plan-limits
+ * @desc Validar limites de plano antes de criar recurso
+ */
+router.get('/:id/validate/plan-limits',
+  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  query('resourceType').isIn(['media', 'playlist', 'campaign']).withMessage('Tipo de recurso inválido'),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const { resourceType } = req.query;
+      
+      const limits = await getSubscriberService().getMaxLimits(parseInt(id));
+      const currentCount = await getSubscriberService().getCurrentResourceCount(
+        parseInt(id),
+        resourceType as 'media' | 'playlist' | 'campaign'
+      );
+      
+      const limitKey = resourceType === 'media' ? 'medias' : 
+                      resourceType === 'playlist' ? 'playlists' : 
+                      'campaigns';
+      const maxLimit = limits[limitKey];
+      
+      const canCreate = maxLimit === null || maxLimit === undefined || currentCount < maxLimit;
+      
+      return res.json({
+        valid: canCreate,
+        current: currentCount,
+        limit: maxLimit,
+        remaining: maxLimit !== null && maxLimit !== undefined ? maxLimit - currentCount : null,
+        message: canCreate 
+          ? `Você pode criar ${maxLimit !== null && maxLimit !== undefined ? maxLimit - currentCount : 'ilimitados'} ${resourceType === 'media' ? 'mídia(s)' : resourceType === 'playlist' ? 'playlist(s)' : 'campanha(s)'}`
+          : `Limite atingido: você já possui ${currentCount} ${resourceType === 'media' ? 'mídia(s)' : resourceType === 'playlist' ? 'playlist(s)' : 'campanha(s)'} de ${maxLimit} permitidas`
+      });
+    } catch (error: any) {
+      await logError('Erro ao validar limites de plano', error);
+      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/subscribers/:id/validate/storage
+ * @desc Validar limite de storage antes de fazer upload
+ */
+router.get('/:id/validate/storage',
+  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  query('fileSizeBytes').isInt({ min: 0 }).withMessage('Tamanho do arquivo inválido'),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const { fileSizeBytes } = req.query;
+      
+      const limits = await getSubscriberService().getMaxLimits(parseInt(id));
+      const currentStorage = await getSubscriberService().getCurrentStorage(parseInt(id));
+      
+      const maxStorageBytes = limits.storage_gb !== null && limits.storage_gb !== undefined
+        ? limits.storage_gb * 1024 * 1024 * 1024
+        : null;
+      
+      const newFileSizeBytes = parseInt(fileSizeBytes as string);
+      const totalAfterUpload = currentStorage + newFileSizeBytes;
+      
+      const canUpload = maxStorageBytes === null || totalAfterUpload <= maxStorageBytes;
+      
+      return res.json({
+        valid: canUpload,
+        currentBytes: currentStorage,
+        currentGB: currentStorage / (1024 * 1024 * 1024),
+        limitBytes: maxStorageBytes,
+        limitGB: maxStorageBytes ? maxStorageBytes / (1024 * 1024 * 1024) : null,
+        fileSizeBytes: newFileSizeBytes,
+        fileSizeGB: newFileSizeBytes / (1024 * 1024 * 1024),
+        totalAfterUploadBytes: totalAfterUpload,
+        totalAfterUploadGB: totalAfterUpload / (1024 * 1024 * 1024),
+        remainingBytes: maxStorageBytes ? maxStorageBytes - currentStorage : null,
+        remainingGB: maxStorageBytes ? (maxStorageBytes - currentStorage) / (1024 * 1024 * 1024) : null,
+        message: canUpload
+          ? `Upload permitido. Storage disponível: ${maxStorageBytes ? ((maxStorageBytes - currentStorage) / (1024 * 1024 * 1024)).toFixed(2) : 'ilimitado'} GB`
+          : `Limite de storage excedido. Você tem ${(currentStorage / (1024 * 1024 * 1024)).toFixed(2)} GB de ${maxStorageBytes ? (maxStorageBytes / (1024 * 1024 * 1024)).toFixed(2) : 'ilimitado'} GB permitidos`
+      });
+    } catch (error: any) {
+      await logError('Erro ao validar storage', error);
+      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/subscribers/:id/validate/totem-access
+ * @desc Validar acesso a totem antes de associar campanha
+ */
+router.get('/:id/validate/totem-access',
+  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  query('totemId').isInt({ min: 1 }).withMessage('Totem ID inválido'),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const { totemId } = req.query;
+      
+      const hasAccess = await getSubscriberService().validateTotemAccess(
+        parseInt(id),
+        parseInt(totemId as string)
+      );
+      
+      return res.json({
+        valid: hasAccess,
+        message: hasAccess
+          ? 'Acesso ao totem permitido'
+          : 'Acesso negado: você não tem permissão para acessar este totem através de seus contratos/planos'
+      });
+    } catch (error: any) {
+      await logError('Erro ao validar acesso a totem', error);
+      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+    }
+  }
+);
+
 export default router;
 

@@ -55,7 +55,7 @@ class APIClient {
   }
 
   /**
-   * Faz requisição HTTP
+   * Faz requisição HTTP com tratamento de erros melhorado
    */
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
@@ -95,13 +95,69 @@ class APIClient {
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: response.statusText }));
+        
+        // Tratamento específico para erros de validação
+        if (response.status === 403) {
+          const validationError = new Error(error.error || 'Acesso negado');
+          validationError.status = 403;
+          validationError.code = 'FORBIDDEN';
+          validationError.details = error.details || error.message;
+          throw validationError;
+        }
+        
+        if (response.status === 400) {
+          const validationError = new Error(error.error || 'Dados inválidos');
+          validationError.status = 400;
+          validationError.code = 'BAD_REQUEST';
+          validationError.details = error.details || error.message;
+          throw validationError;
+        }
+        
         throw new Error(error.error || `HTTP ${response.status}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      
+      // Validar se resposta contém informações de contrato válido
+      if (data.contract_valid === false) {
+        console.warn('Campanha sem contrato válido:', data);
+        // Não lançar erro, apenas logar - o player pode usar fallback
+      }
+      
+      return data;
     } catch (error) {
       console.error('API Request Error:', error);
+      
+      // Logar erro de validação para debugging
+      if (error.status === 403 || error.status === 400) {
+        this.logValidationError(endpoint, error);
+      }
+      
       throw error;
+    }
+  }
+
+  /**
+   * Loga erros de validação para debugging
+   */
+  logValidationError(endpoint, error) {
+    const logData = {
+      endpoint,
+      status: error.status,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      timestamp: new Date().toISOString(),
+      uin: this.totemUIN
+    };
+    
+    console.warn('[Validation Error]', logData);
+    
+    // Tentar enviar log para backend se disponível
+    if (this.token && this.baseURL) {
+      this.sendErrorLog(error, logData).catch(err => {
+        console.warn('Failed to send validation error log:', err);
+      });
     }
   }
 

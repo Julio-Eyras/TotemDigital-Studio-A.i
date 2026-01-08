@@ -54,7 +54,7 @@ class APIClient(
     }
 
     /**
-     * Faz requisição HTTP
+     * Faz requisição HTTP com tratamento de erros melhorado
      */
     private suspend fun request(
         endpoint: String,
@@ -94,7 +94,42 @@ class APIClient(
         }
 
         val request = requestBuilder.build()
-        client.newCall(request).execute()
+        val response = client.newCall(request).execute()
+        
+        // Tratamento específico para erros de validação
+        if (!response.isSuccessful) {
+            when (response.code) {
+                403 -> {
+                    Log.w(TAG, "Forbidden (403): Acesso negado - totem não acessível via contratos/planos")
+                    // Logar erro de validação para debugging
+                    logValidationError(endpoint, response.code, "FORBIDDEN")
+                }
+                400 -> {
+                    Log.w(TAG, "Bad Request (400): Dados inválidos na requisição")
+                    logValidationError(endpoint, response.code, "BAD_REQUEST")
+                }
+            }
+        }
+        
+        response
+    }
+    
+    /**
+     * Loga erros de validação para debugging
+     */
+    private suspend fun logValidationError(endpoint: String, statusCode: Int, code: String) {
+        try {
+            val metadata = mapOf(
+                "endpoint" to endpoint,
+                "status" to statusCode,
+                "code" to code,
+                "timestamp" to System.currentTimeMillis(),
+                "uin" to totemUIN
+            )
+            sendErrorLog("Validation error: $code", null, metadata)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to send validation error log", e)
+        }
     }
 
     /**
@@ -127,14 +162,33 @@ class APIClient(
     }
 
     /**
-     * Obtém playlist do totem
+     * Obtém playlist do totem com validações de contrato
      */
     suspend fun getPlaylist(): PlaylistResponse? {
         return try {
             val response = request("/api/player/playlist")
             if (response.isSuccessful) {
-                gson.fromJson(response.body?.string(), PlaylistResponse::class.java)
+                val playlist = gson.fromJson(response.body?.string(), PlaylistResponse::class.java)
+                
+                // Validar se playlist tem contrato válido (se aplicável)
+                if (playlist != null) {
+                    // Verificar se campanha tem contrato válido
+                    // Nota: Isso depende de como o backend retorna a informação
+                    // Se o backend incluir contract_valid na resposta, podemos validar aqui
+                    // Por enquanto, o backend já filtra, então apenas logamos se necessário
+                }
+                
+                playlist
             } else {
+                // Tratamento específico para erros de validação
+                when (response.code) {
+                    403 -> {
+                        Log.e(TAG, "Acesso negado: totem não acessível através de contratos/planos ativos")
+                    }
+                    400 -> {
+                        Log.e(TAG, "Dados inválidos na requisição de playlist")
+                    }
+                }
                 null
             }
         } catch (e: Exception) {

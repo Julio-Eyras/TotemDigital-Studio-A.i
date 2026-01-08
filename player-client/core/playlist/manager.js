@@ -13,7 +13,7 @@ class PlaylistManager {
   }
 
   /**
-   * Carrega playlist do servidor
+   * Carrega playlist do servidor com validações de contrato
    */
   async loadPlaylist() {
     try {
@@ -22,6 +22,24 @@ class PlaylistManager {
       // Validar playlist
       if (!this.validatePlaylist(playlist)) {
         throw new Error('Invalid playlist format');
+      }
+
+      // Validar se campanha tem contrato válido (se aplicável)
+      if (playlist.campaign_id && playlist.contract_valid === false) {
+        console.warn('Campanha sem contrato válido, usando fallback');
+        // Filtrar itens de campanha sem contrato válido
+        if (playlist.items && Array.isArray(playlist.items)) {
+          playlist.items = playlist.items.filter(item => {
+            // Manter itens que não são de campanha ou que têm contrato válido
+            return !item.campaign_id || item.contract_valid !== false;
+          });
+        }
+      }
+
+      // Validar acesso ao totem (se informação disponível)
+      if (playlist.access_granted === false) {
+        console.warn('Acesso ao totem negado via contratos/planos');
+        throw new Error('Acesso negado: totem não acessível através de contratos/planos ativos');
       }
 
       this.currentPlaylist = playlist;
@@ -37,6 +55,12 @@ class PlaylistManager {
       return playlist;
     } catch (error) {
       console.error('Failed to load playlist:', error);
+      
+      // Tratamento específico para erros de validação
+      if (error.status === 403 || error.code === 'FORBIDDEN') {
+        console.error('Acesso negado ao totem:', error.details || error.message);
+        // Tentar usar playlist padrão ou cache
+      }
       
       // Tentar carregar do cache
       if (this.cache) {

@@ -63,6 +63,21 @@ import {
 
 const Contracts: React.FC = () => {
   const theme = useTheme();
+  
+  // Obter role do usuário para proteção de valores contratuais
+  const getUserRole = (): string => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      return user.role || '';
+    } catch {
+      return '';
+    }
+  };
+
+  const userRole = getUserRole();
+  // Roles que podem ver valores contratuais sensíveis
+  const canViewSensitiveValues = ['admin', 'admin_sql', 'owner_system', 'operador_faturamento'].includes(userRole);
+  
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -536,11 +551,19 @@ const Contracts: React.FC = () => {
                   </Box>
                 )}
 
-                {contract.total_amount && (
+                {contract.total_amount && canViewSensitiveValues && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
                     <AttachMoney fontSize="small" color="action" />
                     <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
                       {contract.currency} {contract.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </Typography>
+                  </Box>
+                )}
+                {contract.total_amount && !canViewSensitiveValues && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                    <AttachMoney fontSize="small" color="action" />
+                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontStyle: 'italic' }}>
+                      Valor confidencial
                     </Typography>
                   </Box>
                 )}
@@ -712,17 +735,19 @@ const Contracts: React.FC = () => {
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Valor Total"
-                    type="number"
-                    value={contractForm.total_amount || ''}
-                    onChange={(e) => setContractForm({ ...contractForm, total_amount: e.target.value ? Number(e.target.value) : undefined })}
-                    margin="normal"
-                    InputProps={{
-                      startAdornment: <Typography sx={{ mr: 1 }}>{contractForm.currency}</Typography>,
-                    }}
-                  />
+                  {canViewSensitiveValues && (
+                    <TextField
+                      fullWidth
+                      label="Valor Total"
+                      type="number"
+                      value={contractForm.total_amount || ''}
+                      onChange={(e) => setContractForm({ ...contractForm, total_amount: e.target.value ? Number(e.target.value) : undefined })}
+                      margin="normal"
+                      InputProps={{
+                        startAdornment: <Typography sx={{ mr: 1 }}>{contractForm.currency}</Typography>,
+                      }}
+                    />
+                  )}
                 </Grid>
 
                 <Grid item xs={12} md={6}>
@@ -758,15 +783,17 @@ const Contracts: React.FC = () => {
                 </Grid>
 
                 <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Condições de Pagamento"
-                    value={contractForm.payment_terms}
-                    onChange={(e) => setContractForm({ ...contractForm, payment_terms: e.target.value })}
-                    margin="normal"
-                    multiline
-                    rows={2}
-                  />
+                  {canViewSensitiveValues && (
+                    <TextField
+                      fullWidth
+                      label="Condições de Pagamento"
+                      value={contractForm.payment_terms}
+                      onChange={(e) => setContractForm({ ...contractForm, payment_terms: e.target.value })}
+                      margin="normal"
+                      multiline
+                      rows={2}
+                    />
+                  )}
                 </Grid>
               </Grid>
             </Box>
@@ -962,17 +989,19 @@ const Contracts: React.FC = () => {
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Valor Total"
-                    type="number"
-                    value={contractForm.total_amount || ''}
-                    onChange={(e) => setContractForm({ ...contractForm, total_amount: e.target.value ? Number(e.target.value) : undefined })}
-                    margin="normal"
-                    InputProps={{
-                      startAdornment: <Typography sx={{ mr: 1 }}>{contractForm.currency}</Typography>,
-                    }}
-                  />
+                  {canViewSensitiveValues && (
+                    <TextField
+                      fullWidth
+                      label="Valor Total"
+                      type="number"
+                      value={contractForm.total_amount || ''}
+                      onChange={(e) => setContractForm({ ...contractForm, total_amount: e.target.value ? Number(e.target.value) : undefined })}
+                      margin="normal"
+                      InputProps={{
+                        startAdornment: <Typography sx={{ mr: 1 }}>{contractForm.currency}</Typography>,
+                      }}
+                    />
+                  )}
                 </Grid>
 
                 <Grid item xs={12} md={6}>
@@ -1008,15 +1037,17 @@ const Contracts: React.FC = () => {
                 </Grid>
 
                 <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Condições de Pagamento"
-                    value={contractForm.payment_terms}
-                    onChange={(e) => setContractForm({ ...contractForm, payment_terms: e.target.value })}
-                    margin="normal"
-                    multiline
-                    rows={2}
-                  />
+                  {canViewSensitiveValues && (
+                    <TextField
+                      fullWidth
+                      label="Condições de Pagamento"
+                      value={contractForm.payment_terms}
+                      onChange={(e) => setContractForm({ ...contractForm, payment_terms: e.target.value })}
+                      margin="normal"
+                      multiline
+                      rows={2}
+                    />
+                  )}
                 </Grid>
               </Grid>
             </Box>

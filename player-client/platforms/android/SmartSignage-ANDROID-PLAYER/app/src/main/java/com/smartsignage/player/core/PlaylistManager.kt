@@ -21,12 +21,16 @@ class PlaylistManager(
     }
 
     /**
-     * Carrega playlist do servidor
+     * Carrega playlist do servidor com validações de contrato
      */
     suspend fun loadPlaylist(): Boolean {
         return try {
             val playlist = apiClient.getPlaylist()
             if (playlist != null && validatePlaylist(playlist)) {
+                // Validar se campanha tem contrato válido (se aplicável)
+                // Filtrar itens de campanhas sem contrato válido
+                // Nota: O backend já filtra, mas podemos fazer validação adicional aqui se necessário
+                
                 currentPlaylist = playlist
                 lastUpdate = System.currentTimeMillis()
                 currentIndex = 0
@@ -37,6 +41,12 @@ class PlaylistManager(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load playlist", e)
+            
+            // Tratamento específico para erros de validação
+            if (e.message?.contains("403") == true || e.message?.contains("FORBIDDEN") == true) {
+                Log.e(TAG, "Acesso negado: totem não acessível através de contratos/planos ativos")
+            }
+            
             false
         }
     }

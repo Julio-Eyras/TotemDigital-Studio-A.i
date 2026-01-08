@@ -77,7 +77,11 @@ import {
   CreateSmartTvRequest,
   SmartTv,
   contractApi,
-  Contract
+  Contract,
+  publisherContractApi,
+  PublisherContract,
+  CreatePublisherContractRequest,
+  UpdatePublisherContractRequest,
 } from '../../services/api';
 
 const Publishers: React.FC = () => {
@@ -128,7 +132,19 @@ const Publishers: React.FC = () => {
   const [editTotems, setEditTotems] = useState<any[]>([]);
   const [editSmartTvs, setEditSmartTvs] = useState<any[]>([]);
   const [editContracts, setEditContracts] = useState<Contract[]>([]);
+  const [editPublisherContracts, setEditPublisherContracts] = useState<PublisherContract[]>([]);
   const [loadingEditContracts, setLoadingEditContracts] = useState(false);
+  const [editingPublisherContractIndex, setEditingPublisherContractIndex] = useState<number | null>(null);
+  const [publisherContractForm, setPublisherContractForm] = useState<Partial<CreatePublisherContractRequest>>({
+    contract_number: '',
+    contract_type: 'revenue_share',
+    title: '',
+    description: '',
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: undefined,
+    currency: 'BRL',
+    status: 'draft',
+  });
   const [editingEditLocalIndex, setEditingEditLocalIndex] = useState<number | null>(null);
   const [editingEditTotemIndex, setEditingEditTotemIndex] = useState<number | null>(null);
   const [editingEditSmartTvIndex, setEditingEditSmartTvIndex] = useState<number | null>(null);
@@ -296,7 +312,7 @@ const Publishers: React.FC = () => {
     }
   };
 
-  // Carregar contratos do publisher
+  // Carregar contratos do publisher (subscriber contracts associados)
   const loadPublisherContracts = async (publisherId: number) => {
     try {
       setLoadingEditContracts(true);
@@ -305,11 +321,89 @@ const Publishers: React.FC = () => {
         activeOnly: false,
       });
       setEditContracts(response.data || []);
+      
+      // Carregar também publisher contracts
+      try {
+        const publisherContracts = await publisherContractApi.getByPublisher(publisherId);
+        setEditPublisherContracts(Array.isArray(publisherContracts) ? publisherContracts : []);
+      } catch (err) {
+        console.error('Erro ao carregar publisher contracts:', err);
+        setEditPublisherContracts([]);
+      }
     } catch (error) {
       console.error('Erro ao carregar contratos do publisher:', error);
       setEditContracts([]);
     } finally {
       setLoadingEditContracts(false);
+    }
+  };
+
+  // Funções CRUD para Publisher Contracts
+  const handleAddPublisherContract = async () => {
+    if (!selectedPublisher || !publisherContractForm.contract_number || !publisherContractForm.title) {
+      setError('Número do contrato e título são obrigatórios');
+      return;
+    }
+
+    try {
+      if (editingPublisherContractIndex !== null) {
+        const contract = editPublisherContracts[editingPublisherContractIndex];
+        await publisherContractApi.update(contract.contract_id, publisherContractForm as UpdatePublisherContractRequest);
+        await loadPublisherContracts(selectedPublisher.publisher_id);
+        setEditingPublisherContractIndex(null);
+      } else {
+        await publisherContractApi.create({
+          ...publisherContractForm,
+          publisher_id: selectedPublisher.publisher_id,
+        } as CreatePublisherContractRequest);
+        await loadPublisherContracts(selectedPublisher.publisher_id);
+      }
+      setPublisherContractForm({
+        contract_number: '',
+        contract_type: 'revenue_share',
+        title: '',
+        description: '',
+        start_date: new Date().toISOString().split('T')[0],
+        end_date: undefined,
+        currency: 'BRL',
+        status: 'draft',
+      });
+    } catch (error: any) {
+      console.error('Erro ao salvar publisher contract:', error);
+      setError(error?.response?.data?.error || 'Erro ao salvar contrato');
+    }
+  };
+
+  const handleStartEditPublisherContract = (index: number) => {
+    const contract = editPublisherContracts[index];
+    setPublisherContractForm({
+      contract_number: contract.contract_number,
+      contract_type: contract.contract_type,
+      title: contract.title,
+      description: contract.description,
+      start_date: contract.start_date,
+      end_date: contract.end_date,
+      revenue_share_percentage: contract.revenue_share_percentage,
+      minimum_payout_amount: contract.minimum_payout_amount,
+      subscription_amount: contract.subscription_amount,
+      subscription_interval: contract.subscription_interval,
+      currency: contract.currency,
+      payment_terms: contract.payment_terms,
+      status: contract.status,
+    });
+    setEditingPublisherContractIndex(index);
+  };
+
+  const handleDeletePublisherContract = async (index: number) => {
+    if (!selectedPublisher || !window.confirm('Tem certeza que deseja excluir este contrato?')) return;
+    
+    try {
+      const contract = editPublisherContracts[index];
+      await publisherContractApi.delete(contract.contract_id);
+      await loadPublisherContracts(selectedPublisher.publisher_id);
+    } catch (error: any) {
+      console.error('Erro ao excluir publisher contract:', error);
+      setError(error?.response?.data?.error || 'Erro ao excluir contrato');
     }
   };
 
@@ -2819,13 +2913,297 @@ const Publishers: React.FC = () => {
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>Contratos do Publicador</Typography>
               
+              {/* Formulário para criar/editar Publisher Contract */}
+              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingPublisherContractIndex !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                  {editingPublisherContractIndex !== null ? 'Editar Contrato de Publisher' : 'Adicionar Contrato de Publisher'}
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Número do Contrato *"
+                      value={publisherContractForm.contract_number || ''}
+                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_number: e.target.value })}
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small" required>
+                      <InputLabel>Tipo de Contrato *</InputLabel>
+                      <Select
+                        value={publisherContractForm.contract_type || 'revenue_share'}
+                        label="Tipo de Contrato *"
+                        onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_type: e.target.value as any })}
+                      >
+                        <MenuItem value="revenue_share">Revenue Share</MenuItem>
+                        <MenuItem value="subscription">Subscription</MenuItem>
+                        <MenuItem value="partnership">Partnership</MenuItem>
+                        <MenuItem value="hybrid">Hybrid</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Título *"
+                      value={publisherContractForm.title || ''}
+                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, title: e.target.value })}
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Descrição"
+                      value={publisherContractForm.description || ''}
+                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, description: e.target.value })}
+                      size="small"
+                      multiline
+                      rows={2}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Data de Início *"
+                      type="date"
+                      value={publisherContractForm.start_date || ''}
+                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, start_date: e.target.value })}
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Data de Término"
+                      type="date"
+                      value={publisherContractForm.end_date || ''}
+                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, end_date: e.target.value || undefined })}
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                  {publisherContractForm.contract_type === 'revenue_share' && (
+                    <>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Percentual de Revenue Share (%)"
+                          type="number"
+                          value={publisherContractForm.revenue_share_percentage || ''}
+                          onChange={(e) => setPublisherContractForm({ ...publisherContractForm, revenue_share_percentage: e.target.value ? parseFloat(e.target.value) : undefined })}
+                          size="small"
+                          inputProps={{ min: 0, max: 100, step: 0.01 }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Valor Mínimo de Payout"
+                          type="number"
+                          value={publisherContractForm.minimum_payout_amount || ''}
+                          onChange={(e) => setPublisherContractForm({ ...publisherContractForm, minimum_payout_amount: e.target.value ? parseFloat(e.target.value) : undefined })}
+                          size="small"
+                          inputProps={{ min: 0, step: 0.01 }}
+                        />
+                      </Grid>
+                    </>
+                  )}
+                  {publisherContractForm.contract_type === 'subscription' && (
+                    <>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Valor da Assinatura"
+                          type="number"
+                          value={publisherContractForm.subscription_amount || ''}
+                          onChange={(e) => setPublisherContractForm({ ...publisherContractForm, subscription_amount: e.target.value ? parseFloat(e.target.value) : undefined })}
+                          size="small"
+                          inputProps={{ min: 0, step: 0.01 }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Intervalo</InputLabel>
+                          <Select
+                            value={publisherContractForm.subscription_interval || 'month'}
+                            label="Intervalo"
+                            onChange={(e) => setPublisherContractForm({ ...publisherContractForm, subscription_interval: e.target.value })}
+                          >
+                            <MenuItem value="month">Mensal</MenuItem>
+                            <MenuItem value="year">Anual</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                    </>
+                  )}
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Moeda"
+                      value={publisherContractForm.currency || 'BRL'}
+                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, currency: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Status</InputLabel>
+                      <Select
+                        value={publisherContractForm.status || 'draft'}
+                        label="Status"
+                        onChange={(e) => setPublisherContractForm({ ...publisherContractForm, status: e.target.value as any })}
+                      >
+                        <MenuItem value="draft">Rascunho</MenuItem>
+                        <MenuItem value="active">Ativo</MenuItem>
+                        <MenuItem value="expired">Expirado</MenuItem>
+                        <MenuItem value="terminated">Terminado</MenuItem>
+                        <MenuItem value="cancelled">Cancelado</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      variant="contained"
+                      startIcon={<Add />}
+                      onClick={handleAddPublisherContract}
+                      disabled={!publisherContractForm.contract_number || !publisherContractForm.title}
+                    >
+                      {editingPublisherContractIndex !== null ? 'Atualizar Contrato' : 'Adicionar Contrato'}
+                    </Button>
+                    {editingPublisherContractIndex !== null && (
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setEditingPublisherContractIndex(null);
+                          setPublisherContractForm({
+                            contract_number: '',
+                            contract_type: 'revenue_share',
+                            title: '',
+                            description: '',
+                            start_date: new Date().toISOString().split('T')[0],
+                            end_date: undefined,
+                            currency: 'BRL',
+                            status: 'draft',
+                          });
+                        }}
+                        sx={{ ml: 1 }}
+                      >
+                        Cancelar Edição
+                      </Button>
+                    )}
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {/* Lista de Publisher Contracts */}
+              <Typography variant="subtitle1" sx={{ mb: 2, mt: 3 }}>Contratos de Publisher ({editPublisherContracts.length})</Typography>
               {loadingEditContracts ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                   <CircularProgress />
                 </Box>
-              ) : editContracts.length === 0 ? (
+              ) : editPublisherContracts.length === 0 ? (
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Nenhum contrato encontrado para este Publicador. Os contratos podem ser criados na seção "Contratos" do menu administrativo.
+                  Nenhum contrato de publisher encontrado. Crie um contrato usando o formulário acima.
+                </Alert>
+              ) : (
+                <List sx={{ mb: 3 }}>
+                  {editPublisherContracts.map((contract, index) => (
+                    <ListItem
+                      key={contract.contract_id}
+                      sx={{
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        mb: 2,
+                        flexDirection: 'column',
+                        alignItems: 'stretch',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', mb: 1 }}>
+                        <Box>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                            {contract.contract_number} - {contract.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {contract.description || 'Sem descrição'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                          <Chip
+                            label={contract.status || 'draft'}
+                            color={
+                              contract.status === 'active'
+                                ? 'success'
+                                : contract.status === 'expired' || contract.status === 'terminated' || contract.status === 'cancelled'
+                                ? 'error'
+                                : 'default'
+                            }
+                            size="small"
+                          />
+                          <IconButton size="small" onClick={() => handleStartEditPublisherContract(index)}>
+                            <Edit />
+                          </IconButton>
+                          <IconButton size="small" onClick={() => handleDeletePublisherContract(index)}>
+                            <Delete />
+                          </IconButton>
+                        </Box>
+                      </Box>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <CalendarToday fontSize="small" color="action" />
+                          <Typography variant="caption" color="text.secondary">
+                            Início: {contract.start_date ? new Date(contract.start_date).toLocaleDateString('pt-BR') : 'N/A'}
+                          </Typography>
+                        </Box>
+                        {contract.end_date && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <CalendarToday fontSize="small" color="action" />
+                            <Typography variant="caption" color="text.secondary">
+                              Fim: {new Date(contract.end_date).toLocaleDateString('pt-BR')}
+                            </Typography>
+                          </Box>
+                        )}
+                        {contract.contract_type && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Assignment fontSize="small" color="action" />
+                            <Typography variant="caption" color="text.secondary">
+                              Tipo: {contract.contract_type}
+                            </Typography>
+                          </Box>
+                        )}
+                        {contract.revenue_share_percentage !== undefined && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <AttachMoney fontSize="small" color="action" />
+                            <Typography variant="caption" color="text.secondary">
+                              Revenue Share: {contract.revenue_share_percentage}%
+                            </Typography>
+                          </Box>
+                        )}
+                        {contract.subscription_amount !== undefined && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <AttachMoney fontSize="small" color="action" />
+                            <Typography variant="caption" color="text.secondary">
+                              Assinatura: {contract.currency || 'BRL'} {contract.subscription_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {contract.subscription_interval || 'month'}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+
+              {/* Lista de Subscriber Contracts associados */}
+              <Divider sx={{ my: 3 }} />
+              <Typography variant="subtitle1" sx={{ mb: 2 }}>Contratos de Subscribers Associados ({editContracts.length})</Typography>
+              {editContracts.length === 0 ? (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Nenhum contrato de subscriber associado. Os contratos de subscribers são criados na seção "Contratos" do menu administrativo.
                 </Alert>
               ) : (
                 <List>

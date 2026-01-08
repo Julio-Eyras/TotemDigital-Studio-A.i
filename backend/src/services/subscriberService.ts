@@ -550,6 +550,249 @@ export class SubscriberService {
   }
 
   /**
+   * Buscar planos ativos de um subscriber através dos contratos
+   */
+  async getActivePlans(subscriberId: number): Promise<any[]> {
+    try {
+      const plans = await this.db.findMany(`
+        SELECT DISTINCT
+          p.plan_id,
+          p.name,
+          p.slug,
+          p.description,
+          p.limits,
+          p.features,
+          sc.contract_id,
+          sc.contract_number,
+          sc.status as contract_status,
+          sc.start_date,
+          sc.end_date
+        FROM subscriber_contracts sc
+        JOIN plans p ON sc.plan_id = p.plan_id
+        WHERE sc.subscriber_id = $1
+          AND sc.is_active = true
+          AND sc.status = 'active'
+          AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+          AND p.is_active = true
+        ORDER BY sc.start_date DESC
+      `, [subscriberId]);
+
+      return plans;
+    } catch (error: any) {
+      await logError('Erro ao buscar planos ativos do subscriber', error, { subscriberId });
+      throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Obter limites máximos dos planos ativos de um subscriber
+   */
+  async getMaxLimits(subscriberId: number): Promise<{
+    medias?: number;
+    playlists?: number;
+    campaigns?: number;
+    storage_gb?: number;
+  }> {
+    try {
+      const plans = await this.getActivePlans(subscriberId);
+
+      if (plans.length === 0) {
+        // Se não tem planos, retornar limites infinitos (null = sem limite)
+        return {
+          medias: null,
+          playlists: null,
+          campaigns: null,
+          storage_gb: null,
+        };
+      }
+
+      // Pegar o maior limite entre todos os planos
+      let maxMedias = null;
+      let maxPlaylists = null;
+      let maxCampaigns = null;
+      let maxStorageGb = null;
+
+      for (const plan of plans) {
+        const limits = plan.limits || {};
+        
+        if (limits.medias !== undefined && limits.medias !== null) {
+          if (maxMedias === null || limits.medias > maxMedias) {
+            maxMedias = limits.medias;
+          }
+        }
+
+        if (limits.playlists !== undefined && limits.playlists !== null) {
+          if (maxPlaylists === null || limits.playlists > maxPlaylists) {
+            maxPlaylists = limits.playlists;
+          }
+        }
+
+        if (limits.campaigns !== undefined && limits.campaigns !== null) {
+          if (maxCampaigns === null || limits.campaigns > maxCampaigns) {
+            maxCampaigns = limits.campaigns;
+          }
+        }
+
+        if (limits.storage_gb !== undefined && limits.storage_gb !== null) {
+          if (maxStorageGb === null || limits.storage_gb > maxStorageGb) {
+            maxStorageGb = limits.storage_gb;
+          }
+        }
+      }
+
+      return {
+        medias: maxMedias,
+        playlists: maxPlaylists,
+        campaigns: maxCampaigns,
+        storage_gb: maxStorageGb,
+      };
+    } catch (error: any) {
+      await logError('Erro ao obter limites máximos', error, { subscriberId });
+      throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Validar limites do plano ao criar/atualizar recursos
+   */
+  async validatePlanLimits(
+    subscriberId: number,
+    resourceType: 'media' | 'playlist' | 'campaign'
+  ): Promise<void> {
+    try {
+      const limits = await this.getMaxLimits(subscriberId);
+      const limitKey = resourceType === 'media' ? 'medias' : 
+                      resourceType === 'playlist' ? 'playlists' : 
+                      'campaigns';
+      const maxLimit = limits[limitKey];
+
+      // Se não tem limite definido, permitir
+      if (maxLimit === null || maxLimit === undefined) {
+        return;
+      }
+
+      // Contar recursos atuais
+      let currentCount = 0;
+
+      if (resourceType === 'media') {
+        const result = await this.db.findFirst(`
+          SELECT COUNT(*) as count
+          FROM medias
+          WHERE subscriber_id = $1 AND is_active = true
+        `, [subscriberId]);
+        currentCount = parseInt(result?.count || '0');
+      } else if (resourceType === 'playlist') {
+        const result = await this.db.findFirst(`
+          SELECT COUNT(*) as count
+          FROM playlists
+          WHERE subscriber_id = $1 AND is_active = true
+        `, [subscriberId]);
+        currentCount = parseInt(result?.count || '0');
+      } else if (resourceType === 'campaign') {
+        const result = await this.db.findFirst(`
+          SELECT COUNT(*) as count
+          FROM campaigns
+          WHERE subscriber_id = $1 AND is_active = true
+        `, [subscriberId]);
+        currentCount = parseInt(result?.count || '0');
+      }
+
+      // Validar se não excede limite
+      if (currentCount >= maxLimit) {
+        throw new Error(
+          `Limite de ${resourceType === 'media' ? 'mídias' : resourceType === 'playlist' ? 'playlists' : 'campanhas'} excedido. ` +
+          `Limite do plano: ${maxLimit}, utilizado: ${currentCount}`
+        );
+      }
+    } catch (error: any) {
+      if (error.message.includes('Limite')) {
+        throw error;
+      }
+      await logError('Erro ao validar limites do plano', error, { subscriberId, resourceType });
+      throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Validar limite de armazenamento (storage)
+   */
+  async validateStorageLimit(subscriberId: number, newFileSizeBytes: number): Promise<void> {
+    try {
+      const limits = await this.getMaxLimits(subscriberId);
+      const maxStorageGB = limits.storage_gb;
+
+      // Se não tem limite definido, permitir
+      if (maxStorageGB === null || maxStorageGB === undefined) {
+        return;
+      }
+
+      // Calcular storage atual (soma de todas as mídias)
+      const currentStorageResult = await this.db.findFirst(`
+        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes
+        FROM medias
+        WHERE subscriber_id = $1 AND is_active = true
+      `, [subscriberId]);
+
+      const currentStorageBytes = parseInt(currentStorageResult?.total_bytes || '0');
+      const newTotalBytes = currentStorageBytes + newFileSizeBytes;
+      const newTotalGB = newTotalBytes / (1024 * 1024 * 1024); // Converter para GB
+
+      // Validar se não excede limite
+      if (newTotalGB > maxStorageGB) {
+        const availableGB = maxStorageGB - (currentStorageBytes / (1024 * 1024 * 1024));
+        throw new Error(
+          `Limite de armazenamento excedido. ` +
+          `Disponível: ${availableGB.toFixed(2)} GB, ` +
+          `Tentativa de upload: ${(newFileSizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+        );
+      }
+    } catch (error: any) {
+      if (error.message.includes('Limite')) {
+        throw error;
+      }
+      await logError('Erro ao validar limite de armazenamento', error, { subscriberId, newFileSizeBytes });
+      throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Validar acesso a totem (verificar se subscriber tem acesso via contratos/planos)
+   */
+  async validateTotemAccess(subscriberId: number, totemId: number): Promise<boolean> {
+    try {
+      // Buscar publisher do totem
+      const totem = await this.db.findFirst(`
+        SELECT t.totem_id, l.publisher_id
+        FROM totems t
+        JOIN locals l ON t.local_id = l.local_id
+        WHERE t.totem_id = $1 AND t.is_active = true
+      `, [totemId]);
+
+      if (!totem || !totem.publisher_id) {
+        return false;
+      }
+
+      const publisherId = totem.publisher_id;
+
+      // Verificar acesso via subscriber_publisher_access
+      const hasAccess = await this.db.findFirst(`
+        SELECT 1
+        FROM subscriber_publisher_access spa
+        WHERE spa.subscriber_id = $1
+          AND spa.publisher_id = $2
+          AND spa.is_active = true
+          AND (spa.expires_at IS NULL OR spa.expires_at > CURRENT_TIMESTAMP)
+          AND spa.revoked_at IS NULL
+      `, [subscriberId, publisherId]);
+
+      return !!hasAccess;
+    } catch (error: any) {
+      await logError('Erro ao validar acesso a totem', error, { subscriberId, totemId });
+      return false;
+    }
+  }
+
+  /**
    * Obter estatísticas de um subscriber
    */
   async getSubscriberStats(subscriberId: number): Promise<{

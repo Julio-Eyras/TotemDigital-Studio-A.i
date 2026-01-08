@@ -8,6 +8,7 @@ import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import { logError, logDebug, logWarnSync, sanitizeForLogging } from '../utils/loggerHelper';
 import { uploadLimiter } from '../middleware/security.middleware';
+import { getSubscriberService } from '../services/subscriberService';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -325,6 +326,27 @@ router.post('/upload', uploadLimiter,
           success: false,
           error: 'subscriber_id é obrigatório',
           message: 'Não foi possível determinar o subscriber. Forneça subscriberId explicitamente.'
+        });
+      }
+
+      // Validar limites do plano antes de fazer upload
+      try {
+        const subscriberService = getSubscriberService();
+        // Validar limite de storage
+        await subscriberService.validateStorageLimit(finalSubscriberId, req.file.size);
+        // Validar limite de medias
+        await subscriberService.validatePlanLimits(finalSubscriberId, 'media');
+      } catch (limitError: any) {
+        // Remover arquivo temporário se validação falhar
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (unlinkError) {
+          // Ignorar erro ao remover arquivo temporário
+        }
+        return res.status(400).json({
+          success: false,
+          error: 'Limite do plano excedido',
+          message: limitError.message || 'Limite do plano foi excedido'
         });
       }
 

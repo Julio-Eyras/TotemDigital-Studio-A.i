@@ -1,4 +1,4 @@
-import { Router, Response, NextFunction } from 'express';
+import { Router, Response } from 'express';
 import { TotemService } from '../services/totemService';
 import { getRemoteCommandService } from '../services/remoteCommandService';
 import { getTotemLogService } from '../services/totemLogService';

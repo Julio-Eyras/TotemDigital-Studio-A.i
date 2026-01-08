@@ -813,6 +813,29 @@
                         
                         console.error('❌ Erro na validação:', validateResponse.status, errorData);
                         
+                        // Tratamento específico para erros de validação de contratos
+                        if (validateResponse.status === 403) {
+                            return {
+                                valid: false,
+                                error: errorData.error || 'Acesso negado: totem não acessível através de contratos/planos ativos',
+                                blocked: true,
+                                pendingApproval: false,
+                                reason: errorData.reason || errorData.details || 'Acesso negado via contratos/planos',
+                                code: 'FORBIDDEN'
+                            };
+                        }
+                        
+                        if (validateResponse.status === 400) {
+                            return {
+                                valid: false,
+                                error: errorData.error || 'Dados inválidos na requisição',
+                                blocked: false,
+                                pendingApproval: false,
+                                reason: errorData.details || errorData.message || null,
+                                code: 'BAD_REQUEST'
+                            };
+                        }
+                        
                         return { 
                             valid: false, 
                             error: errorData.error || 'Totem inválido ou não autorizado',
@@ -828,10 +851,43 @@
                     this.pendingCommands = validateData.pendingCommands || [];
                     this.playlist = validateData.playlist;
                     
+                    // Validar se playlist tem contrato válido (se aplicável)
+                    if (this.playlist && this.playlist.campaign_id) {
+                        if (this.playlist.contract_valid === false) {
+                            console.warn('⚠️ Campanha sem contrato válido. Filtrando itens...');
+                            // Filtrar itens de campanha sem contrato válido
+                            if (this.playlist.items && Array.isArray(this.playlist.items)) {
+                                this.playlist.items = this.playlist.items.filter(item => {
+                                    return !item.campaign_id || item.contract_valid !== false;
+                                });
+                            }
+                            
+                            // Se não restar itens, usar fallback
+                            if (!this.playlist.items || this.playlist.items.length === 0) {
+                                console.warn('⚠️ Nenhum item válido após filtrar campanha sem contrato. Usando fallback...');
+                                this.playlist = null;
+                            }
+                        }
+                    }
+                    
+                    // Validar acesso ao totem via contratos/planos
+                    if (validateData.access_granted === false) {
+                        console.warn('⚠️ Acesso ao totem negado via contratos/planos');
+                        return {
+                            valid: false,
+                            error: 'Acesso negado: totem não acessível através de contratos/planos ativos',
+                            blocked: true,
+                            reason: 'Acesso negado via contratos/planos',
+                            pendingApproval: false
+                        };
+                    }
+                    
                     console.log('✅ Totem validado com sucesso:', {
                         totemId: this.totemData?.id,
                         identifier: this.totemData?.identifier,
-                        status: this.totemData?.status
+                        status: this.totemData?.status,
+                        contractValid: this.playlist?.contract_valid !== false,
+                        accessGranted: validateData.access_granted !== false
                     });
                     
                     // Salvar para próximo carregamento
@@ -922,6 +978,20 @@
             async loadPlaylist(playlist) {
                 if (!playlist || !playlist.items || playlist.items.length === 0) {
                     throw new Error('Playlist vazia ou inválida');
+                }
+                
+                // Validar se campanha tem contrato válido (se aplicável)
+                if (playlist.campaign_id && playlist.contract_valid === false) {
+                    console.warn('⚠️ Tentando carregar playlist de campanha sem contrato válido');
+                    // Filtrar itens de campanha sem contrato válido
+                    playlist.items = playlist.items.filter(item => {
+                        return !item.campaign_id || item.contract_valid !== false;
+                    });
+                    
+                    // Se não restar itens, lançar erro
+                    if (!playlist.items || playlist.items.length === 0) {
+                        throw new Error('Nenhum item válido na playlist (campanha sem contrato válido)');
+                    }
                 }
 
                 console.log(`📋 Carregando playlist: ${playlist.name} com ${playlist.items.length} itens`);

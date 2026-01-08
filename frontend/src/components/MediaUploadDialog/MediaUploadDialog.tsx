@@ -29,7 +29,7 @@ import {
   Error,
   Close,
 } from '@mui/icons-material';
-import { mediaApi, CreateMediaRequest, Client } from '../../services/api';
+import { mediaApi, CreateMediaRequest, Client, subscriberApi } from '../../services/api';
 import { validateFileSize, validateFileType, VALIDATION_CONSTANTS } from '../../utils/validation';
 import { useNotification } from '../../hooks/useNotification';
 
@@ -55,6 +55,10 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [validationInfo, setValidationInfo] = useState<{
+    storage?: { valid: boolean; message: string; remainingGB?: number | null };
+    limits?: { valid: boolean; message: string; remaining?: number | null };
+  } | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -65,9 +69,10 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showError } = useNotification();
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
     setError(null);
+    setValidationInfo(null);
     
     const validFiles: File[] = [];
     
@@ -91,9 +96,41 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     
     if (validFiles.length === 0 && selectedFiles.length > 0) {
       setError('Nenhum arquivo válido foi selecionado. Verifique o tipo e tamanho dos arquivos.');
+      return;
     }
     
     setFiles(prev => [...prev, ...validFiles]);
+    
+    // Validar limites e storage se subscriberId estiver definido
+    if (formData.subscriberId && validFiles.length > 0) {
+      try {
+        // Validar storage (soma de todos os arquivos)
+        const totalSize = validFiles.reduce((sum, file) => sum + file.size, 0);
+        const storageValidation = await subscriberApi.validateStorage(formData.subscriberId, totalSize);
+        setValidationInfo(prev => ({
+          ...prev,
+          storage: {
+            valid: storageValidation.valid,
+            message: storageValidation.message,
+            remainingGB: storageValidation.remainingGB,
+          }
+        }));
+        
+        // Validar limite de mídias
+        const limitsValidation = await subscriberApi.validatePlanLimits(formData.subscriberId, 'media');
+        setValidationInfo(prev => ({
+          ...prev,
+          limits: {
+            valid: limitsValidation.valid,
+            message: limitsValidation.message,
+            remaining: limitsValidation.remaining,
+          }
+        }));
+      } catch (err: any) {
+        console.error('Erro ao validar limites:', err);
+        // Não bloquear, apenas logar erro
+      }
+    }
   };
 
   const handleRemoveFile = (index: number) => {
@@ -114,19 +151,39 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
       return;
     }
 
+    // Validar subscriberId
+    if (!formData.subscriberId) {
+      setError('É necessário selecionar um subscriber (anunciante)');
+      return;
+    }
+
+    // Validações prévias
+    try {
+      const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+      
+      // Validar storage
+      const storageValidation = await subscriberApi.validateStorage(formData.subscriberId, totalSize);
+      if (!storageValidation.valid) {
+        setError(storageValidation.message);
+        return;
+      }
+      
+      // Validar limite de mídias
+      const limitsValidation = await subscriberApi.validatePlanLimits(formData.subscriberId, 'media');
+      if (!limitsValidation.valid) {
+        setError(limitsValidation.message);
+        return;
+      }
+    } catch (err: any) {
+      console.error('Erro na validação prévia:', err);
+      // Continuar mesmo se validação falhar (backend vai validar de qualquer forma)
+    }
+
     try {
       setUploading(true);
       setUploadStatus('uploading');
       setError(null);
       setUploadProgress(0);
-
-      // Validar subscriberId
-      if (!formData.subscriberId) {
-        setError('É necessário selecionar um subscriber (anunciante)');
-        setUploadStatus('error');
-        setUploading(false);
-        return;
-      }
 
       const uploadPromises = files.map(async (file, index) => {
         const mediaData: CreateMediaRequest = {
@@ -292,6 +349,38 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
               Tipos suportados: JPG, PNG, GIF, MP4, AVI, MOV, MP3, WAV (máximo 100MB por arquivo)
             </Typography>
           </Box>
+
+          {/* Informações de validação */}
+          {validationInfo && (
+            <Box sx={{ mb: 2 }}>
+              {validationInfo.storage && (
+                <Alert 
+                  severity={validationInfo.storage.valid ? 'info' : 'warning'} 
+                  sx={{ mb: 1 }}
+                >
+                  <Typography variant="body2">
+                    <strong>Storage:</strong> {validationInfo.storage.message}
+                    {validationInfo.storage.remainingGB !== null && validationInfo.storage.valid && (
+                      <span> ({validationInfo.storage.remainingGB.toFixed(2)} GB disponíveis)</span>
+                    )}
+                  </Typography>
+                </Alert>
+              )}
+              {validationInfo.limits && (
+                <Alert 
+                  severity={validationInfo.limits.valid ? 'info' : 'warning'} 
+                  sx={{ mb: 1 }}
+                >
+                  <Typography variant="body2">
+                    <strong>Limite de Mídias:</strong> {validationInfo.limits.message}
+                    {validationInfo.limits.remaining !== null && validationInfo.limits.valid && (
+                      <span> ({validationInfo.limits.remaining} restantes)</span>
+                    )}
+                  </Typography>
+                </Alert>
+              )}
+            </Box>
+          )}
 
           {/* Lista de arquivos selecionados */}
           {files.length > 0 && (

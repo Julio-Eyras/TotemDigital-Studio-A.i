@@ -25,6 +25,9 @@ public:
     std::string getToken() const { return token; }
 
 private:
+    void logValidationError(const std::string& endpoint, long statusCode, const std::string& code);
+
+private:
     std::string baseURL;
     std::string totemUIN;
     std::string totemSecret;
@@ -35,6 +38,7 @@ private:
     std::string generateTotemToken();
     Json::Value request(const std::string& endpoint, const std::string& method = "GET", const Json::Value& body = Json::Value());
     static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* data);
+    void logValidationError(const std::string& endpoint, long statusCode, const std::string& code);
 };
 
 #endif // API_CLIENT_H

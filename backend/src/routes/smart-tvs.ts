@@ -3,7 +3,7 @@
  * Rotas para gerenciamento de Smart TVs (controladas pelos totens)
  */
 
-import { Router, Response, NextFunction } from 'express';
+import { Router, Response } from 'express';
 import { getSmartTvService } from '../services/smartTvService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { requireFlag } from '../middleware/flagAuth.middleware';

@@ -8,6 +8,7 @@ import { AuditService } from './auditService';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 import { getSubscriberAccessServiceInstance } from './subscriberAccessService';
+import { getSubscriberService } from './subscriberService';
 
 export interface CreateCampaignRequest {
   // Mantemos o nome clientId por compatibilidade com o frontend atual,
@@ -826,6 +827,12 @@ export class CampaignService {
         throw new Error('Campanha não encontrada');
       }
 
+      // Validar execução da campanha antes de adicionar totem
+      const validation = await this.validateCampaignExecution(campaignId, [data.totemId]);
+      if (!validation.valid) {
+        throw new Error(validation.error || 'Campanha não pode ser executada neste totem');
+      }
+
       // Verificar se totem existe
       const totem = await this.db.findFirst(`
         SELECT totem_id FROM totems WHERE totem_id = ? AND COALESCE(is_active, true) = true
@@ -903,6 +910,85 @@ export class CampaignService {
   }
 
   /**
+   * Validar execução de campanha (contrato, conteúdo, totens)
+   */
+  async validateCampaignExecution(campaignId: number, totemIds: number[]): Promise<{
+    valid: boolean;
+    error?: string;
+  }> {
+    try {
+      // 1. Buscar campanha
+      const campaign = await this.getCampaignById(campaignId);
+      if (!campaign) {
+        return { valid: false, error: 'Campanha não encontrada' };
+      }
+
+      // 2. Validar contrato
+      if (!campaign.contractId) {
+        return { valid: false, error: 'Campanha não está vinculada a um contrato' };
+      }
+
+      const contract = await this.db.findFirst(`
+        SELECT contract_id, status, start_date, end_date, is_active
+        FROM subscriber_contracts
+        WHERE contract_id = $1
+      `, [campaign.contractId]);
+
+      if (!contract) {
+        return { valid: false, error: 'Contrato não encontrado' };
+      }
+
+      if (contract.status !== 'active' || !contract.is_active) {
+        return { valid: false, error: 'Contrato não está ativo' };
+      }
+
+      const now = new Date();
+      const startDate = contract.start_date ? new Date(contract.start_date) : null;
+      const endDate = contract.end_date ? new Date(contract.end_date) : null;
+
+      if (startDate && startDate > now) {
+        return { valid: false, error: 'Contrato ainda não iniciou' };
+      }
+
+      if (endDate && endDate < now) {
+        return { valid: false, error: 'Contrato está expirado' };
+      }
+
+      // 3. Validar status da campanha
+      if (!['active', 'approved'].includes(campaign.status || '') || !campaign.isActive) {
+        return { valid: false, error: 'Campanha não está ativa ou aprovada' };
+      }
+
+      // 4. Validar conteúdo (mídias ou playlists)
+      const hasMedia = await this.db.findFirst(`
+        SELECT 1 FROM campaign_medias WHERE campaign_id = $1 AND is_active = true LIMIT 1
+      `, [campaignId]);
+
+      const hasPlaylists = await this.db.findFirst(`
+        SELECT 1 FROM campaign_playlists WHERE campaign_id = $1 AND is_active = true LIMIT 1
+      `, [campaignId]);
+
+      if (!hasMedia && !hasPlaylists) {
+        return { valid: false, error: 'Campanha não tem conteúdo (mídias ou playlists)' };
+      }
+
+      // 5. Validar acesso aos totens
+      const subscriberService = getSubscriberService();
+      for (const totemId of totemIds) {
+        const hasAccess = await subscriberService.validateTotemAccess(campaign.clientId, totemId);
+        if (!hasAccess) {
+          return { valid: false, error: `Subscriber não tem acesso ao totem ${totemId}` };
+        }
+      }
+
+      return { valid: true };
+    } catch (error: any) {
+      await logError('Erro ao validar execução de campanha', error, { campaignId, totemIds });
+      return { valid: false, error: 'Erro ao validar execução da campanha' };
+    }
+  }
+
+  /**
    * Ativa campanha
    */
   async activateCampaign(campaignId: number, activatedBy: number): Promise<void> {
@@ -915,6 +1001,17 @@ export class CampaignService {
 
       if (campaign.isActive) {
         throw new Error('Campanha já está ativa');
+      }
+
+      // Validar execução antes de ativar
+      const totems = await this.getCampaignTotems(campaignId);
+      const totemIds = totems.map((t: any) => t.totem_id);
+      
+      if (totemIds.length > 0) {
+        const validation = await this.validateCampaignExecution(campaignId, totemIds);
+        if (!validation.valid) {
+          throw new Error(validation.error || 'Campanha não pode ser ativada: validação falhou');
+        }
       }
 
       // Ativar campanha

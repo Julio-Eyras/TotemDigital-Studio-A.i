@@ -12,6 +12,7 @@ import { blockClientDataAccess } from '../middleware/operatorProtection.middlewa
 import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation.middleware';
 import { logError, logInfo, logDebug, sanitizeForLogging } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from '../services/eventLogService';
+import { getSubscriberService } from '../services/subscriberService';
 
 const router = Router();
 
@@ -306,6 +307,20 @@ router.post('/',
         success: false,
         message: 'Acesso negado: Você só pode criar campanhas para seu próprio cliente'
       });
+    }
+
+    // Validar limites do plano antes de criar campanha
+    if (mappedData.clientId) {
+      try {
+        const subscriberService = getSubscriberService();
+        await subscriberService.validatePlanLimits(mappedData.clientId, 'campaign');
+      } catch (limitError: any) {
+        return res.status(400).json({
+          success: false,
+          error: 'Limite do plano excedido',
+          message: limitError.message || 'Limite de campanhas do plano foi excedido'
+        });
+      }
     }
 
     const userId = req.user?.userId || req.user?.id;

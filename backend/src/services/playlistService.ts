@@ -554,6 +554,59 @@ export class PlaylistService {
   }
 
   /**
+   * Atualizar duração de um item da playlist
+   * @param playlistId ID da playlist
+   * @param itemId ID do item
+   * @param duration Duração em milissegundos
+   * @param requestSubscriberId ID do subscriber do usuário autenticado (para validação de ownership)
+   * @param isAdmin Se o usuário é admin
+   */
+  async updatePlaylistItemDuration(
+    playlistId: number,
+    itemId: number,
+    duration: number,
+    requestSubscriberId?: number,
+    isAdmin: boolean = false
+  ): Promise<void> {
+    try {
+      // Verificar se playlist existe e validar ownership
+      const playlist = await this.getPlaylistById(playlistId, requestSubscriberId, isAdmin);
+      if (!playlist) {
+        throw new Error('Playlist não encontrada');
+      }
+
+      // Validar: não-admin só pode atualizar suas próprias playlists
+      if (!isAdmin && requestSubscriberId && playlist.subscriber_id !== requestSubscriberId) {
+        throw new Error('Acesso negado: Você só pode atualizar suas próprias playlists');
+      }
+
+      // Validar duração (mínimo 1 segundo = 1000ms, máximo 5 minutos = 300000ms)
+      if (duration < 1000 || duration > 300000) {
+        throw new Error('Duração deve estar entre 1 e 300 segundos');
+      }
+
+      // Verificar se item existe
+      const item = await this.db.findFirst(`
+        SELECT item_id FROM playlist_items WHERE item_id = $1 AND playlist_id = $2
+      `, [itemId, playlistId]);
+
+      if (!item) {
+        throw new Error('Item não encontrado na playlist');
+      }
+
+      // Atualizar duração
+      await this.db.executeRaw(`
+        UPDATE playlist_items 
+        SET display_seconds = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE item_id = $2 AND playlist_id = $3
+      `, [duration, itemId, playlistId]);
+    } catch (error: any) {
+      await logError('Erro ao atualizar duração do item da playlist', error, { playlistId, itemId, duration });
+      throw error;
+    }
+  }
+
+  /**
    * Reordenar mídia da playlist
    * @param playlistId ID da playlist
    * @param items Array de itens com nova ordem

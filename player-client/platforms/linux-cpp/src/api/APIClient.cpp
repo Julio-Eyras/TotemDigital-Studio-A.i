@@ -91,6 +91,20 @@ Json::Value APIClient::request(const std::string& endpoint, const std::string& m
     long responseCode;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
 
+    // Tratamento específico para erros de validação
+    if (responseCode == 403) {
+        std::cerr << "[APIClient] Forbidden (403): Acesso negado - totem não acessível via contratos/planos" << std::endl;
+        // Logar erro de validação
+        logValidationError(endpoint, responseCode, "FORBIDDEN");
+        throw std::runtime_error("FORBIDDEN: Acesso negado via contratos/planos");
+    }
+    
+    if (responseCode == 400) {
+        std::cerr << "[APIClient] Bad Request (400): Dados inválidos na requisição" << std::endl;
+        logValidationError(endpoint, responseCode, "BAD_REQUEST");
+        throw std::runtime_error("BAD_REQUEST: Dados inválidos");
+    }
+
     if (responseCode != 200) {
         throw std::runtime_error("HTTP error: " + std::to_string(responseCode));
     }
@@ -98,6 +112,12 @@ Json::Value APIClient::request(const std::string& endpoint, const std::string& m
     Json::Value jsonResponse;
     Json::Reader reader;
     reader.parse(responseData, jsonResponse);
+    
+    // Validar se resposta contém informações de contrato válido
+    if (jsonResponse.isMember("contract_valid") && jsonResponse["contract_valid"].asBool() == false) {
+        std::cerr << "[APIClient] Warning: Campanha sem contrato válido" << std::endl;
+        // Não lançar erro, apenas logar - o player pode usar fallback
+    }
 
     return jsonResponse;
 }
@@ -149,3 +169,17 @@ bool APIClient::sendErrorLog(const std::string& error, const std::string& stack,
     }
 }
 
+void APIClient::logValidationError(const std::string& endpoint, long statusCode, const std::string& code) {
+    try {
+        Json::Value metadata;
+        metadata["endpoint"] = endpoint;
+        metadata["status"] = static_cast<int>(statusCode);
+        metadata["code"] = code;
+        metadata["timestamp"] = static_cast<long long>(std::time(nullptr) * 1000);
+        metadata["uin"] = totemUIN;
+        
+        sendErrorLog("Validation error: " + code, "", metadata);
+    } catch (const std::exception& e) {
+        std::cerr << "[APIClient] Failed to send validation error log: " << e.what() << std::endl;
+    }
+}

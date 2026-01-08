@@ -581,6 +581,10 @@ export const playlistApi = {
     await api.delete(`/playlists/${playlistId}/media/${itemId}`);
   },
 
+  updateItemDuration: async (playlistId: number, itemId: number, duration: number): Promise<void> => {
+    await api.patch(`/playlists/${playlistId}/media/${itemId}`, { duration });
+  },
+
   reorderMedia: async (playlistId: number, items: { itemId: number; orderIndex: number }[]): Promise<void> => {
     await api.put(`/playlists/${playlistId}/media/reorder`, { items });
   },
@@ -2601,6 +2605,50 @@ export const subscriberApi = {
     const response = await api.get(`/subscribers/${subscriberId}/contracts`);
     return response.data.data || [];
   },
+
+  // Validações prévias
+  validatePlanLimits: async (subscriberId: number, resourceType: 'media' | 'playlist' | 'campaign'): Promise<{
+    valid: boolean;
+    current: number;
+    limit: number | null;
+    remaining: number | null;
+    message: string;
+  }> => {
+    const response = await api.get(`/subscribers/${subscriberId}/validate/plan-limits`, {
+      params: { resourceType }
+    });
+    return response.data;
+  },
+
+  validateStorage: async (subscriberId: number, fileSizeBytes: number): Promise<{
+    valid: boolean;
+    currentBytes: number;
+    currentGB: number;
+    limitBytes: number | null;
+    limitGB: number | null;
+    fileSizeBytes: number;
+    fileSizeGB: number;
+    totalAfterUploadBytes: number;
+    totalAfterUploadGB: number;
+    remainingBytes: number | null;
+    remainingGB: number | null;
+    message: string;
+  }> => {
+    const response = await api.get(`/subscribers/${subscriberId}/validate/storage`, {
+      params: { fileSizeBytes }
+    });
+    return response.data;
+  },
+
+  validateTotemAccess: async (subscriberId: number, totemId: number): Promise<{
+    valid: boolean;
+    message: string;
+  }> => {
+    const response = await api.get(`/subscribers/${subscriberId}/validate/totem-access`, {
+      params: { totemId }
+    });
+    return response.data;
+  },
 };
 
 // =============================================
@@ -2747,6 +2795,116 @@ export const contractApi = {
   getPublishers: async (contractId: number): Promise<any[]> => {
     const response = await api.get(`/contracts/${contractId}/publishers`);
     return response.data.data || [];
+  },
+};
+
+// =============================================
+// PUBLISHER CONTRACTS API
+// =============================================
+
+export interface PublisherContract {
+  contract_id: number;
+  publisher_id?: number;
+  contract_number: string;
+  contract_type: 'revenue_share' | 'subscription' | 'partnership' | 'hybrid';
+  title: string;
+  description?: string;
+  start_date: string;
+  end_date?: string;
+  revenue_share_percentage?: number;
+  revenue_share_rules?: any;
+  minimum_payout_amount?: number;
+  subscription_amount?: number;
+  subscription_interval?: string;
+  currency: string;
+  payment_terms?: string;
+  status: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
+  signed_by_publisher_at?: string;
+  signed_by_tenant_at?: string;
+  created_at: string;
+  updated_at: string;
+  publisher_name?: string;
+}
+
+export interface CreatePublisherContractRequest {
+  publisher_id?: number;
+  contract_number: string;
+  contract_type: 'revenue_share' | 'subscription' | 'partnership' | 'hybrid';
+  title: string;
+  description?: string;
+  start_date: string;
+  end_date?: string;
+  revenue_share_percentage?: number;
+  revenue_share_rules?: any;
+  minimum_payout_amount?: number;
+  subscription_amount?: number;
+  subscription_interval?: string;
+  currency?: string;
+  payment_terms?: string;
+  status?: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
+  created_before_publisher?: boolean;
+}
+
+export interface UpdatePublisherContractRequest {
+  contract_number?: string;
+  contract_type?: 'revenue_share' | 'subscription' | 'partnership' | 'hybrid';
+  title?: string;
+  description?: string;
+  start_date?: string;
+  end_date?: string;
+  revenue_share_percentage?: number;
+  revenue_share_rules?: any;
+  minimum_payout_amount?: number;
+  subscription_amount?: number;
+  subscription_interval?: string;
+  currency?: string;
+  payment_terms?: string;
+  status?: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
+}
+
+export interface PublisherContractListResponse {
+  data: PublisherContract[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export const publisherContractApi = {
+  getAll: async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    publisherId?: number;
+    status?: string;
+    contractType?: string;
+    activeOnly?: boolean;
+  }): Promise<PublisherContractListResponse> => {
+    const response = await api.get('/contracts/publisher-contracts', { params });
+    return response.data.data || response.data;
+  },
+
+  getById: async (id: number): Promise<PublisherContract> => {
+    const response = await api.get(`/contracts/publisher-contracts/${id}`);
+    return response.data.data || response.data;
+  },
+
+  create: async (data: CreatePublisherContractRequest): Promise<PublisherContract> => {
+    const response = await api.post('/contracts/publisher-contracts', data);
+    return response.data.data || response.data;
+  },
+
+  update: async (id: number, data: UpdatePublisherContractRequest): Promise<PublisherContract> => {
+    const response = await api.put(`/contracts/publisher-contracts/${id}`, data);
+    return response.data.data || response.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/contracts/publisher-contracts/${id}`);
+  },
+
+  getByPublisher: async (publisherId: number): Promise<PublisherContract[]> => {
+    const response = await api.get(`/contracts/publishers/${publisherId}/contracts`);
+    return response.data.data || response.data || [];
   },
 };
 
