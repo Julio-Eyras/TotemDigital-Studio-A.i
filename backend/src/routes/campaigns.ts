@@ -23,7 +23,9 @@ import {
 import { 
   createCampaignValidators, 
   updateCampaignValidators, 
-  campaignFilterValidators 
+  campaignFilterValidators,
+  reorderCampaignMediasValidators,
+  reorderCampaignPlaylistsValidators
 } from '../validators/campaign.validators';
 
 const router = Router();
@@ -852,6 +854,100 @@ router.get('/:id/totems', async (req: any, res) => {
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route PUT /api/campaigns/:id/medias/reorder
+ * @desc Reordena mídias em uma campanha
+ * @access Private (Admin, Gerente Marketing)
+ */
+router.put('/:id/medias/reorder',
+  authorizeRole(['admin', 'gerente_marketing']),
+  ...idParamValidator,
+  ...reorderCampaignMediasValidators,
+  validateRequest,
+  async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const { mediaIds } = req.body;
+    const userId = req.user?.userId || req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuário não autenticado'
+      });
+    }
+
+    await getCampaignService().reorderCampaignMedias(
+      parseInt(id),
+      mediaIds,
+      userId
+    );
+
+    return res.json({
+      success: true,
+      message: 'Mídias reordenadas com sucesso'
+    });
+
+  } catch (error: any) {
+    await logError('Erro ao reordenar mídias da campanha', error, { 
+      id: req.params.id,
+      mediaIds: req.body.mediaIds 
+    });
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Erro ao reordenar mídias',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route PUT /api/campaigns/:id/playlists/reorder
+ * @desc Reordena playlists em uma campanha
+ * @access Private (Admin, Gerente Marketing)
+ */
+router.put('/:id/playlists/reorder',
+  authorizeRole(['admin', 'gerente_marketing']),
+  ...idParamValidator,
+  ...reorderCampaignPlaylistsValidators,
+  validateRequest,
+  async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const { playlistIds } = req.body;
+    const userId = req.user?.userId || req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuário não autenticado'
+      });
+    }
+
+    await getCampaignService().reorderCampaignPlaylists(
+      parseInt(id),
+      playlistIds,
+      userId
+    );
+
+    return res.json({
+      success: true,
+      message: 'Playlists reordenadas com sucesso'
+    });
+
+  } catch (error: any) {
+    await logError('Erro ao reordenar playlists da campanha', error, { 
+      id: req.params.id,
+      playlistIds: req.body.playlistIds 
+    });
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Erro ao reordenar playlists',
       error: error.message
     });
   }

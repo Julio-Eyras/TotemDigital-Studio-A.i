@@ -1046,6 +1046,14 @@ export const campaignApi = {
     const response = await api.get('/campaigns/stats');
     return response.data.data;
   },
+
+  reorderMedias: async (id: number, mediaIds: number[]): Promise<void> => {
+    await api.put(`/campaigns/${id}/medias/reorder`, { mediaIds });
+  },
+
+  reorderPlaylists: async (id: number, playlistIds: number[]): Promise<void> => {
+    await api.put(`/campaigns/${id}/playlists/reorder`, { playlistIds });
+  },
 };
 
 // =============================================

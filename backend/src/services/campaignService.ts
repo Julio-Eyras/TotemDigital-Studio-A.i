@@ -282,7 +282,7 @@ export class CampaignService {
             FROM campaign_playlists cp
             JOIN playlists p ON cp.playlist_id = p.playlist_id
             WHERE cp.campaign_id = $1 AND cp.is_active = true
-            ORDER BY cp.priority, p.name
+            ORDER BY cp.priority DESC, p.name
           `, [campaign.id]);
 
           // Buscar mídias diretamente associadas
@@ -1707,6 +1707,136 @@ export class CampaignService {
       await logError('Erro ao associar publishers à campanha', error, {
         campaignId,
         publisherIds
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Reordena mídias em uma campanha
+   * @param campaignId ID da campanha
+   * @param mediaIds Array de IDs de mídias na nova ordem
+   * @param userId ID do usuário que está reordenando
+   */
+  async reorderCampaignMedias(
+    campaignId: number,
+    mediaIds: number[],
+    userId: number
+  ): Promise<void> {
+    try {
+      // Verificar se campanha existe
+      const campaign = await this.getCampaignById(campaignId);
+      if (!campaign) {
+        throw new Error('Campanha não encontrada');
+      }
+
+      // Verificar se todas as mídias pertencem à campanha
+      const existingMedias = await this.db.findMany(`
+        SELECT media_id
+        FROM campaign_medias
+        WHERE campaign_id = $1 AND is_active = true
+      `, [campaignId]);
+
+      const existingMediaIds = existingMedias.map(m => m.media_id);
+      const invalidIds = mediaIds.filter(id => !existingMediaIds.includes(id));
+      
+      if (invalidIds.length > 0) {
+        throw new Error(`Mídias não encontradas na campanha: ${invalidIds.join(', ')}`);
+      }
+
+      if (mediaIds.length !== existingMediaIds.length) {
+        throw new Error('Número de mídias não corresponde ao número de mídias na campanha');
+      }
+
+      // Atualizar order_index para cada mídia
+      for (let i = 0; i < mediaIds.length; i++) {
+        await this.db.executeRaw(`
+          UPDATE campaign_medias
+          SET order_index = $1, updated_at = CURRENT_TIMESTAMP
+          WHERE campaign_id = $2 AND media_id = $3
+        `, [i, campaignId, mediaIds[i]]);
+      }
+
+      // Log de auditoria
+      await this.getAuditService().log('campaign', 'medias_reordered', userId, {
+        campaignId,
+        mediaIds,
+        newOrder: mediaIds
+      });
+
+      // Invalidar cache
+      await this.cache.invalidateEntity('campaign', campaignId).catch(() => {});
+
+    } catch (error: any) {
+      await logError('Erro ao reordenar mídias da campanha', error, {
+        campaignId,
+        mediaIds
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Reordena playlists em uma campanha
+   * @param campaignId ID da campanha
+   * @param playlistIds Array de IDs de playlists na nova ordem
+   * @param userId ID do usuário que está reordenando
+   */
+  async reorderCampaignPlaylists(
+    campaignId: number,
+    playlistIds: number[],
+    userId: number
+  ): Promise<void> {
+    try {
+      // Verificar se campanha existe
+      const campaign = await this.getCampaignById(campaignId);
+      if (!campaign) {
+        throw new Error('Campanha não encontrada');
+      }
+
+      // Verificar se todas as playlists pertencem à campanha
+      const existingPlaylists = await this.db.findMany(`
+        SELECT playlist_id
+        FROM campaign_playlists
+        WHERE campaign_id = $1 AND is_active = true
+      `, [campaignId]);
+
+      const existingPlaylistIds = existingPlaylists.map(p => p.playlist_id);
+      const invalidIds = playlistIds.filter(id => !existingPlaylistIds.includes(id));
+      
+      if (invalidIds.length > 0) {
+        throw new Error(`Playlists não encontradas na campanha: ${invalidIds.join(', ')}`);
+      }
+
+      if (playlistIds.length !== existingPlaylistIds.length) {
+        throw new Error('Número de playlists não corresponde ao número de playlists na campanha');
+      }
+
+      // Atualizar priority para cada playlist (usando priority como ordem)
+      // Quanto maior o priority, mais cedo aparece
+      for (let i = 0; i < playlistIds.length; i++) {
+        const priority = playlistIds.length - i; // Primeira playlist tem maior priority
+        await this.db.executeRaw(`
+          UPDATE campaign_playlists
+          SET priority = $1, updated_at = CURRENT_TIMESTAMP
+          WHERE campaign_id = $2 AND playlist_id = $3
+        `, [priority, campaignId, playlistIds[i]]);
+      }
+
+      // Log de auditoria
+      await this.getAuditService().log('campaign', 'playlists_reordered', userId, {
+        campaignId,
+        playlistIds,
+        newOrder: playlistIds
+      });
+
+      // Invalidar cache
+      await this.cache.invalidateEntity('campaign', campaignId).catch(() => {});
+
+    } catch (error: any) {
+      await logError('Erro ao reordenar playlists da campanha', error, {
+        campaignId,
+        playlistIds
       });
       throw error;
     }

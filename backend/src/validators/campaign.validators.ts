@@ -59,3 +59,19 @@ export const campaignFilterValidators = [
   query('isActive').optional().isBoolean().withMessage('isActive deve ser um booleano'),
   query('search').optional().isString().withMessage('Busca deve ser uma string'),
 ];
+
+/**
+ * Validadores para reordenar mídias em campanha
+ */
+export const reorderCampaignMediasValidators = [
+  body('mediaIds').isArray({ min: 1 }).withMessage('mediaIds deve ser um array com pelo menos um item'),
+  body('mediaIds.*').isInt({ min: 1 }).withMessage('Cada ID de mídia deve ser um número inteiro maior que 0'),
+];
+
+/**
+ * Validadores para reordenar playlists em campanha
+ */
+export const reorderCampaignPlaylistsValidators = [
+  body('playlistIds').isArray({ min: 1 }).withMessage('playlistIds deve ser um array com pelo menos um item'),
+  body('playlistIds.*').isInt({ min: 1 }).withMessage('Cada ID de playlist deve ser um número inteiro maior que 0'),
+];
