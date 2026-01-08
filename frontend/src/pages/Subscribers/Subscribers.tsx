@@ -2859,13 +2859,20 @@ const Subscribers: React.FC = () => {
                               checked={selectedMediasForPlaylist.includes(option.media_id)}
                             />
                             <Box sx={{ ml: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                              {option.mediaType === 'image' && <ImageIcon fontSize="small" />}
-                              {option.mediaType === 'video' && <VideoLibrary fontSize="small" />}
-                              {option.mediaType === 'audio' && <AudioFile fontSize="small" />}
-                              <Typography>{option.name}</Typography>
-                              {option.mediaType && (
-                                <Chip label={option.mediaType} size="small" variant="outlined" />
-                              )}
+                              {(() => {
+                                const mediaType = (option as any).mediaType || option.media_type;
+                                return (
+                                  <>
+                                    {mediaType === 'image' && <ImageIcon fontSize="small" />}
+                                    {mediaType === 'video' && <VideoLibrary fontSize="small" />}
+                                    {mediaType === 'audio' && <AudioFile fontSize="small" />}
+                                    <Typography>{option.name}</Typography>
+                                    {mediaType && (
+                                      <Chip label={mediaType} size="small" variant="outlined" />
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </Box>
                           </li>
                         )}
