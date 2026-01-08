@@ -2,6 +2,7 @@ import express from 'express';
 import { body, query, param } from 'express-validator';
 import { validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
+import { protectContractValues } from '../middleware/contractValuesProtection.middleware';
 import { getSubscriberService } from '../services/subscriberService';
 import { logError } from '../utils/loggerHelper';
 
@@ -40,15 +41,34 @@ router.get('/',
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
   query('search').optional().isString(),
+  query('is_active').optional().isBoolean(),
+  query('sortBy').optional().isIn(['name', 'email', 'created_at', 'updated_at']),
+  query('sortOrder').optional().isIn(['asc', 'desc']),
+  query('createdFrom').optional().isISO8601(),
+  query('createdTo').optional().isISO8601(),
   validateRequest,
   async (req: any, res: any) => {
     try {
-      const { page = 1, limit = 10, search } = req.query;
+      const { 
+        page = 1, 
+        limit = 10, 
+        search, 
+        is_active,
+        sortBy = 'created_at',
+        sortOrder = 'desc',
+        createdFrom,
+        createdTo
+      } = req.query;
       
       const result = await getSubscriberService().getAllSubscribers({
         page: parseInt(page as string),
         limit: parseInt(limit as string),
         search: search as string,
+        is_active: is_active !== undefined ? is_active === 'true' : undefined,
+        sortBy: sortBy as string,
+        sortOrder: sortOrder as 'asc' | 'desc',
+        createdFrom: createdFrom as string,
+        createdTo: createdTo as string,
       });
       
       return res.json(result);
@@ -256,6 +276,7 @@ router.get('/:id/stats',
 router.get('/:id/contracts',
   param('id').isInt({ min: 1 }),
   validateRequest,
+  protectContractValues,
   async (req: any, res: any) => {
     try {
       const { id } = req.params;

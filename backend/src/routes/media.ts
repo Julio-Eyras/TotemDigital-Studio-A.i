@@ -480,6 +480,38 @@ router.post('/upload-multiple',
         });
       }
 
+      // Validar limites de plano e storage antes de processar uploads
+      try {
+        const subscriberService = getSubscriberService();
+        // Calcular tamanho total dos arquivos
+        const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+        // Validar storage
+        await subscriberService.validateStorageLimit(finalSubscriberId, totalSize);
+        // Validar limite de medias (contar quantas serão criadas)
+        const currentCount = await subscriberService.getCurrentResourceCount(finalSubscriberId, 'media');
+        const limits = await subscriberService.getMaxLimits(finalSubscriberId);
+        const maxMedias = limits.medias;
+        if (maxMedias !== undefined && currentCount + files.length > maxMedias) {
+          throw new Error(`Limite de mídias excedido. Você pode criar no máximo ${maxMedias} mídias. Você já possui ${currentCount} e está tentando criar ${files.length} adicionais.`);
+        }
+      } catch (limitError: any) {
+        // Remover arquivos temporários se validação falhar
+        files.forEach(file => {
+          try {
+            if (file.path && fs.existsSync(file.path)) {
+              fs.unlinkSync(file.path);
+            }
+          } catch (unlinkError) {
+            // Ignorar erro ao remover arquivo temporário
+          }
+        });
+        return res.status(400).json({
+          success: false,
+          error: 'Limite do plano excedido',
+          message: limitError.message || 'Limite de storage ou mídias do plano foi excedido'
+        });
+      }
+
       const created = await getMediaService().createMultipleMedia(
         files.map(file => ({
           buffer: fs.readFileSync(file.path),

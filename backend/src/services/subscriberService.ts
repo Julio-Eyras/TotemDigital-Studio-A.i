@@ -55,18 +55,70 @@ export class SubscriberService {
     page?: number;
     limit?: number;
     search?: string;
+    is_active?: boolean;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    createdFrom?: string;
+    createdTo?: string;
   }): Promise<SubscriberListResponse> {
     try {
-      const { page = 1, limit = 10, search } = params;
+      const { 
+        page = 1, 
+        limit = 10, 
+        search,
+        is_active,
+        sortBy = 'created_at',
+        sortOrder = 'desc',
+        createdFrom,
+        createdTo
+      } = params;
       const offset = (page - 1) * limit;
 
-      let whereClause = 'WHERE s.is_active = true';
+      let whereClause = 'WHERE 1=1';
       const queryParams: any[] = [];
+      let paramIndex = 1;
 
-      if (search) {
-        whereClause += ' AND (s.name ILIKE $' + (queryParams.length + 1) + ' OR s.email ILIKE $' + (queryParams.length + 1) + ')';
-        queryParams.push(`%${search}%`);
+      // Filtro de status ativo/inativo
+      if (is_active !== undefined) {
+        whereClause += ` AND s.is_active = $${paramIndex}`;
+        queryParams.push(is_active);
+        paramIndex++;
       }
+
+      // Busca em múltiplos campos
+      if (search) {
+        whereClause += ` AND (
+          s.name ILIKE $${paramIndex} OR 
+          s.email ILIKE $${paramIndex} OR 
+          s.contact_name ILIKE $${paramIndex} OR 
+          s.phone ILIKE $${paramIndex} OR
+          s.whatsapp ILIKE $${paramIndex}
+        )`;
+        queryParams.push(`%${search}%`);
+        paramIndex++;
+      }
+
+      // Filtro de data de criação
+      if (createdFrom) {
+        whereClause += ` AND s.created_at >= $${paramIndex}`;
+        queryParams.push(createdFrom);
+        paramIndex++;
+      }
+      if (createdTo) {
+        whereClause += ` AND s.created_at <= $${paramIndex}`;
+        queryParams.push(createdTo);
+        paramIndex++;
+      }
+
+      // Validação de campo de ordenação
+      const validSortFields: { [key: string]: string } = {
+        'name': 's.name',
+        'email': 's.email',
+        'created_at': 's.created_at',
+        'updated_at': 's.updated_at'
+      };
+      const sortField = validSortFields[sortBy] || 's.created_at';
+      const orderDirection = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
       // Buscar subscribers
       const subscribers = await this.db.findMany(`
@@ -83,8 +135,8 @@ export class SubscriberService {
           s.updated_at
         FROM subscribers s
         ${whereClause}
-        ORDER BY s.created_at DESC
-        LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+        ORDER BY ${sortField} ${orderDirection}
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `, [...queryParams, limit, offset]);
 
       // Contar total

@@ -64,23 +64,77 @@ export class PublisherService {
     search?: string;
     client_type?: 'subscriber' | 'publisher' | 'both';
     active_only?: boolean;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    createdFrom?: string;
+    createdTo?: string;
   }): Promise<PublisherListResponse> {
     try {
-      const { page = 1, limit = 10, search, client_type, active_only = true } = params;
+      const { 
+        page = 1, 
+        limit = 10, 
+        search, 
+        client_type, 
+        active_only = true,
+        sortBy = 'created_at',
+        sortOrder = 'desc',
+        createdFrom,
+        createdTo
+      } = params;
       const offset = (page - 1) * limit;
 
-      let whereClause = active_only ? 'WHERE p.active = true' : 'WHERE 1=1';
+      let whereClause = 'WHERE 1=1';
       const queryParams: any[] = [];
+      let paramIndex = 1;
 
+      // Filtro de status ativo/inativo
+      if (active_only !== undefined) {
+        whereClause += ` AND p.active = $${paramIndex}`;
+        queryParams.push(active_only);
+        paramIndex++;
+      }
+
+      // Busca em múltiplos campos
       if (search) {
-        whereClause += ' AND (p.name ILIKE $' + (queryParams.length + 1) + ' OR p.email ILIKE $' + (queryParams.length + 1) + ')';
+        whereClause += ` AND (
+          p.name ILIKE $${paramIndex} OR 
+          p.email ILIKE $${paramIndex} OR 
+          p.contact_name ILIKE $${paramIndex} OR 
+          p.phone ILIKE $${paramIndex} OR
+          p.whatsapp ILIKE $${paramIndex} OR
+          p.description ILIKE $${paramIndex}
+        )`;
         queryParams.push(`%${search}%`);
+        paramIndex++;
       }
 
       if (client_type) {
-        whereClause += ' AND p.client_type = $' + (queryParams.length + 1);
+        whereClause += ` AND p.client_type = $${paramIndex}`;
         queryParams.push(client_type);
+        paramIndex++;
       }
+
+      // Filtro de data de criação
+      if (createdFrom) {
+        whereClause += ` AND p.created_at >= $${paramIndex}`;
+        queryParams.push(createdFrom);
+        paramIndex++;
+      }
+      if (createdTo) {
+        whereClause += ` AND p.created_at <= $${paramIndex}`;
+        queryParams.push(createdTo);
+        paramIndex++;
+      }
+
+      // Validação de campo de ordenação
+      const validSortFields: { [key: string]: string } = {
+        'name': 'p.name',
+        'email': 'p.email',
+        'created_at': 'p.created_at',
+        'updated_at': 'p.updated_at'
+      };
+      const sortField = validSortFields[sortBy] || 'p.created_at';
+      const orderDirection = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
       // Buscar publishers
       const publishers = await this.db.findMany(`
@@ -100,8 +154,8 @@ export class PublisherService {
           p.updated_at
         FROM publishers p
         ${whereClause}
-        ORDER BY p.created_at DESC
-        LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+        ORDER BY ${sortField} ${orderDirection}
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `, [...queryParams, limit, offset]);
 
       // Contar total

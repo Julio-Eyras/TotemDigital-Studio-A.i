@@ -317,6 +317,16 @@ export class SmartTvService {
         if (contract.status !== 'active' && contract.status !== 'draft') {
           throw new Error('Contrato deve estar em status "active" ou "draft"');
         }
+
+        // Validar se contrato não está expirado
+        if (contract.end_date) {
+          const endDate = new Date(contract.end_date);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (endDate < today) {
+            throw new Error('Contrato está expirado');
+          }
+        }
       }
       // Se for admin sem publisherId (criando publisher novo), permitir criação
 

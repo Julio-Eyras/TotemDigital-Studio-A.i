@@ -73,17 +73,35 @@ router.get('/',
   query('search').optional().isString(),
   query('client_type').optional().isIn(['subscriber', 'publisher', 'both']),
   query('active_only').optional().isBoolean(),
+  query('sortBy').optional().isIn(['name', 'email', 'created_at', 'updated_at']),
+  query('sortOrder').optional().isIn(['asc', 'desc']),
+  query('createdFrom').optional().isISO8601(),
+  query('createdTo').optional().isISO8601(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { page = 1, limit = 10, search, client_type, active_only } = req.query;
+      const { 
+        page = 1, 
+        limit = 10, 
+        search, 
+        client_type, 
+        active_only,
+        sortBy = 'created_at',
+        sortOrder = 'desc',
+        createdFrom,
+        createdTo
+      } = req.query;
       
       const result = await getPublisherService().getAllPublishers({
         page: parseInt(page as string),
         limit: parseInt(limit as string),
         search: search as string,
         client_type: client_type as 'subscriber' | 'publisher' | 'both' | undefined,
-        active_only: active_only === 'true'
+        active_only: active_only === 'true',
+        sortBy: sortBy as string,
+        sortOrder: sortOrder as 'asc' | 'desc',
+        createdFrom: createdFrom as string,
+        createdTo: createdTo as string,
       });
       
       return res.json({ success: true, ...result });
