@@ -1146,6 +1146,7 @@ const Publishers: React.FC = () => {
         is_subscriber: false,
         is_publisher: true,
         client_type: 'publisher',
+        contract_id: undefined,
       });
       setTempLocals([]);
       setTempTotems([]);

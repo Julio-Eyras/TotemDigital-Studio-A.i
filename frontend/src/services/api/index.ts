@@ -2410,7 +2410,7 @@ export interface Publisher {
 
 export interface CreatePublisherRequest {
   name: string;
-  contract_id: number; // Obrigatório - contrato que gerou a criação do publisher
+  contract_id?: number; // Obrigatório na criação - contrato que gerou a criação do publisher
   contact_name?: string;
   email?: string;
   phone?: string;
