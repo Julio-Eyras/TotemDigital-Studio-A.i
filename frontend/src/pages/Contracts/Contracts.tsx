@@ -334,6 +334,8 @@ const Contracts: React.FC = () => {
       case 'advertising': return 'Publicidade';
       case 'subscription': return 'Assinatura';
       case 'partnership': return 'Parceria';
+      case 'revenue_share': return 'Revenue Share';
+      case 'hybrid': return 'Híbrido';
       default: return type;
     }
   };
@@ -677,6 +679,8 @@ const Contracts: React.FC = () => {
                   <MenuItem value="advertising">Publicidade</MenuItem>
                   <MenuItem value="subscription">Assinatura</MenuItem>
                   <MenuItem value="partnership">Parceria</MenuItem>
+                  <MenuItem value="revenue_share">Revenue Share</MenuItem>
+                  <MenuItem value="hybrid">Híbrido</MenuItem>
                 </Select>
               </FormControl>
 
@@ -931,6 +935,8 @@ const Contracts: React.FC = () => {
                   <MenuItem value="advertising">Publicidade</MenuItem>
                   <MenuItem value="subscription">Assinatura</MenuItem>
                   <MenuItem value="partnership">Parceria</MenuItem>
+                  <MenuItem value="revenue_share">Revenue Share</MenuItem>
+                  <MenuItem value="hybrid">Híbrido</MenuItem>
                 </Select>
               </FormControl>
 

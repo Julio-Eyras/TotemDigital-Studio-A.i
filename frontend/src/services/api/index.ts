@@ -2731,7 +2731,7 @@ export interface CreateContractRequest {
 export interface UpdateContractRequest {
   plan_id?: number;
   contract_number?: string;
-  contract_type?: 'advertising' | 'subscription' | 'partnership';
+  contract_type?: 'advertising' | 'subscription' | 'partnership' | 'revenue_share' | 'hybrid';
   title?: string;
   description?: string;
   start_date?: string;
