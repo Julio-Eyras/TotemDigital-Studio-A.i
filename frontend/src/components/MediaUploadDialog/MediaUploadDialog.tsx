@@ -373,7 +373,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                 >
                   <Typography variant="body2">
                     <strong>Limite de Mídias:</strong> {validationInfo.limits.message}
-                    {validationInfo.limits.remaining !== null && validationInfo.limits.valid && (
+                    {validationInfo.limits.remaining !== null && validationInfo.limits.remaining !== undefined && validationInfo.limits.valid && (
                       <span> ({validationInfo.limits.remaining} restantes)</span>
                     )}
                   </Typography>
