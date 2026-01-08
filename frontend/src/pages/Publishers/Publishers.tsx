@@ -239,9 +239,8 @@ const Publishers: React.FC = () => {
   const loadAvailableContracts = async () => {
     try {
       setLoadingContracts(true);
-      // Buscar contratos onde publisher_id é NULL ou corresponde ao publisher atual (se estiver editando)
+      // Buscar contratos disponíveis (subscriber contracts que podem ser usados para criar publishers)
       const response = await contractApi.getAll({
-        publisherId: undefined, // Buscar contratos sem publisher_id (pré-criados)
         activeOnly: false, // Incluir todos os contratos, mesmo inativos
       });
       setAvailableContracts(response.data || []);
