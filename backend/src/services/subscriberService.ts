@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { getCacheService } from './cacheService';
 
 export interface Subscriber {
   subscriber_id: number;
@@ -46,6 +47,10 @@ export interface SubscriberListResponse {
 export class SubscriberService {
   private get db() {
     return getDatabase();
+  }
+
+  private get cache() {
+    return getCacheService();
   }
 
   /**
@@ -638,6 +643,7 @@ export class SubscriberService {
 
   /**
    * Obter limites máximos dos planos ativos de um subscriber
+   * Com cache de 5 minutos para melhor performance
    */
   async getMaxLimits(subscriberId: number): Promise<{
     medias?: number;
@@ -646,6 +652,19 @@ export class SubscriberService {
     storage_gb?: number;
   }> {
     try {
+      // Tentar obter do cache primeiro
+      const cacheKey = `subscriber:${subscriberId}:max_limits`;
+      const cached = await this.cache.get<{
+        medias?: number;
+        playlists?: number;
+        campaigns?: number;
+        storage_gb?: number;
+      }>(cacheKey);
+      
+      if (cached) {
+        return cached;
+      }
+
       const plans = await this.getActivePlans(subscriberId);
 
       if (plans.length === 0) {
@@ -692,12 +711,17 @@ export class SubscriberService {
         }
       }
 
-      return {
+      const limits = {
         medias: maxMedias,
         playlists: maxPlaylists,
         campaigns: maxCampaigns,
         storage_gb: maxStorageGb,
       };
+
+      // Armazenar no cache por 5 minutos (300 segundos)
+      await this.cache.set(cacheKey, limits, 300);
+
+      return limits;
     } catch (error: any) {
       await logError('Erro ao obter limites máximos', error, { subscriberId });
       throw new Error('Erro interno do servidor');
@@ -809,12 +833,21 @@ export class SubscriberService {
 
   /**
    * Obter contagem atual de recursos de um tipo específico
+   * Com cache de 1 minuto para melhor performance
    */
   async getCurrentResourceCount(
     subscriberId: number,
     resourceType: 'media' | 'playlist' | 'campaign'
   ): Promise<number> {
     try {
+      // Tentar obter do cache primeiro
+      const cacheKey = `subscriber:${subscriberId}:count:${resourceType}`;
+      const cached = await this.cache.get<number>(cacheKey);
+      
+      if (cached !== null) {
+        return cached;
+      }
+
       let currentCount = 0;
 
       if (resourceType === 'media') {
@@ -840,6 +873,9 @@ export class SubscriberService {
         currentCount = parseInt(result?.count || '0');
       }
 
+      // Armazenar no cache por 1 minuto (60 segundos)
+      await this.cache.set(cacheKey, currentCount, 60);
+
       return currentCount;
     } catch (error: any) {
       await logError('Erro ao obter contagem de recursos', error, { subscriberId, resourceType });
@@ -849,19 +885,54 @@ export class SubscriberService {
 
   /**
    * Obter storage atual em bytes
+   * Com cache de 1 minuto para melhor performance
    */
   async getCurrentStorage(subscriberId: number): Promise<number> {
     try {
+      // Tentar obter do cache primeiro
+      const cacheKey = `subscriber:${subscriberId}:storage`;
+      const cached = await this.cache.get<number>(cacheKey);
+      
+      if (cached !== null) {
+        return cached;
+      }
+
       const currentStorageResult = await this.db.findFirst(`
         SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes
         FROM medias
         WHERE subscriber_id = $1 AND is_active = true
       `, [subscriberId]);
 
-      return parseInt(currentStorageResult?.total_bytes || '0');
+      const storageBytes = parseInt(currentStorageResult?.total_bytes || '0');
+
+      // Armazenar no cache por 1 minuto (60 segundos)
+      await this.cache.set(cacheKey, storageBytes, 60);
+
+      return storageBytes;
     } catch (error: any) {
       await logError('Erro ao obter storage atual', error, { subscriberId });
       return 0;
+    }
+  }
+
+  /**
+   * Invalidar cache de limites e contagens de um subscriber
+   * Chamar quando recursos são criados/atualizados/deletados
+   */
+  async invalidateSubscriberCache(subscriberId: number): Promise<void> {
+    try {
+      const patterns = [
+        `subscriber:${subscriberId}:max_limits`,
+        `subscriber:${subscriberId}:count:*`,
+        `subscriber:${subscriberId}:storage`,
+      ];
+
+      for (const pattern of patterns) {
+        await this.cache.deletePattern(pattern);
+      }
+    } catch (error: any) {
+      // Não falhar se cache não estiver disponível
+      await logError('Erro ao invalidar cache do subscriber', error, { subscriberId }).catch(() => {});
     }
   }
 

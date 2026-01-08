@@ -6,6 +6,20 @@ import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation
 import { getPlaylistService } from '../services/playlistService';
 import { getSubscriberService } from '../services/subscriberService';
 import { logError } from '../utils/loggerHelper';
+import { 
+  paginationValidators, 
+  searchValidators, 
+  sortValidators, 
+  dateRangeValidators,
+  idParamValidator
+} from '../validators/common.validators';
+import { 
+  createPlaylistValidators, 
+  updatePlaylistValidators, 
+  addMediaToPlaylistValidators,
+  updatePlaylistItemDurationValidators,
+  playlistFilterValidators
+} from '../validators/playlist.validators';
 
 const router = express.Router();
 
@@ -18,20 +32,11 @@ router.use(blockClientDataAccess);
 // Aplicar isolamento de dados por subscriber
 router.use(subscriberIsolationMiddleware);
 
-// Validações
-const createPlaylistValidator = [
-  body('name').notEmpty().withMessage('Nome é obrigatório'),
-  body('description').optional({ nullable: true, checkFalsy: true }).isString(),
-  body('subscriberId').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1 }).withMessage('subscriberId deve ser um número inteiro maior que 0'),
-  body('clientId').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1 }).withMessage('clientId (deprecated) deve ser um número inteiro maior que 0'),
-];
-
+// Validações - usando validadores centralizados
+const createPlaylistValidator = createPlaylistValidators;
 const updatePlaylistValidator = [
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
-  body('name').optional().notEmpty().withMessage('Nome não pode ser vazio'),
-  body('description').optional().isString(),
-  body('subscriberId').optional().isInt({ min: 1 }),
-  body('clientId').optional().isInt({ min: 1 }),
+  ...idParamValidator,
+  ...updatePlaylistValidators,
 ];
 
 const validateRequest = (req: any, res: any, next: any) => {
@@ -55,11 +60,11 @@ const validateRequest = (req: any, res: any, next: any) => {
  * @desc Listar todas as playlists
  */
 router.get('/', 
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('search').optional().isString(),
-  query('subscriberId').optional().isInt({ min: 1 }),
-  query('clientId').optional().isInt({ min: 1 }), // Deprecated, mantido para compatibilidade
+  ...paginationValidators,
+  ...searchValidators,
+  ...sortValidators,
+  ...dateRangeValidators,
+  ...playlistFilterValidators,
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -67,12 +72,23 @@ router.get('/',
       const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
       const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
       
+      const { 
+        sortBy = 'created_at',
+        sortOrder = 'desc',
+        createdFrom,
+        createdTo
+      } = req.query;
+
       const result = await getPlaylistService().getAllPlaylists({
         page: parseInt(page as string),
         limit: parseInt(limit as string),
         search: search as string,
         subscriberId: subscriberId ? parseInt(subscriberId as string) : undefined,
         clientId: clientId ? parseInt(clientId as string) : undefined, // Deprecated
+        sortBy: sortBy as string,
+        sortOrder: sortOrder as 'asc' | 'desc',
+        createdFrom: createdFrom as string,
+        createdTo: createdTo as string,
       }, userSubscriberId, isAdmin);
       
       res.json(result);
@@ -88,7 +104,7 @@ router.get('/',
  * @desc Obter playlist por ID
  */
 router.get('/:id',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  ...idParamValidator,
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -255,7 +271,7 @@ router.put('/:id',
  */
 router.delete('/:id',
   authorizeRole(['admin', 'gerente_marketing', 'subscriber']), // Adicionado 'subscriber'
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  ...idParamValidator,
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -302,10 +318,8 @@ router.get('/:id/media',
  * @desc Adicionar mídia à playlist
  */
 router.post('/:id/media',
-  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
-  body('mediaId').isInt({ min: 1 }).withMessage('ID da mídia é obrigatório'),
-  body('orderIndex').optional().isInt({ min: 0 }),
-  body('duration').optional().isInt({ min: 1000 }),
+  ...idParamValidator,
+  ...addMediaToPlaylistValidators,
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -341,9 +355,9 @@ router.post('/:id/media',
  * @desc Atualizar duração de um item da playlist
  */
 router.patch('/:id/media/:itemId',
-  param('id').isInt({ min: 1 }).withMessage('ID da playlist inválido'),
+  ...idParamValidator,
   param('itemId').isInt({ min: 1 }).withMessage('ID do item inválido'),
-  body('duration').isInt({ min: 1000, max: 300000 }).withMessage('Duração deve estar entre 1000ms (1s) e 300000ms (300s)'),
+  ...updatePlaylistItemDurationValidators,
   validateRequest,
   async (req: any, res: any) => {
     try {

@@ -10,6 +10,18 @@ import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middlewa
 import { validateRequest as validateRequestMiddleware } from '../middleware/validation.middleware';
 import { param, query, body, validationResult } from 'express-validator';
 import { logError, logDebug } from '../utils/loggerHelper';
+import { 
+  paginationValidators, 
+  searchValidators, 
+  sortValidators, 
+  dateRangeValidators,
+  idParamValidator,
+  nameValidators,
+  emailValidators,
+  phoneValidators,
+  descriptionValidators,
+  contractIdValidators
+} from '../validators/common.validators';
 
 const router = Router();
 
@@ -32,21 +44,14 @@ function getPublisherCampaignMixService(): PublisherCampaignMixService {
   return (global as any).publisherCampaignMixServiceInstance;
 }
 
-// Validações
+// Validações - usando validadores centralizados
 const createPublisherValidator = [
-  body('name').notEmpty().withMessage('Nome é obrigatório'),
+  ...nameValidators,
   body('contract_id').isInt({ min: 1 }).withMessage('Contract ID é obrigatório'),
   body('contact_name').optional().isString(),
-  body('email')
-    .optional({ checkFalsy: true })
-    .custom((value) => {
-      if (!value || value === '') return true; // Aceitar string vazia
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value); // Validar formato se não estiver vazio
-    })
-    .withMessage('Email inválido'),
-  body('phone').optional({ checkFalsy: true }).isString(),
-  body('whatsapp').optional({ checkFalsy: true }).isString(),
-  body('description').optional({ checkFalsy: true }).isString(),
+  ...emailValidators,
+  ...phoneValidators,
+  ...descriptionValidators,
   body('is_subscriber').optional().isBoolean(),
   body('is_publisher').optional().isBoolean(),
   body('client_type').optional().isIn(['subscriber', 'publisher', 'both']).withMessage('client_type deve ser subscriber, publisher ou both'),
@@ -68,15 +73,12 @@ const validateRequest = (req: any, res: any, next: any) => {
  * @desc Listar todos os publishers
  */
 router.get('/',
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('search').optional().isString(),
+  ...paginationValidators,
+  ...searchValidators,
+  ...sortValidators,
+  ...dateRangeValidators,
   query('client_type').optional().isIn(['subscriber', 'publisher', 'both']),
   query('active_only').optional().isBoolean(),
-  query('sortBy').optional().isIn(['name', 'email', 'created_at', 'updated_at']),
-  query('sortOrder').optional().isIn(['asc', 'desc']),
-  query('createdFrom').optional().isISO8601(),
-  query('createdTo').optional().isISO8601(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -154,8 +156,8 @@ router.post('/',
  * IMPORTANTE: Rotas específicas devem vir ANTES de rotas genéricas para evitar conflito
  */
 router.get('/:id/totems/:totemId/campaigns/mixed',
-  param('id').isInt({ min: 1 }),
-  param('totemId').isInt({ min: 1 }),
+  ...idParamValidator,
+  param('totemId').isInt({ min: 1 }).withMessage('Totem ID inválido'),
   query('date').optional().isISO8601(),
   query('time').optional().matches(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/),
   query('dayOfWeek').optional().isIn(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']),
@@ -218,7 +220,7 @@ router.get('/:id/totems/:totemId/campaigns/mixed',
  * IMPORTANTE: Esta rota deve vir ANTES de router.get('/:id') para evitar conflito de rotas
  */
 router.get('/:id/campaigns/mixed',
-  param('id').isInt({ min: 1 }),
+  ...idParamValidator,
   query('totemId').optional().isInt({ min: 1 }),
   query('date').optional().isISO8601(),
   query('time').optional().matches(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/),
@@ -281,7 +283,7 @@ router.get('/:id/campaigns/mixed',
  * @desc Listar locals de um publisher
  */
 router.get('/:id/locals',
-  param('id').isInt({ min: 1 }),
+  ...idParamValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -300,7 +302,7 @@ router.get('/:id/locals',
  * @desc Listar totems de um publisher
  */
 router.get('/:id/totems',
-  param('id').isInt({ min: 1 }),
+  ...idParamValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -319,7 +321,7 @@ router.get('/:id/totems',
  * @desc Listar smart TVs de um publisher
  */
 router.get('/:id/smart-tvs',
-  param('id').isInt({ min: 1 }),
+  ...idParamValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -338,7 +340,7 @@ router.get('/:id/smart-tvs',
  * @desc Obter estatísticas de um publisher
  */
 router.get('/:id/stats',
-  param('id').isInt({ min: 1 }),
+  ...idParamValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -359,7 +361,7 @@ router.get('/:id/stats',
  * IMPORTANTE: Esta rota deve vir DEPOIS das rotas específicas para evitar conflito
  */
 router.get('/:id',
-  param('id').isInt({ min: 1 }),
+  ...idParamValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -384,7 +386,7 @@ router.get('/:id',
  * @desc Atualizar publisher
  */
 router.put('/:id',
-  param('id').isInt({ min: 1 }),
+  ...idParamValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -417,7 +419,7 @@ router.put('/:id',
  * @desc Deletar publisher (soft delete)
  */
 router.delete('/:id',
-  param('id').isInt({ min: 1 }),
+  ...idParamValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {

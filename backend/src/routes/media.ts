@@ -9,6 +9,15 @@ import { body, param, query } from 'express-validator';
 import { logError, logDebug, logWarnSync, sanitizeForLogging } from '../utils/loggerHelper';
 import { uploadLimiter } from '../middleware/security.middleware';
 import { getSubscriberService } from '../services/subscriberService';
+import { 
+  paginationValidators, 
+  searchValidators, 
+  sortValidators, 
+  dateRangeValidators,
+  idParamValidator,
+  subscriberIdValidators
+} from '../validators/common.validators';
+import { mediaFilterValidators, updateMediaValidators } from '../validators/media.validators';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -128,11 +137,11 @@ function getMulterUpload() {
  * @access Private
  */
 router.get('/', 
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('search').optional().isString(),
-  query('type').optional().isString().isIn(['image', 'video', 'audio']),
-  query('subscriberId').optional().isInt({ min: 1 }),
+  ...paginationValidators,
+  ...searchValidators,
+  ...sortValidators,
+  ...dateRangeValidators,
+  ...mediaFilterValidators,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -144,12 +153,23 @@ router.get('/',
       // Obter subscriberId do request (do middleware de isolamento ou do query param)
       const requestSubscriberId = req.subscriberId || req.user?.subscriberId || (subscriberId ? parseInt(subscriberId as string) : undefined);
       
+      const { 
+        sortBy = 'created_at',
+        sortOrder = 'desc',
+        createdFrom,
+        createdTo
+      } = req.query;
+
       const result = await getMediaService().getAllMedia({
         page: parseInt(page as string),
         limit: parseInt(limit as string),
         search: search as string,
         type: type as string,
-        subscriberId: subscriberId ? parseInt(subscriberId as string) : undefined
+        subscriberId: subscriberId ? parseInt(subscriberId as string) : undefined,
+        sortBy: sortBy as string,
+        sortOrder: sortOrder as 'asc' | 'desc',
+        createdFrom: createdFrom as string,
+        createdTo: createdTo as string,
       }, requestSubscriberId, isAdmin);
       
       return res.json(result);
@@ -169,7 +189,7 @@ router.get('/',
  * @access Private
  */
 router.get('/:id',
-  param('id').isInt({ min: 1 }),
+  ...idParamValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -541,13 +561,8 @@ router.post('/upload-multiple',
  * @access Private (Admin, Gerente Marketing, Editoração)
  */
 router.put('/:id',
-  param('id').isInt({ min: 1 }),
-  body('name').optional().isString().isLength({ min: 1, max: 100 }),
-  body('description').optional().isString(),
-  body('tags').optional().isString(),
-  body('status').optional().isString(),
-  body('approvalStatus').optional().isString(),
-  body('rejectionReason').optional().isString(),
+  ...idParamValidator,
+  ...updateMediaValidators,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -603,7 +618,7 @@ router.put('/:id',
  * @access Private (Admin, Gerente Marketing, Editoração)
  */
 router.delete('/:id',
-  param('id').isInt({ min: 1 }),
+  ...idParamValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {

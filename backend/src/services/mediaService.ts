@@ -159,6 +159,10 @@ export class MediaService {
       mediaType?: string;
       status?: string;
       search?: string;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+      createdFrom?: string;
+      createdTo?: string;
     } = {},
     requestSubscriberId?: number,
     isAdmin: boolean = false
@@ -192,9 +196,31 @@ export class MediaService {
       }
 
       if (filters.search) {
-        whereClause += ' AND (m.name ILIKE $' + (params.length + 1) + ' OR m.description ILIKE $' + (params.length + 2) + ')';
-        params.push(`%${filters.search}%`, `%${filters.search}%`);
+        whereClause += ' AND (m.name ILIKE $' + (params.length + 1) + ' OR m.description ILIKE $' + (params.length + 2) + ' OR m.file_name ILIKE $' + (params.length + 3) + ')';
+        params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
       }
+
+      // Filtros de data de criação
+      if (filters.createdFrom) {
+        whereClause += ' AND m.created_at >= $' + (params.length + 1);
+        params.push(filters.createdFrom);
+      }
+      if (filters.createdTo) {
+        whereClause += ' AND m.created_at <= $' + (params.length + 1);
+        params.push(filters.createdTo);
+      }
+
+      // Validação de campo de ordenação
+      const validSortFields: { [key: string]: string } = {
+        'name': 'm.name',
+        'created_at': 'm.created_at',
+        'updated_at': 'm.updated_at',
+        'file_size_bytes': 'm.file_size_bytes',
+        'media_type': 'm.media_type'
+      };
+      const sortBy = filters.sortBy || 'created_at';
+      const sortField = validSortFields[sortBy] || 'm.created_at';
+      const orderDirection = (filters.sortOrder || 'desc').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
       // Buscar mídia com todos os campos do schema v2
       const media = await this.db.findMany(`
@@ -235,7 +261,7 @@ export class MediaService {
         LEFT JOIN subscribers s ON m.subscriber_id = s.subscriber_id
         LEFT JOIN users u ON m.approved_by = u.id
         ${whereClause}
-        ORDER BY m.created_at DESC
+        ORDER BY ${sortField} ${orderDirection}
         LIMIT $${params.length + 1} OFFSET $${params.length + 2}
       `, [...params, limit, offset]);
 

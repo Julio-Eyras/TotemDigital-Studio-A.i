@@ -145,6 +145,10 @@ export class CampaignService {
       campaignType?: string;
       isActive?: boolean;
       search?: string;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+      createdFrom?: string;
+      createdTo?: string;
     } = {}
   ): Promise<{ campaigns: CampaignResponse[]; total: number; page: number; limit: number }> {
     try {
@@ -180,10 +184,35 @@ export class CampaignService {
       }
 
       if (filters.search) {
-        whereClause += ` AND (c.title LIKE $${paramIndex} OR c.description LIKE $${paramIndex + 1})`;
+        whereClause += ` AND (c.title ILIKE $${paramIndex} OR c.description ILIKE $${paramIndex + 1})`;
         params.push(`%${filters.search}%`, `%${filters.search}%`);
         paramIndex += 2;
       }
+
+      // Filtros de data de criação
+      if (filters.createdFrom) {
+        whereClause += ` AND c.created_at >= $${paramIndex}`;
+        params.push(filters.createdFrom);
+        paramIndex++;
+      }
+      if (filters.createdTo) {
+        whereClause += ` AND c.created_at <= $${paramIndex}`;
+        params.push(filters.createdTo);
+        paramIndex++;
+      }
+
+      // Validação de campo de ordenação
+      const validSortFields: { [key: string]: string } = {
+        'title': 'c.title',
+        'created_at': 'c.created_at',
+        'updated_at': 'c.updated_at',
+        'priority': 'c.priority',
+        'start_date': 'c.start_date',
+        'end_date': 'c.end_date'
+      };
+      const sortBy = filters.sortBy || 'created_at';
+      const sortField = validSortFields[sortBy] || 'c.created_at';
+      const orderDirection = (filters.sortOrder || 'desc').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
       // Buscar campanhas
       const campaigns = await this.db.findMany(`
@@ -215,7 +244,7 @@ export class CampaignService {
         LEFT JOIN subscriber_contracts sc ON c.contract_id = sc.contract_id
         LEFT JOIN plans p ON sc.plan_id = p.plan_id
         ${whereClause}
-        ORDER BY c.priority DESC, c.created_at DESC
+        ORDER BY ${sortField} ${orderDirection}, c.priority DESC
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `, [...params, limit, offset]);
 

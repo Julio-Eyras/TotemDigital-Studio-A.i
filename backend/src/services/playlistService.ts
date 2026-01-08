@@ -64,6 +64,10 @@ export class PlaylistService {
     search?: string;
     subscriberId?: number; // NOVO: Use subscriberId
     clientId?: number; // DEPRECATED: Mantido para compatibilidade
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    createdFrom?: string;
+    createdTo?: string;
   }, requestSubscriberId?: number, isAdmin: boolean = false): Promise<PlaylistListResponse> {
     try {
       const { page = 1, limit = 10, search } = params;
@@ -88,6 +92,28 @@ export class PlaylistService {
         whereClause += ' AND (p.name ILIKE $' + (queryParams.length + 1) + ' OR p.description ILIKE $' + (queryParams.length + 1) + ')';
         queryParams.push(`%${search}%`);
       }
+
+      // Filtros de data de criação
+      if (params.createdFrom) {
+        whereClause += ' AND p.created_at >= $' + (queryParams.length + 1);
+        queryParams.push(params.createdFrom);
+      }
+      if (params.createdTo) {
+        whereClause += ' AND p.created_at <= $' + (queryParams.length + 1);
+        queryParams.push(params.createdTo);
+      }
+
+      // Validação de campo de ordenação
+      const validSortFields: { [key: string]: string } = {
+        'name': 'p.name',
+        'created_at': 'p.created_at',
+        'updated_at': 'p.updated_at',
+        'media_count': 'media_count',
+        'total_duration': 'total_duration'
+      };
+      const sortBy = params.sortBy || 'created_at';
+      const sortField = validSortFields[sortBy] || 'p.created_at';
+      const orderDirection = (params.sortOrder || 'desc').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
       // Buscar playlists
       const playlists = await this.db.findMany(`
@@ -116,7 +142,7 @@ export class PlaylistService {
           p.created_at,
           p.updated_at,
           s.name
-        ORDER BY p.created_at DESC
+        ORDER BY ${sortField} ${orderDirection}
         LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
       `, [...queryParams, limit, offset]);
 

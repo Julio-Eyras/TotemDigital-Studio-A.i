@@ -13,6 +13,18 @@ import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation
 import { logError, logInfo, logDebug, sanitizeForLogging } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from '../services/eventLogService';
 import { getSubscriberService } from '../services/subscriberService';
+import { 
+  paginationValidators, 
+  searchValidators, 
+  sortValidators, 
+  dateRangeValidators,
+  idParamValidator
+} from '../validators/common.validators';
+import { 
+  createCampaignValidators, 
+  updateCampaignValidators, 
+  campaignFilterValidators 
+} from '../validators/campaign.validators';
 
 const router = Router();
 
@@ -38,7 +50,14 @@ router.use(authenticateToken);
  * @desc Lista campanhas com paginação e filtros
  * @access Private (Admin, Manager, Client)
  */
-router.get('/', async (req: any, res) => {
+router.get('/',
+  ...paginationValidators,
+  ...searchValidators,
+  ...sortValidators,
+  ...dateRangeValidators,
+  ...campaignFilterValidators,
+  validateRequest,
+  async (req: any, res) => {
   try {
     const {
       page = 1,
@@ -47,7 +66,11 @@ router.get('/', async (req: any, res) => {
       status,
       campaignType,
       isActive,
-      search
+      search,
+      sortBy = 'created_at',
+      sortOrder = 'desc',
+      createdFrom,
+      createdTo
     } = req.query;
 
     // Aplicar filtro de subscriber - garantir isolamento de dados
@@ -73,7 +96,11 @@ router.get('/', async (req: any, res) => {
       status: status as string,
       campaignType: campaignType as string,
       isActive: isActive !== undefined ? isActive === 'true' : undefined,
-      search: search as string
+      search: search as string,
+      sortBy: sortBy as string,
+      sortOrder: sortOrder as 'asc' | 'desc',
+      createdFrom: createdFrom as string,
+      createdTo: createdTo as string,
     };
 
     const result = await getCampaignService().getCampaigns(
@@ -195,7 +222,10 @@ router.get('/totem/:totemId', async (req: any, res) => {
  * @desc Busca campanha por ID
  * @access Private (Admin, Manager, Client)
  */
-router.get('/:id', async (req: any, res) => {
+router.get('/:id',
+  ...idParamValidator,
+  validateRequest,
+  async (req: any, res) => {
   const { id } = req.params;
   try {
     const campaign = await getCampaignService().getCampaignById(parseInt(id));
@@ -237,6 +267,8 @@ router.get('/:id', async (req: any, res) => {
  */
 router.post('/', 
   authorizeRole(['admin', 'gerente_marketing']),
+  ...createCampaignValidators,
+  validateRequest,
   async (req: any, res) => {
   try {
     const campaignData = req.body;
@@ -381,7 +413,12 @@ router.post('/',
  * @desc Atualiza campanha
  * @access Private (Admin, Gerente Marketing)
  */
-router.put('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: any, res) => {
+router.put('/:id', 
+  authorizeRole(['admin', 'gerente_marketing']),
+  ...idParamValidator,
+  ...updateCampaignValidators,
+  validateRequest,
+  async (req: any, res) => {
   const { id } = req.params;
   try {
     const updateData = req.body;
@@ -434,7 +471,11 @@ router.put('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: an
  * @desc Remove campanha
  * @access Private (Admin, Manager)
  */
-router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: any, res) => {
+router.delete('/:id', 
+  authorizeRole(['admin', 'gerente_marketing']),
+  ...idParamValidator,
+  validateRequest,
+  async (req: any, res) => {
   const { id } = req.params;
   try {
     await getCampaignService().deleteCampaign(parseInt(id), req.user.userId);
