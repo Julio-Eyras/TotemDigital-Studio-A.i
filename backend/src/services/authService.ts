@@ -162,7 +162,7 @@ export class AuthService {
             username: user.username,
             email: user.email || '',
             role: user.role,
-            clientId: user.client_id,
+            // clientId removido - usar subscriberId
             user_type: user.user_type, // NOVO: Incluir user_type
             publisherId: user.publisher_id,
             subscriberId: user.subscriber_id
@@ -205,7 +205,7 @@ export class AuthService {
           username: user.username,
           email: user.email || '',
           role: user.role,
-          clientId: user.client_id,
+          // clientId removido - usar subscriberId
           user_type: user.user_type, // NOVO: Incluir user_type para detecção automática
           publisherId: user.publisher_id, // NOVO: Incluir publisherId se existir
           subscriberId: user.subscriber_id, // NOVO: Incluir subscriberId se existir (derivado)
@@ -236,7 +236,7 @@ export class AuthService {
    */
   async register(data: RegisterRequest): Promise<AuthResponse> {
     try {
-      const { username, password, role = 'client', clientId } = data;
+      const { username, password, role = 'client' } = data;
 
       // Verificar se usuário já existe
       const existingUser = await this.db.findFirst(`
@@ -256,7 +256,7 @@ export class AuthService {
         INSERT INTO users (username, password_hash, role, client_id, is_active)
         VALUES (?, ?, ?, ?, true)
         RETURNING id
-      `, [username, passwordHash, role, clientId]);
+      `, [username, passwordHash, role, null]); // clientId removido
 
       const insertedUser = result?.rows?.[0];
       if (!insertedUser?.id) {
@@ -305,7 +305,7 @@ export class AuthService {
           username: newUser.username,
           email: newUser.email || '',
           role: newUser.role,
-          clientId: newUser.client_id
+          // clientId removido - usar subscriberId
         }
       };
 
@@ -363,7 +363,7 @@ export class AuthService {
           username: user.username,
           email: user.email || '',
           role: user.role,
-          clientId: user.client_id
+          // clientId removido - usar subscriberId
         }
       };
 
@@ -517,7 +517,7 @@ export class AuthService {
           subscriberId: subscriber.subscriber_id,
           publisherId: publisher.publisher_id,
           subscriberName: subscriber.name,
-          clientId: subscriber.subscriber_id // Compatibilidade
+          // clientId removido - usar subscriberId
         }
       };
 

@@ -117,7 +117,7 @@ router.get('/:id', async (req: any, res) => {
     }
 
     // Verificar permissão
-    if (req.user.role === 'client' && req.user.clientId !== playlist.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== playlist.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode ver suas próprias smart playlists'
@@ -250,7 +250,7 @@ router.put('/:id', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== existingPlaylist.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== existingPlaylist.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode editar suas próprias smart playlists'
@@ -323,7 +323,7 @@ router.post('/:id/generate', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== playlist.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== playlist.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode gerar suas próprias smart playlists'
@@ -366,7 +366,7 @@ router.post('/:id/activate', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== playlist.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== playlist.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode ativar suas próprias smart playlists'
@@ -408,7 +408,7 @@ router.post('/:id/deactivate', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== playlist.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== playlist.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode desativar suas próprias smart playlists'
@@ -453,7 +453,7 @@ router.get('/client/:clientId', async (req: any, res) => {
     const result = await getSmartPlaylistService().getSmartPlaylists(
       1,
       parseInt(limit as string),
-      { clientId: parseInt(clientId) }
+      { subscriberId: parseInt(clientId) }
     );
 
     return res.json({
@@ -551,7 +551,7 @@ router.post('/:id/test', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== playlist.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== playlist.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode testar suas próprias smart playlists'

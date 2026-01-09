@@ -1,5 +1,5 @@
 import express from 'express';
-import { body, query, param } from 'express-validator';
+// Imports não utilizados removidos
 import { validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { protectContractValues } from '../middleware/contractValuesProtection.middleware';

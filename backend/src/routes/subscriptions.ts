@@ -169,7 +169,7 @@ router.get('/:id', async (req: any, res) => {
       hasAccess = userPublisherId === subscription.publisherId;
     } else if (req.user.role === 'client' && clientId) {
       // DEPRECADO: Compatibilidade
-      hasAccess = clientId === subscription.clientId || clientId === subscription.publisherId;
+      hasAccess = clientId === subscription.subscriberId || clientId === subscription.publisherId;
     } else {
       // Admins têm acesso
       hasAccess = ['admin', 'admin_sql', 'owner_system'].includes(req.user.role);
@@ -315,7 +315,7 @@ router.post('/:id/cancel', async (req: any, res) => {
     } else if (userType === 'subscriber_user' && userSubscriberId) {
       hasAccess = userPublisherId === subscription.publisherId;
     } else if (req.user.role === 'client' && clientId) {
-      hasAccess = clientId === subscription.clientId || clientId === subscription.publisherId;
+      hasAccess = clientId === subscription.subscriberId || clientId === subscription.publisherId;
     } else {
       hasAccess = ['admin', 'admin_sql', 'owner_system'].includes(req.user.role);
     }
@@ -380,7 +380,7 @@ router.post('/:id/resume', async (req: any, res) => {
     } else if (userType === 'subscriber_user' && userSubscriberId) {
       hasAccess = userPublisherId === subscription.publisherId;
     } else if (req.user.role === 'client' && clientId) {
-      hasAccess = clientId === subscription.clientId || clientId === subscription.publisherId;
+      hasAccess = clientId === subscription.subscriberId || clientId === subscription.publisherId;
     } else {
       hasAccess = ['admin', 'admin_sql', 'owner_system'].includes(req.user.role);
     }

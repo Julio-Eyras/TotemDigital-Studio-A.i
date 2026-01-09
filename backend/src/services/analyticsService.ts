@@ -344,7 +344,7 @@ export class AnalyticsService {
   async getAnalytics(filters: AnalyticsFilters): Promise<AnalyticsResponse> {
     try {
       const {
-        clientId,
+        // clientId removido - usar subscriberId
         totemId,
         campaignId,
         startDate,
@@ -355,11 +355,7 @@ export class AnalyticsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      if (clientId) {
-        // event_logs tem subscriber_id (derivado de campaign_id)
-        whereClause += ' AND el.subscriber_id = $' + (params.length + 1);
-        params.push(clientId); // clientId mapeado para subscriberId
-      }
+      // clientId removido - usar subscriberId do filtro se necessário
       if (totemId) {
         whereClause += ' AND el.totem_id = ?';
         params.push(totemId);
@@ -516,11 +512,7 @@ export class AnalyticsService {
       let qrWhere = 'WHERE 1=1';
       const qrParams: any[] = [];
       
-      if (clientId) {
-        // QR codes pertencem a campaigns, que pertencem a subscribers
-        qrWhere += ' AND q.campaign_id IN (SELECT campaign_id FROM campaigns WHERE subscriber_id = $' + (qrParams.length + 1) + ')';
-        qrParams.push(clientId); // clientId mapeado para subscriberId
-      }
+      // clientId removido - usar subscriberId do filtro se necessário
       if (startDate) {
         qrWhere += ' AND q.last_scan_at >= $' + (qrParams.length + 1);
         qrParams.push(startDate);

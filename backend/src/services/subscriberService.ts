@@ -1083,7 +1083,7 @@ export class SubscriberService {
 
       // Obter limites do plano
       const maxLimits = await this.getMaxLimits(subscriberId);
-      const currentStorage = await this.getCurrentStorage(subscriberId);
+      // currentStorage removido - não utilizado
       const storageLimitGB = maxLimits.storage_gb;
 
       return {

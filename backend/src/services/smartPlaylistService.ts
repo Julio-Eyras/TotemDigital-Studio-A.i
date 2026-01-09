@@ -76,7 +76,7 @@ export interface SmartPlaylistStats {
   inactive: number;
   generating: number;
   error: number;
-  byClient: { clientId: number; clientName: string; count: number }[];
+  byClient: { subscriberId: number; clientName: string; count: number }[];
   byCampaign: { campaignId: number; title: string; count: number }[];
   averageEffectiveness: number;
   totalGeneratedItems: number;
@@ -114,7 +114,7 @@ export class SmartPlaylistService {
   }
 
   /**
-   * Busca o primeiro subscriber ativo (para uso quando clientId não é fornecido)
+   * Busca o primeiro subscriber ativo (para uso quando subscriberId não é fornecido)
    */
   async getFirstActiveClient(): Promise<{ subscriber_id: number } | null> {
     try {
@@ -150,7 +150,7 @@ export class SmartPlaylistService {
     page: number = 1,
     limit: number = 20,
     filters: {
-      clientId?: number;
+      subscriberId?: number;
       campaignId?: number;
       totemId?: number;
       status?: string;
@@ -164,9 +164,9 @@ export class SmartPlaylistService {
       const params: any[] = [];
 
       // Aplicar filtros
-      if (filters.clientId) {
+      if (filters.subscriberId) {
         whereClause += ' AND sp.client_id = ?';
-        params.push(filters.clientId);
+        params.push(filters.subscriberId);
       }
 
       if (filters.campaignId) {
@@ -199,7 +199,7 @@ export class SmartPlaylistService {
         SELECT 
           sp.smart_playlist_id,
           sp.smart_playlist_id as id,
-          sp.client_id as clientId,
+          sp.client_id as subscriberId,
           sp.campaign_id as campaignId,
           sp.totem_id as totemId,
           sp.name,
@@ -293,7 +293,7 @@ export class SmartPlaylistService {
         SELECT 
           sp.smart_playlist_id,
           sp.smart_playlist_id as id,
-          sp.client_id as clientId,
+          sp.client_id as subscriberId,
           sp.campaign_id as campaignId,
           sp.totem_id as totemId,
           sp.name,
@@ -370,7 +370,7 @@ export class SmartPlaylistService {
   async createSmartPlaylist(data: SmartPlaylistRequest, createdBy: number): Promise<SmartPlaylistResponse> {
     try {
       const {
-        clientId,
+        subscriberId,
         campaignId,
         totemId,
         name,
@@ -389,8 +389,8 @@ export class SmartPlaylistService {
       } = data;
 
       // Validar campos obrigatórios
-      if (!clientId || (typeof clientId === 'number' && clientId <= 0)) {
-        throw new Error('clientId é obrigatório e deve ser um número válido');
+      if (!subscriberId || (typeof subscriberId === 'number' && subscriberId <= 0)) {
+        throw new Error('subscriberId é obrigatório e deve ser um número válido');
       }
 
       if (!name || (typeof name === 'string' && name.trim() === '')) {
@@ -400,7 +400,7 @@ export class SmartPlaylistService {
       // Verificar se subscriber existe
       const subscriber = await this.db.findFirst(`
         SELECT subscriber_id FROM subscribers WHERE subscriber_id = ? AND COALESCE(is_active, true) = true
-      `, [clientId]);
+      `, [subscriberId]);
 
       if (!subscriber) {
         throw new Error('Subscriber não encontrado ou inativo');
@@ -438,7 +438,7 @@ export class SmartPlaylistService {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING smart_playlist_id
       `, [
-        clientId,
+        subscriberId,
         campaignId,
         totemId,
         name,
@@ -472,7 +472,7 @@ export class SmartPlaylistService {
       await this.getAuditService().log('smart_playlist', 'created', createdBy, {
         playlistId: newPlaylist.id,
         name: newPlaylist.name,
-        clientId: newPlaylist.clientId,
+        subscriberId: newPlaylist.subscriberId,
         aiEnabled: newPlaylist.aiEnabled
       });
 
@@ -618,7 +618,7 @@ export class SmartPlaylistService {
       await this.getAuditService().log('smart_playlist', 'deleted', deletedBy, {
         playlistId,
         name: playlist.name,
-        clientId: playlist.clientId
+        subscriberId: playlist.subscriberId
       });
 
     } catch (error: any) {
@@ -720,7 +720,7 @@ export class SmartPlaylistService {
         FROM medias m
         WHERE COALESCE(m.is_active, true) = true AND m.subscriber_id = ?
         ORDER BY m.created_at DESC
-      `, [playlist.clientId]);
+      `, [playlist.subscriberId]);
 
       // Construir prompt para IA
       const prompt = this.buildAIPrompt(playlist, availableMedia);
@@ -849,7 +849,7 @@ export class SmartPlaylistService {
         WHERE COALESCE(m.is_active, true) = true AND m.subscriber_id = ?
       `;
 
-      const params = [playlist.clientId];
+      const params = [playlist.subscriberId];
 
       // Aplicar filtros básicos
       if (playlist.contentType) {
@@ -1078,7 +1078,7 @@ export class SmartPlaylistService {
       // Por cliente
       const byClient = await this.db.findMany(`
         SELECT 
-          sp.client_id as clientId,
+          sp.client_id as subscriberId,
           s.name as clientName,
           COUNT(*) as count
         FROM smart_playlists sp
@@ -1138,7 +1138,7 @@ export class SmartPlaylistService {
         inactive: inactiveResult?.count || 0,
         generating: generatingResult?.count || 0,
         error: errorResult?.count || 0,
-        byClient: byClient.map(c => ({ clientId: c.clientId, clientName: c.clientName, count: c.count })),
+        byClient: byClient.map(c => ({ subscriberId: c.subscriberId, clientName: c.clientName, count: c.count })),
         byCampaign: byCampaign.map(c => ({ campaignId: c.campaignId, title: c.title, count: c.count })),
         averageEffectiveness: avgEffectivenessResult?.avg || 0,
         totalGeneratedItems: totalGeneratedResult?.total || 0,

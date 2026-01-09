@@ -14,7 +14,7 @@ import {
   nameValidators,
   emailValidators,
   phoneValidators,
-  descriptionValidators
+  // descriptionValidators removido - não utilizado
 } from '../validators/common.validators';
 import { planLimitsValidators, storageValidators, totemAccessValidators } from '../validators/plan.validators';
 

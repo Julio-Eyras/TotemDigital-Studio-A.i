@@ -27,6 +27,7 @@ import {
   reorderCampaignMediasValidators,
   reorderCampaignPlaylistsValidators
 } from '../validators/campaign.validators';
+import { validateRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
@@ -167,7 +168,7 @@ router.get('/client/:clientId', async (req: any, res) => {
     const { limit = 50 } = req.query;
 
     // Verificar permissão (legado para role 'client')
-    if (req.user.role === 'client' && req.user.clientId !== parseInt(clientId)) {
+    if (req.user.role === 'client' && req.user.subscriberId !== parseInt(clientId)) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode ver suas próprias campanhas'
@@ -240,7 +241,7 @@ router.get('/:id',
     }
 
     // Verificar permissão
-    if (req.user.role === 'client' && req.user.clientId !== campaign.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode ver suas próprias campanhas'
@@ -305,8 +306,8 @@ router.post('/',
 
     // Se clientId (subscriber) não foi fornecido, usar o do usuário autenticado ou buscar primeiro subscriber ativo
     if (!mappedData.clientId) {
-      if (req.user.role === 'client' && req.user.clientId) {
-        mappedData.clientId = req.user.clientId;
+      if (req.user.role === 'client' && req.user.subscriberId) {
+        mappedData.subscriberId = req.user.subscriberId;
       } else {
         // Para admin/manager, buscar primeiro subscriber ativo
         try {
@@ -336,7 +337,7 @@ router.post('/',
     }
 
     // Verificar permissão
-    if (req.user.role === 'client' && req.user.clientId !== mappedData.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== mappedData.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode criar campanhas para seu próprio cliente'
@@ -435,7 +436,7 @@ router.put('/:id',
     }
 
     // Verificar se usuário tem acesso ao cliente da campanha
-    if (req.user.role !== 'admin_sql' && req.user.clientId !== existingCampaign.clientId) {
+    if (req.user.role !== 'admin_sql' && req.user.subscriberId !== existingCampaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode editar campanhas do seu cliente'
@@ -516,7 +517,7 @@ router.post('/:id/activate',
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== campaign.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode ativar suas próprias campanhas'
@@ -580,7 +581,7 @@ router.post('/:id/pause',
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== campaign.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode pausar suas próprias campanhas'
@@ -645,7 +646,7 @@ router.post('/:id/finish',
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== campaign.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode finalizar suas próprias campanhas'
@@ -709,7 +710,7 @@ router.post('/:id/totems', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== campaign.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode gerenciar totems de suas próprias campanhas'
@@ -771,7 +772,7 @@ router.delete('/:id/totems/:totemId', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== campaign.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode gerenciar totems de suas próprias campanhas'
@@ -834,7 +835,7 @@ router.get('/:id/totems', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== campaign.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode ver totems de suas próprias campanhas'

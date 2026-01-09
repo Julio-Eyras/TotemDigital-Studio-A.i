@@ -89,7 +89,7 @@ export class InvoiceService {
           const publisherBillingService = new PublisherBillingService();
           
           const billing = await publisherBillingService.createBilling({
-            publisherId: subscription.publisherId || subscription.clientId, // subscriptions pertencem a publishers
+            publisherId: subscription.publisherId, // subscriptions pertencem a publishers
             billingType: 'subscription',
             amount,
             currency: plan.currency || 'BRL',

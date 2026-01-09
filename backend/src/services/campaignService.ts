@@ -136,7 +136,8 @@ export class CampaignService {
     page: number = 1,
     limit: number = 20,
     filters: {
-      clientId?: number;
+      clientId?: number; // DEPRECATED
+      subscriberId?: number;
       status?: string;
       campaignType?: string;
       isActive?: boolean;
@@ -158,6 +159,11 @@ export class CampaignService {
         // Filtro por subscriber
         whereClause += ` AND c.subscriber_id = $${paramIndex}`;
         params.push(filters.subscriberId);
+        paramIndex++;
+      } else if (filters.clientId) {
+        // DEPRECATED: Filtro por clientId (compatibilidade)
+        whereClause += ` AND c.subscriber_id = $${paramIndex}`;
+        params.push(filters.clientId);
         paramIndex++;
       }
 
@@ -423,7 +429,6 @@ export class CampaignService {
   async createCampaign(data: CreateCampaignRequest, createdBy: number): Promise<CampaignResponse> {
     try {
       const {
-        clientId,
         subscriberId,
         contractId,
         title,
@@ -442,9 +447,8 @@ export class CampaignService {
       } = data;
 
       // Validar campos obrigatórios
-      const finalSubscriberId = subscriberId || clientId;
-      if (!finalSubscriberId) {
-        throw new Error('subscriberId/clientId é obrigatório');
+      if (!subscriberId) {
+        throw new Error('subscriberId é obrigatório');
       }
 
       if (!title || title.trim() === '') {
@@ -454,7 +458,7 @@ export class CampaignService {
       // Verificar se subscriber existe
       const subscriber = await this.db.findFirst(`
         SELECT subscriber_id FROM subscribers WHERE subscriber_id = $1 AND COALESCE(is_active, true) = true
-      `, [finalSubscriberId]);
+      `, [subscriberId]);
 
       if (!subscriber) {
         throw new Error('Subscriber (anunciante) não encontrado ou inativo');
@@ -471,7 +475,7 @@ export class CampaignService {
             end_date
           FROM subscriber_contracts 
           WHERE contract_id = $1 AND subscriber_id = $2
-        `, [contractId, finalSubscriberId]);
+        `, [contractId, subscriberId]);
 
         if (!contract) {
           throw new Error('Contrato não encontrado ou não pertence a este subscriber');
@@ -497,7 +501,7 @@ export class CampaignService {
       // Validar acesso a publishers se publishers foram fornecidos
       if (data.publisherIds && Array.isArray(data.publisherIds) && data.publisherIds.length > 0) {
         const accessService = getSubscriberAccessServiceInstance();
-        const validation = await accessService.validateCampaignPublishers(clientId, data.publisherIds);
+        const validation = await accessService.validateCampaignPublishers(subscriberId, data.publisherIds);
         
         if (!validation.valid) {
           throw new Error(
@@ -509,7 +513,7 @@ export class CampaignService {
 
       // Criar campanha
       await logDebug('[CampaignService] Tentando inserir campanha no banco', {
-        clientId, // subscriber_id no banco
+        subscriberId, // subscriber_id no banco
         title,
         description,
         campaignType,
@@ -529,7 +533,7 @@ export class CampaignService {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING campaign_id
       `, [
-        finalSubscriberId, // subscriber_id
+        subscriberId, // subscriber_id
         contractId || null, // contract_id (opcional)
         title,
         description,
@@ -577,19 +581,19 @@ export class CampaignService {
 
       // Associar playlists se fornecidas
       if (data.playlistIds && Array.isArray(data.playlistIds) && data.playlistIds.length > 0) {
-        await this.associatePlaylists(insertedCampaign.campaign_id, data.playlistIds, clientId, createdBy);
+        await this.associatePlaylists(insertedCampaign.campaign_id, data.playlistIds, subscriberId, createdBy);
       }
 
       // Associar mídias diretamente se fornecidas
       if (data.mediaIds && Array.isArray(data.mediaIds) && data.mediaIds.length > 0) {
-        await this.associateMedias(insertedCampaign.campaign_id, data.mediaIds, clientId, createdBy);
+        await this.associateMedias(insertedCampaign.campaign_id, data.mediaIds, subscriberId, createdBy);
       }
 
       // Log de auditoria
       await this.getAuditService().log('campaign', 'created', createdBy, {
         campaignId: newCampaign.id,
         title: newCampaign.title,
-        clientId: newCampaign.clientId,
+        subscriberId: newCampaign.subscriberId,
         publisherIds: data.publisherIds || [],
         playlistIds: data.playlistIds || [],
         mediaIds: data.mediaIds || []
@@ -653,7 +657,7 @@ export class CampaignService {
               end_date
             FROM subscriber_contracts 
             WHERE contract_id = $1 AND subscriber_id = $2
-          `, [data.contractId, existingCampaign.clientId]);
+          `, [data.contractId, existingCampaign.subscriberId]);
 
           if (!contract) {
             throw new Error('Contrato não encontrado ou não pertence a este subscriber');
@@ -829,7 +833,7 @@ export class CampaignService {
       await this.getAuditService().log('campaign', 'deleted', deletedBy, {
         campaignId,
         title: campaign.title,
-        clientId: campaign.clientId
+        subscriberId: campaign.subscriberId
       });
 
       // Invalidar cache relacionado
@@ -1000,7 +1004,7 @@ export class CampaignService {
       // 5. Validar acesso aos totens
       const subscriberService = getSubscriberService();
       for (const totemId of totemIds) {
-        const hasAccess = await subscriberService.validateTotemAccess(campaign.clientId, totemId);
+        const hasAccess = await subscriberService.validateTotemAccess(campaign.subscriberId, totemId);
         if (!hasAccess) {
           return { valid: false, error: `Subscriber não tem acesso ao totem ${totemId}` };
         }

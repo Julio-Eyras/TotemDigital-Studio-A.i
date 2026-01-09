@@ -118,7 +118,7 @@ export class StorageService {
         available
       };
     } catch (error: any) {
-      logErrorSync('Erro ao verificar quota do cliente', error, { clientId, fileSize });
+      logErrorSync('Erro ao verificar quota do cliente', error, { subscriberId, fileSize });
       // Em caso de erro, permitir upload (fail-open)
       return {
         allowed: true,

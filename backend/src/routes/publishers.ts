@@ -20,7 +20,7 @@ import {
   emailValidators,
   phoneValidators,
   descriptionValidators,
-  contractIdValidators
+  // contractIdValidators removido - não utilizado
 } from '../validators/common.validators';
 
 const router = Router();

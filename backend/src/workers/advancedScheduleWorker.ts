@@ -221,7 +221,7 @@ async function processPlaylistGeneration(playlistId: number, config: any): Promi
     if (!smartPlaylist) {
       // Criar smart playlist se não existir
       const newSmartPlaylist = await smartPlaylistService.createSmartPlaylist({
-        clientId: campaign.client_id,
+        subscriberId: campaign.subscriber_id,
         campaignId: campaign.campaign_id,
         totemId: playlist.totem_id,
         name: playlist.name || `Playlist Gerada - ${new Date().toISOString()}`,

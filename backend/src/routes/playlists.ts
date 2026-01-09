@@ -1,5 +1,5 @@
 import express from 'express';
-import { body, query, param, validationResult } from 'express-validator';
+import { param, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation.middleware';
@@ -85,7 +85,7 @@ router.get('/',
         limit: parseInt(limit as string),
         search: search as string,
         subscriberId: subscriberId ? parseInt(subscriberId as string) : undefined,
-        clientId: clientId ? parseInt(clientId as string) : undefined, // Deprecated
+        // clientId deprecated - usar subscriberId
         sortBy: sortBy as string,
         sortOrder: sortOrder as 'asc' | 'desc',
         createdFrom: createdFrom as string,

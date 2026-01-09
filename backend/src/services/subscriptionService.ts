@@ -254,7 +254,7 @@ export class SubscriptionService {
   async createSubscription(data: CreateSubscriptionRequest): Promise<Subscription> {
     try {
       // Usar publisherId se fornecido, senão usar clientId (compatibilidade)
-      const publisherId = data.publisherId || data.clientId;
+      const publisherId = data.publisherId;
       if (!publisherId) {
         throw new Error('publisherId é obrigatório');
       }
@@ -396,7 +396,7 @@ export class SubscriptionService {
       return newSubscription;
 
     } catch (error: any) {
-      await logError('Erro ao criar assinatura', error, { publisherId: data.publisherId || data.clientId, planId: data.planId });
+      await logError('Erro ao criar assinatura', error, { publisherId: data.publisherId, planId: data.planId });
       throw error;
     }
   }

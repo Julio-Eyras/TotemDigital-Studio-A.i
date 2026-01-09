@@ -10,6 +10,7 @@ import sharp from 'sharp';
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { StorageService } from './storageService';
+import { getCacheService } from './cacheService';
 import { logError, logWarn } from '../utils/loggerHelper';
 
 export interface CreateMediaRequest {

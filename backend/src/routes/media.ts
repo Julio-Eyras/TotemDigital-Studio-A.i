@@ -5,7 +5,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
-import { body, param, query } from 'express-validator';
+import { body, param } from 'express-validator';
 import { logError, logDebug, logWarnSync, sanitizeForLogging } from '../utils/loggerHelper';
 import { uploadLimiter } from '../middleware/security.middleware';
 import { getSubscriberService } from '../services/subscriberService';
@@ -15,7 +15,7 @@ import {
   sortValidators, 
   dateRangeValidators,
   idParamValidator,
-  subscriberIdValidators
+  // subscriberIdValidators removido - não utilizado
 } from '../validators/common.validators';
 import { mediaFilterValidators, updateMediaValidators } from '../validators/media.validators';
 import multer from 'multer';
@@ -160,17 +160,21 @@ router.get('/',
         createdTo
       } = req.query;
 
-      const result = await getMediaService().getAllMedia({
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
-        search: search as string,
-        type: type as string,
-        subscriberId: subscriberId ? parseInt(subscriberId as string) : undefined,
-        sortBy: sortBy as string,
-        sortOrder: sortOrder as 'asc' | 'desc',
-        createdFrom: createdFrom as string,
-        createdTo: createdTo as string,
-      }, requestSubscriberId, isAdmin);
+      const result = await getMediaService().getMedia(
+        parseInt(page as string) || 1,
+        parseInt(limit as string) || 20,
+        {
+          subscriberId: subscriberId ? parseInt(subscriberId as string) : undefined,
+          mediaType: type as string,
+          search: search as string,
+          sortBy: sortBy as string | undefined,
+          sortOrder: sortOrder as 'asc' | 'desc' | undefined,
+          createdFrom: createdFrom as string | undefined,
+          createdTo: createdTo as string | undefined,
+        },
+        requestSubscriberId,
+        isAdmin
+      );
       
       return res.json(result);
     } catch (error: any) {
