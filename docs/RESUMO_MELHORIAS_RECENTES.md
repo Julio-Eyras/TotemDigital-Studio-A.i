@@ -58,14 +58,16 @@
 - [x] Aplicar validadores centralizados em todas as rotas
 - [x] Melhorar filtros em Campaigns, Media e Playlists
 
+### ✅ Concluídas (Prioridade MÉDIA)
+- [x] Completar interface de Billing
+- [x] Implementar invalidação automática de cache
+
 ### ⏳ Pendentes (Prioridade MÉDIA)
-- [ ] Completar interface de Billing
-- [ ] Implementar invalidação automática de cache
+- [ ] Completar interface de Publisher Contracts (guia criado em `docs/COMPLETAR_PUBLISHER_CONTRACTS.md`)
 
 ### ⏳ Pendentes (Prioridade ALTA)
 - [ ] Migrar clientId para subscriberId
 - [ ] Implementar testes automatizados
-- [ ] Completar interface de Publisher Contracts
 
 ---
 
