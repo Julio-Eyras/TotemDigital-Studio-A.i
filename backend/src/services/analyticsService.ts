@@ -702,14 +702,14 @@ export class AnalyticsService {
     try {
       return {
         total: 0,
-        byClient: [],
+        bySubscriber: [],
         byCampaign: []
       };
     } catch (error: any) {
       await logError('Erro ao buscar estatísticas de receita', error);
       return {
         total: 0,
-        byClient: [],
+        bySubscriber: [],
         byCampaign: []
       };
     }
