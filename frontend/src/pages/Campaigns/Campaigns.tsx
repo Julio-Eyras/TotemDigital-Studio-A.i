@@ -44,6 +44,7 @@ import {
 } from '@mui/icons-material';
 import { campaignApi, Campaign, CreateCampaignRequest, UpdateCampaignRequest, clientApi, Client, playlistApi, PlaylistItem, playerApi, Player, publisherApi, Publisher, subscriberAccessApi, AccessiblePublisher, mediaApi, MediaItem } from '../../services/api';
 import { useAppSelector } from '../../store/hooks';
+import { SortableList } from '../../components/SortableList/SortableList';
 
 interface PublisherOption {
   publisher_id: number;
@@ -87,6 +88,8 @@ const Campaigns: React.FC = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [orderedMediaIds, setOrderedMediaIds] = useState<number[]>([]);
+  const [orderedPlaylistIds, setOrderedPlaylistIds] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +115,20 @@ const Campaigns: React.FC = () => {
     loadClients();
     loadPlaylists();
     loadMediaItems(); // NOVO: Carregar mídias
+  }, []);
+
+  // Inicializar ordem quando abrir diálogo de edição
+  useEffect(() => {
+    if (selectedCampaign && editDialogOpen) {
+      // Manter ordem das mídias e playlists
+      setOrderedMediaIds(selectedCampaign.mediaIds || []);
+      setOrderedPlaylistIds(selectedCampaign.playlistIds || []);
+    } else if (!editDialogOpen) {
+      // Limpar ordem quando fechar diálogo
+      setOrderedMediaIds([]);
+      setOrderedPlaylistIds([]);
+    }
+  }, [selectedCampaign, editDialogOpen]);
     loadPlayers();
     loadPublishers();
     if (userSubscriberId) {
@@ -265,6 +282,46 @@ const Campaigns: React.FC = () => {
     }
   };
 
+  // Função para reordenar mídias
+  const handleReorderMedias = async (newOrder: number[]) => {
+    if (!selectedCampaign) return;
+    
+    try {
+      await campaignApi.reorderMedias(selectedCampaign.campaign_id, newOrder);
+      setOrderedMediaIds(newOrder);
+      // Atualizar campanha selecionada
+      const updated = await campaignApi.getById(selectedCampaign.campaign_id);
+      setSelectedCampaign(updated);
+    } catch (error: any) {
+      console.error('Erro ao reordenar mídias:', error);
+      const errorMessage = error?.response?.data?.message 
+        || error?.response?.data?.error 
+        || error?.message 
+        || 'Erro ao reordenar mídias';
+      setError(errorMessage);
+    }
+  };
+
+  // Função para reordenar playlists
+  const handleReorderPlaylists = async (newOrder: number[]) => {
+    if (!selectedCampaign) return;
+    
+    try {
+      await campaignApi.reorderPlaylists(selectedCampaign.campaign_id, newOrder);
+      setOrderedPlaylistIds(newOrder);
+      // Atualizar campanha selecionada
+      const updated = await campaignApi.getById(selectedCampaign.campaign_id);
+      setSelectedCampaign(updated);
+    } catch (error: any) {
+      console.error('Erro ao reordenar playlists:', error);
+      const errorMessage = error?.response?.data?.message 
+        || error?.response?.data?.error 
+        || error?.message 
+        || 'Erro ao reordenar playlists';
+      setError(errorMessage);
+    }
+  };
+
   const handleEditCampaign = async () => {
     if (!selectedCampaign) return;
     
@@ -278,9 +335,9 @@ const Campaigns: React.FC = () => {
         start_date: selectedCampaign.start_date || (selectedCampaign as any).startDate,
         end_date: selectedCampaign.end_date || (selectedCampaign as any).endDate,
         isActive: selectedCampaign.is_active !== undefined ? selectedCampaign.is_active : ((selectedCampaign as any).isActive !== undefined ? (selectedCampaign as any).isActive : true),
-        playlistIds: selectedCampaign.playlistIds || [], // NOVO
-        mediaIds: selectedCampaign.mediaIds || [], // NOVO
-        publisherIds: (selectedCampaign as any).publisherIds || [], // NOVO
+        playlistIds: orderedPlaylistIds.length > 0 ? orderedPlaylistIds : (selectedCampaign.playlistIds || []),
+        mediaIds: orderedMediaIds.length > 0 ? orderedMediaIds : (selectedCampaign.mediaIds || []),
+        publisherIds: (selectedCampaign as any).publisherIds || [],
         // Campos comerciais
         commercial_tier: (selectedCampaign as any).commercial_tier || 'standard',
         default_time_share_percent: (selectedCampaign as any).default_time_share_percent ?? 0,
@@ -289,6 +346,8 @@ const Campaigns: React.FC = () => {
       await campaignApi.update(selectedCampaign.campaign_id, updateData);
       setEditDialogOpen(false);
       setSelectedCampaign(null);
+      setOrderedMediaIds([]);
+      setOrderedPlaylistIds([]);
       await loadCampaigns();
     } catch (error: any) {
       console.error('Erro ao atualizar campanha:', error);
@@ -940,44 +999,150 @@ const Campaigns: React.FC = () => {
           )}
           
           {/* Seleção de Playlists */}
-          <Autocomplete
-            multiple
-            options={playlists.filter(p => {
-              const campaignSubscriberId = selectedCampaign?.client_id || (selectedCampaign as any)?.clientId;
-              return !campaignSubscriberId || (p.subscriber_id || p.client_id) === campaignSubscriberId;
-            })}
-            getOptionLabel={(option) => option.name}
-            value={playlists.filter(p => (selectedCampaign?.playlistIds || []).includes(p.playlist_id))}
-            onChange={(_, newValue) => {
-              setSelectedCampaign({ 
-                ...selectedCampaign!, 
-                playlistIds: newValue.map(p => p.playlist_id)
-              });
-            }}
-            renderInput={(params) => (
-              <TextField {...params} label="Playlists" margin="normal" />
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+              Playlists
+            </Typography>
+            {orderedPlaylistIds.length > 0 ? (
+              <>
+                <SortableList
+                  items={orderedPlaylistIds.map(id => {
+                    const playlist = playlists.find(p => p.playlist_id === id);
+                    return {
+                      id,
+                      label: playlist?.name || `Playlist ${id}`,
+                      secondary: playlist ? `${playlist.media_count || 0} mídias` : undefined
+                    };
+                  })}
+                  onReorder={handleReorderPlaylists}
+                  onDelete={(id) => {
+                    const newOrder = orderedPlaylistIds.filter(playlistId => playlistId !== id);
+                    handleReorderPlaylists(newOrder);
+                    setSelectedCampaign({ 
+                      ...selectedCampaign!, 
+                      playlistIds: newOrder
+                    });
+                  }}
+                  emptyMessage="Nenhuma playlist selecionada"
+                />
+                <Autocomplete
+                  multiple
+                  options={playlists.filter(p => {
+                    const campaignSubscriberId = selectedCampaign?.client_id || (selectedCampaign as any)?.clientId;
+                    const isAlreadyAdded = orderedPlaylistIds.includes(p.playlist_id);
+                    return !isAlreadyAdded && (!campaignSubscriberId || (p.subscriber_id || p.client_id) === campaignSubscriberId);
+                  })}
+                  getOptionLabel={(option) => option.name}
+                  value={[]}
+                  onChange={(_, newValue) => {
+                    const newIds = [...orderedPlaylistIds, ...newValue.map(p => p.playlist_id)];
+                    setOrderedPlaylistIds(newIds);
+                    setSelectedCampaign({ 
+                      ...selectedCampaign!, 
+                      playlistIds: newIds
+                    });
+                  }}
+                  renderInput={(params) => (
+                    <TextField {...params} label="Adicionar Playlist" margin="normal" size="small" />
+                  )}
+                />
+              </>
+            ) : (
+              <Autocomplete
+                multiple
+                options={playlists.filter(p => {
+                  const campaignSubscriberId = selectedCampaign?.client_id || (selectedCampaign as any)?.clientId;
+                  return !campaignSubscriberId || (p.subscriber_id || p.client_id) === campaignSubscriberId;
+                })}
+                getOptionLabel={(option) => option.name}
+                value={playlists.filter(p => (selectedCampaign?.playlistIds || []).includes(p.playlist_id))}
+                onChange={(_, newValue) => {
+                  const newIds = newValue.map(p => p.playlist_id);
+                  setOrderedPlaylistIds(newIds);
+                  setSelectedCampaign({ 
+                    ...selectedCampaign!, 
+                    playlistIds: newIds
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Playlists" margin="normal" helperText="Selecione playlists e depois arraste para reordenar" />
+                )}
+              />
             )}
-          />
+          </Box>
           
           {/* Seleção de Mídias Diretas */}
-          <Autocomplete
-            multiple
-            options={mediaItems.filter(m => {
-              const campaignSubscriberId = selectedCampaign?.client_id || (selectedCampaign as any)?.clientId;
-              return !campaignSubscriberId || (m.subscriberId || m.clientId) === campaignSubscriberId;
-            })}
-            getOptionLabel={(option) => option.name}
-            value={mediaItems.filter(m => (selectedCampaign?.mediaIds || []).includes(m.media_id))}
-            onChange={(_, newValue) => {
-              setSelectedCampaign({ 
-                ...selectedCampaign!, 
-                mediaIds: newValue.map(m => m.media_id)
-              });
-            }}
-            renderInput={(params) => (
-              <TextField {...params} label="Mídias Diretas (sem playlist)" margin="normal" helperText="Selecione mídias para associar diretamente à campanha, sem usar playlist" />
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+              Mídias Diretas (sem playlist)
+            </Typography>
+            {orderedMediaIds.length > 0 ? (
+              <>
+                <SortableList
+                  items={orderedMediaIds.map(id => {
+                    const media = mediaItems.find(m => m.media_id === id);
+                    return {
+                      id,
+                      label: media?.name || `Mídia ${id}`,
+                      secondary: media ? `${media.fileName || ''} (${media.mediaType || 'N/A'})` : undefined
+                    };
+                  })}
+                  onReorder={handleReorderMedias}
+                  onDelete={(id) => {
+                    const newOrder = orderedMediaIds.filter(mediaId => mediaId !== id);
+                    handleReorderMedias(newOrder);
+                    setSelectedCampaign({ 
+                      ...selectedCampaign!, 
+                      mediaIds: newOrder
+                    });
+                  }}
+                  emptyMessage="Nenhuma mídia selecionada"
+                />
+                <Autocomplete
+                  multiple
+                  options={mediaItems.filter(m => {
+                    const campaignSubscriberId = selectedCampaign?.client_id || (selectedCampaign as any)?.clientId;
+                    const isAlreadyAdded = orderedMediaIds.includes(m.media_id);
+                    return !isAlreadyAdded && (!campaignSubscriberId || (m.subscriberId || m.clientId) === campaignSubscriberId);
+                  })}
+                  getOptionLabel={(option) => option.name}
+                  value={[]}
+                  onChange={(_, newValue) => {
+                    const newIds = [...orderedMediaIds, ...newValue.map(m => m.media_id)];
+                    setOrderedMediaIds(newIds);
+                    setSelectedCampaign({ 
+                      ...selectedCampaign!, 
+                      mediaIds: newIds
+                    });
+                  }}
+                  renderInput={(params) => (
+                    <TextField {...params} label="Adicionar Mídia" margin="normal" size="small" />
+                  )}
+                />
+              </>
+            ) : (
+              <Autocomplete
+                multiple
+                options={mediaItems.filter(m => {
+                  const campaignSubscriberId = selectedCampaign?.client_id || (selectedCampaign as any)?.clientId;
+                  return !campaignSubscriberId || (m.subscriberId || m.clientId) === campaignSubscriberId;
+                })}
+                getOptionLabel={(option) => option.name}
+                value={mediaItems.filter(m => (selectedCampaign?.mediaIds || []).includes(m.media_id))}
+                onChange={(_, newValue) => {
+                  const newIds = newValue.map(m => m.media_id);
+                  setOrderedMediaIds(newIds);
+                  setSelectedCampaign({ 
+                    ...selectedCampaign!, 
+                    mediaIds: newIds
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Mídias Diretas (sem playlist)" margin="normal" helperText="Selecione mídias e depois arraste para reordenar" />
+                )}
+              />
             )}
-          />
+          </Box>
           
           {/* Campos Comerciais */}
           <Box sx={{ mt: 2, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2 }}>
