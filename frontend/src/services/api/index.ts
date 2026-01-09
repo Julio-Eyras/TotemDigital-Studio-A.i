@@ -589,7 +589,7 @@ export const playlistApi = {
   },
 
   reorderMedia: async (playlistId: number, items: { itemId: number; orderIndex: number }[]): Promise<void> => {
-    await api.put(`/playlists/${playlistId}/media/reorder`, { items });
+    await api.put(`/playlists/${playlistId}/reorder`, { items });
   },
 };
 

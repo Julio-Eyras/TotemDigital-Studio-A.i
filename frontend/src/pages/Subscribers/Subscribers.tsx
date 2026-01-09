@@ -97,6 +97,7 @@ import {
   contractApi,
 } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
+import { SortableList } from '../../components/SortableList/SortableList';
 
 const Subscribers: React.FC = () => {
   const theme = useTheme();
