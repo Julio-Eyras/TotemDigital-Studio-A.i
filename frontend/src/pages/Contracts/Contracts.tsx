@@ -83,13 +83,18 @@ const Contracts: React.FC = () => {
   const canViewSensitiveValues = ['admin', 'admin_sql', 'owner_system', 'operador_faturamento'].includes(userRole);
   
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [publisherContracts, setPublisherContracts] = useState<PublisherContract[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [createPublisherContractDialogOpen, setCreatePublisherContractDialogOpen] = useState(false);
+  const [editPublisherContractDialogOpen, setEditPublisherContractDialogOpen] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+  const [selectedPublisherContract, setSelectedPublisherContract] = useState<PublisherContract | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [contractTypeFilter, setContractTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [mainTab, setMainTab] = useState(0); // 0 = Subscriber Contracts, 1 = Publisher Contracts
   const [error, setError] = useState<string | null>(null);
   
   // Estados para abas no dialog
@@ -124,12 +129,35 @@ const Contracts: React.FC = () => {
   // Estados para seleção de publishers
   const [selectedPublisherIds, setSelectedPublisherIds] = useState<number[]>([]);
 
+  // Estados para formulário de Publisher Contract
+  const [publisherContractForm, setPublisherContractForm] = useState<CreatePublisherContractRequest>({
+    publisher_id: 0,
+    contract_number: '',
+    contract_type: 'revenue_share',
+    title: '',
+    description: '',
+    start_date: '',
+    end_date: '',
+    revenue_share_percentage: undefined,
+    revenue_share_rules: undefined,
+    minimum_payout_amount: undefined,
+    subscription_amount: undefined,
+    subscription_interval: 'month',
+    currency: 'BRL',
+    payment_terms: '',
+    status: 'draft',
+  });
+
   useEffect(() => {
-    loadContracts();
-    loadSubscribers();
-    loadPublishers();
-    loadPlans();
-  }, [contractTypeFilter, statusFilter]);
+    if (mainTab === 0) {
+      loadContracts();
+      loadSubscribers();
+      loadPlans();
+    } else {
+      loadPublisherContracts();
+      loadPublishers();
+    }
+  }, [contractTypeFilter, statusFilter, mainTab]);
 
   // Carregar publishers do contrato quando editar
   useEffect(() => {
