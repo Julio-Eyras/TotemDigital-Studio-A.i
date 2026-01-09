@@ -98,7 +98,7 @@ const Campaigns: React.FC = () => {
     description: '',
     campaign_type: 'standard',
     status: 'draft',
-    clientId: undefined,
+    subscriberId: undefined,
     start_date: '',
     end_date: '',
     playlistIds: [],
@@ -183,7 +183,7 @@ const Campaigns: React.FC = () => {
       const subscriberId = !isAdmin && userSubscriberId ? userSubscriberId : undefined;
       const response = await playlistApi.getAll({
         subscriberId: subscriberId,
-        clientId: subscriberId, // DEPRECATED (compatibilidade)
+        subscriberId: subscriberId,
       });
       setPlaylists(response.data || []);
     } catch (error) {
@@ -237,7 +237,7 @@ const Campaigns: React.FC = () => {
       setError(null); // Limpar erro anterior
       
       // Validar acesso a publishers antes de criar (para não-admins)
-      if (!isAdmin && newCampaign.publisherIds && newCampaign.publisherIds.length > 0 && newCampaign.clientId) {
+      if (!isAdmin && newCampaign.publisherIds && newCampaign.publisherIds.length > 0 && newCampaign.subscriberId) {
         const accessiblePublisherIds = accessiblePublishers.map(ap => ap.publisher_id);
         const invalidPublishers = newCampaign.publisherIds.filter(id => !accessiblePublisherIds.includes(id));
         
@@ -257,7 +257,7 @@ const Campaigns: React.FC = () => {
         description: '',
         campaign_type: 'standard',
         status: 'draft',
-        clientId: undefined,
+        subscriberId: undefined,
         start_date: '',
         end_date: '',
         playlistIds: [],
@@ -331,7 +331,7 @@ const Campaigns: React.FC = () => {
         description: selectedCampaign.description,
         campaign_type: selectedCampaign.campaign_type || (selectedCampaign as any).campaignType || 'standard',
         status: selectedCampaign.status || 'draft',
-        clientId: selectedCampaign.client_id || (selectedCampaign as any).clientId,
+        subscriberId: selectedCampaign.subscriber_id || (selectedCampaign as any).subscriberId,
         start_date: selectedCampaign.start_date || (selectedCampaign as any).startDate,
         end_date: selectedCampaign.end_date || (selectedCampaign as any).endDate,
         isActive: selectedCampaign.is_active !== undefined ? selectedCampaign.is_active : ((selectedCampaign as any).isActive !== undefined ? (selectedCampaign as any).isActive : true),
@@ -620,7 +620,7 @@ const Campaigns: React.FC = () => {
                       <IconButton size="small" onClick={async () => {
                         setSelectedCampaign(campaign);
                         // Carregar publishers acessíveis se houver subscriberId
-                        const subscriberId = campaign.client_id || (campaign as any).clientId;
+                        const subscriberId = campaign.subscriber_id || (campaign as any).subscriberId;
                         if (subscriberId && !isAdmin) {
                           await loadAccessiblePublishers(subscriberId);
                         }
@@ -712,7 +712,7 @@ const Campaigns: React.FC = () => {
           <FormControl fullWidth margin="normal">
             <InputLabel>Cliente</InputLabel>
             <Select
-              value={newCampaign.clientId || ''}
+              value={newCampaign.subscriberId || ''}
               onChange={async (e) => {
                 const value = e.target.value;
                 const clientId = value && value !== '' ? parseInt(String(value), 10) : undefined;
@@ -739,7 +739,7 @@ const Campaigns: React.FC = () => {
             >
               <MenuItem value="">Nenhum</MenuItem>
               {clients.map((client) => (
-                <MenuItem key={client.client_id} value={client.client_id}>
+                <MenuItem key={client.subscriber_id} value={client.subscriber_id}>
                   {client.name}
                 </MenuItem>
               ))}
@@ -747,7 +747,7 @@ const Campaigns: React.FC = () => {
           </FormControl>
           
           {/* Seleção de Publishers */}
-          {newCampaign.clientId && (
+          {newCampaign.subscriberId && (
             <FormControl fullWidth margin="normal">
               <InputLabel>Publishers (Onde a campanha será exibida)</InputLabel>
               <Autocomplete<PublisherOption, true>
@@ -775,7 +775,7 @@ const Campaigns: React.FC = () => {
                     }
                   />
                 )}
-                disabled={!newCampaign.clientId || (!isAdmin && (!Array.isArray(accessiblePublishers) || accessiblePublishers.length === 0))}
+                disabled={!newCampaign.subscriberId || (!isAdmin && (!Array.isArray(accessiblePublishers) || accessiblePublishers.length === 0))}
               />
             </FormControl>
           )}
@@ -801,8 +801,8 @@ const Campaigns: React.FC = () => {
             multiple
             options={playlists.filter(p => {
               // Filtrar playlists por subscriber da campanha
-              const campaignSubscriberId = newCampaign.clientId;
-              return !campaignSubscriberId || (p.subscriber_id || p.client_id) === campaignSubscriberId;
+              const campaignSubscriberId = newCampaign.subscriberId;
+              return !campaignSubscriberId || (p.subscriber_id || p.subscriber_id) === campaignSubscriberId;
             })}
             getOptionLabel={(option) => option.name}
             value={playlists.filter(p => newCampaign.playlistIds?.includes(p.playlist_id))}
@@ -817,8 +817,8 @@ const Campaigns: React.FC = () => {
             multiple
             options={mediaItems.filter(m => {
               // Filtrar mídias por subscriber da campanha
-              const campaignSubscriberId = newCampaign.clientId;
-              return !campaignSubscriberId || (m.subscriberId || m.clientId) === campaignSubscriberId;
+              const campaignSubscriberId = newCampaign.subscriberId;
+              return !campaignSubscriberId || (m.subscriberId || m.subscriberId) === campaignSubscriberId;
             })}
             getOptionLabel={(option) => option.name}
             value={mediaItems.filter(m => newCampaign.mediaIds?.includes(m.media_id))}
@@ -1028,9 +1028,9 @@ const Campaigns: React.FC = () => {
                 <Autocomplete
                   multiple
                   options={playlists.filter(p => {
-                    const campaignSubscriberId = selectedCampaign?.client_id || (selectedCampaign as any)?.clientId;
+                    const campaignSubscriberId = selectedCampaign?.subscriber_id || (selectedCampaign as any)?.subscriberId;
                     const isAlreadyAdded = orderedPlaylistIds.includes(p.playlist_id);
-                    return !isAlreadyAdded && (!campaignSubscriberId || (p.subscriber_id || p.client_id) === campaignSubscriberId);
+                    return !isAlreadyAdded && (!campaignSubscriberId || (p.subscriber_id || p.subscriber_id) === campaignSubscriberId);
                   })}
                   getOptionLabel={(option) => option.name}
                   value={[]}
@@ -1051,8 +1051,8 @@ const Campaigns: React.FC = () => {
               <Autocomplete
                 multiple
                 options={playlists.filter(p => {
-                  const campaignSubscriberId = selectedCampaign?.client_id || (selectedCampaign as any)?.clientId;
-                  return !campaignSubscriberId || (p.subscriber_id || p.client_id) === campaignSubscriberId;
+                  const campaignSubscriberId = selectedCampaign?.subscriber_id || (selectedCampaign as any)?.subscriberId;
+                  return !campaignSubscriberId || (p.subscriber_id || p.subscriber_id) === campaignSubscriberId;
                 })}
                 getOptionLabel={(option) => option.name}
                 value={playlists.filter(p => (selectedCampaign?.playlistIds || []).includes(p.playlist_id))}
@@ -1101,9 +1101,9 @@ const Campaigns: React.FC = () => {
                 <Autocomplete
                   multiple
                   options={mediaItems.filter(m => {
-                    const campaignSubscriberId = selectedCampaign?.client_id || (selectedCampaign as any)?.clientId;
+                    const campaignSubscriberId = selectedCampaign?.subscriber_id || (selectedCampaign as any)?.subscriberId;
                     const isAlreadyAdded = orderedMediaIds.includes(m.media_id);
-                    return !isAlreadyAdded && (!campaignSubscriberId || (m.subscriberId || m.clientId) === campaignSubscriberId);
+                    return !isAlreadyAdded && (!campaignSubscriberId || (m.subscriberId || m.subscriberId) === campaignSubscriberId);
                   })}
                   getOptionLabel={(option) => option.name}
                   value={[]}
@@ -1124,8 +1124,8 @@ const Campaigns: React.FC = () => {
               <Autocomplete
                 multiple
                 options={mediaItems.filter(m => {
-                  const campaignSubscriberId = selectedCampaign?.client_id || (selectedCampaign as any)?.clientId;
-                  return !campaignSubscriberId || (m.subscriberId || m.clientId) === campaignSubscriberId;
+                  const campaignSubscriberId = selectedCampaign?.subscriber_id || (selectedCampaign as any)?.subscriberId;
+                  return !campaignSubscriberId || (m.subscriberId || m.subscriberId) === campaignSubscriberId;
                 })}
                 getOptionLabel={(option) => option.name}
                 value={mediaItems.filter(m => (selectedCampaign?.mediaIds || []).includes(m.media_id))}
