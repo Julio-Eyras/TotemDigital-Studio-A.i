@@ -135,7 +135,7 @@ export class StorageService {
   async saveMediaFile(file: FileInfo, clientId: number, mediaName: string): Promise<string> {
     try {
       // Verificar quota antes de salvar
-      const quotaCheck = await this.checkClientQuota(clientId, file.size);
+      const quotaCheck = await this.checkSubscriberQuota(clientId, file.size);
       if (!quotaCheck.allowed) {
         throw new Error(`Quota de armazenamento excedida. Uso atual: ${this.formatBytes(quotaCheck.currentUsage)}, Quota: ${this.formatBytes(quotaCheck.quota)}, Disponível: ${this.formatBytes(quotaCheck.available)}, Arquivo: ${this.formatBytes(file.size)}`);
       }
