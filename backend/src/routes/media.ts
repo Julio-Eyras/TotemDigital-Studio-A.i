@@ -796,7 +796,7 @@ router.get('/quota/:clientId',
       
       const { uploadConfig } = require('../config/env').config;
       const quota = uploadConfig.mediaQuotaPerClient;
-      const currentUsage = await storageService.getClientStorageUsage(clientId);
+      const currentUsage = await storageService.getSubscriberStorageUsage(clientId);
       const available = quota - currentUsage;
       const usagePercent = quota > 0 ? (currentUsage / quota) * 100 : 0;
 

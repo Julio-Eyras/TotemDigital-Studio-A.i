@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export interface SmartPlaylistRequest {
-  clientId: number;
+  subscriberId: number;
   campaignId?: number;
   totemId?: number;
   name: string;
@@ -41,7 +41,7 @@ export interface SmartPlaylistRule {
 
 export interface SmartPlaylistResponse {
   id: number;
-  clientId: number;
+  subscriberId: number;
   campaignId?: number;
   totemId?: number;
   name: string;

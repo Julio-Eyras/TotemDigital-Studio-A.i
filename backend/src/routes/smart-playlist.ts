@@ -35,7 +35,7 @@ router.get('/', async (req: any, res) => {
     const {
       page = 1,
       limit = 20,
-      clientId,
+      subscriberId,
       campaignId,
       totemId,
       status,
@@ -45,7 +45,7 @@ router.get('/', async (req: any, res) => {
 
     // Aplicar filtro de cliente se for Client
     const filters: any = {
-      clientId: req.user.role === 'client' ? req.user.clientId : (clientId ? parseInt(clientId as string) : undefined),
+      subscriberId: req.user.role === 'client' || req.user.role === 'subscriber' ? (req.user.subscriberId || req.subscriberId) : (subscriberId ? parseInt(subscriberId as string) : undefined),
       campaignId: campaignId ? parseInt(campaignId as string) : undefined,
       totemId: totemId ? parseInt(totemId as string) : undefined,
       status: status as string,

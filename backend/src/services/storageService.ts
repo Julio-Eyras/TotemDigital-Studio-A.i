@@ -77,15 +77,15 @@ export class StorageService {
   /**
    * Calcula o uso de armazenamento por cliente
    */
-  async getClientStorageUsage(clientId: number): Promise<number> {
+  async getSubscriberStorageUsage(subscriberId: number): Promise<number> {
     try {
-      const clientDir = path.join(this.uploadsPath, `client-${clientId}`);
-      if (!fs.existsSync(clientDir)) {
+      const subscriberDir = path.join(this.uploadsPath, `subscriber-${subscriberId}`);
+      if (!fs.existsSync(subscriberDir)) {
         return 0;
       }
-      return await this.getDirectorySize(clientDir);
+      return await this.getDirectorySize(subscriberDir);
     } catch (error: any) {
-      logErrorSync('Erro ao calcular uso de armazenamento do cliente', error, { clientId });
+      logErrorSync('Erro ao calcular uso de armazenamento do subscriber', error, { subscriberId });
       return 0;
     }
   }
@@ -97,7 +97,7 @@ export class StorageService {
     try {
       const envConfig = require('../config/env');
       const quota = envConfig.uploadConfig?.mediaQuotaPerClient || envConfig.config?.upload?.mediaQuotaPerClient || (5 * 1024 * 1024 * 1024); // Default 5GB se não configurado
-      const currentUsage = await this.getClientStorageUsage(clientId);
+      const currentUsage = await this.getSubscriberStorageUsage(clientId);
       const available = quota - currentUsage;
       const allowed = fileSize <= available;
 

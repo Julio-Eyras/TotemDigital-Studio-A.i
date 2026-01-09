@@ -91,9 +91,9 @@ export class AnalyticsCacheService {
   /**
    * Gera chave de cache para analytics overview
    */
-  getOverviewKey(clientId?: number, startDate?: string, endDate?: string): string {
+  getOverviewKey(subscriberId?: number, startDate?: string, endDate?: string): string {
     const parts = ['analytics', 'overview'];
-    if (clientId) parts.push(`client:${clientId}`);
+    if (subscriberId) parts.push(`subscriber:${subscriberId}`);
     if (startDate) parts.push(`start:${startDate}`);
     if (endDate) parts.push(`end:${endDate}`);
     return parts.join(':');
@@ -102,9 +102,9 @@ export class AnalyticsCacheService {
   /**
    * Gera chave de cache para estatísticas de totens
    */
-  getTotemsStatsKey(clientId?: number, status?: string): string {
+  getTotemsStatsKey(subscriberId?: number, status?: string): string {
     const parts = ['analytics', 'totems'];
-    if (clientId) parts.push(`client:${clientId}`);
+    if (subscriberId) parts.push(`subscriber:${subscriberId}`);
     if (status) parts.push(`status:${status}`);
     return parts.join(':');
   }
