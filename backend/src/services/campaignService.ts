@@ -1268,10 +1268,10 @@ export class CampaignService {
       `);
 
       // Por cliente
-      const byClient = await this.db.findMany(`
+      const bySubscriber = await this.db.findMany(`
         SELECT 
-          c.subscriber_id as clientId,
-          s.name as clientName,
+          c.subscriber_id as subscriberId,
+          s.name as subscriberName,
           COUNT(*) as count
         FROM campaigns c
         LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
@@ -1308,7 +1308,7 @@ export class CampaignService {
         draft: draftResult?.count || 0,
         byType: byType.map(t => ({ type: t.type, count: t.count })),
         byStatus: byStatus.map(s => ({ status: s.status, count: s.count })),
-        byClient: byClient.map(c => ({ clientId: c.clientId, clientName: c.clientName, count: c.count })),
+        bySubscriber: bySubscriber.map(s => ({ subscriberId: s.subscriberId, subscriberName: s.subscriberName, count: s.count })),
         recentActivity: {
           newCampaigns: newCampaignsResult?.count || 0,
           activated: activatedResult?.count || 0,
