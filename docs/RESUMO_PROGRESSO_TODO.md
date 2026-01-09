@@ -21,18 +21,20 @@
 ## ⏳ Tarefas em Progresso
 
 ### Prioridade ALTA
-- [ ] **Migrar clientId para subscriberId** - Plano criado em `docs/PLANO_MIGRACAO_CLIENTID_SUBSCRIBERID.md`
-  - Status: Planejamento completo
-  - Próximo passo: Criar script de migração do banco de dados
+- [x] **Migrar clientId para subscriberId** - ✅ 95% Concluído
+  - Status: Migração quase completa (34 arquivos, ~96 referências)
+  - Progresso: Backend 100%, Frontend 95%
+  - Próximo passo: Validação final e testes
+  - Documentação: `docs/RESUMO_MIGRACAO_CLIENTID_FINAL.md`
 
 ### Prioridade MÉDIA
 - [x] **Completar interface de Publisher Contracts** - ✅ 100% Concluído
   - Status: Interface completa com grid, dialogs de criação/edição, CRUD funcional
   - Documentação: `docs/RESUMO_IMPLEMENTACAO_PUBLISHER_CONTRACTS.md`
 
-- [ ] **Dashboard de estatísticas do Subscriber**
-  - Status: Não iniciado
-  - Próximo passo: Criar nova aba "Estatísticas" no dialog de edição
+- [x] **Dashboard de estatísticas do Subscriber** - ✅ 100% Concluído
+  - Status: Implementado com contadores, storage, limites e alertas
+  - Documentação: `docs/MELHORIAS_DASHBOARD_ESTATISTICAS.md`
 
 ---
 
