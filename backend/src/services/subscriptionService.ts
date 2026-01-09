@@ -11,7 +11,7 @@ import { logError, logInfo } from '../utils/loggerHelper';
 export interface Subscription {
   subscriptionId: number;
   publisherId: number; // NOVO: FK para publishers
-  clientId?: number; // DEPRECADO: Mantido para compatibilidade
+  subscriberId?: number; // clientId deprecated, usar subscriberId
   planId: number;
   stripeSubscriptionId?: string;
   stripeCustomerId?: string;
@@ -33,7 +33,7 @@ export interface Subscription {
 
 export interface CreateSubscriptionRequest {
   publisherId: number; // NOVO: FK para publishers
-  clientId?: number; // DEPRECADO: Mantido para compatibilidade
+  subscriberId?: number; // clientId deprecated, usar subscriberId
   planId: number;
   billingInterval?: 'month' | 'year';
   trialDays?: number;
@@ -64,7 +64,7 @@ export class SubscriptionService {
   async getSubscriptions(
     filters: {
       publisherId?: number; // NOVO
-      clientId?: number; // DEPRECADO: Mantido para compatibilidade
+      subscriberId?: number; // clientId deprecated, usar subscriberId
       planId?: number;
       status?: string;
     } = {}
