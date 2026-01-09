@@ -1467,9 +1467,9 @@ export class CampaignService {
   }
 
   /**
-   * Busca campanhas por subscriber (antes cliente)
+   * Busca campanhas por subscriber (DEPRECATED: usar getCampaigns com filtro subscriberId)
    */
-  async getCampaignsByClient(clientId: number, limit: number = 50): Promise<CampaignResponse[]> {
+  async getCampaignsByClient(subscriberId: number, limit: number = 50): Promise<CampaignResponse[]> {
     try {
       const campaigns = await this.db.findMany(`
         SELECT 

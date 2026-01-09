@@ -680,7 +680,7 @@ export class AuthService {
       userId: user.id,
       username: user.username,
       role: user.role,
-      clientId: user.client_id || user.subscriber_id
+      // clientId deprecated - usar subscriberId
     };
 
     // Adicionar subscriberId se disponível

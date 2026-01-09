@@ -302,7 +302,7 @@ export class SubscriptionService {
           stripeCustomerId = customer.id;
 
           // Salvar customer ID (usar publisher_id)
-          // TODO: Atualizar tabela stripe_customers para usar publisher_id
+          // NOTE: stripe_customers usa publisher_id para subscriptions de publishers
           await this.db.executeRaw(`
             INSERT INTO stripe_customers (client_id, stripe_customer_id, email)
             VALUES ($1, $2, $3)

@@ -150,7 +150,7 @@ router.post('/', async (req: any, res) => {
 
     // Log para debug
     await logDebug('[Smart Playlist] Dados recebidos', { playlistData });
-    await logDebug('[Smart Playlist] Usuário', { userId: req.user?.userId, role: req.user?.role, clientId: req.user?.clientId });
+    await logDebug('[Smart Playlist] Usuário', { userId: req.user?.userId, role: req.user?.role, subscriberId: req.user?.subscriberId });
 
     // Validar campos obrigatórios básicos
     if (!playlistData.name || (typeof playlistData.name === 'string' && playlistData.name.trim() === '')) {
@@ -171,7 +171,7 @@ router.post('/', async (req: any, res) => {
     if (!playlistData.clientId) {
       if (req.user.role === 'client' && req.user.clientId) {
         playlistData.clientId = req.user.clientId;
-        await logDebug('[Smart Playlist] Usando clientId do usuário', { clientId: playlistData.clientId });
+        await logDebug('[Smart Playlist] Usando subscriberId do usuário', { subscriberId: playlistData.subscriberId });
       } else if (req.user.role === 'admin' || req.user.role === 'admin_sql' || req.user.role === 'gerente_marketing') {
         // Para admin/manager, buscar primeiro cliente ativo se não fornecido
         try {
@@ -179,7 +179,7 @@ router.post('/', async (req: any, res) => {
           const firstSubscriber = await getSmartPlaylistService().getFirstActiveClient();
           if (firstSubscriber) {
             playlistData.clientId = firstSubscriber.subscriber_id;
-            await logDebug('[Smart Playlist] Subscriber encontrado', { clientId: playlistData.clientId });
+            await logDebug('[Smart Playlist] Subscriber encontrado', { subscriberId: playlistData.subscriberId });
           } else {
             await logError('[Smart Playlist] Nenhum cliente ativo encontrado');
             return res.status(400).json({
