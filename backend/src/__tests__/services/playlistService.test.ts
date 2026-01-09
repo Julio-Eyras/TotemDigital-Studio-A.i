@@ -35,7 +35,7 @@ describe('PlaylistService', () => {
           playlist_id: 1,
           name: 'Playlist Teste',
           description: 'Descrição teste',
-          client_id: 1,
+          subscriber_id: 1,
           is_active: true,
           created_at: '2024-01-01',
           updated_at: '2024-01-01',
@@ -67,14 +67,14 @@ describe('PlaylistService', () => {
       );
     });
 
-    it('deve filtrar playlists por cliente', async () => {
+    it('deve filtrar playlists por subscriber', async () => {
       mockDb.findMany.mockResolvedValue([]);
       mockDb.findFirst.mockResolvedValue({ total: '0' });
 
-      await playlistService.getAllPlaylists({ page: 1, limit: 10, clientId: 1 });
+      await playlistService.getAllPlaylists({ page: 1, limit: 10, subscriberId: 1 });
 
       expect(mockDb.findMany).toHaveBeenCalledWith(
-        expect.stringContaining('client_id ='),
+        expect.stringContaining('subscriber_id ='),
         expect.arrayContaining([1])
       );
     });
@@ -86,7 +86,7 @@ describe('PlaylistService', () => {
         playlist_id: 1,
         name: 'Playlist Teste',
         description: 'Descrição teste',
-        client_id: 1,
+        subscriber_id: 1,
         is_active: true,
         created_at: '2024-01-01',
         updated_at: '2024-01-01',
@@ -116,7 +116,7 @@ describe('PlaylistService', () => {
         playlist_id: 1,
         name: 'Nova Playlist',
         description: 'Descrição',
-        client_id: 1,
+        subscriber_id: 1,
         is_active: true,
         created_at: '2024-01-01',
         updated_at: '2024-01-01',
@@ -135,7 +135,7 @@ describe('PlaylistService', () => {
       const result = await playlistService.createPlaylist({
         name: 'Nova Playlist',
         description: 'Descrição',
-        clientId: 1,
+        subscriberId: 1,
       });
 
       expect(result).toEqual(mockPlaylist);
@@ -148,7 +148,7 @@ describe('PlaylistService', () => {
       await expect(
         playlistService.createPlaylist({
           name: 'Playlist Existente',
-          clientId: 1,
+          subscriberId: 1,
         })
       ).rejects.toThrow('Playlist com este nome já existe');
     });
@@ -160,7 +160,7 @@ describe('PlaylistService', () => {
         playlist_id: 1,
         name: 'Playlist Atualizada',
         description: 'Descrição atualizada',
-        client_id: 1,
+        subscriber_id: 1,
         is_active: true,
         created_at: '2024-01-01',
         updated_at: '2024-01-02',
@@ -171,7 +171,7 @@ describe('PlaylistService', () => {
           playlist_id: 1,
           name: 'Playlist Antiga',
           description: 'Descrição antiga',
-          client_id: 1,
+          subscriber_id: 1,
           is_active: true,
           created_at: '2024-01-01',
           updated_at: '2024-01-01',

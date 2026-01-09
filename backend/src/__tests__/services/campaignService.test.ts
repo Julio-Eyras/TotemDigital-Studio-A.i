@@ -43,7 +43,7 @@ describe('CampaignService', () => {
       const mockCampaigns = [
         {
           id: 1,
-          clientId: 1,
+          subscriberId: 1,
           title: 'Campanha Teste',
           status: 'active',
           isActive: true,
@@ -63,14 +63,14 @@ describe('CampaignService', () => {
       expect(result.limit).toBe(20);
     });
 
-    it('deve filtrar campanhas por cliente', async () => {
+    it('deve filtrar campanhas por subscriber', async () => {
       mockDb.findMany.mockResolvedValue([]);
       mockDb.findFirst.mockResolvedValue({ total: 0 });
 
-      await campaignService.getCampaigns(1, 20, { clientId: 1 });
+      await campaignService.getCampaigns(1, 20, { subscriberId: 1 });
 
       expect(mockDb.findMany).toHaveBeenCalledWith(
-        expect.stringContaining('client_id ='),
+        expect.stringContaining('subscriber_id ='),
         expect.arrayContaining([1])
       );
     });
@@ -92,7 +92,7 @@ describe('CampaignService', () => {
     it('deve retornar campanha quando encontrada', async () => {
       const mockCampaign = {
         id: 1,
-        clientId: 1,
+        subscriberId: 1,
         title: 'Campanha Teste',
         status: 'active',
         isActive: true,
@@ -118,7 +118,7 @@ describe('CampaignService', () => {
     it('deve criar campanha com dados válidos', async () => {
       const mockCampaign = {
         id: 1,
-        clientId: 1,
+        subscriberId: 1,
         title: 'Nova Campanha',
         status: 'draft',
         isActive: false,
@@ -126,13 +126,13 @@ describe('CampaignService', () => {
         updatedAt: '2024-01-01',
       };
 
-      mockDb.findFirst.mockResolvedValueOnce({ client_id: 1 });
+      mockDb.findFirst.mockResolvedValueOnce({ subscriber_id: 1 });
       jest.spyOn(campaignService, 'getCampaignById').mockResolvedValueOnce(mockCampaign as any);
       mockDb.executeRaw.mockResolvedValue({ lastInsertRowid: 1 });
 
       const result = await campaignService.createCampaign(
         {
-          clientId: 1,
+          subscriberId: 1,
           title: 'Nova Campanha',
         },
         1 // userId
