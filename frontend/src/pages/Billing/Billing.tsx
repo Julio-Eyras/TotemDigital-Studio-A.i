@@ -540,6 +540,250 @@ const Billing: React.FC = () => {
         </Grid>
       </TabPanel>
 
+      {/* TAB: FATURAS ASSINANTES */}
+      {billingType === 'subscriber' && (
+        <TabPanel value={tabValue} index={2}>
+          <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={subscriberFilters.status}
+                label="Status"
+                onChange={(e) => {
+                  setSubscriberFilters({ ...subscriberFilters, status: e.target.value, page: 1 });
+                }}
+                onClose={() => loadSubscriberBillings()}
+              >
+                <MenuItem value="">Todos</MenuItem>
+                <MenuItem value="pending">Pendente</MenuItem>
+                <MenuItem value="paid">Pago</MenuItem>
+                <MenuItem value="overdue">Vencido</MenuItem>
+                <MenuItem value="cancelled">Cancelado</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Tipo</InputLabel>
+              <Select
+                value={subscriberFilters.billingType}
+                label="Tipo"
+                onChange={(e) => {
+                  setSubscriberFilters({ ...subscriberFilters, billingType: e.target.value, page: 1 });
+                }}
+                onClose={() => loadSubscriberBillings()}
+              >
+                <MenuItem value="">Todos</MenuItem>
+                <MenuItem value="advertisement">Publicidade</MenuItem>
+                <MenuItem value="campaign">Campanha</MenuItem>
+                <MenuItem value="media_upload">Upload de Mídia</MenuItem>
+                <MenuItem value="exhibition_lot">Lote de Exibição</MenuItem>
+                <MenuItem value="totem_quantity">Quantidade de Totens</MenuItem>
+                <MenuItem value="time_based">Baseado em Tempo</MenuItem>
+                <MenuItem value="custom">Personalizado</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              size="small"
+              label="Buscar"
+              value={subscriberFilters.search}
+              onChange={(e) => setSubscriberFilters({ ...subscriberFilters, search: e.target.value })}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  loadSubscriberBillings();
+                }
+              }}
+            />
+            <Button startIcon={<Refresh />} variant="outlined" onClick={loadSubscriberBillings}>
+              Atualizar
+            </Button>
+          </Box>
+
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>ID</TableCell>
+                  <TableCell>Assinante</TableCell>
+                  <TableCell>Campanha</TableCell>
+                  <TableCell>Tipo</TableCell>
+                  <TableCell>Valor</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Vencimento</TableCell>
+                  <TableCell>Pago em</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {subscriberBillings.map((billing) => (
+                  <TableRow key={billing.billing_id}>
+                    <TableCell>{billing.billing_id}</TableCell>
+                    <TableCell>{billing.subscriber_name || `Assinante #${billing.subscriber_id}`}</TableCell>
+                    <TableCell>{billing.campaign_title || '-'}</TableCell>
+                    <TableCell>{billing.billing_type}</TableCell>
+                    <TableCell>
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: billing.currency || 'BRL' }).format(billing.amount)}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={billing.status}
+                        color={getStatusColor(billing.status) as any}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {billing.due_date ? new Date(billing.due_date).toLocaleDateString('pt-BR') : '-'}
+                    </TableCell>
+                    <TableCell>
+                      {billing.paid_at ? new Date(billing.paid_at).toLocaleDateString('pt-BR') : '-'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {subscriberBillings.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center">
+                      <Typography variant="body2" color="text.secondary">
+                        Nenhuma fatura de assinante encontrada
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </TabPanel>
+      )}
+
+      {/* TAB: FATURAS PUBLICADORES */}
+      {billingType === 'publisher' && (
+        <TabPanel value={tabValue} index={2}>
+          <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={publisherFilters.paymentStatus}
+                label="Status"
+                onChange={(e) => {
+                  setPublisherFilters({ ...publisherFilters, paymentStatus: e.target.value, page: 1 });
+                }}
+                onClose={() => loadPublisherBillings()}
+              >
+                <MenuItem value="">Todos</MenuItem>
+                <MenuItem value="pending">Pendente</MenuItem>
+                <MenuItem value="pending_payout">Pendente Pagamento</MenuItem>
+                <MenuItem value="paid">Pago</MenuItem>
+                <MenuItem value="failed">Falhou</MenuItem>
+                <MenuItem value="refunded">Reembolsado</MenuItem>
+                <MenuItem value="cancelled">Cancelado</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Direção</InputLabel>
+              <Select
+                value={publisherFilters.direction}
+                label="Direção"
+                onChange={(e) => {
+                  setPublisherFilters({ ...publisherFilters, direction: e.target.value, page: 1 });
+                }}
+                onClose={() => loadPublisherBillings()}
+              >
+                <MenuItem value="">Todas</MenuItem>
+                <MenuItem value="incoming">Entrada</MenuItem>
+                <MenuItem value="outgoing">Saída</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Tipo</InputLabel>
+              <Select
+                value={publisherFilters.billingType}
+                label="Tipo"
+                onChange={(e) => {
+                  setPublisherFilters({ ...publisherFilters, billingType: e.target.value, page: 1 });
+                }}
+                onClose={() => loadPublisherBillings()}
+              >
+                <MenuItem value="">Todos</MenuItem>
+                <MenuItem value="revenue_share">Revenue Share</MenuItem>
+                <MenuItem value="payout">Payout</MenuItem>
+                <MenuItem value="subscription">Assinatura</MenuItem>
+                <MenuItem value="platform_fee">Taxa de Plataforma</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              size="small"
+              label="Buscar"
+              value={publisherFilters.search}
+              onChange={(e) => setPublisherFilters({ ...publisherFilters, search: e.target.value })}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  loadPublisherBillings();
+                }
+              }}
+            />
+            <Button startIcon={<Refresh />} variant="outlined" onClick={loadPublisherBillings}>
+              Atualizar
+            </Button>
+          </Box>
+
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>ID</TableCell>
+                  <TableCell>Publicador</TableCell>
+                  <TableCell>Campanha</TableCell>
+                  <TableCell>Tipo</TableCell>
+                  <TableCell>Direção</TableCell>
+                  <TableCell>Valor</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Vencimento</TableCell>
+                  <TableCell>Pago em</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {publisherBillings.map((billing) => (
+                  <TableRow key={billing.billing_id}>
+                    <TableCell>{billing.billing_id}</TableCell>
+                    <TableCell>{billing.publisher_name || `Publicador #${billing.publisher_id}`}</TableCell>
+                    <TableCell>{billing.campaign_title || '-'}</TableCell>
+                    <TableCell>{billing.billing_type}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={billing.direction === 'incoming' ? 'Entrada' : 'Saída'}
+                        color={billing.direction === 'incoming' ? 'success' : 'warning'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: billing.currency || 'BRL' }).format(billing.amount)}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={billing.payment_status}
+                        color={getStatusColor(billing.payment_status) as any}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {billing.due_date ? new Date(billing.due_date).toLocaleDateString('pt-BR') : '-'}
+                    </TableCell>
+                    <TableCell>
+                      {billing.paid_at ? new Date(billing.paid_at).toLocaleDateString('pt-BR') : '-'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {publisherBillings.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={9} align="center">
+                      <Typography variant="body2" color="text.secondary">
+                        Nenhuma fatura de publicador encontrada
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </TabPanel>
+      )}
+
       {/* DIALOG: NOVA COBRANÇA */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Nova Cobrança</DialogTitle>
