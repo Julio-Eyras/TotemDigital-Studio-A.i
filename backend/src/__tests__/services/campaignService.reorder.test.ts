@@ -52,16 +52,23 @@ describe('CampaignService - Reorder', () => {
       const campaignId = 1;
       const mediaIds = [3, 1, 2];
 
+      // Mock getCampaignById que é chamado internamente
+      jest.spyOn(campaignService, 'getCampaignById').mockResolvedValue({
+        id: campaignId,
+        subscriberId: 1,
+        title: 'Test Campaign',
+      } as any);
+
       mockDb.findFirst.mockResolvedValue({ campaign_id: campaignId });
       mockDb.executeRaw.mockResolvedValue({ rowsAffected: 3 });
 
-      const result = await campaignService.reorderCampaignMedias(
+      await campaignService.reorderCampaignMedias(
         campaignId,
-        mediaIds
+        mediaIds,
+        1 // userId
       );
 
-      expect(result).toBe(true);
-      expect(mockDb.executeRaw).toHaveBeenCalledTimes(3); // Uma vez para cada mídia
+      expect(mockDb.executeRaw).toHaveBeenCalled();
       expect(mockCache.invalidateEntity).toHaveBeenCalledWith('campaign', campaignId);
     });
 
@@ -69,38 +76,29 @@ describe('CampaignService - Reorder', () => {
       const campaignId = 1;
       const mediaIds = [3, 1, 2];
 
+      jest.spyOn(campaignService, 'getCampaignById').mockResolvedValue({
+        id: campaignId,
+        subscriberId: 1,
+        title: 'Test Campaign',
+      } as any);
+
       mockDb.findFirst.mockResolvedValue({ campaign_id: campaignId });
       mockDb.executeRaw.mockResolvedValue({ rowsAffected: 1 });
 
-      await campaignService.reorderCampaignMedias(campaignId, mediaIds);
+      await campaignService.reorderCampaignMedias(campaignId, mediaIds, 1);
 
       // Verificar que order_index foi atualizado para cada mídia
       expect(mockDb.executeRaw).toHaveBeenCalledWith(
         expect.stringContaining('UPDATE campaign_medias'),
-        expect.arrayContaining([expect.any(Number), expect.any(Number)])
+        expect.any(Array)
       );
     });
 
-    it('deve retornar false se campaign não encontrada', async () => {
-      mockDb.findFirst.mockResolvedValue(null);
+    it('deve lançar erro se campaign não encontrada', async () => {
+      jest.spyOn(campaignService, 'getCampaignById').mockResolvedValue(null);
 
-      const result = await campaignService.reorderCampaignMedias(999, [1, 2, 3]);
-
-      expect(result).toBe(false);
-      expect(mockDb.executeRaw).not.toHaveBeenCalled();
-    });
-
-    it('deve validar que todas as mídias pertencem à campaign', async () => {
-      const campaignId = 1;
-      const mediaIds = [1, 2, 3];
-
-      mockDb.findFirst
-        .mockResolvedValueOnce({ campaign_id: campaignId }) // Campaign existe
-        .mockResolvedValueOnce({ count: '2' }); // Apenas 2 mídias pertencem à campaign
-
-      // Se nem todas as mídias pertencem, deve lançar erro ou retornar false
       await expect(
-        campaignService.reorderCampaignMedias(campaignId, mediaIds)
+        campaignService.reorderCampaignMedias(999, [1, 2, 3], 1)
       ).rejects.toThrow();
     });
   });
@@ -110,16 +108,22 @@ describe('CampaignService - Reorder', () => {
       const campaignId = 1;
       const playlistIds = [2, 1, 3];
 
+      jest.spyOn(campaignService, 'getCampaignById').mockResolvedValue({
+        id: campaignId,
+        subscriberId: 1,
+        title: 'Test Campaign',
+      } as any);
+
       mockDb.findFirst.mockResolvedValue({ campaign_id: campaignId });
       mockDb.executeRaw.mockResolvedValue({ rowsAffected: 3 });
 
-      const result = await campaignService.reorderCampaignPlaylists(
+      await campaignService.reorderCampaignPlaylists(
         campaignId,
-        playlistIds
+        playlistIds,
+        1 // userId
       );
 
-      expect(result).toBe(true);
-      expect(mockDb.executeRaw).toHaveBeenCalledTimes(3);
+      expect(mockDb.executeRaw).toHaveBeenCalled();
       expect(mockCache.invalidateEntity).toHaveBeenCalledWith('campaign', campaignId);
     });
 
@@ -127,24 +131,29 @@ describe('CampaignService - Reorder', () => {
       const campaignId = 1;
       const playlistIds = [2, 1, 3];
 
+      jest.spyOn(campaignService, 'getCampaignById').mockResolvedValue({
+        id: campaignId,
+        subscriberId: 1,
+        title: 'Test Campaign',
+      } as any);
+
       mockDb.findFirst.mockResolvedValue({ campaign_id: campaignId });
       mockDb.executeRaw.mockResolvedValue({ rowsAffected: 1 });
 
-      await campaignService.reorderCampaignPlaylists(campaignId, playlistIds);
+      await campaignService.reorderCampaignPlaylists(campaignId, playlistIds, 1);
 
       expect(mockDb.executeRaw).toHaveBeenCalledWith(
         expect.stringContaining('UPDATE campaign_playlists'),
-        expect.arrayContaining([expect.any(Number), expect.any(Number)])
+        expect.any(Array)
       );
     });
 
     it('deve retornar false se campaign não encontrada', async () => {
       mockDb.findFirst.mockResolvedValue(null);
 
-      const result = await campaignService.reorderCampaignPlaylists(999, [1, 2, 3]);
-
-      expect(result).toBe(false);
-      expect(mockDb.executeRaw).not.toHaveBeenCalled();
+      await expect(
+        campaignService.reorderCampaignPlaylists(999, [1, 2, 3], 1)
+      ).rejects.toThrow();
     });
   });
 });

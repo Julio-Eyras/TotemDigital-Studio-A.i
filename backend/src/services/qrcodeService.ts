@@ -339,7 +339,7 @@ export class QRCodeService {
   async createQRCode(data: CreateQRCodeRequest, createdBy: number): Promise<QRCodeResponse> {
     try {
       const {
-        clientId,
+        // clientId deprecated - não usado mais
         totemId,
         campaignId,
         title,
@@ -373,10 +373,8 @@ export class QRCodeService {
         throw new Error('Campanha não encontrada ou inativa');
       }
 
-      // Se clientId fornecido, validar que corresponde ao subscriber da campanha
-      if (clientId && campaign.subscriber_id !== clientId) {
-        throw new Error('clientId não corresponde ao subscriber da campanha');
-      }
+      // clientId deprecated - usar subscriberId da campanha automaticamente
+      // Validação removida pois subscriber_id já vem da campanha
 
       // Verificar se totem existe (se fornecido)
       if (totemId) {

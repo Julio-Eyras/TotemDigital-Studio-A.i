@@ -78,7 +78,7 @@ describe('AnalyticsCacheService', () => {
   describe('getOverviewKey', () => {
     it('deve gerar chave correta para overview', () => {
       const key = cacheService.getOverviewKey(1, '2025-01-01', '2025-01-31');
-      expect(key).toBe('analytics:overview:client:1:start:2025-01-01:end:2025-01-31');
+      expect(key).toBe('analytics:overview:subscriber:1:start:2025-01-01:end:2025-01-31');
     });
 
     it('deve gerar chave sem parâmetros opcionais', () => {

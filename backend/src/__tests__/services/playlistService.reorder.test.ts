@@ -51,12 +51,14 @@ describe('PlaylistService - Reorder', () => {
       mockDb.findFirst.mockResolvedValue({ playlist_id: playlistId });
       mockDb.executeRaw.mockResolvedValue({ rowsAffected: 3 });
 
-      const result = await playlistService.reorderPlaylistMedia(
+      const items = mediaIds.map((id, index) => ({ itemId: id, orderIndex: index + 1 }));
+      await playlistService.reorderPlaylistMedia(
         playlistId,
-        mediaIds
+        items
       );
 
-      expect(result).toBe(true);
+      // reorderPlaylistMedia retorna void, não boolean
+      expect(mockDb.executeRaw).toHaveBeenCalled();
       expect(mockDb.executeRaw).toHaveBeenCalledTimes(3);
       expect(mockCache.invalidateEntity).toHaveBeenCalledWith('playlist', playlistId);
     });
@@ -68,7 +70,8 @@ describe('PlaylistService - Reorder', () => {
       mockDb.findFirst.mockResolvedValue({ playlist_id: playlistId });
       mockDb.executeRaw.mockResolvedValue({ rowsAffected: 1 });
 
-      await playlistService.reorderPlaylistMedia(playlistId, mediaIds);
+      const items = mediaIds.map((id, index) => ({ itemId: id, orderIndex: index + 1 }));
+      await playlistService.reorderPlaylistMedia(playlistId, items);
 
       expect(mockDb.executeRaw).toHaveBeenCalledWith(
         expect.stringContaining('UPDATE playlist_media'),
@@ -79,10 +82,10 @@ describe('PlaylistService - Reorder', () => {
     it('deve retornar false se playlist não encontrada', async () => {
       mockDb.findFirst.mockResolvedValue(null);
 
-      const result = await playlistService.reorderPlaylistMedia(999, [1, 2, 3]);
-
-      expect(result).toBe(false);
-      expect(mockDb.executeRaw).not.toHaveBeenCalled();
+      const items = [1, 2, 3].map((id, index) => ({ itemId: id, orderIndex: index + 1 }));
+      await expect(
+        playlistService.reorderPlaylistMedia(999, items)
+      ).rejects.toThrow();
     });
 
     it('deve validar que todas as mídias pertencem à playlist', async () => {
@@ -94,7 +97,7 @@ describe('PlaylistService - Reorder', () => {
         .mockResolvedValueOnce({ count: '2' }); // Apenas 2 mídias pertencem à playlist
 
       await expect(
-        playlistService.reorderPlaylistMedia(playlistId, mediaIds)
+        playlistService.reorderPlaylistMedia(playlistId, mediaIds.map((id, index) => ({ itemId: id, orderIndex: index + 1 })))
       ).rejects.toThrow();
     });
   });

@@ -5,7 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { subscriberIsolationMiddleware } from '../../middleware/subscriberIsolation.middleware';
-import { logWarn } from '../../utils/loggerHelper';
+// logWarn removido - não utilizado
 
 jest.mock('../../utils/loggerHelper', () => ({
   logWarn: jest.fn(),
@@ -19,7 +19,10 @@ describe('SubscriberIsolationMiddleware', () => {
   beforeEach(() => {
     mockRequest = {
       user: {
+        id: 1,
         userId: 1,
+        username: 'testuser',
+        email: 'test@example.com',
         role: 'subscriber',
         subscriberId: 1,
       },
@@ -63,7 +66,10 @@ describe('SubscriberIsolationMiddleware', () => {
 
   it('deve permitir acesso quando usuário é admin', () => {
     mockRequest.user = {
+      id: 1,
       userId: 1,
+      username: 'admin',
+      email: 'admin@example.com',
       role: 'admin',
       subscriberId: undefined,
     };
@@ -80,7 +86,10 @@ describe('SubscriberIsolationMiddleware', () => {
 
   it('deve bloquear acesso quando subscriber não identificado para role subscriber', () => {
     mockRequest.user = {
+      id: 1,
       userId: 1,
+      username: 'subscriber',
+      email: 'subscriber@example.com',
       role: 'subscriber',
       subscriberId: undefined,
     };
@@ -98,7 +107,10 @@ describe('SubscriberIsolationMiddleware', () => {
   it('deve usar subscriberId do request se disponível', () => {
     (mockRequest as any).subscriberId = 2;
     mockRequest.user = {
+      id: 1,
       userId: 1,
+      username: 'subscriber',
+      email: 'subscriber@example.com',
       role: 'subscriber',
       subscriberId: 1,
     };
@@ -115,7 +127,10 @@ describe('SubscriberIsolationMiddleware', () => {
 
   it('deve extrair subscriberId de subscriber_id se disponível', () => {
     mockRequest.user = {
+      id: 1,
       userId: 1,
+      username: 'subscriber',
+      email: 'subscriber@example.com',
       role: 'subscriber',
       subscriberId: undefined,
     };

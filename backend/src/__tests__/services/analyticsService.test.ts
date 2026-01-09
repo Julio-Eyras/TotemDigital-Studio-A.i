@@ -83,7 +83,7 @@ describe('AnalyticsService', () => {
       (analyticsService as any).getDeviceStats = getDeviceStatsMock;
 
       const result = await analyticsService.getAnalytics({
-        clientId: 1,
+        subscriberId: 1,
         startDate: '2024-01-01',
         endDate: '2024-12-31',
       });

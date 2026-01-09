@@ -103,7 +103,7 @@ describe('QRCodeService', () => {
       mockDb.executeRaw.mockResolvedValueOnce({ lastInsertRowid: 5 });
 
       const result = await service.createQRCode({
-        clientId: 1,
+        // clientId removido - não é mais necessário
         totemId: 2,
         campaignId: 3,
         title: 'QR Teste',
