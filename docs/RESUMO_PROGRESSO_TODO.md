@@ -67,14 +67,16 @@
 - Guia completo disponível em `docs/COMPLETAR_PUBLISHER_CONTRACTS.md`
 - Impacto: Funcionalidade essencial para o modelo de negócio
 
-### 2. Dashboard de Estatísticas do Subscriber (Prioridade MÉDIA)
+### 2. ✅ Dashboard de Estatísticas do Subscriber (Prioridade MÉDIA) - CONCLUÍDO
 - Tempo estimado: 4-5 horas
+- Status: ✅ Implementado
 - Funcionalidades:
-  - Contadores: mídias, playlists, campanhas
-  - Storage utilizado vs. limite
-  - Gráficos de uso
-  - Alertas de expiração de contratos
-  - Limites do plano vs. uso atual
+  - ✅ Contadores: mídias, playlists, campanhas
+  - ✅ Storage utilizado vs. limite (com barra de progresso)
+  - ✅ Alertas de expiração de contratos
+  - ✅ Limites do plano vs. uso atual
+  - ⏳ Gráficos de uso (opcional para futuras melhorias)
+- Documentação: `docs/MELHORIAS_DASHBOARD_ESTATISTICAS.md`
 
 ### 3. Migrar clientId para subscriberId (Prioridade ALTA)
 - Tempo estimado: 10-15 horas
