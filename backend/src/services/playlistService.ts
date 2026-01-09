@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { getCacheService } from './cacheService';
 
 export interface PlaylistItem {
   playlist_id: number;
@@ -290,6 +291,10 @@ export class PlaylistService {
         throw new Error('Erro ao buscar playlist criada');
       }
 
+      // Invalidar cache
+      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
+      await getCacheService().invalidateEntity('subscriber', subscriberId).catch(() => {});
+
       return newPlaylist;
     } catch (error: any) {
       await logError('Erro ao criar playlist', error, { name: data.name, subscriberId: data.subscriberId || data.clientId });
@@ -381,6 +386,10 @@ export class PlaylistService {
         throw new Error('Erro ao buscar playlist atualizada');
       }
 
+      // Invalidar cache
+      await getCacheService().invalidateEntity('playlist', id).catch(() => {});
+      await getCacheService().invalidateEntity('subscriber', updatedPlaylist.subscriber_id).catch(() => {});
+
       return updatedPlaylist;
     } catch (error: any) {
       await logError('Erro ao atualizar playlist', error, { id, updateData: data });
@@ -413,6 +422,10 @@ export class PlaylistService {
         SET is_active = false, updated_at = CURRENT_TIMESTAMP
         WHERE playlist_id = $1
       `, [id]);
+
+      // Invalidar cache
+      await getCacheService().invalidateEntity('playlist', id).catch(() => {});
+      await getCacheService().invalidateEntity('subscriber', existingPlaylist.subscriber_id).catch(() => {});
     } catch (error: any) {
       await logError('Erro ao excluir playlist', error, { id });
       throw error;
@@ -573,6 +586,9 @@ export class PlaylistService {
       await this.db.executeRaw(`
         DELETE FROM playlist_items WHERE item_id = $1
       `, [itemId]);
+
+      // Invalidar cache
+      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
     } catch (error: any) {
       await logError('Erro ao remover mídia da playlist', error, { itemId });
       throw error;
@@ -626,6 +642,9 @@ export class PlaylistService {
         SET display_seconds = $1, updated_at = CURRENT_TIMESTAMP
         WHERE item_id = $2 AND playlist_id = $3
       `, [duration, itemId, playlistId]);
+
+      // Invalidar cache
+      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
     } catch (error: any) {
       await logError('Erro ao atualizar duração do item da playlist', error, { playlistId, itemId, duration });
       throw error;
@@ -665,6 +684,9 @@ export class PlaylistService {
           WHERE item_id = $2 AND playlist_id = $3
         `, [item.orderIndex, item.itemId, playlistId]);
       }
+
+      // Invalidar cache
+      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
     } catch (error: any) {
       await logError('Erro ao reordenar mídia da playlist', error, { playlistId, items });
       throw error;

@@ -640,6 +640,10 @@ export class MediaService {
         subscriberId: subscriberId
       });
 
+      // Invalidar cache
+      await getCacheService().invalidateEntity('media', newMedia.id).catch(() => {});
+      await getCacheService().invalidateEntity('subscriber', subscriberId).catch(() => {});
+
       return newMedia;
 
     } catch (error: any) {
@@ -738,6 +742,10 @@ export class MediaService {
         subscriberId: existingMedia.subscriberId
       });
 
+      // Invalidar cache
+      await getCacheService().invalidateEntity('media', mediaId).catch(() => {});
+      await getCacheService().invalidateEntity('subscriber', existingMedia.subscriberId).catch(() => {});
+
       return updatedMedia;
 
     } catch (error: any) {
@@ -797,6 +805,10 @@ export class MediaService {
         filePath: media.filePath,
         subscriberId: media.subscriberId
       });
+
+      // Invalidar cache
+      await getCacheService().invalidateEntity('media', mediaId).catch(() => {});
+      await getCacheService().invalidateEntity('subscriber', media.subscriberId).catch(() => {});
 
     } catch (error: any) {
       await logError('Erro ao remover mídia', error, { mediaId });
