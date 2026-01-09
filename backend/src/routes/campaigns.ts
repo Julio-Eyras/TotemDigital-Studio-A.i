@@ -81,7 +81,7 @@ router.get('/',
     if (req.user.role === 'client' || req.user.role === 'subscriber') {
       // Usar subscriberId do middleware de isolamento
       finalSubscriberId = req.subscriberId || req.user.subscriberId;
-      if (!finalClientId) {
+      if (!finalSubscriberId) {
         return res.status(403).json({
           success: false,
           error: 'Acesso negado',
@@ -89,12 +89,12 @@ router.get('/',
         });
       }
     } else {
-      // Admin pode ver todas ou filtrar por clientId fornecido
-      finalClientId = clientId ? parseInt(clientId as string) : undefined;
+      // Admin pode ver todas ou filtrar por subscriberId fornecido
+      finalSubscriberId = subscriberId ? parseInt(subscriberId as string) : undefined;
     }
     
     const filters: any = {
-      clientId: finalClientId,
+      subscriberId: finalSubscriberId,
       status: status as string,
       campaignType: campaignType as string,
       isActive: isActive !== undefined ? isActive === 'true' : undefined,

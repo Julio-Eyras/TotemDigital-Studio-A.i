@@ -53,8 +53,7 @@ export interface UpdateCampaignRequest {
 
 export interface CampaignResponse {
   id: number;
-  // Mantemos clientId no contrato de resposta, mas internamente mapeia para subscriber_id
-  clientId: number;
+  subscriberId: number;
   contractId?: number; // ⭐ NOVO: Contrato vinculado
   title: string;
   description?: string;
@@ -96,8 +95,8 @@ export interface CampaignStats {
   draft: number;
   byType: { type: string; count: number }[];
   byStatus: { status: string; count: number }[];
-  // Estatísticas agregadas por subscriber (mantemos nomes clientId/clientName por compatibilidade)
-  byClient: { clientId: number; clientName: string; count: number }[];
+  // Estatísticas agregadas por subscriber
+  bySubscriber: { subscriberId: number; subscriberName: string; count: number }[];
   recentActivity: {
     newCampaigns: number;
     activated: number;
@@ -155,10 +154,10 @@ export class CampaignService {
 
       // Aplicar filtros
       let paramIndex = 1;
-      if (filters.clientId) {
-        // Filtro por subscriber (antes client)
+      if (filters.subscriberId) {
+        // Filtro por subscriber
         whereClause += ` AND c.subscriber_id = $${paramIndex}`;
-        params.push(filters.clientId);
+        params.push(filters.subscriberId);
         paramIndex++;
       }
 
