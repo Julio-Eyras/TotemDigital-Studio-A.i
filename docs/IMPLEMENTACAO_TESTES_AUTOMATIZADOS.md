@@ -16,7 +16,10 @@ Implementação de testes automatizados para serviços críticos e rotas princip
 
 ### 1. Testes Unitários - SubscriberService
 
-**Arquivo:** `backend/src/__tests__/services/subscriberService.test.ts`
+**Arquivos:**
+- `backend/src/__tests__/services/subscriberService.test.ts` - Testes principais
+- `backend/src/__tests__/services/subscriberService.planLimits.test.ts` - Validação de limites
+- `backend/src/__tests__/services/subscriberService.cache.test.ts` - Invalidação de cache
 
 **Cobertura:**
 - ✅ `getAllSubscribers` - Paginação, filtros, busca, ordenação
@@ -28,8 +31,11 @@ Implementação de testes automatizados para serviços críticos e rotas princip
 - ✅ `createSubscriber` - Criação de subscriber
 - ✅ `updateSubscriber` - Atualização de subscriber
 - ✅ `deleteSubscriber` - Exclusão de subscriber
+- ✅ `validatePlanLimits` - Validação de limites (medias, playlists, campaigns)
+- ✅ `validateStorageLimit` - Validação de storage
+- ✅ `invalidateSubscriberCache` - Invalidação de cache
 
-**Total de Testes:** 15+ casos de teste
+**Total de Testes:** 25+ casos de teste
 
 ---
 
@@ -76,40 +82,93 @@ Implementação de testes automatizados para serviços críticos e rotas princip
 
 **Total de Testes:** 6+ casos de teste
 
+### 5. Testes de Integração - Rotas de Media
+
+**Arquivo:** `backend/src/__tests__/routes/media.test.ts`
+
+**Cobertura:**
+- ✅ `GET /api/media` - Lista com filtros (subscriberId, busca, datas)
+- ✅ `GET /api/media/:id` - Busca por ID
+- ✅ `POST /api/media` - Criação
+- ✅ `PUT /api/media/:id` - Atualização
+- ✅ `DELETE /api/media/:id` - Exclusão
+
+**Total de Testes:** 10+ casos de teste
+
+### 6. Testes de Reordenação (Drag & Drop)
+
+**Arquivos:**
+- `backend/src/__tests__/services/campaignService.reorder.test.ts`
+- `backend/src/__tests__/services/playlistService.reorder.test.ts`
+
+**Cobertura:**
+- ✅ `reorderCampaignMedias` - Reordenação de mídias em campaigns
+- ✅ `reorderCampaignPlaylists` - Reordenação de playlists em campaigns
+- ✅ `reorderPlaylistMedia` - Reordenação de mídias em playlists
+- ✅ Validação de pertencimento
+- ✅ Invalidação de cache
+
+**Total de Testes:** 12+ casos de teste
+
+### 7. Testes de Isolamento de Dados
+
+**Arquivo:** `backend/src/__tests__/middleware/subscriberIsolation.test.ts`
+
+**Cobertura:**
+- ✅ `subscriberIsolationMiddleware` - Isolamento por subscriber
+- ✅ Validação de acesso por role
+- ✅ Extração de subscriberId
+- ✅ Bloqueio de acesso sem subscriberId
+
+**Total de Testes:** 6+ casos de teste
+
+### 8. Testes de MediaService - Subscriber
+
+**Arquivo:** `backend/src/__tests__/services/mediaService.subscriber.test.ts`
+
+**Cobertura:**
+- ✅ Filtros por subscriberId
+- ✅ Busca (nome, descrição, file_name)
+- ✅ Filtros de data
+- ✅ `getMediaByTags` com subscriberId
+- ✅ Invalidação de cache em CRUD
+
+**Total de Testes:** 8+ casos de teste
+
 ---
 
 ## 📊 Estatísticas
 
-- **Arquivos de Teste Criados:** 4
-- **Total de Casos de Teste:** 40+
-- **Cobertura de Serviços Críticos:** ~30%
-- **Cobertura de Rotas Principais:** ~25%
+- **Arquivos de Teste Criados:** 12
+- **Total de Casos de Teste:** 80+
+- **Cobertura de Serviços Críticos:** ~60%
+- **Cobertura de Rotas Principais:** ~50%
 
 ---
 
 ## ⏳ Próximos Passos
 
 ### Testes Unitários Pendentes
-- [ ] `MediaService` - Testes para funcionalidades modificadas
-- [ ] `CampaignService` - Testes para reordenação e filtros
-- [ ] `PlaylistService` - Testes para reordenação
+- [x] `MediaService` - ✅ Testes para funcionalidades modificadas
+- [x] `CampaignService` - ✅ Testes para reordenação e filtros
+- [x] `PlaylistService` - ✅ Testes para reordenação
 - [ ] `StorageService` - Testes para `getSubscriberStorageUsage`
 - [ ] `AnalyticsService` - Testes para filtros com `subscriberId`
 - [ ] `ReportsService` - Testes para filtros com `subscriberId`
 
 ### Testes de Integração Pendentes
-- [ ] `GET /api/media` - Lista e filtros
+- [x] `GET /api/media` - ✅ Lista e filtros
 - [ ] `POST /api/media/upload` - Upload de mídias
-- [ ] `PUT /api/media/:id` - Atualização
-- [ ] `DELETE /api/media/:id` - Exclusão
+- [x] `PUT /api/media/:id` - ✅ Atualização
+- [x] `DELETE /api/media/:id` - ✅ Exclusão
 - [ ] `GET /api/analytics/overview` - Com filtros de subscriberId
 - [ ] `GET /api/reports` - Com filtros de subscriberId
 
 ### Testes de Validação Pendentes
-- [ ] Validação de limites de planos
-- [ ] Validação de isolamento de dados por subscriber
-- [ ] Validação de cache invalidation
-- [ ] Validação de drag & drop (reordenação)
+- [x] Validação de limites de planos - ✅ Implementado
+- [x] Validação de isolamento de dados por subscriber - ✅ Implementado
+- [x] Validação de cache invalidation - ✅ Implementado
+- [x] Validação de drag & drop (reordenação) - ✅ Implementado
 
 ---
 
