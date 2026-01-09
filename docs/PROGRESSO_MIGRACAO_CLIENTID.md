@@ -32,8 +32,8 @@
 
 ### Backend - Services
 - [ ] `backend/src/services/billingService.ts` - Verificar se ainda é usado (parece legado)
-- [ ] `backend/src/services/reportsService.ts` - Atualizar referências
-- [ ] `backend/src/services/analyticsService.ts` - Atualizar referências
+- [x] `backend/src/services/reportsService.ts` - Atualizado para usar `subscriberId`
+- [x] `backend/src/services/analyticsService.ts` - Atualizado para usar `subscriberId`
 - [ ] `backend/src/services/clientService.ts` - Verificar se ainda é usado (parece deprecated)
 - [ ] `backend/src/services/totemService.ts` - Verificar referências
 - [ ] `backend/src/services/userService.ts` - Verificar referências
@@ -45,8 +45,8 @@
 
 ### Backend - Rotas
 - [ ] `backend/src/routes/billing.ts` - Verificar se ainda é usado (parece legado)
-- [ ] `backend/src/routes/analytics.ts` - Atualizar `/clients/:clientId` para `/subscribers/:subscriberId`
-- [ ] `backend/src/routes/reports.ts` - Atualizar referências
+- [x] `backend/src/routes/analytics.ts` - Atualizado para usar `subscriberId`
+- [x] `backend/src/routes/reports.ts` - Atualizado para usar `subscriberId`
 - [ ] `backend/src/routes/subscriptions.ts` - Verificar referências
 - [ ] `backend/src/routes/totems.ts` - Verificar referências
 - [ ] `backend/src/routes/auth.ts` - Verificar referências
@@ -69,9 +69,9 @@
 
 ## 📊 Estatísticas
 
-- **Arquivos Modificados**: 7
-- **Referências Removidas**: ~15
-- **Progresso Estimado**: ~30%
+- **Arquivos Modificados**: 12
+- **Referências Removidas**: ~25
+- **Progresso Estimado**: ~50%
 
 ---
 
