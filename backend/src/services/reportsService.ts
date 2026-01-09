@@ -459,8 +459,7 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      // Suportar subscriberId (novo) e clientId (compatibilidade)
-      const subscriberId = filters.subscriberId || filters.clientId;
+      const subscriberId = filters.subscriberId;
       if (subscriberId) {
         whereClause += ' AND c.subscriber_id = $' + (params.length + 1);
         params.push(subscriberId);
@@ -602,8 +601,7 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      // Suportar subscriberId (novo) e clientId (compatibilidade)
-      const subscriberId = filters.subscriberId || filters.clientId;
+      const subscriberId = filters.subscriberId;
       if (subscriberId) {
         whereClause += ' AND s.subscriber_id = $' + (params.length + 1);
         params.push(subscriberId);
@@ -654,8 +652,7 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      // Suportar subscriberId (novo) e clientId (compatibilidade)
-      const subscriberId = filters.subscriberId || filters.clientId;
+      const subscriberId = filters.subscriberId;
       if (subscriberId) {
         whereClause += ' AND m.subscriber_id = $' + (params.length + 1);
         params.push(subscriberId);
@@ -714,8 +711,7 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      // Suportar subscriberId (novo) e clientId (compatibilidade)
-      const subscriberId = filters.subscriberId || filters.clientId;
+      const subscriberId = filters.subscriberId;
       if (subscriberId) {
         whereClause += ' AND b.subscriber_id = $' + (params.length + 1);
         params.push(subscriberId);

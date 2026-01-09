@@ -68,9 +68,9 @@ export interface AnalyticsResponse {
   }[];
   revenue: {
     total: number;
-    byClient: {
-      clientId: number;
-      clientName: string;
+    bySubscriber: {
+      subscriberId: number;
+      subscriberName: string;
       amount: number;
     }[];
     byCampaign: {
@@ -688,9 +688,9 @@ export class AnalyticsService {
    */
   private async getRevenueStats(_filters: AnalyticsFilters): Promise<{
     total: number;
-    byClient: {
-      clientId: number;
-      clientName: string;
+    bySubscriber: {
+      subscriberId: number;
+      subscriberName: string;
       amount: number;
     }[];
     byCampaign: {
