@@ -57,10 +57,10 @@ const registerValidator = [
     .optional()
     .isIn(['admin', 'admin_sql', 'operator', 'gerente_marketing', 'editoracao', 'visualizador', 'client'])
     .withMessage('Role deve ser válida'),
-  body('clientId')
+  body('subscriberId')
     .optional()
     .isInt({ min: 1 })
-    .withMessage('Client ID deve ser um número inteiro positivo')
+    .withMessage('Subscriber ID deve ser um número inteiro positivo')
 ];
 
 const changePasswordValidator = [
@@ -636,7 +636,7 @@ router.post('/2fa/verify', authLimiter, twoFactorCodeValidator, async (req: Requ
     const { getDatabase } = await import('../config/database');
     const db = getDatabase();
     const user = await db.findFirst(`
-      SELECT id, username, email, role, client_id
+      SELECT id, username, email, role, subscriber_id
       FROM users
       WHERE id = $1 AND is_active = true
     `, [userId]);
@@ -661,7 +661,7 @@ router.post('/2fa/verify', authLimiter, twoFactorCodeValidator, async (req: Requ
         id: user.id,
         username: user.username,
         role: user.role,
-        clientId: user.client_id
+        subscriberId: (user as any).subscriber_id
       }
     });
 

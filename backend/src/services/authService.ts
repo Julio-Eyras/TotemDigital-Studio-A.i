@@ -22,7 +22,7 @@ export interface RegisterRequest {
   password: string;
   email?: string;
   role?: string;
-  clientId?: number;
+  subscriberId?: number; // clientId deprecated, usar subscriberId
 }
 
 export interface AuthResponse {
@@ -34,7 +34,6 @@ export interface AuthResponse {
     username: string;
     email: string;
     role: string;
-    clientId?: number;
     subscriberId?: number;
     publisherId?: number;
     subscriberName?: string;

@@ -50,17 +50,15 @@ router.get('/', async (req: any, res) => {
       if (userPublisherId) {
         filters.publisherId = userPublisherId;
       }
-    } else if (req.user.role === 'client' && req.user.clientId) {
-      // DEPRECADO: Compatibilidade com clientId antigo
-      filters.clientId = req.user.clientId;
+    } else if ((req.user.role === 'client' || req.user.role === 'subscriber') && req.user.subscriberId) {
+      filters.subscriberId = req.user.subscriberId;
     } else {
       // Admins podem filtrar
-      const { clientId, publisherId, planId, status } = req.query;
+      const { subscriberId, publisherId, planId, status } = req.query;
       if (publisherId) {
         filters.publisherId = parseInt(publisherId as string);
-      } else if (clientId) {
-        // DEPRECADO: Compatibilidade
-        filters.clientId = parseInt(clientId as string);
+      } else if (subscriberId) {
+        filters.subscriberId = parseInt(subscriberId as string);
       }
       if (planId) filters.planId = parseInt(planId as string);
       if (status) filters.status = status as string;
