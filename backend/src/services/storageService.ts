@@ -93,11 +93,11 @@ export class StorageService {
   /**
    * Verifica se cliente tem quota disponível para novo arquivo
    */
-  async checkClientQuota(clientId: number, fileSize: number): Promise<{ allowed: boolean; currentUsage: number; quota: number; available: number }> {
+  async checkSubscriberQuota(subscriberId: number, fileSize: number): Promise<{ allowed: boolean; currentUsage: number; quota: number; available: number }> {
     try {
       const envConfig = require('../config/env');
       const quota = envConfig.uploadConfig?.mediaQuotaPerClient || envConfig.config?.upload?.mediaQuotaPerClient || (5 * 1024 * 1024 * 1024); // Default 5GB se não configurado
-      const currentUsage = await this.getSubscriberStorageUsage(clientId);
+      const currentUsage = await this.getSubscriberStorageUsage(subscriberId);
       const available = quota - currentUsage;
       const allowed = fileSize <= available;
 
