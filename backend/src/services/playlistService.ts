@@ -542,6 +542,9 @@ export class PlaylistService {
         INSERT INTO playlist_items (playlist_id, media_id, order_index, display_seconds, created_at)
         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
       `, [playlistId, mediaId, orderIndex, duration]);
+
+      // Invalidar cache
+      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
     } catch (error: any) {
       await logError('Erro ao adicionar mídia à playlist', error, { playlistId, mediaId, orderIndex, duration });
       throw error;
