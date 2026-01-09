@@ -36,6 +36,9 @@
 - [x] `backend/src/services/analyticsService.ts` - Atualizado para usar `subscriberId`
 - [x] `backend/src/services/authService.ts` - Atualizado para usar `subscriberId`
 - [x] `backend/src/services/subscriptionService.ts` - Atualizado para usar `subscriberId`
+- [x] `backend/src/services/storageService.ts` - Atualizado: `getClientStorageUsage` -> `getSubscriberStorageUsage`, `checkClientQuota` -> `checkSubscriberQuota`
+- [x] `backend/src/services/smartPlaylistService.ts` - Atualizado: `clientId` -> `subscriberId`
+- [x] `backend/src/services/analyticsCacheService.ts` - Atualizado: `getOverviewKey` e `getTotemsStatsKey` usam `subscriberId`
 - [ ] `backend/src/services/clientService.ts` - Verificar se ainda é usado (parece deprecated)
 - [ ] `backend/src/services/totemService.ts` - Verificar referências
 - [ ] `backend/src/services/userService.ts` - Verificar referências
@@ -51,6 +54,9 @@
 - [x] `backend/src/routes/reports.ts` - Atualizado para usar `subscriberId`
 - [x] `backend/src/routes/auth.ts` - Atualizado para usar `subscriberId`
 - [x] `backend/src/routes/subscriptions.ts` - Atualizado para usar `subscriberId`
+- [x] `backend/src/routes/smart-playlist.ts` - Atualizado para usar `subscriberId`
+- [x] `backend/src/routes/player.ts` - Atualizado: retorno usa `subscriberId`/`subscriberName`
+- [x] `backend/src/routes/media.ts` - Atualizado: usa `getSubscriberStorageUsage`
 - [ ] `backend/src/routes/subscriptions.ts` - Verificar referências
 - [ ] `backend/src/routes/totems.ts` - Verificar referências
 - [ ] `backend/src/routes/auth.ts` - Verificar referências
@@ -73,9 +79,9 @@
 
 ## 📊 Estatísticas
 
-- **Arquivos Modificados**: 20
-- **Referências Removidas**: ~40
-- **Progresso Estimado**: ~70%
+- **Arquivos Modificados**: 27
+- **Referências Removidas**: ~55
+- **Progresso Estimado**: ~80%
 
 ---
 
