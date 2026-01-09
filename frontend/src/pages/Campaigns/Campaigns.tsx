@@ -715,17 +715,17 @@ const Campaigns: React.FC = () => {
               value={newCampaign.subscriberId || ''}
               onChange={async (e) => {
                 const value = e.target.value;
-                const clientId = value && value !== '' ? parseInt(String(value), 10) : undefined;
+                const subscriberId = value && value !== '' ? parseInt(String(value), 10) : undefined;
                 setNewCampaign({ 
                   ...newCampaign, 
-                  clientId,
-                  publisherIds: [] // Limpar publishers ao mudar cliente
+                  subscriberId,
+                  publisherIds: [] // Limpar publishers ao mudar subscriber
                 });
                 
                 // Carregar publishers acessíveis para o subscriber selecionado
-                if (clientId) {
+                if (subscriberId) {
                   try {
-                    const accessible = await subscriberAccessApi.getAccessiblePublishers(clientId);
+                    const accessible = await subscriberAccessApi.getAccessiblePublishers(subscriberId);
                     setAccessiblePublishers(accessible);
                   } catch (error) {
                     console.error('Erro ao carregar publishers acessíveis:', error);
