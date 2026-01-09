@@ -3696,19 +3696,209 @@ const Subscribers: React.FC = () => {
                 </Card>
               </Grid>
               {SubscriberStats.stats && (
-                <Grid item xs={12} sm={6} md={3}>
-                  <Card sx={{ textAlign: 'center', py: 2 }}>
-                    <CardContent>
-                      <CheckCircle sx={{ fontSize: 40, color: theme.palette.info.main, mb: 1 }} />
-                      <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                        {SubscriberStats.stats.onlineTotems || 0}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Totens Online
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
+                <>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{ textAlign: 'center', py: 2 }}>
+                      <CardContent>
+                        <CheckCircle sx={{ fontSize: 40, color: theme.palette.info.main, mb: 1 }} />
+                        <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                          {SubscriberStats.stats.onlineTotems || 0}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Totens Online
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  
+                  {/* Contadores de Recursos */}
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{ textAlign: 'center', py: 2 }}>
+                      <CardContent>
+                        <VideoLibrary sx={{ fontSize: 40, color: theme.palette.primary.main, mb: 1 }} />
+                        <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                          {SubscriberStats.stats.media_count || 0}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Mídias
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{ textAlign: 'center', py: 2 }}>
+                      <CardContent>
+                        <QueueMusic sx={{ fontSize: 40, color: theme.palette.secondary.main, mb: 1 }} />
+                        <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                          {SubscriberStats.stats.playlist_count || 0}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Playlists
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{ textAlign: 'center', py: 2 }}>
+                      <CardContent>
+                        <CampaignIcon sx={{ fontSize: 40, color: theme.palette.warning.main, mb: 1 }} />
+                        <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                          {SubscriberStats.stats.campaign_count || 0}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Campanhas
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  
+                  {/* Storage e Limites */}
+                  {SubscriberStats.stats.storage_used_gb !== undefined && (
+                    <Grid item xs={12} md={6}>
+                      <Card>
+                        <CardContent>
+                          <Typography variant="h6" sx={{ mb: 2 }}>
+                            Armazenamento
+                          </Typography>
+                          <Box sx={{ mb: 1 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography variant="body2">
+                                {SubscriberStats.stats.storage_used_gb?.toFixed(2) || 0} GB utilizados
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {SubscriberStats.stats.storage_limit_gb ? `${SubscriberStats.stats.storage_limit_gb} GB limite` : 'Sem limite'}
+                              </Typography>
+                            </Box>
+                            {SubscriberStats.stats.storage_limit_gb && (
+                              <LinearProgress
+                                variant="determinate"
+                                value={Math.min(
+                                  ((SubscriberStats.stats.storage_used_gb || 0) / SubscriberStats.stats.storage_limit_gb) * 100,
+                                  100
+                                )}
+                                sx={{ height: 8, borderRadius: 4 }}
+                                color={
+                                  ((SubscriberStats.stats.storage_used_gb || 0) / SubscriberStats.stats.storage_limit_gb) * 100 > 90
+                                    ? 'error'
+                                    : ((SubscriberStats.stats.storage_used_gb || 0) / SubscriberStats.stats.storage_limit_gb) * 100 > 75
+                                    ? 'warning'
+                                    : 'primary'
+                                }
+                              />
+                            )}
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  )}
+                  
+                  {/* Limites do Plano */}
+                  {SubscriberStats.stats.plan_limits && (
+                    <Grid item xs={12} md={6}>
+                      <Card>
+                        <CardContent>
+                          <Typography variant="h6" sx={{ mb: 2 }}>
+                            Limites do Plano
+                          </Typography>
+                          <Grid container spacing={2}>
+                            {SubscriberStats.stats.plan_limits.medias !== undefined && (
+                              <Grid item xs={6}>
+                                <Typography variant="body2" color="text.secondary">
+                                  Mídias
+                                </Typography>
+                                <Typography variant="h6">
+                                  {SubscriberStats.stats.media_count || 0} / {SubscriberStats.stats.plan_limits.medias === -1 ? '∞' : SubscriberStats.stats.plan_limits.medias}
+                                </Typography>
+                              </Grid>
+                            )}
+                            {SubscriberStats.stats.plan_limits.playlists !== undefined && (
+                              <Grid item xs={6}>
+                                <Typography variant="body2" color="text.secondary">
+                                  Playlists
+                                </Typography>
+                                <Typography variant="h6">
+                                  {SubscriberStats.stats.playlist_count || 0} / {SubscriberStats.stats.plan_limits.playlists === -1 ? '∞' : SubscriberStats.stats.plan_limits.playlists}
+                                </Typography>
+                              </Grid>
+                            )}
+                            {SubscriberStats.stats.plan_limits.campaigns !== undefined && (
+                              <Grid item xs={6}>
+                                <Typography variant="body2" color="text.secondary">
+                                  Campanhas
+                                </Typography>
+                                <Typography variant="h6">
+                                  {SubscriberStats.stats.campaign_count || 0} / {SubscriberStats.stats.plan_limits.campaigns === -1 ? '∞' : SubscriberStats.stats.plan_limits.campaigns}
+                                </Typography>
+                              </Grid>
+                            )}
+                          </Grid>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  )}
+                  
+                  {/* Alertas de Contratos */}
+                  {selectedSubscriber && (
+                    <Grid item xs={12}>
+                      <Card>
+                        <CardContent>
+                          <Typography variant="h6" sx={{ mb: 2 }}>
+                            Contratos e Planos
+                          </Typography>
+                          {availableContracts.filter(c => c.subscriber_id === selectedSubscriber.subscriber_id).length === 0 ? (
+                            <Alert severity="warning">
+                              Nenhum contrato ativo encontrado para este assinante.
+                            </Alert>
+                          ) : (
+                            <List>
+                              {availableContracts
+                                .filter(c => c.subscriber_id === selectedSubscriber.subscriber_id)
+                                .map((contract) => {
+                                  const isExpired = contract.end_date && new Date(contract.end_date) < new Date();
+                                  const isExpiringSoon = contract.end_date && 
+                                    new Date(contract.end_date) > new Date() && 
+                                    new Date(contract.end_date) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                                  
+                                  return (
+                                    <ListItem key={contract.contract_id}>
+                                      <ListItemIcon>
+                                        {isExpired ? (
+                                          <ErrorIcon color="error" />
+                                        ) : isExpiringSoon ? (
+                                          <Warning color="warning" />
+                                        ) : (
+                                          <CheckCircle color="success" />
+                                        )}
+                                      </ListItemIcon>
+                                      <ListItemText
+                                        primary={contract.title}
+                                        secondary={
+                                          <>
+                                            {contract.contract_number} • {contract.contract_type} • 
+                                            {contract.end_date ? (
+                                              isExpired ? (
+                                                <span style={{ color: 'red' }}> Expirado em {formatDate(contract.end_date)}</span>
+                                              ) : isExpiringSoon ? (
+                                                <span style={{ color: 'orange' }}> Expira em {formatDate(contract.end_date)}</span>
+                                              ) : (
+                                                ` Válido até ${formatDate(contract.end_date)}`
+                                              )
+                                            ) : ' Sem data de término'}
+                                          </>
+                                        }
+                                      />
+                                    </ListItem>
+                                  );
+                                })}
+                            </List>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  )}
+                </>
               )}
             </Grid>
           )}
