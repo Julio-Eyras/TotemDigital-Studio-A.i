@@ -620,8 +620,8 @@ const Contracts: React.FC = () => {
         ))}
       </Grid>
 
-      {/* Empty State */}
-      {contracts.length === 0 && !loading && (
+      {/* Empty State - Subscriber Contracts */}
+      {contracts.length === 0 && !loading && mainTab === 0 && (
         <Card sx={{ textAlign: 'center', py: 8 }}>
           <CardContent>
             <Description sx={{ fontSize: 64, color: theme.palette.text.secondary, mb: 2 }} />
@@ -643,6 +643,125 @@ const Contracts: React.FC = () => {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* Publisher Contracts Grid */}
+      {mainTab === 1 && (
+        <Grid container spacing={3}>
+          {publisherContracts.map((contract) => (
+            <Grid item xs={12} sm={6} md={4} lg={3} key={contract.contract_id}>
+              <Card sx={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: theme.shadows[8],
+                }
+              }}>
+                <Box sx={{ position: 'relative', height: 120, backgroundColor: theme.palette.grey[100] }}>
+                  <Avatar
+                    sx={{
+                      position: 'absolute',
+                      top: 16,
+                      left: 16,
+                      backgroundColor: alpha(theme.palette.secondary.main, 0.1),
+                      color: theme.palette.secondary.main,
+                    }}
+                  >
+                    <Business />
+                  </Avatar>
+
+                  <Chip
+                    label={getStatusLabel(contract.status)}
+                    size="small"
+                    color={getStatusColor(contract.status) as any}
+                    sx={{
+                      position: 'absolute',
+                      top: 16,
+                      right: 16,
+                    }}
+                  />
+                </Box>
+
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    {contract.title}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    {contract.contract_number}
+                  </Typography>
+                  <Chip
+                    label={getContractTypeLabel(contract.contract_type)}
+                    size="small"
+                    sx={{ mb: 1 }}
+                  />
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <Business sx={{ fontSize: 16, verticalAlign: 'middle', mr: 0.5 }} />
+                    Publicador #{contract.publisher_id}
+                  </Typography>
+                  {contract.revenue_share_percentage && (
+                    <Typography variant="body2" color="text.secondary">
+                      Revenue Share: {contract.revenue_share_percentage}%
+                    </Typography>
+                  )}
+                  {contract.subscription_amount && (
+                    <Typography variant="body2" color="text.secondary">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: contract.currency }).format(contract.subscription_amount)} / {contract.subscription_interval}
+                    </Typography>
+                  )}
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                    <CalendarToday sx={{ fontSize: 12, verticalAlign: 'middle', mr: 0.5 }} />
+                    {formatDate(contract.start_date)} - {contract.end_date ? formatDate(contract.end_date) : 'Sem término'}
+                  </Typography>
+                </CardContent>
+
+                <Box sx={{ p: 2, pt: 0, display: 'flex', gap: 1 }}>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleStartEditPublisherContract(contract)}
+                    sx={{ color: theme.palette.primary.main }}
+                  >
+                    <Edit />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDeletePublisherContract(contract.contract_id)}
+                    sx={{ color: theme.palette.error.main }}
+                  >
+                    <Delete />
+                  </IconButton>
+                </Box>
+              </Card>
+            </Grid>
+          ))}
+          {publisherContracts.length === 0 && !loading && (
+            <Grid item xs={12}>
+              <Card>
+                <CardContent sx={{ textAlign: 'center', py: 6 }}>
+                  <Description sx={{ fontSize: 64, color: theme.palette.grey[300], mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    Nenhum contrato de publicador encontrado
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                    Comece adicionando seus primeiros contratos de publicadores
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={<Add />}
+                    onClick={() => {
+                      resetPublisherContractForm();
+                      setCreatePublisherContractDialogOpen(true);
+                    }}
+                  >
+                    Adicionar Primeiro Contrato Publicador
+                  </Button>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+        </Grid>
       )}
 
       {/* Create Dialog com Abas */}
@@ -1171,6 +1290,352 @@ const Contracts: React.FC = () => {
             disabled={!contractForm.contract_number || !contractForm.title || !contractForm.start_date}
           >
             Salvar Alterações
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Publisher Contract Dialog */}
+      <Dialog
+        open={createPublisherContractDialogOpen}
+        onClose={() => {
+          setCreatePublisherContractDialogOpen(false);
+          resetPublisherContractForm();
+        }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Adicionar Contrato Publicador</DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth margin="normal" required>
+            <InputLabel>Publicador *</InputLabel>
+            <Select
+              value={publisherContractForm.publisher_id || ''}
+              label="Publicador *"
+              onChange={(e) => setPublisherContractForm({ ...publisherContractForm, publisher_id: Number(e.target.value) })}
+            >
+              {publishers.map((publisher) => (
+                <MenuItem key={publisher.publisher_id} value={publisher.publisher_id}>
+                  {publisher.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <TextField
+            fullWidth
+            label="Número do Contrato *"
+            value={publisherContractForm.contract_number}
+            onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_number: e.target.value })}
+            margin="normal"
+            required
+          />
+
+          <TextField
+            fullWidth
+            label="Título *"
+            value={publisherContractForm.title}
+            onChange={(e) => setPublisherContractForm({ ...publisherContractForm, title: e.target.value })}
+            margin="normal"
+            required
+          />
+
+          <FormControl fullWidth margin="normal" required>
+            <InputLabel>Tipo de Contrato *</InputLabel>
+            <Select
+              value={publisherContractForm.contract_type}
+              label="Tipo de Contrato *"
+              onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_type: e.target.value as any })}
+            >
+              <MenuItem value="revenue_share">Revenue Share</MenuItem>
+              <MenuItem value="subscription">Assinatura</MenuItem>
+              <MenuItem value="partnership">Parceria</MenuItem>
+              <MenuItem value="hybrid">Híbrido</MenuItem>
+            </Select>
+          </FormControl>
+
+          <TextField
+            fullWidth
+            label="Descrição"
+            value={publisherContractForm.description}
+            onChange={(e) => setPublisherContractForm({ ...publisherContractForm, description: e.target.value })}
+            margin="normal"
+            multiline
+            rows={3}
+          />
+
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Data de Início *"
+                type="date"
+                value={publisherContractForm.start_date}
+                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, start_date: e.target.value })}
+                margin="normal"
+                required
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Data de Término"
+                type="date"
+                value={publisherContractForm.end_date || ''}
+                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, end_date: e.target.value })}
+                margin="normal"
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+          </Grid>
+
+          {publisherContractForm.contract_type === 'revenue_share' && (
+            <>
+              <TextField
+                fullWidth
+                label="Percentual de Revenue Share (%)"
+                type="number"
+                value={publisherContractForm.revenue_share_percentage || ''}
+                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, revenue_share_percentage: e.target.value ? Number(e.target.value) : undefined })}
+                margin="normal"
+                inputProps={{ min: 0, max: 100, step: 0.01 }}
+              />
+              <TextField
+                fullWidth
+                label="Valor Mínimo de Payout"
+                type="number"
+                value={publisherContractForm.minimum_payout_amount || ''}
+                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, minimum_payout_amount: e.target.value ? Number(e.target.value) : undefined })}
+                margin="normal"
+              />
+            </>
+          )}
+
+          {publisherContractForm.contract_type === 'subscription' && (
+            <>
+              <TextField
+                fullWidth
+                label="Valor da Assinatura"
+                type="number"
+                value={publisherContractForm.subscription_amount || ''}
+                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, subscription_amount: e.target.value ? Number(e.target.value) : undefined })}
+                margin="normal"
+              />
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Intervalo</InputLabel>
+                <Select
+                  value={publisherContractForm.subscription_interval}
+                  label="Intervalo"
+                  onChange={(e) => setPublisherContractForm({ ...publisherContractForm, subscription_interval: e.target.value })}
+                >
+                  <MenuItem value="month">Mensal</MenuItem>
+                  <MenuItem value="year">Anual</MenuItem>
+                </Select>
+              </FormControl>
+            </>
+          )}
+
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={publisherContractForm.status}
+              label="Status"
+              onChange={(e) => setPublisherContractForm({ ...publisherContractForm, status: e.target.value as any })}
+            >
+              <MenuItem value="draft">Rascunho</MenuItem>
+              <MenuItem value="active">Ativo</MenuItem>
+              <MenuItem value="expired">Expirado</MenuItem>
+              <MenuItem value="terminated">Terminado</MenuItem>
+              <MenuItem value="cancelled">Cancelado</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setCreatePublisherContractDialogOpen(false);
+            resetPublisherContractForm();
+          }}>
+            Cancelar
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleCreatePublisherContract}
+            disabled={!publisherContractForm.publisher_id || !publisherContractForm.contract_number || !publisherContractForm.title || !publisherContractForm.start_date}
+          >
+            Criar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Publisher Contract Dialog */}
+      <Dialog
+        open={editPublisherContractDialogOpen}
+        onClose={() => {
+          setEditPublisherContractDialogOpen(false);
+          resetPublisherContractForm();
+        }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Editar Contrato Publicador - {selectedPublisherContract?.title || ''}</DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth margin="normal" required>
+            <InputLabel>Publicador *</InputLabel>
+            <Select
+              value={publisherContractForm.publisher_id || ''}
+              label="Publicador *"
+              onChange={(e) => setPublisherContractForm({ ...publisherContractForm, publisher_id: Number(e.target.value) })}
+            >
+              {publishers.map((publisher) => (
+                <MenuItem key={publisher.publisher_id} value={publisher.publisher_id}>
+                  {publisher.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <TextField
+            fullWidth
+            label="Número do Contrato *"
+            value={publisherContractForm.contract_number}
+            onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_number: e.target.value })}
+            margin="normal"
+            required
+          />
+
+          <TextField
+            fullWidth
+            label="Título *"
+            value={publisherContractForm.title}
+            onChange={(e) => setPublisherContractForm({ ...publisherContractForm, title: e.target.value })}
+            margin="normal"
+            required
+          />
+
+          <FormControl fullWidth margin="normal" required>
+            <InputLabel>Tipo de Contrato *</InputLabel>
+            <Select
+              value={publisherContractForm.contract_type}
+              label="Tipo de Contrato *"
+              onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_type: e.target.value as any })}
+            >
+              <MenuItem value="revenue_share">Revenue Share</MenuItem>
+              <MenuItem value="subscription">Assinatura</MenuItem>
+              <MenuItem value="partnership">Parceria</MenuItem>
+              <MenuItem value="hybrid">Híbrido</MenuItem>
+            </Select>
+          </FormControl>
+
+          <TextField
+            fullWidth
+            label="Descrição"
+            value={publisherContractForm.description}
+            onChange={(e) => setPublisherContractForm({ ...publisherContractForm, description: e.target.value })}
+            margin="normal"
+            multiline
+            rows={3}
+          />
+
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Data de Início *"
+                type="date"
+                value={publisherContractForm.start_date}
+                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, start_date: e.target.value })}
+                margin="normal"
+                required
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Data de Término"
+                type="date"
+                value={publisherContractForm.end_date || ''}
+                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, end_date: e.target.value })}
+                margin="normal"
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+          </Grid>
+
+          {publisherContractForm.contract_type === 'revenue_share' && (
+            <>
+              <TextField
+                fullWidth
+                label="Percentual de Revenue Share (%)"
+                type="number"
+                value={publisherContractForm.revenue_share_percentage || ''}
+                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, revenue_share_percentage: e.target.value ? Number(e.target.value) : undefined })}
+                margin="normal"
+                inputProps={{ min: 0, max: 100, step: 0.01 }}
+              />
+              <TextField
+                fullWidth
+                label="Valor Mínimo de Payout"
+                type="number"
+                value={publisherContractForm.minimum_payout_amount || ''}
+                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, minimum_payout_amount: e.target.value ? Number(e.target.value) : undefined })}
+                margin="normal"
+              />
+            </>
+          )}
+
+          {publisherContractForm.contract_type === 'subscription' && (
+            <>
+              <TextField
+                fullWidth
+                label="Valor da Assinatura"
+                type="number"
+                value={publisherContractForm.subscription_amount || ''}
+                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, subscription_amount: e.target.value ? Number(e.target.value) : undefined })}
+                margin="normal"
+              />
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Intervalo</InputLabel>
+                <Select
+                  value={publisherContractForm.subscription_interval}
+                  label="Intervalo"
+                  onChange={(e) => setPublisherContractForm({ ...publisherContractForm, subscription_interval: e.target.value })}
+                >
+                  <MenuItem value="month">Mensal</MenuItem>
+                  <MenuItem value="year">Anual</MenuItem>
+                </Select>
+              </FormControl>
+            </>
+          )}
+
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={publisherContractForm.status}
+              label="Status"
+              onChange={(e) => setPublisherContractForm({ ...publisherContractForm, status: e.target.value as any })}
+            >
+              <MenuItem value="draft">Rascunho</MenuItem>
+              <MenuItem value="active">Ativo</MenuItem>
+              <MenuItem value="expired">Expirado</MenuItem>
+              <MenuItem value="terminated">Terminado</MenuItem>
+              <MenuItem value="cancelled">Cancelado</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setEditPublisherContractDialogOpen(false);
+            resetPublisherContractForm();
+          }}>
+            Cancelar
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleEditPublisherContract}
+            disabled={!publisherContractForm.publisher_id || !publisherContractForm.contract_number || !publisherContractForm.title || !publisherContractForm.start_date}
+          >
+            Salvar
           </Button>
         </DialogActions>
       </Dialog>
