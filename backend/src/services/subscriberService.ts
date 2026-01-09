@@ -1041,6 +1041,40 @@ export class SubscriberService {
           AND st.status = 'playing'
       `, [subscriberId]);
 
+      // Contar mídias
+      const mediaCountResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM medias
+        WHERE subscriber_id = $1 AND is_active = true
+      `, [subscriberId]);
+
+      // Contar playlists
+      const playlistCountResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM playlists
+        WHERE subscriber_id = $1 AND is_active = true
+      `, [subscriberId]);
+
+      // Contar campanhas (todas, não apenas ativas)
+      const campaignCountResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM campaigns
+        WHERE subscriber_id = $1
+      `, [subscriberId]);
+
+      // Obter storage usado
+      const storageResult = await this.db.findFirst(`
+        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes
+        FROM medias
+        WHERE subscriber_id = $1 AND is_active = true
+      `, [subscriberId]);
+      const storageUsedGB = storageResult?.total_bytes ? parseFloat(storageResult.total_bytes) / (1024 * 1024 * 1024) : 0;
+
+      // Obter limites do plano
+      const maxLimits = await this.getMaxLimits(subscriberId);
+      const currentStorage = await this.getCurrentStorage(subscriberId);
+      const storageLimitGB = maxLimits.storage_gb;
+
       return {
         localsCount: parseInt(localsCountResult?.count || '0'),
         totemsCount: parseInt(totemsCountResult?.count || '0'),
@@ -1048,6 +1082,17 @@ export class SubscriberService {
         activeCampaignsCount: parseInt(campaignsCountResult?.count || '0'),
         onlineTotems: parseInt(onlineTotemsResult?.count || '0'),
         playingTvs: parseInt(playingTvsResult?.count || '0'),
+        media_count: parseInt(mediaCountResult?.count || '0'),
+        playlist_count: parseInt(playlistCountResult?.count || '0'),
+        campaign_count: parseInt(campaignCountResult?.count || '0'),
+        storage_used_gb: storageUsedGB,
+        storage_limit_gb: storageLimitGB,
+        plan_limits: {
+          medias: maxLimits.medias,
+          playlists: maxLimits.playlists,
+          campaigns: maxLimits.campaigns,
+          storage_gb: maxLimits.storage_gb,
+        },
       };
     } catch (error: any) {
       await logError('Erro ao buscar estatísticas do subscriber', error, { subscriberId });
