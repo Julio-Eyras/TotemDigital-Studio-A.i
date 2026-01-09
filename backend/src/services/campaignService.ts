@@ -1494,7 +1494,7 @@ export class CampaignService {
         WHERE c.subscriber_id = ?
         ORDER BY c.priority DESC, c.created_at DESC
         LIMIT ?
-      `, [clientId, limit]);
+      `, [subscriberId, limit]);
 
       // Buscar estatísticas para cada campanha
       const campaignsWithStats = await Promise.all(
