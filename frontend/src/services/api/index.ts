@@ -371,7 +371,7 @@ export interface Player {
   identifier?: string;
   uin?: string;
   location?: string;
-  client_id?: number;
+  subscriber_id?: number; // client_id deprecated
   is_active: boolean;
   last_heartbeat?: string;
   current_playlist_id?: number;
@@ -475,7 +475,7 @@ export interface PlaylistItem {
   description?: string;
   subscriber_id: number; // NOVO: OBRIGATÓRIO
   subscriber_name?: string; // NOVO: Nome do subscriber
-  client_id?: number; // DEPRECATED: Mantido para compatibilidade (alias de subscriber_id)
+  subscriber_id?: number; // client_id deprecated // DEPRECATED: Mantido para compatibilidade (alias de subscriber_id)
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -928,7 +928,7 @@ export interface Campaign {
   description?: string;
   campaign_type: string;
   status: string;
-  client_id?: number;
+  subscriber_id?: number; // client_id deprecated
   subscriber_id?: number;
   contract_id?: number; // ⭐ NOVO: Contrato vinculado
   priority?: number;
@@ -1262,7 +1262,7 @@ export interface SmartPlaylist {
   name: string;
   description?: string;
   rules: any;
-  client_id?: number;
+  subscriber_id?: number; // client_id deprecated
   created_at: string;
   updated_at: string;
 }
@@ -1773,7 +1773,7 @@ export interface BillingItem {
   billing_type: string;
   amount: number;
   status: string;
-  client_id?: number;
+  subscriber_id?: number; // client_id deprecated
   due_date?: string;
   paid_at?: string;
   created_at: string;
