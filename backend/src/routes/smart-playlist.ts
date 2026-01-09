@@ -167,10 +167,10 @@ router.post('/', async (req: any, res) => {
       }
     });
 
-    // Se clientId não foi fornecido, usar o do usuário autenticado ou buscar primeiro cliente
-    if (!playlistData.clientId) {
-      if (req.user.role === 'client' && req.user.clientId) {
-        playlistData.clientId = req.user.clientId;
+    // Se subscriberId não foi fornecido, usar o do usuário autenticado ou buscar primeiro subscriber
+    if (!playlistData.subscriberId) {
+      if (req.user.role === 'client' && req.user.subscriberId) {
+        playlistData.subscriberId = req.user.subscriberId;
         await logDebug('[Smart Playlist] Usando subscriberId do usuário', { subscriberId: playlistData.subscriberId });
       } else if (req.user.role === 'admin' || req.user.role === 'admin_sql' || req.user.role === 'gerente_marketing') {
         // Para admin/manager, buscar primeiro cliente ativo se não fornecido
@@ -178,7 +178,7 @@ router.post('/', async (req: any, res) => {
           await logDebug('[Smart Playlist] Buscando primeiro cliente ativo');
           const firstSubscriber = await getSmartPlaylistService().getFirstActiveClient();
           if (firstSubscriber) {
-            playlistData.clientId = firstSubscriber.subscriber_id;
+            playlistData.subscriberId = firstSubscriber.subscriber_id;
             await logDebug('[Smart Playlist] Subscriber encontrado', { subscriberId: playlistData.subscriberId });
           } else {
             await logError('[Smart Playlist] Nenhum cliente ativo encontrado');
@@ -204,7 +204,7 @@ router.post('/', async (req: any, res) => {
     }
 
     // Verificar permissão
-    if (req.user.role === 'client' && req.user.clientId !== playlistData.clientId) {
+    if (req.user.role === 'client' && req.user.subscriberId !== playlistData.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode criar smart playlists para seu próprio cliente'
