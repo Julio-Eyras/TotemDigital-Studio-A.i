@@ -67,8 +67,13 @@
 - [ ] `backend/src/middleware/auth.middleware.ts` - Remover `clientId` do tipo (manter como deprecated temporariamente)
 
 ### Frontend
-- [ ] `frontend/src/services/api/index.ts` - Atualizar interfaces e chamadas de API
-- [ ] Componentes que usam `clientId` - Identificar e atualizar
+- [x] `frontend/src/services/api/index.ts` - Atualizado: interfaces usam `subscriberId`/`subscriber_id`
+- [x] `frontend/src/pages/Campaigns/Campaigns.tsx` - Atualizado: remover fallback `clientId`
+- [x] `frontend/src/components/MediaUploadDialog/MediaUploadDialog.tsx` - Atualizado: usar `subscriber_id`
+- [x] `frontend/src/store/slices/authSlice.ts` - Atualizado: remover `clientId`
+- [x] `frontend/src/pages/Players/Players.tsx` - Atualizado: `clientId` -> `subscriberId`
+- [x] `frontend/src/pages/Playlists/Playlists.tsx` - Atualizado: remover fallback `clientId`
+- [x] `frontend/src/pages/Media/Media.tsx` - Atualizado: remover fallback `clientId`
 
 ### Database
 - [ ] Verificar se há tabela `billing` antiga que precisa ser migrada
@@ -79,9 +84,9 @@
 
 ## 📊 Estatísticas
 
-- **Arquivos Modificados**: 27
-- **Referências Removidas**: ~55
-- **Progresso Estimado**: ~80%
+- **Arquivos Modificados**: 34
+- **Referências Removidas**: ~70
+- **Progresso Estimado**: ~90%
 
 ---
 
