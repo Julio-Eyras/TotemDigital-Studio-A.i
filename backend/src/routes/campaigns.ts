@@ -64,7 +64,7 @@ router.get('/',
     const {
       page = 1,
       limit = 20,
-      clientId, // mantém nome por compatibilidade; internamente usa subscriber_id
+      subscriberId,
       status,
       campaignType,
       isActive,
@@ -77,10 +77,10 @@ router.get('/',
 
     // Aplicar filtro de subscriber - garantir isolamento de dados
     // Se usuário é subscriber/client, só pode ver suas próprias campanhas
-    let finalClientId: number | undefined;
+    let finalSubscriberId: number | undefined;
     if (req.user.role === 'client' || req.user.role === 'subscriber') {
       // Usar subscriberId do middleware de isolamento
-      finalClientId = req.subscriberId || req.user.clientId || req.user.subscriberId;
+      finalSubscriberId = req.subscriberId || req.user.subscriberId;
       if (!finalClientId) {
         return res.status(403).json({
           success: false,

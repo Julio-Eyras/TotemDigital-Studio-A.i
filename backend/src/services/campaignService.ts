@@ -11,10 +11,7 @@ import { getSubscriberAccessServiceInstance } from './subscriberAccessService';
 import { getSubscriberService } from './subscriberService';
 
 export interface CreateCampaignRequest {
-  // Mantemos o nome clientId por compatibilidade com o frontend atual,
-  // mas no banco usamos subscriber_id (tabela subscribers)
-  clientId: number;
-  subscriberId?: number; // NOVO: subscriber_id explícito
+  subscriberId: number; // subscriber_id explícito
   contractId?: number; // ⭐ NOVO: Contrato vinculado (opcional, mas recomendado para execução)
   title: string;
   description?: string;

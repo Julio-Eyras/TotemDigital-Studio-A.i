@@ -72,8 +72,7 @@ export class PlaylistService {
   }, requestSubscriberId?: number, isAdmin: boolean = false): Promise<PlaylistListResponse> {
     try {
       const { page = 1, limit = 10, search } = params;
-      // Priorizar subscriberId, depois clientId (compatibilidade)
-      const subscriberId = params.subscriberId || params.clientId;
+      const subscriberId = params.subscriberId;
       const offset = (page - 1) * limit;
 
       let whereClause = 'WHERE COALESCE(p.is_active, true) = true';
@@ -237,8 +236,7 @@ export class PlaylistService {
   async createPlaylist(data: CreatePlaylistRequest, requestSubscriberId?: number, isAdmin: boolean = false): Promise<PlaylistItem> {
     try {
       let { name, description } = data;
-      // Priorizar subscriberId, depois clientId (compatibilidade)
-      let subscriberId = data.subscriberId || data.clientId;
+      let subscriberId = data.subscriberId;
 
       // Se não fornecido e não é admin, usar subscriber do usuário autenticado
       if (!subscriberId) {
@@ -297,7 +295,7 @@ export class PlaylistService {
 
       return newPlaylist;
     } catch (error: any) {
-      await logError('Erro ao criar playlist', error, { name: data.name, subscriberId: data.subscriberId || data.clientId });
+      await logError('Erro ao criar playlist', error, { name: data.name, subscriberId: data.subscriberId });
       throw error;
     }
   }

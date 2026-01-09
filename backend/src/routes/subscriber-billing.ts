@@ -50,7 +50,7 @@ router.get('/',
       // Se usuário é subscriber, só pode ver suas próprias faturas
       let finalSubscriberId: number | undefined;
       if (req.user.role === 'subscriber' || req.user.role === 'client') {
-        finalSubscriberId = req.subscriberId || req.user.subscriberId || req.user.clientId;
+        finalSubscriberId = req.subscriberId || req.user.subscriberId;
         if (!finalSubscriberId) {
           return res.status(403).json({
             success: false,

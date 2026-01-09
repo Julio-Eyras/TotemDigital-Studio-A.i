@@ -1344,14 +1344,14 @@ export class MediaService {
   /**
    * Busca mídia por tags
    */
-  async getMediaByTags(tags: string[], clientId?: number): Promise<MediaResponse[]> {
+  async getMediaByTags(tags: string[], subscriberId?: number): Promise<MediaResponse[]> {
     try {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      if (clientId) {
+      if (subscriberId) {
         whereClause += ' AND m.subscriber_id = ?';
-        params.push(clientId);
+        params.push(subscriberId);
       }
 
       // Buscar mídia que contenha qualquer uma das tags

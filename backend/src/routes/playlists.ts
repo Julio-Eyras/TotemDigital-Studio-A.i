@@ -69,8 +69,8 @@ router.get('/',
   validateRequest,
   async (req: any, res: any) => {
     try {
-      const { page = 1, limit = 10, search, subscriberId, clientId } = req.query;
-      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const { page = 1, limit = 10, search, subscriberId } = req.query;
+      const userSubscriberId = req.user?.subscriberId;
       const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
       
       const { 
