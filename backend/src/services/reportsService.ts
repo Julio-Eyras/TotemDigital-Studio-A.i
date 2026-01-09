@@ -17,7 +17,7 @@ export interface ReportRequest {
   title: string;
   description?: string;
   filters: {
-    clientId?: number;
+    subscriberId?: number;
     campaignId?: number;
     totemId?: number;
     startDate?: string;

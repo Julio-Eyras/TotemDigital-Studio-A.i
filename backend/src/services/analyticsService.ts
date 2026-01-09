@@ -8,7 +8,7 @@ import { logError, logWarn } from '../utils/loggerHelper';
 import { getAnalyticsCacheService } from './analyticsCacheService';
 
 export interface AnalyticsFilters {
-  clientId?: number;
+  subscriberId?: number;
   totemId?: number;
   campaignId?: number;
   startDate?: string;

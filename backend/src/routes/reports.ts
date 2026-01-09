@@ -216,11 +216,12 @@ router.post('/', async (req: any, res) => {
   try {
     const reportRequest = req.body;
 
-    // Verificar permissão para clientes
-    if (req.user.role === 'client' && reportRequest.filters.clientId !== req.user.clientId) {
+    // Verificar permissão para subscribers
+    const userSubscriberId = req.user.subscriberId || req.subscriberId;
+    if ((req.user.role === 'client' || req.user.role === 'subscriber') && reportRequest.filters.subscriberId && reportRequest.filters.subscriberId !== userSubscriberId) {
       return res.status(403).json({
         success: false,
-        message: 'Acesso negado: Você só pode gerar relatórios para seu próprio cliente'
+        message: 'Acesso negado: Você só pode gerar relatórios para seu próprio subscriber'
       });
     }
 
