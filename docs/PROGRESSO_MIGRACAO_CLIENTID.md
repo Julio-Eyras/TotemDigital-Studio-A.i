@@ -85,8 +85,8 @@
 ## 📊 Estatísticas
 
 - **Arquivos Modificados**: 34
-- **Referências Removidas**: ~70
-- **Progresso Estimado**: ~90%
+- **Referências Removidas**: ~96
+- **Progresso Estimado**: ~95%
 
 ---
 
