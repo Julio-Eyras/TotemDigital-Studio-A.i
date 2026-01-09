@@ -79,10 +79,10 @@ export class SubscriptionService {
         params.push(filters.publisherId);
       }
 
-      // DEPRECADO: Filtrar por client_id (compatibilidade - mapear para publisher_id)
-      if (filters.clientId !== undefined && filters.publisherId === undefined) {
+      // Filtrar por subscriber_id
+      if (filters.subscriberId !== undefined && filters.publisherId === undefined) {
         whereClause += ' AND s.publisher_id = $' + (params.length + 1);
-        params.push(filters.clientId);
+        params.push(filters.subscriberId);
       }
 
       if (filters.planId) {
