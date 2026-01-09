@@ -275,11 +275,38 @@ const Billing: React.FC = () => {
         </Alert>
       )}
 
+      {/* Filtro de tipo de billing */}
+      <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel>Tipo de Faturamento</InputLabel>
+          <Select
+            value={billingType}
+            label="Tipo de Faturamento"
+            onChange={(e) => {
+              setSearchParams({ type: e.target.value });
+              setTabValue(0); // Resetar para primeira aba ao mudar tipo
+            }}
+          >
+            <MenuItem value="all">Todos</MenuItem>
+            <MenuItem value="subscriber">Assinantes</MenuItem>
+            <MenuItem value="publisher">Publicadores</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
           <Tab label="Planos" icon={<CreditCard />} iconPosition="start" />
           <Tab label="Assinaturas" icon={<Receipt />} iconPosition="start" />
-          <Tab label="Faturas" icon={<Payment />} iconPosition="start" />
+          {billingType === 'all' && (
+            <Tab label="Faturas" icon={<Payment />} iconPosition="start" />
+          )}
+          {billingType === 'subscriber' && (
+            <Tab label="Faturas Assinantes" icon={<Payment />} iconPosition="start" />
+          )}
+          {billingType === 'publisher' && (
+            <Tab label="Faturas Publicadores" icon={<Payment />} iconPosition="start" />
+          )}
         </Tabs>
       </Box>
 
