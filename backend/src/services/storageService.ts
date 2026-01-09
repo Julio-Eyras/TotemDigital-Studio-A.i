@@ -103,7 +103,7 @@ export class StorageService {
 
       if (!allowed) {
         logWarnSync('Quota de armazenamento excedida', {
-          clientId,
+          subscriberId,
           fileSize,
           currentUsage,
           quota,
