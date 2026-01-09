@@ -47,9 +47,10 @@ import {
   Cancel as CancelIcon,
   Schedule,
 } from '@mui/icons-material';
-import { billingApi, BillingItem, CreateBillingRequest } from '../../services/api';
+import { billingApi, BillingItem, CreateBillingRequest, subscriberBillingApi, SubscriberBillingItem, SubscriberBillingListResponse, publisherBillingApi, PublisherBillingItem, PublisherBillingListResponse } from '../../services/api';
 import { planApi, Plan, subscriptionApi, Subscription } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
+import { useSearchParams } from 'react-router-dom';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -68,20 +69,47 @@ function TabPanel(props: TabPanelProps) {
 
 const Billing: React.FC = () => {
   const { showSuccess, showError } = useNotification();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const billingType = searchParams.get('type') || 'all'; // 'all', 'subscriber', 'publisher'
+  
   const [tabValue, setTabValue] = useState(0);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [items, setItems] = useState<BillingItem[]>([]);
+  const [subscriberBillings, setSubscriberBillings] = useState<SubscriberBillingItem[]>([]);
+  const [publisherBillings, setPublisherBillings] = useState<PublisherBillingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [newBill, setNewBill] = useState<CreateBillingRequest>({ billing_type: 'subscription', amount: 0 });
+  
+  // Filtros
+  const [subscriberFilters, setSubscriberFilters] = useState({
+    page: 1,
+    limit: 20,
+    status: '',
+    billingType: '',
+    startDate: '',
+    endDate: '',
+    search: '',
+  });
+  
+  const [publisherFilters, setPublisherFilters] = useState({
+    page: 1,
+    limit: 20,
+    paymentStatus: '',
+    billingType: '',
+    direction: '',
+    startDate: '',
+    endDate: '',
+    search: '',
+  });
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [billingType]);
 
   const loadAll = async () => {
     try {
@@ -89,7 +117,9 @@ const Billing: React.FC = () => {
       await Promise.all([
         loadPlans(),
         loadSubscriptions(),
-        loadBillings(),
+        billingType === 'all' || billingType === 'subscriber' ? loadSubscriberBillings() : Promise.resolve(),
+        billingType === 'all' || billingType === 'publisher' ? loadPublisherBillings() : Promise.resolve(),
+        billingType === 'all' ? loadBillings() : Promise.resolve(),
       ]);
     } catch (e) {
       console.error('Erro ao carregar dados:', e);
@@ -131,6 +161,26 @@ const Billing: React.FC = () => {
     } catch (e) {
       console.error('Erro ao carregar faturas:', e);
       showError('Erro ao carregar faturas');
+    }
+  };
+
+  const loadSubscriberBillings = async () => {
+    try {
+      const response = await subscriberBillingApi.getAll(subscriberFilters);
+      setSubscriberBillings(response.billings || []);
+    } catch (e) {
+      console.error('Erro ao carregar faturas de assinantes:', e);
+      showError('Erro ao carregar faturas de assinantes');
+    }
+  };
+
+  const loadPublisherBillings = async () => {
+    try {
+      const response = await publisherBillingApi.getAll(publisherFilters);
+      setPublisherBillings(response.billings || []);
+    } catch (e) {
+      console.error('Erro ao carregar faturas de publicadores:', e);
+      showError('Erro ao carregar faturas de publicadores');
     }
   };
 

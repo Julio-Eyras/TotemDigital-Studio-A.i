@@ -3277,6 +3277,140 @@ export const subscriberAccessApi = {
 };
 
 // =============================================
+// SUBSCRIBER BILLING API
+// =============================================
+
+export interface SubscriberBillingItem {
+  billing_id: number;
+  subscriber_id: number;
+  subscriber_name?: string;
+  campaign_id?: number;
+  campaign_title?: string;
+  billing_type: 'advertisement' | 'campaign' | 'media_upload' | 'exhibition_lot' | 'totem_quantity' | 'time_based' | 'custom';
+  amount: number;
+  currency: string;
+  status: 'pending' | 'paid' | 'overdue' | 'cancelled';
+  due_date?: string;
+  paid_at?: string;
+  created_at: string;
+  updated_at: string;
+  description?: string;
+  metadata?: any;
+}
+
+export interface SubscriberBillingListResponse {
+  billings: SubscriberBillingItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export const subscriberBillingApi = {
+  getAll: async (params?: {
+    page?: number;
+    limit?: number;
+    subscriberId?: number;
+    campaignId?: number;
+    billingType?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+  }): Promise<SubscriberBillingListResponse> => {
+    const response = await api.get('/subscriber-billing', { params });
+    const data = response.data?.data || response.data;
+    if (data && typeof data === 'object' && 'billings' in data) {
+      return data;
+    }
+    return {
+      billings: Array.isArray(data) ? data : [],
+      total: data?.total || 0,
+      page: data?.page || 1,
+      limit: data?.limit || 20,
+    };
+  },
+
+  getStats: async (subscriberId?: number): Promise<any> => {
+    const response = await api.get('/subscriber-billing/stats', { params: { subscriberId } });
+    return response.data.data || response.data;
+  },
+
+  getById: async (id: number): Promise<SubscriberBillingItem> => {
+    const response = await api.get(`/subscriber-billing/${id}`);
+    return response.data.data;
+  },
+};
+
+// =============================================
+// PUBLISHER BILLING API
+// =============================================
+
+export interface PublisherBillingItem {
+  billing_id: number;
+  publisher_id: number;
+  publisher_name?: string;
+  campaign_id?: number;
+  campaign_title?: string;
+  totem_id?: number;
+  billing_type: 'revenue_share' | 'payout' | 'subscription' | 'platform_fee';
+  direction: 'incoming' | 'outgoing';
+  amount: number;
+  currency: string;
+  payment_status: 'pending' | 'pending_payout' | 'paid' | 'failed' | 'refunded' | 'cancelled';
+  due_date?: string;
+  paid_at?: string;
+  created_at: string;
+  updated_at: string;
+  description?: string;
+  metadata?: any;
+}
+
+export interface PublisherBillingListResponse {
+  billings: PublisherBillingItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export const publisherBillingApi = {
+  getAll: async (params?: {
+    page?: number;
+    limit?: number;
+    publisherId?: number;
+    campaignId?: number;
+    totemId?: number;
+    billingType?: string;
+    direction?: 'incoming' | 'outgoing';
+    paymentStatus?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+  }): Promise<PublisherBillingListResponse> => {
+    const response = await api.get('/publisher-billing', { params });
+    const data = response.data?.data || response.data;
+    if (data && typeof data === 'object' && 'billings' in data) {
+      return data;
+    }
+    return {
+      billings: Array.isArray(data) ? data : [],
+      total: data?.total || 0,
+      page: data?.page || 1,
+      limit: data?.limit || 20,
+    };
+  },
+
+  getStats: async (publisherId?: number): Promise<any> => {
+    const response = await api.get('/publisher-billing/stats', { params: { publisherId } });
+    return response.data.data || response.data;
+  },
+
+  getById: async (id: number): Promise<PublisherBillingItem> => {
+    const response = await api.get(`/publisher-billing/${id}`);
+    return response.data.data;
+  },
+};
+
+// =============================================
 // PLAYLIST MIX API
 // =============================================
 
