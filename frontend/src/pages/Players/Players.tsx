@@ -65,7 +65,7 @@ const Players: React.FC = () => {
     localId: 0,
     name: '',
     location: '',
-    clientId: undefined,
+    subscriberId: undefined,
   });
 
   useEffect(() => {
@@ -118,7 +118,7 @@ const Players: React.FC = () => {
       await playerApi.update(selectedPlayer.totem_id, {
         name: selectedPlayer.name,
         location: selectedPlayer.location,
-        clientId: selectedPlayer.client_id,
+        subscriberId: selectedPlayer.subscriber_id,
         isActive: selectedPlayer.is_active,
       });
       setEditDialogOpen(false);

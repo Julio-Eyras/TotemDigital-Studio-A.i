@@ -65,7 +65,7 @@ const Campaigns: React.FC = () => {
   
   const user = useAppSelector((state) => state.auth.user);
   const isAdmin = user?.role === 'admin' || user?.role === 'admin_sql';
-  const userSubscriberId = user?.subscriberId || user?.clientId;
+  const userSubscriberId = user?.subscriberId;
 
   // Converter publishers para formato comum
   const getPublisherOptions = (): PublisherOption[] => {
@@ -149,7 +149,7 @@ const Campaigns: React.FC = () => {
         ...campaign,
         campaign_type: campaign.campaign_type || campaign.campaignType || 'standard',
         status: campaign.status || 'draft',
-        client_id: campaign.client_id || campaign.clientId,
+        subscriber_id: campaign.subscriber_id || campaign.subscriberId,
         start_date: campaign.start_date || campaign.startDate,
         end_date: campaign.end_date || campaign.endDate,
         is_active: campaign.is_active !== undefined ? campaign.is_active : (campaign.isActive !== undefined ? campaign.isActive : true),

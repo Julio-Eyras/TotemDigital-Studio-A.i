@@ -70,7 +70,7 @@ const Media: React.FC = () => {
     const userType = user?.userType || '';
     const admin = userRole === 'admin' || userType === 'system_user';
     setIsAdmin(admin);
-    setUserSubscriberId(user?.subscriberId || user?.clientId);
+    setUserSubscriberId(user?.subscriberId);
 
     if (admin) {
       loadSubscribers();
@@ -249,7 +249,7 @@ const Media: React.FC = () => {
                   >
                     <MenuItem value="all">Todos os Subscribers</MenuItem>
                     {subscribers.map((subscriber) => (
-                      <MenuItem key={subscriber.client_id} value={subscriber.client_id}>
+                      <MenuItem key={subscriber.subscriber_id} value={subscriber.subscriber_id}>
                         {subscriber.name}
                       </MenuItem>
                     ))}

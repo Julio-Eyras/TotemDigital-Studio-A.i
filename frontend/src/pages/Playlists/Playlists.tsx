@@ -70,13 +70,13 @@ const Playlists: React.FC = () => {
   
   const user = useAppSelector((state) => state.auth.user);
   const isAdmin = user?.role === 'admin' || user?.role === 'admin_sql';
-  const userSubscriberId = user?.subscriberId || user?.clientId;
+  const userSubscriberId = user?.subscriberId;
 
   const [newPlaylist, setNewPlaylist] = useState<CreatePlaylistRequest>({
     name: '',
     description: '',
     subscriberId: userSubscriberId, // NOVO: Usar subscriberId do usuário por padrão
-    clientId: userSubscriberId, // DEPRECATED: Compatibilidade
+    subscriberId: userSubscriberId,
   });
 
   useEffect(() => {
@@ -114,7 +114,7 @@ const Playlists: React.FC = () => {
       const response = await playlistApi.getAll({
         search: searchTerm || undefined,
         subscriberId: subscriberId, // NOVO
-        clientId: subscriberId, // DEPRECATED (compatibilidade)
+        subscriberId: subscriberId,
       });
       const data = response?.data || response || [];
       setPlaylists(Array.isArray(data) ? data : []);

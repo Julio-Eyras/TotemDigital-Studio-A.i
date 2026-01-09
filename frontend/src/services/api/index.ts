@@ -264,7 +264,7 @@ export const userApi = {
 // =============================================
 
 export interface Client {
-  client_id: number;
+  client_id: number; // DEPRECATED: usar Subscriber
   name: string;
   contact_name?: string;
   email?: string;
@@ -394,7 +394,7 @@ export interface CreatePlayerRequest {
   location?: string;
   description?: string;
   firmwareVersion?: string;
-  clientId?: number; // DEPRECATED - usar subscriber_id
+  subscriberId?: number; // clientId deprecated
 }
 
 export interface UpdatePlayerRequest {

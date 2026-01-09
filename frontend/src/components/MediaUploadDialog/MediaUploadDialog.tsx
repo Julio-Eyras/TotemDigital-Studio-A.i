@@ -63,7 +63,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     name: '',
     description: '',
     tags: '',
-    subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? subscribers[0].client_id : undefined),
+    subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? subscribers[0].subscriber_id : undefined),
   });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -227,7 +227,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
       name: '', 
       description: '', 
       tags: '',
-      subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? subscribers[0].client_id : undefined),
+      subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? subscribers[0].subscriber_id : undefined),
     });
     setUploading(false);
     setUploadProgress(0);
@@ -271,7 +271,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                     disabled={uploading}
                   >
                     {subscribers.map((subscriber) => (
-                      <MenuItem key={subscriber.client_id} value={subscriber.client_id}>
+                      <MenuItem key={subscriber.subscriber_id} value={subscriber.subscriber_id}>
                         {subscriber.name} {subscriber.email ? `(${subscriber.email})` : ''}
                       </MenuItem>
                     ))}

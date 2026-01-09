@@ -21,7 +21,7 @@ export interface User {
   role: 'owner_system' | 'admin' | 'admin_sql' | 'manager' | 'operator' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
   isActive: boolean;
   user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber'; // NOVO: Tipo de usuário para detecção automática
-  clientId?: number; // DEPRECADO: usar subscriberId
+  subscriberId?: number; // clientId deprecated
   subscriberId?: number; // NOVO: ID do subscriber (anunciante)
   publisherId?: number; // NOVO: ID do publisher (publicador)
   subscriberName?: string; // NOVO: Nome do subscriber
@@ -208,8 +208,7 @@ const authSlice = createSlice({
           role: mappedRole,
           isActive: (apiUser as any).is_active !== undefined ? (apiUser as any).is_active : (apiUser as any).isActive !== undefined ? (apiUser as any).isActive : true,
           user_type: (apiUser as any).user_type || (apiUser as any).userType, // NOVO: Salvar user_type
-          clientId: (apiUser as any).client_id || (apiUser as any).clientId || (apiUser as any).subscriber_id || (apiUser as any).subscriberId, // DEPRECADO
-          subscriberId: (apiUser as any).subscriberId || (apiUser as any).subscriber_id || (apiUser as any).client_id || (apiUser as any).clientId, // NOVO
+          subscriberId: (apiUser as any).subscriberId || (apiUser as any).subscriber_id || (apiUser as any).client_id || (apiUser as any).clientId,
           publisherId: (apiUser as any).publisherId || (apiUser as any).publisher_id,
           subscriberName: (apiUser as any).subscriberName || (apiUser as any).subscriber_name,
           flags: (apiUser as any).flags, // NOVO: Flags de permissão
