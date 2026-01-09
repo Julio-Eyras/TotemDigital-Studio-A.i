@@ -515,6 +515,9 @@ export interface PlaylistMediaItem {
 }
 
 export const playlistApi = {
+  reorderItems: async (id: number, items: Array<{ itemId: number; orderIndex: number }>): Promise<void> => {
+    await api.put(`/playlists/${id}/reorder`, { items });
+  },
   getAll: async (params: {
     page?: number;
     limit?: number;

@@ -18,6 +18,7 @@ import {
   updatePlaylistValidators, 
   addMediaToPlaylistValidators,
   updatePlaylistItemDurationValidators,
+  reorderPlaylistItemsValidators,
   playlistFilterValidators
 } from '../validators/playlist.validators';
 
@@ -398,6 +399,40 @@ router.delete('/:id/media/:itemId',
       res.status(204).send();
     } catch (error: any) {
       await logError('Erro ao remover mídia da playlist', error);
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
+      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route PUT /api/playlists/:id/reorder
+ * @desc Reordenar itens da playlist
+ */
+router.put('/:id/reorder',
+  authorizeRole(['admin', 'gerente_marketing', 'subscriber']),
+  ...idParamValidator,
+  ...reorderPlaylistItemsValidators,
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const { items } = req.body;
+      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
+      
+      await getPlaylistService().reorderPlaylistMedia(
+        parseInt(id),
+        items,
+        userSubscriberId,
+        isAdmin
+      );
+      
+      res.json({ message: 'Itens da playlist reordenados com sucesso' });
+    } catch (error: any) {
+      await logError('Erro ao reordenar itens da playlist', error);
       if (error.message?.includes('Acesso negado')) {
         return res.status(403).json({ error: error.message });
       }

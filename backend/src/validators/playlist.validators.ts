@@ -41,6 +41,15 @@ export const updatePlaylistItemDurationValidators = [
 ];
 
 /**
+ * Validadores para reordenar itens de playlist
+ */
+export const reorderPlaylistItemsValidators = [
+  body('items').isArray({ min: 1 }).withMessage('items deve ser um array com pelo menos um item'),
+  body('items.*.itemId').isInt({ min: 1 }).withMessage('Cada itemId deve ser um número inteiro maior que 0'),
+  body('items.*.orderIndex').isInt({ min: 0 }).withMessage('Cada orderIndex deve ser um número inteiro maior ou igual a 0'),
+];
+
+/**
  * Validadores para filtros de playlist
  */
 export const playlistFilterValidators = [
