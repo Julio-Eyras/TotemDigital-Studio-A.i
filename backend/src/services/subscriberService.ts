@@ -983,6 +983,17 @@ export class SubscriberService {
     activeCampaignsCount: number;
     onlineTotems: number;
     playingTvs: number;
+    media_count: number;
+    playlist_count: number;
+    campaign_count: number;
+    storage_used_gb: number;
+    storage_limit_gb?: number;
+    plan_limits?: {
+      medias?: number;
+      playlists?: number;
+      campaigns?: number;
+      storage_gb?: number;
+    };
   }> {
     try {
       // Contar locals
