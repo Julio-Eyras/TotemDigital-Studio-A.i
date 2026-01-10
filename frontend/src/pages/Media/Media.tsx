@@ -45,7 +45,7 @@ import {
   MoreVert,
   Refresh,
 } from '@mui/icons-material';
-import { mediaApi, MediaItem, CreateMediaRequest, clientApi, Client } from '../../services/api';
+import { mediaApi, MediaItem, CreateMediaRequest, clientApi, Client, subscriberApi, Subscriber } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 
 const Media: React.FC = () => {
@@ -58,7 +58,7 @@ const Media: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [mediaTypeFilter, setMediaTypeFilter] = useState('all');
   const [subscriberFilter, setSubscriberFilter] = useState<number | 'all'>('all');
-  const [subscribers, setSubscribers] = useState<Client[]>([]);
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userSubscriberId, setUserSubscriberId] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +80,7 @@ const Media: React.FC = () => {
 
   const loadSubscribers = async () => {
     try {
-      const response = await clientApi.getAll({ limit: 1000 });
+      const response = await subscriberApi.getAll({ limit: 1000, active_only: false });
       setSubscribers(response.data || []);
     } catch (error) {
       console.error('Erro ao carregar subscribers:', error);

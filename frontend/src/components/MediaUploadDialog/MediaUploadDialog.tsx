@@ -29,7 +29,7 @@ import {
   Error,
   Close,
 } from '@mui/icons-material';
-import { mediaApi, CreateMediaRequest, Client, subscriberApi } from '../../services/api';
+import { mediaApi, CreateMediaRequest, Client, subscriberApi, Subscriber } from '../../services/api';
 import { validateFileSize, validateFileType, VALIDATION_CONSTANTS } from '../../utils/validation';
 import { useNotification } from '../../hooks/useNotification';
 
@@ -38,7 +38,7 @@ interface UploadDialogProps {
   onClose: () => void;
   onSuccess: () => void;
   isAdmin?: boolean;
-  subscribers?: Client[];
+  subscribers?: (Client | Subscriber)[];
   userSubscriberId?: number;
 }
 
@@ -63,7 +63,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     name: '',
     description: '',
     tags: '',
-    subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? subscribers[0].subscriber_id : undefined),
+    subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? ((subscribers[0] as any).subscriber_id || (subscribers[0] as any).subscriberId || ((subscribers[0] as Client).client_id ? (subscribers[0] as Client).client_id : undefined)) : undefined),
   });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -227,7 +227,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
       name: '', 
       description: '', 
       tags: '',
-      subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? subscribers[0].subscriber_id : undefined),
+      subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? ((subscribers[0] as any).subscriber_id || (subscribers[0] as any).subscriberId || ((subscribers[0] as Client).client_id ? (subscribers[0] as Client).client_id : undefined)) : undefined),
     });
     setUploading(false);
     setUploadProgress(0);
@@ -270,11 +270,16 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                     label="Subscriber (Anunciante) *"
                     disabled={uploading}
                   >
-                    {subscribers.map((subscriber) => (
-                      <MenuItem key={subscriber.subscriber_id} value={subscriber.subscriber_id}>
-                        {subscriber.name} {subscriber.email ? `(${subscriber.email})` : ''}
-                      </MenuItem>
-                    ))}
+                    {subscribers.map((subscriber) => {
+                      // Pode ser Client ou Subscriber
+                      const subscriberId = (subscriber as any).subscriber_id || (subscriber as any).subscriberId || ((subscriber as Client).client_id ? (subscriber as Client).client_id : undefined);
+                      const key = (subscriber as any).subscriber_id || ((subscriber as Client).client_id ? (subscriber as Client).client_id : 0);
+                      return (
+                        <MenuItem key={key} value={subscriberId}>
+                          {subscriber.name} {subscriber.email ? `(${subscriber.email})` : ''}
+                        </MenuItem>
+                      );
+                    })}
                   </Select>
                 </FormControl>
               </Grid>
@@ -284,7 +289,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                 <TextField
                   fullWidth
                   label="Subscriber"
-                  value={subscribers.find(s => s.client_id === userSubscriberId)?.name || 'Seu Subscriber'}
+                  value={subscribers.find(s => ((s as any).subscriber_id || (s as any).subscriberId || ((s as Client).client_id)) === userSubscriberId)?.name || 'Seu Subscriber'}
                   disabled
                   margin="normal"
                 />

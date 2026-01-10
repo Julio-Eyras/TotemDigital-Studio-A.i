@@ -76,7 +76,6 @@ const Playlists: React.FC = () => {
     name: '',
     description: '',
     subscriberId: userSubscriberId, // NOVO: Usar subscriberId do usuário por padrão
-    subscriberId: userSubscriberId,
   });
 
   useEffect(() => {
@@ -114,7 +113,6 @@ const Playlists: React.FC = () => {
       const response = await playlistApi.getAll({
         search: searchTerm || undefined,
         subscriberId: subscriberId, // NOVO
-        subscriberId: subscriberId,
       });
       const data = response?.data || response || [];
       setPlaylists(Array.isArray(data) ? data : []);

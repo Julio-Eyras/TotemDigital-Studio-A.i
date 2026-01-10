@@ -407,6 +407,7 @@ export interface UpdatePlayerRequest {
   description?: string;
   firmwareVersion?: string;
   clientId?: number; // DEPRECATED
+  subscriberId?: number; // NOVO: Use subscriberId
   isActive?: boolean;
 }
 
@@ -475,7 +476,7 @@ export interface PlaylistItem {
   description?: string;
   subscriber_id: number; // NOVO: OBRIGATÓRIO
   subscriber_name?: string; // NOVO: Nome do subscriber
-  subscriber_id?: number; // client_id deprecated // DEPRECATED: Mantido para compatibilidade (alias de subscriber_id)
+  client_id?: number; // DEPRECATED: Mantido para compatibilidade (alias de subscriber_id)
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -929,7 +930,6 @@ export interface Campaign {
   campaign_type: string;
   status: string;
   subscriber_id?: number; // client_id deprecated
-  subscriber_id?: number;
   contract_id?: number; // ⭐ NOVO: Contrato vinculado
   priority?: number;
   commercial_tier?: string;

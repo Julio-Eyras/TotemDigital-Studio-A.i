@@ -176,7 +176,14 @@ const Billing: React.FC = () => {
 
   const loadPublisherBillings = async () => {
     try {
-      const response = await publisherBillingApi.getAll(publisherFilters);
+      // Converter direction vazia para undefined e garantir tipo correto
+      const filters = {
+        ...publisherFilters,
+        direction: publisherFilters.direction && publisherFilters.direction !== '' 
+          ? (publisherFilters.direction as 'incoming' | 'outgoing')
+          : undefined
+      };
+      const response = await publisherBillingApi.getAll(filters);
       setPublisherBillings(response.billings || []);
     } catch (e) {
       console.error('Erro ao carregar faturas de publicadores:', e);

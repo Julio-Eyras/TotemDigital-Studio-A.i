@@ -104,6 +104,7 @@ const Campaigns: React.FC = () => {
     playlistIds: [],
     totemIds: [],
     publisherIds: [], // Publishers onde a campanha será exibida
+    mediaIds: [], // NOVO: Mídias diretas (sem playlist)
     // Novos campos comerciais (frontend envia para backend usar comercial_tier e time_share)
     commercial_tier: 'standard' as any,
     default_time_share_percent: 0,
@@ -184,7 +185,6 @@ const Campaigns: React.FC = () => {
       // Filtrar playlists por subscriber se não for admin
       const subscriberId = !isAdmin && userSubscriberId ? userSubscriberId : undefined;
       const response = await playlistApi.getAll({
-        subscriberId: subscriberId,
         subscriberId: subscriberId,
       });
       setPlaylists(response.data || []);
@@ -823,12 +823,29 @@ const Campaigns: React.FC = () => {
             multiple
             options={mediaItems.filter(m => {
               // Filtrar mídias por subscriber da campanha
-              const campaignSubscriberId = newCampaign.subscriberId;
-              return !campaignSubscriberId || (m.subscriberId || m.subscriberId) === campaignSubscriberId;
+              const campaignSubscriberId = newCampaign.subscriberId || newCampaign.clientId;
+              const mediaSubscriberId = m.subscriberId || m.clientId;
+              return !campaignSubscriberId || mediaSubscriberId === campaignSubscriberId;
             })}
             getOptionLabel={(option) => option.name}
             value={mediaItems.filter(m => newCampaign.mediaIds?.includes(m.media_id))}
             onChange={(_, newValue) => {
+              // Validar ownership ao adicionar mídias
+              const campaignSubscriberId = newCampaign.subscriberId || newCampaign.clientId;
+              if (campaignSubscriberId) {
+                const invalidMedia = newValue.find(m => {
+                  const mediaSubscriberId = m.subscriberId || m.clientId;
+                  return mediaSubscriberId && mediaSubscriberId !== campaignSubscriberId;
+                });
+                if (invalidMedia) {
+                  setError(
+                    `A mídia "${invalidMedia.name}" pertence a outro subscriber. ` +
+                    `Você só pode adicionar mídias do mesmo subscriber da campanha.`
+                  );
+                  return;
+                }
+              }
+              setError(null);
               setNewCampaign({ ...newCampaign, mediaIds: newValue.map(m => m.media_id) });
             }}
             renderInput={(params) => (
@@ -1090,7 +1107,7 @@ const Campaigns: React.FC = () => {
                     return {
                       id,
                       label: media?.name || `Mídia ${id}`,
-                      secondary: media ? `${media.fileName || ''} (${media.mediaType || 'N/A'})` : undefined
+                      secondary: media ? `${media.fileName || ''} (${media.media_type || (media as any).mediaType || 'N/A'})` : undefined
                     };
                   })}
                   onReorder={handleReorderMedias}

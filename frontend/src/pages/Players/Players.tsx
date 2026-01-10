@@ -103,7 +103,7 @@ const Players: React.FC = () => {
     try {
       await playerApi.create(newPlayer);
       setCreateDialogOpen(false);
-      setNewPlayer({ identifier: '', localId: 0, name: '', location: '', clientId: undefined });
+      setNewPlayer({ identifier: '', localId: 0, name: '', location: '', subscriberId: undefined });
       loadPlayers();
     } catch (error) {
       console.error('Erro ao criar player:', error);
@@ -118,7 +118,7 @@ const Players: React.FC = () => {
       await playerApi.update(selectedPlayer.totem_id, {
         name: selectedPlayer.name,
         location: selectedPlayer.location,
-        subscriberId: selectedPlayer.subscriber_id,
+        subscriberId: selectedPlayer.subscriber_id || (selectedPlayer as any).subscriberId,
         isActive: selectedPlayer.is_active,
       });
       setEditDialogOpen(false);

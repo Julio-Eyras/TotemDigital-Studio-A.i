@@ -213,6 +213,24 @@ const Contracts: React.FC = () => {
     }
   };
 
+  const loadPublisherContracts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await publisherContractApi.getAll({
+        search: searchTerm || undefined,
+        contractType: contractTypeFilter !== 'all' ? contractTypeFilter : undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+      });
+      setPublisherContracts(response.data || []);
+    } catch (error: any) {
+      console.error('Erro ao carregar contratos de publishers:', error);
+      setError('Erro ao carregar lista de contratos de publishers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loadContractPublishers = async (contractId: number) => {
     try {
       setLoadingPublishers(true);
@@ -380,6 +398,110 @@ const Contracts: React.FC = () => {
         return [...prev, publisherId];
       }
     });
+  };
+
+  const handleStartEditPublisherContract = (contract: PublisherContract) => {
+    setSelectedPublisherContract(contract);
+    setPublisherContractForm({
+      publisher_id: contract.publisher_id,
+      contract_number: contract.contract_number,
+      contract_type: contract.contract_type,
+      title: contract.title,
+      description: contract.description || '',
+      start_date: contract.start_date,
+      end_date: contract.end_date || '',
+      revenue_share_percentage: contract.revenue_share_percentage,
+      revenue_share_rules: contract.revenue_share_rules,
+      minimum_payout_amount: contract.minimum_payout_amount,
+      subscription_amount: contract.subscription_amount,
+      subscription_interval: contract.subscription_interval || 'month',
+      currency: contract.currency,
+      payment_terms: contract.payment_terms || '',
+      status: contract.status,
+    });
+    setEditPublisherContractDialogOpen(true);
+  };
+
+  const resetPublisherContractForm = () => {
+    setPublisherContractForm({
+      publisher_id: 0,
+      contract_number: '',
+      contract_type: 'revenue_share',
+      title: '',
+      description: '',
+      start_date: '',
+      end_date: '',
+      revenue_share_percentage: undefined,
+      revenue_share_rules: undefined,
+      minimum_payout_amount: undefined,
+      subscription_amount: undefined,
+      subscription_interval: 'month',
+      currency: 'BRL',
+      payment_terms: '',
+      status: 'draft',
+    });
+  };
+
+  const handleCreatePublisherContract = async () => {
+    try {
+      if (!publisherContractForm.publisher_id || !publisherContractForm.contract_number || !publisherContractForm.title || !publisherContractForm.start_date) {
+        setError('Preencha todos os campos obrigatórios');
+        return;
+      }
+
+      await publisherContractApi.create(publisherContractForm);
+      setCreatePublisherContractDialogOpen(false);
+      resetPublisherContractForm();
+      loadPublisherContracts();
+    } catch (error: any) {
+      console.error('Erro ao criar contrato de publisher:', error);
+      setError(error?.response?.data?.error || error?.message || 'Erro ao criar contrato de publisher');
+    }
+  };
+
+  const handleEditPublisherContract = async () => {
+    if (!selectedPublisherContract) return;
+
+    try {
+      const updateData: UpdatePublisherContractRequest = {
+        contract_number: publisherContractForm.contract_number,
+        contract_type: publisherContractForm.contract_type,
+        title: publisherContractForm.title,
+        description: publisherContractForm.description,
+        start_date: publisherContractForm.start_date,
+        end_date: publisherContractForm.end_date,
+        revenue_share_percentage: publisherContractForm.revenue_share_percentage,
+        revenue_share_rules: publisherContractForm.revenue_share_rules,
+        minimum_payout_amount: publisherContractForm.minimum_payout_amount,
+        subscription_amount: publisherContractForm.subscription_amount,
+        subscription_interval: publisherContractForm.subscription_interval,
+        currency: publisherContractForm.currency,
+        payment_terms: publisherContractForm.payment_terms,
+        status: publisherContractForm.status,
+      };
+
+      await publisherContractApi.update(selectedPublisherContract.contract_id, updateData);
+      setEditPublisherContractDialogOpen(false);
+      resetPublisherContractForm();
+      loadPublisherContracts();
+    } catch (error: any) {
+      console.error('Erro ao atualizar contrato de publisher:', error);
+      setError(error?.response?.data?.error || error?.message || 'Erro ao atualizar contrato de publisher');
+    }
+  };
+
+  const handleDeletePublisherContract = async (contractId: number) => {
+    if (!window.confirm('Tem certeza que deseja excluir este contrato de publisher?')) {
+      return;
+    }
+
+    try {
+      await publisherContractApi.delete(contractId);
+      loadPublisherContracts();
+    } catch (error: any) {
+      console.error('Erro ao excluir contrato de publisher:', error);
+      setError(error?.response?.data?.error || error?.message || 'Erro ao excluir contrato de publisher');
+    }
   };
 
   if (loading && contracts.length === 0) {
@@ -793,11 +915,14 @@ const Contracts: React.FC = () => {
                   label="Assinante *"
                   onChange={(e) => setContractForm({ ...contractForm, subscriber_id: Number(e.target.value) })}
                 >
-                  {subscribers.map((subscriber) => (
-                    <MenuItem key={subscriber.subscriber_id} value={subscriber.subscriber_id}>
-                      {subscriber.name}
-                    </MenuItem>
-                  ))}
+                    {subscribers.map((subscriber) => {
+                      const subscriberId = subscriber.subscriber_id || (subscriber as any).subscriberId;
+                      return (
+                        <MenuItem key={subscriberId} value={subscriberId}>
+                          {subscriber.name}
+                        </MenuItem>
+                      );
+                    })}
                 </Select>
               </FormControl>
 
