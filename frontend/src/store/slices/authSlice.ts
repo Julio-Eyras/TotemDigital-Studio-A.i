@@ -21,8 +21,8 @@ export interface User {
   role: 'owner_system' | 'admin' | 'admin_sql' | 'manager' | 'operator' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
   isActive: boolean;
   user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber'; // NOVO: Tipo de usuário para detecção automática
-  subscriberId?: number; // clientId deprecated
   subscriberId?: number; // NOVO: ID do subscriber (anunciante)
+  clientId?: number; // DEPRECATED: Usar subscriberId - mantido para compatibilidade
   publisherId?: number; // NOVO: ID do publisher (publicador)
   subscriberName?: string; // NOVO: Nome do subscriber
   flags?: UserFlags; // NOVO: Flags de permissão do usuário

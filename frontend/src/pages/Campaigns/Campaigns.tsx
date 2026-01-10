@@ -741,8 +741,9 @@ const Campaigns: React.FC = () => {
             >
               <MenuItem value="">Nenhum</MenuItem>
               {clients.map((client) => {
-                // Client pode ter subscriber_id ou client_id (deprecated)
-                const subscriberId = (client as any).subscriber_id || (client as any).subscriberId || client.client_id;
+                // Client tem apenas client_id (deprecated - usar Subscriber no futuro)
+                // client_id é usado como subscriberId para compatibilidade
+                const subscriberId = client.client_id;
                 return (
                   <MenuItem key={client.client_id} value={subscriberId}>
                     {client.name}

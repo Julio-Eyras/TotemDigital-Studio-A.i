@@ -59,11 +59,24 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     storage?: { valid: boolean; message: string; remainingGB?: number | null };
     limits?: { valid: boolean; message: string; remaining?: number | null };
   } | null>(null);
+  // Função auxiliar para obter subscriberId de um objeto Client ou Subscriber
+  const getSubscriberId = (item: Client | Subscriber): number | undefined => {
+    // Verificar se é Subscriber (tem subscriber_id)
+    if ('subscriber_id' in item && item.subscriber_id !== undefined) {
+      return item.subscriber_id;
+    }
+    // Verificar se é Client (tem client_id) - deprecated
+    if ('client_id' in item && item.client_id !== undefined) {
+      return item.client_id;
+    }
+    return undefined;
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     tags: '',
-    subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? ((subscribers[0] as any).subscriber_id || (subscribers[0] as any).subscriberId || ((subscribers[0] as Client).client_id ? (subscribers[0] as Client).client_id : undefined)) : undefined),
+    subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined),
   });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -227,7 +240,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
       name: '', 
       description: '', 
       tags: '',
-      subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? ((subscribers[0] as any).subscriber_id || (subscribers[0] as any).subscriberId || ((subscribers[0] as Client).client_id ? (subscribers[0] as Client).client_id : undefined)) : undefined),
+      subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined),
     });
     setUploading(false);
     setUploadProgress(0);
@@ -272,8 +285,8 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                   >
                     {subscribers.map((subscriber) => {
                       // Pode ser Client ou Subscriber
-                      const subscriberId = (subscriber as any).subscriber_id || (subscriber as any).subscriberId || ((subscriber as Client).client_id ? (subscriber as Client).client_id : undefined);
-                      const key = (subscriber as any).subscriber_id || ((subscriber as Client).client_id ? (subscriber as Client).client_id : 0);
+                      const subscriberId = getSubscriberId(subscriber);
+                      const key = subscriberId || 0;
                       return (
                         <MenuItem key={key} value={subscriberId}>
                           {subscriber.name} {subscriber.email ? `(${subscriber.email})` : ''}
@@ -289,7 +302,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                 <TextField
                   fullWidth
                   label="Subscriber"
-                  value={subscribers.find(s => ((s as any).subscriber_id || (s as any).subscriberId || ((s as Client).client_id)) === userSubscriberId)?.name || 'Seu Subscriber'}
+                  value={subscribers.find(s => getSubscriberId(s) === userSubscriberId)?.name || 'Seu Subscriber'}
                   disabled
                   margin="normal"
                 />
