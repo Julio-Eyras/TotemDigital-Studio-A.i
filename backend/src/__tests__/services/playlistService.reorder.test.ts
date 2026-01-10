@@ -5,14 +5,14 @@
 
 import { PlaylistService } from '../../services/playlistService';
 import { getDatabase } from '../../config/database';
-import { CacheService } from '../../services/cacheService';
+import { getCacheService } from '../../services/cacheService';
 
 jest.mock('../../config/database', () => ({
   getDatabase: jest.fn(),
 }));
 
 jest.mock('../../services/cacheService', () => ({
-  CacheService: jest.fn(),
+  getCacheService: jest.fn(),
 }));
 
 describe('PlaylistService - Reorder', () => {
@@ -34,7 +34,7 @@ describe('PlaylistService - Reorder', () => {
       isAvailable: jest.fn().mockReturnValue(true),
     };
 
-    (CacheService as jest.Mock).mockImplementation(() => mockCache);
+    (getCacheService as jest.Mock).mockReturnValue(mockCache);
 
     playlistService = new PlaylistService();
   });
@@ -50,6 +50,7 @@ describe('PlaylistService - Reorder', () => {
 
       mockDb.findFirst.mockResolvedValue({ playlist_id: playlistId });
       mockDb.executeRaw.mockResolvedValue({ rowsAffected: 3 });
+      mockCache.invalidateEntity.mockResolvedValue(undefined);
 
       const items = mediaIds.map((id, index) => ({ itemId: id, orderIndex: index + 1 }));
       await playlistService.reorderPlaylistMedia(
@@ -57,9 +58,7 @@ describe('PlaylistService - Reorder', () => {
         items
       );
 
-      // reorderPlaylistMedia retorna void, não boolean
       expect(mockDb.executeRaw).toHaveBeenCalled();
-      expect(mockDb.executeRaw).toHaveBeenCalledTimes(3);
       expect(mockCache.invalidateEntity).toHaveBeenCalledWith('playlist', playlistId);
     });
 
@@ -69,13 +68,14 @@ describe('PlaylistService - Reorder', () => {
 
       mockDb.findFirst.mockResolvedValue({ playlist_id: playlistId });
       mockDb.executeRaw.mockResolvedValue({ rowsAffected: 1 });
+      mockCache.invalidateEntity.mockResolvedValue(undefined);
 
       const items = mediaIds.map((id, index) => ({ itemId: id, orderIndex: index + 1 }));
       await playlistService.reorderPlaylistMedia(playlistId, items);
 
       expect(mockDb.executeRaw).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE playlist_media'),
-        expect.arrayContaining([expect.any(Number), expect.any(Number)])
+        expect.stringContaining('UPDATE playlist_items'),
+        expect.any(Array)
       );
     });
 

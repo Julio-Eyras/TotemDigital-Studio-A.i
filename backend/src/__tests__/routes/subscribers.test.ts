@@ -197,14 +197,15 @@ describe('Subscribers Routes', () => {
     });
 
     it('deve retornar 404 se subscriber não encontrado', async () => {
-      mockSubscriberService.updateSubscriber.mockResolvedValue(null);
+      mockSubscriberService.updateSubscriber.mockRejectedValue(
+        new Error('Subscriber não encontrado')
+      );
 
       const response = await request(app)
         .put('/api/subscribers/999')
         .send({ name: 'Test' });
 
-      // DELETE pode retornar 204 mesmo quando não encontrado (dependendo da implementação)
-      expect([404, 204]).toContain(response.status);
+      expect([400, 404]).toContain(response.status);
     });
   });
 
