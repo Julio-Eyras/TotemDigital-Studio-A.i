@@ -129,6 +129,8 @@ const Campaigns: React.FC = () => {
       setOrderedPlaylistIds([]);
     }
   }, [selectedCampaign, editDialogOpen]);
+
+  useEffect(() => {
     loadPlayers();
     loadPublishers();
     if (userSubscriberId) {
@@ -738,11 +740,15 @@ const Campaigns: React.FC = () => {
               label="Cliente (Subscriber)"
             >
               <MenuItem value="">Nenhum</MenuItem>
-              {clients.map((client) => (
-                <MenuItem key={client.subscriber_id} value={client.subscriber_id}>
-                  {client.name}
-                </MenuItem>
-              ))}
+              {clients.map((client) => {
+                // Client pode ter subscriber_id ou client_id (deprecated)
+                const subscriberId = (client as any).subscriber_id || (client as any).subscriberId || client.client_id;
+                return (
+                  <MenuItem key={client.client_id} value={subscriberId}>
+                    {client.name}
+                  </MenuItem>
+                );
+              })}
             </Select>
           </FormControl>
           
