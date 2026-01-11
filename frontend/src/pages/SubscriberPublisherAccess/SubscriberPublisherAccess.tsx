@@ -288,11 +288,14 @@ const SubscriberPublisherAccessPage: React.FC = () => {
                   label="Plano"
                 >
                   <MenuItem value="">Todos</MenuItem>
-                  {plans.map((plan) => (
-                    <MenuItem key={plan.plan_id} value={plan.plan_id.toString()}>
-                      {plan.name}
-                    </MenuItem>
-                  ))}
+                  {plans.map((plan) => {
+                    const planId = plan.planId || plan.plan_id || 0;
+                    return (
+                      <MenuItem key={planId} value={planId.toString()}>
+                        {plan.name}
+                      </MenuItem>
+                    );
+                  })}
                 </Select>
               </FormControl>
             </Grid>

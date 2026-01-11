@@ -1,3 +1,8 @@
+/**
+ * Plan Publisher Access Page - Smart Signage v2.1
+ * Página com abas para gerenciar Planos (CRUD) e Publishers associados
+ */
+
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -29,7 +34,9 @@ import {
   Paper,
   Tooltip,
   useTheme,
-  alpha,
+  Tabs,
+  Tab,
+  LinearProgress,
 } from '@mui/material';
 import {
   Add,
@@ -37,29 +44,75 @@ import {
   Delete,
   CheckCircle,
   Cancel,
-  Settings,
   Info,
+  Star,
+  StarBorder,
 } from '@mui/icons-material';
-import { planApi, Plan } from '../../services/api';
+import { planApi, Plan, CreatePlanRequest, UpdatePlanRequest } from '../../services/api';
 import { publisherApi, Publisher } from '../../services/api';
 import { subscriberAccessApi, PlanPublisherAccess } from '../../services/api';
 
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+  return (
+    <div role="tabpanel" hidden={value !== index} {...other}>
+      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    </div>
+  );
+}
+
 const PlanPublisherAccessPage: React.FC = () => {
   const theme = useTheme();
+  const [tabValue, setTabValue] = useState(0);
+  
+  // Estados comuns
   const [plans, setPlans] = useState<Plan[]>([]);
   const [publishers, setPublishers] = useState<Publisher[]>([]);
-  const [accessList, setAccessList] = useState<PlanPublisherAccess[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [selectedAccess, setSelectedAccess] = useState<PlanPublisherAccess | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState({
+
+  // =============================================
+  // ABA 1: CRUD DE PLANOS
+  // =============================================
+  const [planDialogOpen, setPlanDialogOpen] = useState(false);
+  const [planEditMode, setPlanEditMode] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [planFormData, setPlanFormData] = useState<CreatePlanRequest>({
+    name: '',
+    slug: '',
+    description: '',
+    priceMonthly: 0,
+    priceYearly: undefined,
+    currency: 'BRL',
+    billingInterval: 'month',
+    stripePriceIdMonthly: '',
+    stripePriceIdYearly: '',
+    stripeProductId: '',
+    features: {},
+    limits: {},
+    isActive: true,
+    isPopular: false,
+    sortOrder: 0,
+  });
+
+  // =============================================
+  // ABA 2: MANUTENÇÃO DE PUBLISHERS
+  // =============================================
+  const [accessList, setAccessList] = useState<PlanPublisherAccess[]>([]);
+  const [accessDialogOpen, setAccessDialogOpen] = useState(false);
+  const [accessEditMode, setAccessEditMode] = useState(false);
+  const [selectedAccess, setSelectedAccess] = useState<PlanPublisherAccess | null>(null);
+  const [accessFilters, setAccessFilters] = useState({
     planId: '',
     publisherId: '',
   });
-
-  const [formData, setFormData] = useState({
+  const [accessFormData, setAccessFormData] = useState({
     planId: '',
     publisherId: '',
     isAllowed: true,
@@ -68,26 +121,27 @@ const PlanPublisherAccessPage: React.FC = () => {
   });
 
   useEffect(() => {
-    loadData();
-  }, [filters]);
+    loadAllData();
+  }, []);
 
-  const loadData = async () => {
+  useEffect(() => {
+    if (tabValue === 1) {
+      loadPublisherAccess();
+    }
+  }, [tabValue, accessFilters]);
+
+  const loadAllData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const [plansRes, publishersRes, accessRes] = await Promise.all([
-        planApi.getAll(),
+      const [plansRes, publishersRes] = await Promise.all([
+        planApi.getAll(true), // Incluir inativos
         publisherApi.getAll({ active_only: true }),
-        subscriberAccessApi.getPlanPublisherAccess({
-          planId: filters.planId ? parseInt(filters.planId) : undefined,
-          publisherId: filters.publisherId ? parseInt(filters.publisherId) : undefined,
-        }),
       ]);
 
       setPlans(plansRes || []);
       setPublishers(publishersRes.data || []);
-      setAccessList(accessRes);
     } catch (error: any) {
       console.error('Erro ao carregar dados:', error);
       setError(error?.response?.data?.error || 'Erro ao carregar dados');
@@ -96,11 +150,205 @@ const PlanPublisherAccessPage: React.FC = () => {
     }
   };
 
-  const handleOpenDialog = (access?: PlanPublisherAccess) => {
+  const loadPublisherAccess = async () => {
+    try {
+      const accessRes = await subscriberAccessApi.getPlanPublisherAccess({
+        planId: accessFilters.planId ? parseInt(accessFilters.planId) : undefined,
+        publisherId: accessFilters.publisherId ? parseInt(accessFilters.publisherId) : undefined,
+      });
+      setAccessList(accessRes);
+    } catch (error: any) {
+      console.error('Erro ao carregar acessos:', error);
+      setError(error?.response?.data?.error || 'Erro ao carregar acessos');
+    }
+  };
+
+  // =============================================
+  // FUNÇÕES ABA 1: CRUD DE PLANOS
+  // =============================================
+
+  const getPlanId = (plan: Plan): number => {
+    return plan.planId || plan.plan_id || 0;
+  };
+
+  const getPlanName = (plan: Plan): string => {
+    return plan.name || '';
+  };
+
+  const getPlanPriceMonthly = (plan: Plan): number => {
+    return plan.priceMonthly || plan.price_monthly || 0;
+  };
+
+  const getPlanPriceYearly = (plan: Plan): number | undefined => {
+    return plan.priceYearly || plan.price_yearly;
+  };
+
+  const getPlanIsActive = (plan: Plan): boolean => {
+    return plan.isActive !== undefined ? plan.isActive : plan.is_active !== false;
+  };
+
+  const getPlanIsPopular = (plan: Plan): boolean => {
+    return plan.isPopular || plan.is_popular || false;
+  };
+
+  const getPlanSortOrder = (plan: Plan): number => {
+    return plan.sortOrder || plan.sort_order || 0;
+  };
+
+  const handleOpenPlanDialog = (plan?: Plan) => {
+    if (plan) {
+      setPlanEditMode(true);
+      setSelectedPlan(plan);
+      setPlanFormData({
+        name: plan.name,
+        slug: plan.slug,
+        description: plan.description || '',
+        priceMonthly: getPlanPriceMonthly(plan),
+        priceYearly: getPlanPriceYearly(plan),
+        currency: plan.currency || 'BRL',
+        billingInterval: plan.billingInterval || plan.billing_interval || 'month',
+        stripePriceIdMonthly: plan.stripePriceIdMonthly || plan.stripe_price_id_monthly || '',
+        stripePriceIdYearly: plan.stripePriceIdYearly || plan.stripe_price_id_yearly || '',
+        stripeProductId: plan.stripeProductId || plan.stripe_product_id || '',
+        features: plan.features || {},
+        limits: plan.limits || {},
+        isActive: getPlanIsActive(plan),
+        isPopular: getPlanIsPopular(plan),
+        sortOrder: getPlanSortOrder(plan),
+      });
+    } else {
+      setPlanEditMode(false);
+      setSelectedPlan(null);
+      setPlanFormData({
+        name: '',
+        slug: '',
+        description: '',
+        priceMonthly: 0,
+        priceYearly: undefined,
+        currency: 'BRL',
+        billingInterval: 'month',
+        stripePriceIdMonthly: '',
+        stripePriceIdYearly: '',
+        stripeProductId: '',
+        features: {},
+        limits: {},
+        isActive: true,
+        isPopular: false,
+        sortOrder: 0,
+      });
+    }
+    setPlanDialogOpen(true);
+  };
+
+  const handleClosePlanDialog = () => {
+    setPlanDialogOpen(false);
+    setPlanEditMode(false);
+    setSelectedPlan(null);
+  };
+
+  const generateSlug = (name: string): string => {
+    return name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
+  const handlePlanNameChange = (name: string) => {
+    setPlanFormData({ ...planFormData, name, slug: generateSlug(name) });
+  };
+
+  const handlePlanSubmit = async () => {
+    try {
+      setError(null);
+
+      // Validar campos obrigatórios
+      if (!planFormData.name || !planFormData.slug || !planFormData.priceMonthly) {
+        setError('Nome, slug e preço mensal são obrigatórios');
+        return;
+      }
+
+      // Validar JSON de features e limits
+      let features = planFormData.features;
+      let limits = planFormData.limits;
+      
+      if (typeof planFormData.features === 'string') {
+        try {
+          features = JSON.parse(planFormData.features);
+        } catch (e) {
+          setError('Features deve ser um JSON válido');
+          return;
+        }
+      }
+      
+      if (typeof planFormData.limits === 'string') {
+        try {
+          limits = JSON.parse(planFormData.limits);
+        } catch (e) {
+          setError('Limits deve ser um JSON válido');
+          return;
+        }
+      }
+
+      if (planEditMode && selectedPlan) {
+        const planId = getPlanId(selectedPlan);
+        const updateData: UpdatePlanRequest = {
+          name: planFormData.name,
+          description: planFormData.description,
+          priceMonthly: planFormData.priceMonthly,
+          priceYearly: planFormData.priceYearly,
+          stripePriceIdMonthly: planFormData.stripePriceIdMonthly || undefined,
+          stripePriceIdYearly: planFormData.stripePriceIdYearly || undefined,
+          features,
+          limits,
+          isActive: planFormData.isActive,
+          isPopular: planFormData.isPopular,
+          sortOrder: planFormData.sortOrder,
+        };
+        await planApi.update(planId, updateData);
+      } else {
+        const createData: CreatePlanRequest = {
+          ...planFormData,
+          features,
+          limits,
+        };
+        await planApi.create(createData);
+      }
+
+      handleClosePlanDialog();
+      await loadAllData();
+    } catch (error: any) {
+      console.error('Erro ao salvar plano:', error);
+      setError(error?.response?.data?.error || error?.message || 'Erro ao salvar plano');
+    }
+  };
+
+  const handlePlanDelete = async (plan: Plan) => {
+    const planId = getPlanId(plan);
+    if (!window.confirm(`Tem certeza que deseja remover o plano "${getPlanName(plan)}"?`)) {
+      return;
+    }
+
+    try {
+      setError(null);
+      await planApi.delete(planId);
+      await loadAllData();
+    } catch (error: any) {
+      console.error('Erro ao remover plano:', error);
+      setError(error?.response?.data?.error || error?.message || 'Erro ao remover plano');
+    }
+  };
+
+  // =============================================
+  // FUNÇÕES ABA 2: MANUTENÇÃO DE PUBLISHERS
+  // =============================================
+
+  const handleOpenAccessDialog = (access?: PlanPublisherAccess) => {
     if (access) {
-      setEditMode(true);
+      setAccessEditMode(true);
       setSelectedAccess(access);
-      setFormData({
+      setAccessFormData({
         planId: access.plan_id.toString(),
         publisherId: access.publisher_id.toString(),
         isAllowed: access.is_allowed,
@@ -108,9 +356,9 @@ const PlanPublisherAccessPage: React.FC = () => {
         notes: access.notes || '',
       });
     } else {
-      setEditMode(false);
+      setAccessEditMode(false);
       setSelectedAccess(null);
-      setFormData({
+      setAccessFormData({
         planId: '',
         publisherId: '',
         isAllowed: true,
@@ -118,30 +366,23 @@ const PlanPublisherAccessPage: React.FC = () => {
         notes: '',
       });
     }
-    setDialogOpen(true);
+    setAccessDialogOpen(true);
   };
 
-  const handleCloseDialog = () => {
-    setDialogOpen(false);
-    setEditMode(false);
+  const handleCloseAccessDialog = () => {
+    setAccessDialogOpen(false);
+    setAccessEditMode(false);
     setSelectedAccess(null);
-    setFormData({
-      planId: '',
-      publisherId: '',
-      isAllowed: true,
-      restrictions: '',
-      notes: '',
-    });
   };
 
-  const handleSubmit = async () => {
+  const handleAccessSubmit = async () => {
     try {
       setError(null);
 
       let restrictions = null;
-      if (formData.restrictions.trim()) {
+      if (accessFormData.restrictions.trim()) {
         try {
-          restrictions = JSON.parse(formData.restrictions);
+          restrictions = JSON.parse(accessFormData.restrictions);
         } catch (e) {
           setError('Restrições devem ser um JSON válido');
           return;
@@ -149,22 +390,22 @@ const PlanPublisherAccessPage: React.FC = () => {
       }
 
       await subscriberAccessApi.setPlanPublisherAccess({
-        planId: parseInt(formData.planId),
-        publisherId: parseInt(formData.publisherId),
-        isAllowed: formData.isAllowed,
+        planId: parseInt(accessFormData.planId),
+        publisherId: parseInt(accessFormData.publisherId),
+        isAllowed: accessFormData.isAllowed,
         restrictions,
-        notes: formData.notes || undefined,
+        notes: accessFormData.notes || undefined,
       });
 
-      handleCloseDialog();
-      await loadData();
+      handleCloseAccessDialog();
+      await loadPublisherAccess();
     } catch (error: any) {
       console.error('Erro ao salvar configuração:', error);
       setError(error?.response?.data?.error || 'Erro ao salvar configuração');
     }
   };
 
-  const handleDelete = async (planId: number, publisherId: number) => {
+  const handleAccessDelete = async (planId: number, publisherId: number) => {
     if (!window.confirm('Tem certeza que deseja remover este acesso?')) {
       return;
     }
@@ -172,7 +413,7 @@ const PlanPublisherAccessPage: React.FC = () => {
     try {
       setError(null);
       await subscriberAccessApi.removePlanPublisherAccess(planId, publisherId);
-      await loadData();
+      await loadPublisherAccess();
     } catch (error: any) {
       console.error('Erro ao remover acesso:', error);
       setError(error?.response?.data?.error || 'Erro ao remover acesso');
@@ -182,78 +423,14 @@ const PlanPublisherAccessPage: React.FC = () => {
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
       {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            Configuração Planos → Publishers
-          </Typography>
-          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Configure quais publishers cada plano permite acessar
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => handleOpenDialog()}
-          sx={{
-            backgroundColor: theme.palette.primary.main,
-            '&:hover': { backgroundColor: theme.palette.primary.dark }
-          }}
-        >
-          Nova Configuração
-        </Button>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
+          Planos e Publicadores
+        </Typography>
+        <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
+          Gerencie planos e configure quais publishers cada plano permite acessar
+        </Typography>
       </Box>
-
-      {/* Filters */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel>Filtrar por Plano</InputLabel>
-                <Select
-                  value={filters.planId}
-                  onChange={(e) => setFilters({ ...filters, planId: e.target.value })}
-                  label="Filtrar por Plano"
-                >
-                  <MenuItem value="">Todos</MenuItem>
-                  {plans.map((plan) => (
-                    <MenuItem key={plan.plan_id} value={plan.plan_id.toString()}>
-                      {plan.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel>Filtrar por Publisher</InputLabel>
-                <Select
-                  value={filters.publisherId}
-                  onChange={(e) => setFilters({ ...filters, publisherId: e.target.value })}
-                  label="Filtrar por Publisher"
-                >
-                  <MenuItem value="">Todos</MenuItem>
-                  {publishers.map((publisher) => (
-                    <MenuItem key={publisher.publisher_id} value={publisher.publisher_id.toString()}>
-                      {publisher.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Button
-                fullWidth
-                variant="outlined"
-                onClick={loadData}
-              >
-                Atualizar
-              </Button>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
 
       {/* Error Alert */}
       {error && (
@@ -262,9 +439,162 @@ const PlanPublisherAccessPage: React.FC = () => {
         </Alert>
       )}
 
-      {/* Access List */}
+      {/* Tabs */}
       <Card>
-        <CardContent>
+        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+          <Tab label="Planos (CRUD)" />
+          <Tab label="Manutenção de Publicadores" />
+        </Tabs>
+
+        {/* Loading */}
+        {loading && <LinearProgress />}
+
+        {/* ABA 1: CRUD DE PLANOS */}
+        <TabPanel value={tabValue} index={0}>
+          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => handleOpenPlanDialog()}
+            >
+              Criar Plano
+            </Button>
+          </Box>
+
+          <TableContainer component={Paper} variant="outlined">
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell><strong>Nome</strong></TableCell>
+                  <TableCell><strong>Slug</strong></TableCell>
+                  <TableCell><strong>Preço Mensal</strong></TableCell>
+                  <TableCell><strong>Preço Anual</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                  <TableCell><strong>Popular</strong></TableCell>
+                  <TableCell><strong>Ordem</strong></TableCell>
+                  <TableCell><strong>Ações</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {plans.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Nenhum plano encontrado. Clique em "Criar Plano" para criar.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  plans.map((plan) => (
+                    <TableRow key={getPlanId(plan)}>
+                      <TableCell>{getPlanName(plan)}</TableCell>
+                      <TableCell>
+                        <Chip label={plan.slug} size="small" variant="outlined" />
+                      </TableCell>
+                      <TableCell>
+                        {new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: plan.currency || 'BRL',
+                        }).format(getPlanPriceMonthly(plan))}
+                      </TableCell>
+                      <TableCell>
+                        {getPlanPriceYearly(plan)
+                          ? new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: plan.currency || 'BRL',
+                            }).format(getPlanPriceYearly(plan)!)
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          icon={getPlanIsActive(plan) ? <CheckCircle /> : <Cancel />}
+                          label={getPlanIsActive(plan) ? 'Ativo' : 'Inativo'}
+                          color={getPlanIsActive(plan) ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {getPlanIsPopular(plan) ? (
+                          <Star color="warning" />
+                        ) : (
+                          <StarBorder color="disabled" />
+                        )}
+                      </TableCell>
+                      <TableCell>{getPlanSortOrder(plan)}</TableCell>
+                      <TableCell>
+                        <Tooltip title="Editar">
+                          <IconButton size="small" onClick={() => handleOpenPlanDialog(plan)}>
+                            <Edit />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Remover">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handlePlanDelete(plan)}
+                          >
+                            <Delete />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </TabPanel>
+
+        {/* ABA 2: MANUTENÇÃO DE PUBLISHERS */}
+        <TabPanel value={tabValue} index={1}>
+          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ flex: 1, mr: 2 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={5}>
+                  <FormControl fullWidth>
+                    <InputLabel>Filtrar por Plano</InputLabel>
+                    <Select
+                      value={accessFilters.planId}
+                      onChange={(e) => setAccessFilters({ ...accessFilters, planId: e.target.value })}
+                      label="Filtrar por Plano"
+                    >
+                      <MenuItem value="">Todos</MenuItem>
+                      {plans.map((plan) => (
+                        <MenuItem key={getPlanId(plan)} value={getPlanId(plan).toString()}>
+                          {getPlanName(plan)}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={5}>
+                  <FormControl fullWidth>
+                    <InputLabel>Filtrar por Publisher</InputLabel>
+                    <Select
+                      value={accessFilters.publisherId}
+                      onChange={(e) => setAccessFilters({ ...accessFilters, publisherId: e.target.value })}
+                      label="Filtrar por Publisher"
+                    >
+                      <MenuItem value="">Todos</MenuItem>
+                      {publishers.map((publisher) => (
+                        <MenuItem key={publisher.publisher_id} value={publisher.publisher_id.toString()}>
+                          {publisher.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => handleOpenAccessDialog()}
+            >
+              Nova Configuração
+            </Button>
+          </Box>
+
           <TableContainer component={Paper} variant="outlined">
             <Table>
               <TableHead>
@@ -330,7 +660,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         <Tooltip title="Editar">
-                          <IconButton size="small" onClick={() => handleOpenDialog(access)}>
+                          <IconButton size="small" onClick={() => handleOpenAccessDialog(access)}>
                             <Edit />
                           </IconButton>
                         </Tooltip>
@@ -338,7 +668,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                           <IconButton
                             size="small"
                             color="error"
-                            onClick={() => handleDelete(access.plan_id, access.publisher_id)}
+                            onClick={() => handleAccessDelete(access.plan_id, access.publisher_id)}
                           >
                             <Delete />
                           </IconButton>
@@ -350,28 +680,216 @@ const PlanPublisherAccessPage: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
-        </CardContent>
+        </TabPanel>
       </Card>
 
-      {/* Dialog */}
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+      {/* Dialog: CRUD Planos */}
+      <Dialog open={planDialogOpen} onClose={handleClosePlanDialog} maxWidth="md" fullWidth>
         <DialogTitle>
-          {editMode ? 'Editar Configuração' : 'Nova Configuração'}
+          {planEditMode ? 'Editar Plano' : 'Criar Plano'}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <TextField
+              fullWidth
+              label="Nome *"
+              value={planFormData.name}
+              onChange={(e) => handlePlanNameChange(e.target.value)}
+              margin="normal"
+              required
+            />
+            <TextField
+              fullWidth
+              label="Slug *"
+              value={planFormData.slug}
+              onChange={(e) => setPlanFormData({ ...planFormData, slug: e.target.value })}
+              margin="normal"
+              required
+              helperText="Identificador único (gerado automaticamente a partir do nome)"
+            />
+            <TextField
+              fullWidth
+              label="Descrição"
+              multiline
+              rows={3}
+              value={planFormData.description}
+              onChange={(e) => setPlanFormData({ ...planFormData, description: e.target.value })}
+              margin="normal"
+            />
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Preço Mensal *"
+                  type="number"
+                  value={planFormData.priceMonthly}
+                  onChange={(e) => setPlanFormData({ ...planFormData, priceMonthly: parseFloat(e.target.value) || 0 })}
+                  margin="normal"
+                  required
+                  InputProps={{
+                    startAdornment: <Typography sx={{ mr: 1 }}>R$</Typography>,
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Preço Anual"
+                  type="number"
+                  value={planFormData.priceYearly || ''}
+                  onChange={(e) => setPlanFormData({ ...planFormData, priceYearly: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  margin="normal"
+                  InputProps={{
+                    startAdornment: <Typography sx={{ mr: 1 }}>R$</Typography>,
+                  }}
+                />
+              </Grid>
+            </Grid>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Moeda</InputLabel>
+                  <Select
+                    value={planFormData.currency}
+                    onChange={(e) => setPlanFormData({ ...planFormData, currency: e.target.value })}
+                    label="Moeda"
+                  >
+                    <MenuItem value="BRL">BRL (Real)</MenuItem>
+                    <MenuItem value="USD">USD (Dólar)</MenuItem>
+                    <MenuItem value="EUR">EUR (Euro)</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Intervalo de Cobrança</InputLabel>
+                  <Select
+                    value={planFormData.billingInterval}
+                    onChange={(e) => setPlanFormData({ ...planFormData, billingInterval: e.target.value })}
+                    label="Intervalo de Cobrança"
+                  >
+                    <MenuItem value="month">Mensal</MenuItem>
+                    <MenuItem value="year">Anual</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Stripe Product ID"
+                  value={planFormData.stripeProductId}
+                  onChange={(e) => setPlanFormData({ ...planFormData, stripeProductId: e.target.value })}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Stripe Price ID (Mensal)"
+                  value={planFormData.stripePriceIdMonthly}
+                  onChange={(e) => setPlanFormData({ ...planFormData, stripePriceIdMonthly: e.target.value })}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Stripe Price ID (Anual)"
+                  value={planFormData.stripePriceIdYearly}
+                  onChange={(e) => setPlanFormData({ ...planFormData, stripePriceIdYearly: e.target.value })}
+                  margin="normal"
+                />
+              </Grid>
+            </Grid>
+            <TextField
+              fullWidth
+              label="Features (JSON)"
+              multiline
+              rows={4}
+              value={typeof planFormData.features === 'string' ? planFormData.features : JSON.stringify(planFormData.features, null, 2)}
+              onChange={(e) => setPlanFormData({ ...planFormData, features: e.target.value })}
+              margin="normal"
+              helperText="Objeto JSON com features do plano. Ex: { 'feature1': true, 'feature2': 'advanced' }"
+            />
+            <TextField
+              fullWidth
+              label="Limits (JSON)"
+              multiline
+              rows={4}
+              value={typeof planFormData.limits === 'string' ? planFormData.limits : JSON.stringify(planFormData.limits, null, 2)}
+              onChange={(e) => setPlanFormData({ ...planFormData, limits: e.target.value })}
+              margin="normal"
+              helperText="Objeto JSON com limites. Ex: { 'totems': 10, 'campaigns': 50, 'storage_gb': 100 }"
+            />
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={4}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={planFormData.isActive}
+                      onChange={(e) => setPlanFormData({ ...planFormData, isActive: e.target.checked })}
+                    />
+                  }
+                  label="Ativo"
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={planFormData.isPopular}
+                      onChange={(e) => setPlanFormData({ ...planFormData, isPopular: e.target.checked })}
+                    />
+                  }
+                  label="Popular"
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Ordem de Exibição"
+                  type="number"
+                  value={planFormData.sortOrder}
+                  onChange={(e) => setPlanFormData({ ...planFormData, sortOrder: parseInt(e.target.value) || 0 })}
+                  margin="normal"
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClosePlanDialog}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handlePlanSubmit}
+            disabled={!planFormData.name || !planFormData.slug || !planFormData.priceMonthly}
+          >
+            {planEditMode ? 'Salvar' : 'Criar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog: Manutenção de Publishers */}
+      <Dialog open={accessDialogOpen} onClose={handleCloseAccessDialog} maxWidth="md" fullWidth>
+        <DialogTitle>
+          {accessEditMode ? 'Editar Configuração' : 'Nova Configuração'}
         </DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2 }}>
             <FormControl fullWidth margin="normal">
               <InputLabel>Plano *</InputLabel>
               <Select
-                value={formData.planId}
-                onChange={(e) => setFormData({ ...formData, planId: e.target.value })}
+                value={accessFormData.planId}
+                onChange={(e) => setAccessFormData({ ...accessFormData, planId: e.target.value })}
                 label="Plano *"
-                disabled={editMode}
+                disabled={accessEditMode}
               >
                 <MenuItem value="">Selecione um plano</MenuItem>
                 {plans.map((plan) => (
-                  <MenuItem key={plan.plan_id} value={plan.plan_id.toString()}>
-                    {plan.name}
+                  <MenuItem key={getPlanId(plan)} value={getPlanId(plan).toString()}>
+                    {getPlanName(plan)}
                   </MenuItem>
                 ))}
               </Select>
@@ -380,10 +898,10 @@ const PlanPublisherAccessPage: React.FC = () => {
             <FormControl fullWidth margin="normal">
               <InputLabel>Publisher *</InputLabel>
               <Select
-                value={formData.publisherId}
-                onChange={(e) => setFormData({ ...formData, publisherId: e.target.value })}
+                value={accessFormData.publisherId}
+                onChange={(e) => setAccessFormData({ ...accessFormData, publisherId: e.target.value })}
                 label="Publisher *"
-                disabled={editMode}
+                disabled={accessEditMode}
               >
                 <MenuItem value="">Selecione um publisher</MenuItem>
                 {publishers.map((publisher) => (
@@ -397,8 +915,8 @@ const PlanPublisherAccessPage: React.FC = () => {
             <FormControlLabel
               control={
                 <Switch
-                  checked={formData.isAllowed}
-                  onChange={(e) => setFormData({ ...formData, isAllowed: e.target.checked })}
+                  checked={accessFormData.isAllowed}
+                  onChange={(e) => setAccessFormData({ ...accessFormData, isAllowed: e.target.checked })}
                 />
               }
               label="Acesso Permitido"
@@ -410,8 +928,8 @@ const PlanPublisherAccessPage: React.FC = () => {
               label="Restrições (JSON)"
               multiline
               rows={4}
-              value={formData.restrictions}
-              onChange={(e) => setFormData({ ...formData, restrictions: e.target.value })}
+              value={accessFormData.restrictions}
+              onChange={(e) => setAccessFormData({ ...accessFormData, restrictions: e.target.value })}
               margin="normal"
               helperText="Exemplo: { 'max_campaigns': 10, 'revenue_share_min': 5 }"
               placeholder='{ "max_campaigns": 10, "revenue_share_min": 5 }'
@@ -422,20 +940,20 @@ const PlanPublisherAccessPage: React.FC = () => {
               label="Notas"
               multiline
               rows={2}
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              value={accessFormData.notes}
+              onChange={(e) => setAccessFormData({ ...accessFormData, notes: e.target.value })}
               margin="normal"
             />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancelar</Button>
+          <Button onClick={handleCloseAccessDialog}>Cancelar</Button>
           <Button
             variant="contained"
-            onClick={handleSubmit}
-            disabled={!formData.planId || !formData.publisherId}
+            onClick={handleAccessSubmit}
+            disabled={!accessFormData.planId || !accessFormData.publisherId}
           >
-            {editMode ? 'Salvar' : 'Criar'}
+            {accessEditMode ? 'Salvar' : 'Criar'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -444,4 +962,3 @@ const PlanPublisherAccessPage: React.FC = () => {
 };
 
 export default PlanPublisherAccessPage;
-

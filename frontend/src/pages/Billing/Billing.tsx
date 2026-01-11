@@ -84,6 +84,32 @@ const Billing: React.FC = () => {
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [newBill, setNewBill] = useState<CreateBillingRequest>({ billing_type: 'subscription', amount: 0 });
+
+  // Helper functions para compatibilidade com interface Plan atualizada
+  const getPlanId = (plan: Plan): number => {
+    return plan.planId || plan.plan_id || 0;
+  };
+
+  const getPlanPrice = (plan: Plan): number => {
+    return plan.priceMonthly || plan.price_monthly || 0;
+  };
+
+  const getPlanBillingInterval = (plan: Plan): string => {
+    return plan.billingInterval || plan.billing_interval || 'month';
+  };
+
+  const getPlanFeatures = (plan: Plan): string[] => {
+    if (Array.isArray(plan.features)) {
+      return plan.features;
+    }
+    if (typeof plan.features === 'object' && plan.features !== null) {
+      // Se for objeto, converter para array de strings
+      return Object.entries(plan.features).map(([key, value]) => 
+        `${key}: ${typeof value === 'boolean' ? (value ? 'Sim' : 'Não') : value}`
+      );
+    }
+    return [];
+  };
   
   // Filtros
   const [subscriberFilters, setSubscriberFilters] = useState({
@@ -207,9 +233,15 @@ const Billing: React.FC = () => {
   const handleSubscribe = async () => {
     if (!selectedPlan) return;
 
+    const planId = selectedPlan.planId || selectedPlan.plan_id;
+    if (!planId) {
+      showError('ID do plano não encontrado');
+      return;
+    }
+
     try {
       const checkout = await subscriptionApi.create({
-        planId: selectedPlan.plan_id,
+        planId: planId,
       });
 
       // Redirecionar para Stripe Checkout
@@ -333,7 +365,7 @@ const Billing: React.FC = () => {
 
         <Grid container spacing={3}>
           {plans.map((plan) => (
-            <Grid item xs={12} md={4} key={plan.plan_id}>
+            <Grid item xs={12} md={4} key={getPlanId(plan)}>
               <Card
                 sx={{
                   height: '100%',
@@ -356,10 +388,10 @@ const Billing: React.FC = () => {
                   </Box>
 
                   <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                    {formatCurrency(plan.price, plan.currency)}
+                    {formatCurrency(getPlanPrice(plan), plan.currency || 'BRL')}
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    / {plan.billing_interval === 'month' ? 'mês' : 'ano'}
+                    / {getPlanBillingInterval(plan) === 'month' ? 'mês' : 'ano'}
                   </Typography>
 
                   {plan.description && (
@@ -372,7 +404,7 @@ const Billing: React.FC = () => {
                     Recursos:
                   </Typography>
                   <Box component="ul" sx={{ m: 0, pl: 2 }}>
-                    {plan.features.map((feature, idx) => (
+                    {getPlanFeatures(plan).map((feature, idx) => (
                       <li key={idx}>
                         <Typography variant="body2">{feature}</Typography>
                       </li>
@@ -845,9 +877,9 @@ const Billing: React.FC = () => {
                 {selectedPlan.name}
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 700, mb: 2 }}>
-                {formatCurrency(selectedPlan.price, selectedPlan.currency)}
+                {formatCurrency(getPlanPrice(selectedPlan), selectedPlan.currency || 'BRL')}
                 <Typography component="span" variant="body2" color="text.secondary">
-                  {' '}/ {selectedPlan.billing_interval === 'month' ? 'mês' : 'ano'}
+                  {' '}/ {getPlanBillingInterval(selectedPlan) === 'month' ? 'mês' : 'ano'}
                 </Typography>
               </Typography>
               <Alert severity="info" sx={{ mt: 2 }}>

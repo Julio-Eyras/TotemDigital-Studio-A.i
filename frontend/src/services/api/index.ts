@@ -1599,46 +1599,68 @@ export const networkApi = {
 // =============================================
 
 export interface Plan {
-  plan_id: number;
+  plan_id?: number;
+  planId: number; // Backend retorna como planId
   name: string;
   slug: string;
   description?: string;
-  price: number;
+  price_monthly: number;
+  priceMonthly: number; // Backend retorna como priceMonthly
+  price_yearly?: number;
+  priceYearly?: number; // Backend retorna como priceYearly
   currency: string;
-  features: string[];
   billing_interval: 'month' | 'year';
-  is_active: boolean;
+  billingInterval: string; // Backend retorna como billingInterval
+  stripe_price_id_monthly?: string;
+  stripePriceIdMonthly?: string; // Backend retorna como stripePriceIdMonthly
+  stripe_price_id_yearly?: string;
+  stripePriceIdYearly?: string; // Backend retorna como stripePriceIdYearly
   stripe_product_id?: string;
-  stripe_price_id?: string;
-  metadata?: any;
+  stripeProductId?: string; // Backend retorna como stripeProductId
+  features: any; // JSONB - objeto ou array
+  limits: any; // JSONB - objeto com limites
+  is_active: boolean;
+  isActive: boolean; // Backend retorna como isActive
+  is_popular: boolean;
+  isPopular: boolean; // Backend retorna como isPopular
+  sort_order: number;
+  sortOrder: number; // Backend retorna como sortOrder
   created_at: string;
+  createdAt: string; // Backend retorna como createdAt
   updated_at: string;
+  updatedAt: string; // Backend retorna como updatedAt
 }
 
 export interface CreatePlanRequest {
   name: string;
   slug: string;
   description?: string;
-  price: number;
+  priceMonthly: number;
+  priceYearly?: number;
   currency?: string;
-  features: string[];
-  billing_interval?: 'month' | 'year';
-  is_active?: boolean;
-  stripe_product_id?: string;
-  stripe_price_id?: string;
+  billingInterval?: string;
+  stripePriceIdMonthly?: string;
+  stripePriceIdYearly?: string;
+  stripeProductId?: string;
+  features?: any;
+  limits?: any;
+  isActive?: boolean;
+  isPopular?: boolean;
+  sortOrder?: number;
 }
 
 export interface UpdatePlanRequest {
   name?: string;
-  slug?: string;
   description?: string;
-  price?: number;
-  currency?: string;
-  features?: string[];
-  billing_interval?: 'month' | 'year';
-  is_active?: boolean;
-  stripe_product_id?: string;
-  stripe_price_id?: string;
+  priceMonthly?: number;
+  priceYearly?: number;
+  stripePriceIdMonthly?: string;
+  stripePriceIdYearly?: string;
+  features?: any;
+  limits?: any;
+  isActive?: boolean;
+  isPopular?: boolean;
+  sortOrder?: number;
 }
 
 export const planApi = {

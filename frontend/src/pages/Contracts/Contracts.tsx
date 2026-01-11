@@ -980,11 +980,14 @@ const Contracts: React.FC = () => {
                       onChange={(e) => setContractForm({ ...contractForm, plan_id: e.target.value ? Number(e.target.value) : undefined })}
                     >
                       <MenuItem value="">Nenhum</MenuItem>
-                      {plans.map((plan) => (
-                        <MenuItem key={plan.plan_id} value={plan.plan_id}>
-                          {plan.name}
-                        </MenuItem>
-                      ))}
+                      {plans.map((plan) => {
+                        const planId = plan.planId || plan.plan_id || 0;
+                        return (
+                          <MenuItem key={planId} value={planId}>
+                            {plan.name}
+                          </MenuItem>
+                        );
+                      })}
                     </Select>
                   </FormControl>
                 </Grid>
@@ -1236,11 +1239,14 @@ const Contracts: React.FC = () => {
                       onChange={(e) => setContractForm({ ...contractForm, plan_id: e.target.value ? Number(e.target.value) : undefined })}
                     >
                       <MenuItem value="">Nenhum</MenuItem>
-                      {plans.map((plan) => (
-                        <MenuItem key={plan.plan_id} value={plan.plan_id}>
-                          {plan.name}
-                        </MenuItem>
-                      ))}
+                      {plans.map((plan) => {
+                        const planId = plan.planId || plan.plan_id || 0;
+                        return (
+                          <MenuItem key={planId} value={planId}>
+                            {plan.name}
+                          </MenuItem>
+                        );
+                      })}
                     </Select>
                   </FormControl>
                 </Grid>

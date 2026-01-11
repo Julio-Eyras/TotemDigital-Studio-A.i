@@ -195,8 +195,8 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
           icon: <Link />,
           path: '/plan-publisher-access',
           children: [
-            { text: 'Listar Planos', icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },
+            { text: 'Manter Planos e Publicadores', icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
             { text: 'Planos Assinantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
             { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
@@ -263,8 +263,8 @@ function getAdminSqlMenu(): HierarchicalMenuItem[] {
           icon: <Link />,
           path: '/plan-publisher-access',
           children: [
-            { text: 'Listar Planos', icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },
+            { text: 'Manter Planos e Publicadores', icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
             { text: 'Planos Assinantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
             { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
@@ -343,8 +343,8 @@ function getAdminMenu(): HierarchicalMenuItem[] {
           icon: <Link />,
           path: '/plan-publisher-access',
           children: [
-            { text: 'Listar Planos', icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },
+            { text: 'Manter Planos e Publicadores', icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
             { text: 'Planos Assinantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
             { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
@@ -450,8 +450,8 @@ function getOperadorFaturamentoMenu(): HierarchicalMenuItem[] {
           icon: <Link />,
           path: '/plan-publisher-access',
           children: [
-            { text: 'Listar Planos', icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },
+            { text: 'Manter Planos e Publicadores', icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
             { text: 'Planos Assinantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
             { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
@@ -514,8 +514,8 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
           icon: <Link />,
           path: '/plan-publisher-access',
           children: [
-            { text: 'Listar Planos', icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },
+            { text: 'Manter Planos e Publicadores', icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
             { text: 'Planos Assinantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
             { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
