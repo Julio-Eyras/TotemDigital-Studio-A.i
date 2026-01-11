@@ -115,7 +115,6 @@ const Contracts: React.FC = () => {
     currency: 'BRL',
     payment_terms: '',
     status: 'draft',
-    is_active: false,
     publisherIds: [],
   });
   
@@ -283,7 +282,6 @@ const Contracts: React.FC = () => {
         currency: contractForm.currency,
         payment_terms: contractForm.payment_terms,
         status: contractForm.status,
-        is_active: contractForm.is_active,
         publisherIds: selectedPublisherIds,
       };
 
@@ -324,7 +322,6 @@ const Contracts: React.FC = () => {
       currency: contract.currency,
       payment_terms: contract.payment_terms || '',
       status: contract.status,
-      is_active: contract.is_active,
       publisherIds: [],
     });
     setEditDialogOpen(true);

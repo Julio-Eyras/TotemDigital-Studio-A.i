@@ -2707,7 +2707,6 @@ export interface Contract {
   document_mime_type?: string;
   document_size_bytes?: number;
   status: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
-  is_active: boolean;
   signed_by_subscriber_at?: string;
   signed_by_publisher_at?: string; // Para publisher contracts
   signed_by_tenant_at?: string;
@@ -2745,7 +2744,6 @@ export interface CreateContractRequest {
   document_mime_type?: string;
   document_size_bytes?: number;
   status?: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
-  is_active?: boolean;
   signed_by_subscriber_at?: string;
   signed_by_publisher_at?: string;
   signed_by_tenant_at?: string;
@@ -2777,7 +2775,6 @@ export interface UpdateContractRequest {
   document_mime_type?: string;
   document_size_bytes?: number;
   status?: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
-  is_active?: boolean;
   signed_by_subscriber_at?: string;
   signed_by_tenant_at?: string;
   metadata?: any;

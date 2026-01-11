@@ -958,7 +958,7 @@ export class CampaignService {
       }
 
       const contract = await this.db.findFirst(`
-        SELECT contract_id, status, start_date, end_date, is_active
+        SELECT contract_id, status, start_date, end_date
         FROM subscriber_contracts
         WHERE contract_id = $1
       `, [campaign.contractId]);
@@ -967,7 +967,7 @@ export class CampaignService {
         return { valid: false, error: 'Contrato não encontrado' };
       }
 
-      if (contract.status !== 'active' || !contract.is_active) {
+      if (contract.status !== 'active') {
         return { valid: false, error: 'Contrato não está ativo' };
       }
 

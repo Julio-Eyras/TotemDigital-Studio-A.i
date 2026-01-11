@@ -19,7 +19,6 @@ export interface Contract {
   document_mime_type?: string;
   document_size_bytes?: number;
   status: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
-  is_active: boolean;
   signed_by_subscriber_at?: string;
   signed_by_tenant_at?: string;
   metadata?: any;
@@ -48,7 +47,6 @@ export interface CreateContractRequest {
   document_mime_type?: string;
   document_size_bytes?: number;
   status?: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
-  is_active?: boolean;
   signed_by_subscriber_at?: string;
   signed_by_tenant_at?: string;
   metadata?: any;
@@ -72,7 +70,6 @@ export interface UpdateContractRequest {
   document_mime_type?: string;
   document_size_bytes?: number;
   status?: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
-  is_active?: boolean;
   signed_by_subscriber_at?: string;
   signed_by_tenant_at?: string;
   metadata?: any;
@@ -137,7 +134,7 @@ export class ContractService {
       }
 
       if (activeOnly) {
-        whereClause += ` AND sc.is_active = true AND sc.status = 'active'`;
+        whereClause += ` AND sc.status = 'active'`;
         const now = new Date().toISOString().split('T')[0];
         whereClause += ` AND sc.start_date <= $${queryParams.length + 1}`;
         queryParams.push(now);
@@ -166,7 +163,6 @@ export class ContractService {
           sc.document_mime_type,
           sc.document_size_bytes,
           sc.status,
-          sc.is_active,
           sc.signed_by_subscriber_at,
           sc.signed_by_tenant_at,
           sc.metadata,
@@ -225,7 +221,6 @@ export class ContractService {
           sc.document_mime_type,
           sc.document_size_bytes,
           sc.status,
-          sc.is_active,
           sc.signed_by_subscriber_at,
           sc.signed_by_tenant_at,
           sc.metadata,
@@ -268,7 +263,6 @@ export class ContractService {
         document_mime_type,
         document_size_bytes,
         status = 'draft',
-        is_active = false,
         signed_by_subscriber_at,
         signed_by_tenant_at,
         metadata,
@@ -318,10 +312,10 @@ export class ContractService {
           subscriber_id, plan_id, contract_number, contract_type, title, description,
           start_date, end_date, total_amount, currency, payment_terms,
           document_path, document_filename, document_mime_type, document_size_bytes,
-          status, is_active, signed_by_subscriber_at, signed_by_tenant_at, metadata,
+          status, signed_by_subscriber_at, signed_by_tenant_at, metadata,
           created_before_subscriber, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING contract_id
       `, [
         subscriber_id || null,
@@ -340,7 +334,6 @@ export class ContractService {
         document_mime_type || null,
         document_size_bytes || null,
         status,
-        is_active,
         signed_by_subscriber_at || null,
         signed_by_tenant_at || null,
         metadata ? JSON.stringify(metadata) : null,
@@ -430,7 +423,6 @@ export class ContractService {
         document_mime_type,
         document_size_bytes,
         status,
-        is_active,
         signed_by_subscriber_at,
         signed_by_tenant_at,
         metadata,
@@ -544,12 +536,6 @@ export class ContractService {
         paramIndex++;
       }
 
-      if (is_active !== undefined) {
-        updateFields.push(`is_active = $${paramIndex}`);
-        updateParams.push(is_active);
-        paramIndex++;
-      }
-
       if (signed_by_subscriber_at !== undefined) {
         updateFields.push(`signed_by_subscriber_at = $${paramIndex}`);
         updateParams.push(signed_by_subscriber_at || null);
@@ -626,7 +612,7 @@ export class ContractService {
       // Soft delete - mudar status para cancelled
       await this.db.executeRaw(`
         UPDATE subscriber_contracts 
-        SET status = 'cancelled', is_active = false, updated_at = CURRENT_TIMESTAMP
+        SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
         WHERE contract_id = $1
       `, [id]);
 

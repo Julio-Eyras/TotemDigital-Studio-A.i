@@ -627,7 +627,6 @@ export class SubscriberService {
         FROM subscriber_contracts sc
         JOIN plans p ON sc.plan_id = p.plan_id
         WHERE sc.subscriber_id = $1
-          AND sc.is_active = true
           AND sc.status = 'active'
           AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
           AND p.is_active = true
