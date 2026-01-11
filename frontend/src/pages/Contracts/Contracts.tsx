@@ -342,7 +342,6 @@ const Contracts: React.FC = () => {
       currency: 'BRL',
       payment_terms: '',
       status: 'draft',
-      is_active: false,
       publisherIds: [],
     });
     setSelectedPublisherIds([]);
