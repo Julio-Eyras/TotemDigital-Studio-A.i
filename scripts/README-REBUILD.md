@@ -36,7 +36,7 @@ Guia rápido para rebuild e restart do backend e frontend após atualizações.
 - Limpa todos os caches sem recompilar
 - Útil quando você quer apenas limpar cache manualmente
 
-#### 5. **Forçar Rebuild Completo (quando mudanças não aparecem)**
+#### 5. **Forçar Rebuild Completo do Frontend (quando mudanças não aparecem)**
 ```bash
 ./scripts/force-rebuild-frontend.sh
 ```
@@ -46,7 +46,19 @@ Guia rápido para rebuild e restart do backend e frontend após atualizações.
 - Verifica se arquivos estão no código fonte
 - Opção `--reinstall` para reinstalar dependências
 
-#### 6. **Verificar Build (diagnóstico)**
+#### 6. **Forçar Rebuild Completo do Backend (quando mudanças não aparecem)**
+```bash
+./scripts/force-rebuild-backend.sh
+```
+- **Use quando mudanças no backend não aparecem após rebuild normal**
+- Limpeza AGRESSIVA de cache (TypeScript, npm, logs)
+- Remove pasta `dist/` completamente
+- Rebuild forçado com variáveis de ambiente limpas
+- Reinicia backend automaticamente
+- Verifica health check após reiniciar
+- Opção `--reinstall` para reinstalar dependências
+
+#### 7. **Verificar Build do Frontend (diagnóstico)**
 ```bash
 ./scripts/verify-frontend-build.sh
 ```
@@ -105,6 +117,18 @@ Guia rápido para rebuild e restart do backend e frontend após atualizações.
 ### Apenas limpar cache (sem recompilar):
 ```bash
 ./scripts/clean-cache.sh
+```
+
+### Forçar rebuild quando mudanças não aparecem:
+
+**Backend:**
+```bash
+./scripts/force-rebuild-backend.sh
+```
+
+**Frontend:**
+```bash
+./scripts/force-rebuild-frontend.sh
 ```
 
 **Nota:** Certifique-se de que os scripts têm permissão de execução:
