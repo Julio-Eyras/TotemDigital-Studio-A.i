@@ -261,6 +261,19 @@ const Publishers: React.FC = () => {
       try {
         publisherContracts = await publisherContractApi.getByPublisher(publisherId);
         publisherContracts = Array.isArray(publisherContracts) ? publisherContracts : [];
+        // Normalizar valores numéricos
+        publisherContracts = publisherContracts.map(contract => ({
+          ...contract,
+          revenue_share_percentage: contract.revenue_share_percentage !== null && contract.revenue_share_percentage !== undefined 
+            ? Number(contract.revenue_share_percentage) 
+            : null,
+          subscription_amount: contract.subscription_amount !== null && contract.subscription_amount !== undefined 
+            ? Number(contract.subscription_amount) 
+            : null,
+          minimum_payout_amount: contract.minimum_payout_amount !== null && contract.minimum_payout_amount !== undefined 
+            ? Number(contract.minimum_payout_amount) 
+            : null,
+        }));
       } catch (err) {
         console.error('Erro ao carregar publisher contracts:', err);
       }
@@ -304,7 +317,21 @@ const Publishers: React.FC = () => {
       setLoadingEditContracts(true);
       // Carregar apenas publisher contracts
       const publisherContracts = await publisherContractApi.getByPublisher(publisherId);
-      setEditPublisherContracts(Array.isArray(publisherContracts) ? publisherContracts : []);
+      const contracts = Array.isArray(publisherContracts) ? publisherContracts : [];
+      // Normalizar valores numéricos
+      const normalizedContracts = contracts.map(contract => ({
+        ...contract,
+        revenue_share_percentage: contract.revenue_share_percentage !== null && contract.revenue_share_percentage !== undefined 
+          ? Number(contract.revenue_share_percentage) 
+          : null,
+        subscription_amount: contract.subscription_amount !== null && contract.subscription_amount !== undefined 
+          ? Number(contract.subscription_amount) 
+          : null,
+        minimum_payout_amount: contract.minimum_payout_amount !== null && contract.minimum_payout_amount !== undefined 
+          ? Number(contract.minimum_payout_amount) 
+          : null,
+      }));
+      setEditPublisherContracts(normalizedContracts);
     } catch (err) {
       console.error('Erro ao carregar publisher contracts:', err);
       setEditPublisherContracts([]);
@@ -3237,19 +3264,27 @@ const Publishers: React.FC = () => {
                             </Typography>
                           </Box>
                         )}
-                        {contract.revenue_share_percentage !== undefined && contract.revenue_share_percentage !== null && typeof contract.revenue_share_percentage === 'number' && !isNaN(contract.revenue_share_percentage) && (
+                        {contract.revenue_share_percentage !== undefined && 
+                         contract.revenue_share_percentage !== null && 
+                         typeof contract.revenue_share_percentage === 'number' && 
+                         !isNaN(Number(contract.revenue_share_percentage)) && 
+                         Number(contract.revenue_share_percentage) >= 0 && (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <AttachMoney fontSize="small" color="action" />
                             <Typography variant="caption" color="text.secondary">
-                              Revenue Share: {Number(contract.revenue_share_percentage)}%
+                              Revenue Share: {Number(contract.revenue_share_percentage || 0)}%
                             </Typography>
                           </Box>
                         )}
-                        {contract.subscription_amount !== undefined && contract.subscription_amount !== null && typeof contract.subscription_amount === 'number' && !isNaN(contract.subscription_amount) && (
+                        {contract.subscription_amount !== undefined && 
+                         contract.subscription_amount !== null && 
+                         typeof contract.subscription_amount === 'number' && 
+                         !isNaN(Number(contract.subscription_amount)) && 
+                         Number(contract.subscription_amount) >= 0 && (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <AttachMoney fontSize="small" color="action" />
                             <Typography variant="caption" color="text.secondary">
-                              Assinatura: {contract.currency || 'BRL'} {Number(contract.subscription_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {contract.subscription_interval || 'month'}
+                              Assinatura: {contract.currency || 'BRL'} {Number(contract.subscription_amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {contract.subscription_interval || 'month'}
                             </Typography>
                           </Box>
                         )}
@@ -3499,6 +3534,30 @@ const Publishers: React.FC = () => {
                             <Assignment fontSize="small" color="action" />
                             <Typography variant="caption" color="text.secondary">
                               Tipo: {contract.contract_type}
+                            </Typography>
+                          </Box>
+                        )}
+                        {contract.revenue_share_percentage !== undefined && 
+                         contract.revenue_share_percentage !== null && 
+                         typeof contract.revenue_share_percentage === 'number' && 
+                         !isNaN(Number(contract.revenue_share_percentage)) && 
+                         Number(contract.revenue_share_percentage) >= 0 && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <AttachMoney fontSize="small" color="action" />
+                            <Typography variant="caption" color="text.secondary">
+                              Revenue Share: {Number(contract.revenue_share_percentage || 0)}%
+                            </Typography>
+                          </Box>
+                        )}
+                        {contract.subscription_amount !== undefined && 
+                         contract.subscription_amount !== null && 
+                         typeof contract.subscription_amount === 'number' && 
+                         !isNaN(Number(contract.subscription_amount)) && 
+                         Number(contract.subscription_amount) >= 0 && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <AttachMoney fontSize="small" color="action" />
+                            <Typography variant="caption" color="text.secondary">
+                              Assinatura: {contract.currency || 'BRL'} {Number(contract.subscription_amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {contract.subscription_interval || 'month'}
                             </Typography>
                           </Box>
                         )}
