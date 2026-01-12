@@ -261,18 +261,18 @@ const Publishers: React.FC = () => {
       try {
         publisherContracts = await publisherContractApi.getByPublisher(publisherId);
         publisherContracts = Array.isArray(publisherContracts) ? publisherContracts : [];
-        // Normalizar valores numéricos
+        // Normalizar valores numéricos (usar undefined em vez de null para compatibilidade com tipo)
         publisherContracts = publisherContracts.map(contract => ({
           ...contract,
           revenue_share_percentage: contract.revenue_share_percentage !== null && contract.revenue_share_percentage !== undefined 
             ? Number(contract.revenue_share_percentage) 
-            : null,
+            : undefined,
           subscription_amount: contract.subscription_amount !== null && contract.subscription_amount !== undefined 
             ? Number(contract.subscription_amount) 
-            : null,
+            : undefined,
           minimum_payout_amount: contract.minimum_payout_amount !== null && contract.minimum_payout_amount !== undefined 
             ? Number(contract.minimum_payout_amount) 
-            : null,
+            : undefined,
         }));
       } catch (err) {
         console.error('Erro ao carregar publisher contracts:', err);
@@ -318,18 +318,18 @@ const Publishers: React.FC = () => {
       // Carregar apenas publisher contracts
       const publisherContracts = await publisherContractApi.getByPublisher(publisherId);
       const contracts = Array.isArray(publisherContracts) ? publisherContracts : [];
-      // Normalizar valores numéricos
+      // Normalizar valores numéricos (usar undefined em vez de null para compatibilidade com tipo)
       const normalizedContracts = contracts.map(contract => ({
         ...contract,
         revenue_share_percentage: contract.revenue_share_percentage !== null && contract.revenue_share_percentage !== undefined 
           ? Number(contract.revenue_share_percentage) 
-          : null,
+          : undefined,
         subscription_amount: contract.subscription_amount !== null && contract.subscription_amount !== undefined 
           ? Number(contract.subscription_amount) 
-          : null,
+          : undefined,
         minimum_payout_amount: contract.minimum_payout_amount !== null && contract.minimum_payout_amount !== undefined 
           ? Number(contract.minimum_payout_amount) 
-          : null,
+          : undefined,
       }));
       setEditPublisherContracts(normalizedContracts);
     } catch (err) {
