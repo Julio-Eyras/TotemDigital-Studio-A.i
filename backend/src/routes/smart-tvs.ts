@@ -81,14 +81,15 @@ router.get('/',
       // NOVO: Verificar permissões baseado em userType, role e publisherId/subscriberId
       const userType = req.user?.userType;
       const userRole = req.user?.role;
-      const publisherId = req.user?.publisherId;
+      const userPublisherId = req.user?.publisherId;
       const subscriberId = req.user?.subscriberId;
+      const isAdmin = userRole === 'admin';
       
       // Determinar se é publisher ou subscriber
       // Verifica userType primeiro, depois fallback para role e publisherId/subscriberId
       const isPublisher = userType === 'publisher_user' || userType === 'publisher_subscriber' || 
                          userRole === 'publisher_user' || userRole === 'publisher_subscriber' ||
-                         (publisherId !== undefined && publisherId > 0);
+                         (userPublisherId !== undefined && userPublisherId > 0);
       const isSubscriber = userType === 'subscriber_user' || 
                           userRole === 'subscriber_user' ||
                           (subscriberId !== undefined && subscriberId > 0);
@@ -107,17 +108,17 @@ router.get('/',
         }
       }
 
-      const { page = 1, limit = 10, search, totemId, publisherId, active_only } = req.query;
+      const { page = 1, limit = 10, search, totemId, publisherId: queryPublisherId, active_only } = req.query;
       
       // Determinar publisherId do usuário (se não for admin/owner)
-      const requestPublisherId = req.user?.publisherId || undefined;
+      const requestPublisherId = userPublisherId || undefined;
 
       const result = await getSmartTvService().getAllSmartTvs({
         page: parseInt(page as string),
         limit: parseInt(limit as string),
         search: search as string,
         totemId: totemId ? parseInt(totemId as string) : undefined,
-        publisherId: publisherId ? parseInt(publisherId as string) : undefined,
+        publisherId: queryPublisherId ? parseInt(queryPublisherId as string) : undefined,
         active_only: active_only === 'true' || active_only === undefined,
       }, requestPublisherId, isAdmin);
       
