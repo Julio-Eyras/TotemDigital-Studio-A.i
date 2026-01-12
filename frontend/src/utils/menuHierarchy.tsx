@@ -158,8 +158,7 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
           icon: <Business />,
           path: '/publishers',
           children: [
-            { text: 'Listar Publicadores', icon: <Business />, path: '/publishers' },
-            { text: 'Criar Publicador', icon: <Business />, path: '/publishers/new' },
+            { text: 'Manter Publicadores', icon: <Business />, path: '/publishers' },
             { text: 'Locais', icon: <LocationOn />, path: '/locals' },
             { text: 'Totens', icon: <Tv />, path: '/totems' },
             { text: 'Playlists de Totens', icon: <QueueMusic />, path: '/totem-playlists' },
@@ -184,7 +183,6 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
           path: '/contracts',
           children: [
             { text: 'Listar Contratos', icon: <Description />, path: '/contracts' },
-            { text: 'Criar Contrato', icon: <Description />, path: '/contracts/new' },
             { text: 'Contratos Ativos', icon: <Assignment />, path: '/contracts/active' },
             { text: 'Contratos Expirados', icon: <Warning />, path: '/contracts/expired' },
             { text: 'Contratos Assinantes', icon: <Description />, path: '/contracts?type=subscriber' },
@@ -230,7 +228,7 @@ function getAdminSqlMenu(): HierarchicalMenuItem[] {
           icon: <Business />,
           path: '/publishers',
           children: [
-            { text: 'Listar Publishers', icon: <Business />, path: '/publishers' },
+            { text: 'Manter Publicadores', icon: <Business />, path: '/publishers' },
             { text: 'Locais', icon: <LocationOn />, path: '/locals' },
             { text: 'Totens', icon: <Tv />, path: '/totems' },
             { text: 'Playlists de Totens', icon: <QueueMusic />, path: '/totem-playlists' },
@@ -253,7 +251,6 @@ function getAdminSqlMenu(): HierarchicalMenuItem[] {
           path: '/contracts',
           children: [
             { text: 'Listar Contratos', icon: <Description />, path: '/contracts' },
-            { text: 'Criar Contrato', icon: <Description />, path: '/contracts/new' },
             { text: 'Contratos Ativos', icon: <Assignment />, path: '/contracts/active' },
             { text: 'Contratos Expirados', icon: <Warning />, path: '/contracts/expired' },
             { text: 'Contratos Assinantes', icon: <Description />, path: '/contracts?type=subscriber' },
@@ -308,8 +305,7 @@ function getAdminMenu(): HierarchicalMenuItem[] {
           icon: <Business />,
           path: '/publishers',
           children: [
-            { text: 'Listar Publishers', icon: <Business />, path: '/publishers' },
-            { text: 'Criar Publicador', icon: <Business />, path: '/publishers/new' },
+            { text: 'Manter Publicadores', icon: <Business />, path: '/publishers' },
             { text: 'Locais', icon: <LocationOn />, path: '/locals' },
             { text: 'Totens', icon: <Tv />, path: '/totems' },
             { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
@@ -333,7 +329,6 @@ function getAdminMenu(): HierarchicalMenuItem[] {
           path: '/contracts',
           children: [
             { text: 'Listar Contratos', icon: <Description />, path: '/contracts' },
-            { text: 'Criar Contrato', icon: <Description />, path: '/contracts/new' },
             { text: 'Contratos Ativos', icon: <Assignment />, path: '/contracts/active' },
             { text: 'Contratos Expirados', icon: <Warning />, path: '/contracts/expired' },
             { text: 'Contratos Assinantes', icon: <Description />, path: '/contracts?type=subscriber' },
@@ -440,7 +435,6 @@ function getOperadorFaturamentoMenu(): HierarchicalMenuItem[] {
           requiredFlag: 'flag_smart_5',
           children: [
             { text: 'Listar Contratos', icon: <Description />, path: '/contracts' },
-            { text: 'Criar Contrato', icon: <Description />, path: '/contracts/new' },
             { text: 'Contratos Ativos', icon: <Assignment />, path: '/contracts/active' },
             { text: 'Contratos Expirados', icon: <Warning />, path: '/contracts/expired' },
             { text: 'Contratos Assinantes', icon: <Description />, path: '/contracts?type=subscriber' },
@@ -483,8 +477,7 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
           icon: <Business />,
           path: '/publishers',
           children: [
-            { text: 'Listar Publishers', icon: <Business />, path: '/publishers' },
-            { text: 'Criar Publicador', icon: <Business />, path: '/publishers/new' },
+            { text: 'Manter Publicadores', icon: <Business />, path: '/publishers' },
             { text: 'Detalhes', icon: <Business />, path: '/publishers/details' },
           ],
         },
@@ -504,7 +497,6 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
           path: '/contracts',
           children: [
             { text: 'Listar Contratos', icon: <Description />, path: '/contracts' },
-            { text: 'Criar Contrato', icon: <Description />, path: '/contracts/new' },
             { text: 'Contratos Ativos', icon: <Assignment />, path: '/contracts/active' },
             { text: 'Contratos Expirados', icon: <Warning />, path: '/contracts/expired' },
             { text: 'Contratos Assinantes', icon: <Description />, path: '/contracts?type=subscriber' },

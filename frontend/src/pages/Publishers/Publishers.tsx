@@ -96,6 +96,7 @@ const Publishers: React.FC = () => {
     locals: any[];
     totems: any[];
     smartTvs: any[];
+    contracts?: any[];
     stats: any;
   } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -281,10 +282,30 @@ const Publishers: React.FC = () => {
         publisherApi.getStats(publisherId),
       ]);
 
+      // Carregar contratos do publisher
+      let publisherContracts: any[] = [];
+      let subscriberContracts: any[] = [];
+      try {
+        publisherContracts = await publisherContractApi.getByPublisher(publisherId);
+        publisherContracts = Array.isArray(publisherContracts) ? publisherContracts : [];
+      } catch (err) {
+        console.error('Erro ao carregar publisher contracts:', err);
+      }
+      
+      try {
+        const contractsResponse = await contractApi.getAll({ activeOnly: false });
+        subscriberContracts = contractsResponse.data || [];
+        // Filtrar apenas contratos relacionados a este publisher (se houver relação)
+        // Por enquanto, vamos mostrar todos os contratos de subscribers
+      } catch (err) {
+        console.error('Erro ao carregar subscriber contracts:', err);
+      }
+
       setPublisherStats({
         locals: Array.isArray(localsResponse) ? localsResponse : [],
         totems: Array.isArray(totemsResponse) ? totemsResponse : [],
         smartTvs: Array.isArray(smartTvsResponse) ? smartTvsResponse : [],
+        contracts: [...publisherContracts, ...subscriberContracts],
         stats: statsResponse || {},
       });
     } catch (error) {
@@ -1145,6 +1166,9 @@ const Publishers: React.FC = () => {
         }
       }
 
+      // Recarregar lista de publishers
+      await loadPublishers();
+
       // Limpar estados
       setCreateDialogOpen(false);
       setCreateTab(0);
@@ -1325,7 +1349,7 @@ const Publishers: React.FC = () => {
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            📢 Publicador
+            📢 Manter Publicadores
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
             Gerencie publicadores e suas informações
@@ -2513,10 +2537,10 @@ const Publishers: React.FC = () => {
         <DialogContent>
           <Tabs value={editTab} onChange={(_, newValue) => setEditTab(newValue)} sx={{ mb: 3 }}>
             <Tab label="Informações" />
-            <Tab label="Locais" />
-            <Tab label="Totens" />
-            <Tab label="Smart TVs" />
-            <Tab label="Contratos" icon={editContracts && editContracts.length > 0 ? <Chip label={editContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab label="Locais" icon={editLocals.length > 0 ? <Chip label={editLocals.length} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab label="Totens" icon={editTotems.length > 0 ? <Chip label={editTotems.length} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab label="Smart TVs" icon={editSmartTvs.length > 0 ? <Chip label={editSmartTvs.length} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab label="Contratos" icon={(editPublisherContracts.length + editContracts.length) > 0 ? <Chip label={editPublisherContracts.length + editContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
           </Tabs>
 
           {/* Aba Informações */}
@@ -3503,9 +3527,10 @@ const Publishers: React.FC = () => {
         <DialogContent>
           <Tabs value={detailsTab} onChange={(_, newValue) => setDetailsTab(newValue)} sx={{ mb: 2 }}>
             <Tab label="Informações" />
-            <Tab label="Locais" />
-            <Tab label="Totens" />
-            <Tab label="Smart TVs" />
+            <Tab label="Locais" icon={publisherStats && publisherStats.locals.length > 0 ? <Chip label={publisherStats.locals.length} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab label="Totens" icon={publisherStats && publisherStats.totems.length > 0 ? <Chip label={publisherStats.totems.length} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab label="Smart TVs" icon={publisherStats && publisherStats.smartTvs.length > 0 ? <Chip label={publisherStats.smartTvs.length} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab label="Contratos" icon={publisherStats && publisherStats.contracts && publisherStats.contracts.length > 0 ? <Chip label={publisherStats.contracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
             <Tab label="Estatísticas" />
           </Tabs>
 
@@ -3655,7 +3680,80 @@ const Publishers: React.FC = () => {
             </Box>
           )}
 
-          {detailsTab === 4 && publisherStats && (
+          {detailsTab === 4 && publisherStats && publisherStats.contracts && (
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Contratos ({publisherStats.contracts.length})
+              </Typography>
+              {publisherStats.contracts.length === 0 ? (
+                <Alert severity="info">Nenhum contrato encontrado</Alert>
+              ) : (
+                <List>
+                  {publisherStats.contracts.map((contract: any, index: number) => (
+                    <ListItem
+                      key={contract.contract_id || `contract-${index}`}
+                      sx={{
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        mb: 2,
+                        flexDirection: 'column',
+                        alignItems: 'stretch',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', mb: 1 }}>
+                        <Box>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                            {contract.contract_number || 'N/A'} - {contract.title || 'Sem título'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {contract.description || 'Sem descrição'}
+                          </Typography>
+                        </Box>
+                        <Chip
+                          label={contract.status || 'draft'}
+                          color={
+                            contract.status === 'active'
+                              ? 'success'
+                              : contract.status === 'expired' || contract.status === 'terminated' || contract.status === 'cancelled'
+                              ? 'error'
+                              : 'default'
+                          }
+                          size="small"
+                          sx={{ ml: 2 }}
+                        />
+                      </Box>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <CalendarToday fontSize="small" color="action" />
+                          <Typography variant="caption" color="text.secondary">
+                            Início: {contract.start_date ? new Date(contract.start_date).toLocaleDateString('pt-BR') : 'N/A'}
+                          </Typography>
+                        </Box>
+                        {contract.end_date && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <CalendarToday fontSize="small" color="action" />
+                            <Typography variant="caption" color="text.secondary">
+                              Fim: {new Date(contract.end_date).toLocaleDateString('pt-BR')}
+                            </Typography>
+                          </Box>
+                        )}
+                        {contract.contract_type && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Assignment fontSize="small" color="action" />
+                            <Typography variant="caption" color="text.secondary">
+                              Tipo: {contract.contract_type}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </Box>
+          )}
+
+          {detailsTab === 5 && publisherStats && (
             <Grid container spacing={3}>
               <Grid item xs={12} sm={6} md={3}>
                 <Card sx={{ textAlign: 'center', py: 2 }}>
