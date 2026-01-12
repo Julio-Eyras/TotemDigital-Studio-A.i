@@ -91,7 +91,7 @@ const Locals: React.FC = () => {
   const [publisherFilter, setPublisherFilter] = useState<number | undefined>(undefined);
   const [activeOnlyFilter, setActiveOnlyFilter] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [localStats, setLocalStats] = useState<Map<number, { totems: number; smartTvs: number }>>(new Map());
+  const [localStats, setLocalStats] = useState<Record<number, { totens: number; smartTvs: number }>>({});
   const [newLocal, setNewLocal] = useState<CreateLocalRequest>({
     publisher_id: userPublisherId || 0,
     name: '',
@@ -154,7 +154,7 @@ const Locals: React.FC = () => {
   };
 
   const loadLocalStats = async (localsList: Local[]) => {
-    const statsMap = new Map<number, { totens: number; smartTvs: number }>();
+    const statsRecord: Record<number, { totens: number; smartTvs: number }> = {};
     
     try {
       // Buscar totens e Smart TVs para todos os locais
@@ -175,17 +175,17 @@ const Locals: React.FC = () => {
             return totemIds.includes(tv.totem_id) || tv.local_id === local.local_id;
           });
           
-          statsMap.set(local.local_id, {
+          statsRecord[local.local_id] = {
             totens: localTotems.length,
             smartTvs: localSmartTvs.length,
-          });
+          };
         } catch (err) {
           console.error(`Erro ao carregar stats para local ${local.local_id}:`, err);
-          statsMap.set(local.local_id, { totens: 0, smartTvs: 0 });
+          statsRecord[local.local_id] = { totens: 0, smartTvs: 0 };
         }
       }
       
-      setLocalStats(statsMap);
+      setLocalStats(statsRecord);
     } catch (error) {
       console.error('Erro ao carregar estatísticas dos locais:', error);
     }
@@ -431,7 +431,7 @@ const Locals: React.FC = () => {
               </TableHead>
               <TableBody>
                 {publisherLocals.map((local) => {
-                  const stats = localStats.get(local.local_id) || { totens: 0, smartTvs: 0 };
+                  const stats = localStats[local.local_id] || { totens: 0, smartTvs: 0 };
                   return (
                     <TableRow key={local.local_id} hover>
                       <TableCell>
