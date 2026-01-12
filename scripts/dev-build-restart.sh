@@ -119,14 +119,22 @@ if systemctl is-active --quiet smart-signage-backend 2>/dev/null; then
 fi
 
 # =============================================================================
-# 2. COMPILAR BACKEND
+# 2. LIMPAR CACHE E COMPILAR BACKEND
 # =============================================================================
 log ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log "2️⃣  COMPILANDO BACKEND..."
+log "2️⃣  LIMPANDO CACHE E COMPILANDO BACKEND..."
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 cd backend
+
+# Limpar cache antes de compilar
+log "Limpando cache do backend..."
+rm -rf dist 2>/dev/null || true
+rm -rf node_modules/.cache 2>/dev/null || true
+rm -f *.tsbuildinfo 2>/dev/null || true
+npm cache clean --force 2>/dev/null || true
+log "✅ Cache limpo"
 
 # Verificar se node_modules existe
 if [[ ! -d "node_modules" ]]; then
@@ -147,14 +155,25 @@ fi
 cd ..
 
 # =============================================================================
-# 3. COMPILAR FRONTEND
+# 3. LIMPAR CACHE E COMPILAR FRONTEND
 # =============================================================================
 log ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log "3️⃣  COMPILANDO FRONTEND..."
+log "3️⃣  LIMPANDO CACHE E COMPILANDO FRONTEND..."
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 cd frontend
+
+# Limpar cache antes de compilar
+log "Limpando cache do frontend..."
+rm -rf build 2>/dev/null || true
+rm -rf node_modules/.cache 2>/dev/null || true
+rm -rf .cache 2>/dev/null || true
+rm -f .eslintcache 2>/dev/null || true
+# Limpar cache do webpack em node_modules
+find node_modules -type d -name ".cache" -exec rm -rf {} + 2>/dev/null || true
+npm cache clean --force 2>/dev/null || true
+log "✅ Cache limpo"
 
 # Verificar se node_modules existe
 if [[ ! -d "node_modules" ]]; then
@@ -162,6 +181,12 @@ if [[ ! -d "node_modules" ]]; then
     npm install
 else
     log "Dependências do frontend já instaladas"
+fi
+
+# Aplicar patches antes de compilar
+log "Aplicando patches..."
+if [[ -f "node_modules/.bin/patch-package" ]]; then
+    npm run postinstall 2>/dev/null || true
 fi
 
 # Compilar frontend
