@@ -227,12 +227,6 @@ const Publishers: React.FC = () => {
     }
   }, [editDialogOpen, selectedPublisher?.publisher_id]);
 
-  // Carregar contratos disponíveis quando dialog de criação abre
-  useEffect(() => {
-    if (createDialogOpen) {
-      loadAvailableContracts();
-    }
-  }, [createDialogOpen]);
 
 
   const loadPublishers = async () => {
