@@ -1412,6 +1412,103 @@ export const totemApi = {
 };
 
 // =============================================
+// TOTEM PLAYLIST API (Playlists Geradas por Totem)
+// =============================================
+
+export interface TotemPlaylistItem {
+  item_id?: number;
+  media_id: number;
+  campaign_id?: number;
+  subscriber_id: number;
+  publisher_id: number;
+  order_index: number;
+  priority: number;
+  display_seconds?: number;
+  transition_type?: string;
+  transition_duration_ms?: number;
+  commercial_tier?: 'premium' | 'standard' | 'remnant';
+  time_share_percent?: number;
+  revenue_share_percent?: number;
+  start_time?: string;
+  end_time?: string;
+  days_of_week?: string;
+  is_active: boolean;
+}
+
+export interface TotemPlaylist {
+  totem_playlist_id?: number;
+  totem_id: number;
+  smart_tv_id?: number;
+  publisher_id: number;
+  playlist_hash?: string;
+  version: number;
+  total_items: number;
+  total_duration_seconds: number;
+  status: 'active' | 'paused' | 'invalidated';
+  is_active: boolean;
+  generated_at?: Date;
+  last_updated_at?: Date;
+  expires_at?: Date;
+  metadata?: any;
+  generation_log?: any;
+  items: TotemPlaylistItem[];
+  totem_name?: string;
+  publisher_name?: string;
+}
+
+export interface TotemPlaylistListItem {
+  totem_playlist_id: number;
+  totem_id: number;
+  totem_name?: string;
+  publisher_id: number;
+  publisher_name?: string;
+  version: number;
+  total_items: number;
+  total_duration_seconds: number;
+  status: string;
+  generated_at: Date;
+  last_updated_at: Date;
+}
+
+export interface TotemPlaylistListResponse {
+  data: TotemPlaylistListItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export const totemPlaylistApi = {
+  getAll: async (params?: {
+    publisherId?: number;
+    totemId?: number;
+    page?: number;
+    limit?: number;
+  }): Promise<TotemPlaylistListResponse> => {
+    const response = await api.get('/playlist-engine/totem-playlists', { params });
+    return {
+      data: response.data.data || [],
+      total: response.data.total || 0,
+      page: response.data.page || 1,
+      limit: response.data.limit || 50
+    };
+  },
+
+  getByTotemId: async (totemId: number, smartTvId?: number): Promise<TotemPlaylist> => {
+    const params = smartTvId ? { smartTvId } : undefined;
+    const response = await api.get(`/playlist-engine/totem/${totemId}`, { params });
+    return response.data.data;
+  },
+
+  regenerate: async (totemId: number, smartTvId?: number, force?: boolean): Promise<any> => {
+    const response = await api.post(`/playlist-engine/totem/${totemId}/regenerate`, {
+      smartTvId,
+      force
+    });
+    return response.data;
+  },
+};
+
+// =============================================
 // OTA UPDATES API
 // =============================================
 

@@ -34,6 +34,7 @@ const Settings = React.lazy(() => import('./pages/Settings/Settings'));
 const AI = React.lazy(() => import('./pages/AI/AI'));
 const SmartPlaylist = React.lazy(() => import('./pages/SmartPlaylist/SmartPlaylist'));
 const Totems = React.lazy(() => import('./pages/Totems/Totems'));
+const TotemPlayList = React.lazy(() => import('./pages/TotemPlayList/TotemPlayList'));
 const Billing = React.lazy(() => import('./pages/Billing/Billing'));
 const QRCodes = React.lazy(() => import('./pages/QRCodes/QRCodes'));
 const AdminTools = React.lazy(() => import('./pages/AdminTools/AdminTools'));
@@ -486,6 +487,14 @@ const AppContent: React.FC = () => {
             element={
               <ProtectedRoute>
                 <Totems />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/totem-playlists"
+            element={
+              <ProtectedRoute>
+                <TotemPlayList />
               </ProtectedRoute>
             }
           />

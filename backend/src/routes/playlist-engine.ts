@@ -15,6 +15,55 @@ const router = Router();
 router.use(authMiddleware as any);
 
 /**
+ * GET /api/playlist-engine/totem-playlists
+ * Lista todas as playlists ativas de totens
+ */
+router.get('/totem-playlists', async (req, res) => {
+  try {
+    const publisherId = req.query.publisherId ? parseInt(req.query.publisherId as string) : undefined;
+    const totemId = req.query.totemId ? parseInt(req.query.totemId as string) : undefined;
+    const page = req.query.page ? parseInt(req.query.page as string) : 1;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+
+    if (publisherId && isNaN(publisherId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do publisher inválido'
+      });
+    }
+
+    if (totemId && isNaN(totemId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do totem inválido'
+      });
+    }
+
+    const engine = getPlaylistEngineServiceInstance();
+    const result = await engine.getAllTotemPlaylists({
+      publisherId,
+      totemId,
+      page,
+      limit
+    });
+
+    return res.json({
+      success: true,
+      data: result.data,
+      total: result.total,
+      page: result.page,
+      limit: result.limit
+    });
+  } catch (error: any) {
+    await logError('Erro ao listar playlists de totens', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro ao listar playlists de totens'
+    });
+  }
+});
+
+/**
  * GET /api/playlist-engine/totem/:totemId
  * Busca playlist ativa de um totem
  */

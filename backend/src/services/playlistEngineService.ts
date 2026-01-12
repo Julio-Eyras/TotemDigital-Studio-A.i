@@ -431,20 +431,11 @@ export class PlaylistEngineService {
 
   /**
    * Busca todos os subscribers que têm acesso a um publisher
+   * Acesso validado APENAS via plan_publisher_access (removido subscriber_publisher_access)
    */
   private async getAccessibleSubscribers(publisherId: number): Promise<number[]> {
     try {
-      // Buscar subscribers que têm acesso a este publisher via subscriber_publisher_access
-      const subscribers = await this.db.findMany(`
-        SELECT DISTINCT subscriber_id
-        FROM subscriber_publisher_access
-        WHERE publisher_id = $1
-          AND is_active = true
-          AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-          AND revoked_at IS NULL
-      `, [publisherId]);
-
-      // Também buscar via planos (subscribers com contratos ativos que têm planos com acesso a este publisher)
+      // Buscar subscribers com contratos ativos que têm planos com acesso a este publisher
       const subscribersViaPlans = await this.db.findMany(`
         SELECT DISTINCT sc.subscriber_id
         FROM subscriber_contracts sc
@@ -455,12 +446,9 @@ export class PlaylistEngineService {
           AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
       `, [publisherId]);
 
-      // Combinar e retornar IDs únicos
-      const subscriberIds = new Set<number>();
-      subscribers.forEach(s => subscriberIds.add(s.subscriber_id));
-      subscribersViaPlans.forEach(s => subscriberIds.add(s.subscriber_id));
-
-      return Array.from(subscriberIds);
+      // Retornar IDs únicos
+      const subscriberIds = subscribersViaPlans.map(s => s.subscriber_id);
+      return subscriberIds;
     } catch (error: any) {
       await logError('Erro ao buscar subscribers acessíveis', error, { publisherId });
       return [];
@@ -777,6 +765,101 @@ export class PlaylistEngineService {
     } catch (error: any) {
       await logError('Erro ao buscar playlist ativa', error, { totemId, smartTvId });
       return null;
+    }
+  }
+
+  /**
+   * Lista todas as playlists ativas de totens
+   */
+  async getAllTotemPlaylists(params?: {
+    publisherId?: number;
+    totemId?: number;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    data: Array<{
+      totem_playlist_id: number;
+      totem_id: number;
+      totem_name?: string;
+      publisher_id: number;
+      publisher_name?: string;
+      version: number;
+      total_items: number;
+      total_duration_seconds: number;
+      status: string;
+      generated_at: Date;
+      last_updated_at: Date;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    try {
+      const page = params?.page || 1;
+      const limit = params?.limit || 50;
+      const offset = (page - 1) * limit;
+
+      let whereClause = 'WHERE tp.is_active = true AND tp.status = \'active\'';
+      const queryParams: any[] = [];
+
+      if (params?.publisherId) {
+        whereClause += ` AND tp.publisher_id = $${queryParams.length + 1}`;
+        queryParams.push(params.publisherId);
+      }
+
+      if (params?.totemId) {
+        whereClause += ` AND tp.totem_id = $${queryParams.length + 1}`;
+        queryParams.push(params.totemId);
+      }
+
+      const playlists = await this.db.findMany(`
+        SELECT 
+          tp.totem_playlist_id,
+          tp.totem_id,
+          t.name as totem_name,
+          tp.publisher_id,
+          p.name as publisher_name,
+          tp.version,
+          tp.total_items,
+          tp.total_duration_seconds,
+          tp.status,
+          tp.generated_at,
+          tp.last_updated_at
+        FROM totem_playlists tp
+        INNER JOIN totems t ON tp.totem_id = t.totem_id
+        INNER JOIN publishers p ON tp.publisher_id = p.publisher_id
+        ${whereClause}
+        ORDER BY tp.last_updated_at DESC
+        LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+      `, [...queryParams, limit, offset]);
+
+      const totalResult = await this.db.findFirst(`
+        SELECT COUNT(*) as total
+        FROM totem_playlists tp
+        ${whereClause}
+      `, queryParams);
+
+      return {
+        data: playlists.map(p => ({
+          totem_playlist_id: p.totem_playlist_id,
+          totem_id: p.totem_id,
+          totem_name: p.totem_name,
+          publisher_id: p.publisher_id,
+          publisher_name: p.publisher_name,
+          version: p.version,
+          total_items: p.total_items,
+          total_duration_seconds: p.total_duration_seconds,
+          status: p.status,
+          generated_at: p.generated_at,
+          last_updated_at: p.last_updated_at
+        })),
+        total: parseInt(totalResult?.total || '0'),
+        page,
+        limit
+      };
+    } catch (error: any) {
+      await logError('Erro ao listar playlists de totens', error, { params });
+      throw error;
     }
   }
 
