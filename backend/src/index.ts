@@ -738,6 +738,26 @@ async function startServer() {
   }
 }
 
+// Tratamento de erros não capturados para evitar crashes
+process.on('uncaughtException', async (error: Error) => {
+  await logError('Erro não capturado (uncaughtException)', error, {
+    type: 'uncaughtException',
+    timestamp: new Date().toISOString()
+  });
+  // Não fazer exit imediato - deixar o servidor tentar continuar
+  // process.exit(1); // Comentado para evitar crash imediato
+});
+
+process.on('unhandledRejection', async (reason: any, promise: Promise<any>) => {
+  await logError('Promise rejeitada não tratada (unhandledRejection)', reason instanceof Error ? reason : new Error(String(reason)), {
+    type: 'unhandledRejection',
+    promise: String(promise),
+    timestamp: new Date().toISOString()
+  });
+  // Não fazer exit imediato - deixar o servidor tentar continuar
+  // process.exit(1); // Comentado para evitar crash imediato
+});
+
 // Iniciar servidor
 startServer();
 
