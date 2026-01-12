@@ -249,7 +249,7 @@ const TotemPlayListPage: React.FC = () => {
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {totems.map((totem) => (
-                    <MenuItem key={totem.player_id || totem.totem_id} value={(totem.player_id || totem.totem_id)?.toString()}>
+                    <MenuItem key={totem.totem_id} value={totem.totem_id.toString()}>
                       {totem.name || totem.identifier}
                     </MenuItem>
                   ))}
