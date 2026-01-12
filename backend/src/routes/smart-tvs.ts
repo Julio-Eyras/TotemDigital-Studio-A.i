@@ -78,13 +78,21 @@ router.get('/',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      // NOVO: Verificar permissões baseado em userType
+      // NOVO: Verificar permissões baseado em userType, role e publisherId/subscriberId
       const userType = req.user?.userType;
       const userRole = req.user?.role;
-      const isPublisher = userType === 'publisher_user' || userType === 'publisher_subscriber';
-      const isSubscriber = userType === 'subscriber_user';
+      const publisherId = req.user?.publisherId;
+      const subscriberId = req.user?.subscriberId;
+      
+      // Determinar se é publisher ou subscriber
+      // Verifica userType primeiro, depois fallback para role e publisherId/subscriberId
+      const isPublisher = userType === 'publisher_user' || userType === 'publisher_subscriber' || 
+                         userRole === 'publisher_user' || userRole === 'publisher_subscriber' ||
+                         (publisherId !== undefined && publisherId > 0);
+      const isSubscriber = userType === 'subscriber_user' || 
+                          userRole === 'subscriber_user' ||
+                          (subscriberId !== undefined && subscriberId > 0);
       const isOwnerOrAdminSql = userRole === 'owner_system' || userRole === 'admin_sql';
-      const isAdmin = userRole === 'admin';
       
       // Publishers e subscribers podem acessar suas próprias Smart TVs sem flag
       // Owner_system e admin_sql têm acesso total (sem verificação de flag)
