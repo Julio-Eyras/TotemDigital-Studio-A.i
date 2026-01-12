@@ -918,8 +918,15 @@ const Publishers: React.FC = () => {
       }
 
       // 1. Criar o publisher
-      console.log('Dados sendo enviados para criar publisher:', newPublisher);
-      const createdPublisher = await publisherApi.create(newPublisher);
+      // Remover contract_id se for undefined para não enviar no payload
+      const publisherData: CreatePublisherRequest = {
+        ...newPublisher,
+      };
+      if (publisherData.contract_id === undefined) {
+        delete publisherData.contract_id;
+      }
+      console.log('Dados sendo enviados para criar publisher:', publisherData);
+      const createdPublisher = await publisherApi.create(publisherData);
       console.log('Publisher criado com sucesso:', createdPublisher);
       const publisherId = createdPublisher.publisher_id;
       

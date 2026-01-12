@@ -47,7 +47,7 @@ function getPublisherCampaignMixService(): PublisherCampaignMixService {
 // Validações - usando validadores centralizados
 const createPublisherValidator = [
   ...nameValidators,
-  body('contract_id').isInt({ min: 1 }).withMessage('Contract ID é obrigatório'),
+  body('contract_id').optional().isInt({ min: 1 }).withMessage('Contract ID inválido (opcional, para rastreabilidade)'),
   body('contact_name').optional().isString(),
   ...emailValidators,
   ...phoneValidators,
@@ -137,7 +137,7 @@ router.post('/',
         is_subscriber,
         is_publisher,
         client_type,
-        contract_id, // Obrigatório - vincula publisher ao contrato
+        contract_id, // Opcional - vincula publisher ao contrato (para rastreabilidade)
       });
       
       return res.status(201).json(newPublisher);

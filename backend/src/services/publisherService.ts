@@ -19,7 +19,7 @@ export interface Publisher {
 
 export interface CreatePublisherRequest {
   name: string;
-  contract_id: number; // Obrigatório - contrato que gerou a criação do publisher
+  contract_id?: number; // Opcional - contrato que gerou a criação do publisher (para rastreabilidade)
   contact_name?: string;
   email?: string;
   phone?: string;
@@ -209,7 +209,8 @@ export class PublisherService {
   }
 
   /**
-   * Criar novo publisher (publicador) - baseado em contrato
+   * Criar novo publisher (publicador)
+   * contract_id é opcional - pode ser criado sem contrato inicial
    */
   async createPublisher(data: CreatePublisherRequest): Promise<Publisher> {
     try {
@@ -226,31 +227,33 @@ export class PublisherService {
         client_type = 'publisher'
       } = data;
 
-      // Validar que o contrato existe e está válido
-      const contract = await this.db.findFirst(`
-        SELECT 
-          contract_id, 
-          publisher_id, 
-          status, 
-          created_before_publisher,
-          start_date,
-          end_date
-        FROM publisher_contracts 
-        WHERE contract_id = $1
-      `, [contract_id]);
+      // Validar contrato apenas se contract_id foi fornecido
+      if (contract_id) {
+        const contract = await this.db.findFirst(`
+          SELECT 
+            contract_id, 
+            publisher_id, 
+            status, 
+            created_before_publisher,
+            start_date,
+            end_date
+          FROM publisher_contracts 
+          WHERE contract_id = $1
+        `, [contract_id]);
 
-      if (!contract) {
-        throw new Error('Contrato não encontrado');
-      }
+        if (!contract) {
+          throw new Error('Contrato não encontrado');
+        }
 
-      // Validar status do contrato (deve ser draft ou active)
-      if (contract.status !== 'draft' && contract.status !== 'active') {
-        throw new Error('Contrato deve estar em status "draft" ou "active" para criar publisher');
-      }
+        // Validar status do contrato (deve ser draft ou active)
+        if (contract.status !== 'draft' && contract.status !== 'active') {
+          throw new Error('Contrato deve estar em status "draft" ou "active" para criar publisher');
+        }
 
-      // Se contrato já tem publisher_id e não foi criado antes do publisher, erro
-      if (contract.publisher_id && !contract.created_before_publisher) {
-        throw new Error('Contrato já está vinculado a outro publisher');
+        // Se contrato já tem publisher_id e não foi criado antes do publisher, erro
+        if (contract.publisher_id && !contract.created_before_publisher) {
+          throw new Error('Contrato já está vinculado a outro publisher');
+        }
       }
 
       // Validar client_type baseado nos flags
@@ -288,12 +291,14 @@ export class PublisherService {
 
       const publisherId = result.rows[0].publisher_id;
 
-      // Vincular publisher ao contrato
-      await this.db.executeRaw(`
-        UPDATE publisher_contracts 
-        SET publisher_id = $1, updated_at = CURRENT_TIMESTAMP
-        WHERE contract_id = $2
-      `, [publisherId, contract_id]);
+      // Vincular publisher ao contrato apenas se contract_id foi fornecido
+      if (contract_id) {
+        await this.db.executeRaw(`
+          UPDATE publisher_contracts 
+          SET publisher_id = $1, updated_at = CURRENT_TIMESTAMP
+          WHERE contract_id = $2
+        `, [publisherId, contract_id]);
+      }
 
       const newPublisher = await this.getPublisherById(publisherId);
 
