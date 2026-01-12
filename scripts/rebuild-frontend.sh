@@ -141,6 +141,11 @@ fi
 
 # Compilar (build de produção)
 info "Executando build..."
+# Limpar variáveis de ambiente que podem causar cache
+unset NODE_ENV
+export NODE_ENV=production
+export GENERATE_SOURCEMAP=false
+
 if npm run build; then
     log "✅ Frontend recompilado com sucesso!"
 else

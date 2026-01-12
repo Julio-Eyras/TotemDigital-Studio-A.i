@@ -36,6 +36,25 @@ Guia rápido para rebuild e restart do backend e frontend após atualizações.
 - Limpa todos os caches sem recompilar
 - Útil quando você quer apenas limpar cache manualmente
 
+#### 5. **Forçar Rebuild Completo (quando mudanças não aparecem)**
+```bash
+./scripts/force-rebuild-frontend.sh
+```
+- **Use quando mudanças não aparecem após rebuild normal**
+- Limpeza AGRESSIVA de cache
+- Rebuild forçado com variáveis de ambiente limpas
+- Verifica se arquivos estão no código fonte
+- Opção `--reinstall` para reinstalar dependências
+
+#### 6. **Verificar Build (diagnóstico)**
+```bash
+./scripts/verify-frontend-build.sh
+```
+- Verifica se o build está atualizado
+- Compara datas dos arquivos fonte vs build
+- Verifica se TotemPlayList está no build
+- Verifica configuração do Nginx
+
 ### Script Completo Existente
 ```bash
 ./scripts/dev-build-restart.sh
@@ -134,14 +153,47 @@ npm run build
 1. Execute `./scripts/rebuild-backend.sh` ou `./scripts/rebuild-frontend.sh`
 2. Os scripts param todos os processos antes de recompilar
 
+### Mudanças não aparecem no frontend após rebuild?
+**Este é um problema comum!** Siga estes passos:
+
+1. **Forçar rebuild completo:**
+   ```bash
+   ./scripts/force-rebuild-frontend.sh
+   ```
+   Este script faz limpeza agressiva de cache e rebuild forçado.
+
+2. **Limpar cache do NAVEGADOR:**
+   - Chrome/Edge: `Ctrl+Shift+Delete` → Limpar cache
+   - Firefox: `Ctrl+Shift+Delete` → Limpar cache
+   - Ou use: `Ctrl+Shift+R` (hard refresh)
+
+3. **Verificar se build foi atualizado:**
+   ```bash
+   ./scripts/verify-frontend-build.sh
+   ```
+
+4. **Se ainda não aparecer:**
+   - Verifique se os arquivos estão no código fonte:
+     ```bash
+     ls -la frontend/src/pages/TotemPlayList/
+     grep -r "totem-playlists" frontend/src/App.tsx
+     ```
+   - Verifique logs do navegador: `F12` → Console → Verificar erros
+   - Verifique se Nginx está servindo o build correto:
+     ```bash
+     sudo systemctl reload nginx
+     ```
+
 ### Cache não está sendo limpo?
 1. Execute `./scripts/clean-cache.sh` primeiro
 2. Depois execute o rebuild novamente
+3. Para limpeza mais agressiva, use `./scripts/force-rebuild-frontend.sh`
 
 ### Build falha após atualização?
 1. Limpe cache: `./scripts/clean-cache.sh`
 2. Reinstale dependências: `npm install` (em backend ou frontend)
 3. Execute rebuild novamente
+4. Se persistir, use `./scripts/force-rebuild-frontend.sh --reinstall`
 
 ### Permissão negada ao executar script?
 ```bash
