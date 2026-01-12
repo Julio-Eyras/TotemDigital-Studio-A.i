@@ -3237,19 +3237,19 @@ const Publishers: React.FC = () => {
                             </Typography>
                           </Box>
                         )}
-                        {contract.revenue_share_percentage !== undefined && contract.revenue_share_percentage !== null && typeof contract.revenue_share_percentage === 'number' && (
+                        {contract.revenue_share_percentage !== undefined && contract.revenue_share_percentage !== null && typeof contract.revenue_share_percentage === 'number' && !isNaN(contract.revenue_share_percentage) && (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <AttachMoney fontSize="small" color="action" />
                             <Typography variant="caption" color="text.secondary">
-                              Revenue Share: {contract.revenue_share_percentage}%
+                              Revenue Share: {Number(contract.revenue_share_percentage)}%
                             </Typography>
                           </Box>
                         )}
-                        {contract.subscription_amount !== undefined && contract.subscription_amount !== null && typeof contract.subscription_amount === 'number' && (
+                        {contract.subscription_amount !== undefined && contract.subscription_amount !== null && typeof contract.subscription_amount === 'number' && !isNaN(contract.subscription_amount) && (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <AttachMoney fontSize="small" color="action" />
                             <Typography variant="caption" color="text.secondary">
-                              Assinatura: {contract.currency || 'BRL'} {contract.subscription_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {contract.subscription_interval || 'month'}
+                              Assinatura: {contract.currency || 'BRL'} {Number(contract.subscription_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {contract.subscription_interval || 'month'}
                             </Typography>
                           </Box>
                         )}
