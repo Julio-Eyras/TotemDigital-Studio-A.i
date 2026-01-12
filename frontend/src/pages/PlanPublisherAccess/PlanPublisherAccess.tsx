@@ -37,6 +37,10 @@ import {
   Tabs,
   Tab,
   LinearProgress,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
 } from '@mui/material';
 import {
   Add,
@@ -47,6 +51,7 @@ import {
   Info,
   Star,
   StarBorder,
+  Business,
 } from '@mui/icons-material';
 import { planApi, Plan, CreatePlanRequest, UpdatePlanRequest } from '../../services/api';
 import { publisherApi, Publisher } from '../../services/api';
@@ -83,6 +88,9 @@ const PlanPublisherAccessPage: React.FC = () => {
   const [planDialogOpen, setPlanDialogOpen] = useState(false);
   const [planEditMode, setPlanEditMode] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [planDialogTab, setPlanDialogTab] = useState(0); // Aba do dialog do plano (0: Dados, 1: Publishers)
+  const [planPublishers, setPlanPublishers] = useState<{ publisherId: number; isAllowed: boolean; restrictions?: any; notes?: string }[]>([]); // Publishers associados ao plano
+  const [selectedPublisherForPlan, setSelectedPublisherForPlan] = useState<string>(''); // Publisher selecionado para adicionar ao plano
   const [planFormData, setPlanFormData] = useState<CreatePlanRequest>({
     name: '',
     slug: '',
@@ -195,7 +203,25 @@ const PlanPublisherAccessPage: React.FC = () => {
     return plan.sortOrder || plan.sort_order || 0;
   };
 
-  const handleOpenPlanDialog = (plan?: Plan) => {
+  const loadPlanPublishers = async (planId: number) => {
+    try {
+      const accessRes = await subscriberAccessApi.getPlanPublisherAccess({ planId });
+      const publishersData = accessRes.map(access => ({
+        publisherId: access.publisher_id,
+        isAllowed: access.is_allowed,
+        restrictions: access.restrictions,
+        notes: access.notes,
+      }));
+      setPlanPublishers(publishersData);
+    } catch (error: any) {
+      console.error('Erro ao carregar publishers do plano:', error);
+      setPlanPublishers([]);
+    }
+  };
+
+  const handleOpenPlanDialog = async (plan?: Plan) => {
+    setPlanDialogTab(0); // Resetar para a primeira aba
+    setSelectedPublisherForPlan('');
     if (plan) {
       setPlanEditMode(true);
       setSelectedPlan(plan);
@@ -216,6 +242,8 @@ const PlanPublisherAccessPage: React.FC = () => {
         isPopular: getPlanIsPopular(plan),
         sortOrder: getPlanSortOrder(plan),
       });
+      const planId = getPlanId(plan);
+      await loadPlanPublishers(planId);
     } else {
       setPlanEditMode(false);
       setSelectedPlan(null);
@@ -236,6 +264,7 @@ const PlanPublisherAccessPage: React.FC = () => {
         isPopular: false,
         sortOrder: 0,
       });
+      setPlanPublishers([]);
     }
     setPlanDialogOpen(true);
   };
@@ -244,6 +273,9 @@ const PlanPublisherAccessPage: React.FC = () => {
     setPlanDialogOpen(false);
     setPlanEditMode(false);
     setSelectedPlan(null);
+    setPlanDialogTab(0);
+    setPlanPublishers([]);
+    setSelectedPublisherForPlan('');
   };
 
   const generateSlug = (name: string): string => {
@@ -257,6 +289,21 @@ const PlanPublisherAccessPage: React.FC = () => {
 
   const handlePlanNameChange = (name: string) => {
     setPlanFormData({ ...planFormData, name, slug: generateSlug(name) });
+  };
+
+  const handleAddPublisherToPlan = () => {
+    if (!selectedPublisherForPlan) return;
+    const publisherId = parseInt(selectedPublisherForPlan);
+    if (planPublishers.some(p => p.publisherId === publisherId)) {
+      setError('Este publisher já está associado ao plano');
+      return;
+    }
+    setPlanPublishers([...planPublishers, { publisherId, isAllowed: true }]);
+    setSelectedPublisherForPlan('');
+  };
+
+  const handleRemovePublisherFromPlan = (publisherId: number) => {
+    setPlanPublishers(planPublishers.filter(p => p.publisherId !== publisherId));
   };
 
   const handlePlanSubmit = async () => {
@@ -291,8 +338,10 @@ const PlanPublisherAccessPage: React.FC = () => {
         }
       }
 
+      let savedPlanId: number;
       if (planEditMode && selectedPlan) {
         const planId = getPlanId(selectedPlan);
+        savedPlanId = planId;
         const updateData: UpdatePlanRequest = {
           name: planFormData.name,
           description: planFormData.description,
@@ -313,7 +362,52 @@ const PlanPublisherAccessPage: React.FC = () => {
           features,
           limits,
         };
-        await planApi.create(createData);
+        const createdPlan = await planApi.create(createData);
+        savedPlanId = getPlanId(createdPlan);
+      }
+
+      // Salvar publishers do plano
+      if (planPublishers.length > 0) {
+        // Primeiro, obter publishers existentes para remover os que não estão mais na lista
+        const existingAccess = await subscriberAccessApi.getPlanPublisherAccess({ planId: savedPlanId });
+        const existingPublisherIds = existingAccess.map(a => a.publisher_id);
+        const newPublisherIds = planPublishers.map(p => p.publisherId);
+        
+        // Remover publishers que não estão mais na lista
+        for (const existingId of existingPublisherIds) {
+          if (!newPublisherIds.includes(existingId)) {
+            try {
+              await subscriberAccessApi.removePlanPublisherAccess(savedPlanId, existingId);
+            } catch (err) {
+              console.error('Erro ao remover publisher do plano:', err);
+            }
+          }
+        }
+
+        // Adicionar/atualizar publishers
+        for (const planPublisher of planPublishers) {
+          try {
+            await subscriberAccessApi.setPlanPublisherAccess({
+              planId: savedPlanId,
+              publisherId: planPublisher.publisherId,
+              isAllowed: planPublisher.isAllowed,
+              restrictions: planPublisher.restrictions,
+              notes: planPublisher.notes,
+            });
+          } catch (err) {
+            console.error('Erro ao salvar publisher do plano:', err);
+          }
+        }
+      } else if (planEditMode) {
+        // Se está editando e não há publishers, remover todos
+        const existingAccess = await subscriberAccessApi.getPlanPublisherAccess({ planId: savedPlanId });
+        for (const access of existingAccess) {
+          try {
+            await subscriberAccessApi.removePlanPublisherAccess(savedPlanId, access.publisher_id);
+          } catch (err) {
+            console.error('Erro ao remover publisher do plano:', err);
+          }
+        }
       }
 
       handleClosePlanDialog();
@@ -689,8 +783,19 @@ const PlanPublisherAccessPage: React.FC = () => {
           {planEditMode ? 'Editar Plano' : 'Criar Plano'}
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ pt: 2 }}>
-            <TextField
+          <Tabs value={planDialogTab} onChange={(_, newValue) => setPlanDialogTab(newValue)} sx={{ mb: 3 }}>
+            <Tab label="Dados do Plano" />
+            <Tab 
+              label="Publishers do Plano" 
+              icon={planPublishers.length > 0 ? <Chip label={planPublishers.length} size="small" color="primary" /> : undefined} 
+              iconPosition="end" 
+            />
+          </Tabs>
+
+          {/* Aba 1: Dados do Plano */}
+          {planDialogTab === 0 && (
+            <Box sx={{ pt: 2 }}>
+              <TextField
               fullWidth
               label="Nome *"
               value={planFormData.name}
@@ -857,7 +962,99 @@ const PlanPublisherAccessPage: React.FC = () => {
                 />
               </Grid>
             </Grid>
-          </Box>
+            </Box>
+          )}
+
+          {/* Aba 2: Publishers do Plano */}
+          {planDialogTab === 1 && (
+            <Box sx={{ pt: 2 }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Publishers do Plano
+              </Typography>
+              
+              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Publisher ao Plano</Typography>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={12} md={8}>
+                    <FormControl fullWidth>
+                      <InputLabel>Publisher</InputLabel>
+                      <Select
+                        value={selectedPublisherForPlan}
+                        onChange={(e) => setSelectedPublisherForPlan(e.target.value)}
+                        label="Publisher"
+                      >
+                        <MenuItem value="">Selecione um publisher</MenuItem>
+                        {publishers
+                          .filter(p => !planPublishers.some(pp => pp.publisherId === p.publisher_id))
+                          .map((publisher) => (
+                            <MenuItem key={publisher.publisher_id} value={publisher.publisher_id.toString()}>
+                              {publisher.name}
+                            </MenuItem>
+                          ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Button
+                      variant="contained"
+                      startIcon={<Add />}
+                      onClick={handleAddPublisherToPlan}
+                      disabled={!selectedPublisherForPlan}
+                      fullWidth
+                    >
+                      Adicionar
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {planPublishers.length > 0 ? (
+                <List>
+                  {planPublishers.map((planPublisher) => {
+                    const publisher = publishers.find(p => p.publisher_id === planPublisher.publisherId);
+                    return (
+                      <ListItem 
+                        key={planPublisher.publisherId} 
+                        sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}
+                      >
+                        <ListItemIcon><Business /></ListItemIcon>
+                        <ListItemText
+                          primary={publisher?.name || `Publisher ID: ${planPublisher.publisherId}`}
+                          secondary={
+                            <Box sx={{ mt: 1 }}>
+                              <Chip
+                                icon={planPublisher.isAllowed ? <CheckCircle /> : <Cancel />}
+                                label={planPublisher.isAllowed ? 'Acesso Permitido' : 'Acesso Bloqueado'}
+                                color={planPublisher.isAllowed ? 'success' : 'error'}
+                                size="small"
+                                sx={{ mr: 1 }}
+                              />
+                              {planPublisher.notes && (
+                                <Typography variant="caption" color="text.secondary">
+                                  {planPublisher.notes}
+                                </Typography>
+                              )}
+                            </Box>
+                          }
+                        />
+                        <IconButton 
+                          size="small" 
+                          color="error"
+                          onClick={() => handleRemovePublisherFromPlan(planPublisher.publisherId)}
+                        >
+                          <Delete />
+                        </IconButton>
+                      </ListItem>
+                    );
+                  })}
+                </List>
+              ) : (
+                <Alert severity="info">
+                  Nenhum publisher associado a este plano. Você pode adicionar publishers através do campo acima.
+                </Alert>
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClosePlanDialog}>Cancelar</Button>

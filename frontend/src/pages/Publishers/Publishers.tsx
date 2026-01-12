@@ -123,9 +123,11 @@ const Publishers: React.FC = () => {
   const [tempLocals, setTempLocals] = useState<CreateLocalRequest[]>([]);
   const [tempTotems, setTempTotems] = useState<(CreatePlayerRequest & { tempId: string })[]>([]);
   const [tempSmartTvs, setTempSmartTvs] = useState<(CreateSmartTvRequest & { tempId: string })[]>([]);
+  const [tempPublisherContracts, setTempPublisherContracts] = useState<(Partial<CreatePublisherContractRequest> & { tempId: string })[]>([]);
   const [editingLocalIndex, setEditingLocalIndex] = useState<number | null>(null);
   const [editingTotemIndex, setEditingTotemIndex] = useState<number | null>(null);
   const [editingSmartTvIndex, setEditingSmartTvIndex] = useState<number | null>(null);
+  const [editingPublisherContractIndexCreate, setEditingPublisherContractIndexCreate] = useState<number | null>(null);
   
   // Estados para edição de publicador (carregar dados existentes)
   const [editLocals, setEditLocals] = useState<Local[]>([]);
@@ -429,7 +431,7 @@ const Publishers: React.FC = () => {
       zip_code: '',
       country: '',
       description: '',
-      contract_id: newPublisher.contract_id, // Manter o contrato do publisher
+      contract_id: undefined,
     });
   };
 
@@ -475,7 +477,7 @@ const Publishers: React.FC = () => {
       name: '',
       description: '',
       firmwareVersion: '',
-      contract_id: newPublisher.contract_id, // Manter o contrato do publisher
+      contract_id: undefined,
     });
   };
 
@@ -525,7 +527,7 @@ const Publishers: React.FC = () => {
       resolution_width: undefined,
       resolution_height: undefined,
       orientation: 'landscape',
-      contract_id: newPublisher.contract_id, // Manter o contrato do publisher
+      contract_id: undefined,
     });
   };
 
@@ -866,14 +868,6 @@ const Publishers: React.FC = () => {
       // Limpar erros anteriores
       setError(null);
 
-      // Validação: contrato é obrigatório e válido
-      const contractValidation = validateContract(newPublisher.contract_id);
-      if (!contractValidation.valid) {
-        setError(contractValidation.error || 'Contrato inválido. Por favor, selecione um contrato válido.');
-        setCreateTab(0);
-        return;
-      }
-
       // Validação: nome do publisher é obrigatório
       if (!newPublisher.name || newPublisher.name.trim() === '') {
         setError('Nome do Publicador é obrigatório. Por favor, preencha o campo "Nome da Empresa / Razão Social".');
@@ -942,7 +936,7 @@ const Publishers: React.FC = () => {
         const createdLocal = await localApi.create({
           ...local,
           publisher_id: publisherId,
-          contract_id: local.contract_id || newPublisher.contract_id, // Usar o contrato do local ou do publisher
+          contract_id: local.contract_id || undefined
         });
         createdLocals.push(createdLocal);
       }
@@ -977,7 +971,7 @@ const Publishers: React.FC = () => {
           // Preparar dados do totem (identifier é obrigatório na interface, mas backend aceita name OU identifier)
           const totemData: any = {
             localId: Number(localId), // Garantir que é número
-            contract_id: totem.contract_id || newPublisher.contract_id, // Usar o contrato do totem ou do publisher
+            contract_id: totem.contract_id || undefined
           };
           
           // Adicionar identifier OU name (backend requer pelo menos um)
@@ -1078,7 +1072,7 @@ const Publishers: React.FC = () => {
             const smartTvData: any = {
               totem_id: totemId,
               identifier: smartTv.identifier.trim(),
-              contract_id: smartTv.contract_id || newPublisher.contract_id, // Usar o contrato da Smart TV ou do publisher
+              contract_id: smartTv.contract_id || undefined
             };
             
             // Adicionar campos opcionais apenas se tiverem valor
@@ -1131,6 +1125,19 @@ const Publishers: React.FC = () => {
 
       // Subscribers não são criados aqui - são gerenciados separadamente
 
+      // 5. Criar os contratos de publisher (se houver)
+      for (const contract of tempPublisherContracts) {
+        try {
+          await publisherContractApi.create({
+            ...contract,
+            publisher_id: publisherId,
+          } as CreatePublisherContractRequest);
+        } catch (contractError: any) {
+          console.error('Erro ao criar contrato de publisher:', contractError);
+          // Continuar com os outros contratos mesmo se um falhar
+        }
+      }
+
       // Limpar estados
       setCreateDialogOpen(false);
       setCreateTab(0);
@@ -1149,6 +1156,7 @@ const Publishers: React.FC = () => {
       setTempLocals([]);
       setTempTotems([]);
       setTempSmartTvs([]);
+      setTempPublisherContracts([]);
       setLocalForm({
         publisher_id: 0,
         name: '',
@@ -1572,60 +1580,13 @@ const Publishers: React.FC = () => {
             <Tab label="Locais" icon={tempLocals.length > 0 ? <Chip label={tempLocals.length} size="small" color="primary" /> : undefined} iconPosition="end" />
             <Tab label="Totens" icon={tempTotems.length > 0 ? <Chip label={tempTotems.length} size="small" color="primary" /> : undefined} iconPosition="end" />
             <Tab label="Smart TVs" icon={tempSmartTvs.length > 0 ? <Chip label={tempSmartTvs.length} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab label="Contratos" icon={tempPublisherContracts && tempPublisherContracts.length > 0 ? <Chip label={tempPublisherContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
           </Tabs>
 
           {/* Aba Informações */}
           {createTab === 0 && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>Dados do Publicador</Typography>
-              
-              {/* Campo de seleção de contrato - OBRIGATÓRIO */}
-              <FormControl fullWidth margin="normal" required>
-                <InputLabel>Contrato *</InputLabel>
-                <Select
-                  value={newPublisher.contract_id || ''}
-                  label="Contrato *"
-                  onChange={(e) => setNewPublisher({ ...newPublisher, contract_id: Number(e.target.value) })}
-                  disabled={loadingContracts}
-                  error={!newPublisher.contract_id || newPublisher.contract_id <= 0}
-                >
-                  {loadingContracts ? (
-                    <MenuItem disabled>Carregando contratos...</MenuItem>
-                  ) : availableContracts.length === 0 ? (
-                    <MenuItem disabled>Nenhum contrato disponível. Crie um contrato primeiro.</MenuItem>
-                  ) : (
-                    availableContracts.map((contract) => (
-                      <MenuItem key={contract.contract_id} value={contract.contract_id}>
-                        {contract.contract_number} - {contract.title} {contract.created_before_publisher ? '(Pré-criado)' : ''}
-                      </MenuItem>
-                    ))
-                  )}
-                </Select>
-                {!newPublisher.contract_id || newPublisher.contract_id <= 0 ? (
-                  <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
-                    Contrato é obrigatório. Selecione um contrato válido.
-                  </Typography>
-                ) : (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75 }}>
-                    Contrato selecionado: {availableContracts.find(c => c.contract_id === newPublisher.contract_id)?.title}
-                  </Typography>
-                )}
-              </FormControl>
-              
-              {availableContracts.length === 0 && !loadingContracts && (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  Nenhum contrato disponível. Você precisa criar um contrato antes de criar um Publicador.
-                  <br />
-                  <Button 
-                    size="small" 
-                    variant="outlined" 
-                    sx={{ mt: 1 }}
-                    onClick={() => window.location.href = '/contracts/new'}
-                  >
-                    Criar Contrato
-                  </Button>
-                </Alert>
-              )}
               
               <TextField
                 fullWidth
@@ -1715,15 +1676,15 @@ const Publishers: React.FC = () => {
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Local</Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
-                    <FormControl fullWidth size="small" required>
-                      <InputLabel>Contrato *</InputLabel>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Contrato (Opcional)</InputLabel>
                       <Select
-                        value={localForm.contract_id || newPublisher.contract_id || ''}
-                        label="Contrato *"
-                        onChange={(e) => setLocalForm({ ...localForm, contract_id: Number(e.target.value) })}
+                        value={localForm.contract_id || ''}
+                        label="Contrato (Opcional)"
+                        onChange={(e) => setLocalForm({ ...localForm, contract_id: e.target.value ? Number(e.target.value) : undefined })}
                         disabled={loadingContracts}
-                        error={!localForm.contract_id && !newPublisher.contract_id}
                       >
+                        <MenuItem value="">Nenhum</MenuItem>
                         {loadingContracts ? (
                           <MenuItem disabled>Carregando contratos...</MenuItem>
                         ) : availableContracts.length === 0 ? (
@@ -1736,11 +1697,6 @@ const Publishers: React.FC = () => {
                           ))
                         )}
                       </Select>
-                      {!localForm.contract_id && !newPublisher.contract_id && (
-                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
-                          Contrato é obrigatório. Selecione um contrato válido.
-                        </Typography>
-                      )}
                     </FormControl>
                   </Grid>
                   <Grid item xs={12} md={6}>
@@ -1880,15 +1836,15 @@ const Publishers: React.FC = () => {
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Totem</Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
-                    <FormControl fullWidth size="small" required>
-                      <InputLabel>Contrato *</InputLabel>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Contrato (Opcional)</InputLabel>
                       <Select
-                        value={totemForm.contract_id || newPublisher.contract_id || ''}
-                        label="Contrato *"
-                        onChange={(e) => setTotemForm({ ...totemForm, contract_id: Number(e.target.value) })}
+                        value={totemForm.contract_id || ''}
+                        label="Contrato (Opcional)"
+                        onChange={(e) => setTotemForm({ ...totemForm, contract_id: e.target.value ? Number(e.target.value) : undefined })}
                         disabled={loadingContracts}
-                        error={!totemForm.contract_id && !newPublisher.contract_id}
                       >
+                        <MenuItem value="">Nenhum</MenuItem>
                         {loadingContracts ? (
                           <MenuItem disabled>Carregando contratos...</MenuItem>
                         ) : availableContracts.length === 0 ? (
@@ -1901,11 +1857,6 @@ const Publishers: React.FC = () => {
                           ))
                         )}
                       </Select>
-                      {!totemForm.contract_id && !newPublisher.contract_id && (
-                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
-                          Contrato é obrigatório. Selecione um contrato válido.
-                        </Typography>
-                      )}
                     </FormControl>
                   </Grid>
                   <Grid item xs={12} md={6}>
@@ -2070,15 +2021,15 @@ const Publishers: React.FC = () => {
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Smart TV</Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
-                    <FormControl fullWidth size="small" required>
-                      <InputLabel>Contrato *</InputLabel>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Contrato (Opcional)</InputLabel>
                       <Select
-                        value={smartTvForm.contract_id || newPublisher.contract_id || ''}
-                        label="Contrato *"
-                        onChange={(e) => setSmartTvForm({ ...smartTvForm, contract_id: Number(e.target.value) })}
+                        value={smartTvForm.contract_id || ''}
+                        label="Contrato (Opcional)"
+                        onChange={(e) => setSmartTvForm({ ...smartTvForm, contract_id: e.target.value ? Number(e.target.value) : undefined })}
                         disabled={loadingContracts}
-                        error={!smartTvForm.contract_id && !newPublisher.contract_id}
                       >
+                        <MenuItem value="">Nenhum</MenuItem>
                         {loadingContracts ? (
                           <MenuItem disabled>Carregando contratos...</MenuItem>
                         ) : availableContracts.length === 0 ? (
@@ -2091,11 +2042,6 @@ const Publishers: React.FC = () => {
                           ))
                         )}
                       </Select>
-                      {!smartTvForm.contract_id && !newPublisher.contract_id && (
-                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
-                          Contrato é obrigatório. Selecione um contrato válido.
-                        </Typography>
-                      )}
                     </FormControl>
                   </Grid>
                   <Grid item xs={12} md={6}>
@@ -2281,6 +2227,243 @@ const Publishers: React.FC = () => {
               )}
             </Box>
           )}
+
+          {/* Aba Contratos */}
+          {createTab === 4 && (
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2 }}>Contratos do Publicador</Typography>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Os contratos são opcionais. Você pode adicionar contratos após criar o publicador ou durante a criação.
+              </Alert>
+              
+              {/* Formulário para criar/editar Publisher Contract */}
+              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingPublisherContractIndexCreate !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                  {editingPublisherContractIndexCreate !== null ? 'Editar Contrato de Publisher' : 'Adicionar Contrato de Publisher'}
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Número do Contrato *"
+                      value={publisherContractForm.contract_number || ''}
+                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_number: e.target.value })}
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small" required>
+                      <InputLabel>Tipo de Contrato *</InputLabel>
+                      <Select
+                        value={publisherContractForm.contract_type || 'revenue_share'}
+                        label="Tipo de Contrato *"
+                        onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_type: e.target.value as any })}
+                      >
+                        <MenuItem value="revenue_share">Revenue Share</MenuItem>
+                        <MenuItem value="subscription">Subscription</MenuItem>
+                        <MenuItem value="partnership">Partnership</MenuItem>
+                        <MenuItem value="hybrid">Hybrid</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Título *"
+                      value={publisherContractForm.title || ''}
+                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, title: e.target.value })}
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Descrição"
+                      value={publisherContractForm.description || ''}
+                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, description: e.target.value })}
+                      size="small"
+                      multiline
+                      rows={2}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Data de Início *"
+                      type="date"
+                      value={publisherContractForm.start_date || ''}
+                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, start_date: e.target.value })}
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Data de Término"
+                      type="date"
+                      value={publisherContractForm.end_date || ''}
+                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, end_date: e.target.value || undefined })}
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Moeda"
+                      value={publisherContractForm.currency || 'BRL'}
+                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, currency: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Status</InputLabel>
+                      <Select
+                        value={publisherContractForm.status || 'draft'}
+                        label="Status"
+                        onChange={(e) => setPublisherContractForm({ ...publisherContractForm, status: e.target.value as any })}
+                      >
+                        <MenuItem value="draft">Rascunho</MenuItem>
+                        <MenuItem value="active">Ativo</MenuItem>
+                        <MenuItem value="expired">Expirado</MenuItem>
+                        <MenuItem value="terminated">Terminado</MenuItem>
+                        <MenuItem value="cancelled">Cancelado</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      variant="contained"
+                      startIcon={<Add />}
+                      onClick={() => {
+                        if (!publisherContractForm.contract_number || !publisherContractForm.title) {
+                          setError('Número do contrato e título são obrigatórios');
+                          return;
+                        }
+                        if (editingPublisherContractIndexCreate !== null) {
+                          const updated = [...tempPublisherContracts];
+                          updated[editingPublisherContractIndexCreate] = { ...publisherContractForm as CreatePublisherContractRequest, tempId: tempPublisherContracts[editingPublisherContractIndexCreate].tempId };
+                          setTempPublisherContracts(updated);
+                          setEditingPublisherContractIndexCreate(null);
+                        } else {
+                          setTempPublisherContracts([...tempPublisherContracts, { ...publisherContractForm as CreatePublisherContractRequest, tempId: `temp-${Date.now()}` }]);
+                        }
+                        setPublisherContractForm({
+                          contract_number: '',
+                          contract_type: 'revenue_share',
+                          title: '',
+                          description: '',
+                          start_date: new Date().toISOString().split('T')[0],
+                          end_date: undefined,
+                          currency: 'BRL',
+                          status: 'draft',
+                        });
+                      }}
+                      disabled={!publisherContractForm.contract_number || !publisherContractForm.title}
+                    >
+                      {editingPublisherContractIndexCreate !== null ? 'Atualizar Contrato' : 'Adicionar Contrato'}
+                    </Button>
+                    {editingPublisherContractIndexCreate !== null && (
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setEditingPublisherContractIndexCreate(null);
+                          setPublisherContractForm({
+                            contract_number: '',
+                            contract_type: 'revenue_share',
+                            title: '',
+                            description: '',
+                            start_date: new Date().toISOString().split('T')[0],
+                            end_date: undefined,
+                            currency: 'BRL',
+                            status: 'draft',
+                          });
+                        }}
+                        sx={{ ml: 1 }}
+                      >
+                        Cancelar Edição
+                      </Button>
+                    )}
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {/* Lista de Publisher Contracts temporários */}
+              {tempPublisherContracts.length > 0 ? (
+                <List>
+                  {tempPublisherContracts.map((contract, index) => (
+                    <ListItem
+                      key={contract.tempId}
+                      sx={{
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        mb: 1,
+                        flexDirection: 'column',
+                        alignItems: 'stretch',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                        <Box>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                            {contract.contract_number} - {contract.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {contract.description || 'Sem descrição'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                          <Chip
+                            label={contract.status || 'draft'}
+                            size="small"
+                            color={contract.status === 'active' ? 'success' : 'default'}
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setPublisherContractForm({ ...contract });
+                              setEditingPublisherContractIndexCreate(index);
+                            }}
+                          >
+                            <Edit />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setTempPublisherContracts(tempPublisherContracts.filter((_, i) => i !== index));
+                              if (editingPublisherContractIndexCreate === index) {
+                                setEditingPublisherContractIndexCreate(null);
+                                setPublisherContractForm({
+                                  contract_number: '',
+                                  contract_type: 'revenue_share',
+                                  title: '',
+                                  description: '',
+                                  start_date: new Date().toISOString().split('T')[0],
+                                  end_date: undefined,
+                                  currency: 'BRL',
+                                  status: 'draft',
+                                });
+                              }
+                            }}
+                          >
+                            <Delete />
+                          </IconButton>
+                        </Box>
+                      </Box>
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Alert severity="info">
+                  Nenhum contrato de publisher adicionado ainda. Os contratos são opcionais.
+                </Alert>
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => {
@@ -2289,13 +2472,14 @@ const Publishers: React.FC = () => {
           setTempLocals([]);
           setTempTotems([]);
           setTempSmartTvs([]);
+          setTempPublisherContracts([]);
         }}>
             Cancelar
           </Button>
           <Button 
             variant="contained" 
             onClick={handleCreatePublisher}
-            disabled={!newPublisher.contract_id || newPublisher.contract_id <= 0 || tempLocals.length === 0 || tempTotems.length === 0}
+            disabled={tempLocals.length === 0 || tempTotems.length === 0}
           >
             Criar Publicador
           </Button>
