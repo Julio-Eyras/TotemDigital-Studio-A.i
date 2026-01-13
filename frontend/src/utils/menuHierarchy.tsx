@@ -62,11 +62,8 @@ function filterHierarchicalMenu(
     }
     
     // Verificar flag específica se necessário
-    // Owner system sempre tem acesso (não precisa verificar flag)
-    if (item.requiredFlag && userRole !== 'owner_system') {
-      if (!userFlags || !userFlags[item.requiredFlag]) {
-        continue; // Pular este item
-      }
+    if (item.requiredFlag && userFlags && !userFlags[item.requiredFlag]) {
+      continue; // Pular este item
     }
 
     // Filtrar children recursivamente
