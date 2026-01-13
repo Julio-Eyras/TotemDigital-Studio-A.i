@@ -656,11 +656,19 @@ DISPATCH_PLAN_2='{"playlist_id": 2, "items": [3, 4]}'
 DISPATCH_PLAN_3='{"playlist_id": 3, "items": [7]}'
 
 # Verificar se a tabela dispatcher_log existe antes de inserir
-execute_sql "INSERT INTO dispatcher_log (log_id, totem_id, timestamp, selected_campaign_id, selected_playlist_id, selected_source, selected_source_id, priority, candidates_count, candidates, temporal_validation, technical_validation, integrity_validation, validation_details, from_cache, cache_key, dispatch_plan, execution_time_ms) VALUES
-(1, 1, NOW() - INTERVAL '1 hour', 1, 1, 'campaign', 1, 10, 3, '$CANDIDATES_1'::jsonb, true, true, true, '$METADATA_EMPTY'::jsonb, false, NULL, '$DISPATCH_PLAN_1'::jsonb, 150),
-(2, 2, NOW() - INTERVAL '30 minutes', 1, 2, 'campaign', 1, 10, 3, '$CANDIDATES_1'::jsonb, true, true, true, '$METADATA_EMPTY'::jsonb, false, NULL, '$DISPATCH_PLAN_2'::jsonb, 145),
-(3, 4, NOW() - INTERVAL '2 hours', 2, 3, 'campaign', 2, 8, 1, '$CANDIDATES_2'::jsonb, true, true, true, '$METADATA_EMPTY'::jsonb, true, 'totem_4_campaign_2', '$DISPATCH_PLAN_3'::jsonb, 80)
-ON CONFLICT DO NOTHING;" "Inserindo Dispatcher Log" || echo "Tabela dispatcher_log não existe, pulando..."
+# Usar um comando SQL que verifica a existência da tabela primeiro
+execute_sql "
+DO \$\$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'dispatcher_log') THEN
+        INSERT INTO dispatcher_log (log_id, totem_id, timestamp, selected_campaign_id, selected_playlist_id, selected_source, selected_source_id, priority, candidates_count, candidates, temporal_validation, technical_validation, integrity_validation, validation_details, from_cache, cache_key, dispatch_plan, execution_time_ms) VALUES
+        (1, 1, NOW() - INTERVAL '1 hour', 1, 1, 'campaign', 1, 10, 3, '$CANDIDATES_1'::jsonb, true, true, true, '$METADATA_EMPTY'::jsonb, false, NULL, '$DISPATCH_PLAN_1'::jsonb, 150),
+        (2, 2, NOW() - INTERVAL '30 minutes', 1, 2, 'campaign', 1, 10, 3, '$CANDIDATES_1'::jsonb, true, true, true, '$METADATA_EMPTY'::jsonb, false, NULL, '$DISPATCH_PLAN_2'::jsonb, 145),
+        (3, 4, NOW() - INTERVAL '2 hours', 2, 3, 'campaign', 2, 8, 1, '$CANDIDATES_2'::jsonb, true, true, true, '$METADATA_EMPTY'::jsonb, true, 'totem_4_campaign_2', '$DISPATCH_PLAN_3'::jsonb, 80)
+        ON CONFLICT DO NOTHING;
+    END IF;
+END \$\$;
+" "Inserindo Dispatcher Log (se tabela existir)"
 
 echo ""
 
