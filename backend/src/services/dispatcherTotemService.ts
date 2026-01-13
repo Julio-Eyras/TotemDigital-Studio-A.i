@@ -11,11 +11,8 @@
  */
 
 import { getDatabase } from '../config/database';
-import { logError, logDebug, logInfo } from '../utils/loggerHelper';
+import { logError, logDebug } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
-import { getTotemService } from './totemService';
-import { getPlaylistService } from './playlistService';
-import { getMediaService } from './mediaService';
 import {
   DispatchRequest,
   DispatchPlan,
@@ -448,11 +445,11 @@ export class DispatcherTotemService {
   /**
    * Validar frequência temporal
    */
-  private validateTemporalFrequency(
+  private async validateTemporalFrequency(
     campaign: any,
     timestamp: Date,
     timezone: string
-  ): boolean {
+  ): Promise<boolean> {
     try {
       // Validar data (start_date e end_date)
       const effectiveStartDate = campaign.effective_start_date 

@@ -41,8 +41,8 @@ export const dateRangeValidators = [
 /**
  * Validadores de ID numérico
  */
-export const idParamValidator = [
-  param('id').isInt({ min: 1 }).withMessage('ID deve ser um número inteiro maior que 0'),
+export const idParamValidator = (paramName: string = 'id') => [
+  param(paramName).isInt({ min: 1 }).withMessage(`${paramName} deve ser um número inteiro maior que 0`),
 ];
 
 /**

@@ -4,7 +4,7 @@
  */
 
 import { Router, Response } from 'express';
-import { param, query, validationResult } from 'express-validator';
+import { query, validationResult } from 'express-validator';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { getDispatcherTotemService } from '../services/dispatcherTotemService';
 import { logError } from '../utils/loggerHelper';
@@ -32,7 +32,7 @@ const validateRequest = (req: any, res: any, next: any) => {
  * @access Private
  */
 router.get('/:totemId/dispatch',
-  idParamValidator('totemId'),
+  ...idParamValidator('totemId'),
   query('timestamp').optional().isISO8601().withMessage('timestamp deve ser uma data ISO8601 válida'),
   query('timezone').optional().isString().withMessage('timezone deve ser uma string'),
   query('skipCache').optional().isBoolean().withMessage('skipCache deve ser um booleano'),
@@ -77,7 +77,7 @@ router.get('/:totemId/dispatch',
  * @access Private
  */
 router.get('/:totemId/history',
-  idParamValidator('totemId'),
+  ...idParamValidator('totemId'),
   query('startDate').isISO8601().withMessage('startDate deve ser uma data ISO8601 válida'),
   query('endDate').isISO8601().withMessage('endDate deve ser uma data ISO8601 válida'),
   validateRequest,
@@ -112,7 +112,7 @@ router.get('/:totemId/history',
  * @access Private (Admin, Admin SQL)
  */
 router.get('/:totemId/candidates',
-  idParamValidator('totemId'),
+  ...idParamValidator('totemId'),
   query('timestamp').optional().isISO8601().withMessage('timestamp deve ser uma data ISO8601 válida'),
   query('timezone').optional().isString().withMessage('timezone deve ser uma string'),
   validateRequest,
