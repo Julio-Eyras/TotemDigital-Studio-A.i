@@ -60,11 +60,6 @@ function filterHierarchicalMenu(
     if (!canAccess(userRole, item.path, userFlags)) {
       continue; // Pular este item
     }
-    
-    // Verificar flag específica se necessário
-    if (item.requiredFlag && userFlags && !userFlags[item.requiredFlag]) {
-      continue; // Pular este item
-    }
 
     // Filtrar children recursivamente
     let filteredChildren: HierarchicalMenuItem[] | undefined = undefined;
