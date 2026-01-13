@@ -676,14 +676,13 @@ export class DispatcherTotemService {
   private async calculateWeight(
     candidate: CandidateSchedule,
     totemId: number,
-    timestamp: Date
+    _timestamp: Date
   ): Promise<number> {
     let weight = 0;
     
     // Pesos padrão (se não houver regra de mixagem)
     const defaultPriorityWeight = 1.0;
     const defaultTimeWeight = 1.0;
-    const defaultTagWeight = 0.5;
     const defaultSubscriberWeight = 0.5;
     
     // Tentar obter regra de mixagem do totem (opcional)
