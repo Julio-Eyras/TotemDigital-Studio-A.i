@@ -3551,7 +3551,7 @@ export interface DispatchPlan {
   }>;
   totalDuration: number;
   priority: number;
-  source: 'direct' | 'group' | 'campaign';
+  source: 'direct' | 'group' | 'campaign' | 'mix';
   sourceId: number;
   sourceName?: string;
   validityStart: string;

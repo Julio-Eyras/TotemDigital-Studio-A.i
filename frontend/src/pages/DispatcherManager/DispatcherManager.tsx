@@ -78,7 +78,7 @@ import {
   BarChart,
   Info,
 } from '@mui/icons-material';
-import { dispatcherTotemApi, totemApi } from '../../services/api';
+import { dispatcherTotemApi, totemApi, DispatchPlan } from '../../services/api';
 import { format } from 'date-fns';
 
 interface TabPanelProps {
@@ -163,7 +163,7 @@ const DispatcherManager: React.FC = () => {
   const [eligiblePlaylists, setEligiblePlaylists] = useState<EligiblePlaylist[]>([]);
   const [eligibleMedia, setEligibleMedia] = useState<EligibleMedia[]>([]);
   const [timeline, setTimeline] = useState<TimelineSlot[]>([]);
-  const [dispatchPlan, setDispatchPlan] = useState<any>(null);
+  const [dispatchPlan, setDispatchPlan] = useState<DispatchPlan | null>(null);
   
   // Dialogs
   const [campaignDetailOpen, setCampaignDetailOpen] = useState(false);
@@ -297,8 +297,8 @@ const DispatcherManager: React.FC = () => {
         }
       );
       
-      if (response.success && response.plan) {
-        setDispatchPlan(response.plan);
+      if (response.success && response.data) {
+        setDispatchPlan(response.data);
       }
     } catch (err: any) {
       console.error('Erro ao carregar plano:', err);
