@@ -34,7 +34,7 @@ const validateRequest = (req: any, res: any, next: any) => {
  */
 router.get('/', 
   query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
+  query('limit').optional().isInt({ min: 1, max: 10000 }),
   query('search').optional().isString(),
   query('clientId').optional().isInt({ min: 1 }),
   query('status').optional().isString(),
