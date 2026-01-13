@@ -668,23 +668,25 @@ execute_sql "INSERT INTO qr_codes (qr_id, campaign_id, code, title, description,
 (2, 2, 'QR-MED-2024-001', 'QR Code Medicamentos', 'QR code para campanha de medicamentos', 'url', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-med-2024-001.png', 0, NULL, 500, true, '2024-12-31', '$METADATA_EMPTY'::jsonb, true)
 ON CONFLICT DO NOTHING;" "Inserindo QR Codes"
 
-# Short Links
-execute_sql "
-INSERT INTO short_links (link_id, campaign_id, short_code, original_url, click_count, last_click_at, metadata, expires_at, is_active) VALUES
-(1, 1, 'BF2024', 'https://shoppingnorte.com.br/black-friday', 0, NULL, '{"utm_source": "totem"}'::jsonb, '2024-11-30', true),
-(2, 2, 'MED2024', 'https://saudemais.com.br/promocao-medicamentos', 0, NULL, '{"utm_source": "totem"}'::jsonb, '2024-12-31', true),
-(3, 3, 'OFERTAS', 'https://economico.com.br/ofertas-dia', 0, NULL, '{"utm_source": "totem"}'::jsonb, '2024-12-31', true)
-ON CONFLICT DO NOTHING;
-" "Inserindo Short Links"
+# Short Links - JSONs
+SHORT_LINK_METADATA='{"utm_source": "totem"}'
 
-# Remote Commands
-execute_sql "
-INSERT INTO remote_commands (command_id, totem_id, user_id, command_type, status, parameters, response, sent_at, executed_at, completed_at, error_message, retry_count) VALUES
-(1, 1, 2, 'ping', 'completed', '{}'::jsonb, '{"status": "ok", "latency_ms": 15}'::jsonb, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day', NULL, 0),
-(2, 2, 2, 'restart', 'completed', '{}'::jsonb, '{"status": "ok"}'::jsonb, NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days', NULL, 0),
-(3, 3, 2, 'load_playlist', 'pending', '{"playlist_id": 1}'::jsonb, NULL, NULL, NULL, NULL, NULL, 0)
-ON CONFLICT DO NOTHING;
-" "Inserindo Remote Commands"
+execute_sql "INSERT INTO short_links (link_id, campaign_id, short_code, original_url, click_count, last_click_at, metadata, expires_at, is_active) VALUES
+(1, 1, 'BF2024', 'https://shoppingnorte.com.br/black-friday', 0, NULL, '$SHORT_LINK_METADATA'::jsonb, '2024-11-30', true),
+(2, 2, 'MED2024', 'https://saudemais.com.br/promocao-medicamentos', 0, NULL, '$SHORT_LINK_METADATA'::jsonb, '2024-12-31', true),
+(3, 3, 'OFERTAS', 'https://economico.com.br/ofertas-dia', 0, NULL, '$SHORT_LINK_METADATA'::jsonb, '2024-12-31', true)
+ON CONFLICT DO NOTHING;" "Inserindo Short Links"
+
+# Remote Commands - JSONs
+CMD_RESPONSE_PING='{"status": "ok", "latency_ms": 15}'
+CMD_RESPONSE_OK='{"status": "ok"}'
+CMD_PARAMS_PLAYLIST='{"playlist_id": 1}'
+
+execute_sql "INSERT INTO remote_commands (command_id, totem_id, user_id, command_type, status, parameters, response, sent_at, executed_at, completed_at, error_message, retry_count) VALUES
+(1, 1, 2, 'ping', 'completed', '$METADATA_EMPTY'::jsonb, '$CMD_RESPONSE_PING'::jsonb, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day', NULL, 0),
+(2, 2, 2, 'restart', 'completed', '$METADATA_EMPTY'::jsonb, '$CMD_RESPONSE_OK'::jsonb, NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days', NULL, 0),
+(3, 3, 2, 'load_playlist', 'pending', '$CMD_PARAMS_PLAYLIST'::jsonb, NULL, NULL, NULL, NULL, NULL, 0)
+ON CONFLICT DO NOTHING;" "Inserindo Remote Commands"
 
 # OTA Updates
 execute_sql "
