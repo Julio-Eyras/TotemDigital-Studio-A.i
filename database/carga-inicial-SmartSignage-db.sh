@@ -19,9 +19,9 @@ NC='\033[0m' # No Color
 # Configurações do banco de dados
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
-DB_NAME="${DB_NAME:-smartchannel}"
-DB_USER="${DB_USER:-postgres}"
-DB_PASSWORD="${DB_PASSWORD:-postgres123}"
+DB_NAME="${DB_NAME:-smartsignage}"
+DB_USER="${DB_USER:-smartsignage}"
+DB_PASSWORD="${DB_PASSWORD:-smartsignage123}"
 
 # Função para executar SQL
 execute_sql() {
