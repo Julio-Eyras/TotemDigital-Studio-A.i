@@ -21,7 +21,7 @@ DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${DB_NAME:-smartchannel}"
 DB_USER="${DB_USER:-postgres}"
-DB_PASSWORD="${DB_PASSWORD:-}"
+DB_PASSWORD="${DB_PASSWORD:-postgres123}"
 
 # Função para executar SQL
 execute_sql() {
@@ -95,12 +95,12 @@ echo -e "${YELLOW}=== 1. Inserindo dados em tabelas base ===${NC}"
 
 # Subscribers
 execute_sql "
-INSERT INTO subscribers (subscriber_id, name, contact_name, email, phone, whatsapp, address, city, state, zip_code, country, description, is_active) VALUES
-(1, 'Shopping Center Norte', 'Maria Silva', 'maria.silva@shoppingnorte.com.br', '+55 11 3456-7890', '+55 11 98765-4321', 'Av. Cruzeiro do Sul, 1100', 'São Paulo', 'SP', '02013-000', 'BR', 'Shopping center localizado na zona norte de São Paulo', true),
-(2, 'Rede de Farmácias Saúde+', 'João Santos', 'joao.santos@saudemais.com.br', '+55 11 2345-6789', '+55 11 87654-3210', 'Rua XV de Novembro, 250', 'São Paulo', 'SP', '01010-000', 'BR', 'Rede de farmácias com múltiplas unidades', true),
-(3, 'Supermercado Econômico', 'Ana Costa', 'ana.costa@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', 'Av. Paulista, 1500', 'São Paulo', 'SP', '01310-100', 'BR', 'Supermercado com foco em economia', true),
-(4, 'Restaurante Sabor & Arte', 'Carlos Oliveira', 'carlos.oliveira@saborearte.com.br', '+55 11 4567-8901', '+55 11 65432-1098', 'Rua Oscar Freire, 200', 'São Paulo', 'SP', '01426-000', 'BR', 'Restaurante gourmet especializado em culinária brasileira', true),
-(5, 'Clínica Médica Vida Saudável', 'Dr. Roberto Lima', 'roberto.lima@vidasaudavel.com.br', '+55 11 5678-9012', '+55 11 54321-0987', 'Rua do Carmo, 45', 'São Paulo', 'SP', '01310-100', 'BR', 'Clínica médica com foco em prevenção', true)
+INSERT INTO subscribers (subscriber_id, name, contact_name, email, phone, whatsapp, address, description, is_active) VALUES
+(1, 'Shopping Center Norte', 'Maria Silva', 'maria.silva@shoppingnorte.com.br', '+55 11 3456-7890', '+55 11 98765-4321', 'Av. Cruzeiro do Sul, 1100 - Santana, São Paulo/SP - CEP 02013-000', 'Shopping center localizado na zona norte de São Paulo', true),
+(2, 'Rede de Farmácias Saúde+', 'João Santos', 'joao.santos@saudemais.com.br', '+55 11 2345-6789', '+55 11 87654-3210', 'Rua XV de Novembro, 250 - Centro, São Paulo/SP - CEP 01010-000', 'Rede de farmácias com múltiplas unidades', true),
+(3, 'Supermercado Econômico', 'Ana Costa', 'ana.costa@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', 'Av. Paulista, 1500 - Bela Vista, São Paulo/SP - CEP 01310-100', 'Supermercado com foco em economia', true),
+(4, 'Restaurante Sabor & Arte', 'Carlos Oliveira', 'carlos.oliveira@saborearte.com.br', '+55 11 4567-8901', '+55 11 65432-1098', 'Rua Oscar Freire, 200 - Jardins, São Paulo/SP - CEP 01426-000', 'Restaurante gourmet especializado em culinária brasileira', true),
+(5, 'Clínica Médica Vida Saudável', 'Dr. Roberto Lima', 'roberto.lima@vidasaudavel.com.br', '+55 11 5678-9012', '+55 11 54321-0987', 'Rua do Carmo, 45 - Centro, São Paulo/SP - CEP 01310-100', 'Clínica médica com foco em prevenção', true)
 ON CONFLICT DO NOTHING;
 " "Inserindo Subscribers"
 
@@ -146,9 +146,9 @@ ON CONFLICT DO NOTHING;
 # Plans
 execute_sql "
 INSERT INTO plans (plan_id, name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, sort_order) VALUES
-(1, 'Plano Básico', 'plano-basico', 'Plano básico para pequenos anunciantes', 99.00, 990.00, 'BRL', 'month', '{\"campaigns\": 5, \"storage_gb\": 10}', '{\"totems\": 3, \"campaigns\": 5, \"storage_gb\": 10}', true, false, 1),
-(2, 'Plano Profissional', 'plano-profissional', 'Plano profissional para médias empresas', 299.00, 2990.00, 'BRL', 'month', '{\"campaigns\": 20, \"storage_gb\": 50}', '{\"totems\": 10, \"campaigns\": 20, \"storage_gb\": 50}', true, true, 2),
-(3, 'Plano Enterprise', 'plano-enterprise', 'Plano enterprise para grandes empresas', 999.00, 9990.00, 'BRL', 'month', '{\"campaigns\": 100, \"storage_gb\": 500}', '{\"totems\": 50, \"campaigns\": 100, \"storage_gb\": 500}', true, false, 3)
+(1, 'Plano Básico', 'plano-basico', 'Plano básico para pequenos anunciantes', 99.00, 990.00, 'BRL', 'month', '{"campaigns": 5, "storage_gb": 10}'::jsonb, '{"totems": 3, "campaigns": 5, "storage_gb": 10}'::jsonb, true, false, 1),
+(2, 'Plano Profissional', 'plano-profissional', 'Plano profissional para médias empresas', 299.00, 2990.00, 'BRL', 'month', '{"campaigns": 20, "storage_gb": 50}'::jsonb, '{"totems": 10, "campaigns": 20, "storage_gb": 50}'::jsonb, true, true, 2),
+(3, 'Plano Enterprise', 'plano-enterprise', 'Plano enterprise para grandes empresas', 999.00, 9990.00, 'BRL', 'month', '{"campaigns": 100, "storage_gb": 500}'::jsonb, '{"totems": 50, "campaigns": 100, "storage_gb": 500}'::jsonb, true, false, 3)
 ON CONFLICT DO NOTHING;
 " "Inserindo Plans"
 
@@ -252,28 +252,28 @@ ON CONFLICT DO NOTHING;
 # Totems
 execute_sql "
 INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, name, description, model, manufacturer, firmware_version, hardware_version, os_version, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active) VALUES
-(1, 'TOTEM-SHOPPING-001', 'UIN-SHOPPING-001-2024', 'DEVICE-001', 1, 'Totem Shopping Entrada', 'Totem na entrada principal', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{\"ip\": \"192.168.1.100\", \"mac\": \"00:11:22:33:44:55\"}', '{\"resolution\": \"1920x1080\", \"orientation\": \"portrait\"}', true),
-(2, 'TOTEM-SHOPPING-002', 'UIN-SHOPPING-002-2024', 'DEVICE-002', 2, 'Totem Shopping Praça', 'Totem na praça de alimentação', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{\"ip\": \"192.168.1.101\", \"mac\": \"00:11:22:33:44:56\"}', '{\"resolution\": \"1920x1080\", \"orientation\": \"landscape\"}', true),
-(3, 'TOTEM-SHOPPING-003', 'UIN-SHOPPING-003-2024', 'DEVICE-003', 3, 'Totem Shopping Cinema', 'Totem na área do cinema', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{\"ip\": \"192.168.1.102\", \"mac\": \"00:11:22:33:44:57\"}', '{\"resolution\": \"1920x1080\", \"orientation\": \"portrait\"}', true),
-(4, 'TOTEM-FARMACIA-001', 'UIN-FARMACIA-001-2024', 'DEVICE-004', 4, 'Totem Farmácia Matriz', 'Totem na farmácia matriz', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{\"ip\": \"192.168.2.100\", \"mac\": \"00:11:22:33:44:58\"}', '{\"resolution\": \"1920x1080\", \"orientation\": \"portrait\"}', true),
-(5, 'TOTEM-FARMACIA-002', 'UIN-FARMACIA-002-2024', 'DEVICE-005', 5, 'Totem Farmácia Filial', 'Totem na farmácia filial', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{\"ip\": \"192.168.2.101\", \"mac\": \"00:11:22:33:44:59\"}', '{\"resolution\": \"1920x1080\", \"orientation\": \"portrait\"}', true),
-(6, 'TOTEM-SUPER-001', 'UIN-SUPER-001-2024', 'DEVICE-006', 6, 'Totem Supermercado Caixas', 'Totem na área dos caixas', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{\"ip\": \"192.168.3.100\", \"mac\": \"00:11:22:33:44:60\"}', '{\"resolution\": \"1920x1080\", \"orientation\": \"landscape\"}', true),
-(7, 'TOTEM-SUPER-002', 'UIN-SUPER-002-2024', 'DEVICE-007', 7, 'Totem Supermercado Açougue', 'Totem na seção de açougue', 'Totem Pro v2', 'SmartSignage', '2.0.0', '1.2.2', 'Linux 5.15', 'offline', NOW() - INTERVAL '2 hours', 60, '{\"ip\": \"192.168.3.101\", \"mac\": \"00:11:22:33:44:61\"}', '{\"resolution\": \"1920x1080\", \"orientation\": \"portrait\"}', true),
-(8, 'TOTEM-URBANO-001', 'UIN-URBANO-001-2024', 'DEVICE-008', 8, 'Totem Urbano 1', 'Totem em ponto estratégico', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{\"ip\": \"192.168.4.100\", \"mac\": \"00:11:22:33:44:62\"}', '{\"resolution\": \"1920x1080\", \"orientation\": \"portrait\"}', true)
+(1, 'TOTEM-SHOPPING-001', 'UIN-SHOPPING-001-2024', 'DEVICE-001', 1, 'Totem Shopping Entrada', 'Totem na entrada principal', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{"ip": "192.168.1.100", "mac": "00:11:22:33:44:55"}'::jsonb, '{"resolution": "1920x1080", "orientation": "portrait"}'::jsonb, true),
+(2, 'TOTEM-SHOPPING-002', 'UIN-SHOPPING-002-2024', 'DEVICE-002', 2, 'Totem Shopping Praça', 'Totem na praça de alimentação', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{"ip": "192.168.1.101", "mac": "00:11:22:33:44:56"}'::jsonb, '{"resolution": "1920x1080", "orientation": "landscape"}'::jsonb, true),
+(3, 'TOTEM-SHOPPING-003', 'UIN-SHOPPING-003-2024', 'DEVICE-003', 3, 'Totem Shopping Cinema', 'Totem na área do cinema', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{"ip": "192.168.1.102", "mac": "00:11:22:33:44:57"}'::jsonb, '{"resolution": "1920x1080", "orientation": "portrait"}'::jsonb, true),
+(4, 'TOTEM-FARMACIA-001', 'UIN-FARMACIA-001-2024', 'DEVICE-004', 4, 'Totem Farmácia Matriz', 'Totem na farmácia matriz', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{"ip": "192.168.2.100", "mac": "00:11:22:33:44:58"}'::jsonb, '{"resolution": "1920x1080", "orientation": "portrait"}'::jsonb, true),
+(5, 'TOTEM-FARMACIA-002', 'UIN-FARMACIA-002-2024', 'DEVICE-005', 5, 'Totem Farmácia Filial', 'Totem na farmácia filial', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{"ip": "192.168.2.101", "mac": "00:11:22:33:44:59"}'::jsonb, '{"resolution": "1920x1080", "orientation": "portrait"}'::jsonb, true),
+(6, 'TOTEM-SUPER-001', 'UIN-SUPER-001-2024', 'DEVICE-006', 6, 'Totem Supermercado Caixas', 'Totem na área dos caixas', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{"ip": "192.168.3.100", "mac": "00:11:22:33:44:60"}'::jsonb, '{"resolution": "1920x1080", "orientation": "landscape"}'::jsonb, true),
+(7, 'TOTEM-SUPER-002', 'UIN-SUPER-002-2024', 'DEVICE-007', 7, 'Totem Supermercado Açougue', 'Totem na seção de açougue', 'Totem Pro v2', 'SmartSignage', '2.0.0', '1.2.2', 'Linux 5.15', 'offline', NOW() - INTERVAL '2 hours', 60, '{"ip": "192.168.3.101", "mac": "00:11:22:33:44:61"}'::jsonb, '{"resolution": "1920x1080", "orientation": "portrait"}'::jsonb, true),
+(8, 'TOTEM-URBANO-001', 'UIN-URBANO-001-2024', 'DEVICE-008', 8, 'Totem Urbano 1', 'Totem em ponto estratégico', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW(), 60, '{"ip": "192.168.4.100", "mac": "00:11:22:33:44:62"}'::jsonb, '{"resolution": "1920x1080", "orientation": "portrait"}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 " "Inserindo Totems"
 
 # Smart TVs
 execute_sql "
 INSERT INTO smart_tvs (tv_id, totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, last_seen, capabilities, settings, is_active) VALUES
-(1, 1, 'TV-SHOPPING-001', 'TV-DEVICE-001', 'Smart TV Shopping Entrada', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', NOW(), '{\"hdr\": true, \"refresh_rate\": 60}', '{\"brightness\": 80}', true),
-(2, 2, 'TV-SHOPPING-002', 'TV-DEVICE-002', 'Smart TV Shopping Praça', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', NOW(), '{\"hdr\": true, \"refresh_rate\": 60}', '{\"brightness\": 75}', true),
-(3, 3, 'TV-SHOPPING-003', 'TV-DEVICE-003', 'Smart TV Shopping Cinema', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', NOW(), '{\"hdr\": true, \"refresh_rate\": 60}', '{\"brightness\": 70}', true),
-(4, 4, 'TV-FARMACIA-001', 'TV-DEVICE-004', 'Smart TV Farmácia Matriz', 'LG', '43UN7300PUF', 'webOS', '6.0.0', 3840, 2160, 'portrait', 'online', NOW(), '{\"hdr\": false, \"refresh_rate\": 60}', '{\"brightness\": 85}', true),
-(5, 5, 'TV-FARMACIA-002', 'TV-DEVICE-005', 'Smart TV Farmácia Filial', 'LG', '43UN7300PUF', 'webOS', '6.0.0', 3840, 2160, 'portrait', 'online', NOW(), '{\"hdr\": false, \"refresh_rate\": 60}', '{\"brightness\": 85}', true),
-(6, 6, 'TV-SUPER-001', 'TV-DEVICE-006', 'Smart TV Supermercado Caixas', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'landscape', 'online', NOW(), '{\"hdr\": false, \"refresh_rate\": 60}', '{\"brightness\": 80}', true),
-(7, 7, 'TV-SUPER-002', 'TV-DEVICE-007', 'Smart TV Supermercado Açougue', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'portrait', 'offline', NOW() - INTERVAL '2 hours', '{\"hdr\": false, \"refresh_rate\": 60}', '{\"brightness\": 75}', true),
-(8, 8, 'TV-URBANO-001', 'TV-DEVICE-008', 'Smart TV Urbano 1', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', NOW(), '{\"hdr\": true, \"refresh_rate\": 60}', '{\"brightness\": 80}', true)
+(1, 1, 'TV-SHOPPING-001', 'TV-DEVICE-001', 'Smart TV Shopping Entrada', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', NOW(), '{"hdr": true, "refresh_rate": 60}'::jsonb, '{"brightness": 80}'::jsonb, true),
+(2, 2, 'TV-SHOPPING-002', 'TV-DEVICE-002', 'Smart TV Shopping Praça', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', NOW(), '{"hdr": true, "refresh_rate": 60}'::jsonb, '{"brightness": 75}'::jsonb, true),
+(3, 3, 'TV-SHOPPING-003', 'TV-DEVICE-003', 'Smart TV Shopping Cinema', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', NOW(), '{"hdr": true, "refresh_rate": 60}'::jsonb, '{"brightness": 70}'::jsonb, true),
+(4, 4, 'TV-FARMACIA-001', 'TV-DEVICE-004', 'Smart TV Farmácia Matriz', 'LG', '43UN7300PUF', 'webOS', '6.0.0', 3840, 2160, 'portrait', 'online', NOW(), '{"hdr": false, "refresh_rate": 60}'::jsonb, '{"brightness": 85}'::jsonb, true),
+(5, 5, 'TV-FARMACIA-002', 'TV-DEVICE-005', 'Smart TV Farmácia Filial', 'LG', '43UN7300PUF', 'webOS', '6.0.0', 3840, 2160, 'portrait', 'online', NOW(), '{"hdr": false, "refresh_rate": 60}'::jsonb, '{"brightness": 85}'::jsonb, true),
+(6, 6, 'TV-SUPER-001', 'TV-DEVICE-006', 'Smart TV Supermercado Caixas', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'landscape', 'online', NOW(), '{"hdr": false, "refresh_rate": 60}'::jsonb, '{"brightness": 80}'::jsonb, true),
+(7, 7, 'TV-SUPER-002', 'TV-DEVICE-007', 'Smart TV Supermercado Açougue', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'portrait', 'offline', NOW() - INTERVAL '2 hours', '{"hdr": false, "refresh_rate": 60}'::jsonb, '{"brightness": 75}'::jsonb, true),
+(8, 8, 'TV-URBANO-001', 'TV-DEVICE-008', 'Smart TV Urbano 1', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', NOW(), '{"hdr": true, "refresh_rate": 60}'::jsonb, '{"brightness": 80}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 " "Inserindo Smart TVs"
 
@@ -300,33 +300,33 @@ ON CONFLICT DO NOTHING;
 # Playlists
 execute_sql "
 INSERT INTO playlists (playlist_id, subscriber_id, name, description, is_active, schedule_config, metadata) VALUES
-(1, 1, 'Playlist Black Friday - Entrada', 'Playlist principal da Black Friday na entrada', true, '{\"start_time\": \"08:00\", \"end_time\": \"22:00\", \"days_of_week\": [\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]}', '{}'),
-(2, 1, 'Playlist Black Friday - Praça', 'Playlist da Black Friday na praça de alimentação', true, '{\"start_time\": \"08:00\", \"end_time\": \"22:00\", \"days_of_week\": [\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]}', '{}'),
-(3, 2, 'Playlist Medicamentos', 'Playlist promocional de medicamentos', true, '{\"start_time\": \"08:00\", \"end_time\": \"20:00\", \"days_of_week\": [\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\"]}', '{}'),
-(4, 3, 'Playlist Ofertas Supermercado', 'Playlist de ofertas do supermercado', true, '{\"start_time\": \"06:00\", \"end_time\": \"23:00\", \"days_of_week\": [\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]}', '{}')
+(1, 1, 'Playlist Black Friday - Entrada', 'Playlist principal da Black Friday na entrada', true, '{"start_time": "08:00", "end_time": "22:00", "days_of_week": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]}'::jsonb, '{}'::jsonb),
+(2, 1, 'Playlist Black Friday - Praça', 'Playlist da Black Friday na praça de alimentação', true, '{"start_time": "08:00", "end_time": "22:00", "days_of_week": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]}'::jsonb, '{}'::jsonb),
+(3, 2, 'Playlist Medicamentos', 'Playlist promocional de medicamentos', true, '{"start_time": "08:00", "end_time": "20:00", "days_of_week": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]}'::jsonb, '{}'::jsonb),
+(4, 3, 'Playlist Ofertas Supermercado', 'Playlist de ofertas do supermercado', true, '{"start_time": "06:00", "end_time": "23:00", "days_of_week": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]}'::jsonb, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Playlists"
 
 # Playlist Items
 execute_sql "
 INSERT INTO playlist_items (item_id, playlist_id, media_id, display_seconds, order_index, start_time, end_time, days_of_week, transitions, is_active) VALUES
-(1, 1, 1, 10, 0, NULL, NULL, NULL, '{\"type\": \"fade\", \"duration_ms\": 2000}', true),
-(2, 1, 2, 30, 1, NULL, NULL, NULL, '{\"type\": \"slide\", \"duration_ms\": 1500}', true),
-(3, 2, 1, 10, 0, NULL, NULL, NULL, '{\"type\": \"fade\", \"duration_ms\": 2000}', true),
-(4, 2, 2, 30, 1, NULL, NULL, NULL, '{\"type\": \"slide\", \"duration_ms\": 1500}', true),
-(5, 3, 3, 15, 0, NULL, NULL, NULL, '{\"type\": \"fade\", \"duration_ms\": 3000}', true),
-(6, 4, 4, 12, 0, NULL, NULL, NULL, '{\"type\": \"fade\", \"duration_ms\": 2500}', true)
+(1, 1, 1, 10, 0, NULL, NULL, NULL, '{"type": "fade", "duration_ms": 2000}'::jsonb, true),
+(2, 1, 2, 30, 1, NULL, NULL, NULL, '{"type": "slide", "duration_ms": 1500}'::jsonb, true),
+(3, 2, 1, 10, 0, NULL, NULL, NULL, '{"type": "fade", "duration_ms": 2000}'::jsonb, true),
+(4, 2, 2, 30, 1, NULL, NULL, NULL, '{"type": "slide", "duration_ms": 1500}'::jsonb, true),
+(5, 3, 3, 15, 0, NULL, NULL, NULL, '{"type": "fade", "duration_ms": 3000}'::jsonb, true),
+(6, 4, 4, 12, 0, NULL, NULL, NULL, '{"type": "fade", "duration_ms": 2500}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 " "Inserindo Playlist Items"
 
 # Campaigns
 execute_sql "
 INSERT INTO campaigns (campaign_id, subscriber_id, title, description, campaign_type, priority, commercial_tier, default_time_share_percent, max_consecutive_slots, start_date, end_date, start_time, end_time, days_of_week, timezone, status, is_active, target_audience, metadata) VALUES
-(1, 1, 'Promoção Black Friday', 'Campanha especial para Black Friday com ofertas imperdíveis', 'scheduled', 10, 'premium', 50.00, 2, '2024-11-20', '2024-11-30', '08:00', '22:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}'),
-(2, 2, 'Campanha Medicamentos', 'Promoção de medicamentos genéricos', 'general', 8, 'standard', 30.00, 2, '2024-10-01', '2024-12-31', '08:00', '20:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}'),
-(3, 3, 'Ofertas do Dia', 'Ofertas especiais diárias do supermercado', 'general', 7, 'standard', 40.00, 3, '2024-10-01', '2024-12-31', '06:00', '23:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}'),
-(4, 4, 'Menu Executivo', 'Promoção do menu executivo', 'scheduled', 6, 'standard', 20.00, 1, '2024-10-01', '2024-12-31', '11:30', '14:30', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}'),
-(5, 5, 'Check-up Preventivo', 'Campanha de conscientização sobre check-up', 'general', 5, 'standard', 15.00, 1, '2024-10-01', '2024-12-31', '08:00', '18:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}')
+(1, 1, 'Promoção Black Friday', 'Campanha especial para Black Friday com ofertas imperdíveis', 'scheduled', 10, 'premium', 50.00, 2, '2024-11-20 00:00:00', '2024-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(2, 2, 'Campanha Medicamentos', 'Promoção de medicamentos genéricos', 'general', 8, 'standard', 30.00, 2, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(3, 3, 'Ofertas do Dia', 'Ofertas especiais diárias do supermercado', 'general', 7, 'standard', 40.00, 3, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(4, 4, 'Menu Executivo', 'Promoção do menu executivo', 'scheduled', 6, 'standard', 20.00, 1, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '11:30', '14:30', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(5, 5, 'Check-up Preventivo', 'Campanha de conscientização sobre check-up', 'general', 5, 'standard', 15.00, 1, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '08:00', '18:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Campaigns"
 
@@ -351,35 +351,35 @@ ON CONFLICT DO NOTHING;
 # Campaign Medias
 execute_sql "
 INSERT INTO campaign_medias (campaign_id, media_id, display_seconds, order_index, priority, start_time, end_time, days_of_week, transitions, is_active) VALUES
-(1, 1, 10, 0, 10, NULL, NULL, NULL, '{\"type\": \"fade\"}', true),
-(1, 2, 30, 1, 10, NULL, NULL, NULL, '{\"type\": \"slide\"}', true),
-(2, 3, 15, 0, 8, NULL, NULL, NULL, '{\"type\": \"fade\"}', true),
-(3, 4, 12, 0, 7, NULL, NULL, NULL, '{\"type\": \"fade\"}', true),
-(4, 5, 20, 0, 6, NULL, NULL, NULL, '{\"type\": \"fade\"}', true),
-(5, 6, 45, 0, 5, NULL, NULL, NULL, '{\"type\": \"fade\"}', true)
+(1, 1, 10, 0, 10, NULL, NULL, NULL, '{"type": "fade"}'::jsonb, true),
+(1, 2, 30, 1, 10, NULL, NULL, NULL, '{"type": "slide"}'::jsonb, true),
+(2, 3, 15, 0, 8, NULL, NULL, NULL, '{"type": "fade"}'::jsonb, true),
+(3, 4, 12, 0, 7, NULL, NULL, NULL, '{"type": "fade"}'::jsonb, true),
+(4, 5, 20, 0, 6, NULL, NULL, NULL, '{"type": "fade"}'::jsonb, true),
+(5, 6, 45, 0, 5, NULL, NULL, NULL, '{"type": "fade"}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 " "Inserindo Campaign Medias"
 
 # Campaign Totems
 execute_sql "
 INSERT INTO campaign_totems (campaign_id, totem_id, start_date, end_date, start_time, end_time, days_of_week, priority, is_active) VALUES
-(1, 1, '2024-11-20', '2024-11-30', '08:00', '22:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 10, true),
-(1, 2, '2024-11-20', '2024-11-30', '08:00', '22:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 10, true),
-(1, 3, '2024-11-20', '2024-11-30', '08:00', '22:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 10, true),
-(2, 4, '2024-10-01', '2024-12-31', '08:00', '20:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\"]', 8, true),
-(2, 5, '2024-10-01', '2024-12-31', '08:00', '20:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\"]', 8, true),
-(3, 6, '2024-10-01', '2024-12-31', '06:00', '23:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 7, true)
+(1, 1, '2024-11-20 00:00:00', '2024-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(1, 2, '2024-11-20 00:00:00', '2024-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(1, 3, '2024-11-20 00:00:00', '2024-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(2, 4, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 8, true),
+(2, 5, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 8, true),
+(3, 6, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 7, true)
 ON CONFLICT DO NOTHING;
 " "Inserindo Campaign Totems"
 
 # Campaign Publishers
 execute_sql "
 INSERT INTO campaign_publishers (campaign_id, publisher_id, revenue_share_percentage, time_share_percent, daypart_config, min_impressions_per_hour, max_impressions_per_hour, is_active) VALUES
-(1, 1, 70.00, 50.00, '{}', 10, 20, true),
-(2, 2, 65.00, 30.00, '{}', 5, 15, true),
-(3, 3, 60.00, 40.00, '{}', 8, 18, true),
-(4, 1, 70.00, 20.00, '{}', 3, 10, true),
-(5, 1, 70.00, 15.00, '{}', 2, 8, true)
+(1, 1, 70.00, 50.00, '{}'::jsonb, 10, 20, true),
+(2, 2, 65.00, 30.00, '{}'::jsonb, 5, 15, true),
+(3, 3, 60.00, 40.00, '{}'::jsonb, 8, 18, true),
+(4, 1, 70.00, 20.00, '{}'::jsonb, 3, 10, true),
+(5, 1, 70.00, 15.00, '{}'::jsonb, 2, 8, true)
 ON CONFLICT DO NOTHING;
 " "Inserindo Campaign Publishers"
 
@@ -410,21 +410,21 @@ echo -e "${YELLOW}=== 6. Inserindo contratos e billing ===${NC}"
 # Subscriber Contracts
 execute_sql "
 INSERT INTO subscriber_contracts (contract_id, subscriber_id, plan_id, contract_number, contract_type, title, description, start_date, end_date, total_amount, currency, payment_terms, status, signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata) VALUES
-(1, 1, 2, 'SUB-CONT-001', 'advertising', 'Contrato Publicitário Shopping Center Norte', 'Contrato de publicidade para Black Friday', '2024-11-01', '2024-11-30', 50000.00, 'BRL', 'Pagamento em 30 dias', 'active', NOW(), NOW(), 1, '{}'),
-(2, 2, 1, 'SUB-CONT-002', 'advertising', 'Contrato Publicitário Farmácias Saúde+', 'Contrato de publicidade para campanha de medicamentos', '2024-10-01', '2024-12-31', 15000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
-(3, 3, 1, 'SUB-CONT-003', 'advertising', 'Contrato Publicitário Supermercado Econômico', 'Contrato de publicidade para ofertas do dia', '2024-10-01', '2024-12-31', 20000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
-(4, 4, 1, 'SUB-CONT-004', 'advertising', 'Contrato Publicitário Restaurante Sabor & Arte', 'Contrato de publicidade para menu executivo', '2024-10-01', '2024-12-31', 8000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
-(5, 5, 1, 'SUB-CONT-005', 'advertising', 'Contrato Publicitário Clínica Vida Saudável', 'Contrato de publicidade para check-up preventivo', '2024-10-01', '2024-12-31', 10000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}')
+(1, 1, 2, 'SUB-CONT-001', 'advertising', 'Contrato Publicitário Shopping Center Norte', 'Contrato de publicidade para Black Friday', '2024-11-01', '2024-11-30', 50000.00, 'BRL', 'Pagamento em 30 dias', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(2, 2, 1, 'SUB-CONT-002', 'advertising', 'Contrato Publicitário Farmácias Saúde+', 'Contrato de publicidade para campanha de medicamentos', '2024-10-01', '2024-12-31', 15000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(3, 3, 1, 'SUB-CONT-003', 'advertising', 'Contrato Publicitário Supermercado Econômico', 'Contrato de publicidade para ofertas do dia', '2024-10-01', '2024-12-31', 20000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(4, 4, 1, 'SUB-CONT-004', 'advertising', 'Contrato Publicitário Restaurante Sabor & Arte', 'Contrato de publicidade para menu executivo', '2024-10-01', '2024-12-31', 8000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(5, 5, 1, 'SUB-CONT-005', 'advertising', 'Contrato Publicitário Clínica Vida Saudável', 'Contrato de publicidade para check-up preventivo', '2024-10-01', '2024-12-31', 10000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Subscriber Contracts"
 
 # Publisher Contracts
 execute_sql "
 INSERT INTO publisher_contracts (contract_id, publisher_id, contract_number, contract_type, title, description, start_date, end_date, revenue_share_percentage, revenue_share_rules, minimum_payout_amount, subscription_amount, subscription_interval, currency, payment_terms, status, signed_by_publisher_at, signed_by_tenant_at, created_by, metadata) VALUES
-(1, 1, 'PUB-CONT-001', 'revenue_share', 'Contrato Revenue Share Shopping Center Norte', 'Contrato de revenue share com 70% para o publisher', '2024-01-01', NULL, 70.00, '{}', 1000.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
-(2, 2, 'PUB-CONT-002', 'revenue_share', 'Contrato Revenue Share Farmácia Central', 'Contrato de revenue share com 65% para o publisher', '2024-01-01', NULL, 65.00, '{}', 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
-(3, 3, 'PUB-CONT-003', 'revenue_share', 'Contrato Revenue Share Supermercado Econômico', 'Contrato de revenue share com 60% para o publisher', '2024-01-01', NULL, 60.00, '{}', 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
-(4, 4, 'PUB-CONT-004', 'hybrid', 'Contrato Híbrido Rede de Totens Urbanos', 'Contrato híbrido: revenue share + subscription', '2024-01-01', NULL, 75.00, '{}', 2000.00, 299.00, 'month', 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}')
+(1, 1, 'PUB-CONT-001', 'revenue_share', 'Contrato Revenue Share Shopping Center Norte', 'Contrato de revenue share com 70% para o publisher', '2024-01-01', NULL, 70.00, '{}'::jsonb, 1000.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(2, 2, 'PUB-CONT-002', 'revenue_share', 'Contrato Revenue Share Farmácia Central', 'Contrato de revenue share com 65% para o publisher', '2024-01-01', NULL, 65.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(3, 3, 'PUB-CONT-003', 'revenue_share', 'Contrato Revenue Share Supermercado Econômico', 'Contrato de revenue share com 60% para o publisher', '2024-01-01', NULL, 60.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(4, 4, 'PUB-CONT-004', 'hybrid', 'Contrato Híbrido Rede de Totens Urbanos', 'Contrato híbrido: revenue share + subscription', '2024-01-01', NULL, 75.00, '{}'::jsonb, 2000.00, 299.00, 'month', 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Publisher Contracts"
 
@@ -440,26 +440,26 @@ UPDATE campaigns SET contract_id = 5 WHERE campaign_id = 5;
 # Subscriber Billing
 execute_sql "
 INSERT INTO subscriber_billing (billing_id, subscriber_id, campaign_id, billing_type, amount, currency, direction, description, invoice_number, payment_method, payment_status, payment_date, due_date, metadata) VALUES
-(1, 1, 1, 'campaign', 50000.00, 'BRL', 'incoming', 'Faturamento campanha Black Friday', 'INV-2024-001', 'bank_transfer', 'paid', NOW() - INTERVAL '5 days', NOW() + INTERVAL '25 days', '{}'),
-(2, 2, 2, 'campaign', 5000.00, 'BRL', 'incoming', 'Faturamento campanha Medicamentos - Outubro', 'INV-2024-002', 'credit_card', 'paid', NOW() - INTERVAL '3 days', NOW() + INTERVAL '27 days', '{}'),
-(3, 3, 3, 'campaign', 6666.67, 'BRL', 'incoming', 'Faturamento campanha Ofertas do Dia - Outubro', 'INV-2024-003', 'credit_card', 'pending', NULL, NOW() + INTERVAL '7 days', '{}')
+(1, 1, 1, 'campaign', 50000.00, 'BRL', 'incoming', 'Faturamento campanha Black Friday', 'INV-2024-001', 'bank_transfer', 'paid', NOW() - INTERVAL '5 days', NOW() + INTERVAL '25 days', '{}'::jsonb),
+(2, 2, 2, 'campaign', 5000.00, 'BRL', 'incoming', 'Faturamento campanha Medicamentos - Outubro', 'INV-2024-002', 'credit_card', 'paid', NOW() - INTERVAL '3 days', NOW() + INTERVAL '27 days', '{}'::jsonb),
+(3, 3, 3, 'campaign', 6666.67, 'BRL', 'incoming', 'Faturamento campanha Ofertas do Dia - Outubro', 'INV-2024-003', 'credit_card', 'pending', NULL, NOW() + INTERVAL '7 days', '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Subscriber Billing"
 
 # Publisher Billing
 execute_sql "
 INSERT INTO publisher_billing (billing_id, publisher_id, campaign_id, totem_id, billing_type, amount, currency, direction, revenue_share_percentage, original_campaign_amount, platform_fee_amount, publisher_share_amount, description, invoice_number, payment_status, payment_date, due_date, approved_by, approved_at, payment_method, metadata) VALUES
-(1, 1, 1, NULL, 'revenue_share', 35000.00, 'BRL', 'outgoing', 70.00, 50000.00, 15000.00, 35000.00, 'Revenue share campanha Black Friday', 'PAY-2024-001', 'pending_payout', NULL, NOW() + INTERVAL '5 days', 1, NOW(), 'bank_transfer', '{}'),
-(2, 2, 2, NULL, 'revenue_share', 3250.00, 'BRL', 'outgoing', 65.00, 5000.00, 1750.00, 3250.00, 'Revenue share campanha Medicamentos', 'PAY-2024-002', 'pending_payout', NULL, NOW() + INTERVAL '5 days', 1, NOW(), 'bank_transfer', '{}'),
-(3, 3, 3, NULL, 'revenue_share', 4000.00, 'BRL', 'outgoing', 60.00, 6666.67, 2666.67, 4000.00, 'Revenue share campanha Ofertas do Dia', 'PAY-2024-003', 'pending_payout', NULL, NOW() + INTERVAL '5 days', 1, NOW(), 'bank_transfer', '{}'),
-(4, 4, NULL, NULL, 'subscription', 299.00, 'BRL', 'incoming', NULL, NULL, NULL, NULL, 'Assinatura mensal Rede de Totens Urbanos', 'SUB-2024-001', 'paid', NOW() - INTERVAL '10 days', NOW() + INTERVAL '20 days', NULL, NULL, 'credit_card', '{}')
+(1, 1, 1, NULL, 'revenue_share', 35000.00, 'BRL', 'outgoing', 70.00, 50000.00, 15000.00, 35000.00, 'Revenue share campanha Black Friday', 'PAY-2024-001', 'pending_payout', NULL, NOW() + INTERVAL '5 days', 1, NOW(), 'bank_transfer', '{}'::jsonb),
+(2, 2, 2, NULL, 'revenue_share', 3250.00, 'BRL', 'outgoing', 65.00, 5000.00, 1750.00, 3250.00, 'Revenue share campanha Medicamentos', 'PAY-2024-002', 'pending_payout', NULL, NOW() + INTERVAL '5 days', 1, NOW(), 'bank_transfer', '{}'::jsonb),
+(3, 3, 3, NULL, 'revenue_share', 4000.00, 'BRL', 'outgoing', 60.00, 6666.67, 2666.67, 4000.00, 'Revenue share campanha Ofertas do Dia', 'PAY-2024-003', 'pending_payout', NULL, NOW() + INTERVAL '5 days', 1, NOW(), 'bank_transfer', '{}'::jsonb),
+(4, 4, NULL, NULL, 'subscription', 299.00, 'BRL', 'incoming', NULL, NULL, NULL, NULL, 'Assinatura mensal Rede de Totens Urbanos', 'SUB-2024-001', 'paid', NOW() - INTERVAL '10 days', NOW() + INTERVAL '20 days', NULL, NULL, 'credit_card', '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Publisher Billing"
 
 # Subscriptions
 execute_sql "
 INSERT INTO subscriptions (subscription_id, publisher_id, plan_id, stripe_subscription_id, stripe_customer_id, status, current_period_start, current_period_end, cancel_at_period_end, trial_start, trial_end, metadata) VALUES
-(1, 4, 2, 'sub_test_001', 'cus_test_001', 'active', NOW() - INTERVAL '10 days', NOW() + INTERVAL '20 days', false, NULL, NULL, '{}')
+(1, 4, 2, 'sub_test_001', 'cus_test_001', 'active', NOW() - INTERVAL '10 days', NOW() + INTERVAL '20 days', false, NULL, NULL, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Subscriptions"
 
@@ -474,36 +474,36 @@ echo -e "${YELLOW}=== 7. Inserindo acesso e playlists geradas ===${NC}"
 # Plan Publisher Access
 execute_sql "
 INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictions, notes) VALUES
-(1, 1, true, '{\"max_campaigns\": 5, \"revenue_share_min\": 50}', 'Acesso básico'),
-(1, 2, true, '{\"max_campaigns\": 5, \"revenue_share_min\": 50}', 'Acesso básico'),
-(1, 3, true, '{\"max_campaigns\": 5, \"revenue_share_min\": 50}', 'Acesso básico'),
-(2, 1, true, '{\"max_campaigns\": 20, \"revenue_share_min\": 60}', 'Acesso profissional'),
-(2, 2, true, '{\"max_campaigns\": 20, \"revenue_share_min\": 60}', 'Acesso profissional'),
-(3, 1, true, '{\"max_campaigns\": 100, \"revenue_share_min\": 70}', 'Acesso enterprise'),
-(3, 4, true, '{\"max_campaigns\": 100, \"revenue_share_min\": 70}', 'Acesso enterprise')
+(1, 1, true, '{"max_campaigns": 5, "revenue_share_min": 50}'::jsonb, 'Acesso básico'),
+(1, 2, true, '{"max_campaigns": 5, "revenue_share_min": 50}'::jsonb, 'Acesso básico'),
+(1, 3, true, '{"max_campaigns": 5, "revenue_share_min": 50}'::jsonb, 'Acesso básico'),
+(2, 1, true, '{"max_campaigns": 20, "revenue_share_min": 60}'::jsonb, 'Acesso profissional'),
+(2, 2, true, '{"max_campaigns": 20, "revenue_share_min": 60}'::jsonb, 'Acesso profissional'),
+(3, 1, true, '{"max_campaigns": 100, "revenue_share_min": 70}'::jsonb, 'Acesso enterprise'),
+(3, 4, true, '{"max_campaigns": 100, "revenue_share_min": 70}'::jsonb, 'Acesso enterprise')
 ON CONFLICT DO NOTHING;
 " "Inserindo Plan Publisher Access"
 
 # Subscriber Publisher Access
 execute_sql "
 INSERT INTO subscriber_publisher_access (access_id, subscriber_id, publisher_id, contract_id, plan_id, access_type, granted_at, expires_at, is_active, granted_by, notes, metadata) VALUES
-(1, 1, 1, 1, 2, 'contract', NOW(), '2024-11-30', true, 1, 'Acesso via contrato Black Friday', '{}'),
-(2, 2, 2, 2, 1, 'contract', NOW(), '2024-12-31', true, 1, 'Acesso via contrato Medicamentos', '{}'),
-(3, 3, 3, 3, 1, 'contract', NOW(), '2024-12-31', true, 1, 'Acesso via contrato Ofertas do Dia', '{}'),
-(4, 4, 1, 4, 1, 'contract', NOW(), '2024-12-31', true, 1, 'Acesso via contrato Menu Executivo', '{}'),
-(5, 5, 1, 5, 1, 'contract', NOW(), '2024-12-31', true, 1, 'Acesso via contrato Check-up', '{}')
+(1, 1, 1, 1, 2, 'contract', NOW(), '2024-11-30', true, 1, 'Acesso via contrato Black Friday', '{}'::jsonb),
+(2, 2, 2, 2, 1, 'contract', NOW(), '2024-12-31', true, 1, 'Acesso via contrato Medicamentos', '{}'::jsonb),
+(3, 3, 3, 3, 1, 'contract', NOW(), '2024-12-31', true, 1, 'Acesso via contrato Ofertas do Dia', '{}'::jsonb),
+(4, 4, 1, 4, 1, 'contract', NOW(), '2024-12-31', true, 1, 'Acesso via contrato Menu Executivo', '{}'::jsonb),
+(5, 5, 1, 5, 1, 'contract', NOW(), '2024-12-31', true, 1, 'Acesso via contrato Check-up', '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Subscriber Publisher Access"
 
 # Totem Playlists
 execute_sql "
 INSERT INTO totem_playlists (totem_playlist_id, totem_id, smart_tv_id, publisher_id, playlist_hash, version, total_items, total_duration_seconds, status, is_active, generated_at, last_updated_at, expires_at, metadata, generation_log) VALUES
-(1, 1, NULL, 1, 'hash_001', 1, 2, 40, 'active', true, NOW(), NOW(), NULL, '{}', '{\"campaigns_included\": [1, 4, 5], \"playlists_included\": [1]}'),
-(2, 2, NULL, 1, 'hash_002', 1, 2, 40, 'active', true, NOW(), NOW(), NULL, '{}', '{\"campaigns_included\": [1, 4, 5], \"playlists_included\": [2]}'),
-(3, 3, NULL, 1, 'hash_003', 1, 2, 40, 'active', true, NOW(), NOW(), NULL, '{}', '{\"campaigns_included\": [1, 4, 5], \"playlists_included\": [1]}'),
-(4, 4, NULL, 2, 'hash_004', 1, 1, 15, 'active', true, NOW(), NOW(), NULL, '{}', '{\"campaigns_included\": [2], \"playlists_included\": [3]}'),
-(5, 5, NULL, 2, 'hash_005', 1, 1, 15, 'active', true, NOW(), NOW(), NULL, '{}', '{\"campaigns_included\": [2], \"playlists_included\": [3]}'),
-(6, 6, NULL, 3, 'hash_006', 1, 1, 12, 'active', true, NOW(), NOW(), NULL, '{}', '{\"campaigns_included\": [3], \"playlists_included\": [4]}')
+(1, 1, NULL, 1, 'hash_001', 1, 2, 40, 'active', true, NOW(), NOW(), NULL, '{}'::jsonb, '{"campaigns_included": [1, 4, 5], "playlists_included": [1]}'::jsonb),
+(2, 2, NULL, 1, 'hash_002', 1, 2, 40, 'active', true, NOW(), NOW(), NULL, '{}'::jsonb, '{"campaigns_included": [1, 4, 5], "playlists_included": [2]}'::jsonb),
+(3, 3, NULL, 1, 'hash_003', 1, 2, 40, 'active', true, NOW(), NOW(), NULL, '{}'::jsonb, '{"campaigns_included": [1, 4, 5], "playlists_included": [1]}'::jsonb),
+(4, 4, NULL, 2, 'hash_004', 1, 1, 15, 'active', true, NOW(), NOW(), NULL, '{}'::jsonb, '{"campaigns_included": [2], "playlists_included": [3]}'::jsonb),
+(5, 5, NULL, 2, 'hash_005', 1, 1, 15, 'active', true, NOW(), NOW(), NULL, '{}'::jsonb, '{"campaigns_included": [2], "playlists_included": [3]}'::jsonb),
+(6, 6, NULL, 3, 'hash_006', 1, 1, 12, 'active', true, NOW(), NOW(), NULL, '{}'::jsonb, '{"campaigns_included": [3], "playlists_included": [4]}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Totem Playlists"
 
@@ -525,12 +525,12 @@ ON CONFLICT DO NOTHING;
 # Totem Playlist Generation Log
 execute_sql "
 INSERT INTO totem_playlist_generation_log (log_id, totem_id, totem_playlist_id, publisher_id, status, error_message, campaigns_included, playlists_included, medias_included, subscribers_included, generation_time_ms, generation_details, generated_at, generated_by) VALUES
-(1, 1, 1, 1, 'success', NULL, 3, 1, 2, 3, 150, '{\"campaigns\": [1, 4, 5], \"playlists\": [1]}', NOW(), 'system'),
-(2, 2, 2, 1, 'success', NULL, 3, 1, 2, 3, 145, '{\"campaigns\": [1, 4, 5], \"playlists\": [2]}', NOW(), 'system'),
-(3, 3, 3, 1, 'success', NULL, 3, 1, 2, 3, 148, '{\"campaigns\": [1, 4, 5], \"playlists\": [1]}', NOW(), 'system'),
-(4, 4, 4, 2, 'success', NULL, 1, 1, 1, 1, 80, '{\"campaigns\": [2], \"playlists\": [3]}', NOW(), 'system'),
-(5, 5, 5, 2, 'success', NULL, 1, 1, 1, 1, 82, '{\"campaigns\": [2], \"playlists\": [3]}', NOW(), 'system'),
-(6, 6, 6, 3, 'success', NULL, 1, 1, 1, 1, 75, '{\"campaigns\": [3], \"playlists\": [4]}', NOW(), 'system')
+(1, 1, 1, 1, 'success', NULL, 3, 1, 2, 3, 150, '{"campaigns": [1, 4, 5], "playlists": [1]}'::jsonb, NOW(), 'system'),
+(2, 2, 2, 1, 'success', NULL, 3, 1, 2, 3, 145, '{"campaigns": [1, 4, 5], "playlists": [2]}'::jsonb, NOW(), 'system'),
+(3, 3, 3, 1, 'success', NULL, 3, 1, 2, 3, 148, '{"campaigns": [1, 4, 5], "playlists": [1]}'::jsonb, NOW(), 'system'),
+(4, 4, 4, 2, 'success', NULL, 1, 1, 1, 1, 80, '{"campaigns": [2], "playlists": [3]}'::jsonb, NOW(), 'system'),
+(5, 5, 5, 2, 'success', NULL, 1, 1, 1, 1, 82, '{"campaigns": [2], "playlists": [3]}'::jsonb, NOW(), 'system'),
+(6, 6, 6, 3, 'success', NULL, 1, 1, 1, 1, 75, '{"campaigns": [3], "playlists": [4]}'::jsonb, NOW(), 'system')
 ON CONFLICT DO NOTHING;
 " "Inserindo Totem Playlist Generation Log"
 
@@ -545,60 +545,60 @@ echo -e "${YELLOW}=== 8. Inserindo analytics e logs ===${NC}"
 # Analytics Sessions
 execute_sql "
 INSERT INTO analytics_sessions (session_id, totem_id, start_time, end_time, duration_seconds, metadata) VALUES
-(1, 1, NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 hour', 3600, '{}'),
-(2, 2, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '30 minutes', 1800, '{}'),
-(3, 3, NOW() - INTERVAL '3 hours', NOW() - INTERVAL '2 hours', 3600, '{}'),
-(4, 4, NOW() - INTERVAL '4 hours', NOW() - INTERVAL '3 hours', 3600, '{}')
+(1, 1, NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 hour', 3600, '{}'::jsonb),
+(2, 2, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '30 minutes', 1800, '{}'::jsonb),
+(3, 3, NOW() - INTERVAL '3 hours', NOW() - INTERVAL '2 hours', 3600, '{}'::jsonb),
+(4, 4, NOW() - INTERVAL '4 hours', NOW() - INTERVAL '3 hours', 3600, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Analytics Sessions"
 
 # Analytics Emotions
 execute_sql "
 INSERT INTO analytics_emotions (emotion_id, session_id, totem_id, emotion_type, confidence, detected_at, metadata) VALUES
-(1, 1, 1, 'happy', 0.85, NOW() - INTERVAL '2 hours', '{}'),
-(2, 1, 1, 'neutral', 0.75, NOW() - INTERVAL '1 hour 50 minutes', '{}'),
-(3, 2, 2, 'happy', 0.90, NOW() - INTERVAL '1 hour', '{}'),
-(4, 3, 3, 'surprised', 0.80, NOW() - INTERVAL '3 hours', '{}')
+(1, 1, 1, 'happy', 0.85, NOW() - INTERVAL '2 hours', '{}'::jsonb),
+(2, 1, 1, 'neutral', 0.75, NOW() - INTERVAL '1 hour 50 minutes', '{}'::jsonb),
+(3, 2, 2, 'happy', 0.90, NOW() - INTERVAL '1 hour', '{}'::jsonb),
+(4, 3, 3, 'surprised', 0.80, NOW() - INTERVAL '3 hours', '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Analytics Emotions"
 
 # Analytics Gestures
 execute_sql "
 INSERT INTO analytics_gestures (gesture_id, session_id, totem_id, gesture_type, confidence, detected_at, metadata) VALUES
-(1, 1, 1, 'wave', 0.88, NOW() - INTERVAL '2 hours', '{}'),
-(2, 1, 1, 'point', 0.82, NOW() - INTERVAL '1 hour 45 minutes', '{}'),
-(3, 2, 2, 'wave', 0.90, NOW() - INTERVAL '1 hour', '{}'),
-(4, 3, 3, 'touch', 0.85, NOW() - INTERVAL '3 hours', '{}')
+(1, 1, 1, 'wave', 0.88, NOW() - INTERVAL '2 hours', '{}'::jsonb),
+(2, 1, 1, 'point', 0.82, NOW() - INTERVAL '1 hour 45 minutes', '{}'::jsonb),
+(3, 2, 2, 'wave', 0.90, NOW() - INTERVAL '1 hour', '{}'::jsonb),
+(4, 3, 3, 'touch', 0.85, NOW() - INTERVAL '3 hours', '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Analytics Gestures"
 
 # Execution Logs
 execute_sql "
 INSERT INTO execution_logs (log_id, totem_id, campaign_id, playlist_id, media_id, publisher_id, subscriber_id, event_type, event_data, timestamp, metadata) VALUES
-(1, 1, 1, 1, 1, 1, 1, 'play_start', '{\"duration\": 10}', NOW() - INTERVAL '1 hour', '{}'),
-(2, 1, 1, 1, 1, 1, 1, 'play_end', '{\"duration\": 10}', NOW() - INTERVAL '1 hour' + INTERVAL '10 seconds', '{}'),
-(3, 1, 1, 1, 2, 1, 1, 'play_start', '{\"duration\": 30}', NOW() - INTERVAL '1 hour' + INTERVAL '12 seconds', '{}'),
-(4, 2, 1, 2, 1, 1, 1, 'play_start', '{\"duration\": 10}', NOW() - INTERVAL '30 minutes', '{}'),
-(5, 4, 2, 3, 3, 2, 2, 'play_start', '{\"duration\": 15}', NOW() - INTERVAL '2 hours', '{}')
+(1, 1, 1, 1, 1, 1, 1, 'play_start', '{"duration": 10}'::jsonb, NOW() - INTERVAL '1 hour', '{}'::jsonb),
+(2, 1, 1, 1, 1, 1, 1, 'play_end', '{"duration": 10}'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '10 seconds', '{}'::jsonb),
+(3, 1, 1, 1, 2, 1, 1, 'play_start', '{"duration": 30}'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '12 seconds', '{}'::jsonb),
+(4, 2, 1, 2, 1, 1, 1, 'play_start', '{"duration": 10}'::jsonb, NOW() - INTERVAL '30 minutes', '{}'::jsonb),
+(5, 4, 2, 3, 3, 2, 2, 'play_start', '{"duration": 15}'::jsonb, NOW() - INTERVAL '2 hours', '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Execution Logs"
 
 # Event Logs
 execute_sql "
 INSERT INTO event_logs (log_id, event_type, entity_type, entity_id, totem_id, campaign_id, media_id, publisher_id, subscriber_id, user_id, metadata, severity, timestamp) VALUES
-(1, 'create', 'campaign', 1, NULL, 1, NULL, 1, 1, 4, '{}', 'info', NOW() - INTERVAL '10 days'),
-(2, 'approve', 'media', 1, NULL, NULL, 1, NULL, 1, 1, '{}', 'info', NOW() - INTERVAL '9 days'),
-(3, 'update', 'totem', 1, 1, NULL, NULL, 1, NULL, 2, '{}', 'info', NOW() - INTERVAL '5 days'),
-(4, 'play', 'campaign', 1, 1, 1, NULL, 1, 1, NULL, '{}', 'info', NOW() - INTERVAL '1 hour')
+(1, 'create', 'campaign', 1, NULL, 1, NULL, 1, 1, 4, '{}'::jsonb, 'info', NOW() - INTERVAL '10 days'),
+(2, 'approve', 'media', 1, NULL, NULL, 1, NULL, 1, 1, '{}'::jsonb, 'info', NOW() - INTERVAL '9 days'),
+(3, 'update', 'totem', 1, 1, NULL, NULL, 1, NULL, 2, '{}'::jsonb, 'info', NOW() - INTERVAL '5 days'),
+(4, 'play', 'campaign', 1, 1, 1, NULL, 1, 1, NULL, '{}'::jsonb, 'info', NOW() - INTERVAL '1 hour')
 ON CONFLICT DO NOTHING;
 " "Inserindo Event Logs"
 
 # Dispatcher Log
 execute_sql "
 INSERT INTO dispatcher_log (log_id, totem_id, timestamp, selected_campaign_id, selected_playlist_id, selected_source, selected_source_id, priority, candidates_count, candidates, temporal_validation, technical_validation, integrity_validation, validation_details, from_cache, cache_key, dispatch_plan, execution_time_ms) VALUES
-(1, 1, NOW() - INTERVAL '1 hour', 1, 1, 'campaign', 1, 10, 3, '[{\"campaign_id\": 1, \"priority\": 10}, {\"campaign_id\": 4, \"priority\": 6}, {\"campaign_id\": 5, \"priority\": 5}]', true, true, true, '{}', false, NULL, '{\"playlist_id\": 1, \"items\": [1, 2]}', 150),
-(2, 2, NOW() - INTERVAL '30 minutes', 1, 2, 'campaign', 1, 10, 3, '[{\"campaign_id\": 1, \"priority\": 10}, {\"campaign_id\": 4, \"priority\": 6}, {\"campaign_id\": 5, \"priority\": 5}]', true, true, true, '{}', false, NULL, '{\"playlist_id\": 2, \"items\": [3, 4]}', 145),
-(3, 4, NOW() - INTERVAL '2 hours', 2, 3, 'campaign', 2, 8, 1, '[{\"campaign_id\": 2, \"priority\": 8}]', true, true, true, '{}', true, 'totem_4_campaign_2', '{\"playlist_id\": 3, \"items\": [7]}', 80)
+(1, 1, NOW() - INTERVAL '1 hour', 1, 1, 'campaign', 1, 10, 3, '[{"campaign_id": 1, "priority": 10}, {"campaign_id": 4, "priority": 6}, {"campaign_id": 5, "priority": 5}]'::jsonb, true, true, true, '{}'::jsonb, false, NULL, '{"playlist_id": 1, "items": [1, 2]}'::jsonb, 150),
+(2, 2, NOW() - INTERVAL '30 minutes', 1, 2, 'campaign', 1, 10, 3, '[{"campaign_id": 1, "priority": 10}, {"campaign_id": 4, "priority": 6}, {"campaign_id": 5, "priority": 5}]'::jsonb, true, true, true, '{}'::jsonb, false, NULL, '{"playlist_id": 2, "items": [3, 4]}'::jsonb, 145),
+(3, 4, NOW() - INTERVAL '2 hours', 2, 3, 'campaign', 2, 8, 1, '[{"campaign_id": 2, "priority": 8}]'::jsonb, true, true, true, '{}'::jsonb, true, 'totem_4_campaign_2', '{"playlist_id": 3, "items": [7]}'::jsonb, 80)
 ON CONFLICT DO NOTHING;
 " "Inserindo Dispatcher Log"
 
@@ -613,26 +613,26 @@ echo -e "${YELLOW}=== 9. Inserindo outras tabelas ===${NC}"
 # QR Codes
 execute_sql "
 INSERT INTO qr_codes (qr_id, campaign_id, code, title, description, qr_type, content, url, redirect_url, size, color, background_color, error_correction_level, margin, image_url, scan_count, last_scan_at, max_scans, tracking_enabled, expires_at, metadata, is_active) VALUES
-(1, 1, 'QR-BF-2024-001', 'QR Code Black Friday', 'QR code para campanha Black Friday', 'url', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-bf-2024-001.png', 0, NULL, 1000, true, '2024-11-30', '{\"utm_params\": {\"utm_source\": \"totem\", \"utm_medium\": \"qr\", \"utm_campaign\": \"black-friday\"}}', true),
-(2, 2, 'QR-MED-2024-001', 'QR Code Medicamentos', 'QR code para campanha de medicamentos', 'url', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-med-2024-001.png', 0, NULL, 500, true, '2024-12-31', '{}', true)
+(1, 1, 'QR-BF-2024-001', 'QR Code Black Friday', 'QR code para campanha Black Friday', 'url', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-bf-2024-001.png', 0, NULL, 1000, true, '2024-11-30', '{"utm_params": {"utm_source": "totem", "utm_medium": "qr", "utm_campaign": "black-friday"}}'::jsonb, true),
+(2, 2, 'QR-MED-2024-001', 'QR Code Medicamentos', 'QR code para campanha de medicamentos', 'url', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-med-2024-001.png', 0, NULL, 500, true, '2024-12-31', '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 " "Inserindo QR Codes"
 
 # Short Links
 execute_sql "
 INSERT INTO short_links (link_id, campaign_id, short_code, original_url, click_count, last_click_at, metadata, expires_at, is_active) VALUES
-(1, 1, 'BF2024', 'https://shoppingnorte.com.br/black-friday', 0, NULL, '{\"utm_source\": \"totem\"}', '2024-11-30', true),
-(2, 2, 'MED2024', 'https://saudemais.com.br/promocao-medicamentos', 0, NULL, '{\"utm_source\": \"totem\"}', '2024-12-31', true),
-(3, 3, 'OFERTAS', 'https://economico.com.br/ofertas-dia', 0, NULL, '{\"utm_source\": \"totem\"}', '2024-12-31', true)
+(1, 1, 'BF2024', 'https://shoppingnorte.com.br/black-friday', 0, NULL, '{"utm_source": "totem"}'::jsonb, '2024-11-30', true),
+(2, 2, 'MED2024', 'https://saudemais.com.br/promocao-medicamentos', 0, NULL, '{"utm_source": "totem"}'::jsonb, '2024-12-31', true),
+(3, 3, 'OFERTAS', 'https://economico.com.br/ofertas-dia', 0, NULL, '{"utm_source": "totem"}'::jsonb, '2024-12-31', true)
 ON CONFLICT DO NOTHING;
 " "Inserindo Short Links"
 
 # Remote Commands
 execute_sql "
 INSERT INTO remote_commands (command_id, totem_id, user_id, command_type, status, parameters, response, sent_at, executed_at, completed_at, error_message, retry_count) VALUES
-(1, 1, 2, 'ping', 'completed', '{}', '{\"status\": \"ok\", \"latency_ms\": 15}', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day', NULL, 0),
-(2, 2, 2, 'restart', 'completed', '{}', '{\"status\": \"ok\"}', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days', NULL, 0),
-(3, 3, 2, 'load_playlist', 'pending', '{\"playlist_id\": 1}', NULL, NULL, NULL, NULL, NULL, 0)
+(1, 1, 2, 'ping', 'completed', '{}'::jsonb, '{"status": "ok", "latency_ms": 15}'::jsonb, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day', NULL, 0),
+(2, 2, 2, 'restart', 'completed', '{}'::jsonb, '{"status": "ok"}'::jsonb, NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days', NULL, 0),
+(3, 3, 2, 'load_playlist', 'pending', '{"playlist_id": 1}'::jsonb, NULL, NULL, NULL, NULL, NULL, 0)
 ON CONFLICT DO NOTHING;
 " "Inserindo Remote Commands"
 
@@ -658,18 +658,18 @@ ON CONFLICT DO NOTHING;
 # Reports
 execute_sql "
 INSERT INTO reports (report_id, type, title, description, status, format, file_path, file_size, download_url, download_count, filters, template, custom_fields, ai_analysis, metadata, generated_at, expires_at, created_by) VALUES
-(1, 'campaign', 'Relatório Campanha Black Friday', 'Relatório de performance da campanha Black Friday', 'completed', 'pdf', '/reports/campaign-1-2024-11.pdf', 2048576, '/api/reports/download/1', 3, '{\"campaign_id\": 1, \"start_date\": \"2024-11-20\", \"end_date\": \"2024-11-30\"}', 'default', '{}', false, '{}', NOW() - INTERVAL '2 days', NOW() + INTERVAL '28 days', 1),
-(2, 'totem', 'Relatório Totens Shopping', 'Relatório de uso dos totens do shopping', 'completed', 'excel', '/reports/totems-shopping-2024-11.xlsx', 1536000, '/api/reports/download/2', 1, '{\"publisher_id\": 1, \"start_date\": \"2024-11-01\", \"end_date\": \"2024-11-30\"}', 'default', '{}', false, '{}', NOW() - INTERVAL '1 day', NOW() + INTERVAL '29 days', 1)
+(1, 'campaign', 'Relatório Campanha Black Friday', 'Relatório de performance da campanha Black Friday', 'completed', 'pdf', '/reports/campaign-1-2024-11.pdf', 2048576, '/api/reports/download/1', 3, '{"campaign_id": 1, "start_date": "2024-11-20", "end_date": "2024-11-30"}'::jsonb, 'default', '{}'::jsonb, false, '{}'::jsonb, NOW() - INTERVAL '2 days', NOW() + INTERVAL '28 days', 1),
+(2, 'totem', 'Relatório Totens Shopping', 'Relatório de uso dos totens do shopping', 'completed', 'excel', '/reports/totems-shopping-2024-11.xlsx', 1536000, '/api/reports/download/2', 1, '{"publisher_id": 1, "start_date": "2024-11-01", "end_date": "2024-11-30"}'::jsonb, 'default', '{}'::jsonb, false, '{}'::jsonb, NOW() - INTERVAL '1 day', NOW() + INTERVAL '29 days', 1)
 ON CONFLICT DO NOTHING;
 " "Inserindo Reports"
 
 # Audit Logs
 execute_sql "
 INSERT INTO audit_logs (id, user_id, action, entity, entity_id, publisher_id, subscriber_id, metadata, ip_address, user_agent, timestamp) VALUES
-(1, 1, 'create', 'campaign', 1, 1, 1, '{}', '192.168.1.100', 'Mozilla/5.0', NOW() - INTERVAL '10 days'),
-(2, 1, 'approve', 'media', 1, NULL, 1, '{}', '192.168.1.100', 'Mozilla/5.0', NOW() - INTERVAL '9 days'),
-(3, 2, 'update', 'totem', 1, 1, NULL, '{}', '192.168.1.101', 'Mozilla/5.0', NOW() - INTERVAL '5 days'),
-(4, 4, 'create', 'campaign', 1, 1, 1, '{}', '192.168.1.102', 'Mozilla/5.0', NOW() - INTERVAL '10 days')
+(1, 1, 'create', 'campaign', 1, 1, 1, '{}'::jsonb, '192.168.1.100', 'Mozilla/5.0', NOW() - INTERVAL '10 days'),
+(2, 1, 'approve', 'media', 1, NULL, 1, '{}'::jsonb, '192.168.1.100', 'Mozilla/5.0', NOW() - INTERVAL '9 days'),
+(3, 2, 'update', 'totem', 1, 1, NULL, '{}'::jsonb, '192.168.1.101', 'Mozilla/5.0', NOW() - INTERVAL '5 days'),
+(4, 4, 'create', 'campaign', 1, 1, 1, '{}'::jsonb, '192.168.1.102', 'Mozilla/5.0', NOW() - INTERVAL '10 days')
 ON CONFLICT DO NOTHING;
 " "Inserindo Audit Logs"
 
