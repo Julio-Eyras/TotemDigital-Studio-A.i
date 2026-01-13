@@ -253,6 +253,8 @@ const Contracts: React.FC = () => {
 
       const contractData: CreateContractRequest = {
         ...contractForm,
+        start_date: formatDateForAPI(contractForm.start_date) || '',
+        end_date: formatDateForAPI(contractForm.end_date),
         publisherIds: selectedPublisherIds,
       };
 
@@ -276,8 +278,8 @@ const Contracts: React.FC = () => {
         contract_type: contractForm.contract_type,
         title: contractForm.title,
         description: contractForm.description,
-        start_date: contractForm.start_date,
-        end_date: contractForm.end_date,
+        start_date: formatDateForAPI(contractForm.start_date),
+        end_date: formatDateForAPI(contractForm.end_date),
         total_amount: contractForm.total_amount,
         currency: contractForm.currency,
         payment_terms: contractForm.payment_terms,
@@ -307,6 +309,30 @@ const Contracts: React.FC = () => {
     }
   };
 
+  // Função helper para converter data ISO para formato yyyy-MM-dd
+  const formatDateForInput = (dateString: string | null | undefined): string => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      return date.toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
+  };
+
+  // Função helper para converter data yyyy-MM-dd para ISO
+  const formatDateForAPI = (dateString: string | null | undefined): string | undefined => {
+    if (!dateString) return undefined;
+    try {
+      const date = new Date(dateString + 'T00:00:00.000Z');
+      if (isNaN(date.getTime())) return undefined;
+      return date.toISOString();
+    } catch {
+      return undefined;
+    }
+  };
+
   const handleStartEdit = (contract: Contract) => {
     setSelectedContract(contract);
     setContractForm({
@@ -316,8 +342,8 @@ const Contracts: React.FC = () => {
       contract_type: contract.contract_type,
       title: contract.title,
       description: contract.description || '',
-      start_date: contract.start_date,
-      end_date: contract.end_date || '',
+      start_date: formatDateForInput(contract.start_date),
+      end_date: formatDateForInput(contract.end_date),
       total_amount: contract.total_amount,
       currency: contract.currency,
       payment_terms: contract.payment_terms || '',
@@ -326,6 +352,10 @@ const Contracts: React.FC = () => {
     });
     setEditDialogOpen(true);
     setEditTab(0);
+    // Carregar publishers quando abrir dialog de edição
+    loadPublishers();
+    // Carregar publishers do contrato
+    loadContractPublishers(contract.contract_id);
   };
 
   const resetForm = () => {
