@@ -4,7 +4,7 @@
 # Script único que aplica todos os arquivos SQL na ordem correta
 # =============================================
 
-set -e
+# set -e  # Desabilitado para continuar mesmo com alguns erros
 
 # Cores
 RED='\033[0;31m'
@@ -17,8 +17,8 @@ NC='\033[0m'
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${DB_NAME:-smartsignage}"
-DB_USER="${DB_USER:-postgres}"
-DB_PASS="${DB_PASS:-}"
+DB_USER="${DB_USER:-smartsignage}"
+DB_PASS="${DB_PASS:-smartsignage123}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -76,9 +76,12 @@ for i in "${!FILES[@]}"; do
         ((SUCCESS++))
     else
         echo -e "${RED}❌ Erro${NC}"
-        tail -10 /tmp/schema_apply_${num}.log
+        echo -e "${YELLOW}Últimas linhas do log:${NC}"
+        tail -20 /tmp/schema_apply_${num}.log 2>/dev/null || echo "Log não disponível"
         ((ERROR++))
-        break
+        # Continuar mesmo com erro (não usar break)
+        echo -e "${YELLOW}Continuando com próximo arquivo...${NC}"
+        echo ""
     fi
 done
 

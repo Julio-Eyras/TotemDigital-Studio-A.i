@@ -223,6 +223,20 @@ CREATE INDEX IF NOT EXISTS idx_event_logs_totem_time ON event_logs(totem_id, tim
 CREATE INDEX IF NOT EXISTS idx_event_logs_severity_time ON event_logs(severity, timestamp DESC) 
     WHERE severity IN ('error', 'critical');
 
+-- Dispatcher Logs
+CREATE INDEX IF NOT EXISTS idx_dispatcher_log_totem_timestamp 
+    ON dispatcher_log(totem_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_dispatcher_log_timestamp 
+    ON dispatcher_log(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_dispatcher_log_campaign 
+    ON dispatcher_log(selected_campaign_id) 
+    WHERE selected_campaign_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_dispatcher_log_playlist 
+    ON dispatcher_log(selected_playlist_id) 
+    WHERE selected_playlist_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_dispatcher_log_created_at 
+    ON dispatcher_log(created_at DESC);
+
 -- Audit Logs
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_time ON audit_logs(user_id, timestamp DESC) 
     WHERE user_id IS NOT NULL;

@@ -870,6 +870,52 @@ BEGIN
 END $$;
 
 -- =============================================
+-- FKs da tabela DISPATCHER_LOG
+-- =============================================
+
+DO $$ 
+BEGIN
+    -- FK para totems
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_dispatcher_log_totem'
+        AND t.relname = 'dispatcher_log'
+    ) THEN
+        ALTER TABLE dispatcher_log
+            ADD CONSTRAINT fk_dispatcher_log_totem 
+            FOREIGN KEY (totem_id) REFERENCES totems(totem_id) 
+            ON DELETE CASCADE;
+    END IF;
+    
+    -- FK para campaigns
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_dispatcher_log_campaign'
+        AND t.relname = 'dispatcher_log'
+    ) THEN
+        ALTER TABLE dispatcher_log
+            ADD CONSTRAINT fk_dispatcher_log_campaign 
+            FOREIGN KEY (selected_campaign_id) REFERENCES campaigns(campaign_id) 
+            ON DELETE SET NULL;
+    END IF;
+    
+    -- FK para playlists
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_dispatcher_log_playlist'
+        AND t.relname = 'dispatcher_log'
+    ) THEN
+        ALTER TABLE dispatcher_log
+            ADD CONSTRAINT fk_dispatcher_log_playlist 
+            FOREIGN KEY (selected_playlist_id) REFERENCES playlists(playlist_id) 
+            ON DELETE SET NULL;
+    END IF;
+END $$;
+
+-- =============================================
 -- FKs da tabela TOTEM_PLAYLISTS
 -- =============================================
 
