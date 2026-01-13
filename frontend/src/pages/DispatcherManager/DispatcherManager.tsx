@@ -207,7 +207,9 @@ const DispatcherManager: React.FC = () => {
       // Buscar candidatos do dispatcher
       const candidatesResponse = await dispatcherTotemApi.getCandidates(
         selectedTotemId,
-        timestamp.toISOString()
+        {
+          timestamp: timestamp.toISOString()
+        }
       );
       
       if (candidatesResponse.success && candidatesResponse.candidates) {
