@@ -30,6 +30,7 @@ import {
   Description,
   Assignment,
   MonitorHeart,
+  Timeline,
 } from '@mui/icons-material';
 import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
@@ -204,11 +205,20 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
         },
         { text: 'Faturamento Assinantes', icon: <Payment />, path: '/billing?type=subscriber' },
         { text: 'Faturamento Publicador', icon: <Payment />, path: '/billing?type=publisher' },
+        {
+          text: 'Dispatcher-Totem',
+          icon: <Shuffle />,
+          path: '/dispatcher-manager',
+          children: [
+            { text: 'Gerenciar Dispatcher', icon: <Shuffle />, path: '/dispatcher-manager' },
+            { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
+            { text: 'Timeline', icon: <Timeline />, path: '/dispatcher-manager?tab=timeline' },
+          ],
+        },
       ],
     },
     { text: 'Relatórios Globais', icon: <Assessment />, path: '/reports' },
     { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
-    { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
     { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 }
@@ -273,11 +283,20 @@ function getAdminSqlMenu(): HierarchicalMenuItem[] {
         },
         { text: 'Faturamento Assinantes', icon: <Payment />, path: '/billing?type=subscriber' },
         { text: 'Faturamento Publicador', icon: <Payment />, path: '/billing?type=publisher' },
+        {
+          text: 'Dispatcher-Totem',
+          icon: <Shuffle />,
+          path: '/dispatcher-manager',
+          children: [
+            { text: 'Gerenciar Dispatcher', icon: <Shuffle />, path: '/dispatcher-manager' },
+            { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
+            { text: 'Timeline', icon: <Timeline />, path: '/dispatcher-manager?tab=timeline' },
+          ],
+        },
       ],
     },
     { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
     { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
-    { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
     { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 }
