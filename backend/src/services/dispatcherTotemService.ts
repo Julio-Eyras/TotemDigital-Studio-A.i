@@ -176,7 +176,7 @@ export class DispatcherTotemService {
           await logError('[DispatcherTotem] Erro ao gerar mix', mixError, { totemId });
           // Fallback: tentar estratégia PRIORITY
           await logDebug('[DispatcherTotem] Fallback para estratégia PRIORITY após erro no mix', { totemId });
-          winner = await this.resolveConflicts(validatedCandidates);
+          winner = await this.resolveConflicts(validatedCandidates, totemId, targetTimestamp);
           if (winner) {
             const technicalValid = await this.validateTechnicalCompatibility(winner, totemId);
             if (technicalValid.valid) {
@@ -189,7 +189,7 @@ export class DispatcherTotemService {
         }
       } else {
         // Estratégia SINGLE ou PRIORITY: usar resolução de conflitos tradicional
-        winner = await this.resolveConflicts(validatedCandidates);
+        winner = await this.resolveConflicts(validatedCandidates, totemId, targetTimestamp);
         
         if (!winner) {
           await logDebug('[DispatcherTotem] Nenhum candidato válido após resolução', { totemId });
@@ -483,7 +483,7 @@ export class DispatcherTotemService {
           totemTimezone
         );
 
-        // Calcular score inicial (será refinado em resolveConflicts)
+        // Calcular score inicial (será refinado em resolveConflicts com peso completo)
         const score = this.calculateScore(campaign, campaign.source_type === 'direct');
 
         candidates.push({
@@ -651,6 +651,108 @@ export class DispatcherTotemService {
     }
     
     return score;
+  }
+
+  /**
+   * FASE 2.1: Calcular peso completo do candidato
+   * Considera: prioridade, tier comercial, time share, horário, tags, subscriber, IA
+   */
+  private async calculateWeight(
+    candidate: CandidateSchedule,
+    totemId: number,
+    timestamp: Date
+  ): Promise<number> {
+    let weight = 0;
+    
+    // Pesos padrão (se não houver regra de mixagem)
+    const defaultPriorityWeight = 1.0;
+    const defaultTimeWeight = 1.0;
+    const defaultTagWeight = 0.5;
+    const defaultSubscriberWeight = 0.5;
+    
+    // Tentar obter regra de mixagem do totem (opcional)
+    let rule: any = null;
+    let aiContext: any = null;
+    
+    try {
+      const mixService = getTotemPlaylistMixService();
+      rule = await mixService.getMixRuleForTotem(totemId);
+      
+      if (rule && (rule.ai_enabled || rule.rule_type === 'ai' || rule.rule_type === 'hybrid')) {
+        aiContext = await mixService.getAIContextForTotem(totemId);
+      }
+    } catch (error) {
+      // Se não conseguir obter regra, usar valores padrão
+      await logDebug('[DispatcherTotem] Usando pesos padrão (regra não disponível)', { totemId });
+    }
+    
+    const priorityWeight = rule?.priority_weight || defaultPriorityWeight;
+    const timeWeight = rule?.time_weight || defaultTimeWeight;
+    const tagWeight = rule?.tag_weight || defaultTagWeight;
+    const subscriberWeight = rule?.subscriber_weight || defaultSubscriberWeight;
+    
+    // 1. Peso por prioridade da campanha
+    weight += candidate.priority * priorityWeight;
+    
+    // 2. Peso por tier comercial (premium > standard > remnant)
+    const tierWeights: Record<string, number> = {
+      premium: 3,
+      standard: 2,
+      remnant: 1,
+    };
+    const tierWeight = tierWeights[candidate.commercialTier || 'standard'] || 2;
+    weight += tierWeight * priorityWeight;
+    
+    // 3. Peso por time share percent
+    if (candidate.timeSharePercent && candidate.timeSharePercent > 0) {
+      const timeShareFactor = (candidate.timeSharePercent / 100) * 10;
+      weight += timeShareFactor * timeWeight;
+    }
+    
+    // 4. Peso por horário (se aplicável)
+    if (timeWeight > 0) {
+      const hour = timestamp.getHours();
+      // Verificar se está dentro do horário válido da campanha
+      // (isso já foi validado em validateTemporalFrequency, mas podemos dar bonus aqui)
+      if (candidate.temporalValid) {
+        weight += timeWeight * 0.5; // Bonus menor que time share
+      }
+    }
+    
+    // 5. Peso por subscriber (se aplicável)
+    if (subscriberWeight > 0 && candidate.subscriberId) {
+      weight += subscriberWeight * 0.5;
+    }
+    
+    // 6. Bonus para escopo direto (totem específico)
+    if (candidate.scope === 'totem') {
+      weight += 100; // Bonus significativo para agendamento direto
+    }
+    
+    // 7. Ajustes baseados em IA (se disponível)
+    if (aiContext && rule && (rule.ai_enabled || rule.rule_type === 'ai' || rule.rule_type === 'hybrid')) {
+      // Ajuste por densidade de transeuntes
+      if (rule.use_pedestrian_detection && aiContext.pedestrian_count > 0) {
+        const densityMultiplier = aiContext.pedestrian_density === 'high' ? 1.5 :
+                                 aiContext.pedestrian_density === 'medium' ? 1.2 : 1.0;
+        weight *= densityMultiplier;
+      }
+      
+      // Ajuste por sentimento
+      if (rule.use_sentiment_analysis && aiContext.sentiment_score !== undefined) {
+        const sentimentMultiplier = 1.0 + (aiContext.sentiment_score * 0.3);
+        weight *= sentimentMultiplier;
+      }
+      
+      // Ajuste por performance histórica
+      if (rule.use_historical_optimization && aiContext.performance_metrics) {
+        const engagementRate = aiContext.performance_metrics.engagement_rate || 0;
+        const performanceMultiplier = 1.0 + (engagementRate * 0.2);
+        weight *= performanceMultiplier;
+      }
+    }
+    
+    return Math.max(0, weight);
   }
 
   /**
