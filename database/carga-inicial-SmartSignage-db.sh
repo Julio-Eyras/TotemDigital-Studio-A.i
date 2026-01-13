@@ -623,8 +623,8 @@ execute_sql "INSERT INTO execution_logs (log_id, totem_id, campaign_id, playlist
 (1, 1, 1, 1, 1, 1, 1, 'play_start', '$EVENT_DATA_10'::jsonb, NOW() - INTERVAL '1 hour', '$METADATA_EMPTY'::jsonb),
 (2, 1, 1, 1, 1, 1, 1, 'play_end', '$EVENT_DATA_10'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '10 seconds', '$METADATA_EMPTY'::jsonb),
 (3, 1, 1, 1, 2, 1, 1, 'play_start', '$EVENT_DATA_30'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '12 seconds', '$METADATA_EMPTY'::jsonb),
-(4, 2, 1, 2, 1, 1, 1, 'play_start', '{"duration": 10}'::jsonb, NOW() - INTERVAL '30 minutes', '{}'::jsonb),
-(5, 4, 2, 3, 3, 2, 2, 'play_start', '{"duration": 15}'::jsonb, NOW() - INTERVAL '2 hours', '{}'::jsonb)
+(4, 2, 1, 2, 1, 1, 1, 'play_start', '$EVENT_DATA_10'::jsonb, NOW() - INTERVAL '30 minutes', '$METADATA_EMPTY'::jsonb),
+(5, 4, 2, 3, 3, 2, 2, 'play_start', '$EVENT_DATA_15'::jsonb, NOW() - INTERVAL '2 hours', '$METADATA_EMPTY'::jsonb)
 ON CONFLICT DO NOTHING;
 " "Inserindo Execution Logs"
 
