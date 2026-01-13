@@ -381,6 +381,17 @@ function getAdminMenu(): HierarchicalMenuItem[] {
         },
         { text: 'Faturamento Assinantes', icon: <Payment />, path: '/billing?type=subscriber' },
         { text: 'Faturamento Publicador', icon: <Payment />, path: '/billing?type=publisher' },
+        {
+          text: 'Dispatcher-Totem',
+          icon: <Shuffle />,
+          path: '/dispatcher-manager',
+          requiredFlag: 'flag_smart_2',
+          children: [
+            { text: 'Gerenciar Dispatcher', icon: <Shuffle />, path: '/dispatcher-manager' },
+            { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
+            { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
+          ],
+        },
       ],
     },
     { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
