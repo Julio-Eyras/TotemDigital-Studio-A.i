@@ -197,10 +197,10 @@ const Contracts: React.FC = () => {
   const loadPublishers = async () => {
     try {
       const response = await publisherApi.getAll({ active_only: false });
-      // A resposta pode vir como response.data ou response.data.data
-      const publishersData = response.data?.data || response.data || [];
+      // A resposta pode vir como { data: [...], total, page, limit } ou apenas [...]
+      const publishersData = response.data || response || [];
       setPublishers(Array.isArray(publishersData) ? publishersData : []);
-      console.log('Publishers carregados:', publishersData.length);
+      console.log('Publishers carregados:', Array.isArray(publishersData) ? publishersData.length : 0, publishersData);
     } catch (error) {
       console.error('Erro ao carregar publishers:', error);
       setPublishers([]);
