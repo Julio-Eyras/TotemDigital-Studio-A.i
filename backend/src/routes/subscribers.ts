@@ -53,7 +53,8 @@ router.get('/',
   ...searchValidators,
   ...sortValidators,
   ...dateRangeValidators,
-  query('is_active').optional().isBoolean(),
+  query('is_active').optional().isIn(['true', 'false', '1', '0']).withMessage('is_active deve ser "true" ou "false"'),
+  query('active_only').optional().isIn(['true', 'false', '1', '0']).withMessage('active_only deve ser "true" ou "false"'),
   validateRequest,
   async (req: any, res: any) => {
     try {

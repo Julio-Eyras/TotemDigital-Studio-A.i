@@ -10,7 +10,7 @@ import { body, query, param } from 'express-validator';
  */
 export const paginationValidators = [
   query('page').optional().isInt({ min: 1 }).withMessage('Página deve ser um número inteiro maior que 0'),
-  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit deve ser um número inteiro entre 1 e 100'),
+  query('limit').optional().isInt({ min: 1, max: 10000 }).withMessage('Limit deve ser um número inteiro entre 1 e 10000'),
 ];
 
 /**
@@ -81,7 +81,8 @@ export const publisherIdValidators = [
  */
 export const statusValidators = [
   query('status').optional().isString().withMessage('Status deve ser uma string'),
-  query('is_active').optional().isBoolean().withMessage('is_active deve ser um booleano'),
+  query('is_active').optional().isIn(['true', 'false', '1', '0']).withMessage('is_active deve ser "true" ou "false"'),
+  query('active_only').optional().isIn(['true', 'false', '1', '0']).withMessage('active_only deve ser "true" ou "false"'),
   body('status').optional().isString().withMessage('Status deve ser uma string'),
   body('is_active').optional().isBoolean().withMessage('is_active deve ser um booleano'),
 ];

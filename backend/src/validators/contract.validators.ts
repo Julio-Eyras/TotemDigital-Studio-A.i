@@ -71,5 +71,5 @@ export const contractFilterValidators = [
   query('planId').optional().isInt({ min: 1 }).withMessage('planId deve ser um número inteiro maior que 0'),
   query('status').optional().isString().withMessage('Status deve ser uma string'),
   query('contractType').optional().isString().withMessage('contractType deve ser uma string'),
-  query('activeOnly').optional().isBoolean().withMessage('activeOnly deve ser um booleano'),
+  query('activeOnly').optional().isIn(['true', 'false', '1', '0']).withMessage('activeOnly deve ser "true" ou "false"'),
 ];
