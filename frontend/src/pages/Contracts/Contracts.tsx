@@ -485,7 +485,12 @@ const Contracts: React.FC = () => {
         return;
       }
 
-      await publisherContractApi.create(publisherContractForm);
+      const createData = {
+        ...publisherContractForm,
+        start_date: formatDateForAPI(publisherContractForm.start_date) || '',
+        end_date: formatDateForAPI(publisherContractForm.end_date),
+      };
+      await publisherContractApi.create(createData);
       setCreatePublisherContractDialogOpen(false);
       resetPublisherContractForm();
       loadPublisherContracts();
