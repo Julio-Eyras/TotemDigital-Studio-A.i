@@ -144,11 +144,18 @@ ON CONFLICT DO NOTHING;
 " "Inserindo Permissions"
 
 # Plans
+FEATURES_BASICO='{"campaigns": 5, "storage_gb": 10}'
+LIMITS_BASICO='{"totems": 3, "campaigns": 5, "storage_gb": 10}'
+FEATURES_PROF='{"campaigns": 20, "storage_gb": 50}'
+LIMITS_PROF='{"totems": 10, "campaigns": 20, "storage_gb": 50}'
+FEATURES_ENT='{"campaigns": 100, "storage_gb": 500}'
+LIMITS_ENT='{"totems": 50, "campaigns": 100, "storage_gb": 500}'
+
 execute_sql "
 INSERT INTO plans (plan_id, name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, sort_order) VALUES
-(1, 'Plano Básico', 'plano-basico', 'Plano básico para pequenos anunciantes', 99.00, 990.00, 'BRL', 'month', '{"campaigns": 5, "storage_gb": 10}'::jsonb, '{"totems": 3, "campaigns": 5, "storage_gb": 10}'::jsonb, true, false, 1),
-(2, 'Plano Profissional', 'plano-profissional', 'Plano profissional para médias empresas', 299.00, 2990.00, 'BRL', 'month', '{"campaigns": 20, "storage_gb": 50}'::jsonb, '{"totems": 10, "campaigns": 20, "storage_gb": 50}'::jsonb, true, true, 2),
-(3, 'Plano Enterprise', 'plano-enterprise', 'Plano enterprise para grandes empresas', 999.00, 9990.00, 'BRL', 'month', '{"campaigns": 100, "storage_gb": 500}'::jsonb, '{"totems": 50, "campaigns": 100, "storage_gb": 500}'::jsonb, true, false, 3)
+(1, 'Plano Básico', 'plano-basico', 'Plano básico para pequenos anunciantes', 99.00, 990.00, 'BRL', 'month', \"$FEATURES_BASICO\"::jsonb, \"$LIMITS_BASICO\"::jsonb, true, false, 1),
+(2, 'Plano Profissional', 'plano-profissional', 'Plano profissional para médias empresas', 299.00, 2990.00, 'BRL', 'month', \"$FEATURES_PROF\"::jsonb, \"$LIMITS_PROF\"::jsonb, true, true, 2),
+(3, 'Plano Enterprise', 'plano-enterprise', 'Plano enterprise para grandes empresas', 999.00, 9990.00, 'BRL', 'month', \"$FEATURES_ENT\"::jsonb, \"$LIMITS_ENT\"::jsonb, true, false, 3)
 ON CONFLICT DO NOTHING;
 " "Inserindo Plans"
 
