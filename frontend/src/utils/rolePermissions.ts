@@ -97,6 +97,10 @@ export const menuPermissions: MenuItemPermission[] = [
   // Admin Tools - admin_sql, operator, operador_tecnico
   { path: '/admin-tools', roles: ['owner_system', 'admin_sql', 'operator', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
   
+  // Dispatcher-Totem - owner_system, admin_sql, admin, operador_tecnico
+  { path: '/dispatcher-manager', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
+  { path: '/dispatcher-monitor', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
+  
   // OTA Updates - admin_sql, operator, operador_tecnico
   { path: '/ota-updates', roles: ['owner_system', 'admin_sql', 'operator', 'operador_tecnico'], requiredFlag: 'flag_smart_1' },
   
