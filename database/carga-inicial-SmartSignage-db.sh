@@ -333,6 +333,9 @@ SCHEDULE_MED='{"start_time": "08:00", "end_time": "20:00", "days_of_week": ["mon
 SCHEDULE_SUPER='{"start_time": "06:00", "end_time": "23:00", "days_of_week": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]}'
 METADATA_EMPTY='{}'
 
+# Desabilitar trigger temporariamente (trigger tenta acessar campaign_id que não existe na tabela)
+execute_sql "ALTER TABLE playlists DISABLE TRIGGER trigger_derive_playlist_ids;" "Desabilitando trigger playlists"
+
 execute_sql "INSERT INTO playlists (playlist_id, subscriber_id, name, description, is_active, schedule_config, metadata) VALUES
 (1, 1, 'Playlist Black Friday - Entrada', 'Playlist principal da Black Friday na entrada', true, '$SCHEDULE_BF'::jsonb, '$METADATA_EMPTY'::jsonb),
 (2, 1, 'Playlist Black Friday - Praça', 'Playlist da Black Friday na praça de alimentação', true, '$SCHEDULE_BF'::jsonb, '$METADATA_EMPTY'::jsonb),
@@ -392,9 +395,9 @@ execute_sql "INSERT INTO campaign_medias (campaign_id, media_id, display_seconds
 (1, 1, 10, 0, 10, NULL, NULL, NULL, '$TRANSITION_FADE'::jsonb, true),
 (1, 2, 30, 1, 10, NULL, NULL, NULL, '$TRANSITION_SLIDE'::jsonb, true),
 (2, 3, 15, 0, 8, NULL, NULL, NULL, '$TRANSITION_FADE'::jsonb, true),
-(3, 4, 12, 0, 7, NULL, NULL, NULL, '{"type": "fade"}'::jsonb, true),
-(4, 5, 20, 0, 6, NULL, NULL, NULL, '{"type": "fade"}'::jsonb, true),
-(5, 6, 45, 0, 5, NULL, NULL, NULL, '{"type": "fade"}'::jsonb, true)
+(3, 4, 12, 0, 7, NULL, NULL, NULL, '$TRANSITION_FADE'::jsonb, true),
+(4, 5, 20, 0, 6, NULL, NULL, NULL, '$TRANSITION_FADE'::jsonb, true),
+(5, 6, 45, 0, 5, NULL, NULL, NULL, '$TRANSITION_FADE'::jsonb, true)
 ON CONFLICT DO NOTHING;
 " "Inserindo Campaign Medias"
 
@@ -509,18 +512,22 @@ echo ""
 
 echo -e "${YELLOW}=== 7. Inserindo acesso e playlists geradas ===${NC}"
 
-# Plan Publisher Access
-execute_sql "
-INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictions, notes) VALUES
-(1, 1, true, '{"max_campaigns": 5, "revenue_share_min": 50}'::jsonb, 'Acesso básico'),
-(1, 2, true, '{"max_campaigns": 5, "revenue_share_min": 50}'::jsonb, 'Acesso básico'),
-(1, 3, true, '{"max_campaigns": 5, "revenue_share_min": 50}'::jsonb, 'Acesso básico'),
-(2, 1, true, '{"max_campaigns": 20, "revenue_share_min": 60}'::jsonb, 'Acesso profissional'),
-(2, 2, true, '{"max_campaigns": 20, "revenue_share_min": 60}'::jsonb, 'Acesso profissional'),
-(3, 1, true, '{"max_campaigns": 100, "revenue_share_min": 70}'::jsonb, 'Acesso enterprise'),
-(3, 4, true, '{"max_campaigns": 100, "revenue_share_min": 70}'::jsonb, 'Acesso enterprise')
-ON CONFLICT DO NOTHING;
-" "Inserindo Plan Publisher Access"
+# Plan Publisher Access - JSONs (definir antes se ainda não estiver)
+if [ -z "$RESTRICTIONS_BASICO" ]; then
+    RESTRICTIONS_BASICO='{"max_campaigns": 5, "revenue_share_min": 50}'
+    RESTRICTIONS_PROF='{"max_campaigns": 20, "revenue_share_min": 60}'
+    RESTRICTIONS_ENT='{"max_campaigns": 100, "revenue_share_min": 70}'
+fi
+
+execute_sql "INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictions, notes) VALUES
+(1, 1, true, '$RESTRICTIONS_BASICO'::jsonb, 'Acesso básico'),
+(1, 2, true, '$RESTRICTIONS_BASICO'::jsonb, 'Acesso básico'),
+(1, 3, true, '$RESTRICTIONS_BASICO'::jsonb, 'Acesso básico'),
+(2, 1, true, '$RESTRICTIONS_PROF'::jsonb, 'Acesso profissional'),
+(2, 2, true, '$RESTRICTIONS_PROF'::jsonb, 'Acesso profissional'),
+(3, 1, true, '$RESTRICTIONS_ENT'::jsonb, 'Acesso enterprise'),
+(3, 4, true, '$RESTRICTIONS_ENT'::jsonb, 'Acesso enterprise')
+ON CONFLICT DO NOTHING;" "Inserindo Plan Publisher Access"
 
 # Subscriber Publisher Access - Corrigir data (end_date deve ser depois de start_date)
 execute_sql "INSERT INTO subscriber_publisher_access (access_id, subscriber_id, publisher_id, contract_id, plan_id, access_type, granted_at, expires_at, is_active, granted_by, notes, metadata) VALUES
