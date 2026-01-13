@@ -17,8 +17,8 @@ export interface DispatchPlan {
   mediaItems: DispatchMediaItem[];
   totalDuration: number; // Duração total em segundos
   priority: number;
-  source: 'direct' | 'group' | 'campaign';
-  sourceId: number; // ID do agendamento/campanha
+  source: 'direct' | 'group' | 'campaign' | 'mix';
+  sourceId: number; // ID do agendamento/campanha ou mix_id se source='mix'
   sourceName?: string;
   validityStart: Date;
   validityEnd: Date;
@@ -65,6 +65,13 @@ export interface CandidateSchedule {
   validationErrors?: string[];
   // Score para ordenação
   score: number;
+  // Campos comerciais (Fase 1)
+  commercialTier?: 'premium' | 'standard' | 'remnant';
+  timeSharePercent?: number; // % de share de tempo (0-100)
+  maxConsecutiveSlots?: number; // Máximo de slots consecutivos
+  maxImpressionsPerHour?: number; // Máximo de impressões por hora
+  subscriberId?: number; // ID do subscriber (anunciante)
+  contractId?: number; // ID do contrato associado
 }
 
 export interface DispatchLogEntry {

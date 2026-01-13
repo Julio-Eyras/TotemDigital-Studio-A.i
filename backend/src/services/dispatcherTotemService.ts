@@ -13,6 +13,7 @@
 import { getDatabase } from '../config/database';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
+import { getTotemPlaylistMixService, TotemPlaylistMix } from './totemPlaylistMixService';
 import {
   DispatchRequest,
   DispatchPlan,
@@ -110,11 +111,32 @@ export class DispatcherTotemService {
         };
       }
 
-      // 2. Resolver conflitos (ordenar e selecionar vencedor)
-      const winner = await this.resolveConflicts(candidates);
-      
-      if (!winner) {
-        await logDebug('[DispatcherTotem] Nenhum candidato válido após resolução', { totemId });
+      // 1.5. Validar regras comerciais para cada candidato (Fase 1.3)
+      const validatedCandidates: CandidateSchedule[] = [];
+      for (const candidate of candidates) {
+        const commercialValidation = await this.validateCommercialRules(
+          candidate,
+          totemId,
+          targetTimestamp
+        );
+        
+        if (commercialValidation.valid) {
+          validatedCandidates.push(candidate);
+        } else {
+          await logDebug('[DispatcherTotem] Candidato rejeitado por regras comerciais', {
+            campaignId: candidate.campaignId,
+            errors: commercialValidation.errors,
+          });
+          // Adicionar erros ao candidato para referência
+          candidate.validationErrors = [
+            ...(candidate.validationErrors || []),
+            ...commercialValidation.errors,
+          ];
+        }
+      }
+
+      if (validatedCandidates.length === 0) {
+        await logDebug('[DispatcherTotem] Nenhum candidato válido após validação comercial', { totemId });
         
         return {
           success: true,
@@ -125,58 +147,125 @@ export class DispatcherTotemService {
         };
       }
 
-      // 3. Validar compatibilidade técnica
-      const technicalValid = await this.validateTechnicalCompatibility(winner, totemId);
-      if (!technicalValid.valid) {
-        await logDebug('[DispatcherTotem] Falha na validação técnica', { 
-          totemId, 
-          errors: technicalValid.errors 
-        });
-        
-        // Tentar próximo candidato
-        const nextWinner = candidates.find(c => c.campaignId !== winner.campaignId && c.score < winner.score);
-        if (nextWinner) {
-          // Recursão limitada (apenas 1 nível)
-          return this.dispatch(
-            { totemId, timestamp: targetTimestamp, timezone },
-            { ...options, skipCache: true }
-          );
+      // 2. Decidir estratégia (Fase 1.4)
+      const strategy = this.decideStrategy(validatedCandidates);
+      await logDebug('[DispatcherTotem] Estratégia decidida', { totemId, strategy, candidatesCount: validatedCandidates.length });
+
+      // 3. Processar conforme estratégia
+      let plan: DispatchPlan | undefined;
+      let winner: CandidateSchedule | null = null;
+
+      let mixId: number | undefined = undefined;
+      
+      if (strategy === 'mix') {
+        // FASE 3.1: Usar Mix Service para combinar múltiplas campanhas
+        try {
+          const mixService = getTotemPlaylistMixService();
+          const mix = await mixService.generateMixForTotem(totemId);
+          mixId = mix.mix_id;
+          
+          // Converter TotemPlaylistMix → DispatchPlan
+          plan = await this.convertMixToDispatchPlan(mix, totemId, targetTimestamp);
+          
+          await logDebug('[DispatcherTotem] Mix gerado com sucesso', {
+            totemId,
+            mixId: mix.mix_id,
+            totalItems: mix.total_items,
+          });
+        } catch (mixError: any) {
+          await logError('[DispatcherTotem] Erro ao gerar mix', mixError, { totemId });
+          // Fallback: tentar estratégia PRIORITY
+          await logDebug('[DispatcherTotem] Fallback para estratégia PRIORITY após erro no mix', { totemId });
+          winner = await this.resolveConflicts(validatedCandidates);
+          if (winner) {
+            const technicalValid = await this.validateTechnicalCompatibility(winner, totemId);
+            if (technicalValid.valid) {
+              const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId);
+              if (integrityValid.valid) {
+                plan = await this.generateDispatchPlan(winner, totemId, targetTimestamp);
+              }
+            }
+          }
         }
+      } else {
+        // Estratégia SINGLE ou PRIORITY: usar resolução de conflitos tradicional
+        winner = await this.resolveConflicts(validatedCandidates);
         
+        if (!winner) {
+          await logDebug('[DispatcherTotem] Nenhum candidato válido após resolução', { totemId });
+          
+          return {
+            success: true,
+            plan: undefined,
+            candidates: includeCandidates ? validatedCandidates : undefined,
+            fromCache: false,
+            executionTimeMs: Date.now() - startTime,
+          };
+        }
+
+        // Validar compatibilidade técnica
+        const technicalValid = await this.validateTechnicalCompatibility(winner, totemId);
+        if (!technicalValid.valid) {
+          await logDebug('[DispatcherTotem] Falha na validação técnica', { 
+            totemId, 
+            errors: technicalValid.errors 
+          });
+          
+          // Tentar próximo candidato
+          const nextWinner = validatedCandidates.find(c => c.campaignId !== winner!.campaignId && c.score < winner!.score);
+          if (nextWinner) {
+            // Recursão limitada (apenas 1 nível)
+            return this.dispatch(
+              { totemId, timestamp: targetTimestamp, timezone },
+              { ...options, skipCache: true }
+            );
+          }
+          
+          return {
+            success: false,
+            error: `Validação técnica falhou: ${technicalValid.errors.join(', ')}`,
+            candidates: includeCandidates ? validatedCandidates : undefined,
+            fromCache: false,
+            executionTimeMs: Date.now() - startTime,
+          };
+        }
+
+        // Validar integridade da playlist
+        const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId);
+        if (!integrityValid.valid) {
+          await logDebug('[DispatcherTotem] Falha na validação de integridade', { 
+            totemId, 
+            errors: integrityValid.errors 
+          });
+          
+          return {
+            success: false,
+            error: `Validação de integridade falhou: ${integrityValid.errors.join(', ')}`,
+            candidates: includeCandidates ? validatedCandidates : undefined,
+            fromCache: false,
+            executionTimeMs: Date.now() - startTime,
+          };
+        }
+
+        // Gerar plano de exibição
+        plan = await this.generateDispatchPlan(winner, totemId, targetTimestamp);
+      }
+
+      if (!plan) {
         return {
           success: false,
-          error: `Validação técnica falhou: ${technicalValid.errors.join(', ')}`,
-          candidates: includeCandidates ? candidates : undefined,
+          error: 'Não foi possível gerar plano de exibição',
+          candidates: includeCandidates ? validatedCandidates : undefined,
           fromCache: false,
           executionTimeMs: Date.now() - startTime,
         };
       }
-
-      // 4. Validar integridade da playlist
-      const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId);
-      if (!integrityValid.valid) {
-        await logDebug('[DispatcherTotem] Falha na validação de integridade', { 
-          totemId, 
-          errors: integrityValid.errors 
-        });
-        
-        return {
-          success: false,
-          error: `Validação de integridade falhou: ${integrityValid.errors.join(', ')}`,
-          candidates: includeCandidates ? candidates : undefined,
-          fromCache: false,
-          executionTimeMs: Date.now() - startTime,
-        };
-      }
-
-      // 5. Gerar plano de exibição
-      const plan = await this.generateDispatchPlan(winner, totemId, targetTimestamp);
 
       // 6. Salvar no cache
       if (this.cacheConfig.enabled && !validateOnly) {
         await this.saveToCache(cacheKey, {
           plan,
-          candidates: includeCandidates ? candidates : undefined,
+          candidates: includeCandidates ? validatedCandidates : undefined,
         });
       }
 
@@ -184,19 +273,19 @@ export class DispatcherTotemService {
       await this.logDispatch({
         totemId,
         timestamp: targetTimestamp,
-        selectedCampaignId: winner.campaignId,
-        selectedPlaylistId: winner.playlistId,
-        selectedSource: winner.source,
-        selectedSourceId: winner.sourceId,
-        priority: winner.priority,
-        candidatesCount: candidates.length,
-        candidates: includeCandidates ? candidates : undefined,
-        temporalValidation: winner.temporalValid,
-        technicalValidation: technicalValid.valid,
-        integrityValidation: integrityValid.valid,
+        selectedCampaignId: strategy === 'mix' ? undefined : winner?.campaignId,
+        selectedPlaylistId: plan.playlistId,
+        selectedSource: strategy === 'mix' ? 'mix' : (winner?.source || 'campaign'),
+        selectedSourceId: strategy === 'mix' ? (mixId || 0) : (winner?.sourceId || 0),
+        priority: strategy === 'mix' ? 0 : (winner?.priority || 0),
+        candidatesCount: validatedCandidates.length,
+        candidates: includeCandidates ? validatedCandidates : undefined,
+        temporalValidation: strategy === 'mix' ? true : (winner?.temporalValid || false),
+        technicalValidation: true, // Já validado antes
+        integrityValidation: true, // Já validado antes
         validationDetails: {
-          technicalErrors: technicalValid.errors,
-          integrityErrors: integrityValid.errors,
+          strategy,
+          commercialValidation: true,
         },
         fromCache: false,
         cacheKey,
@@ -207,7 +296,7 @@ export class DispatcherTotemService {
       return {
         success: true,
         plan,
-        candidates: includeCandidates ? candidates : undefined,
+        candidates: includeCandidates ? validatedCandidates : undefined,
         fromCache: false,
         executionTimeMs: Date.now() - startTime,
       };
@@ -253,13 +342,19 @@ export class DispatcherTotemService {
 
       // Buscar campanhas ativas que apontam para este totem
       // Via campaign_totems (direto) ou via campaign_publishers (grupo)
+      // FASE 1.2: Incluir campos comerciais
       const campaigns = await this.db.findMany(`
         WITH totem_campaigns AS (
           -- Campanhas diretas (via campaign_totems)
           SELECT DISTINCT
             c.campaign_id,
+            c.subscriber_id,
+            c.contract_id,
             c.title as campaign_title,
             c.priority,
+            c.commercial_tier,
+            c.default_time_share_percent,
+            c.max_consecutive_slots,
             c.start_date,
             c.end_date,
             c.start_time,
@@ -276,7 +371,9 @@ export class DispatcherTotemService {
             ct.days_of_week as ct_days_of_week,
             ct.priority as ct_priority,
             'direct' as source_type,
-            ct.campaign_id as source_id
+            ct.campaign_id as source_id,
+            NULL::integer as cp_time_share_percent,
+            NULL::integer as cp_max_impressions_per_hour
           FROM campaigns c
           INNER JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
           WHERE ct.totem_id = $1
@@ -289,8 +386,13 @@ export class DispatcherTotemService {
           -- Campanhas via publishers (grupo)
           SELECT DISTINCT
             c.campaign_id,
+            c.subscriber_id,
+            c.contract_id,
             c.title as campaign_title,
             c.priority,
+            c.commercial_tier,
+            c.default_time_share_percent,
+            c.max_consecutive_slots,
             c.start_date,
             c.end_date,
             c.start_time,
@@ -307,7 +409,9 @@ export class DispatcherTotemService {
             NULL as ct_days_of_week,
             NULL as ct_priority,
             'publisher' as source_type,
-            cp.publisher_id as source_id
+            cp.publisher_id as source_id,
+            cp.time_share_percent as cp_time_share_percent,
+            cp.max_impressions_per_hour as cp_max_impressions_per_hour
           FROM campaigns c
           INNER JOIN campaign_publishers cp ON c.campaign_id = cp.campaign_id
           INNER JOIN locals l ON cp.publisher_id = l.publisher_id
@@ -319,8 +423,13 @@ export class DispatcherTotemService {
         )
         SELECT 
           tc.campaign_id,
+          tc.subscriber_id,
+          tc.contract_id,
           tc.campaign_title,
           tc.priority,
+          tc.commercial_tier,
+          tc.default_time_share_percent,
+          tc.max_consecutive_slots,
           tc.start_date,
           tc.end_date,
           tc.start_time,
@@ -334,7 +443,9 @@ export class DispatcherTotemService {
           COALESCE(tc.ct_end_date, tc.end_date) as effective_end_date,
           COALESCE(tc.ct_start_time, tc.start_time) as effective_start_time,
           COALESCE(tc.ct_end_time, tc.end_time) as effective_end_time,
-          COALESCE(tc.ct_days_of_week, tc.days_of_week) as effective_days_of_week
+          COALESCE(tc.ct_days_of_week, tc.days_of_week) as effective_days_of_week,
+          COALESCE(tc.cp_time_share_percent, tc.default_time_share_percent, 0) as effective_time_share_percent,
+          tc.cp_max_impressions_per_hour as max_impressions_per_hour
         FROM totem_campaigns tc
         WHERE tc.is_active = true
           AND tc.status = 'active'
@@ -389,6 +500,13 @@ export class DispatcherTotemService {
           integrityValid: true, // Será validado depois
           createdAt: new Date(campaign.start_date || Date.now()),
           score,
+          // Campos comerciais (Fase 1.1)
+          commercialTier: campaign.commercial_tier as 'premium' | 'standard' | 'remnant' | undefined,
+          timeSharePercent: campaign.effective_time_share_percent ? Number(campaign.effective_time_share_percent) : undefined,
+          maxConsecutiveSlots: campaign.max_consecutive_slots ? Number(campaign.max_consecutive_slots) : undefined,
+          maxImpressionsPerHour: campaign.max_impressions_per_hour ? Number(campaign.max_impressions_per_hour) : undefined,
+          subscriberId: campaign.subscriber_id ? Number(campaign.subscriber_id) : undefined,
+          contractId: campaign.contract_id ? Number(campaign.contract_id) : undefined,
         });
       }
 
@@ -522,6 +640,7 @@ export class DispatcherTotemService {
 
   /**
    * Calcular score do candidato (para ordenação)
+   * TODO: Será substituído por calculateWeight() na Fase 2
    */
   private calculateScore(campaign: any, isDirect: boolean): number {
     let score = campaign.effective_priority || 1;
@@ -532,6 +651,161 @@ export class DispatcherTotemService {
     }
     
     return score;
+  }
+
+  /**
+   * FASE 1.3: Validar regras comerciais
+   * Valida acesso subscriber → publisher, contrato ativo e limites de impressão
+   */
+  private async validateCommercialRules(
+    candidate: CandidateSchedule,
+    totemId: number,
+    timestamp: Date
+  ): Promise<{ valid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+    
+    try {
+      // 1. Verificar se subscriber tem acesso ao publisher do totem
+      if (candidate.subscriberId) {
+        const access = await this.db.findFirst(`
+          SELECT 
+            spa.access_id,
+            spa.expires_at,
+            spa.is_active
+          FROM subscriber_publisher_access spa
+          INNER JOIN totems t ON t.local_id IN (
+            SELECT l.local_id 
+            FROM locals l 
+            WHERE l.publisher_id = spa.publisher_id
+          )
+          WHERE spa.subscriber_id = $1
+            AND t.totem_id = $2
+            AND spa.is_active = true
+            AND (spa.expires_at IS NULL OR spa.expires_at > $3)
+          LIMIT 1
+        `, [candidate.subscriberId, totemId, timestamp]);
+        
+        if (!access) {
+          errors.push('Subscriber não tem acesso a este publisher');
+        }
+      }
+      
+      // 2. Verificar se contrato está ativo
+      if (candidate.contractId) {
+        const contract = await this.db.findFirst(`
+          SELECT 
+            contract_id,
+            start_date,
+            end_date,
+            status
+          FROM subscriber_contracts
+          WHERE contract_id = $1
+        `, [candidate.contractId]);
+        
+        if (!contract) {
+          errors.push('Contrato não encontrado');
+        } else {
+          const contractStart = contract.start_date ? new Date(contract.start_date) : null;
+          const contractEnd = contract.end_date ? new Date(contract.end_date) : null;
+          
+          if (contractStart && timestamp < contractStart) {
+            errors.push('Contrato ainda não está ativo');
+          }
+          if (contractEnd && timestamp > contractEnd) {
+            errors.push('Contrato expirado');
+          }
+          if (contract.status !== 'active' && contract.status !== 'approved') {
+            errors.push(`Contrato não está ativo (status: ${contract.status})`);
+          }
+        }
+      }
+      
+      // 3. Verificar limite de impressões por hora
+      if (candidate.maxImpressionsPerHour && candidate.maxImpressionsPerHour > 0) {
+        const currentHour = timestamp.getHours();
+        const hourStart = new Date(timestamp);
+        hourStart.setMinutes(0, 0, 0);
+        const hourEnd = new Date(hourStart);
+        hourEnd.setHours(hourStart.getHours() + 1);
+        
+        const impressionsCount = await this.db.findFirst(`
+          SELECT COUNT(*) as count
+          FROM dispatcher_log
+          WHERE totem_id = $1
+            AND selected_campaign_id = $2
+            AND timestamp >= $3
+            AND timestamp < $4
+        `, [totemId, candidate.campaignId, hourStart, hourEnd]);
+        
+        const count = impressionsCount?.count ? Number(impressionsCount.count) : 0;
+        if (count >= candidate.maxImpressionsPerHour) {
+          errors.push(`Limite de impressões por hora atingido (${count}/${candidate.maxImpressionsPerHour})`);
+        }
+      }
+      
+      return { valid: errors.length === 0, errors };
+      
+    } catch (error: any) {
+      await logError('[DispatcherTotem] Erro na validação comercial', error, { candidate, totemId });
+      return { valid: false, errors: [`Erro na validação comercial: ${error.message}`] };
+    }
+  }
+
+  /**
+   * FASE 1.4: Decidir estratégia de dispatch
+   * SINGLE: apenas 1 candidato válido
+   * PRIORITY: múltiplos candidatos, mas há vencedor claro por prioridade
+   * MIX: múltiplos candidatos com mesma prioridade OU time_share_percent > 0
+   */
+  private decideStrategy(
+    candidates: CandidateSchedule[]
+  ): 'single' | 'priority' | 'mix' {
+    if (candidates.length === 0) {
+      return 'single'; // Nenhum candidato = plano vazio
+    }
+    
+    if (candidates.length === 1) {
+      return 'single'; // Apenas um candidato = plano único
+    }
+    
+    // Filtrar apenas candidatos temporalmente válidos
+    const validCandidates = candidates.filter(c => c.temporalValid);
+    
+    if (validCandidates.length === 0) {
+      return 'single'; // Nenhum válido = plano vazio
+    }
+    
+    if (validCandidates.length === 1) {
+      return 'single'; // Apenas um válido = plano único
+    }
+    
+    // Verificar se algum tem time_share_percent > 0
+    const hasTimeShare = validCandidates.some(
+      c => (c.timeSharePercent || 0) > 0
+    );
+    
+    if (hasTimeShare) {
+      return 'mix'; // Time share requer mix
+    }
+    
+    // Verificar prioridades
+    const priorities = validCandidates.map(c => c.priority);
+    const maxPriority = Math.max(...priorities);
+    const candidatesWithMaxPriority = validCandidates.filter(
+      c => c.priority === maxPriority
+    );
+    
+    if (candidatesWithMaxPriority.length === 1) {
+      return 'priority'; // Apenas um com prioridade máxima
+    }
+    
+    // Verificar se todos têm mesma prioridade
+    if (priorities.every(p => p === maxPriority)) {
+      return 'mix'; // Mesma prioridade = mixar
+    }
+    
+    // Por padrão, usar prioridade (vencedor único)
+    return 'priority';
   }
 
   /**
@@ -622,6 +896,76 @@ export class DispatcherTotemService {
       errors.push(`Erro na validação de integridade: ${error.message}`);
       return { valid: false, errors };
     }
+  }
+
+  /**
+   * FASE 3.2: Converter TotemPlaylistMix → DispatchPlan
+   */
+  private async convertMixToDispatchPlan(
+    mix: TotemPlaylistMix,
+    totemId: number,
+    timestamp: Date
+  ): Promise<DispatchPlan> {
+    // Buscar informações das mídias do mix
+    const mediaItems: DispatchMediaItem[] = [];
+    
+    for (const mixItem of mix.mix_items) {
+      const media = await this.db.findFirst(`
+        SELECT 
+          m.media_id,
+          m.name,
+          m.file_path,
+          m.media_type,
+          m.width,
+          m.height,
+          m.mime_type,
+          m.duration_seconds
+        FROM medias m
+        WHERE m.media_id = $1
+          AND m.status = 'published'
+      `, [mixItem.media_id]);
+      
+      if (media) {
+        mediaItems.push({
+          mediaId: media.media_id,
+          order: mixItem.order_index,
+          duration: mixItem.duration || media.duration_seconds || 10,
+          url: media.file_path,
+          mediaType: media.media_type,
+          metadata: {
+            width: media.width,
+            height: media.height,
+            mimeType: media.mime_type,
+          },
+        });
+      }
+    }
+    
+    // Buscar informações da primeira playlist do mix (para metadados)
+    const firstPlaylistId = mix.mix_items.length > 0 ? mix.mix_items[0].playlist_id : 0;
+    const playlist = firstPlaylistId > 0 ? await this.db.findFirst(`
+      SELECT playlist_id, name FROM playlists WHERE playlist_id = $1
+    `, [firstPlaylistId]) : null;
+    
+    return {
+      totemId,
+      timestamp,
+      playlistId: firstPlaylistId,
+      playlistName: playlist?.name || `Mix ${mix.mix_id}`,
+      mediaItems,
+      totalDuration: mix.total_duration,
+      priority: 0, // Mix não tem prioridade única
+      source: 'mix',
+      sourceId: mix.mix_id,
+      sourceName: `Mix ${mix.mix_id}`,
+      validityStart: timestamp,
+      validityEnd: new Date(timestamp.getTime() + 24 * 60 * 60 * 1000), // 24 horas
+      metadata: {
+        mixId: mix.mix_id,
+        mixVersion: mix.mix_version,
+        mixStrategy: mix.mix_strategy,
+      },
+    };
   }
 
   /**
@@ -756,7 +1100,7 @@ export class DispatcherTotemService {
     timestamp: Date;
     selectedCampaignId?: number;
     selectedPlaylistId?: number;
-    selectedSource?: 'direct' | 'group' | 'campaign';
+    selectedSource?: 'direct' | 'group' | 'campaign' | 'mix';
     selectedSourceId?: number;
     priority?: number;
     candidatesCount?: number;
