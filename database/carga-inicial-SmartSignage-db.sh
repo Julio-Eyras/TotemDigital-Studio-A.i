@@ -343,6 +343,9 @@ execute_sql "INSERT INTO playlists (playlist_id, subscriber_id, name, descriptio
 (4, 3, 'Playlist Ofertas Supermercado', 'Playlist de ofertas do supermercado', true, '$SCHEDULE_SUPER'::jsonb, '$METADATA_EMPTY'::jsonb)
 ON CONFLICT DO NOTHING;" "Inserindo Playlists"
 
+# Reabilitar trigger
+execute_sql "ALTER TABLE playlists ENABLE TRIGGER trigger_derive_playlist_ids;" "Reabilitando trigger playlists" || echo "Trigger não existe ou já está habilitado"
+
 # Playlist Items - JSONs
 TRANSITION_FADE_2000='{"type": "fade", "duration_ms": 2000}'
 TRANSITION_FADE_2500='{"type": "fade", "duration_ms": 2500}'
