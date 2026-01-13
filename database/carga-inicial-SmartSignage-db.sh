@@ -7,7 +7,7 @@
 # em todas as tabelas do sistema, respeitando foreign keys
 # =============================================
 
-set -e  # Para em caso de erro
+# set -e  # Desabilitado para continuar mesmo com erros em algumas inserções
 
 # Cores para output
 RED='\033[0;31m'
@@ -27,20 +27,31 @@ DB_PASSWORD="${DB_PASSWORD:-smartsignage123}"
 execute_sql() {
     local sql="$1"
     local description="$2"
+    local output_file=$(mktemp)
+    local error_file=$(mktemp)
     
     echo -e "${BLUE}→ ${description}...${NC}"
     
     if [ -z "$DB_PASSWORD" ]; then
-        PGPASSWORD="" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "$sql" > /dev/null 2>&1
+        PGPASSWORD="" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "$sql" > "$output_file" 2> "$error_file"
     else
-        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "$sql" > /dev/null 2>&1
+        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "$sql" > "$output_file" 2> "$error_file"
     fi
     
-    if [ $? -eq 0 ]; then
+    local exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
         echo -e "${GREEN}✓ ${description}${NC}"
+        rm -f "$output_file" "$error_file"
     else
         echo -e "${RED}✗ Erro ao executar: ${description}${NC}"
-        return 1
+        if [ -s "$error_file" ]; then
+            echo -e "${RED}Detalhes do erro:${NC}"
+            cat "$error_file"
+        fi
+        rm -f "$output_file" "$error_file"
+        # Não retornar erro para não parar o script completamente
+        # return 1
     fi
 }
 
@@ -153,9 +164,9 @@ LIMITS_ENT='{"totems": 50, "campaigns": 100, "storage_gb": 500}'
 
 execute_sql "
 INSERT INTO plans (plan_id, name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, sort_order) VALUES
-(1, 'Plano Básico', 'plano-basico', 'Plano básico para pequenos anunciantes', 99.00, 990.00, 'BRL', 'month', \"$FEATURES_BASICO\"::jsonb, \"$LIMITS_BASICO\"::jsonb, true, false, 1),
-(2, 'Plano Profissional', 'plano-profissional', 'Plano profissional para médias empresas', 299.00, 2990.00, 'BRL', 'month', \"$FEATURES_PROF\"::jsonb, \"$LIMITS_PROF\"::jsonb, true, true, 2),
-(3, 'Plano Enterprise', 'plano-enterprise', 'Plano enterprise para grandes empresas', 999.00, 9990.00, 'BRL', 'month', \"$FEATURES_ENT\"::jsonb, \"$LIMITS_ENT\"::jsonb, true, false, 3)
+(1, 'Plano Básico', 'plano-basico', 'Plano básico para pequenos anunciantes', 99.00, 990.00, 'BRL', 'month', '$FEATURES_BASICO'::jsonb, '$LIMITS_BASICO'::jsonb, true, false, 1),
+(2, 'Plano Profissional', 'plano-profissional', 'Plano profissional para médias empresas', 299.00, 2990.00, 'BRL', 'month', '$FEATURES_PROF'::jsonb, '$LIMITS_PROF'::jsonb, true, true, 2),
+(3, 'Plano Enterprise', 'plano-enterprise', 'Plano enterprise para grandes empresas', 999.00, 9990.00, 'BRL', 'month', '$FEATURES_ENT'::jsonb, '$LIMITS_ENT'::jsonb, true, false, 3)
 ON CONFLICT DO NOTHING;
 " "Inserindo Plans"
 
