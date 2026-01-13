@@ -707,13 +707,16 @@ INSERT INTO totem_update_status (id, ota_update_id, totem_id, status, downloaded
 ON CONFLICT DO NOTHING;
 " "Inserindo Totem Update Status"
 
-# Reports
-execute_sql "
-INSERT INTO reports (report_id, type, title, description, status, format, file_path, file_size, download_url, download_count, filters, template, custom_fields, ai_analysis, metadata, generated_at, expires_at, created_by) VALUES
-(1, 'campaign', 'Relatório Campanha Black Friday', 'Relatório de performance da campanha Black Friday', 'completed', 'pdf', '/reports/campaign-1-2024-11.pdf', 2048576, '/api/reports/download/1', 3, '{"campaign_id": 1, "start_date": "2024-11-20", "end_date": "2024-11-30"}'::jsonb, 'default', '{}'::jsonb, false, '{}'::jsonb, NOW() - INTERVAL '2 days', NOW() + INTERVAL '28 days', 1),
-(2, 'totem', 'Relatório Totens Shopping', 'Relatório de uso dos totens do shopping', 'completed', 'excel', '/reports/totems-shopping-2024-11.xlsx', 1536000, '/api/reports/download/2', 1, '{"publisher_id": 1, "start_date": "2024-11-01", "end_date": "2024-11-30"}'::jsonb, 'default', '{}'::jsonb, false, '{}'::jsonb, NOW() - INTERVAL '1 day', NOW() + INTERVAL '29 days', 1)
-ON CONFLICT DO NOTHING;
-" "Inserindo Reports"
+# Reports - JSONs (definir antes se ainda não estiver)
+if [ -z "$REPORT_FILTERS_1" ]; then
+    REPORT_FILTERS_1='{"campaign_id": 1, "start_date": "2024-11-20", "end_date": "2024-11-30"}'
+    REPORT_FILTERS_2='{"publisher_id": 1, "start_date": "2024-11-01", "end_date": "2024-11-30"}'
+fi
+
+execute_sql "INSERT INTO reports (report_id, type, title, description, status, format, file_path, file_size, download_url, download_count, filters, template, custom_fields, ai_analysis, metadata, generated_at, expires_at, created_by) VALUES
+(1, 'campaign', 'Relatório Campanha Black Friday', 'Relatório de performance da campanha Black Friday', 'completed', 'pdf', '/reports/campaign-1-2024-11.pdf', 2048576, '/api/reports/download/1', 3, '$REPORT_FILTERS_1'::jsonb, 'default', '$METADATA_EMPTY'::jsonb, false, '$METADATA_EMPTY'::jsonb, NOW() - INTERVAL '2 days', NOW() + INTERVAL '28 days', 1),
+(2, 'totem', 'Relatório Totens Shopping', 'Relatório de uso dos totens do shopping', 'completed', 'excel', '/reports/totems-shopping-2024-11.xlsx', 1536000, '/api/reports/download/2', 1, '$REPORT_FILTERS_2'::jsonb, 'default', '$METADATA_EMPTY'::jsonb, false, '$METADATA_EMPTY'::jsonb, NOW() - INTERVAL '1 day', NOW() + INTERVAL '29 days', 1)
+ON CONFLICT DO NOTHING;" "Inserindo Reports"
 
 # Audit Logs
 execute_sql "
