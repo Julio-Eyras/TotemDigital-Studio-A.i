@@ -89,19 +89,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [user, setUser] = useState<any>(null);
   const [alertsAnchorEl, setAlertsAnchorEl] = useState<null | HTMLElement>(null);
   const [openMenus, setOpenMenus] = useState<OpenMenusState>({});
   const { data: alerts = [] } = useSystemAlerts(10);
   const { flags } = useFlags(); // Hook para acessar flags do usuário
-
-  useEffect(() => {
-    // Load user from localStorage
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-  }, []);
+  
+  // Obter user do Redux store (não do localStorage)
+  const user = useAppSelector((state) => state.auth.user);
 
   // Obter menu hierárquico baseado na role do usuário e filtrar por permissões
   const getMenuItems = (): HierarchicalMenuItem[] => {
