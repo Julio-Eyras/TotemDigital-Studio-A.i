@@ -53,6 +53,7 @@ RESET_DATABASE=false
 PRESERVE_DB=false
 LOAD_SEEDS=false
 SEEDS_OPTION_FORCED=false
+CONFIGURE_DNS_LOCAL=false
 
 # Modos especiais (operações focadas)
 DB_ONLY_MODE=false                # Reinstala apenas o banco (drop + schema + seeds), sem rebuild de backend/frontend
@@ -666,9 +667,8 @@ install_dependencies() {
     log "Dependências básicas instaladas!"
 }
 
-# Configurar DNS local para Publishers e Subscribers (opcional)
-setup_local_dns() {
-    # Perguntar ao usuário se deseja configurar DNS local
+# Perguntar sobre DNS local (movido para o topo junto com outras perguntas)
+ask_dns_local_configuration() {
     echo
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${CYAN}                    Configuração de DNS Local (Publishers e Subscribers)${NC}"
@@ -688,7 +688,18 @@ setup_local_dns() {
     read -p "Deseja configurar DNS local para publishers e subscribers? (s/N): " configure_dns_local
     
     if [[ ! "$configure_dns_local" =~ ^[Ss]$ ]]; then
+        CONFIGURE_DNS_LOCAL=false
         log "DNS local não será configurado"
+    else
+        CONFIGURE_DNS_LOCAL=true
+        log "DNS local será configurado"
+    fi
+}
+
+# Configurar DNS local para Publishers e Subscribers (opcional)
+setup_local_dns() {
+    # Se não foi solicitado, não configurar
+    if [[ "$CONFIGURE_DNS_LOCAL" != "true" ]]; then
         return 0
     fi
     
@@ -9225,6 +9236,9 @@ copy_selected_players() {
 
 # Continuar função show_menu (seeds e kiosk)
 show_menu_continuation() {
+    # Perguntar sobre DNS local (movido para o topo)
+    ask_dns_local_configuration
+    
     # Perguntar sobre carregamento de seeds (se não foi definido via argumento)
     if [[ "$SEEDS_OPTION_FORCED" != "true" ]]; then
         echo
@@ -9963,6 +9977,22 @@ main() {
     # Salvar informações da build após instalação bem-sucedida
     if [[ "$INSTALL_MODE" == "docker" ]]; then
         save_build_info
+    fi
+    
+    # Executar carga inicial de dados (sempre ao final da instalação)
+    log "Executando carga inicial de dados..."
+    if [[ -f "$INSTALL_DIR/database/carga-inicial-SmartSignage-db.sh" ]]; then
+        log "Executando script de carga inicial..."
+        cd "$INSTALL_DIR/database"
+        chmod +x carga-inicial-SmartSignage-db.sh
+        if bash carga-inicial-SmartSignage-db.sh; then
+            log "✅ Carga inicial de dados concluída com sucesso"
+        else
+            warn "⚠️  Alguns erros ocorreram na carga inicial, mas a instalação foi concluída"
+        fi
+        cd "$INSTALL_DIR"
+    else
+        warn "⚠️  Script de carga inicial não encontrado em $INSTALL_DIR/database/carga-inicial-SmartSignage-db.sh"
     fi
     
     # Garantir que informações finais sejam sempre exibidas
