@@ -30,7 +30,7 @@ import {
   Description,
   Assignment,
   MonitorHeart,
-  Timeline,
+  ViewTimeline,
 } from '@mui/icons-material';
 import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
@@ -212,7 +212,7 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
           children: [
             { text: 'Gerenciar Dispatcher', icon: <Shuffle />, path: '/dispatcher-manager' },
             { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
-            { text: 'Timeline', icon: <Timeline />, path: '/dispatcher-manager?tab=timeline' },
+            { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
           ],
         },
       ],
@@ -290,7 +290,7 @@ function getAdminSqlMenu(): HierarchicalMenuItem[] {
           children: [
             { text: 'Gerenciar Dispatcher', icon: <Shuffle />, path: '/dispatcher-manager' },
             { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
-            { text: 'Timeline', icon: <Timeline />, path: '/dispatcher-manager?tab=timeline' },
+            { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
           ],
         },
       ],
