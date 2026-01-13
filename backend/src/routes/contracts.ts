@@ -13,7 +13,7 @@ import {
   updatePublisherContractValidators,
   contractFilterValidators
 } from '../validators/contract.validators';
-import { paginationValidators, searchValidators, idParamValidator } from '../validators/common.validators';
+import { paginationValidators, searchValidators, idParamValidatorDefault } from '../validators/common.validators';
 
 const router = express.Router();
 
@@ -73,7 +73,7 @@ router.get('/',
  * @desc Obter contrato por ID
  */
 router.get('/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   protectContractValues,
   async (req: any, res: any) => {
@@ -99,7 +99,7 @@ router.get('/:id',
  * @desc Obter publishers associados a um contrato
  */
 router.get('/:id/publishers',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -146,7 +146,7 @@ router.post('/',
  * @desc Atualizar contrato
  */
 router.put('/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   ...updateContractValidator,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
@@ -167,7 +167,7 @@ router.put('/:id',
  * @desc Excluir contrato (soft delete)
  */
 router.delete('/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento']),
   async (req: any, res: any) => {
@@ -223,7 +223,7 @@ router.get('/publisher-contracts',
  * @desc Obter publisher contract por ID
  */
 router.get('/publisher-contracts/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   protectContractValues,
   async (req: any, res: any) => {
@@ -274,7 +274,7 @@ router.post('/publisher-contracts',
  * @desc Atualizar publisher contract
  */
 router.put('/publisher-contracts/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   ...updatePublisherContractValidators,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
@@ -295,7 +295,7 @@ router.put('/publisher-contracts/:id',
  * @desc Excluir publisher contract (soft delete)
  */
 router.delete('/publisher-contracts/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento']),
   async (req: any, res: any) => {
@@ -315,7 +315,7 @@ router.delete('/publisher-contracts/:id',
  * @desc Listar contratos de um publisher específico
  */
 router.get('/publishers/:id/contracts',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   protectContractValues,
   async (req: any, res: any) => {

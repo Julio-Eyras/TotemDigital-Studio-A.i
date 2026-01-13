@@ -36,7 +36,7 @@ router.use(subscriberIsolationMiddleware);
 // Validações - usando validadores centralizados
 const createPlaylistValidator = createPlaylistValidators;
 const updatePlaylistValidator = [
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   ...updatePlaylistValidators,
 ];
 
@@ -105,7 +105,7 @@ router.get('/',
  * @desc Obter playlist por ID
  */
 router.get('/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -272,7 +272,7 @@ router.put('/:id',
  */
 router.delete('/:id',
   authorizeRole(['admin', 'gerente_marketing', 'subscriber']), // Adicionado 'subscriber'
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -319,7 +319,7 @@ router.get('/:id/media',
  * @desc Adicionar mídia à playlist
  */
 router.post('/:id/media',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   ...addMediaToPlaylistValidators,
   validateRequest,
   async (req: any, res: any) => {
@@ -356,7 +356,7 @@ router.post('/:id/media',
  * @desc Atualizar duração de um item da playlist
  */
 router.patch('/:id/media/:itemId',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   param('itemId').isInt({ min: 1 }).withMessage('ID do item inválido'),
   ...updatePlaylistItemDurationValidators,
   validateRequest,
@@ -413,7 +413,7 @@ router.delete('/:id/media/:itemId',
  */
 router.put('/:id/reorder',
   authorizeRole(['admin', 'gerente_marketing', 'subscriber']),
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   ...reorderPlaylistItemsValidators,
   validateRequest,
   async (req: any, res: any) => {

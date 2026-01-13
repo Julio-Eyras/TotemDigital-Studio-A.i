@@ -156,7 +156,7 @@ router.post('/',
  * IMPORTANTE: Rotas específicas devem vir ANTES de rotas genéricas para evitar conflito
  */
 router.get('/:id/totems/:totemId/campaigns/mixed',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   param('totemId').isInt({ min: 1 }).withMessage('Totem ID inválido'),
   query('date').optional().isISO8601(),
   query('time').optional().matches(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/),
@@ -220,7 +220,7 @@ router.get('/:id/totems/:totemId/campaigns/mixed',
  * IMPORTANTE: Esta rota deve vir ANTES de router.get('/:id') para evitar conflito de rotas
  */
 router.get('/:id/campaigns/mixed',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   query('totemId').optional().isInt({ min: 1 }),
   query('date').optional().isISO8601(),
   query('time').optional().matches(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/),
@@ -283,7 +283,7 @@ router.get('/:id/campaigns/mixed',
  * @desc Listar locals de um publisher
  */
 router.get('/:id/locals',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -302,7 +302,7 @@ router.get('/:id/locals',
  * @desc Listar totems de um publisher
  */
 router.get('/:id/totems',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -321,7 +321,7 @@ router.get('/:id/totems',
  * @desc Listar smart TVs de um publisher
  */
 router.get('/:id/smart-tvs',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -340,7 +340,7 @@ router.get('/:id/smart-tvs',
  * @desc Obter estatísticas de um publisher
  */
 router.get('/:id/stats',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -361,7 +361,7 @@ router.get('/:id/stats',
  * IMPORTANTE: Esta rota deve vir DEPOIS das rotas específicas para evitar conflito
  */
 router.get('/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -386,7 +386,7 @@ router.get('/:id',
  * @desc Atualizar publisher
  */
 router.put('/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -419,7 +419,7 @@ router.put('/:id',
  * @desc Deletar publisher (soft delete)
  */
 router.delete('/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {

@@ -226,7 +226,7 @@ router.get('/totem/:totemId', async (req: any, res) => {
  * @access Private (Admin, Manager, Client)
  */
 router.get('/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: any, res) => {
   const { id } = req.params;
@@ -418,7 +418,7 @@ router.post('/',
  */
 router.put('/:id', 
   authorizeRole(['admin', 'gerente_marketing']),
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   ...updateCampaignValidators,
   validateRequest,
   async (req: any, res) => {
@@ -476,7 +476,7 @@ router.put('/:id',
  */
 router.delete('/:id', 
   authorizeRole(['admin', 'gerente_marketing']),
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: any, res) => {
   const { id } = req.params;
@@ -867,7 +867,7 @@ router.get('/:id/totems', async (req: any, res) => {
  */
 router.put('/:id/medias/reorder',
   authorizeRole(['admin', 'gerente_marketing']),
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   ...reorderCampaignMediasValidators,
   validateRequest,
   async (req: any, res) => {
@@ -914,7 +914,7 @@ router.put('/:id/medias/reorder',
  */
 router.put('/:id/playlists/reorder',
   authorizeRole(['admin', 'gerente_marketing']),
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   ...reorderCampaignPlaylistsValidators,
   validateRequest,
   async (req: any, res) => {

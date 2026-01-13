@@ -92,7 +92,7 @@ router.get('/',
  * @desc Obter subscriber por ID
  */
 router.get('/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -282,7 +282,7 @@ router.get('/:id/stats',
  * @desc Listar contratos ativos de um subscriber
  */
 router.get('/:id/contracts',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   protectContractValues,
   async (req: any, res: any) => {
@@ -315,7 +315,7 @@ router.get('/:id/contracts',
  * @desc Validar limites de plano antes de criar recurso
  */
 router.get('/:id/validate/plan-limits',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   ...planLimitsValidators,
   validateRequest,
   async (req: any, res: any) => {
@@ -357,7 +357,7 @@ router.get('/:id/validate/plan-limits',
  * @desc Validar limite de storage antes de fazer upload
  */
 router.get('/:id/validate/storage',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   ...storageValidators,
   validateRequest,
   async (req: any, res: any) => {
@@ -405,7 +405,7 @@ router.get('/:id/validate/storage',
  * @desc Validar acesso a totem antes de associar campanha
  */
 router.get('/:id/validate/totem-access',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   ...totemAccessValidators,
   validateRequest,
   async (req: any, res: any) => {

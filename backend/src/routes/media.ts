@@ -193,7 +193,7 @@ router.get('/',
  * @access Private
  */
 router.get('/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -565,7 +565,7 @@ router.post('/upload-multiple',
  * @access Private (Admin, Gerente Marketing, Editoração)
  */
 router.put('/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   ...updateMediaValidators,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -622,7 +622,7 @@ router.put('/:id',
  * @access Private (Admin, Gerente Marketing, Editoração)
  */
 router.delete('/:id',
-  ...idParamValidator,
+  ...idParamValidatorDefault,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {

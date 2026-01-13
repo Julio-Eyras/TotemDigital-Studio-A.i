@@ -40,10 +40,17 @@ export const dateRangeValidators = [
 
 /**
  * Validadores de ID numérico
+ * Função que retorna validadores para um parâmetro de rota específico
  */
 export const idParamValidator = (paramName: string = 'id') => [
   param(paramName).isInt({ min: 1 }).withMessage(`${paramName} deve ser um número inteiro maior que 0`),
 ];
+
+/**
+ * Validadores de ID numérico (padrão 'id')
+ * Mantido para compatibilidade com código existente que usa spread operator
+ */
+export const idParamValidatorDefault = idParamValidator('id');
 
 /**
  * Validadores de subscriberId
@@ -132,7 +139,7 @@ export const createResourceValidators = [
  * Validadores para atualização de recursos básicos
  */
 export const updateResourceValidators = [
-  ...idParamValidator('id'),
+  ...idParamValidatorDefault,
   body('name').optional().notEmpty().isLength({ min: 2, max: 100 }).withMessage('Nome deve ter entre 2 e 100 caracteres'),
   ...descriptionValidators,
   ...emailValidators,
