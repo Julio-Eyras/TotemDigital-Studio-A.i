@@ -529,13 +529,13 @@ execute_sql "INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowe
 (3, 4, true, '$RESTRICTIONS_ENT'::jsonb, 'Acesso enterprise')
 ON CONFLICT DO NOTHING;" "Inserindo Plan Publisher Access"
 
-# Subscriber Publisher Access - Corrigir data (end_date deve ser depois de start_date)
+# Subscriber Publisher Access - Corrigir data (expires_at deve ser depois de granted_at)
 execute_sql "INSERT INTO subscriber_publisher_access (access_id, subscriber_id, publisher_id, contract_id, plan_id, access_type, granted_at, expires_at, is_active, granted_by, notes, metadata) VALUES
-(1, 1, 1, 1, 2, 'contract', NOW(), '2025-11-30', true, 1, 'Acesso via contrato Black Friday', '$METADATA_EMPTY'::jsonb),
-(2, 2, 2, 2, 1, 'contract', NOW(), '2025-12-31', true, 1, 'Acesso via contrato Medicamentos', '$METADATA_EMPTY'::jsonb),
-(3, 3, 3, 3, 1, 'contract', NOW(), '2025-12-31', true, 1, 'Acesso via contrato Ofertas do Dia', '$METADATA_EMPTY'::jsonb),
-(4, 4, 1, 4, 1, 'contract', NOW(), '2025-12-31', true, 1, 'Acesso via contrato Menu Executivo', '$METADATA_EMPTY'::jsonb),
-(5, 5, 1, 5, 1, 'contract', NOW(), '2025-12-31', true, 1, 'Acesso via contrato Check-up', '$METADATA_EMPTY'::jsonb)
+(1, 1, 1, 1, 2, 'contract', NOW(), NOW() + INTERVAL '1 year', true, 1, 'Acesso via contrato Black Friday', '$METADATA_EMPTY'::jsonb),
+(2, 2, 2, 2, 1, 'contract', NOW(), NOW() + INTERVAL '1 year', true, 1, 'Acesso via contrato Medicamentos', '$METADATA_EMPTY'::jsonb),
+(3, 3, 3, 3, 1, 'contract', NOW(), NOW() + INTERVAL '1 year', true, 1, 'Acesso via contrato Ofertas do Dia', '$METADATA_EMPTY'::jsonb),
+(4, 4, 1, 4, 1, 'contract', NOW(), NOW() + INTERVAL '1 year', true, 1, 'Acesso via contrato Menu Executivo', '$METADATA_EMPTY'::jsonb),
+(5, 5, 1, 5, 1, 'contract', NOW(), NOW() + INTERVAL '1 year', true, 1, 'Acesso via contrato Check-up', '$METADATA_EMPTY'::jsonb)
 ON CONFLICT DO NOTHING;" "Inserindo Subscriber Publisher Access"
 
 # Totem Playlists - JSONs
