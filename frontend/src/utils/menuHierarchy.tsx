@@ -209,6 +209,7 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
           text: 'Dispatcher-Totem',
           icon: <Shuffle />,
           path: '/dispatcher-manager',
+          requiredFlag: 'flag_smart_2',
           children: [
             { text: 'Gerenciar Dispatcher', icon: <Shuffle />, path: '/dispatcher-manager' },
             { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
@@ -287,6 +288,7 @@ function getAdminSqlMenu(): HierarchicalMenuItem[] {
           text: 'Dispatcher-Totem',
           icon: <Shuffle />,
           path: '/dispatcher-manager',
+          requiredFlag: 'flag_smart_2',
           children: [
             { text: 'Gerenciar Dispatcher', icon: <Shuffle />, path: '/dispatcher-manager' },
             { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
