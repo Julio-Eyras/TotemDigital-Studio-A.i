@@ -38,6 +38,7 @@ const TotemPlayList = React.lazy(() => import('./pages/TotemPlayList/TotemPlayLi
 const Billing = React.lazy(() => import('./pages/Billing/Billing'));
 const QRCodes = React.lazy(() => import('./pages/QRCodes/QRCodes'));
 const AdminTools = React.lazy(() => import('./pages/AdminTools/AdminTools'));
+const DispatcherMonitor = React.lazy(() => import('./pages/DispatcherMonitor/DispatcherMonitor'));
 const PlaylistMix = React.lazy(() => import('./pages/PlaylistMix/PlaylistMix'));
 const PlaylistMixRules = React.lazy(() => import('./pages/PlaylistMix/PlaylistMixRules'));
 const PlaylistMixGroup = React.lazy(() => import('./pages/PlaylistMix/PlaylistMixGroup'));
@@ -559,6 +560,14 @@ const AppContent: React.FC = () => {
             element={
               <ProtectedRoute>
                 <AdminTools />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dispatcher-monitor"
+            element={
+              <ProtectedRoute>
+                <DispatcherMonitor />
               </ProtectedRoute>
             }
           />

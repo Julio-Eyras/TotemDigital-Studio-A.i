@@ -3532,4 +3532,123 @@ export const publisherBillingApi = {
 
 export * from './playlistMixApi';
 
+// =============================================
+// DISPATCHER-TOTEM API
+// =============================================
+
+export interface DispatchPlan {
+  totemId: number;
+  timestamp: string;
+  playlistId: number;
+  playlistName: string;
+  mediaItems: Array<{
+    mediaId: number;
+    order: number;
+    duration: number;
+    url: string;
+    mediaType: string;
+    metadata?: any;
+  }>;
+  totalDuration: number;
+  priority: number;
+  source: 'direct' | 'group' | 'campaign';
+  sourceId: number;
+  sourceName?: string;
+  validityStart: string;
+  validityEnd: string;
+  metadata?: any;
+}
+
+export interface DispatchLogEntry {
+  logId: number;
+  totemId: number;
+  timestamp: string;
+  selectedCampaignId?: number;
+  selectedPlaylistId: number;
+  selectedSource: 'direct' | 'group' | 'campaign';
+  selectedSourceId: number;
+  priority: number;
+  candidatesCount: number;
+  candidates: any[];
+  temporalValidation: boolean;
+  technicalValidation: boolean;
+  integrityValidation: boolean;
+  validationDetails?: any;
+  fromCache: boolean;
+  cacheKey?: string;
+  dispatchPlan?: DispatchPlan;
+  executionTimeMs: number;
+  createdAt: string;
+}
+
+export interface DispatchResponse {
+  success: boolean;
+  data?: DispatchPlan;
+  candidates?: any[];
+  fromCache?: boolean;
+  executionTimeMs: number;
+  error?: string;
+}
+
+export const dispatcherTotemApi = {
+  dispatch: async (totemId: number, params?: {
+    timestamp?: string;
+    timezone?: string;
+    skipCache?: boolean;
+    includeCandidates?: boolean;
+  }): Promise<DispatchResponse> => {
+    const response = await api.get(`/dispatcher-totem/${totemId}/dispatch`, { params });
+    return response.data;
+  },
+
+  getHistory: async (totemId: number, startDate: string, endDate: string): Promise<{
+    success: boolean;
+    data: DispatchLogEntry[];
+    count: number;
+  }> => {
+    const response = await api.get(`/dispatcher-totem/${totemId}/history`, {
+      params: { startDate, endDate }
+    });
+    return response.data;
+  },
+
+  getCandidates: async (totemId: number, params?: {
+    timestamp?: string;
+    timezone?: string;
+  }): Promise<{
+    success: boolean;
+    candidates: any[];
+    selectedPlan?: DispatchPlan;
+    count: number;
+  }> => {
+    const response = await api.get(`/dispatcher-totem/${totemId}/candidates`, { params });
+    return response.data;
+  },
+
+  getCacheConfig: async (): Promise<{
+    success: boolean;
+    data: {
+      enabled: boolean;
+      ttlSeconds: number;
+      maxSize?: number;
+    };
+  }> => {
+    const response = await api.get('/dispatcher-totem/cache/config');
+    return response.data;
+  },
+
+  setCacheConfig: async (config: {
+    enabled?: boolean;
+    ttlSeconds?: number;
+    maxSize?: number;
+  }): Promise<{
+    success: boolean;
+    data: any;
+    message: string;
+  }> => {
+    const response = await api.post('/dispatcher-totem/cache/config', config);
+    return response.data;
+  },
+};
+
 export default api;

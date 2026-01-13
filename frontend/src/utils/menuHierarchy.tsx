@@ -29,6 +29,7 @@ import {
   Analytics,
   Description,
   Assignment,
+  MonitorHeart,
 } from '@mui/icons-material';
 import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
@@ -207,6 +208,7 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
     },
     { text: 'Relatórios Globais', icon: <Assessment />, path: '/reports' },
     { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
+    { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
     { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 }
@@ -274,6 +276,8 @@ function getAdminSqlMenu(): HierarchicalMenuItem[] {
       ],
     },
     { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
+    { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
+    { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
     { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 }
@@ -413,6 +417,7 @@ function getOperadorTecnicoMenu(): HierarchicalMenuItem[] {
       ],
     },
     { text: 'Admin Tools', icon: <Build />, path: '/admin-tools', requiredFlag: 'flag_smart_2' },
+    { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor', requiredFlag: 'flag_smart_2' },
   ];
 }
 

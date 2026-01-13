@@ -87,6 +87,7 @@ import dashboardLayoutsRoutes from './routes/dashboard-layouts';
 import backupsRoutes from './routes/backups';
 import healthRoutes from './routes/health';
 import notificationsRoutes from './routes/notifications';
+import dispatcherTotemRoutes from './routes/dispatcher-totem';
 import { rateLimitHeavyOperations } from './middleware/rateLimitUser.middleware';
 import { openApiSpec } from './config/swagger';
 import { getExpressLimit } from './config/mediaConfig';
@@ -293,6 +294,7 @@ app.use('/api/smart-tvs', authMiddleware as any, smartTvRoutes); // NOVO: Smart 
 app.use('/api/subscriber-access', subscriberAccessRoutes); // NOVO: Controle de acesso Subscriber → Publisher
 app.use('/api/contracts', contractRoutes); // NOVO: Contratos de Subscribers
 app.use('/api/totems', totemRoutes);
+app.use('/api/dispatcher-totem', dispatcherTotemRoutes); // NOVO: Dispatcher-Totem (motor de decisão)
 app.use('/api/players', authMiddleware as any, playerRoutes);
 app.use('/api/media', blockClientDataAccess as any, mediaRoutes);
 app.use('/api/playlists', blockClientDataAccess as any, playlistRoutes);
