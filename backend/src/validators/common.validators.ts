@@ -132,7 +132,7 @@ export const createResourceValidators = [
  * Validadores para atualização de recursos básicos
  */
 export const updateResourceValidators = [
-  ...idParamValidator,
+  ...idParamValidator('id'),
   body('name').optional().notEmpty().isLength({ min: 2, max: 100 }).withMessage('Nome deve ter entre 2 e 100 caracteres'),
   ...descriptionValidators,
   ...emailValidators,

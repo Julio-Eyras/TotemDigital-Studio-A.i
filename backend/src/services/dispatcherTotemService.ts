@@ -366,7 +366,7 @@ export class DispatcherTotemService {
         const playlist = playlists[0];
 
         // Validar frequência temporal
-        const temporalValid = this.validateTemporalFrequency(
+        const temporalValid = await this.validateTemporalFrequency(
           campaign,
           timestamp,
           totemTimezone
@@ -515,7 +515,7 @@ export class DispatcherTotemService {
       return true;
 
     } catch (error) {
-      await logError('[DispatcherTotem] Erro na validação temporal', error, { campaign });
+      logError('[DispatcherTotem] Erro na validação temporal', error, { campaign });
       return false;
     }
   }
@@ -538,7 +538,7 @@ export class DispatcherTotemService {
    * Validar compatibilidade técnica
    */
   private async validateTechnicalCompatibility(
-    candidate: CandidateSchedule,
+    _candidate: CandidateSchedule,
     totemId: number
   ): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
@@ -718,7 +718,10 @@ export class DispatcherTotemService {
     try {
       const cacheService = getCacheService();
       const cached = await cacheService.get(cacheKey);
-      return cached ? JSON.parse(cached) : null;
+      if (!cached || typeof cached !== 'string') {
+        return null;
+      }
+      return JSON.parse(cached);
     } catch (error) {
       await logError('[DispatcherTotem] Erro ao ler cache', error, { cacheKey });
       return null;
