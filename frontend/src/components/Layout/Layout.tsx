@@ -99,7 +99,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     // Load user from localStorage
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+      } catch (error) {
+        console.error('Erro ao parsear user do localStorage:', error);
+      }
     }
   }, []);
 
@@ -116,10 +121,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       ];
     }
 
+    // Obter flags do user do localStorage ou do Redux (useFlags)
+    // Priorizar flags do user do localStorage se disponível, senão usar do Redux
+    const userFlags = user?.flags || flags;
+
     // Obter menu hierárquico filtrado por permissões (role + flags)
     const hierarchicalMenu = getMenuHierarchyByRole(
       user.role as UserRole,
-      flags // Passar flags do usuário para filtragem
+      userFlags // Passar flags do usuário para filtragem
     );
     
     return hierarchicalMenu;
