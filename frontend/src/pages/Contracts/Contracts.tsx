@@ -161,8 +161,8 @@ const Contracts: React.FC = () => {
   // Carregar publishers do contrato quando editar
   useEffect(() => {
     if (editDialogOpen && selectedContract) {
+      loadPublishers();
       loadContractPublishers(selectedContract.contract_id);
-      setSelectedPublisherIds(contractPublishers.map((p: any) => p.publisher_id));
     }
   }, [editDialogOpen, selectedContract?.contract_id]);
 
