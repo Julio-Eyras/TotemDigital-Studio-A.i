@@ -235,9 +235,15 @@ const Contracts: React.FC = () => {
       setLoadingPublishers(true);
       const publishersData = await contractApi.getPublishers(contractId);
       setContractPublishers(publishersData || []);
-      setSelectedPublisherIds(publishersData.map((p: any) => p.publisher_id));
+      if (publishersData && publishersData.length > 0) {
+        setSelectedPublisherIds(publishersData.map((p: any) => p.publisher_id));
+      } else {
+        setSelectedPublisherIds([]);
+      }
     } catch (error) {
       console.error('Erro ao carregar publishers do contrato:', error);
+      setContractPublishers([]);
+      setSelectedPublisherIds([]);
     } finally {
       setLoadingPublishers(false);
     }
