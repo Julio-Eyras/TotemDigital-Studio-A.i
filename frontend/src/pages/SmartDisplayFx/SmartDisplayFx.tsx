@@ -33,7 +33,7 @@ import {
   Refresh,
   PlayArrow,
   FilterList,
-  Timeline,
+  ViewTimeline,
   AutoAwesome,
   Analytics,
   Speed,
@@ -310,7 +310,7 @@ const SmartDisplayFx: React.FC = () => {
             <Tab icon={<AccountTree />} iconPosition="start" label="Rede Estrela" />
             <Tab icon={<Analytics />} iconPosition="start" label="Analytics" />
             <Tab icon={<Speed />} iconPosition="start" label="Performance" />
-            <Tab icon={<Timeline />} iconPosition="start" label="Logs" />
+            <Tab icon={<ViewTimeline />} iconPosition="start" label="Logs" />
             <Tab icon={<Assessment />} iconPosition="start" label="Telemetria" />
           </Tabs>
         </Box>
@@ -746,7 +746,7 @@ const SmartDisplayFx: React.FC = () => {
                                   log.entity_type === 'smartdisplayfx_effect' ? (
                                     <AutoAwesome fontSize="small" />
                                   ) : (
-                                    <Timeline fontSize="small" />
+                                    <ViewTimeline fontSize="small" />
                                   )
                                 }
                               />
