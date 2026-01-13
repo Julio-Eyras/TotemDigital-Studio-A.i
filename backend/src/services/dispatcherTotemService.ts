@@ -519,10 +519,12 @@ export class DispatcherTotemService {
   }
 
   /**
-   * Resolver conflitos: ordenar candidatos e selecionar vencedor
+   * FASE 2.2: Resolver conflitos usando peso completo calculado
    */
   private async resolveConflicts(
-    candidates: CandidateSchedule[]
+    candidates: CandidateSchedule[],
+    totemId?: number,
+    timestamp?: Date
   ): Promise<CandidateSchedule | null> {
     // Filtrar apenas candidatos temporalmente válidos
     const validCandidates = candidates.filter(c => c.temporalValid);
@@ -531,15 +533,29 @@ export class DispatcherTotemService {
       return null;
     }
 
+    // Calcular peso completo para cada candidato (Fase 2.1) se totemId e timestamp disponíveis
+    const candidatesWithWeight = await Promise.all(
+      validCandidates.map(async (candidate) => {
+        const weight = totemId && timestamp
+          ? await this.calculateWeight(candidate, totemId, timestamp)
+          : candidate.score; // Fallback para score simples se não tiver totemId/timestamp
+        
+        return {
+          ...candidate,
+          weight, // Adicionar peso calculado
+        };
+      })
+    );
+
     // Ordenar por:
-    // 1. Prioridade (maior = melhor)
+    // 1. Peso calculado (maior = melhor) - NOVO na Fase 2
     // 2. Escopo (direct > group)
-    // 3. Especificidade (menor grupo = melhor)
+    // 3. Prioridade (maior = melhor)
     // 4. Data de criação (mais recente = melhor)
-    validCandidates.sort((a, b) => {
-      // 1. Prioridade
-      if (a.priority !== b.priority) {
-        return b.priority - a.priority; // Maior prioridade primeiro
+    candidatesWithWeight.sort((a, b) => {
+      // 1. Peso calculado (Fase 2)
+      if (a.weight !== b.weight) {
+        return b.weight - a.weight; // Maior peso primeiro
       }
       
       // 2. Escopo (direct vence group)
@@ -548,16 +564,16 @@ export class DispatcherTotemService {
         if (b.scope === 'totem') return 1;
       }
       
-      // 3. Score (já calculado considerando especificidade)
-      if (a.score !== b.score) {
-        return b.score - a.score; // Maior score primeiro
+      // 3. Prioridade
+      if (a.priority !== b.priority) {
+        return b.priority - a.priority; // Maior prioridade primeiro
       }
       
       // 4. Data de criação (mais recente primeiro)
       return b.createdAt.getTime() - a.createdAt.getTime();
     });
 
-    return validCandidates[0] || null;
+    return candidatesWithWeight[0] || null;
   }
 
   /**
@@ -688,7 +704,6 @@ export class DispatcherTotemService {
     
     const priorityWeight = rule?.priority_weight || defaultPriorityWeight;
     const timeWeight = rule?.time_weight || defaultTimeWeight;
-    const tagWeight = rule?.tag_weight || defaultTagWeight;
     const subscriberWeight = rule?.subscriber_weight || defaultSubscriberWeight;
     
     // 1. Peso por prioridade da campanha
@@ -711,7 +726,6 @@ export class DispatcherTotemService {
     
     // 4. Peso por horário (se aplicável)
     if (timeWeight > 0) {
-      const hour = timestamp.getHours();
       // Verificar se está dentro do horário válido da campanha
       // (isso já foi validado em validateTemporalFrequency, mas podemos dar bonus aqui)
       if (candidate.temporalValid) {
@@ -824,7 +838,6 @@ export class DispatcherTotemService {
       
       // 3. Verificar limite de impressões por hora
       if (candidate.maxImpressionsPerHour && candidate.maxImpressionsPerHour > 0) {
-        const currentHour = timestamp.getHours();
         const hourStart = new Date(timestamp);
         hourStart.setMinutes(0, 0, 0);
         const hourEnd = new Date(hourStart);

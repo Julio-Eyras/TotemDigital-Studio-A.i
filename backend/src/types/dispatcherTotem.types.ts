@@ -28,6 +28,9 @@ export interface DispatchPlan {
     platform?: string;
     campaignId?: number;
     campaignTitle?: string;
+    mixId?: number;
+    mixVersion?: number;
+    mixStrategy?: string;
   };
   cacheKey?: string;
   cacheExpiresAt?: Date;
