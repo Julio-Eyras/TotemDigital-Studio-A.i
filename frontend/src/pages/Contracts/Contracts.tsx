@@ -197,9 +197,13 @@ const Contracts: React.FC = () => {
   const loadPublishers = async () => {
     try {
       const response = await publisherApi.getAll({ active_only: false });
-      setPublishers(response.data || []);
+      // A resposta pode vir como response.data ou response.data.data
+      const publishersData = response.data?.data || response.data || [];
+      setPublishers(Array.isArray(publishersData) ? publishersData : []);
+      console.log('Publishers carregados:', publishersData.length);
     } catch (error) {
       console.error('Erro ao carregar publishers:', error);
+      setPublishers([]);
     }
   };
 
@@ -440,8 +444,8 @@ const Contracts: React.FC = () => {
       contract_type: contract.contract_type,
       title: contract.title,
       description: contract.description || '',
-      start_date: contract.start_date,
-      end_date: contract.end_date || '',
+      start_date: formatDateForInput(contract.start_date),
+      end_date: formatDateForInput(contract.end_date),
       revenue_share_percentage: contract.revenue_share_percentage,
       revenue_share_rules: contract.revenue_share_rules,
       minimum_payout_amount: contract.minimum_payout_amount,
