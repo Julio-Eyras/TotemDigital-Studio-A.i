@@ -58,6 +58,9 @@ if [ -n "$DB_PASS" ]; then
     export PGPASSWORD="$DB_PASS"
 fi
 
+# Garantir que não há set -e ativo
+set +e
+
 for i in "${!FILES[@]}"; do
     file="${FILES[$i]}"
     full_path="${SCRIPT_DIR}/smartchannel-db-v2-refactored-${file}"
@@ -71,11 +74,15 @@ for i in "${!FILES[@]}"; do
     
     echo -e "${BLUE}[${num}/${TOTAL}]${NC} ${file}..."
     
-    if psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$full_path" > /tmp/schema_apply_${num}.log 2>&1; then
+    # Executar psql e capturar código de saída
+    psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$full_path" > /tmp/schema_apply_${num}.log 2>&1
+    PSQL_EXIT_CODE=$?
+    
+    if [ $PSQL_EXIT_CODE -eq 0 ]; then
         echo -e "${GREEN}✅ Sucesso!${NC}"
         ((SUCCESS++))
     else
-        echo -e "${RED}❌ Erro${NC}"
+        echo -e "${RED}❌ Erro (código: $PSQL_EXIT_CODE)${NC}"
         echo -e "${YELLOW}Últimas linhas do log:${NC}"
         tail -20 /tmp/schema_apply_${num}.log 2>/dev/null || echo "Log não disponível"
         ((ERROR++))
