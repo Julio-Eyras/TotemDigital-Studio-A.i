@@ -289,9 +289,12 @@ const DispatcherManager: React.FC = () => {
     
     try {
       const timestamp = new Date(selectedTimestamp);
-      const response = await dispatcherTotemApi.getDispatchPlan(
+      const response = await dispatcherTotemApi.dispatch(
         selectedTotemId,
-        timestamp.toISOString()
+        {
+          timestamp: timestamp.toISOString(),
+          includeCandidates: true
+        }
       );
       
       if (response.success && response.plan) {
