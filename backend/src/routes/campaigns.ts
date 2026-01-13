@@ -18,7 +18,7 @@ import {
   searchValidators, 
   sortValidators, 
   dateRangeValidators,
-  idParamValidator
+  idParamValidatorDefault
 } from '../validators/common.validators';
 import { 
   createCampaignValidators, 

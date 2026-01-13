@@ -15,7 +15,7 @@ import {
   searchValidators, 
   sortValidators, 
   dateRangeValidators,
-  idParamValidator,
+  idParamValidatorDefault,
   nameValidators,
   emailValidators,
   phoneValidators,

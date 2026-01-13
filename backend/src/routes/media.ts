@@ -14,7 +14,7 @@ import {
   searchValidators, 
   sortValidators, 
   dateRangeValidators,
-  idParamValidator,
+  idParamValidatorDefault,
   // subscriberIdValidators removido - não utilizado
 } from '../validators/common.validators';
 import { mediaFilterValidators, updateMediaValidators } from '../validators/media.validators';
