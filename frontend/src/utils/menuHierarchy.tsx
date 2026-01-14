@@ -151,8 +151,8 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
           icon: <People />,
           path: '/users',
           children: [
-            { text: 'Listar Usuários', icon: <People />, path: '/users' },
-            { text: 'Criar Usuário', icon: <People />, path: '/users/new' },
+            { text: 'Manter Usuários', icon: <People />, path: '/users' },
+/*            { text: 'Criar Usuário', icon: <People />, path: '/users/new' },*/
             { text: 'Gerenciar Roles', icon: <People />, path: '/users/roles' },
             { text: 'Gerenciar Flags', icon: <People />, path: '/users/flags' },
           ],
@@ -231,86 +231,7 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
  */
 function getAdminSqlMenu(): HierarchicalMenuItem[] {
   return [
-    { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-    {
-      text: 'Administração',
-      icon: <AdminPanelSettings />,
-      path: '/admin',
-      children: [
-        { text: 'Usuários Sistema', icon: <People />, path: '/users' },
-        {
-          text: '📢 Publicador',
-          icon: <Business />,
-          path: '/publishers',
-          children: [
-            { text: 'Manter Publicadores', icon: <Business />, path: '/publishers' },
-            { text: 'Locais', icon: <LocationOn />, path: '/locals' },
-            { text: 'Totens', icon: <Tv />, path: '/totems' },
-            { text: 'Playlists de Totens', icon: <QueueMusic />, path: '/totem-playlists' },
-            { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
-          ],
-        },
-        {
-          text: 'Assinantes',
-          icon: <Business />,
-          path: '/subscribers',
-          children: [
-            { text: 'Listar Assinantes', icon: <Business />, path: '/subscribers' },
-            { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
-            { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
-          ],
-        },
-        {
-          text: 'Contratos',
-          icon: <Description />,
-          path: '/contracts',
-          children: [
-            { text: 'Listar Contratos', icon: <Description />, path: '/contracts' },
-            { text: 'Contratos Ativos', icon: <Assignment />, path: '/contracts/active' },
-            { text: 'Contratos Expirados', icon: <Warning />, path: '/contracts/expired' },
-            { text: 'Contratos Assinantes', icon: <Description />, path: '/contracts?type=subscriber' },
-            { text: 'Contratos Publicadores', icon: <Description />, path: '/contracts?type=publisher' },
-          ],
-        },
-        {
-          text: 'Planos',
-          icon: <Link />,
-          path: '/plan-publisher-access',
-          children: [
-            { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },
-            { text: 'Manter Planos e Publicadores', icon: <Link />, path: '/plan-publisher-access' },
-            { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
-            { text: 'Planos Assinantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
-            { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
-          ],
-        },
-        { text: 'Faturamento Assinantes', icon: <Payment />, path: '/billing?type=subscriber' },
-        { text: 'Faturamento Publicador', icon: <Payment />, path: '/billing?type=publisher' },
-        {
-          text: 'Dispatcher-Totem',
-          icon: <Shuffle />,
-          path: '/dispatcher-manager',
-          requiredFlag: 'flag_smart_2',
-          children: [
-            { text: 'Gerenciar Dispatcher', icon: <Shuffle />, path: '/dispatcher-manager' },
-            { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
-            { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
-          ],
-        },
-      ],
-    },
-    { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
-    { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
-    { text: 'Configurações', icon: <Settings />, path: '/settings' },
-  ];
-}
-
-/**
- * Menu: ADMIN
- */
-function getAdminMenu(): HierarchicalMenuItem[] {
-  return [
-    { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    { text: 'Dashboard Sistema', icon: <Dashboard />, path: '/dashboard' },
     {
       text: 'Administração',
       icon: <AdminPanelSettings />,
@@ -321,30 +242,31 @@ function getAdminMenu(): HierarchicalMenuItem[] {
           icon: <People />,
           path: '/users',
           children: [
-            { text: 'Listar Usuários', icon: <People />, path: '/users' },
-            { text: 'Criar Usuário', icon: <People />, path: '/users/new' },
+            { text: 'Manter Usuários', icon: <People />, path: '/users' },
+/*            { text: 'Criar Usuário', icon: <People />, path: '/users/new' },*/
             { text: 'Gerenciar Roles', icon: <People />, path: '/users/roles' },
             { text: 'Gerenciar Flags', icon: <People />, path: '/users/flags' },
           ],
         },
         {
-          text: '📢 Publicador',
+          text: '📢 Veículos de Mídia',
           icon: <Business />,
           path: '/publishers',
           children: [
-            { text: 'Manter Publicadores', icon: <Business />, path: '/publishers' },
+            { text: 'Manutenção Veículo de Mídia', icon: <Business />, path: '/publishers' },
             { text: 'Locais', icon: <LocationOn />, path: '/locals' },
             { text: 'Totens', icon: <Tv />, path: '/totems' },
+            { text: 'Playlists de Totens', icon: <QueueMusic />, path: '/totem-playlists' },
             { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
           ],
         },
         {
-          text: 'Assinantes',
+          text: 'Anunciantes',
           icon: <Business />,
           path: '/subscribers',
           children: [
-            { text: 'Listar Assinantes', icon: <Business />, path: '/subscribers' },
-            { text: 'Criar Assinante', icon: <Business />, path: '/subscribers/new' },
+            { text: 'Manter Anunciante', icon: <Business />, path: '/subscribers' },
+/*            { text: 'Criar Assinante', icon: <Business />, path: '/subscribers/new' },*/
             { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
             { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
             { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
@@ -355,7 +277,7 @@ function getAdminMenu(): HierarchicalMenuItem[] {
           icon: <Description />,
           path: '/contracts',
           children: [
-            { text: 'Listar Contratos', icon: <Description />, path: '/contracts' },
+            { text: 'Manter Contratos', icon: <Description />, path: '/contracts' },
             { text: 'Contratos Ativos', icon: <Assignment />, path: '/contracts/active' },
             { text: 'Contratos Expirados', icon: <Warning />, path: '/contracts/expired' },
             { text: 'Contratos Assinantes', icon: <Description />, path: '/contracts?type=subscriber' },
@@ -363,24 +285,15 @@ function getAdminMenu(): HierarchicalMenuItem[] {
           ],
         },
         {
-          text: 'Planos',
+          text: 'Planos & Veículo de Mídia',
           icon: <Link />,
           path: '/plan-publisher-access',
           children: [
-            { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },
-            { text: 'Manter Planos e Publicadores', icon: <Link />, path: '/plan-publisher-access' },
+/*            { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },*/
+            { text: 'Manter Planos e Veículo de Mídia', icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
             { text: 'Planos Assinantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
             { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
-          ],
-        },
-        {
-          text: 'Acessos',
-          icon: <Link />,
-          path: '/subscriber-publisher-access',
-          children: [
-            { text: 'Acessos Subscriber-Publisher', icon: <AdminPanelSettings />, path: '/subscriber-publisher-access' },
-            { text: 'Acessos Expirando', icon: <Warning />, path: '/subscriber-access-expiring' },
           ],
         },
         { text: 'Faturamento Assinantes', icon: <Payment />, path: '/billing?type=subscriber' },
@@ -389,7 +302,7 @@ function getAdminMenu(): HierarchicalMenuItem[] {
           text: 'Dispatcher-Totem',
           icon: <Shuffle />,
           path: '/dispatcher-manager',
-          requiredFlag: 'flag_smart_2',
+/*          requiredFlag: 'flag_smart_2',*/
           children: [
             { text: 'Gerenciar Dispatcher', icon: <Shuffle />, path: '/dispatcher-manager' },
             { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
@@ -398,7 +311,100 @@ function getAdminMenu(): HierarchicalMenuItem[] {
         },
       ],
     },
-    { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
+    { text: 'Relatórios Globais', icon: <Assessment />, path: '/reports' },
+    { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
+    { text: 'Configurações', icon: <Settings />, path: '/settings' },
+  ];
+}
+
+/**
+ * Menu: ADMIN
+ */
+function getAdminMenu(): HierarchicalMenuItem[] {
+  return [
+    { text: 'Dashboard Sistema', icon: <Dashboard />, path: '/dashboard' },
+    {
+      text: 'Administração',
+      icon: <AdminPanelSettings />,
+      path: '/admin',
+      children: [
+        {
+          text: 'Usuários Sistema',
+          icon: <People />,
+          path: '/users',
+          children: [
+            { text: 'Manter Usuários', icon: <People />, path: '/users' },
+/*            { text: 'Criar Usuário', icon: <People />, path: '/users/new' },*/
+            { text: 'Gerenciar Roles', icon: <People />, path: '/users/roles' },
+            { text: 'Gerenciar Flags', icon: <People />, path: '/users/flags' },
+          ],
+        },
+        {
+          text: '📢 Veículos de Mídia',
+          icon: <Business />,
+          path: '/publishers',
+          children: [
+            { text: 'Manutenção Veículo de Mídia', icon: <Business />, path: '/publishers' },
+            { text: 'Locais', icon: <LocationOn />, path: '/locals' },
+            { text: 'Totens', icon: <Tv />, path: '/totems' },
+            { text: 'Playlists de Totens', icon: <QueueMusic />, path: '/totem-playlists' },
+            { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
+          ],
+        },
+        {
+          text: 'Anunciantes',
+          icon: <Business />,
+          path: '/subscribers',
+          children: [
+            { text: 'Manter Anunciante', icon: <Business />, path: '/subscribers' },
+/*            { text: 'Criar Assinante', icon: <Business />, path: '/subscribers/new' },*/
+            { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
+            { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
+            { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
+          ],
+        },
+        {
+          text: 'Contratos',
+          icon: <Description />,
+          path: '/contracts',
+          children: [
+            { text: 'Manter Contratos', icon: <Description />, path: '/contracts' },
+            { text: 'Contratos Ativos', icon: <Assignment />, path: '/contracts/active' },
+            { text: 'Contratos Expirados', icon: <Warning />, path: '/contracts/expired' },
+            { text: 'Contratos Assinantes', icon: <Description />, path: '/contracts?type=subscriber' },
+            { text: 'Contratos Publicadores', icon: <Description />, path: '/contracts?type=publisher' },
+          ],
+        },
+        {
+          text: 'Planos & Veículo de Mídia',
+          icon: <Link />,
+          path: '/plan-publisher-access',
+          children: [
+/*            { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },*/
+            { text: 'Manter Planos e Veículo de Mídia', icon: <Link />, path: '/plan-publisher-access' },
+            { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
+            { text: 'Planos Assinantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
+            { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
+          ],
+        },
+        { text: 'Faturamento Assinantes', icon: <Payment />, path: '/billing?type=subscriber' },
+        { text: 'Faturamento Publicador', icon: <Payment />, path: '/billing?type=publisher' },
+        {
+          text: 'Dispatcher-Totem',
+          icon: <Shuffle />,
+          path: '/dispatcher-manager',
+/*          requiredFlag: 'flag_smart_2',*/
+          children: [
+            { text: 'Gerenciar Dispatcher', icon: <Shuffle />, path: '/dispatcher-manager' },
+            { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
+            { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
+          ],
+        },
+      ],
+    },
+    { text: 'Relatórios Globais', icon: <Assessment />, path: '/reports' },
+    { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
+    { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 }
 

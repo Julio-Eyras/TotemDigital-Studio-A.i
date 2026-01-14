@@ -23,6 +23,13 @@
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
   },
+  "overrides": {
+    "@aws-sdk/client-sesv2": {
+      "engines": {
+        "node": ">=18.0.0"
+      }
+    }
+  },
   "dependencies": {
     "@types/mqtt": "^0.0.34",
     "axios": "^1.6.2",
