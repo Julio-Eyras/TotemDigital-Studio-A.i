@@ -158,11 +158,11 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
           ],
         },
         {
-          text: '📢 Publicador',
+          text: '📢 Veículos de Mídia',
           icon: <Business />,
           path: '/publishers',
           children: [
-            { text: 'Manter Publicadores', icon: <Business />, path: '/publishers' },
+            { text: 'Manutenção Veículo de Mídia', icon: <Business />, path: '/publishers' },
             { text: 'Locais', icon: <LocationOn />, path: '/locals' },
             { text: 'Totens', icon: <Tv />, path: '/totems' },
             { text: 'Playlists de Totens', icon: <QueueMusic />, path: '/totem-playlists' },
@@ -170,12 +170,12 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
           ],
         },
         {
-          text: 'Assinantes',
+          text: 'Anunciantes',
           icon: <Business />,
           path: '/subscribers',
           children: [
-            { text: 'Listar Assinantes', icon: <Business />, path: '/subscribers' },
-            { text: 'Criar Assinante', icon: <Business />, path: '/subscribers/new' },
+            { text: 'Manter Anunciante', icon: <Business />, path: '/subscribers' },
+/*            { text: 'Criar Assinante', icon: <Business />, path: '/subscribers/new' },*/
             { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
             { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
             { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
@@ -186,7 +186,7 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
           icon: <Description />,
           path: '/contracts',
           children: [
-            { text: 'Listar Contratos', icon: <Description />, path: '/contracts' },
+            { text: 'Manter Contratos', icon: <Description />, path: '/contracts' },
             { text: 'Contratos Ativos', icon: <Assignment />, path: '/contracts/active' },
             { text: 'Contratos Expirados', icon: <Warning />, path: '/contracts/expired' },
             { text: 'Contratos Assinantes', icon: <Description />, path: '/contracts?type=subscriber' },
@@ -194,12 +194,12 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
           ],
         },
         {
-          text: 'Planos',
+          text: 'Planos & Veículo de Mídia',
           icon: <Link />,
           path: '/plan-publisher-access',
           children: [
-            { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },
-            { text: 'Manter Planos e Publicadores', icon: <Link />, path: '/plan-publisher-access' },
+/*            { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },*/
+            { text: 'Manter Planos e Veículo de Mídia', icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
             { text: 'Planos Assinantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
             { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
@@ -211,7 +211,7 @@ function getOwnerSystemMenu(): HierarchicalMenuItem[] {
           text: 'Dispatcher-Totem',
           icon: <Shuffle />,
           path: '/dispatcher-manager',
-          requiredFlag: 'flag_smart_2',
+/*          requiredFlag: 'flag_smart_2',*/
           children: [
             { text: 'Gerenciar Dispatcher', icon: <Shuffle />, path: '/dispatcher-manager' },
             { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
