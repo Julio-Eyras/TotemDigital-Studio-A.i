@@ -54,6 +54,7 @@ PRESERVE_DB=false
 LOAD_SEEDS=false
 SEEDS_OPTION_FORCED=false
 CONFIGURE_DNS_LOCAL=false
+DB_WAS_CREATED_OR_RESET=false
 
 # Modos especiais (operações focadas)
 DB_ONLY_MODE=false                # Reinstala apenas o banco (drop + schema + seeds), sem rebuild de backend/frontend
@@ -587,7 +588,7 @@ parse_arguments() {
                 echo "  --backend-only       Faz apenas build do backend (deps + TypeScript), sem tocar no banco"
                 echo "  --frontend-only      Faz apenas build do frontend (deps + build React), sem tocar no banco"
                 echo "  --backfront-build    Faz build do backend e do frontend (deps + TypeScript + React), sem tocar no banco"
-                echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt)"
+                echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt). Usa database/carga-inicial-db-smarsignage-v4.sql"
                 echo "  --no-seeds           Não carrega dados de demonstração"
                 echo "  --help               Mostra esta ajuda"
                 exit 0
@@ -3606,6 +3607,7 @@ setup_database() {
             }
             log "✅ Banco de dados antigo removido"
             DB_EXISTS=false
+            DB_WAS_CREATED_OR_RESET=true
         fi
 
         if [[ "$DB_EXISTS" == false ]]; then
@@ -3621,6 +3623,7 @@ setup_database() {
                         exit 1
                     }
                     log "✅ Banco de dados '${PG_DB}' criado"
+                    DB_WAS_CREATED_OR_RESET=true
                     
                     log "🔄 Restaurando backup do banco de dados..."
                     if sudo -u "$POSTGRES_USER" pg_restore -d "${PG_DB}" "$BACKUP_FILE" >/dev/null 2>&1; then
@@ -3644,6 +3647,7 @@ setup_database() {
                         exit 1
                     }
                     log "✅ Banco de dados '${PG_DB}' criado com sucesso"
+                    DB_WAS_CREATED_OR_RESET=true
                 fi
             else
                 sudo -u "$POSTGRES_USER" psql -c "CREATE DATABASE ${PG_DB} OWNER ${PG_USER};" || {
@@ -3651,9 +3655,17 @@ setup_database() {
                     exit 1
                 }
                 log "✅ Banco de dados '${PG_DB}' criado com sucesso"
+                DB_WAS_CREATED_OR_RESET=true
             fi
         elif [[ "$PRESERVE_DB" == "true" && "$DB_EXISTS" == true ]]; then
             log "✅ Banco de dados '${PG_DB}' preservado (já existe e --preserve-db ativo)"
+        fi
+
+        # Se um banco NOVO foi criado/recriado e o usuário não forçou seeds via flags,
+        # carregar seeds automaticamente para deixar o sistema pronto com dados de exemplo.
+        if [[ "$DB_WAS_CREATED_OR_RESET" == "true" ]] && [[ "$SEEDS_OPTION_FORCED" != "true" ]]; then
+            LOAD_SEEDS=true
+            log "✅ Banco de dados novo/recriado detectado: seeds serão carregados automaticamente (use --no-seeds para pular)."
         fi
 
         # Garantir privilégios
@@ -7671,57 +7683,15 @@ setup_first_boot() {
     if [[ "$LOAD_SEEDS" == "true" ]]; then
         # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
         log "Executando seed completo do banco de dados com dados correlacionados..."
-        
-        # PRIORIDADE 1: Usar init-data.sql se existir (seeds de todas as tabelas com JOINs)
-        INIT_DATA_SQL_FILE="$INSTALL_DIR/database/init-data.sql"
-        if [[ -f "$INIT_DATA_SQL_FILE" ]]; then
-            log "✅ Arquivo init-data.sql encontrado - usando seeds completos do modelo E.R."
-            log "Executando init-data.sql (todas as tabelas usadas em JOINs serão populadas)..."
-            
-            # Executar init-data.sql (ignorar avisos de "already exists" e NOTICE)
-            log "Executando init-data.sql..."
-            INIT_LOG="/tmp/init-data.log"
-            log "Executando init-data.sql..."
-            if sudo -u postgres psql -v ON_ERROR_STOP=1 -d "$TARGET_DB" -f "$INIT_DATA_SQL_FILE" >"$INIT_LOG" 2>&1; then
-                log "✅ Seeds executados usando init-data.sql"
-            else
-                warn "⚠️ Erros ao executar init-data.sql. Consulte $INIT_LOG para detalhes."
-            fi
-            
-            # Verificar se dados foram inseridos (mesmo que haja avisos)
-            TABLE_COUNT=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ' || echo "0")
-            if [[ -n "$TABLE_COUNT" ]] && [[ "$TABLE_COUNT" -gt 5 ]]; then
-                
-                # Verificar se dados foram inseridos
-                log "Verificando dados inseridos pelo init-data.sql..."
-                SEED_CLIENTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
-                SEED_USERS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
-                SEED_TOTEMS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM totems" 2>/dev/null || echo "0")
-                SEED_MEDIA=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM medias" 2>/dev/null || echo "0")
-                SEED_PLAYLISTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM playlists" 2>/dev/null || echo "0")
-                SEED_CAMPAIGNS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM campaigns" 2>/dev/null || echo "0")
-                
-                log "Dados inseridos:"
-                log "  📋 Clientes: $SEED_CLIENTS"
-                log "  👥 Usuários: $SEED_USERS"
-                log "  📺 Totens: $SEED_TOTEMS"
-                log "  🎬 Mídias: $SEED_MEDIA"
-                log "  📋 Playlists: $SEED_PLAYLISTS"
-                log "  📢 Campanhas: $SEED_CAMPAIGNS"
 
-                # Seed executado via SQL, prosseguindo para validação e criação do usuário admin
-            else
-                warn "⚠️ Poucas tabelas encontradas após seed. Verificando se dados foram inseridos..."
-                # Verificar se pelo menos alguns dados foram inseridos
-                SEED_CLIENTS=$(sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT COUNT(*) FROM clients" 2>/dev/null || echo "0")
-                if [[ "$SEED_CLIENTS" -gt 0 ]]; then
-                    log "✅ Alguns dados foram inseridos, continuando..."
-                else
-                    warn "⚠️ Nenhum dado encontrado. Verifique o arquivo init-data.sql"
-                fi
-            fi
+        # Usar apenas a carga inicial v4 como fonte única de seeds do projeto.
+        INITIAL_LOAD_SQL_FILE="$INSTALL_DIR/database/carga-inicial-db-smarsignage-v4.sql"
+        if [[ -f "$INITIAL_LOAD_SQL_FILE" ]]; then
+            log "✅ Arquivo carga-inicial-db-smarsignage-v4.sql encontrado - usando carga inicial v4"
+            execute_psql_file "$TARGET_DB" "$INITIAL_LOAD_SQL_FILE" "Carga inicial v4 (carga-inicial-db-smarsignage-v4.sql)"
         else
-            warn "⚠️ Arquivo init-data.sql não encontrado em $INSTALL_DIR/database/"
+            warn "⚠️ Arquivo de seeds não encontrado: $INITIAL_LOAD_SQL_FILE"
+            warn "⚠️ Sem seeds. O sistema será instalado sem dados de exemplo."
         fi
     else
         log "Seeds de demonstração foram ignorados (opção selecionada)."

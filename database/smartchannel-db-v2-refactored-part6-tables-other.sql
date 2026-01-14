@@ -383,6 +383,51 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tokens de dispositivos (players, totens, Smart TVs)
+CREATE TABLE IF NOT EXISTS device_tokens (
+    device_token_id SERIAL PRIMARY KEY,
+    
+    -- Identificação do dispositivo
+    totem_id INTEGER,      -- FK para totems (se aplicável)
+    smart_tv_id INTEGER,   -- FK para smart_tvs (se aplicável)
+    
+    uin TEXT,              -- UIN do totem (quando disponível)
+    device_id TEXT,        -- ID do dispositivo (TV, SBC, etc.)
+    platform TEXT,         -- webos, tizen, android, linux, windows, browser, etc.
+    app_version TEXT,      -- Versão do app/player
+    
+    -- Token de autenticação
+    token TEXT NOT NULL UNIQUE,          -- Token de acesso curto (para validação rápida)
+    refresh_token TEXT,                  -- Opcional: token de renovação mais longo
+    status TEXT NOT NULL DEFAULT 'active', 
+        -- active, revoked, expired
+    
+    -- Telemetria básica
+    ip_address TEXT,
+    user_agent TEXT,
+    last_seen_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_device_token_status 
+        CHECK (status IN ('active', 'revoked', 'expired'))
+);
+
+COMMENT ON TABLE device_tokens IS 'Tokens de autenticação e telemetria para dispositivos (totens, Smart TVs, players)';
+COMMENT ON COLUMN device_tokens.totem_id IS 'FK opcional para totems (quando o dispositivo está vinculado a um totem)';
+COMMENT ON COLUMN device_tokens.smart_tv_id IS 'FK opcional para smart_tvs (quando o dispositivo está vinculado a uma Smart TV específica)';
+COMMENT ON COLUMN device_tokens.uin IS 'UIN do totem (Unique Identifier Number) usado para autenticação do player';
+COMMENT ON COLUMN device_tokens.device_id IS 'Identificador do dispositivo (ex: device_id da Smart TV, SBC, etc.)';
+COMMENT ON COLUMN device_tokens.platform IS 'Plataforma do player: webos, tizen, android, linux, windows, browser, etc.';
+COMMENT ON COLUMN device_tokens.app_version IS 'Versão do aplicativo/player instalado no dispositivo';
+COMMENT ON COLUMN device_tokens.token IS 'Token de acesso emitido para o dispositivo (curto prazo)';
+COMMENT ON COLUMN device_tokens.refresh_token IS 'Token de renovação (longo prazo), opcional';
+COMMENT ON COLUMN device_tokens.status IS 'Status do token: active, revoked ou expired';
+COMMENT ON COLUMN device_tokens.last_seen_at IS 'Última vez que o dispositivo foi visto/validado usando este token';
+COMMENT ON COLUMN device_tokens.expires_at IS 'Data/hora de expiração deste token de dispositivo';
+
 CREATE TABLE IF NOT EXISTS user_two_factor (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL UNIQUE, -- FK para users

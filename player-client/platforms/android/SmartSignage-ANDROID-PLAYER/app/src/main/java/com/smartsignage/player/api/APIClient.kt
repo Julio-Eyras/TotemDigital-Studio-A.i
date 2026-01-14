@@ -228,6 +228,34 @@ class APIClient(
     }
 
     /**
+     * Baixa arquivo de mídia
+     */
+    suspend fun downloadMedia(mediaId: Int): Response {
+        return try {
+            val url = "$baseURL/api/media/$mediaId/download"
+            val requestBuilder = Request.Builder().url(url)
+
+            // Adicionar headers de autenticação
+            requestBuilder.addHeader("Content-Type", "application/json")
+            
+            if (totemUIN.isNotEmpty() && totemSecret.isNotEmpty()) {
+                requestBuilder.addHeader("X-Totem-Token", generateTotemToken())
+                requestBuilder.addHeader("X-Totem-UIN", totemUIN)
+            }
+
+            token?.let {
+                requestBuilder.addHeader("Authorization", "Bearer $it")
+            }
+
+            val request = requestBuilder.build()
+            client.newCall(request).execute()
+        } catch (e: Exception) {
+            Log.e(TAG, "Download media error", e)
+            throw e
+        }
+    }
+
+    /**
      * Envia log de erro
      */
     suspend fun sendErrorLog(error: String, stack: String?, metadata: Map<String, Any>): Boolean {
@@ -245,6 +273,77 @@ class APIClient(
         } catch (e: Exception) {
             Log.e(TAG, "Send error log error", e)
             false
+        }
+    }
+
+    /**
+     * NOVO FLUXO: Obtém token de dispositivo (/api/player/token)
+     *
+     * Este token será usado em todas as chamadas subsequentes (dispatch, heartbeat, etc.)
+     */
+    suspend fun getDeviceToken(
+        uin: String,
+        deviceId: String,
+        platform: String,
+        appVersion: String
+    ): DeviceTokenResponse? {
+        return try {
+            val query = "?uin=${uin}&deviceId=${deviceId}&platform=${platform}&appVersion=${appVersion}"
+            val response = request("/api/player/token$query")
+
+            if (response.isSuccessful) {
+                val bodyString = response.body?.string()
+                val tokenResponse = gson.fromJson(bodyString, DeviceTokenResponse::class.java)
+                tokenResponse?.let {
+                    // Atualizar token interno para reutilização em outras chamadas
+                    token = it.token
+                }
+                tokenResponse
+            } else {
+                Log.e(TAG, "getDeviceToken failed: ${response.code}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getDeviceToken error", e)
+            null
+        }
+    }
+
+    /**
+     * NOVO FLUXO: Obtém DispatchPlan diretamente do dispatcher (/api/player/dispatch)
+     *
+     * Substitui o uso de playlists diretas em cenários novos.
+     */
+    suspend fun getDispatchPlan(
+        uin: String,
+        deviceToken: String,
+        deviceId: String? = null,
+        timestampIso: String? = null,
+        timezone: String? = null
+    ): DispatchResponse? {
+        return try {
+            val params = mutableListOf(
+                "uin=$uin",
+                "token=$deviceToken"
+            )
+
+            deviceId?.let { params.add("deviceId=$it") }
+            timestampIso?.let { params.add("timestamp=$it") }
+            timezone?.let { params.add("timezone=$it") }
+
+            val query = "?" + params.joinToString("&")
+            val response = request("/api/player/dispatch$query")
+
+            if (response.isSuccessful) {
+                val bodyString = response.body?.string()
+                gson.fromJson(bodyString, DispatchResponse::class.java)
+            } else {
+                Log.e(TAG, "getDispatchPlan failed: ${response.code}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getDispatchPlan error", e)
+            null
         }
     }
 }

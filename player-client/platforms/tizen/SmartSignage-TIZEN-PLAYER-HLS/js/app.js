@@ -14,7 +14,13 @@ class SmartSignageApp {
     this.config = null;
     this.uin = null;
     this.token = null;
+    this.deviceToken = null; // Token de dispositivo do dispatcher
+    this.deviceId = null; // ID do dispositivo Tizen
     this.apiUrl = null;
+    this.currentDispatchPlan = null; // Último DispatchPlan recebido
+    this.useDispatcher = true; // Usar novo dispatcher por padrão
+    this.totemConnectionManager = null; // Gerenciador de conexão com totem
+    this.mediaCacheManager = null; // Gerenciador de cache local
     
     this.initialized = false;
   }
@@ -32,20 +38,123 @@ class SmartSignageApp {
       // 2. Verificar/Registrar UIN
       await this.ensureUIN();
 
-      // 3. Obter token de autenticação
-      await this.getToken();
+      // 3. Obter deviceId do Tizen
+      await this.getDeviceId();
 
-      // 4. Validar totem no backend
-      const validation = await this.validateTotem();
+      // 4. Inicializar TotemConnectionManager (descoberta totem local vs servidor central)
+      this.totemConnectionManager = new TotemConnectionManager({
+        totemIP: this.config.totem_ip || null,
+        totemPort: this.config.totem_port || 8080,
+        totemUIN: this.uin,
+        apiBaseURL: this.apiUrl,
+        autoDiscovery: this.config.auto_discovery !== false,
+        discoveryTimeout: 5000
+      });
+
+      // Determinar estratégia de conexão (totem local ou servidor central)
+      const connectionStrategy = await this.totemConnectionManager.determineConnectionStrategy();
       
-      // 5. Inicializar componentes
+      if (connectionStrategy.useLocalTotem) {
+        console.log('[App] Totem local encontrado, usando como dispatcher e cache', connectionStrategy.totemInfo);
+        // Atualizar configuração para usar totem local
+        this.apiUrl = this.totemConnectionManager.getBaseURL();
+        this.uin = this.totemConnectionManager.getTotemUIN();
+      } else {
+        console.log('[App] Totem local não encontrado, usando servidor central');
+      }
+
+      // Inicializar MediaCacheManager para cache local de mídias
+      if (typeof MediaCacheManager !== 'undefined') {
+        this.mediaCacheManager = new MediaCacheManager({
+          maxCacheSize: 500 * 1024 * 1024, // 500MB
+          cacheDir: '/media/internal/smartsignage/cache'
+        });
+        await this.mediaCacheManager.init();
+      }
+
+      // 4. Obter token de dispositivo (novo fluxo dispatcher)
+      if (this.useDispatcher) {
+        await this.getDeviceToken();
+      }
+
+      // 5. Obter token de autenticação (legado - fallback)
+      if (!this.deviceToken) {
+        await this.getToken();
+      }
+
+      // 7. Tentar obter DispatchPlan (novo fluxo)
+      let validation = null;
+      if (this.useDispatcher && this.deviceToken) {
+        try {
+          const dispatchPlan = await this.getDispatchPlan();
+          
+          // Processar cache local de mídias em background (se disponível)
+          if (this.mediaCacheManager) {
+            this.mediaCacheManager.processDispatchPlan(dispatchPlan, {
+              baseURL: this.apiUrl,
+              token: this.deviceToken,
+              totemUIN: this.uin
+            })
+              .then(stats => {
+                console.log(`[App] Cache processado: ${stats.success} sucesso, ${stats.failed} falhas, ${stats.skipped} puladas`);
+              })
+              .catch(error => {
+                console.warn('[App] Erro ao processar cache', error);
+              });
+          }
+          
+          // Usar DispatchPlan nativamente - extrair stream URL diretamente
+          const streamUrl = await this.extractStreamUrlFromDispatchPlan(dispatchPlan, true);
+          if (streamUrl) {
+            validation = {
+              playlist: {
+                stream_url: streamUrl
+              }
+            };
+          }
+        } catch (error) {
+          console.warn('[App] Falha ao obter DispatchPlan, tentando modo offline...', error);
+          
+          // Tentar modo offline (último DispatchPlan em cache)
+          if (this.mediaCacheManager) {
+            const lastPlan = this.mediaCacheManager.loadLastDispatchPlan();
+            if (lastPlan) {
+              console.log('[App] Usando último DispatchPlan em cache (modo offline)');
+              const streamUrl = await this.extractStreamUrlFromDispatchPlan(lastPlan, true);
+              if (streamUrl) {
+                validation = {
+                  playlist: {
+                    stream_url: streamUrl
+                  }
+                };
+              }
+            }
+          }
+          
+          if (!validation) {
+            this.useDispatcher = false;
+          }
+        }
+      }
+
+      // 7. Validar totem no backend (legado - fallback)
+      if (!validation) {
+        validation = await this.validateTotem();
+      }
+      
+      // 8. Inicializar componentes
       await this.initializeComponents(validation);
 
-      // 6. Iniciar serviços
+      // 9. Iniciar serviços
       this.startServices();
 
-      // 7. Reproduzir stream inicial
+      // 10. Reproduzir stream inicial
       await this.startPlayback(validation);
+
+      // 11. Configurar sincronização periódica do DispatchPlan
+      if (this.useDispatcher) {
+        this.startDispatchPlanSync();
+      }
 
       this.initialized = true;
       console.log('[App] Aplicação inicializada com sucesso!');
@@ -111,7 +220,66 @@ class SmartSignageApp {
   }
 
   /**
-   * Obtém token de autenticação
+   * Obtém deviceId do Tizen
+   */
+  async getDeviceId() {
+    try {
+      if (typeof tizen !== 'undefined' && tizen.systeminfo) {
+        // Tentar obter ID único do Tizen
+        const deviceId = tizen.systeminfo.getCapability('http://tizen.org/system/tizenid');
+        if (deviceId) {
+          this.deviceId = `tizen-${deviceId}`;
+          return this.deviceId;
+        }
+      }
+      
+      // Fallback: gerar ID baseado em hardware
+      const hardwareInfo = await this.deviceInfo.collectHardwareInfo();
+      this.deviceId = `tizen-${hardwareInfo.serial || Date.now()}`;
+      return this.deviceId;
+    } catch (error) {
+      console.warn('[App] Erro ao obter deviceId:', error);
+      this.deviceId = `tizen-${Date.now()}`;
+      return this.deviceId;
+    }
+  }
+
+  /**
+   * Obtém token de dispositivo (novo fluxo dispatcher)
+   */
+  async getDeviceToken() {
+    if (!this.deviceId) {
+      await this.getDeviceId();
+    }
+
+    try {
+      const params = new URLSearchParams({
+        uin: this.uin,
+        deviceId: this.deviceId || '',
+        platform: 'tizen',
+        appVersion: '2.1.0'
+      });
+
+      const response = await fetch(`${this.apiUrl}/player/token?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      this.deviceToken = result.token;
+      console.log('[App] Device token obtido');
+      
+      return this.deviceToken;
+    } catch (error) {
+      console.warn('[App] Erro ao obter device token:', error);
+      this.useDispatcher = false;
+      return null;
+    }
+  }
+
+  /**
+   * Obtém token de autenticação (legado - fallback)
    */
   async getToken() {
     try {
@@ -123,12 +291,54 @@ class SmartSignageApp {
 
       const result = await response.json();
       this.token = result.token;
-      console.log('[App] Token obtido');
+      console.log('[App] Token obtido (legacy)');
       
       return this.token;
     } catch (error) {
       console.warn('[App] Erro ao obter token:', error);
       return null;
+    }
+  }
+
+  /**
+   * Obtém DispatchPlan do dispatcher
+   */
+  async getDispatchPlan() {
+    if (!this.deviceToken || !this.uin) {
+      throw new Error('Device token ou UIN não disponível');
+    }
+
+    try {
+      const timestamp = new Date().toISOString();
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      
+      const params = new URLSearchParams({
+        uin: this.uin,
+        token: this.deviceToken,
+        deviceId: this.deviceId || '',
+        timestamp: timestamp,
+        timezone: timezone
+      });
+
+      const response = await fetch(`${this.apiUrl}/player/dispatch?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.plan) {
+        this.currentDispatchPlan = result.plan;
+        console.log('[App] DispatchPlan obtido:', result.plan);
+        return result.plan;
+      }
+
+      throw new Error(result.error || 'Não foi possível obter DispatchPlan');
+    } catch (error) {
+      console.warn('[App] Erro ao obter DispatchPlan:', error);
+      this.useDispatcher = false;
+      throw error;
     }
   }
 
@@ -195,10 +405,25 @@ class SmartSignageApp {
       this.uin,
       this.config.heartbeat_interval
     );
-    this.heartbeatService.setToken(this.token);
+    // Usar deviceToken se disponível, senão token legado
+    this.heartbeatService.setToken(this.deviceToken || this.token);
+    
+    // Atualizar callbacks para incluir informações do dispositivo
+    const originalStatusCallback = () => this.player.getStatus();
+    const originalStreamCallback = () => this.player.getCurrentStream();
+    
     this.heartbeatService.setCallbacks(
-      () => this.player.getStatus(),
-      () => this.player.getCurrentStream()
+      () => {
+        const status = originalStatusCallback();
+        return {
+          ...status,
+          deviceId: this.deviceId,
+          platform: 'tizen',
+          appVersion: '2.1.0',
+          isOnline: navigator.onLine
+        };
+      },
+      originalStreamCallback
     );
   }
 
@@ -301,12 +526,154 @@ class SmartSignageApp {
   }
 
   /**
+   * Extrai stream URL do DispatchPlan (formato nativo)
+   * Se useLocalPaths=true, tenta usar caminhos locais do cache ou totem local
+   * 
+   * Agora trabalha diretamente com DispatchPlanMediaItem, sem conversão
+   */
+  async extractStreamUrlFromDispatchPlan(dispatchPlan, useLocalPaths = false) {
+    // Se DispatchPlan tem stream_url direto, usar
+    if (dispatchPlan.streamUrl) {
+      return dispatchPlan.streamUrl;
+    }
+
+    // Se tem mediaItems, usar primeiro vídeo como stream
+    if (dispatchPlan.mediaItems && dispatchPlan.mediaItems.length > 0) {
+      const videoItem = dispatchPlan.mediaItems.find(item => 
+        item.mediaType === 'video' || item.url.endsWith('.mp4') || item.url.endsWith('.m3u8')
+      );
+      
+      if (videoItem) {
+        let streamUrl = videoItem.url;
+        
+        // Tentar usar caminho local do cache (se disponível)
+        if (useLocalPaths && this.mediaCacheManager) {
+          const localPath = await this.mediaCacheManager.getLocalPath(videoItem.mediaId);
+          if (localPath) {
+            streamUrl = `file://${localPath}`;
+            console.log(`[App] Usando mídia do cache local: ${localPath}`);
+          } else if (this.totemConnectionManager && this.totemConnectionManager.isUsingLocalTotem()) {
+            // Tentar usar totem local HTTP
+            const totemInfo = this.totemConnectionManager.getTotemInfo();
+            const checksum = videoItem.metadata?.checksum || 'unknown';
+            const extension = this.getFileExtension(videoItem.metadata?.mimeType || 'video/mp4');
+            streamUrl = `http://${totemInfo.ip}:${totemInfo.port}/media/${videoItem.mediaId}_${checksum}.${extension}`;
+            console.log(`[App] Usando mídia do totem local: ${streamUrl}`);
+          }
+        }
+        
+        return streamUrl;
+      }
+    }
+
+    // Fallback: retornar null para usar validação legada
+    return null;
+  }
+  
+  /**
+   * DEPRECATED: Converte DispatchPlan para formato de validação (compatibilidade)
+   * 
+   * @deprecated Use extractStreamUrlFromDispatchPlan() e trabalhe diretamente com DispatchPlan
+   * TODO: Remover quando todos os componentes usarem DispatchPlan nativamente
+   */
+  async convertDispatchPlanToValidation(dispatchPlan, useLocalPaths = false) {
+    console.warn('[DEPRECATED] convertDispatchPlanToValidation() - Use extractStreamUrlFromDispatchPlan()');
+    
+    const streamUrl = await this.extractStreamUrlFromDispatchPlan(dispatchPlan, useLocalPaths);
+    if (streamUrl) {
+      return {
+        playlist: {
+          stream_url: streamUrl
+        }
+      };
+    }
+    return null;
+  }
+  
+  /**
+   * Obtém extensão de arquivo do MIME type
+   */
+  getFileExtension(mimeType) {
+    const mimeMap = {
+      'video/mp4': 'mp4',
+      'video/webm': 'webm',
+      'video/quicktime': 'mov',
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'audio/mpeg': 'mp3',
+      'audio/ogg': 'ogg',
+      'audio/wav': 'wav'
+    };
+    return mimeMap[mimeType] || 'bin';
+  }
+
+  /**
+   * Inicia sincronização periódica do DispatchPlan
+   */
+  startDispatchPlanSync() {
+    const syncInterval = this.config.dispatch_sync_interval || 900000; // 15 minutos
+
+    setInterval(async () => {
+      if (!this.useDispatcher || !this.deviceToken) {
+        return;
+      }
+
+      try {
+        const dispatchPlan = await this.getDispatchPlan();
+        const validation = this.convertDispatchPlanToValidation(dispatchPlan);
+        
+        if (validation && validation.playlist && validation.playlist.stream_url) {
+          const currentStream = this.player?.getCurrentStream();
+          const newStream = validation.playlist.stream_url;
+          
+          // Se stream mudou, atualizar reprodução
+          if (currentStream !== newStream) {
+            console.log('[App] Stream atualizado via DispatchPlan:', newStream);
+            await this.player.play(newStream);
+          }
+        }
+      } catch (error) {
+        console.warn('[App] Erro na sincronização do DispatchPlan:', error);
+        // Não desabilitar dispatcher por erro temporário
+      }
+    }, syncInterval);
+  }
+
+  /**
    * Inicializa modo fallback (sem conexão com backend)
    */
   async initializeFallbackMode() {
     console.log('[App] Inicializando modo fallback...');
     
     this.player = new HLSPlayer('player');
+    
+    // Tentar usar último DispatchPlan em cache (se disponível)
+    let dispatchPlan = this.currentDispatchPlan;
+    if (!dispatchPlan && this.mediaCacheManager) {
+      dispatchPlan = this.mediaCacheManager.loadLastDispatchPlan();
+    }
+    
+    if (dispatchPlan) {
+      const streamUrl = await this.extractStreamUrlFromDispatchPlan(dispatchPlan, true);
+      if (streamUrl) {
+        validation = {
+          playlist: {
+            stream_url: streamUrl
+          }
+        };
+      }
+      if (validation && validation.playlist && validation.playlist.stream_url) {
+        try {
+          await this.player.play(validation.playlist.stream_url);
+          console.log('[App] Usando DispatchPlan em cache (modo offline)');
+          return;
+        } catch (error) {
+          console.warn('[App] Falha ao usar DispatchPlan em cache:', error);
+        }
+      }
+    }
     
     // Tentar reproduzir fallback local
     const fallbackUrls = this.config.fallback_urls || ['/media/usb/fallback.mp4'];

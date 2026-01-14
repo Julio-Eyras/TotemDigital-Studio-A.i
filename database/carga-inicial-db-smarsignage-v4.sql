@@ -1177,3 +1177,235 @@ INSERT INTO audit_logs (id, user_id, action, entity, entity_id, publisher_id, su
 (3, 2, 'update', 'totem', 1, 1, NULL, '{}'::jsonb, '192.168.1.101', 'Mozilla/5.0', NOW() - INTERVAL '5 days'),
 (4, 4, 'create', 'campaign', 1, 1, 1, '{}'::jsonb, '192.168.1.102', 'Mozilla/5.0', NOW() - INTERVAL '10 days')
 ON CONFLICT DO NOTHING;
+
+-- =============================================
+-- DEVICE TOKENS - Tokens de autenticação de dispositivos
+-- =============================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'device_tokens') THEN
+        INSERT INTO device_tokens (
+            device_token_id, totem_id, smart_tv_id, uin, device_id, platform, app_version,
+            token, refresh_token, status, ip_address, user_agent, last_seen_at, expires_at
+        ) VALUES
+        -- Totem 1 - Shopping Entrada (Linux)
+        (
+            1, 1, NULL, 'UIN-SHOPPING-001-2024', 'DEVICE-001', 'linux', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tU0hPUFBJTkctMDAxLTIwMjQiLCJkZXZpY2VfaWQiOiJERVZJQ0UtMDAxIiwicGxhdGZvcm0iOiJsaW51eCIsImlhdCI6MTczNTAwMDAwMCwiZXhwIjoxNzM1MDg2NDAwfQ.token001',
+            'refresh.token.001', 'active', '192.168.1.10', 'SmartSignage-Player/2.1.0 (Linux)', NOW() - INTERVAL '5 minutes', NOW() + INTERVAL '24 hours'
+        ),
+        -- Totem 2 - Shopping Praça (Linux)
+        (
+            2, 2, NULL, 'UIN-SHOPPING-002-2024', 'DEVICE-002', 'linux', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tU0hPUFBJTkctMDAyLTIwMjQiLCJkZXZpY2VfaWQiOiJERVZJQ0UtMDAyIiwicGxhdGZvcm0iOiJsaW51eCIsImlhdCI6MTczNTAwMDAwMCwiZXhwIjoxNzM1MDg2NDAwfQ.token002',
+            'refresh.token.002', 'active', '192.168.1.11', 'SmartSignage-Player/2.1.0 (Linux)', NOW() - INTERVAL '2 minutes', NOW() + INTERVAL '24 hours'
+        ),
+        -- Totem 3 - Shopping Cinema (Linux)
+        (
+            3, 3, NULL, 'UIN-SHOPPING-003-2024', 'DEVICE-003', 'linux', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tU0hPUFBJTkctMDAzLTIwMjQiLCJkZXZpY2VfaWQiOiJERVZJQ0UtMDAzIiwicGxhdGZvcm0iOiJsaW51eCIsImlhdCI6MTczNTAwMDAwMCwiZXhwIjoxNzM1MDg2NDAwfQ.token003',
+            'refresh.token.003', 'active', '192.168.1.12', 'SmartSignage-Player/2.1.0 (Linux)', NOW() - INTERVAL '10 minutes', NOW() + INTERVAL '24 hours'
+        ),
+        -- Totem 4 - Farmácia Matriz (Linux)
+        (
+            4, 4, NULL, 'UIN-FARMACIA-001-2024', 'DEVICE-004', 'linux', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tRkFSTUFDSUEtMDAxLTIwMjQiLCJkZXZpY2VfaWQiOiJERVZJQ0UtMDA0IiwicGxhdGZvcm0iOiJsaW51eCIsImlhdCI6MTczNTAwMDAwMCwiZXhwIjoxNzM1MDg2NDAwfQ.token004',
+            'refresh.token.004', 'active', '192.168.1.20', 'SmartSignage-Player/2.1.0 (Linux)', NOW() - INTERVAL '1 hour', NOW() + INTERVAL '24 hours'
+        ),
+        -- Totem 5 - Farmácia Filial (Linux)
+        (
+            5, 5, NULL, 'UIN-FARMACIA-002-2024', 'DEVICE-005', 'linux', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tRkFSTUFDSUEtMDAyLTIwMjQiLCJkZXZpY2VfaWQiOiJERVZJQ0UtMDA1IiwicGxhdGZvcm0iOiJsaW51eCIsImlhdCI6MTczNTAwMDAwMCwiZXhwIjoxNzM1MDg2NDAwfQ.token005',
+            'refresh.token.005', 'active', '192.168.1.21', 'SmartSignage-Player/2.1.0 (Linux)', NOW() - INTERVAL '30 minutes', NOW() + INTERVAL '24 hours'
+        ),
+        -- Totem 6 - Supermercado Caixas (Linux)
+        (
+            6, 6, NULL, 'UIN-SUPER-001-2024', 'DEVICE-006', 'linux', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tU1VQRVItMDAxLTIwMjQiLCJkZXZpY2VfaWQiOiJERVZJQ0UtMDA2IiwicGxhdGZvcm0iOiJsaW51eCIsImlhdCI6MTczNTAwMDAwMCwiZXhwIjoxNzM1MDg2NDAwfQ.token006',
+            'refresh.token.006', 'active', '192.168.1.30', 'SmartSignage-Player/2.1.0 (Linux)', NOW() - INTERVAL '15 minutes', NOW() + INTERVAL '24 hours'
+        ),
+        -- Totem 8 - Urbano 1 (Linux)
+        (
+            7, 8, NULL, 'UIN-URBANO-001-2024', 'DEVICE-008', 'linux', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tVVJCQU5PLTAwMS0yMDI0IiwiZGV2aWNlX2lkIjoiREVWSUNFLTAwOCIsInBsYXRmb3JtIjoibGludXgiLCJpYXQiOjE3MzUwMDAwMDAsImV4cCI6MTczNTA4NjQwMH0.token008',
+            'refresh.token.008', 'active', '192.168.1.50', 'SmartSignage-Player/2.1.0 (Linux)', NOW() - INTERVAL '5 minutes', NOW() + INTERVAL '24 hours'
+        ),
+        -- Smart TV 1 - Shopping Entrada (Tizen)
+        (
+            8, 1, 1, 'UIN-SHOPPING-001-2024', 'TV-DEVICE-001', 'tizen', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tU0hPUFBJTkctMDAxLTIwMjQiLCJkZXZpY2VfaWQiOiJUVi1ERVZJQ0UtMDAxIiwicGxhdGZvcm0iOiJ0aXplbiIsImlhdCI6MTczNTAwMDAwMCwiZXhwIjoxNzM1MDg2NDAwfQ.tv.token001',
+            'refresh.tv.token.001', 'active', '192.168.1.10', 'SmartSignage-Player/2.1.0 (Tizen)', NOW() - INTERVAL '3 minutes', NOW() + INTERVAL '24 hours'
+        ),
+        -- Smart TV 2 - Shopping Praça (webOS)
+        (
+            9, 2, 2, 'UIN-SHOPPING-002-2024', 'TV-DEVICE-002', 'webos', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tU0hPUFBJTkctMDAyLTIwMjQiLCJkZXZpY2VfaWQiOiJUVi1ERVZJQ0UtMDAyIiwicGxhdGZvcm0iOiJ3ZWJvcyIsImlhdCI6MTczNTAwMDAwMCwiZXhwIjoxNzM1MDg2NDAwfQ.tv.token002',
+            'refresh.tv.token.002', 'active', '192.168.1.11', 'SmartSignage-Player/2.1.0 (webOS)', NOW() - INTERVAL '1 minute', NOW() + INTERVAL '24 hours'
+        ),
+        -- Smart TV 3 - Shopping Cinema (Tizen)
+        (
+            10, 3, 3, 'UIN-SHOPPING-003-2024', 'TV-DEVICE-003', 'tizen', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tU0hPUFBJTkctMDAzLTIwMjQiLCJkZXZpY2VfaWQiOiJUVi1ERVZJQ0UtMDAzIiwicGxhdGZvcm0iOiJ0aXplbiIsImlhdCI6MTczNTAwMDAwMCwiZXhwIjoxNzM1MDg2NDAwfQ.tv.token003',
+            'refresh.tv.token.003', 'active', '192.168.1.12', 'SmartSignage-Player/2.1.0 (Tizen)', NOW() - INTERVAL '8 minutes', NOW() + INTERVAL '24 hours'
+        ),
+        -- Smart TV 4 - Farmácia Matriz (webOS)
+        (
+            11, 4, 4, 'UIN-FARMACIA-001-2024', 'TV-DEVICE-004', 'webos', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tRkFSTUFDSUEtMDAxLTIwMjQiLCJkZXZpY2VfaWQiOiJUVi1ERVZJQ0UtMDA0IiwicGxhdGZvcm0iOiJ3ZWJvcyIsImlhdCI6MTczNTAwMDAwMCwiZXhwIjoxNzM1MDg2NDAwfQ.tv.token004',
+            'refresh.tv.token.004', 'active', '192.168.1.20', 'SmartSignage-Player/2.1.0 (webOS)', NOW() - INTERVAL '45 minutes', NOW() + INTERVAL '24 hours'
+        ),
+        -- Smart TV 5 - Farmácia Filial (webOS)
+        (
+            12, 5, 5, 'UIN-FARMACIA-002-2024', 'TV-DEVICE-005', 'webos', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tRkFSTUFDSUEtMDAyLTIwMjQiLCJkZXZpY2VfaWQiOiJUVi1ERVZJQ0UtMDA1IiwicGxhdGZvcm0iOiJ3ZWJvcyIsImlhdCI6MTczNTAwMDAwMCwiZXhwIjoxNzM1MDg2NDAwfQ.tv.token005',
+            'refresh.tv.token.005', 'active', '192.168.1.21', 'SmartSignage-Player/2.1.0 (webOS)', NOW() - INTERVAL '20 minutes', NOW() + INTERVAL '24 hours'
+        ),
+        -- Smart TV 6 - Supermercado Caixas (Tizen)
+        (
+            13, 6, 6, 'UIN-SUPER-001-2024', 'TV-DEVICE-006', 'tizen', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tU1VQRVItMDAxLTIwMjQiLCJkZXZpY2VfaWQiOiJUVi1ERVZJQ0UtMDA2IiwicGxhdGZvcm0iOiJ0aXplbiIsImlhdCI6MTczNTAwMDAwMCwiZXhwIjoxNzM1MDg2NDAwfQ.tv.token006',
+            'refresh.tv.token.006', 'active', '192.168.1.30', 'SmartSignage-Player/2.1.0 (Tizen)', NOW() - INTERVAL '12 minutes', NOW() + INTERVAL '24 hours'
+        ),
+        -- Smart TV 8 - Urbano 1 (webOS)
+        (
+            14, 8, 8, 'UIN-URBANO-001-2024', 'TV-DEVICE-008', 'webos', '2.1.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aW4iOiJVSU4tVVJCQU5PLTAwMS0yMDI0IiwiZGV2aWNlX2lkIjoiVFYtREVWSUNFLTAwOCIsInBsYXRmb3JtIjoid2Vib3MiLCJpYXQiOjE3MzUwMDAwMDAsImV4cCI6MTczNTA4NjQwMH0.tv.token008',
+            'refresh.tv.token.008', 'active', '192.168.1.50', 'SmartSignage-Player/2.1.0 (webOS)', NOW() - INTERVAL '4 minutes', NOW() + INTERVAL '24 hours'
+        ),
+        -- Token expirado (exemplo de histórico)
+        (
+            15, 7, 7, 'UIN-SUPER-002-2024', 'DEVICE-007', 'linux', '2.0.0',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.expired.token',
+            NULL, 'expired', '192.168.1.31', 'SmartSignage-Player/2.0.0 (Linux)', NOW() - INTERVAL '3 days', NOW() - INTERVAL '1 day'
+        )
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
+
+-- =============================================
+-- TOTEM PLAYLIST MIX - Mix inteligente de playlists
+-- =============================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'totem_playlist_mix') THEN
+        INSERT INTO totem_playlist_mix (
+            mix_id, totem_id, rule_id, mix_version, mix_items, total_items, total_duration,
+            mix_strategy, context_snapshot, is_active, is_current, generated_at, applied_at, expires_at
+        ) VALUES
+        -- Totem 1 - Mix com múltiplas campanhas
+        (
+            1, 1, NULL, 2,
+            '[
+                {"media_id": 1, "playlist_id": 1, "campaign_id": 1, "order_index": 0, "weight": 0.5, "source": "campaign", "display_seconds": 10},
+                {"media_id": 2, "playlist_id": 1, "campaign_id": 1, "order_index": 1, "weight": 0.5, "source": "campaign", "display_seconds": 30},
+                {"media_id": 5, "playlist_id": null, "campaign_id": 4, "order_index": 2, "weight": 0.2, "source": "campaign", "display_seconds": 20},
+                {"media_id": 6, "playlist_id": null, "campaign_id": 5, "order_index": 3, "weight": 0.15, "source": "campaign", "display_seconds": 45}
+            ]'::jsonb,
+            4, 105,
+            'priority_weighted',
+            '{"campaigns": [1, 4, 5], "priority_distribution": {"campaign_1": 50, "campaign_4": 20, "campaign_5": 15, "fallback": 15}}'::jsonb,
+            true, true, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour', NULL
+        ),
+        -- Totem 2 - Mix com campanha principal
+        (
+            2, 2, NULL, 2,
+            '[
+                {"media_id": 1, "playlist_id": 2, "campaign_id": 1, "order_index": 0, "weight": 0.6, "source": "campaign", "display_seconds": 10},
+                {"media_id": 2, "playlist_id": 2, "campaign_id": 1, "order_index": 1, "weight": 0.6, "source": "campaign", "display_seconds": 30},
+                {"media_id": 5, "playlist_id": null, "campaign_id": 4, "order_index": 2, "weight": 0.25, "source": "campaign", "display_seconds": 20}
+            ]'::jsonb,
+            3, 60,
+            'priority_weighted',
+            '{"campaigns": [1, 4], "priority_distribution": {"campaign_1": 60, "campaign_4": 25, "fallback": 15}}'::jsonb,
+            true, true, NOW() - INTERVAL '30 minutes', NOW() - INTERVAL '30 minutes', NULL
+        ),
+        -- Totem 3 - Mix Shopping Cinema
+        (
+            3, 3, NULL, 2,
+            '[
+                {"media_id": 1, "playlist_id": 1, "campaign_id": 1, "order_index": 0, "weight": 0.55, "source": "campaign", "display_seconds": 10},
+                {"media_id": 2, "playlist_id": 1, "campaign_id": 1, "order_index": 1, "weight": 0.55, "source": "campaign", "display_seconds": 30},
+                {"media_id": 5, "playlist_id": null, "campaign_id": 4, "order_index": 2, "weight": 0.2, "source": "campaign", "display_seconds": 20},
+                {"media_id": 6, "playlist_id": null, "campaign_id": 5, "order_index": 3, "weight": 0.15, "source": "campaign", "display_seconds": 45}
+            ]'::jsonb,
+            4, 105,
+            'priority_weighted',
+            '{"campaigns": [1, 4, 5], "priority_distribution": {"campaign_1": 55, "campaign_4": 20, "campaign_5": 15, "fallback": 10}}'::jsonb,
+            true, true, NOW() - INTERVAL '45 minutes', NOW() - INTERVAL '45 minutes', NULL
+        ),
+        -- Totem 4 - Mix Farmácia Matriz
+        (
+            4, 4, NULL, 2,
+            '[
+                {"media_id": 3, "playlist_id": 3, "campaign_id": 2, "order_index": 0, "weight": 1.0, "source": "campaign", "display_seconds": 15}
+            ]'::jsonb,
+            1, 15,
+            'single_campaign',
+            '{"campaigns": [2], "priority_distribution": {"campaign_2": 100}}'::jsonb,
+            true, true, NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours', NULL
+        ),
+        -- Totem 5 - Mix Farmácia Filial
+        (
+            5, 5, NULL, 2,
+            '[
+                {"media_id": 3, "playlist_id": 3, "campaign_id": 2, "order_index": 0, "weight": 1.0, "source": "campaign", "display_seconds": 15}
+            ]'::jsonb,
+            1, 15,
+            'single_campaign',
+            '{"campaigns": [2], "priority_distribution": {"campaign_2": 100}}'::jsonb,
+            true, true, NOW() - INTERVAL '1 hour 30 minutes', NOW() - INTERVAL '1 hour 30 minutes', NULL
+        ),
+        -- Totem 6 - Mix Supermercado Caixas
+        (
+            6, 6, NULL, 2,
+            '[
+                {"media_id": 4, "playlist_id": 4, "campaign_id": 3, "order_index": 0, "weight": 1.0, "source": "campaign", "display_seconds": 12}
+            ]'::jsonb,
+            1, 12,
+            'single_campaign',
+            '{"campaigns": [3], "priority_distribution": {"campaign_3": 100}}'::jsonb,
+            true, true, NOW() - INTERVAL '20 minutes', NOW() - INTERVAL '20 minutes', NULL
+        )
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
+
+-- =============================================
+-- INTERACTION LOGS - Logs de interações com totens
+-- =============================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'interaction_logs') THEN
+        INSERT INTO interaction_logs (
+            interaction_id, totem_id, tag_id, person_id, interaction_type, interaction_data, timestamp
+        ) VALUES
+        (1, 1, NULL, NULL, 'gesture_detected', '{"gesture": "wave", "confidence": 0.85, "duration_ms": 1200}'::jsonb, NOW() - INTERVAL '2 hours'),
+        (2, 1, NULL, NULL, 'gesture_detected', '{"gesture": "point", "confidence": 0.78, "duration_ms": 800}'::jsonb, NOW() - INTERVAL '1 hour 45 minutes'),
+        (3, 2, NULL, NULL, 'gesture_detected', '{"gesture": "wave", "confidence": 0.92, "duration_ms": 1500}'::jsonb, NOW() - INTERVAL '1 hour'),
+        (4, 3, NULL, NULL, 'gesture_detected', '{"gesture": "touch", "confidence": 0.88, "duration_ms": 500}'::jsonb, NOW() - INTERVAL '3 hours'),
+        (5, 4, NULL, NULL, 'tag_scanned', '{"tag_type": "QR", "tag_value": "QR-BF-2024-001", "campaign_id": 1}'::jsonb, NOW() - INTERVAL '4 hours'),
+        (6, 6, NULL, NULL, 'tag_scanned', '{"tag_type": "QR", "tag_value": "QR-MED-2024-001", "campaign_id": 2}'::jsonb, NOW() - INTERVAL '5 hours')
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
+
+-- =============================================
+-- TOTEM ML CONFIG - Configurações de ML/AI para totens
+-- =============================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'totem_ml_config') THEN
+        INSERT INTO totem_ml_config (
+            config_id, totem_id, emotion_detection_enabled, gesture_detection_enabled,
+            face_recognition_enabled, behavior_analysis_enabled, config
+        ) VALUES
+        (1, 1, true, true, false, true, '{"emotion_threshold": 0.7, "gesture_threshold": 0.75, "behavior_tracking": true}'::jsonb),
+        (2, 2, true, true, false, true, '{"emotion_threshold": 0.7, "gesture_threshold": 0.75, "behavior_tracking": true}'::jsonb),
+        (3, 3, true, true, false, true, '{"emotion_threshold": 0.7, "gesture_threshold": 0.75, "behavior_tracking": true}'::jsonb),
+        (4, 4, false, false, false, false, '{}'::jsonb),
+        (5, 5, false, false, false, false, '{}'::jsonb),
+        (6, 6, true, false, false, false, '{"emotion_threshold": 0.65}'::jsonb),
+        (8, 8, true, true, false, true, '{"emotion_threshold": 0.7, "gesture_threshold": 0.75, "behavior_tracking": true}'::jsonb)
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;

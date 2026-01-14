@@ -48,9 +48,69 @@ data class HeartbeatData(
     val metrics: Map<String, Any>?
 )
 
+/**
+ * Novos modelos para integração com o Dispatcher/DispatchPlan
+ */
+
+/**
+ * Resposta de autenticação de dispositivo (/api/player/token)
+ */
+data class DeviceTokenResponse(
+    val token: String,
+    val expiresIn: Long?
+)
+
+/**
+ * Item de mídia dentro do DispatchPlan
+ */
+data class DispatchPlanMediaItem(
+    val mediaId: Int,
+    val order: Int,
+    val duration: Int?,
+    val url: String,
+    val mediaType: String,
+    val metadata: Map<String, Any>?
+)
+
+/**
+ * Plano de exibição retornado pelo Dispatcher
+ */
+data class DispatchPlan(
+    val totemId: Int,
+    val timestamp: String?,
+    val playlistId: Int?,
+    val playlistName: String?,
+    val mediaItems: List<DispatchPlanMediaItem>,
+    val totalDuration: Int?,
+    val priority: Int?,
+    val source: String?,
+    val sourceId: Int?
+)
+
+/**
+ * Resposta completa de /api/player/dispatch
+ */
+data class DispatchResponse(
+    val success: Boolean,
+    val fromCache: Boolean,
+    val executionTimeMs: Long?,
+    val plan: DispatchPlan?,
+    val error: String?
+)
+
 sealed class PlayerState {
     object Loading : PlayerState()
-    data class Playing(val item: PlaylistItem) : PlayerState()
+    // Suporta tanto PlaylistItem (legado) quanto DispatchPlanMediaItem (nativo)
+    data class Playing(val item: Any) : PlayerState() {
+        // Helper para obter DispatchPlanMediaItem se disponível
+        fun getMediaItem(): DispatchPlanMediaItem? {
+            return item as? DispatchPlanMediaItem
+        }
+        // Helper para obter PlaylistItem (compatibilidade)
+        fun getPlaylistItem(): PlaylistItem? {
+            return item as? PlaylistItem
+        }
+    }
     data class Error(val message: String) : PlayerState()
     object Idle : PlayerState()
 }

@@ -1,63 +1,135 @@
-# Player Android TV
+# Smart Signage Android Player
 
-Player cliente para Android TV (Android 7.0+ / API 24+).
+Player Android completo com suporte a DispatchPlan nativo, cache local, servidor HTTP local e **descoberta automática via mDNS (NSD)**.
 
-## 📋 Requisitos
+## 🚀 Funcionalidades
 
-- Android Studio
-- Android SDK (API 24+)
-- Android TV SDK
-- Kotlin 1.8+
-- Gradle 7.0+
+- ✅ DispatchPlan nativo (sem conversão)
+- ✅ Cache local de mídias
+- ✅ Servidor HTTP local (porta 8080)
+- ✅ **Descoberta automática via mDNS (NSD)** ⭐ NOVO
+- ✅ Validação temporal (validityStart/validityEnd)
+- ✅ Modo offline
+- ✅ Heartbeat periódico
+- ✅ Sincronização automática
 
-## 🚀 Instalação
+## 🔍 Descoberta Automática (mDNS/NSD)
 
-### 1. Configurar Ambiente
+### Como Funciona
+
+1. **Totem Android anuncia via NSD API:**
+   - Nome: `Publisher-{deviceId}`
+   - Serviço: `_smartsignage-totem._tcp`
+   - Porta: 8080
+   - Atributos TXT: role=publisher, player=android, version=2.1.0, totemUIN={UIN}
+
+2. **Smart TVs descobrem automaticamente:**
+   - webOS: via `webOS.service.mdns`
+   - Tizen: via SSDP ou mDNS
+   - Não requer configuração manual de IP
+
+3. **Fallback:**
+   - Se mDNS não disponível, usa scan básico
+   - Se scan falhar, usa servidor central
+
+### Permissões Necessárias
+
+Adicionadas automaticamente no `AndroidManifest.xml`:
+```xml
+<uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+```
+
+### Verificar Descoberta
 
 ```bash
-# Instalar Android Studio
-# Configurar Android SDK
-# Configurar variáveis de ambiente ANDROID_HOME
+# Via adb shell
+adb shell dumpsys nsd
+
+# Ou usar app de teste mDNS na rede local
 ```
 
-### 2. Build
+## 📋 Componentes
 
-```bash
-cd platforms/android
-./gradlew assembleDebug
+### PlayerViewModel.kt
+ViewModel principal que gerencia estado do player.
+
+### discovery/TotemDiscoveryService.kt ⭐ NOVO
+Gerencia registro e descoberta via NSD API (mDNS).
+
+### server/LocalHttpServer.kt
+Servidor HTTP local para servir mídias às Smart TVs.
+
+### cache/MediaCacheManager.kt
+Gerenciador de cache local de mídias.
+
+### core/PlaylistManager.kt
+Gerencia DispatchPlan nativo.
+
+### player/MediaPlayer.kt
+Player de mídia usando ExoPlayer.
+
+## 🔧 Configuração
+
+### AndroidManifest.xml
+
+Permissões já adicionadas:
+- `CHANGE_WIFI_MULTICAST_STATE` - Necessário para mDNS
+- `INTERNET` - Comunicação com backend
+- `ACCESS_NETWORK_STATE` - Verificar conectividade
+
+### build.gradle
+
+Dependências já incluídas:
+- `androidx.lifecycle:lifecycle-viewmodel-ktx` - ViewModel
+- `androidx.media3:media3-exoplayer` - Player de mídia
+- `com.squareup.okhttp3:okhttp` - HTTP client
+
+## 📝 Requisitos
+
+- Android SDK 24+ (Android 7.0+)
+- Permissões de rede configuradas
+- TOTEM_UIN configurado (SharedPreferences ou config remota)
+
+## 🎯 Integração
+
+### Inicialização Automática
+
+O `TotemDiscoveryService` é inicializado automaticamente no `PlayerViewModel.initialize()`:
+
+```kotlin
+// Registro automático via mDNS
+discoveryService = TotemDiscoveryService(getApplication())
+discoveryService?.registerTotem(TOTEM_UIN, 8080)
 ```
 
-### 3. Instalar no Dispositivo
+### Limpeza Automática
 
-```bash
-# Conectar dispositivo Android TV via USB ou ADB over network
-adb install app/build/outputs/apk/debug/app-debug.apk
+O serviço é desregistrado automaticamente em `onCleared()`:
+
+```kotlin
+override fun onCleared() {
+    discoveryService?.unregisterTotem()
+}
 ```
 
-## 🔧 Desenvolvimento
+## 📚 Documentação Relacionada
 
-### Estrutura
+- `docs/ANALISE_MDNS_SSDP_SCAN.md` - Análise completa de mDNS/SSDP
+- `docs/ANALISE_MDNS_SSDP_SCAN_ANDROID.md` - Detalhes específicos Android
+- `docs/ARQUITETURA-DESCOBERTA-TOTEM-LOCAL.md` - Arquitetura de descoberta
 
-```
-android/
-├── app/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/smartsignage/player/
-│   │   │   │   ├── MainActivity.kt
-│   │   │   │   ├── api/
-│   │   │   │   ├── player/
-│   │   │   │   └── services/
-│   │   │   ├── res/
-│   │   │   └── AndroidManifest.xml
-│   │   └── test/
-│   └── build.gradle
-├── build.gradle
-└── settings.gradle
-```
+## 🔍 Troubleshooting
 
-## 📚 Documentação
+**Problema**: Totem não aparece na descoberta
+- Verificar se permissões estão no AndroidManifest.xml
+- Verificar se TOTEM_UIN está configurado
+- Verificar logs: `adb logcat | grep TotemDiscoveryService`
 
-- [Android TV Developer Guide](https://developer.android.com/training/tv)
-- [Leanback Library](https://developer.android.com/training/tv/start/start)
+**Problema**: Erro FAILURE_ALREADY_ACTIVE
+- Serviço já está registrado (normal após reinicialização)
+- O sistema tenta desregistrar e registrar novamente automaticamente
 
+**Problema**: Erro FAILURE_INTERNAL_ERROR
+- NSD pode não estar disponível no dispositivo
+- Verificar se dispositivo suporta NSD API
+- Fallback para scan básico ou servidor central

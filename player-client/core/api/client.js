@@ -187,7 +187,58 @@ class APIClient {
   }
 
   /**
-   * Obtém playlist do totem
+   * Obtém token de dispositivo
+   * @param {string} uin - UIN do totem
+   * @param {string} deviceId - ID do dispositivo
+   * @param {string} platform - Plataforma (webos, tizen, android, etc.)
+   * @param {string} appVersion - Versão do app
+   */
+  async getDeviceToken(uin, deviceId, platform, appVersion) {
+    const params = new URLSearchParams({
+      uin,
+      deviceId: deviceId || '',
+      platform: platform || 'unknown',
+      appVersion: appVersion || '2.1.0'
+    });
+
+    const response = await this.request(`/api/player/token?${params.toString()}`);
+    
+    if (response.token) {
+      this.token = response.token;
+    }
+
+    return response;
+  }
+
+  /**
+   * Obtém DispatchPlan do dispatcher
+   * @param {string} uin - UIN do totem
+   * @param {string} token - Token de dispositivo
+   * @param {string} deviceId - ID do dispositivo (opcional)
+   * @param {string} timestamp - Timestamp ISO8601 (opcional)
+   * @param {string} timezone - Timezone (opcional)
+   */
+  async getDispatchPlan(uin, token, deviceId = null, timestamp = null, timezone = null) {
+    const params = new URLSearchParams({
+      uin,
+      token
+    });
+
+    if (deviceId) params.append('deviceId', deviceId);
+    if (timestamp) params.append('timestamp', timestamp);
+    if (timezone) params.append('timezone', timezone);
+
+    const response = await this.request(`/api/player/dispatch?${params.toString()}`);
+    
+    if (response.success && response.plan) {
+      return response.plan;
+    }
+
+    throw new Error(response.error || 'Não foi possível obter DispatchPlan');
+  }
+
+  /**
+   * Obtém playlist do totem (legado - usar getDispatchPlan)
    */
   async getPlaylist() {
     return this.request('/api/player/playlist');

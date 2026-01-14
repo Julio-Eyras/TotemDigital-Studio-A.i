@@ -7,6 +7,8 @@ import { getEventLogService, EventType } from '../services/eventLogService';
 import { getRemoteCommandService } from '../services/remoteCommandService';
 import { validateRequest } from '../middleware/validation.middleware';
 import { logError, logDebug, sanitizeForLogging, logWarn, logInfo } from '../utils/loggerHelper';
+import { getDeviceTokenService } from '../services/deviceTokenService';
+import { getDispatcherTotemService } from '../services/dispatcherTotemService';
 import crypto from 'crypto';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -419,6 +421,9 @@ router.get('/validate',
  */
 router.get('/token',
   query('uin').isString().isLength({ min: 1, max: 100 }),
+  query('deviceId').optional().isString().isLength({ min: 1, max: 255 }),
+  query('platform').optional().isString().isLength({ min: 1, max: 100 }),
+  query('appVersion').optional().isString().isLength({ min: 1, max: 100 }),
   async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -426,11 +431,38 @@ router.get('/token',
         return res.status(400).json({ error: 'UIN inválido', details: errors.array() });
       }
 
-      const { uin } = req.query;
-      const token = generateTotemToken(uin as string);
+      const { uin, deviceId, platform, appVersion } = req.query;
+      const hmacToken = generateTotemToken(uin as string);
+
+      // Registrar também em device_tokens para telemetria e controle fino
+      try {
+        const totemService = new TotemService();
+        const totem = await totemService.getTotemByUin(uin as string);
+        const totemId = (totem as any)?.id ?? null;
+
+        const deviceTokenService = getDeviceTokenService();
+        await deviceTokenService.createOrUpdateToken({
+          totemId,
+          smartTvId: null,
+          uin: uin as string,
+          deviceId: (deviceId as string) || null,
+          platform: (platform as string) || null,
+          appVersion: (appVersion as string) || null,
+          ipAddress: req.ip || req.socket.remoteAddress || null,
+          userAgent: req.get('user-agent') || null,
+          // ttl ~ 1h, alinhado ao HMAC
+          ttlMs: 3600000,
+        });
+      } catch (e) {
+        // Não bloquear geração de token se telemetria falhar
+        await logWarn('Falha ao registrar device_token (seguindo apenas com HMAC)', {
+          error: (e as any)?.message,
+          uin,
+        });
+      }
 
       return res.json({
-        token,
+        token: hmacToken,
         expiresIn: 3600, // 1 hora
       });
     } catch (error: any) {
@@ -448,6 +480,7 @@ router.get('/token',
 router.post('/heartbeat',
   query('uin').isString().isLength({ min: 1, max: 100 }),
   query('token').isString(),
+  query('deviceId').optional().isString().isLength({ min: 1, max: 255 }),
   async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -455,11 +488,25 @@ router.post('/heartbeat',
         return res.status(400).json({ error: 'Parâmetros inválidos', details: errors.array() });
       }
 
-      const { uin, token } = req.query;
+      const { uin, token, deviceId } = req.query;
       const { executedCommands, metrics, status, version, firmwareVersion, ipAddress: heartbeatIp, config } = req.body || {};
 
-      // Validar token
-      if (!validateTotemToken(uin as string, token as string)) {
+      // Validar token HMAC (compatibilidade antiga)
+      const validHmac = validateTotemToken(uin as string, token as string);
+
+      // Validar também em device_tokens, se existir
+      const deviceTokenService = getDeviceTokenService();
+      const validDeviceToken = await deviceTokenService.validateToken(
+        uin as string,
+        token as string,
+        {
+          deviceId: (deviceId as string) || null,
+          ipAddress: heartbeatIp || req.ip || req.socket.remoteAddress || undefined,
+          userAgent: req.get('user-agent') || undefined,
+        },
+      );
+
+      if (!validHmac && !validDeviceToken) {
         return res.status(401).json({ error: 'Token inválido ou expirado' });
       }
 
@@ -511,6 +558,26 @@ router.post('/heartbeat',
 
       const newToken = generateTotemToken(uin as string);
 
+      // Também renovar device_token (sem trocar token HMAC aqui; apenas atualizar telemetria/expiração)
+      try {
+        await deviceTokenService.createOrUpdateToken({
+          totemId,
+          smartTvId: null,
+          uin: uin as string,
+          deviceId: (deviceId as string) || null,
+          platform: (req.body?.platform as string) || null,
+          appVersion: (version as string) || null,
+          ipAddress: heartbeatIp || req.ip || req.socket.remoteAddress || null,
+          userAgent: req.get('user-agent') || null,
+          ttlMs: 3600000,
+        });
+      } catch (e) {
+        await logWarn('Falha ao renovar device_token no heartbeat', {
+          error: (e as any)?.message,
+          uin,
+        });
+      }
+
       return res.json({
         success: true,
         token: newToken,
@@ -526,6 +593,130 @@ router.post('/heartbeat',
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
+);
+
+/**
+ * @route GET /api/player/dispatch
+ * @desc Obter plano de exibição do Dispatcher-Totem para um totem (player)
+ * @access Public (com token)
+ */
+router.get(
+  '/dispatch',
+  query('uin').isString().isLength({ min: 1, max: 100 }),
+  query('token').isString(),
+  query('timestamp').optional().isString(),
+  query('timezone').optional().isString(),
+  query('deviceId').optional().isString().isLength({ min: 1, max: 255 }),
+  async (req: Request, res: Response) => {
+    const transactionId = PlayerDebugService.generateTransactionId('DSP');
+    const startTime = Date.now();
+
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ error: 'Parâmetros inválidos', details: errors.array() });
+      }
+
+      const { uin, token, timestamp, timezone, deviceId } = req.query;
+      const db = getDatabase();
+      const totemService = new TotemService();
+
+      // Validar token HMAC (compatibilidade)
+      const validHmac = validateTotemToken(uin as string, token as string);
+
+      // Validar também contra device_tokens (telemetria e segurança adicional)
+      const deviceTokenService = getDeviceTokenService();
+      const validDeviceToken = await deviceTokenService.validateToken(uin as string, token as string, {
+        deviceId: (deviceId as string) || null,
+        ipAddress: req.ip || req.socket.remoteAddress || undefined,
+        userAgent: req.get('user-agent') || undefined,
+      });
+
+      if (!validHmac && !validDeviceToken) {
+        return res.status(401).json({ error: 'Token inválido ou expirado' });
+      }
+
+      const totem = await totemService.getTotemByUin(uin as string);
+      if (!totem || !totem.active) {
+        return res.status(404).json({ error: 'Totem não encontrado ou inativo' });
+      }
+
+      // Obter totem_id completo para integração com dispatcher
+      const totemFull = await db.findFirst(
+        `
+        SELECT 
+          t.totem_id,
+          t.identifier,
+          t.status,
+          t.active
+        FROM totems t
+        WHERE t.uin = ? OR t.identifier = ?
+        LIMIT 1
+      `,
+        [uin, uin],
+      );
+
+      const totemId = (totemFull && (totemFull as any).totem_id) || (totem as any).id;
+
+      const dispatcher = getDispatcherTotemService();
+      const targetTimestamp = timestamp ? new Date(timestamp as string) : new Date();
+
+      const dispatchResponse = await dispatcher.dispatch(
+        {
+          totemId,
+          timestamp: targetTimestamp,
+          timezone: (timezone as string) || undefined,
+        },
+        {
+          includeCandidates: false,
+          skipCache: false,
+        },
+      );
+
+      // Registrar transação de debug (apenas metadata, sem plano completo para não inflar logs)
+      await playerDebugService.logTransaction({
+        transactionId,
+        uin: uin as string,
+        action: 'dispatch',
+        status: dispatchResponse.success ? 'success' : 'error',
+        requestUrl: req.url,
+        requestMethod: req.method,
+        requestHeaders: req.headers,
+        responseStatus: dispatchResponse.success ? 200 : 500,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        duration: Date.now() - startTime,
+        metadata: {
+          totemId,
+          fromCache: dispatchResponse.fromCache,
+          hasPlan: !!dispatchResponse.plan,
+          executionTimeMs: dispatchResponse.executionTimeMs,
+        },
+      });
+
+      if (!dispatchResponse.success || !dispatchResponse.plan) {
+        return res.status(200).json({
+          success: false,
+          error: dispatchResponse.error || 'Não foi possível gerar plano de exibição',
+          fromCache: dispatchResponse.fromCache,
+          executionTimeMs: dispatchResponse.executionTimeMs,
+        });
+      }
+
+      // Retornar plano em formato consumível pelo player
+      return res.json({
+        success: true,
+        fromCache: dispatchResponse.fromCache,
+        executionTimeMs: dispatchResponse.executionTimeMs,
+        plan: dispatchResponse.plan,
+      });
+    } catch (error: any) {
+      await logError('Erro ao executar dispatch para player', error, {
+        uin: req.query.uin as string,
+      });
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  },
 );
 
 /**

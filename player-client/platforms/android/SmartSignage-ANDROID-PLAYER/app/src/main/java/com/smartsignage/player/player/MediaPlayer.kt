@@ -11,11 +11,14 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.smartsignage.player.models.PlaylistItem
+import com.smartsignage.player.models.DispatchPlanMediaItem
 import kotlinx.coroutines.*
 
 /**
  * Media Player - Android
  * Player de mídia para Android TV
+ * 
+ * Agora suporta tanto PlaylistItem (legado) quanto DispatchPlanMediaItem (novo formato nativo)
  */
 class MediaPlayer(private val context: Context) {
 
@@ -24,9 +27,10 @@ class MediaPlayer(private val context: Context) {
     private var imageView: ImageView? = null
     private var webView: WebView? = null
     private var container: ViewGroup? = null
-    private var currentItem: PlaylistItem? = null
+    private var currentItem: Any? = null // Pode ser PlaylistItem ou DispatchPlanMediaItem
     private var onEndCallback: (() -> Unit)? = null
     private var playJob: Job? = null
+    private var getLocalPathCallback: ((Int) -> String?)? = null // Callback para obter caminho local
 
     companion object {
         private const val TAG = "MediaPlayer"
@@ -40,7 +44,14 @@ class MediaPlayer(private val context: Context) {
     }
 
     /**
-     * Reproduz item de mídia
+     * Configura callback para obter caminho local de mídias
+     */
+    fun setLocalPathProvider(provider: (Int) -> String?) {
+        this.getLocalPathCallback = provider
+    }
+
+    /**
+     * Reproduz item de mídia (formato legado - compatibilidade)
      */
     fun play(item: PlaylistItem, onEnd: () -> Unit) {
         playJob?.cancel()
@@ -51,9 +62,9 @@ class MediaPlayer(private val context: Context) {
             onEndCallback = onEnd
 
             when (item.type) {
-                "video" -> playVideo(item)
-                "image" -> playImage(item)
-                "html" -> playHTML(item)
+                "video" -> playVideo(item.url, item.duration)
+                "image" -> playImage(item.url, item.duration)
+                "html" -> playHTML(item.url, item.duration)
                 else -> {
                     Log.e(TAG, "Unsupported media type: ${item.type}")
                     onEnd()
@@ -63,9 +74,35 @@ class MediaPlayer(private val context: Context) {
     }
 
     /**
+     * Reproduz item de mídia do DispatchPlan (formato nativo - preferencial)
+     */
+    fun play(mediaItem: DispatchPlanMediaItem, onEnd: () -> Unit) {
+        playJob?.cancel()
+        playJob = CoroutineScope(Dispatchers.Main).launch {
+            stop()
+
+            currentItem = mediaItem
+            onEndCallback = onEnd
+
+            // Tentar usar caminho local primeiro (se disponível)
+            val url = getLocalPathCallback?.invoke(mediaItem.mediaId) ?: mediaItem.url
+
+            when (mediaItem.mediaType.lowercase()) {
+                "video" -> playVideo(url, mediaItem.duration)
+                "image" -> playImage(url, mediaItem.duration)
+                "html", "web" -> playHTML(url, mediaItem.duration)
+                else -> {
+                    Log.e(TAG, "Unsupported media type: ${mediaItem.mediaType}")
+                    onEnd()
+                }
+            }
+        }
+    }
+
+    /**
      * Reproduz vídeo
      */
-    private suspend fun playVideo(item: PlaylistItem) = withContext(Dispatchers.Main) {
+    private suspend fun playVideo(url: String, durationMs: Int? = null) = withContext(Dispatchers.Main) {
         try {
             // Criar ExoPlayer se não existir
             if (exoPlayer == null) {
@@ -89,7 +126,7 @@ class MediaPlayer(private val context: Context) {
             }
 
             // Carregar mídia
-            val mediaItem = MediaItem.fromUri(Uri.parse(item.url))
+            val mediaItem = MediaItem.fromUri(Uri.parse(url))
             exoPlayer?.setMediaItem(mediaItem)
             exoPlayer?.prepare()
             exoPlayer?.play()
@@ -103,7 +140,7 @@ class MediaPlayer(private val context: Context) {
     /**
      * Reproduz imagem
      */
-    private suspend fun playImage(item: PlaylistItem) = withContext(Dispatchers.Main) {
+    private suspend fun playImage(url: String, durationMs: Int? = null) = withContext(Dispatchers.Main) {
         try {
             // Criar ImageView se não existir
             if (imageView == null) {
@@ -119,10 +156,14 @@ class MediaPlayer(private val context: Context) {
 
             // Carregar imagem (usar biblioteca como Glide ou Coil)
             // Por enquanto, placeholder
-            imageView?.setImageURI(Uri.parse(item.url))
+            imageView?.setImageURI(Uri.parse(url))
 
-            // Duração padrão: 10 segundos
-            val duration = item.duration ?: 10000
+            // Duração: converter segundos para milissegundos se necessário
+            val duration = when {
+                durationMs != null && durationMs > 1000 -> durationMs // Já está em ms
+                durationMs != null -> durationMs * 1000 // Converter segundos para ms
+                else -> 10000 // Padrão: 10 segundos
+            }
             delay(duration.toLong())
             onEndCallback?.invoke()
 
@@ -135,7 +176,7 @@ class MediaPlayer(private val context: Context) {
     /**
      * Reproduz HTML/Web
      */
-    private suspend fun playHTML(item: PlaylistItem) = withContext(Dispatchers.Main) {
+    private suspend fun playHTML(url: String, durationMs: Int? = null) = withContext(Dispatchers.Main) {
         try {
             // Criar WebView se não existir
             if (webView == null) {
@@ -150,10 +191,14 @@ class MediaPlayer(private val context: Context) {
             }
 
             // Carregar URL
-            webView?.loadUrl(item.url)
+            webView?.loadUrl(url)
 
-            // Duração padrão: 30 segundos
-            val duration = item.duration ?: 30000
+            // Duração: converter segundos para milissegundos se necessário
+            val duration = when {
+                durationMs != null && durationMs > 1000 -> durationMs // Já está em ms
+                durationMs != null -> durationMs * 1000 // Converter segundos para ms
+                else -> 30000 // Padrão: 30 segundos
+            }
             delay(duration.toLong())
             onEndCallback?.invoke()
 

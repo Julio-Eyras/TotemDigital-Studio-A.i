@@ -11,10 +11,14 @@ const CONFIG = {
   API_BASE_URL: 'http://localhost:3000', // Será configurado via appinfo.json
   TOTEM_UIN: '', // Será obtido via configuração
   TOTEM_SECRET: '', // Será obtido via configuração
+  DEVICE_ID: '', // Será obtido do webOS
+  PLATFORM: 'webos',
+  APP_VERSION: '2.1.0',
   HEARTBEAT_INTERVAL: 30000, // 30 segundos
-  PLAYLIST_UPDATE_INTERVAL: 300000, // 5 minutos
+  PLAYLIST_UPDATE_INTERVAL: 900000, // 15 minutos (sincronização DispatchPlan)
   CACHE_ENABLED: true,
-  CACHE_MAX_SIZE: 50 * 1024 * 1024, // 50MB
+  CACHE_MAX_SIZE: 50 * 1024 * 1024, // 50MB (cache leve para webOS)
+  USE_DISPATCHER: true, // Usar novo dispatcher por padrão
 };
 
 // Inicialização
@@ -26,6 +30,10 @@ let logger;
 let scheduler;
 let cache;
 let errorHandler;
+let deviceToken = null; // Token de dispositivo do dispatcher
+let currentDispatchPlan = null; // Último DispatchPlan recebido
+let totemConnectionManager = null; // Gerenciador de conexão com totem
+let mediaCacheManager = null; // Gerenciador de cache local
 
 // SmartDisplayFX
 let fxClient;
@@ -40,13 +48,44 @@ async function init() {
     // Carregar configuração
     await loadConfig();
 
+    // Inicializar TotemConnectionManager (descoberta totem local vs servidor central)
+    totemConnectionManager = new TotemConnectionManager({
+      totemIP: CONFIG.TOTEM_IP || null,
+      totemPort: CONFIG.TOTEM_PORT || 8080,
+      totemUIN: CONFIG.TOTEM_UIN,
+      apiBaseURL: CONFIG.API_BASE_URL,
+      autoDiscovery: CONFIG.AUTO_DISCOVERY !== false,
+      discoveryTimeout: 5000
+    });
+
+    // Determinar estratégia de conexão (totem local ou servidor central)
+    const connectionStrategy = await totemConnectionManager.determineConnectionStrategy();
+    
+    if (connectionStrategy.useLocalTotem) {
+      logger?.info('Totem local encontrado, usando como dispatcher e cache', connectionStrategy.totemInfo);
+      // Atualizar configuração para usar totem local
+      CONFIG.API_BASE_URL = totemConnectionManager.getBaseURL();
+      CONFIG.TOTEM_UIN = totemConnectionManager.getTotemUIN();
+    } else {
+      logger?.info('Totem local não encontrado, usando servidor central');
+    }
+
     // Inicializar cache
     if (CONFIG.CACHE_ENABLED) {
       cache = new Cache();
       cache.setMaxSize(CONFIG.CACHE_MAX_SIZE);
+      
+      // Inicializar MediaCacheManager para cache local de mídias
+      if (typeof MediaCacheManager !== 'undefined') {
+        mediaCacheManager = new MediaCacheManager({
+          maxCacheSize: CONFIG.CACHE_MAX_SIZE,
+          cacheDir: '/media/internal/smartsignage/cache'
+        });
+        await mediaCacheManager.init();
+      }
     }
 
-    // Inicializar API client
+    // Inicializar API client (com URL atualizada pelo TotemConnectionManager)
     apiClient = new APIClient(
       CONFIG.API_BASE_URL,
       CONFIG.TOTEM_UIN,
@@ -59,15 +98,54 @@ async function init() {
     // Inicializar error handler
     errorHandler = new ErrorHandler(logger, apiClient);
 
-    // Autenticar totem
-    const authenticated = await apiClient.authenticateTotem();
-    if (!authenticated) {
-      logger.error('Failed to authenticate totem');
-      showError('Falha na autenticação. Verifique a configuração.');
-      return;
+    // Obter deviceId do webOS
+    if (typeof webOS !== 'undefined' && webOS.deviceInfo) {
+      try {
+        const deviceInfo = webOS.deviceInfo();
+        CONFIG.DEVICE_ID = deviceInfo.deviceId || `webos-${Date.now()}`;
+        logger.info('Device ID obtained', { deviceId: CONFIG.DEVICE_ID });
+      } catch (error) {
+        logger.warn('Failed to get device ID, using fallback', error);
+        CONFIG.DEVICE_ID = `webos-${Date.now()}`;
+      }
+    } else {
+      CONFIG.DEVICE_ID = `webos-${Date.now()}`;
     }
 
-    logger.info('Totem authenticated successfully');
+    // Obter token de dispositivo (novo fluxo)
+    if (CONFIG.USE_DISPATCHER) {
+      try {
+        const tokenResponse = await apiClient.getDeviceToken(
+          CONFIG.TOTEM_UIN,
+          CONFIG.DEVICE_ID,
+          CONFIG.PLATFORM,
+          CONFIG.APP_VERSION
+        );
+        
+        if (tokenResponse && tokenResponse.token) {
+          deviceToken = tokenResponse.token;
+          apiClient.token = deviceToken;
+          logger.info('Device token obtained successfully');
+        } else {
+          logger.warn('Failed to get device token, falling back to legacy auth');
+          CONFIG.USE_DISPATCHER = false;
+        }
+      } catch (error) {
+        logger.warn('Failed to get device token, falling back to legacy auth', error);
+        CONFIG.USE_DISPATCHER = false;
+      }
+    }
+
+    // Autenticar totem (legado - fallback)
+    if (!CONFIG.USE_DISPATCHER) {
+      const authenticated = await apiClient.authenticateTotem();
+      if (!authenticated) {
+        logger.error('Failed to authenticate totem');
+        showError('Falha na autenticação. Verifique a configuração.');
+        return;
+      }
+      logger.info('Totem authenticated successfully (legacy)');
+    }
 
     // Inicializar scheduler
     scheduler = new Scheduler();
@@ -75,8 +153,26 @@ async function init() {
     // Inicializar playlist manager
     playlistManager = new PlaylistManager(apiClient, cache);
 
-    // Inicializar heartbeat
+    // Inicializar heartbeat (atualizado para incluir deviceId e platform)
     heartbeatService = new HeartbeatService(apiClient, CONFIG.HEARTBEAT_INTERVAL);
+    // Atualizar heartbeat para incluir informações do dispositivo
+    if (heartbeatService.sendHeartbeat && typeof heartbeatService.sendHeartbeat === 'function') {
+      const originalSend = heartbeatService.sendHeartbeat.bind(heartbeatService);
+      heartbeatService.sendHeartbeat = async function(data) {
+        const enhancedData = {
+          ...data,
+          deviceId: CONFIG.DEVICE_ID,
+          platform: CONFIG.PLATFORM,
+          appVersion: CONFIG.APP_VERSION,
+          metrics: {
+            ...(data.metrics || {}),
+            isOnline: navigator.onLine,
+            cacheSize: cache ? cache.getSize() : 0
+          }
+        };
+        return originalSend(enhancedData);
+      };
+    }
     heartbeatService.start();
 
     // Inicializar media player
@@ -167,7 +263,53 @@ async function loadConfig() {
  */
 async function loadAndStartPlaylist() {
   try {
-    updateStatus('Carregando playlist...');
+    updateStatus('Carregando conteúdo...');
+    
+    // Tentar usar DispatchPlan primeiro (novo fluxo - NATIVO, sem conversão)
+    if (CONFIG.USE_DISPATCHER && deviceToken) {
+      try {
+        const dispatchPlan = await loadFromDispatchPlan();
+        if (dispatchPlan && dispatchPlan.mediaItems && dispatchPlan.mediaItems.length > 0) {
+          // Armazenar DispatchPlan nativamente (sem conversão)
+          currentDispatchPlan = dispatchPlan;
+          currentDispatchPlanIndex = 0; // Resetar índice
+          
+          // Processar cache local de mídias em background (se disponível)
+          if (mediaCacheManager) {
+            mediaCacheManager.processDispatchPlan(dispatchPlan, apiClient)
+              .then(stats => {
+                logger?.info(`Cache processado: ${stats.success} sucesso, ${stats.failed} falhas, ${stats.skipped} puladas`);
+              })
+              .catch(error => {
+                logger?.warn('Erro ao processar cache', error);
+              });
+          }
+          
+          updateStatus('Conteúdo carregado');
+          playNext();
+          return;
+        }
+      } catch (error) {
+        logger.warn('Failed to load from DispatchPlan, falling back to legacy', error);
+        
+        // Tentar modo offline (último DispatchPlan em cache)
+        if (mediaCacheManager) {
+          const lastPlan = mediaCacheManager.loadLastDispatchPlan();
+          if (lastPlan && lastPlan.mediaItems && lastPlan.mediaItems.length > 0) {
+            logger?.info('Usando último DispatchPlan em cache (modo offline)');
+            currentDispatchPlan = lastPlan;
+            currentDispatchPlanIndex = 0; // Resetar índice
+            updateStatus('Conteúdo carregado (modo offline)');
+            playNext();
+            return;
+          }
+        }
+        
+        CONFIG.USE_DISPATCHER = false;
+      }
+    }
+    
+    // Fallback: usar playlist legada
     await playlistManager.loadPlaylist();
     
     // Filtrar itens por agendamento
@@ -200,37 +342,208 @@ async function loadAndStartPlaylist() {
 }
 
 /**
- * Reproduz próximo item
+ * Carrega DispatchPlan do dispatcher
+ */
+async function loadFromDispatchPlan() {
+  if (!apiClient || !deviceToken || !CONFIG.TOTEM_UIN) {
+    throw new Error('Missing required configuration for DispatchPlan');
+  }
+
+  const timestamp = new Date().toISOString();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  const dispatchPlan = await apiClient.getDispatchPlan(
+    CONFIG.TOTEM_UIN,
+    deviceToken,
+    CONFIG.DEVICE_ID,
+    timestamp,
+    timezone
+  );
+
+  return dispatchPlan;
+}
+
+/**
+ * DEPRECATED: Converte DispatchPlan para formato de PlaylistResponse
+ * 
+ * @deprecated Use currentDispatchPlan diretamente. Esta função é mantida apenas para compatibilidade.
+ * TODO: Remover quando todos os componentes usarem DispatchPlan nativamente
+ */
+async function convertDispatchPlanToPlaylist(dispatchPlan, useLocalPaths = false) {
+  console.warn('[DEPRECATED] convertDispatchPlanToPlaylist() - Use currentDispatchPlan diretamente');
+  
+  const items = await Promise.all(dispatchPlan.mediaItems.map(async (item, index) => {
+    let url = item.url;
+    
+    // Tentar usar caminho local do cache (se disponível)
+    if (useLocalPaths && mediaCacheManager) {
+      const localPath = await mediaCacheManager.getLocalPath(item.mediaId);
+      if (localPath) {
+        url = `file://${localPath}`;
+        logger?.debug(`Usando mídia do cache local: ${localPath}`);
+      } else if (totemConnectionManager && totemConnectionManager.isUsingLocalTotem()) {
+        // Tentar usar totem local HTTP
+        const totemInfo = totemConnectionManager.getTotemInfo();
+        const checksum = item.metadata?.checksum || 'unknown';
+        const extension = getFileExtension(item.metadata?.mimeType || 'application/octet-stream');
+        url = `http://${totemInfo.ip}:${totemInfo.port}/media/${item.mediaId}_${checksum}.${extension}`;
+        logger?.debug(`Usando mídia do totem local: ${url}`);
+      }
+    }
+    
+    return {
+      id: item.mediaId || index + 1,
+      type: item.mediaType || 'image', // 'video', 'image', 'html'
+      url: url,
+      duration: item.duration || 10, // segundos
+      name: item.metadata?.name || `Item ${index + 1}`,
+      schedule: null // Agendamento já foi aplicado pelo dispatcher
+    };
+  }));
+
+  return {
+    id: dispatchPlan.playlistId || 0,
+    name: dispatchPlan.playlistName || 'DispatchPlan Playlist',
+    items: items
+  };
+}
+
+/**
+ * Obtém extensão de arquivo do MIME type
+ */
+function getFileExtension(mimeType) {
+  const mimeMap = {
+    'video/mp4': 'mp4',
+    'video/webm': 'webm',
+    'video/quicktime': 'mov',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'audio/mpeg': 'mp3',
+    'audio/ogg': 'ogg',
+    'audio/wav': 'wav'
+  };
+  return mimeMap[mimeType] || 'bin';
+}
+
+// Índice atual para DispatchPlan
+let currentDispatchPlanIndex = 0;
+
+/**
+ * Reproduz próximo item (agora usa DispatchPlanMediaItem diretamente)
  */
 async function playNext() {
-  const item = playlistManager.getNextItem();
-  if (!item) {
-    logger.warn('No items in playlist');
-    updateStatus('Nenhum item na playlist');
-    // Tentar recarregar playlist
-    setTimeout(loadAndStartPlaylist, 5000);
-    return;
+  // Prioridade 1: Usar DispatchPlan nativo
+  let mediaItem = null;
+  if (currentDispatchPlan && currentDispatchPlan.mediaItems && currentDispatchPlan.mediaItems.length > 0) {
+    if (currentDispatchPlanIndex < currentDispatchPlan.mediaItems.length) {
+      mediaItem = currentDispatchPlan.mediaItems[currentDispatchPlanIndex];
+      currentDispatchPlanIndex = (currentDispatchPlanIndex + 1) % currentDispatchPlan.mediaItems.length;
+    } else {
+      // Resetar índice se necessário
+      currentDispatchPlanIndex = 0;
+      mediaItem = currentDispatchPlan.mediaItems[currentDispatchPlanIndex];
+      currentDispatchPlanIndex = 1;
+    }
+  }
+  
+  // Fallback: Formato antigo (compatibilidade)
+  if (!mediaItem) {
+    const item = playlistManager.getNextItem();
+    if (!item) {
+      logger.warn('No items in playlist');
+      updateStatus('Nenhum item na playlist');
+      // Tentar recarregar playlist
+      setTimeout(loadAndStartPlaylist, 5000);
+      return;
+    }
+    
+    // Converter PlaylistItem para DispatchPlanMediaItem (temporário)
+    mediaItem = {
+      mediaId: item.id,
+      order: playlistManager.currentIndex || 0,
+      duration: item.duration ? Math.floor(item.duration / 1000) : 10,
+      url: item.url,
+      mediaType: item.type,
+      metadata: { name: item.name || '' }
+    };
   }
 
-  // Verificar se item deve ser exibido (agendamento)
-  if (scheduler && !scheduler.shouldDisplay(item)) {
-    logger.debug('Item skipped due to schedule', { itemId: item.id });
-    playNext(); // Pular para próximo
-    return;
+  // Validar validade temporal do DispatchPlan (se disponível)
+  if (currentDispatchPlan) {
+    const now = Date.now();
+    const validityStart = currentDispatchPlan.validityStart ? new Date(currentDispatchPlan.validityStart).getTime() : null;
+    const validityEnd = currentDispatchPlan.validityEnd ? new Date(currentDispatchPlan.validityEnd).getTime() : null;
+    
+    if (validityStart && now < validityStart) {
+      logger.debug('DispatchPlan ainda não válido, aguardando...');
+      setTimeout(playNext, 1000);
+      return;
+    }
+    
+    if (validityEnd && now > validityEnd) {
+      logger.info('DispatchPlan expirado, recarregando...');
+      loadAndStartPlaylist();
+      return;
+    }
   }
+
+  // Verificar se item deve ser exibido (agendamento - DispatchPlan já aplicou regras, mas podemos validar localmente)
+  // Nota: DispatchPlan já considera agendamento, mas podemos ter validação adicional se necessário
 
   try {
-    updateStatus(`Reproduzindo: ${item.name || `Item ${item.id}`}`);
-    await mediaPlayer.play(item);
+    updateStatus(`Reproduzindo: ${mediaItem.metadata?.name || `Item ${mediaItem.mediaId}`}`);
+    
+    // Tentar usar caminho local primeiro
+    let url = mediaItem.url;
+    if (mediaCacheManager) {
+      const localPath = await mediaCacheManager.getLocalPath(mediaItem.mediaId);
+      if (localPath) {
+        url = `file://${localPath}`;
+        logger?.debug(`Usando mídia do cache local: ${localPath}`);
+      } else if (totemConnectionManager && totemConnectionManager.isUsingLocalTotem()) {
+        // Tentar usar totem local HTTP
+        const totemInfo = totemConnectionManager.getTotemInfo();
+        const checksum = mediaItem.metadata?.checksum || 'unknown';
+        const extension = getFileExtension(mediaItem.metadata?.mimeType || 'application/octet-stream');
+        url = `http://${totemInfo.ip}:${totemInfo.port}/media/${mediaItem.mediaId}_${checksum}.${extension}`;
+        logger?.debug(`Usando mídia do totem local: ${url}`);
+      }
+    }
+    
+    // Reproduzir usando DispatchPlanMediaItem diretamente
+    await playMediaItem(mediaItem, url);
   } catch (error) {
     if (errorHandler) {
-      errorHandler.handle(error, { phase: 'play_media', itemId: item.id });
+      errorHandler.handle(error, { phase: 'play_media', itemId: mediaItem.mediaId });
     } else if (logger) {
-      logger.error('Failed to play media', error, { itemId: item.id });
+      logger.error('Failed to play media', error, { itemId: mediaItem.mediaId });
     }
     updateStatus('Erro ao reproduzir mídia');
     // Tentar próximo item após delay
     setTimeout(playNext, 2000);
+  }
+}
+
+/**
+ * Reproduz item de mídia do DispatchPlan (formato nativo)
+ */
+async function playMediaItem(mediaItem, url) {
+  switch(mediaItem.mediaType.toLowerCase()) {
+    case 'video':
+      await mediaPlayer.playVideo(url, mediaItem.duration);
+      break;
+    case 'image':
+      await mediaPlayer.playImage(url, mediaItem.duration || 10);
+      break;
+    case 'html':
+    case 'web':
+      await mediaPlayer.playHTML(url, mediaItem.duration || 30);
+      break;
+    default:
+      logger.warn(`Tipo de mídia não suportado: ${mediaItem.mediaType}`);
+      playNext();
   }
 }
 
