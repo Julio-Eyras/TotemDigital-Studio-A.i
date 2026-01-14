@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/smartchannel-db.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./database/init-data.sql:/docker-entrypoint-initdb.d/02-init-data.sql:ro
+      - ./database/carga-inicial-db-smarsignage-v4.sql:/docker-entrypoint-initdb.d/02-seeds.sql:ro
     ports:
       - "${POSTGRES_PORT:-5432}:${POSTGRES_INTERNAL_PORT:-5432}"
     restart: unless-stopped

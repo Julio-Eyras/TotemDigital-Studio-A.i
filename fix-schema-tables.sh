@@ -38,12 +38,12 @@ if [[ -n "$TABLE_COUNT" ]] && [[ "$TABLE_COUNT" -gt 30 ]]; then
     # Executar seed data
     echo ""
     echo "🌱 Executando seed data..."
-    INIT_DATA_FILE="$INSTALL_DIR/database/init-data.sql"
-    if [[ -f "$INIT_DATA_FILE" ]]; then
-        psql "$DATABASE_URL" -f "$INIT_DATA_FILE" 2>&1 | grep -v "already exists" | grep -v "NOTICE" || true
+    INITIAL_LOAD_FILE="$INSTALL_DIR/database/carga-inicial-db-smarsignage-v4.sql"
+    if [[ -f "$INITIAL_LOAD_FILE" ]]; then
+        psql "$DATABASE_URL" -f "$INITIAL_LOAD_FILE" 2>&1 | grep -v "already exists" | grep -v "NOTICE" || true
         echo "✅ Seed data executado"
     else
-        echo "⚠️ Arquivo init-data.sql não encontrado"
+        echo "⚠️ Arquivo carga-inicial-db-smarsignage-v4.sql não encontrado"
     fi
 else
     echo "⚠️ Poucas tabelas criadas ($TABLE_COUNT). Verifique o schema SQL."

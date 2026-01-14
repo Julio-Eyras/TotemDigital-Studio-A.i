@@ -26,9 +26,8 @@
 #### `database/smartchannel-db-v2-refactored-part9-triggers-functions.sql`
 - ✅ Função `get_user_effective_flags()` adicionada
 
-#### `database/init-data.sql`
-- ✅ Novas roles: `owner_system`, `operador_tecnico`, `operador_faturamento`, `operador_comercial`
-- ✅ Flags padrão configuradas para 8 roles
+#### `database/carga-inicial-db-smarsignage-v4.sql`
+- ✅ Seed principal (dados de exemplo + roles/flags + módulos correlacionados)
 
 ---
 
@@ -93,9 +92,9 @@
    - Tabelas `user_flags` e `role_flags_default` são criadas
    - Função `get_user_effective_flags()` é criada
 
-2. ✅ Dados iniciais são inseridos (`init-data.sql`)
-   - Novas roles são criadas
-   - Flags padrão são configuradas
+2. ✅ Dados iniciais são inseridos (`carga-inicial-db-smarsignage-v4.sql`)
+   - Roles/flags e dados de exemplo
+   - Dados correlacionados dos módulos (dispatcher/device_tokens/mix/etc.)
 
 3. ✅ Nginx é configurado automaticamente
    - Server blocks para subdomínios são criados
@@ -127,7 +126,7 @@
 ### Dados Iniciais
 
 ```
-init-data.sql → Dados de exemplo + Novas roles + Flags padrão
+carga-inicial-db-smarsignage-v4.sql → Dados de exemplo + roles/flags + módulos correlacionados
 ```
 
 ---

@@ -658,7 +658,7 @@ function Setup-Database {
         Write-Warn "⚠️  Não foi possível verificar o serviço PostgreSQL: $_"
     }
     
-    # Criar banco de dados se não existir
+    # Criar banco de dados se não existir (ou resetar se solicitado)
     $dbName = "smartsignage"
     $dbUser = "smartsignage"
     $dbPassword = "smartsignage123"
@@ -667,11 +667,29 @@ function Setup-Database {
         $env:PGPASSWORD = $dbPassword
         $createDbQuery = "SELECT 1 FROM pg_database WHERE datname = '$dbName'"
         $dbExists = psql -U postgres -tAc $createDbQuery 2>&1
+        $dbWasCreatedOrReset = $false
+
+        # Reset explícito do banco (se existir) — preserva quando --preserve-db estiver ativo
+        if ($RESET_DATABASE -and -not $PRESERVE_DB -and $dbExists -and $dbExists.Trim() -eq "1") {
+            Write-Log "Reset solicitado: removendo banco de dados $dbName..."
+            try {
+                # Finalizar conexões para permitir DROP DATABASE
+                psql -U postgres -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='$dbName' AND pid <> pg_backend_pid();" 2>&1 | Out-Null
+            } catch {
+                Write-Warn "⚠️  Não foi possível finalizar conexões ativas (continuando): $_"
+            }
+
+            psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS $dbName;" 2>&1 | Out-Null
+            $dbExists = ""
+            $dbWasCreatedOrReset = $true
+            Write-Log "✅ Banco removido"
+        }
         
         if (-not $dbExists -or $dbExists.Trim() -ne "1") {
             Write-Log "Criando banco de dados $dbName..."
-            psql -U postgres -c "CREATE DATABASE $dbName;" 2>&1 | Out-Null
+            psql -U postgres -d postgres -c "CREATE DATABASE $dbName;" 2>&1 | Out-Null
             Write-Log "✅ Banco de dados criado"
+            $dbWasCreatedOrReset = $true
         } else {
             Write-Log "✅ Banco de dados já existe"
         }
@@ -685,6 +703,40 @@ function Setup-Database {
             Write-Log "✅ Usuário criado"
         } else {
             Write-Log "✅ Usuário já existe"
+        }
+
+        # Se o banco acabou de ser criado/resetado e o usuário não forçou a opção de seeds,
+        # carregar seeds automaticamente para instalar com dados de exemplo.
+        if ($dbWasCreatedOrReset -and -not $SEEDS_OPTION_FORCED) {
+            $script:LOAD_SEEDS = $true
+            Write-Log "Banco recém-criado/resetado. Seeds serão carregadas automaticamente (use --skip-seeds para desabilitar)."
+        }
+
+        # Aplicar schema + seeds quando necessário
+        $databaseUrl = "postgresql://$dbUser:$dbPassword@localhost:5432/$dbName"
+        $schemaFile = Join-Path $INSTALL_DIR "database\smartchannel-db.sql"
+        $seedsFile = Join-Path $INSTALL_DIR "database\carga-inicial-db-smarsignage-v4.sql"
+
+        if ($dbWasCreatedOrReset) {
+            if (Test-Path $schemaFile) {
+                Write-Log "Aplicando schema: database/smartchannel-db.sql"
+                psql $databaseUrl -f $schemaFile 2>&1 | Out-Null
+                Write-Log "✅ Schema aplicado"
+            } else {
+                Write-Warn "⚠️  Schema não encontrado: $schemaFile"
+            }
+        }
+
+        if ($LOAD_SEEDS) {
+            if (Test-Path $seedsFile) {
+                Write-Log "Aplicando seeds: database/carga-inicial-db-smarsignage-v4.sql"
+                psql $databaseUrl -f $seedsFile 2>&1 | Out-Null
+                Write-Log "✅ Seeds aplicadas"
+            } else {
+                Write-Warn "⚠️  Seeds não encontradas: $seedsFile"
+            }
+        } else {
+            Write-Log "Seeds ignoradas (use --load-seeds para forçar)."
         }
     } catch {
         Write-Warn "⚠️  Não foi possível configurar banco de dados automaticamente: $_"

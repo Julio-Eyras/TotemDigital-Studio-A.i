@@ -20,7 +20,7 @@ SmartSignage-Pro/
 │
 ├── database/                   # ✅ Scripts e schemas do banco
 │   ├── schema.sql              # ✅ Schema principal
-│   ├── init-data.sql           # ✅ Dados iniciais
+│   ├── carga-inicial-db-smarsignage-v4.sql  # ✅ Carga inicial (seeds v4)
 │   └── scripts/                # ✅ Scripts auxiliares
 │
 ├── docker/                    # ✅ Entrypoints Docker

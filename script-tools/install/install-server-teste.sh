@@ -59,8 +59,8 @@ if [[ ! -f "database/smartchannel-db.sql" ]]; then
     MISSING_FILES=1
 fi
 
-if [[ ! -f "database/init-data.sql" ]]; then
-    echo -e "${RED}❌ database/init-data.sql não encontrado${NC}"
+if [[ ! -f "database/carga-inicial-db-smarsignage-v4.sql" ]]; then
+    echo -e "${RED}❌ database/carga-inicial-db-smarsignage-v4.sql não encontrado${NC}"
     MISSING_FILES=1
 fi
 

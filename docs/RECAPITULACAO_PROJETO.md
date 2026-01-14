@@ -57,7 +57,7 @@ O **Smart Signage Pro** é um sistema completo de sinalização digital profissi
   - 40 tabelas do modelo E.R. completo
   - Foreign keys e índices configurados
   - Triggers e funções SQL
-- [x] **Seeds de dados** (`database/init-data.sql`)
+- [x] **Seeds de dados** (`database/carga-inicial-db-smarsignage-v4.sql`)
   - Dados de exemplo para todas as tabelas principais
   - Usuário admin padrão (admin/admin)
 - [x] **Migração Prisma → PostgreSQL direto** (em andamento)

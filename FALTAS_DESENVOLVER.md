@@ -172,7 +172,7 @@ Este documento lista todas as funcionalidades e melhorias que ainda precisam ser
 - Dados de exemplo de contexto de IA
 - Exemplos de mixagens
 
-**Localização:** `database/init-data.sql` ou novo arquivo `database/seeds-playlist-mix.sql`
+**Localização:** `database/carga-inicial-db-smarsignage-v4.sql` (seed principal) ou novo arquivo `database/seeds-playlist-mix.sql`
 
 **Exemplo:**
 ```sql

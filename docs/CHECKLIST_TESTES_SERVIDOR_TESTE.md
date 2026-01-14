@@ -50,7 +50,7 @@ sudo netstat -tulpn | grep -E ':(80|3000|5432|6379)'
   ls -la docker/app-entrypoint.sh
   ls -la nginx/nginx-complete.conf
   ls -la database/schema-postgresql.sql
-  ls -la database/init-data.sql
+  ls -la database/carga-inicial-db-smarsignage-v4.sql
   ```
 
 - [ ] **Verificar que Prisma foi removido**

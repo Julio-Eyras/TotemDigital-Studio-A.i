@@ -225,7 +225,7 @@ const user = result.rows[0];
 - [ ] Garantir que `schema-postgresql.sql` é executado corretamente
 
 #### 3.8 Corrigir Seeds
-**Arquivo**: `database/init-data.sql`
+**Arquivo**: `database/carga-inicial-db-smarsignage-v4.sql`
 - [ ] Verificar que todas as 40 tabelas têm seeds
 - [ ] Corrigir ordem de inserção (respeitar foreign keys)
 - [ ] Garantir dados correlacionados corretos

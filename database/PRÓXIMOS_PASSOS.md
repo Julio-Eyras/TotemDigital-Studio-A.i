@@ -146,7 +146,7 @@ Ao implementar novas features:
 - [ ] Atualizar changelog
 - [ ] Testar em desenvolvimento
 - [ ] Documentar uso
-- [ ] Adicionar dados iniciais em `init-data.sql` se necessário (não usar migrations separadas)
+- [ ] Adicionar/ajustar dados iniciais em `carga-inicial-db-smarsignage-v4.sql` se necessário (não usar migrations separadas)
 
 ## 🎯 Prioridades
 

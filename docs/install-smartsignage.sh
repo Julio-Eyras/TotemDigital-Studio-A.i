@@ -5066,7 +5066,7 @@ setup_first_boot() {
     if [[ ${#MISSING_TABLES[@]} -gt 0 ]]; then
         error "❌ Falha crítica ao criar tabelas do banco de dados"
         error "Tabelas faltando: ${MISSING_TABLES[*]}"
-        error "Use smartchannel-db.sql e init-data.sql para criar o schema"
+        error "Use smartchannel-db.sql e carga-inicial-db-smarsignage-v4.sql para criar o schema + seeds"
         exit 1
     fi
 

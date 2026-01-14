@@ -5,7 +5,7 @@
 ```
 database/
 ├── smartchannel-db.sql          # ⭐ Schema completo (FONTE ÚNICA DA VERDADE)
-├── init-data.sql                 # Dados iniciais (opcional)
+├── carga-inicial-db-smarsignage-v4.sql  # Carga inicial principal (seeds v4)
 ├── scripts/                      # Scripts utilitários
 │   ├── validate-schema.sh        # Validação (Linux/Mac)
 │   ├── validate-schema.ps1       # Validação (Windows)

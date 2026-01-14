@@ -172,7 +172,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 #### Alterado
 - Todas as queries agora usam PostgreSQL diretamente
 - Schema agora é gerenciado exclusivamente via `smartchannel-db.sql`
-- Seeds agora são gerenciados exclusivamente via `init-data.sql`
+- Seeds agora são gerenciados exclusivamente via `database/carga-inicial-db-smarsignage-v4.sql`
 - Melhor performance com connection pooling nativo do PostgreSQL
 
 #### Corrigido

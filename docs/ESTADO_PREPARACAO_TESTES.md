@@ -33,7 +33,7 @@
 - [x] `docker/app-entrypoint.sh` ✅
 - [x] `nginx/nginx-complete.conf` ✅
 - [x] `database/schema-postgresql.sql` ✅
-- [x] `database/init-data.sql` ✅
+- [x] `database/carga-inicial-db-smarsignage-v4.sql` ✅
 
 ### ✅ **Arquivos Sem Prisma:**
 - [x] `Dockerfile.app` - Sem Prisma ✅

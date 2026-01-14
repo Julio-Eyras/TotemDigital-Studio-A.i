@@ -42,9 +42,8 @@
 
 ## 📋 Pendências Identificadas
 
-### 1. Arquivo init-data.sql (NÃO CRÍTICO)
-- ⚠️ Ainda usa `INSERT INTO clients` e `INSERT INTO hosts`
-- ⚠️ Ainda usa `client_id` e `host_id` em várias tabelas
+### 1. Arquivo de carga inicial v4 (NÃO CRÍTICO)
+- ⚠️ Se ainda existir referência antiga em seeds, ajustar para `subscribers/publishers`
 - **Status:** Não crítico - é apenas dados de exemplo/teste
 - **Ação:** Atualizar quando necessário para testes
 
@@ -73,7 +72,7 @@
 8. ✅ **CORRIGIDO:** FKs inválidas de playlists removidas
 
 ### O que NÃO afeta o funcionamento:
-- Arquivo `init-data.sql` (apenas dados de exemplo)
+- Arquivo de carga inicial (`carga-inicial-db-smarsignage-v4.sql`) é apenas dados de exemplo
 - Serviços secundários (podem ser atualizados gradualmente)
 - Schema legado (não é usado)
 
@@ -82,7 +81,7 @@
 ## 🎯 Próximos Passos Recomendados
 
 1. ✅ **CONCLUÍDO:** Corrigir FKs de playlists
-2. ⏳ **OPCIONAL:** Atualizar `init-data.sql` quando necessário
+2. ⏳ **OPCIONAL:** Atualizar `carga-inicial-db-smarsignage-v4.sql` quando necessário
 3. ⏳ **OPCIONAL:** Atualizar serviços secundários gradualmente
 4. ⏳ **OPCIONAL:** Remover ou arquivar schema legado
 

@@ -762,7 +762,7 @@ createdb smartsignage
 # Executar migrations
 cd database
 psql smartsignage < smartchannel-db.sql
-psql smartsignage < init-data.sql
+psql smartsignage < carga-inicial-db-smarsignage-v4.sql
 ```
 
 ### 3. Configuração de Ambiente
@@ -889,7 +889,7 @@ SmartSignage-Pro/
 │
 ├── database/             # Scripts de banco
 │   ├── smartchannel-db.sql
-│   └── init-data.sql
+│   └── carga-inicial-db-smarsignage-v4.sql
 │
 ├── docker/               # Dockerfiles
 ├── nginx/                # Configurações Nginx

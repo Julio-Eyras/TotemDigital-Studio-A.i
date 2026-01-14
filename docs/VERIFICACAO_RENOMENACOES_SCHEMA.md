@@ -95,14 +95,14 @@ ALTER TABLE playlists
 
 ---
 
-### Problema 3: Arquivo init-data.sql ainda usa nomenclatura antiga
+### Problema 3: Arquivo de carga inicial (seeds) ainda usa nomenclatura antiga
 
-**Arquivo:** `database/init-data.sql`
+**Arquivo:** `database/carga-inicial-db-smarsignage-v4.sql`
 - ❌ `INSERT INTO clients` (linha 18)
 - ❌ `INSERT INTO hosts` (linha 32)
 - ❌ Referências a `client_id` em várias tabelas
 
-**Ação necessária:** Atualizar `init-data.sql` para usar `subscribers` e `publishers`
+**Ação necessária:** Atualizar `carga-inicial-db-smarsignage-v4.sql` para usar `subscribers` e `publishers` (quando aplicável)
 
 ---
 
@@ -135,7 +135,7 @@ ALTER TABLE playlists
 - [x] ✅ FKs de `campaigns`, `medias`, `playlists` atualizadas para `subscribers`
 - [x] ✅ FKs de `users`, `locals`, `subscriptions` atualizadas para `publishers`
 - [ ] ⚠️ **REMOVER** FKs de `playlists` para `totem_id`, `campaign_id`, `publisher_id`
-- [ ] ⚠️ **ATUALIZAR** `init-data.sql` para usar `subscribers` e `publishers`
+- [ ] ⚠️ **ATUALIZAR** `carga-inicial-db-smarsignage-v4.sql` para usar `subscribers` e `publishers` (se necessário)
 
 ### Backend - Serviços Atualizados
 - [x] ✅ `campaignService.ts` - Usa `subscribers`
@@ -199,9 +199,9 @@ ALTER TABLE playlists
     ON DELETE CASCADE;
 ```
 
-### 2. Atualizar init-data.sql
+### 2. Atualizar carga-inicial-db-smarsignage-v4.sql
 
-**Arquivo:** `database/init-data.sql`
+**Arquivo:** `database/carga-inicial-db-smarsignage-v4.sql`
 
 **Alterar:**
 - `INSERT INTO clients` → `INSERT INTO subscribers`
@@ -221,7 +221,7 @@ ALTER TABLE playlists
 
 ### ⚠️ O que precisa ser corrigido:
 1. **URGENTE:** Remover FKs inválidas de `playlists` (totem_id, campaign_id, publisher_id)
-2. **IMPORTANTE:** Atualizar `init-data.sql` para usar nova nomenclatura
+2. **IMPORTANTE:** Atualizar `carga-inicial-db-smarsignage-v4.sql` para usar nova nomenclatura
 3. **IMPORTANTE:** Atualizar serviços restantes que ainda usam `clients`
 
 ---
@@ -229,7 +229,7 @@ ALTER TABLE playlists
 ## 🎯 Próximos Passos
 
 1. ✅ Corrigir FKs de playlists no schema
-2. ✅ Atualizar init-data.sql
+2. ✅ Atualizar carga-inicial-db-smarsignage-v4.sql
 3. ✅ Atualizar serviços restantes gradualmente
 4. ✅ Manter compatibilidade temporária com `routes/clients.ts`
 
