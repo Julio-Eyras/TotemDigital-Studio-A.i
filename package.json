@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "dev": "nodemon backend/src/index.ts",
+    "dev": "cd backend && npm run dev",
     "build": "tsc -p backend/tsconfig.json",
     "test": "echo 'Testes implementados'",
     "lint": "echo 'Linting implementado'"

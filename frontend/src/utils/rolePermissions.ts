@@ -179,11 +179,13 @@ export function canAccess(
   }
   
   // Verificar flag se necessário
-  if (permission.requiredFlag && userFlags) {
+  // Para roles administrativas (owner_system, admin_sql, admin), não bloquear por flag
+  const isAdminRole = userRole === 'owner_system' || userRole === 'admin_sql' || userRole === 'admin';
+  if (permission.requiredFlag && userFlags && !isAdminRole) {
     // Converter UserFlags para Record<string, boolean> se necessário
     const flagsRecord = userFlags as Record<string, boolean>;
     const flagValue = flagsRecord[permission.requiredFlag];
-    // Se flag não estiver definida ou for false, negar acesso
+    // Se flag não estiver definida ou for false, negar acesso (apenas para não-admin)
     if (flagValue !== true) {
       return false;
     }

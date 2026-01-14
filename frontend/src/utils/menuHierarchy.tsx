@@ -62,8 +62,10 @@ function filterHierarchicalMenu(
     }
     
     // Verificar flag específica se necessário
-    if (item.requiredFlag && userFlags && !userFlags[item.requiredFlag]) {
-      continue; // Pular este item
+    // Para roles administrativas (owner_system, admin_sql, admin), não bloquear por flag
+    const isAdminRole = userRole === 'owner_system' || userRole === 'admin_sql' || userRole === 'admin';
+    if (item.requiredFlag && userFlags && !userFlags[item.requiredFlag] && !isAdminRole) {
+      continue; // Pular este item apenas se não for role administrativa
     }
 
     // Filtrar children recursivamente
