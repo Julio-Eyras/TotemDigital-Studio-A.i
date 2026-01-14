@@ -35,7 +35,8 @@ router.use(authMiddleware);
  */
 router.get('/', 
   query('page').optional().isInt({ min: 1 }).withMessage('page deve ser um número inteiro maior que 0'),
-  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit deve ser um número inteiro entre 1 e 100'),
+  // Frontend usa limit=1000 em alguns pontos (ex.: monitor dispatcher)
+  query('limit').optional().isInt({ min: 1, max: 10000 }).withMessage('limit deve ser um número inteiro entre 1 e 10000'),
   query('search').optional().isString().withMessage('search deve ser uma string'),
   query('status').optional().isString().withMessage('status deve ser uma string'),
   // REMOVIDO: clientId - totem não pertence a subscriber

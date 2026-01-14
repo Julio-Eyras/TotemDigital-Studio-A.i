@@ -32,12 +32,13 @@ function getSubscriberBillingService(): SubscriberBillingService {
  * @desc Lista faturas de subscribers
  */
 router.get('/',
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('subscriberId').optional().isInt({ min: 1 }),
-  query('campaignId').optional().isInt({ min: 1 }),
-  query('billingType').optional().isIn(['advertisement', 'campaign', 'media_upload', 'exhibition_lot', 'totem_quantity', 'time_based', 'custom']),
-  query('status').optional().isIn(['pending', 'paid', 'overdue', 'cancelled']),
+  query('page').optional({ checkFalsy: true }).isInt({ min: 1 }),
+  query('limit').optional({ checkFalsy: true }).isInt({ min: 1, max: 100 }),
+  query('subscriberId').optional({ checkFalsy: true }).isInt({ min: 1 }),
+  query('campaignId').optional({ checkFalsy: true }).isInt({ min: 1 }),
+  // Frontend envia billingType/status como string vazia (billingType=&status=). checkFalsy evita 400.
+  query('billingType').optional({ checkFalsy: true }).isIn(['advertisement', 'campaign', 'media_upload', 'exhibition_lot', 'totem_quantity', 'time_based', 'custom']),
+  query('status').optional({ checkFalsy: true }).isIn(['pending', 'paid', 'overdue', 'cancelled']),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -75,11 +76,32 @@ router.get('/',
           search: search as string
         }
       );
-      
-      return res.json({
-        success: true,
-        data: result
-      });
+
+      // Mapear camelCase (service) -> snake_case (frontend)
+      const mapped = {
+        billings: (result.billings || []).map((b: any) => ({
+          billing_id: b.billingId,
+          subscriber_id: b.subscriberId,
+          subscriber_name: b.subscriberName,
+          campaign_id: b.campaignId,
+          campaign_title: b.campaignTitle,
+          billing_type: b.billingType,
+          amount: b.amount,
+          currency: b.currency,
+          status: b.status,
+          due_date: b.dueDate,
+          paid_at: b.paidAt,
+          created_at: b.createdAt,
+          updated_at: b.updatedAt,
+          description: b.description,
+          metadata: b.metadata
+        })),
+        total: result.total || 0,
+        page: result.page || parseInt(page as string) || 1,
+        limit: result.limit || parseInt(limit as string) || 20
+      };
+
+      return res.json({ success: true, data: mapped });
     } catch (error: any) {
       await logError('Erro ao listar faturas de subscribers', error);
       return res.status(500).json({

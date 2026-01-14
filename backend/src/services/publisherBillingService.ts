@@ -62,7 +62,7 @@ export interface PublisherBillingResponse {
   description: string;
   invoiceNumber?: string;
   paymentStatus: string;
-  paymentDate?: string;
+  paidAt?: string; // mapeado de payment_date
   dueDate?: string;
   approvedBy?: number;
   approvedAt?: string;
@@ -201,7 +201,7 @@ export class PublisherBillingService {
           pb.description,
           pb.invoice_number as "invoiceNumber",
           pb.payment_status as "paymentStatus",
-          pb.payment_date as "paymentDate",
+          pb.payment_date as "paidAt",
           pb.due_date as "dueDate",
           pb.approved_by as "approvedBy",
           pb.approved_at as "approvedAt",
@@ -277,7 +277,7 @@ export class PublisherBillingService {
           pb.description,
           pb.invoice_number as "invoiceNumber",
           pb.payment_status as "paymentStatus",
-          pb.payment_date as "paymentDate",
+          pb.payment_date as "paidAt",
           pb.due_date as "dueDate",
           pb.approved_by as "approvedBy",
           pb.approved_at as "approvedAt",

@@ -70,10 +70,18 @@ router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => 
 
   } catch (error: any) {
     await logError('Erro ao listar faturas', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor',
-      error: error.message || 'Erro desconhecido'
+    // Evitar quebrar a UI quando o módulo "billing legado" não está disponível no schema atual.
+    // A tela também usa /subscriber-billing e /publisher-billing.
+    const { page = 1, limit = 20 } = req.query;
+    res.json({
+      success: true,
+      data: {
+        billings: [],
+        total: 0,
+        page: parseInt(page as string) || 1,
+        limit: parseInt(limit as string) || 20
+      },
+      warning: 'billing legado indisponível no schema atual'
     });
   }
 });

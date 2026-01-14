@@ -50,14 +50,12 @@ export interface SubscriberBillingResponse {
   currency: string;
   description: string;
   dueDate: string;
-  status: string;
+  status: string; // mapeado de payment_status
   paymentMethod?: string;
-  paymentReference?: string;
-  notes?: string;
   metadata?: any;
   createdAt: string;
   updatedAt: string;
-  paidAt?: string;
+  paidAt?: string; // mapeado de payment_date
   subscriberName?: string;
   campaignTitle?: string;
   isOverdue?: boolean;
@@ -129,7 +127,7 @@ export class SubscriberBillingService {
       }
 
       if (filters.status) {
-        whereClause += ' AND sb.status = $' + (params.length + 1);
+        whereClause += ' AND sb.payment_status = $' + (params.length + 1);
         params.push(filters.status);
       }
 
@@ -160,22 +158,20 @@ export class SubscriberBillingService {
           sb.currency,
           sb.description,
           sb.due_date as "dueDate",
-          sb.status,
+          sb.payment_status as "status",
           sb.payment_method as "paymentMethod",
-          sb.payment_reference as "paymentReference",
-          sb.notes,
           sb.metadata,
           sb.created_at as "createdAt",
           sb.updated_at as "updatedAt",
-          sb.paid_at as "paidAt",
+          sb.payment_date as "paidAt",
           s.name as "subscriberName",
           c.title as "campaignTitle",
           CASE 
-            WHEN sb.status = 'pending' AND sb.due_date < CURRENT_DATE THEN true
+            WHEN sb.payment_status = 'pending' AND sb.due_date < CURRENT_DATE THEN true
             ELSE false
           END as "isOverdue",
           CASE 
-            WHEN sb.status = 'pending' AND sb.due_date < CURRENT_DATE 
+            WHEN sb.payment_status = 'pending' AND sb.due_date < CURRENT_DATE 
             THEN EXTRACT(DAY FROM CURRENT_DATE - sb.due_date)::int
             ELSE 0
           END as "daysOverdue"
@@ -225,22 +221,20 @@ export class SubscriberBillingService {
           sb.currency,
           sb.description,
           sb.due_date as "dueDate",
-          sb.status,
+          sb.payment_status as "status",
           sb.payment_method as "paymentMethod",
-          sb.payment_reference as "paymentReference",
-          sb.notes,
           sb.metadata,
           sb.created_at as "createdAt",
           sb.updated_at as "updatedAt",
-          sb.paid_at as "paidAt",
+          sb.payment_date as "paidAt",
           s.name as "subscriberName",
           c.title as "campaignTitle",
           CASE 
-            WHEN sb.status = 'pending' AND sb.due_date < CURRENT_DATE THEN true
+            WHEN sb.payment_status = 'pending' AND sb.due_date < CURRENT_DATE THEN true
             ELSE false
           END as "isOverdue",
           CASE 
-            WHEN sb.status = 'pending' AND sb.due_date < CURRENT_DATE 
+            WHEN sb.payment_status = 'pending' AND sb.due_date < CURRENT_DATE 
             THEN EXTRACT(DAY FROM CURRENT_DATE - sb.due_date)::int
             ELSE 0
           END as "daysOverdue"

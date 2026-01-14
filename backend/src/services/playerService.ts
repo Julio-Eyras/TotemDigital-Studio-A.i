@@ -4,13 +4,13 @@ import { logError } from '../utils/loggerHelper';
 export interface Player {
   totem_id: number;
   name: string;
-  location?: string;
+  location?: string; // pode vir do local (locals.name) ou descrição
   publisher_id?: number; // NOVO: Totem pertence a publisher via local_id
   client_id?: number; // DEPRECADO: Mantido para compatibilidade
   is_active: boolean;
   last_heartbeat?: string;
   current_playlist_id?: number;
-  status: 'online' | 'offline' | 'error';
+  status: 'online' | 'offline' | 'error' | 'pending_approval' | 'maintenance' | 'syncing';
   created_at: string;
   updated_at: string;
 }
@@ -79,17 +79,15 @@ export class PlayerService {
         SELECT 
           t.totem_id,
           t.name,
-          t.location,
+          COALESCE(t.description, l.name) as location,
+          t.identifier,
+          t.uin,
           l.publisher_id,
           l.publisher_id as client_id, -- Mantido para compatibilidade
           t.is_active,
           t.last_heartbeat,
-          t.current_playlist_id,
-          CASE 
-            WHEN t.last_heartbeat IS NULL THEN 'offline'
-            WHEN t.last_heartbeat < NOW() - INTERVAL '5 minutes' THEN 'offline'
-            ELSE 'online'
-          END as status,
+          NULL::integer as current_playlist_id,
+          t.status,
           t.created_at,
           t.updated_at,
           p.name as publisher_name,
@@ -130,17 +128,15 @@ export class PlayerService {
         SELECT 
           t.totem_id,
           t.name,
-          t.location,
+          COALESCE(t.description, l.name) as location,
+          t.identifier,
+          t.uin,
           l.publisher_id,
           l.publisher_id as client_id, -- Mantido para compatibilidade
           t.is_active,
           t.last_heartbeat,
-          t.current_playlist_id,
-          CASE 
-            WHEN t.last_heartbeat IS NULL THEN 'offline'
-            WHEN t.last_heartbeat < NOW() - INTERVAL '5 minutes' THEN 'offline'
-            ELSE 'online'
-          END as status,
+          NULL::integer as current_playlist_id,
+          t.status,
           t.created_at,
           t.updated_at,
           p.name as publisher_name,

@@ -30,13 +30,14 @@ function getPublisherBillingService(): PublisherBillingService {
  * @desc Lista faturas de publishers
  */
 router.get('/',
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('publisherId').optional().isInt({ min: 1 }),
-  query('campaignId').optional().isInt({ min: 1 }),
-  query('billingType').optional().isIn(['revenue_share', 'payout', 'subscription', 'platform_fee']),
-  query('direction').optional().isIn(['incoming', 'outgoing']),
-  query('paymentStatus').optional().isIn(['pending', 'pending_payout', 'paid', 'failed', 'refunded', 'cancelled']),
+  query('page').optional({ checkFalsy: true }).isInt({ min: 1 }),
+  query('limit').optional({ checkFalsy: true }).isInt({ min: 1, max: 100 }),
+  query('publisherId').optional({ checkFalsy: true }).isInt({ min: 1 }),
+  query('campaignId').optional({ checkFalsy: true }).isInt({ min: 1 }),
+  // Frontend envia billingType/paymentStatus como string vazia. checkFalsy evita 400.
+  query('billingType').optional({ checkFalsy: true }).isIn(['revenue_share', 'payout', 'subscription', 'platform_fee']),
+  query('direction').optional({ checkFalsy: true }).isIn(['incoming', 'outgoing']),
+  query('paymentStatus').optional({ checkFalsy: true }).isIn(['pending', 'pending_payout', 'paid', 'failed', 'refunded', 'cancelled']),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -75,11 +76,34 @@ router.get('/',
           search: search as string
         }
       );
-      
-      return res.json({
-        success: true,
-        data: result
-      });
+
+      // Mapear camelCase (service) -> snake_case (frontend)
+      const mapped = {
+        billings: (result.billings || []).map((b: any) => ({
+          billing_id: b.billingId,
+          publisher_id: b.publisherId,
+          publisher_name: b.publisherName,
+          campaign_id: b.campaignId,
+          campaign_title: b.campaignTitle,
+          totem_id: b.totemId,
+          billing_type: b.billingType,
+          direction: b.direction,
+          amount: b.amount,
+          currency: b.currency,
+          payment_status: b.paymentStatus,
+          due_date: b.dueDate,
+          paid_at: b.paidAt,
+          created_at: b.createdAt,
+          updated_at: b.updatedAt,
+          description: b.description,
+          metadata: b.metadata
+        })),
+        total: result.total || 0,
+        page: result.page || parseInt(page as string) || 1,
+        limit: result.limit || parseInt(limit as string) || 20
+      };
+
+      return res.json({ success: true, data: mapped });
     } catch (error: any) {
       await logError('Erro ao listar faturas de publishers', error);
       return res.status(500).json({
