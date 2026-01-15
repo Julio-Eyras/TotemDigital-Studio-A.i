@@ -128,7 +128,7 @@ echo "=== VERIFICANDO ARQUIVOS ==="
 ls -la docker-compose.yml
 ls -la Dockerfile.app
 ls -la install-smartsignage.sh
-ls -la database/smartchannel-db.sql
+ls -la database/smartchannel-db-v2-refactored-apply-all.sql
 ls -la database/carga-inicial-db-smarsignage-v4.sql
 ls -la docker/app-entrypoint.sh
 ls -la nginx/nginx-complete.conf
@@ -158,7 +158,7 @@ chmod +x install-smartsignage.sh
 2. ✅ Build das imagens Docker
 3. ✅ Criação dos containers
 4. ✅ Inicialização do PostgreSQL
-5. ✅ Criação do schema (smartchannel-db.sql)
+5. ✅ Criação do schema (smartchannel-db-v2-refactored-apply-all.sql)
 6. ✅ População de seeds (carga-inicial-db-smarsignage-v4.sql)
 7. ✅ Inicialização de todos os serviços
 

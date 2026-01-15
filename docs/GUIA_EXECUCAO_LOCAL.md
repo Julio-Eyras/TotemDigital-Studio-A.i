@@ -68,7 +68,7 @@ npm install
 ### 4. Executar Migrações (se necessário)
 
 Se você ainda não inicializou o banco de dados, execute os scripts SQL na ordem:
-1. `database/smartchannel-db.sql`
+1. `database/smartchannel-db-v2-refactored-apply-all.sql`
 2. `database/carga-inicial-db-smarsignage-v4.sql`
 
 ## 🚀 Iniciar o Sistema

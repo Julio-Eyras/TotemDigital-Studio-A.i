@@ -300,24 +300,24 @@ test_database() {
         return 1
     fi
     
-    # Verificar smartchannel-db.sql
-    if [[ -f "database/smartchannel-db.sql" ]]; then
+    # Verificar schema refatorado (apply-all)
+    if [[ -f "database/smartchannel-db-v2-refactored-apply-all.sql" ]]; then
         # Verificar se contém comandos SQL básicos
-        if grep -q "CREATE TABLE" database/smartchannel-db.sql; then
-            log "smartchannel-db.sql contém comandos CREATE TABLE"
+        if grep -q "CREATE TABLE" database/smartchannel-db-v2-refactored-apply-all.sql; then
+            log "smartchannel-db-v2-refactored-apply-all.sql contém comandos CREATE TABLE"
         else
-            warn "smartchannel-db.sql pode não conter comandos CREATE TABLE"
+            warn "smartchannel-db-v2-refactored-apply-all.sql pode não conter comandos CREATE TABLE"
         fi
         
         # Verificar tamanho do arquivo
-        FILE_SIZE=$(stat -c%s database/smartchannel-db.sql 2>/dev/null || stat -f%z database/smartchannel-db.sql 2>/dev/null || echo "0")
+        FILE_SIZE=$(stat -c%s database/smartchannel-db-v2-refactored-apply-all.sql 2>/dev/null || stat -f%z database/smartchannel-db-v2-refactored-apply-all.sql 2>/dev/null || echo "0")
         if [[ $FILE_SIZE -lt 1000 ]]; then
-            warn "smartchannel-db.sql muito pequeno ($FILE_SIZE bytes)"
+            warn "smartchannel-db-v2-refactored-apply-all.sql muito pequeno ($FILE_SIZE bytes)"
         fi
         
-        log "smartchannel-db.sql verificado com sucesso! Tamanho: $FILE_SIZE bytes"
+        log "smartchannel-db-v2-refactored-apply-all.sql verificado com sucesso! Tamanho: $FILE_SIZE bytes"
     else
-        error "database/smartchannel-db.sql não encontrado!"
+        error "database/smartchannel-db-v2-refactored-apply-all.sql não encontrado!"
         return 1
     fi
     
@@ -435,8 +435,8 @@ Configurações:
 - env.example: $([ -f "env.example" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
 
 Banco de Dados:
-- smartchannel-db.sql: $([ -f "database/smartchannel-db.sql" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
-- Tamanho: $([ -f "database/smartchannel-db.sql" ] && echo "$(stat -c%s database/smartchannel-db.sql 2>/dev/null || stat -f%z database/smartchannel-db.sql 2>/dev/null || echo "0") bytes" || echo "N/A")
+- smartchannel-db-v2-refactored-apply-all.sql: $([ -f "database/smartchannel-db-v2-refactored-apply-all.sql" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
+- Tamanho: $([ -f "database/smartchannel-db-v2-refactored-apply-all.sql" ] && echo "$(stat -c%s database/smartchannel-db-v2-refactored-apply-all.sql 2>/dev/null || stat -f%z database/smartchannel-db-v2-refactored-apply-all.sql 2>/dev/null || echo "0") bytes" || echo "N/A")
 
 Scripts:
 - install.sh: $([ -f "scripts/install.sh" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
@@ -498,7 +498,8 @@ show_summary() {
     
     # Banco de dados
     TOTAL_COUNT=$((TOTAL_COUNT + 1))
-    if [[ -f "database/smartchannel-db.sql" ]]; then
+    if [[ -f "database/smartchannel-db-v2-refactored-apply-all.sql" ]]; then
+    if [[ -f "database/smartchannel-db-v2-refactored-apply-all.sql" ]]; then
         echo -e "${GREEN}✅ Banco de Dados:${NC} Schema encontrado"
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
     else

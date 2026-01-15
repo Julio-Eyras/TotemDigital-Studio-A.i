@@ -58,7 +58,7 @@
 - `backend/src/middleware/rateLimitUser.middleware.ts` (NOVO)
 
 ### Database
-- `database/smartchannel-db.sql` (MODIFICADO)
+- `database/smartchannel-db-v2-refactored-apply-all.sql` (schema refatorado)
   - Tabela `backups` adicionada
   - Tabela `notifications` adicionada
   - Índices adicionados

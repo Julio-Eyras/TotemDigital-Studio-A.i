@@ -7,7 +7,7 @@
 
 ### **1. Schema de Configurações de Logs**
 
-A seção de configurações de logs contida em `database/smartchannel-db.sql` (antigo `logs-config-schema.sql`) foi integrada ao script de instalação:
+A seção de configurações de logs contida no **schema refatorado** `database/smartchannel-db-v2-refactored-apply-all.sql` (antigo `logs-config-schema.sql`) foi integrada ao script de instalação:
 
 - ✅ **Criação da tabela `system_settings`** (se não existir)
 - ✅ **Aplicação automática** após o schema principal
@@ -16,7 +16,7 @@ A seção de configurações de logs contida em `database/smartchannel-db.sql` (
 
 **Localização no script:**
 ```bash
-# Em setup_first_boot(), aplicar smartchannel-db.sql (schema consolidado)
+# Em setup_first_boot(), aplicar smartchannel-db-v2-refactored-apply-all.sql (schema refatorado)
 # Linha ~3580 em install-smartsignage.sh
 ```
 
@@ -58,15 +58,16 @@ npm install winston-daily-rotate-file --save
 ### **2. Setup do Banco de Dados (setup_database)**
 
 ```bash
-# Executar schema consolidado (inclui configurações de logs)
-psql "$DATABASE_URL" -f "$INSTALL_DIR/database/smartchannel-db.sql"
+# Executar schema refatorado (inclui configurações de logs)
+# NOTE: o apply-all usa comandos \i, então execute a partir do diretório database/
+(cd "$INSTALL_DIR/database" && psql "$DATABASE_URL" -f "smartchannel-db-v2-refactored-apply-all.sql")
 
 # Executar seed de dados
 psql "$DATABASE_URL" -f "$INSTALL_DIR/database/carga-inicial-db-smarsignage-v4.sql"
 ```
 
 **Ordem de execução:**
-1. Criar schema consolidado (smartchannel-db.sql)
+1. Criar schema refatorado (smartchannel-db-v2-refactored-apply-all.sql)
 2. Executar seed de dados (carga-inicial-db-smarsignage-v4.sql)
 
 ---
@@ -105,11 +106,11 @@ Após instalação, o script verifica:
    - Tratamento de erros
 
 2. **setup_first_boot()** (linha ~3580)
-   - Execução única de `smartchannel-db.sql` (schema consolidado)
+   - Execução única de `smartchannel-db-v2-refactored-apply-all.sql` (schema refatorado)
    - Verificação de configurações criadas
    - Tratamento de erros idempotente
 
-### **2. database/smartchannel-db.sql**
+### **2. database/smartchannel-db-v2-refactored-apply-all.sql**
 
 **Modificações:**
 

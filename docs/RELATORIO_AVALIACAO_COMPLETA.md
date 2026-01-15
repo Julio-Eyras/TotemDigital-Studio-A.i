@@ -761,7 +761,7 @@ createdb smartsignage
 
 # Executar migrations
 cd database
-psql smartsignage < smartchannel-db.sql
+psql smartsignage < smartchannel-db-v2-refactored-apply-all.sql
 psql smartsignage < carga-inicial-db-smarsignage-v4.sql
 ```
 
@@ -888,7 +888,7 @@ SmartSignage-Pro/
 │   └── platforms/       # Implementações por plataforma
 │
 ├── database/             # Scripts de banco
-│   ├── smartchannel-db.sql
+│   ├── smartchannel-db-v2-refactored-apply-all.sql
 │   └── carga-inicial-db-smarsignage-v4.sql
 │
 ├── docker/               # Dockerfiles

@@ -131,7 +131,7 @@ check_file "nginx/simple.conf" "Configuração simples"
 # =============================================
 info "🔍 Verificando Banco de Dados..."
 
-check_file "database/smartchannel-db.sql" "Schema SQL"
+check_file "database/smartchannel-db-v2-refactored-apply-all.sql" "Schema SQL (refatorado v2)"
 check_file "database/carga-inicial-db-smarsignage-v4.sql" "Carga inicial (seeds v4)"
 
 # =============================================

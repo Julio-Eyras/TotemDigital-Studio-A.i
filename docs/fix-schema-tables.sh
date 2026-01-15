@@ -10,17 +10,20 @@ echo "🔧 Corrigindo schema do banco de dados..."
 
 cd "$INSTALL_DIR" || exit 1
 
-# Verificar se o arquivo smartchannel-db.sql existe
-SCHEMA_SQL_FILE="$INSTALL_DIR/database/smartchannel-db.sql"
+# Verificar se o schema refatorado existe
+SCHEMA_SQL_FILE="$INSTALL_DIR/database/smartchannel-db-v2-refactored-apply-all.sql"
 if [[ ! -f "$SCHEMA_SQL_FILE" ]]; then
-    echo "❌ Arquivo smartchannel-db.sql não encontrado!"
+    echo "❌ Arquivo smartchannel-db-v2-refactored-apply-all.sql não encontrado!"
     exit 1
 fi
 
-echo "✅ Executando smartchannel-db.sql..."
+echo "✅ Executando smartchannel-db-v2-refactored-apply-all.sql..."
 
 # Executar schema SQL ignorando erros de "already exists"
-psql "$DATABASE_URL" -f "$SCHEMA_SQL_FILE" 2>&1 | grep -v "already exists" | grep -v "NOTICE" || true
+(
+  cd "$INSTALL_DIR/database" || exit 1
+  psql "$DATABASE_URL" -f "smartchannel-db-v2-refactored-apply-all.sql" 2>&1 | grep -v "already exists" | grep -v "NOTICE" || true
+)
 
 # Verificar quantas tabelas foram criadas
 TABLE_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | tr -d ' ')

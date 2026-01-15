@@ -219,7 +219,7 @@ A tabela `event_logs` deve ter:
 A tabela referenciada (totems, campaigns, etc) não existe. Execute primeiro o schema principal:
 
 ```bash
-sudo -u postgres psql -d smartsignage -f database/smartchannel-db.sql
+(cd database && sudo -u postgres psql -d smartsignage -f smartchannel-db-v2-refactored-apply-all.sql)
 ```
 
 ### **Erro: "permission denied"**

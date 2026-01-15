@@ -63,7 +63,8 @@
 
 ### **Novos Arquivos**
 ```
-database/smartchannel-db.sql    (seção CronSQL incluída)
+database/smartchannel-db-v2-refactored-apply-all.sql    (schema refatorado master - inclui módulo CronSQL)
+database/smartchannel-db-v2-refactored-apply-all.sql    (schema refatorado master)
 backend/src/config/redis.ts
 backend/src/config/queue.ts
 backend/src/services/exportQueryService.ts
@@ -115,7 +116,7 @@ frontend/src/pages/AdminTools/AdminTools.tsx  (nova aba CronSQL)
 
 2. **Executar schema SQL**
    ```sql
-   -- Executar database/smartchannel-db.sql no PostgreSQL (módulo consolidado)
+   -- Executar database/smartchannel-db-v2-refactored-apply-all.sql no PostgreSQL (schema refatorado)
    ```
 
 3. **Configurar variáveis de ambiente** (se necessário)

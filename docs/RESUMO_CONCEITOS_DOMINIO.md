@@ -397,7 +397,7 @@ Este documento consolida os conceitos chave do domínio Smart Signage Pro v2.1:
 - **Permissões e RBAC**: Roles (`admin`, `manager`, `operator`, `user`), estrutura de permissões e middlewares de autorização.
 - **Logging**: Separação entre logs operacionais (`loggerHelper`) e eventos de negócio (`EventLogService`).
 
-**Este documento é a referência de alto nível**; detalhes de implementação ficam nos serviços e no schema (`smartchannel-db.sql`).  
+**Este documento é a referência de alto nível**; detalhes de implementação ficam nos serviços e no schema (`smartchannel-db-v2-refactored-apply-all.sql`).  
 **Mudanças conceituais devem atualizar primeiro aqui**, para manter o projeto coeso.
 
 **Última atualização**: 2024-12-19  

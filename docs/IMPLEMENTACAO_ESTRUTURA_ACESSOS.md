@@ -7,9 +7,9 @@
 
 ## 📋 ATUALIZAÇÃO DO SCHEMA SQL
 
-**Nota:** Como o sistema está sendo criado do zero, não precisamos de migrations separadas. As roles e permissões foram adicionadas diretamente no arquivo `database/smartchannel-db.sql`.
+**Nota:** Como o sistema está sendo criado do zero, não precisamos de migrations separadas. As roles e permissões foram adicionadas diretamente no schema refatorado `database/smartchannel-db-v2-refactored-apply-all.sql`.
 
-### ✅ O que foi adicionado ao `smartchannel-db.sql`:
+### ✅ O que foi adicionado ao `smartchannel-db-v2-refactored-apply-all.sql`:
 
 1. **Roles hierárquicas** (6 níveis)
 2. **Permissões completas** (todas as ações por recurso)
@@ -50,7 +50,7 @@ WHERE name = 'client';
 ### Permissões Criadas
 
 ```sql
--- Todas as permissões foram inseridas no smartchannel-db.sql
+-- Todas as permissões foram inseridas no smartchannel-db-v2-refactored-apply-all.sql
 
 -- Permissões do Sistema
 INSERT INTO permissions (name, resource, action, description) VALUES
@@ -178,7 +178,7 @@ ON CONFLICT (name) DO NOTHING;
 ### Relações Role-Permissão
 
 ```sql
--- Todas as relações foram criadas no smartchannel-db.sql
+-- Todas as relações foram criadas no smartchannel-db-v2-refactored-apply-all.sql
 
 -- ADMIN_SQL: Todas as permissões
 INSERT INTO role_permissions (role_id, permission_id)
@@ -462,7 +462,7 @@ router.post(
 
 ## 🎯 PRÓXIMOS PASSOS
 
-1. ✅ **Schema SQL atualizado** - Roles e permissões adicionadas ao `smartchannel-db.sql`
+1. ✅ **Schema SQL atualizado** - Roles e permissões adicionadas ao `smartchannel-db-v2-refactored-apply-all.sql`
 2. ✅ **Middlewares criados** - `operatorProtection.middleware.ts`, `adminSql.middleware.ts`, `auditSystemUsers.middleware.ts`
 3. ⏳ **Atualizar todas as rotas** - Adicionar proteções nas rotas existentes
 4. ⏳ **Testar hierarquia** - Validar bloqueios e permissões

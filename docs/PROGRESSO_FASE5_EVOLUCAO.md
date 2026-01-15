@@ -89,17 +89,17 @@ if (rule.conditions?.tag_category) {
 
 ### 5.2. Adicionar Metadata JSONB na Tabela Tags ✅
 
-**Arquivo**: `database/smartchannel-db.sql` (script master)
+**Arquivo**: `database/smartchannel-db-v2-refactored-apply-all.sql` (script master)
 
 **Status**:
-- ✅ Verificação: Coluna `metadata` já existe no schema principal (`smartchannel-db.sql`)
+- ✅ Verificação: Coluna `metadata` já existe no schema principal (`smartchannel-db-v2-refactored-apply-all.sql`)
 - ✅ Verificação: Índice GIN `idx_tags_metadata` já existe no schema principal
 - ✅ TagService já suporta metadata
 - ✅ **Nota**: Como o sistema está sendo criado do zero, todas as alterações são feitas diretamente no script master, não em migrations separadas
 
 **Estrutura no Script Master**:
 ```sql
--- Tabela tags (já existe no smartchannel-db.sql)
+-- Tabela tags (já existe no smartchannel-db-v2-refactored-apply-all.sql)
 CREATE TABLE tags (
     ...
     metadata JSONB DEFAULT '{}', -- Metadados flexíveis

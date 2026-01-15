@@ -12,7 +12,7 @@ A Fase 1 (Backend + ER) do SmartDisplayFX Plus foi **completamente implementada*
 
 ### Tabelas Criadas
 
-Todas as tabelas foram adicionadas ao `smartchannel-db.sql`:
+Todas as tabelas foram adicionadas ao `smartchannel-db-v2-refactored-apply-all.sql`:
 
 1. **`fx_effects`** - Catálogo de efeitos FX disponíveis
    - `effect_id`, `name`, `effect_type`, `description`, `default_params`, `preview_url`, `is_active`
@@ -278,7 +278,7 @@ Quando MQTT não está disponível, o sistema funciona em modo "log-only", regis
 ## ✅ Checklist de Implementação
 
 - [x] Branch `SmartDisplayFX-Plus` criada
-- [x] Tabelas FX criadas no `smartchannel-db.sql`
+- [x] Tabelas FX criadas no `smartchannel-db-v2-refactored-apply-all.sql`
 - [x] Serviços FX implementados (5 serviços)
 - [x] Rotas CRUD criadas (5 módulos)
 - [x] FxOrchestratorService expandido

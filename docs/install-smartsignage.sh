@@ -4928,7 +4928,9 @@ setup_first_boot() {
     # Executar migrations ou criar schema
     log "Criando schema do banco de dados..."
     
-    local MASTER_SCHEMA_FILE="$INSTALL_DIR/database/smartchannel-db.sql"
+    # Schema antigo (smartchannel-db.sql) foi descontinuado/removido.
+    # Usar schema refatorado master (apply-all), que inclui dispatcher_log, device_tokens e playlist mix.
+    local MASTER_SCHEMA_FILE="$INSTALL_DIR/database/smartchannel-db-v2-refactored-apply-all.sql"
     if [[ ! -f "$MASTER_SCHEMA_FILE" ]]; then
         error "Arquivo de schema consolidado não encontrado: $MASTER_SCHEMA_FILE"
         exit 1
@@ -4949,8 +4951,9 @@ setup_first_boot() {
         log "⚠️  PRIMARY_DB_USER não estava definido, usando: ${PRIMARY_DB_USER}"
     fi
     
-    log "Aplicando schema consolidado (${MASTER_SCHEMA_FILE}) no banco '${TARGET_DB}'..."
-    execute_psql_file "$TARGET_DB" "$MASTER_SCHEMA_FILE" "Schema consolidado SmartChannel"
+    log "Aplicando schema (${MASTER_SCHEMA_FILE}) no banco '${TARGET_DB}'..."
+    # O apply-all usa comandos \i, então precisamos rodar no diretório database/
+    ( cd "$INSTALL_DIR/database" && execute_psql_file "$TARGET_DB" "smartchannel-db-v2-refactored-apply-all.sql" "Schema refatorado SmartChannel (apply-all)" )
 
     # Atualizar configuração media.storage.path para SEMPRE usar /opt/smart-signage
     # Isso garante que arquivos sejam salvos no local correto, mesmo se INSTALL_DIR for diferente
@@ -4995,7 +4998,7 @@ setup_first_boot() {
     cd $INSTALL_DIR/backend
     
     # Lista COMPLETA de TODAS as tabelas do schema E.R. (em ordem de dependência)
-    # Baseado em database/smartchannel-db.sql - TODAS as tabelas usadas em JOINs
+    # Baseado no schema refatorado (apply-all) - TODAS as tabelas usadas em JOINs
     # Ordem importa: tabelas sem foreign keys primeiro
     ALL_TABLES=(
         "clients"           # Client - Tabela base sem dependências (usada em JOINs)
@@ -5066,7 +5069,7 @@ setup_first_boot() {
     if [[ ${#MISSING_TABLES[@]} -gt 0 ]]; then
         error "❌ Falha crítica ao criar tabelas do banco de dados"
         error "Tabelas faltando: ${MISSING_TABLES[*]}"
-        error "Use smartchannel-db.sql e carga-inicial-db-smarsignage-v4.sql para criar o schema + seeds"
+        error "Use smartchannel-db-v2-refactored-apply-all.sql e carga-inicial-db-smarsignage-v4.sql para criar o schema + seeds"
         exit 1
     fi
 

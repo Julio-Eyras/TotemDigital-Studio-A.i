@@ -81,7 +81,7 @@ backend/src/
 ### Database - Alterações Integradas
 ```
 database/
-└── smartchannel-db.sql (MODIFICADO)
+└── smartchannel-db-v2-refactored-apply-all.sql (schema refatorado)
     ├── Tabela backups adicionada
     └── Tabela notifications adicionada
 ```

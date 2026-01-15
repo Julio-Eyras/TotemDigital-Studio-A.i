@@ -149,7 +149,7 @@ frontend/src/
 ### Database - Alterações Integradas
 ```
 database/
-└── smartchannel-db.sql (MODIFICADO)
+└── smartchannel-db-v2-refactored-apply-all.sql (schema refatorado)
     ├── Tabelas adicionadas: webhooks, dashboard_layouts
     └── Índices de performance adicionados
 ```
@@ -161,9 +161,9 @@ database/
 ### 1. Aplicar Schema do Banco
 ```bash
 # Todas as alterações já estão integradas no arquivo principal
-# database/smartchannel-db.sql
+# database/smartchannel-db-v2-refactored-apply-all.sql
 # Aplicar o schema completo:
-psql -U postgres -d smartsignage -f database/smartchannel-db.sql
+(cd database && psql -U postgres -d smartsignage -f smartchannel-db-v2-refactored-apply-all.sql)
 ```
 
 ### 2. Instalar Dependências do Frontend

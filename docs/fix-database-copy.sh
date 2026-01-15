@@ -30,9 +30,10 @@ else
 fi
 
 # Verificar se os arquivos foram copiados corretamente
-if [[ -f "$INSTALL_DIR/database/smartchannel-db.sql" ]] && [[ -f "$INSTALL_DIR/database/carga-inicial-db-smarsignage-v4.sql" ]]; then
+# Schema antigo (smartchannel-db.sql) foi descontinuado/removido.
+if [[ -f "$INSTALL_DIR/database/smartchannel-db-v2-refactored-apply-all.sql" ]] && [[ -f "$INSTALL_DIR/database/carga-inicial-db-smarsignage-v4.sql" ]]; then
     echo "✅ Arquivos database verificados:"
-    echo "   - smartchannel-db.sql: $(ls -lh "$INSTALL_DIR/database/smartchannel-db.sql" | awk '{print $5}')"
+    echo "   - smartchannel-db-v2-refactored-apply-all.sql: $(ls -lh "$INSTALL_DIR/database/smartchannel-db-v2-refactored-apply-all.sql" | awk '{print $5}')"
     echo "   - carga-inicial-db-smarsignage-v4.sql: $(ls -lh "$INSTALL_DIR/database/carga-inicial-db-smarsignage-v4.sql" | awk '{print $5}')"
     echo ""
     echo "🎉 Correção concluída! Você pode continuar executando o script de instalação."

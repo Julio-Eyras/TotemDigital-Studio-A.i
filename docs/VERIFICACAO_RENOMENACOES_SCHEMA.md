@@ -86,7 +86,7 @@ ALTER TABLE playlists
 
 ### Problema 2: Arquivo antigo ainda existe
 
-**Arquivo:** `database/smartchannel-db.sql` (schema antigo)
+**Arquivo:** `database/smartchannel-db.sql` (schema antigo, descontinuado/removido) — usar `database/smartchannel-db-v2-refactored-apply-all.sql`
 - ❌ Ainda contém `CREATE TABLE clients`
 - ❌ Ainda contém `CREATE TABLE hosts`
 - ❌ Ainda tem FKs para `clients` e `hosts`

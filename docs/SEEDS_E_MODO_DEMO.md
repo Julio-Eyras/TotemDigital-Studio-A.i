@@ -183,7 +183,7 @@ SELECT * FROM v_export_executions_complete ORDER BY started_at DESC LIMIT 10;
 database/
   ├── seeds-views-test.sql      # Seeds para testar views
   ├── carga-inicial-db-smarsignage-v4.sql  # Carga inicial principal (seeds v4)
-  └── smartchannel-db.sql        # Schema consolidado (inclui views)
+  └── smartchannel-db-v2-refactored-apply-all.sql        # Schema refatorado (apply-all, inclui módulos e dependências via \i)
 
 player/
   ├── index.html                 # Player com modo demo

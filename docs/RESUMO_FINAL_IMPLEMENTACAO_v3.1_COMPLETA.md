@@ -120,15 +120,15 @@
 - `frontend/tsconfig.json` (MODIFICADO - strict mode)
 
 ### Database
-- `database/smartchannel-db.sql` (MODIFICADO - tabelas e índices integrados)
+- `database/smartchannel-db-v2-refactored-apply-all.sql` (schema refatorado - tabelas e índices integrados)
 
 ## 🎯 Próximos Passos Recomendados
 
 1. **Aplicar schema do banco de dados**
    ```bash
    # Todas as alterações estão integradas no arquivo principal
-   # database/smartchannel-db.sql
-   psql -U postgres -d smartsignage -f database/smartchannel-db.sql
+   # database/smartchannel-db-v2-refactored-apply-all.sql
+   (cd database && psql -U postgres -d smartsignage -f smartchannel-db-v2-refactored-apply-all.sql)
    ```
 
 2. **Instalar dependências do frontend para i18n**

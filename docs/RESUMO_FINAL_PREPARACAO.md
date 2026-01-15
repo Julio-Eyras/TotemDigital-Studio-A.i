@@ -14,7 +14,7 @@ Preparar o sistema Docker monolítico v2.1 (sem Prisma) para testes no servidor 
 ## ✅ CORREÇÕES FINAIS REALIZADAS
 
 ### **1. docker-compose.yml**
-- ✅ Atualizado para usar `smartchannel-db.sql` (schema consolidado completo)
+- ✅ Atualizado para usar `smartchannel-db-v2-refactored-apply-all.sql` (schema refatorado v2)
 - ✅ Adicionado `:ro` nos volumes SQL (segurança)
 - ✅ Mantida arquitetura monolítica (container `app`)
 
@@ -33,11 +33,11 @@ Preparar o sistema Docker monolítico v2.1 (sem Prisma) para testes no servidor 
 ## 📋 ARQUIVOS VALIDADOS E PRONTOS
 
 ### ✅ **Arquivos Essenciais:**
-- ✅ `docker-compose.yml` - Usa `smartchannel-db.sql` (consolidado)
+- ✅ `docker-compose.yml` - Usa `smartchannel-db-v2-refactored-apply-all.sql` (refatorado v2)
 - ✅ `Dockerfile.app` - v2.1, sem Prisma
 - ✅ `docker/app-entrypoint.sh` - Existe e correto
 - ✅ `nginx/nginx-complete.conf` - Existe e correto
-- ✅ `database/smartchannel-db.sql` - Schema consolidado (52 tabelas)
+- ✅ `database/smartchannel-db-v2-refactored-apply-all.sql` - Schema refatorado (apply-all)
 - ✅ `database/carga-inicial-db-smarsignage-v4.sql` - Seeds (carga inicial v4)
 - ✅ `install-smartsignage.sh` - Pronto para uso
 

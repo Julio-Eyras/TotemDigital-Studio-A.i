@@ -83,7 +83,7 @@ frontend/src/services/api/index.ts  # cronSqlApi tipado (queries, schedules, exe
 
 ```
 database/
-└── smartchannel-db.sql          # Schema consolidado (inclui módulo CronSQL)
+└── smartchannel-db-v2-refactored-apply-all.sql          # Schema refatorado master (inclui módulo CronSQL)
 ```
 
 ---
@@ -505,7 +505,7 @@ Usuário → Frontend → API → Criar job único no Bull → Worker → Execut
 
 ## 📚 **Documentação Relacionada**
 
-- `database/smartchannel-db.sql` - Schema consolidado (seção CronSQL)
+- `database/smartchannel-db-v2-refactored-apply-all.sql` - Schema refatorado master (inclui módulo CronSQL)
 - `backend/src/services/exportQueryService.ts` - Documentação do serviço
 - `backend/src/services/exportScheduleService.ts` - Documentação do serviço
 - `backend/src/services/exportExecutionService.ts` - Histórico e download

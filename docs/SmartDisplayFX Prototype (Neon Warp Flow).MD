@@ -411,7 +411,7 @@ ANALISE_IMPACTO_NGINX_INTEGRADO.md
 
 🔹 Banco de Dados
 
-smartchannel-db.sql
+smartchannel-db-v2-refactored-apply-all.sql
 
 ANALISE_MODELO_ER_QUERIES.md
 

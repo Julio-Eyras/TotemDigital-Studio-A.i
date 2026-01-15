@@ -9,7 +9,7 @@
 
 ### 1. ✅ Schema SQL Atualizado
 
-**Arquivo:** `database/smartchannel-db.sql`
+**Arquivo:** `database/smartchannel-db-v2-refactored-apply-all.sql`
 
 - ✅ 6 Roles inseridas:
   - `admin_sql` - Top hierarquia (Dados + Sistema)
@@ -131,7 +131,7 @@
 ## 📝 ARQUIVOS MODIFICADOS
 
 ### Backend
-- ✅ `database/smartchannel-db.sql` - Roles e permissões adicionadas
+- ✅ `database/smartchannel-db-v2-refactored-apply-all.sql` - Roles e permissões adicionadas
 - ✅ `backend/src/middleware/operatorProtection.middleware.ts` - Criado
 - ✅ `backend/src/middleware/adminSql.middleware.ts` - Criado
 - ✅ `backend/src/middleware/auditSystemUsers.middleware.ts` - Criado

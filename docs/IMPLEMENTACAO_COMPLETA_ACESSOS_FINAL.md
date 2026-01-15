@@ -13,7 +13,7 @@ Implementação completa do sistema de acessos hierárquico com 6 níveis de rol
 
 ## ✅ O QUE FOI IMPLEMENTADO
 
-### 1. ✅ Schema SQL (`database/smartchannel-db.sql`)
+### 1. ✅ Schema SQL (`database/smartchannel-db-v2-refactored-apply-all.sql`)
 
 **Roles Criadas:**
 - ✅ `admin_sql` - Top hierarquia (Dados + Sistema)
@@ -141,7 +141,7 @@ Implementação completa do sistema de acessos hierárquico com 6 níveis de rol
 ## 📊 ARQUIVOS MODIFICADOS/CRIADOS
 
 ### Backend
-- ✅ `database/smartchannel-db.sql` - Roles e permissões adicionadas
+- ✅ `database/smartchannel-db-v2-refactored-apply-all.sql` - Roles e permissões adicionadas
 - ✅ `backend/src/middleware/operatorProtection.middleware.ts` - Criado
 - ✅ `backend/src/middleware/adminSql.middleware.ts` - Criado
 - ✅ `backend/src/middleware/auditSystemUsers.middleware.ts` - Criado
