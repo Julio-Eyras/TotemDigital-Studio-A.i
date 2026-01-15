@@ -5,7 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DB_FILE="$SCRIPT_DIR/../smartchannel-db.sql"
+DB_FILE="$SCRIPT_DIR/../smartchannel-db-v2-refactored-apply-all.sql"
 
 echo "🔍 Validando schema SQL..."
 

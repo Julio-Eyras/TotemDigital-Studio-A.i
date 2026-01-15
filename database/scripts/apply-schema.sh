@@ -1,11 +1,12 @@
 #!/bin/bash
 # Script para Aplicar Schema SQL
-# Aplica o arquivo smartchannel-db.sql de forma segura
+# Aplica o schema refatorado (smartchannel-db-v2-refactored-apply-all.sql) de forma segura
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DB_FILE="$SCRIPT_DIR/../smartchannel-db.sql"
+DB_DIR="$SCRIPT_DIR/.."
+DB_FILE="$DB_DIR/smartchannel-db-v2-refactored-apply-all.sql"
 
 # Cores para output
 RED='\033[0;31m'
@@ -13,7 +14,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}🚀 Aplicando schema SQL...${NC}"
+echo -e "${GREEN}🚀 Aplicando schema SQL (refatorado v2)...${NC}"
 
 # Verificar se o arquivo existe
 if [ ! -f "$DB_FILE" ]; then
@@ -47,10 +48,10 @@ echo ""
 # Exportar variáveis para psql
 export PGPASSWORD=$DB_PASS
 
-# Aplicar schema
 echo -e "${GREEN}📝 Aplicando schema...${NC}"
 
-if psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$DB_FILE"; then
+# O apply-all usa comandos \i, então rodamos dentro do diretório database/
+if (cd "$DB_DIR" && psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$(basename "$DB_FILE")"); then
     echo -e "${GREEN}✅ Schema aplicado com sucesso!${NC}"
     exit 0
 else

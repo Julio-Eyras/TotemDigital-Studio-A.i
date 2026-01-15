@@ -1,12 +1,13 @@
 # Script para Aplicar Schema SQL (PowerShell)
-# Aplica o arquivo smartchannel-db.sql de forma segura
+# Aplica o schema refatorado (smartchannel-db-v2-refactored-apply-all.sql) de forma segura
 
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$DbFile = Join-Path $ScriptDir "..\smartchannel-db.sql"
+$DbDir = Join-Path $ScriptDir ".."
+$DbFile = Join-Path $DbDir "smartchannel-db-v2-refactored-apply-all.sql"
 
-Write-Host "🚀 Aplicando schema SQL..." -ForegroundColor Green
+Write-Host "🚀 Aplicando schema SQL (refatorado v2)..." -ForegroundColor Green
 
 # Verificar se o arquivo existe
 if (-not (Test-Path $DbFile)) {
@@ -39,13 +40,18 @@ $dbPassPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
     [Runtime.InteropServices.Marshal]::SecureStringToBSTR($dbPass)
 )
 
-# Aplicar schema
 Write-Host "📝 Aplicando schema..." -ForegroundColor Green
 
 $env:PGPASSWORD = $dbPassPlain
 
 try {
-    & psql -h $dbHost -p $dbPort -U $dbUser -d $dbName -f $DbFile
+    # IMPORTANT: o apply-all usa comandos \i, então o psql deve rodar dentro do diretório database/
+    Push-Location $DbDir
+    try {
+        & psql -h $dbHost -p $dbPort -U $dbUser -d $dbName -f (Split-Path -Leaf $DbFile)
+    } finally {
+        Pop-Location
+    }
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "✅ Schema aplicado com sucesso!" -ForegroundColor Green

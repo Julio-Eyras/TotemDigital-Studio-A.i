@@ -4,7 +4,7 @@
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$DbFile = Join-Path $ScriptDir "..\smartchannel-db.sql"
+$DbFile = Join-Path $ScriptDir "..\smartchannel-db-v2-refactored-apply-all.sql"
 
 Write-Host "🔍 Validando schema SQL..." -ForegroundColor Cyan
 

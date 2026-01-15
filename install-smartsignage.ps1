@@ -714,14 +714,24 @@ function Setup-Database {
 
         # Aplicar schema + seeds quando necessário
         $databaseUrl = "postgresql://$dbUser:$dbPassword@localhost:5432/$dbName"
-        $schemaFile = Join-Path $INSTALL_DIR "database\smartchannel-db.sql"
+        # Schema antigo (database/smartchannel-db.sql) foi descontinuado/removido.
+        # Usar schema refatorado master, que inclui os módulos do Dispatcher (dispatcher_log, device_tokens, playlist mix, etc.).
+        $schemaFile = Join-Path $INSTALL_DIR "database\smartchannel-db-v2-refactored-apply-all.sql"
         $seedsFile = Join-Path $INSTALL_DIR "database\carga-inicial-db-smarsignage-v4.sql"
 
         if ($dbWasCreatedOrReset) {
             if (Test-Path $schemaFile) {
-                Write-Log "Aplicando schema: database/smartchannel-db.sql"
-                psql $databaseUrl -f $schemaFile 2>&1 | Out-Null
-                Write-Log "✅ Schema aplicado"
+                Write-Log "Aplicando schema: database/smartchannel-db-v2-refactored-apply-all.sql"
+
+                # IMPORTANT: o apply-all usa comandos \i, então o psql deve rodar dentro do diretório database/
+                $databaseDir = Join-Path $INSTALL_DIR "database"
+                Push-Location $databaseDir
+                try {
+                    psql $databaseUrl -f "smartchannel-db-v2-refactored-apply-all.sql" 2>&1 | Out-Null
+                    Write-Log "✅ Schema aplicado"
+                } finally {
+                    Pop-Location
+                }
             } else {
                 Write-Warn "⚠️  Schema não encontrado: $schemaFile"
             }
