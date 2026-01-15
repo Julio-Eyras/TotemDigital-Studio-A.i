@@ -53,7 +53,7 @@
 - **Ação:** Atualizar gradualmente conforme necessário
 
 ### 3. Schema legado (NÃO CRÍTICO)
-- ✅ `smartchannel-db.sql` foi descontinuado/removido. Use `smartchannel-db-v2-refactored-apply-all.sql`.
+- ✅ `smartchannel-db-v2-refactored-apply-all.sql` foi descontinuado/removido. Use `smartchannel-db-v2-refactored-apply-all.sql`.
 - **Status:** Não crítico - é o schema legado, não deve ser usado
 - **Ação:** Manter para referência histórica ou remover
 

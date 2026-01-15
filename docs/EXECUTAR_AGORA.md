@@ -49,7 +49,7 @@ cd SmartSignage-Pro
 chmod +x install-smartsignage.sh
 
 # Executar instalação (modo Docker automático)
-./install-smartsignage.sh --skip-menu
+./scripts/install-smartsignage.sh --skip-menu
 ```
 
 ---
@@ -78,7 +78,7 @@ curl http://localhost:3000/health
 ```bash
 cd /opt/SmartSignage-Pro
 chmod +x install-smartsignage.sh
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 
 # Quando aparecer menu, escolher:
 # 2) Docker (Produção - PostgreSQL)

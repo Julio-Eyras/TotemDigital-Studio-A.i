@@ -478,7 +478,7 @@ O **Smart Signage Pro** é um sistema completo de sinalização digital profissi
 ### 📺 **PLAYER HTML5**
 
 #### ✅ Player Implementado
-- [x] **Player Web** (`player/index.html`)
+- [x] **Player Web** (`player-web/index.html`)
   - Reprodução automática de mídias
   - Suporte completo: Imagens, Vídeos, Áudio
   - Transições suaves entre conteúdos

@@ -152,7 +152,7 @@ wait_for_mqtt() {
 ### Instalação Automática
 
 ```bash
-./install-smartsignage.sh --skip-menu --fresh
+./scripts/install-smartsignage.sh --skip-menu --fresh
 ```
 
 **O script agora**:

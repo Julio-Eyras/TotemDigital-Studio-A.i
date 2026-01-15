@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script para reorganizar smartchannel-db.sql em ordem correta de dependências
+Script para reorganizar o schema master em ordem correta de dependências
 """
 
 import re

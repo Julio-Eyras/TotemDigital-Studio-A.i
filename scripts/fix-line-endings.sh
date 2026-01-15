@@ -67,7 +67,7 @@ else
 fi
 
 # Verificar arquivo específico install-smartsignage.sh
-INSTALL_SCRIPT="$PROJECT_DIR/install-smartsignage.sh"
+INSTALL_SCRIPT="$PROJECT_DIR/scripts/install-smartsignage.sh"
 if [[ -f "$INSTALL_SCRIPT" ]]; then
     echo ""
     echo -e "${YELLOW}Verificando install-smartsignage.sh...${NC}"
@@ -104,6 +104,6 @@ echo ""
 echo -e "${BLUE}Teste rápido:${NC}"
 echo "  file $INSTALL_SCRIPT"
 echo "  head -1 $INSTALL_SCRIPT | od -c"
-echo "  ./install-smartsignage.sh --help"
+echo "  ./scripts/install-smartsignage.sh --help"
 echo ""
 

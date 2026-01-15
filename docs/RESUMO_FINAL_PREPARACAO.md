@@ -51,7 +51,7 @@ Preparar o sistema Docker monolítico v2.1 (sem Prisma) para testes no servidor 
 # No servidor de teste
 cd /opt/SmartSignage-Pro
 chmod +x install-smartsignage.sh
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 
 # Escolher: 2) Docker (Produção - PostgreSQL)
 ```

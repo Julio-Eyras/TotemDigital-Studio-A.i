@@ -606,10 +606,10 @@ O script `install-smartsignage.sh` pode compilar e instalar automaticamente:
 
 ```bash
 # Instalar todos os players
-./install-smartsignage.sh --all-players
+./scripts/install-smartsignage.sh --all-players
 
 # Instalar players específicos
-./install-smartsignage.sh \
+./scripts/install-smartsignage.sh \
   --player-android \
   --player-webos \
   --player-linux-electron

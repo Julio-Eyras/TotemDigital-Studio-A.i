@@ -79,7 +79,7 @@
 # No servidor de teste
 cd /opt/SmartSignage-Pro  # ou diretório do projeto
 chmod +x install-smartsignage.sh
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 
 # Escolher: 2) Docker (Produção - PostgreSQL)
 ```

@@ -47,7 +47,7 @@ cd smartsignage-pro
 chmod +x install-smartsignage.sh
 
 # Executar instalação
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 ```
 
 ### Passo 3: Selecionar Modo de Instalação
@@ -192,7 +192,7 @@ server {
     # Player
     location /player/ {
         alias /opt/smart-signage/player/;
-        try_files $uri $uri/ /player/index.html;
+        try_files $uri $uri/ /player-web/index.html;
     }
 }
 ```

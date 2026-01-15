@@ -301,7 +301,7 @@ fi
 # Verificar se o sistema está instalado
 if [ ! -f "docker-compose.yml" ]; then
     echo -e "${RED}❌ Smart Signage Pro não está instalado!${NC}"
-    echo "Execute ./install-smartsignage.sh primeiro."
+    echo "Execute ./scripts/install-smartsignage.sh primeiro."
     exit 1
 fi
 

@@ -59,7 +59,7 @@ cd /opt
 # 3. Executar instalação
 cd SmartSignage-Pro
 chmod +x install-smartsignage.sh
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 
 # 4. Escolher modo: 2) Docker (Produção - PostgreSQL)
 ```

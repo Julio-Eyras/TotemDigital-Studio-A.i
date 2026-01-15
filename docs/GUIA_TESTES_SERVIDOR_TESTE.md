@@ -47,7 +47,7 @@ chmod +x install-smartsignage.sh
 
 ```bash
 # Executar script de instalação
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 
 # Quando perguntar, escolher:
 # 2) Docker (Produção - PostgreSQL)

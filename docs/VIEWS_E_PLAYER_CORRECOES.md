@@ -195,6 +195,6 @@ O IP `192.168.1.102` **não foi encontrado** no código do sistema. Possíveis c
 
 **Arquivos Criados/Modificados:**
 - `database/smartchannel-db-v2-refactored-apply-all.sql` - Script master (apply-all) com VIEWs e demais objetos
-- `player/index.html` - Correções de validação
+- `player-web/index.html` - Correções de validação
 - `backend/src/routes/player.ts` - Melhorias na validação
 

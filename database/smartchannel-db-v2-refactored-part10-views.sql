@@ -37,6 +37,119 @@ JOIN subscribers s ON c.subscriber_id = s.subscriber_id;
 COMMENT ON VIEW campaigns_with_subscriber IS 'View denormalizada com informações completas de campanha e subscriber';
 
 -- =============================================
+-- VIEW: Conteúdo agendado por Subscriber (campanhas → playlists → mídias)
+-- =============================================
+-- Objetivo: facilitar auditoria/BI e debugging do agendamento por subscriber.
+-- - Expande alvos de campanha (totem direto e publisher/grupo)
+-- - Expande playlists e mídias associadas (via campaign_playlists → playlist_items → medias)
+
+CREATE OR REPLACE VIEW subscriber_scheduled_campaigns_playlists_medias AS
+WITH campaign_targets AS (
+    -- Campanhas diretas por TOTEM (campaign_totems sobrescreve janela/priority quando definido)
+    SELECT
+        c.subscriber_id,
+        c.campaign_id,
+        c.title AS campaign_title,
+        c.status AS campaign_status,
+        c.is_active AS campaign_is_active,
+        COALESCE(ct.start_date, c.start_date) AS start_date,
+        COALESCE(ct.end_date, c.end_date) AS end_date,
+        COALESCE(ct.start_time, c.start_time) AS start_time,
+        COALESCE(ct.end_time, c.end_time) AS end_time,
+        COALESCE(ct.days_of_week, c.days_of_week) AS days_of_week,
+        COALESCE(ct.priority, c.priority) AS effective_priority,
+        'totem'::text AS target_type,
+        ct.totem_id AS totem_id,
+        NULL::integer AS publisher_id
+    FROM campaigns c
+    JOIN campaign_totems ct
+      ON c.campaign_id = ct.campaign_id
+     AND ct.is_active = true
+    WHERE c.is_active = true
+
+    UNION ALL
+
+    -- Campanhas por PUBLISHER/GRUPO (campanha vale para todos os locais/totens do publisher)
+    SELECT
+        c.subscriber_id,
+        c.campaign_id,
+        c.title AS campaign_title,
+        c.status AS campaign_status,
+        c.is_active AS campaign_is_active,
+        c.start_date,
+        c.end_date,
+        c.start_time,
+        c.end_time,
+        c.days_of_week,
+        c.priority AS effective_priority,
+        'publisher'::text AS target_type,
+        NULL::integer AS totem_id,
+        cp.publisher_id
+    FROM campaigns c
+    JOIN campaign_publishers cp
+      ON c.campaign_id = cp.campaign_id
+     AND cp.is_active = true
+    WHERE c.is_active = true
+)
+SELECT
+    ct.subscriber_id,
+    s.name AS subscriber_name,
+
+    ct.campaign_id,
+    ct.campaign_title,
+    ct.campaign_status,
+    ct.campaign_is_active,
+    ct.effective_priority,
+
+    ct.target_type,
+    ct.totem_id,
+    ct.publisher_id,
+    p.name AS publisher_name,
+
+    ct.start_date,
+    ct.end_date,
+    ct.start_time,
+    ct.end_time,
+    ct.days_of_week,
+
+    cpl.playlist_id,
+    pl.name AS playlist_name,
+    cpl.priority AS campaign_playlist_priority,
+
+    pi.item_id,
+    pi.order_index AS playlist_order_index,
+    pi.display_seconds AS playlist_display_seconds,
+
+    m.media_id,
+    m.name AS media_name,
+    m.media_type,
+    m.file_path,
+    m.file_name,
+    m.duration_seconds AS media_duration_seconds,
+    m.status AS media_status,
+    m.is_active AS media_is_active
+FROM campaign_targets ct
+JOIN subscribers s
+  ON s.subscriber_id = ct.subscriber_id
+LEFT JOIN publishers p
+  ON p.publisher_id = ct.publisher_id
+LEFT JOIN campaign_playlists cpl
+  ON cpl.campaign_id = ct.campaign_id
+ AND cpl.is_active = true
+LEFT JOIN playlists pl
+  ON pl.playlist_id = cpl.playlist_id
+ AND pl.is_active = true
+LEFT JOIN playlist_items pi
+  ON pi.playlist_id = pl.playlist_id
+ AND pi.is_active = true
+LEFT JOIN medias m
+  ON m.media_id = pi.media_id
+ AND m.is_active = true;
+
+COMMENT ON VIEW subscriber_scheduled_campaigns_playlists_medias IS
+    'Lista conteúdo agendado por subscriber (campanhas → playlists → mídias) com expansão de alvo (totem/publisher).';
+
+-- =============================================
 -- VIEW: Publishers com revenue share ativo
 -- =============================================
 

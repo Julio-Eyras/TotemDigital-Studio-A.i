@@ -327,7 +327,7 @@ export class DispatcherTotemService {
         SELECT 
           t.totem_id,
           t.local_id,
-          t.config,
+          t.network_info as config,
           l.timezone as local_timezone
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
@@ -935,7 +935,7 @@ export class DispatcherTotemService {
       // Buscar dados do totem
       const totem = await this.db.findFirst(`
         SELECT 
-          t.config,
+          t.network_info as config,
           t.local_id,
           l.timezone
         FROM totems t
@@ -976,7 +976,7 @@ export class DispatcherTotemService {
         SELECT 
           pi.media_id,
           pi.order_index,
-          pi.duration,
+          pi.display_seconds as duration,
           m.media_id,
           m.file_path,
           m.media_type,
@@ -985,7 +985,9 @@ export class DispatcherTotemService {
         FROM playlist_items pi
         INNER JOIN medias m ON pi.media_id = m.media_id
         WHERE pi.playlist_id = $1
-          AND m.status = 'published'
+          AND pi.is_active = true
+          AND m.is_active = true
+          AND m.status IN ('approved', 'published')
         ORDER BY pi.order_index
       `, [playlistId]);
 
@@ -1036,7 +1038,8 @@ export class DispatcherTotemService {
           m.duration_seconds
         FROM medias m
         WHERE m.media_id = $1
-          AND m.status = 'published'
+          AND m.is_active = true
+          AND m.status IN ('approved', 'published')
       `, [mixItem.media_id]);
       
       if (media) {
@@ -1095,7 +1098,7 @@ export class DispatcherTotemService {
       SELECT 
         pi.media_id,
         pi.order_index,
-        pi.duration,
+        pi.display_seconds as duration,
         m.media_id,
         m.name,
         m.file_path,
@@ -1107,7 +1110,9 @@ export class DispatcherTotemService {
       FROM playlist_items pi
       INNER JOIN medias m ON pi.media_id = m.media_id
       WHERE pi.playlist_id = $1
-        AND m.status = 'published'
+        AND pi.is_active = true
+        AND m.is_active = true
+        AND m.status IN ('approved', 'published')
       ORDER BY pi.order_index
     `, [candidate.playlistId]);
 

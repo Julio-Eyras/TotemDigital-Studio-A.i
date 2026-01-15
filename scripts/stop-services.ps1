@@ -16,6 +16,7 @@ $ErrorActionPreference = "Continue"
 # Verificar se está no diretório correto
 if (-not (Test-Path "docker-compose.yml") -and -not (Test-Path "package.json")) {
     Write-Warning "⚠️  Execute este script a partir do diretório raiz do projeto (onde está docker-compose.yml ou package.json)"
+    Write-Host "Diretório atual: $(Get-Location)" -ForegroundColor Yellow
     exit 1
 }
 
@@ -28,11 +29,6 @@ function Write-Log {
 function Write-Warn {
     param([string]$Message)
     Write-Host "[AVISO] $Message" -ForegroundColor Yellow
-}
-
-function Write-Error {
-    param([string]$Message)
-    Write-Host "[ERRO] $Message" -ForegroundColor Red
 }
 
 # Verificar se Docker está disponível
@@ -85,26 +81,6 @@ function Stop-ByPort {
     }
 }
 
-# Parar processos Node.js por nome
-function Stop-ByProcessName {
-    param([string]$Pattern, [string]$ServiceName)
-    
-    try {
-        $processes = Get-Process node -ErrorAction SilentlyContinue
-        
-        if ($processes) {
-            Write-Log "Parando processos Node.js: $ServiceName..."
-            $processes | Stop-Process -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 1
-            Write-Log "✅ Processos $ServiceName parados"
-        } else {
-            Write-Warn "Nenhum processo Node.js encontrado: $ServiceName"
-        }
-    } catch {
-        Write-Warn "Erro ao parar processos: $($_.Exception.Message)"
-    }
-}
-
 # Função principal
 function Main {
     Write-Log "🛑 Parando serviços Smart Signage Pro..."
@@ -133,7 +109,7 @@ function Main {
         $nodeProcesses = Get-Process node -ErrorAction SilentlyContinue
         if ($nodeProcesses) {
             Write-Log "Parando processos Node.js (Backend)..."
-            $nodeProcesses | Where-Object { $_.Path -like "*backend*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+            $nodeProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
         }
     }
     
@@ -141,7 +117,7 @@ function Main {
         $nodeProcesses = Get-Process node -ErrorAction SilentlyContinue
         if ($nodeProcesses) {
             Write-Log "Parando processos Node.js (Frontend)..."
-            $nodeProcesses | Where-Object { $_.Path -like "*frontend*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+            $nodeProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
         }
     }
     

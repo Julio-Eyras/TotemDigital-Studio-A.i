@@ -113,13 +113,13 @@ RUN chmod +x /entrypoint.sh
 ### 🧪 **Testes Recomendados:**
 ```bash
 # 1. Testar sintaxe do Dockerfile
-./test-dockerfile.sh
+./scripts/test-dockerfile.sh
 
 # 2. Diagnóstico completo
 ./diagnostico-docker.sh
 
 # 3. Executar instalação
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 ```
 
 ### 📊 **Status:**

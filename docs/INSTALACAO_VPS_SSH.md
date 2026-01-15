@@ -7,7 +7,7 @@
 
 Para instalação automática, use o script:
 ```bash
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 ```
 
 **O script automatizado inclui:**

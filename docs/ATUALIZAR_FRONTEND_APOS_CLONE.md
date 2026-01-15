@@ -16,7 +16,7 @@ Se você usou o `install-smartsignage.sh`, execute:
 
 ```bash
 cd /caminho/do/projeto
-./install-smartsignage.sh --frontend-only
+./scripts/install-smartsignage.sh --frontend-only
 ```
 
 Isso irá:
@@ -54,7 +54,7 @@ sudo service nginx restart
 
 ```bash
 cd /caminho/do/projeto
-./install-smartsignage.sh --backfront-build
+./scripts/install-smartsignage.sh --backfront-build
 ```
 
 ## 🔄 Verificação

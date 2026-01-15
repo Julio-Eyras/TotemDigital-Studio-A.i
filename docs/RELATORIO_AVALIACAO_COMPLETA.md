@@ -729,7 +729,7 @@ cd smartsignage-pro
 ```bash
 # Executar script de instalação
 chmod +x install-smartsignage.sh
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 
 # Durante a instalação, escolha:
 # 3) Desenvolvimento (SQLite)
@@ -1034,10 +1034,10 @@ SCRIPT_VERSION="2.1.6"
 #### 2.3 Testar Atualizações
 ```bash
 # Testar em ambiente limpo
-./install-smartsignage.sh --fresh
+./scripts/install-smartsignage.sh --fresh
 
 # Testar rebuild
-./install-smartsignage.sh --rebuild
+./scripts/install-smartsignage.sh --rebuild
 ```
 
 ### 3. Checklist de Atualização

@@ -81,10 +81,10 @@ chmod +x install-smartsignage.sh
 
 ```bash
 # Executar instalação (modo Docker automático)
-./install-smartsignage.sh --skip-menu
+./scripts/install-smartsignage.sh --skip-menu
 
 # OU executar com menu interativo
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 # Escolher: 2) Docker (Produção - PostgreSQL)
 ```
 

@@ -1,5 +1,5 @@
 # Script de Validação do Schema SQL (PowerShell)
-# Valida a sintaxe do arquivo smartchannel-db.sql
+# Valida a sintaxe do schema master: smartchannel-db-v2-refactored-apply-all.sql
 
 $ErrorActionPreference = "Stop"
 

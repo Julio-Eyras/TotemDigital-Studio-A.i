@@ -35,7 +35,7 @@ O script agora procura (nesta ordem):
 1. `database/apply-schema-v2.sh` (preferencial)
 2. `database/smartchannel-db-v2-refactored-apply-all.sql` (fallback)
 
-**NOTA:** O arquivo antigo `database/smartchannel-db.sql` foi **descontinuado** e **removido** do script. Use apenas os arquivos v2.0 refatorados.
+**NOTA:** O arquivo antigo `database/smartchannel-db-v2-refactored-apply-all.sql` foi **descontinuado** e **removido** do script. Use apenas os arquivos v2.0 refatorados.
 
 ### Cópia de Arquivos
 O script já copia todos os arquivos do diretório `database/`, incluindo:

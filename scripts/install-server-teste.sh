@@ -9,16 +9,24 @@ echo "🚀 Smart Signage Pro v2.1 - Instalação no Servidor de Teste"
 echo "============================================================"
 echo ""
 
+# Detectar root do projeto (este script vive em ./scripts)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # Cores
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-# Verificar se está no diretório correto
-if [[ ! -f "docker-compose.yml" ]]; then
-    echo -e "${RED}❌ Erro: Execute este script no diretório raiz do projeto${NC}"
-    echo "   cd /opt/SmartSignage-Pro"
+# Garantir que estamos no diretório raiz do projeto
+if [[ -f "docker-compose.yml" ]]; then
+    : # ok - já estamos no root
+elif [[ -f "$PROJECT_ROOT/docker-compose.yml" ]]; then
+    cd "$PROJECT_ROOT"
+else
+    echo -e "${RED}❌ Erro: docker-compose.yml não encontrado. Execute no diretório raiz do projeto.${NC}"
+    echo "   Exemplo: cd /opt/SmartSignage-Pro"
     exit 1
 fi
 
@@ -54,8 +62,8 @@ if [[ ! -f "Dockerfile.app" ]]; then
     MISSING_FILES=1
 fi
 
-if [[ ! -f "database/smartchannel-db.sql" ]]; then
-    echo -e "${RED}❌ database/smartchannel-db.sql não encontrado${NC}"
+if [[ ! -f "database/smartchannel-db-v2-refactored-apply-all.sql" ]]; then
+    echo -e "${RED}❌ database/smartchannel-db-v2-refactored-apply-all.sql não encontrado${NC}"
     MISSING_FILES=1
 fi
 
@@ -117,8 +125,8 @@ echo ""
 echo -e "${GREEN}🚀 Iniciando instalação...${NC}"
 echo ""
 
-# Tornar script principal executável
-chmod +x install-smartsignage.sh
+# Tornar script principal executável (agora em ./scripts)
+chmod +x scripts/install-smartsignage.sh
 
 # Executar script de instalação principal
 # Passar flag para modo Docker automaticamente
@@ -127,7 +135,7 @@ echo ""
 
 # Executar em modo não-interativo para Docker
 export INSTALL_MODE=docker
-./install-smartsignage.sh --skip-menu || {
+./scripts/install-smartsignage.sh --skip-menu || {
     echo -e "${RED}❌ Erro durante instalação${NC}"
     echo "Verifique os logs acima para mais detalhes"
     exit 1

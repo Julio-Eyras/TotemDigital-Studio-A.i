@@ -83,7 +83,7 @@
 ### Instalação do Zero
 
 ```bash
-./install-smartsignage.sh --fresh
+./scripts/install-smartsignage.sh --fresh
 ```
 
 **O que acontece automaticamente:**

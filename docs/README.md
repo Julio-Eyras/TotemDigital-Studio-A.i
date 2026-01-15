@@ -106,7 +106,7 @@ cd smartsignage-pro
 
 # 2. Execute o script de instalação
 chmod +x install-smartsignage.sh
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 
 # 3. O script fará tudo automaticamente:
 #    - Instalação de dependências
@@ -138,7 +138,7 @@ cd C:\SmartSignage-Pro
 ```bash
 # 1) Executar instalador com perguntas interativas
 chmod +x install-smartsignage.sh
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 
 # Durante a instalação, escolha o modo:
 #   1) Single-Server (SQLite)
@@ -151,7 +151,7 @@ chmod +x install-smartsignage.sh
 #   3) HTTPS Let's Encrypt (produção, requer domínio)
 
 # 2) Para forçar HTTPS autoassinado sem perguntar:
-./install-smartsignage.sh --https-self-signed --skip-menu
+./scripts/install-smartsignage.sh --https-self-signed --skip-menu
 ```
 
 ### **Let's Encrypt (produção, com domínio público)**

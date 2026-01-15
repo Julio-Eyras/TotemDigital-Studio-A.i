@@ -20,7 +20,7 @@
 
 ### 2. Logs Detalhados no Player
 
-**Arquivo:** `player/index.html`
+**Arquivo:** `player-web/index.html`
 
 - ✅ **Request ID único** para cada tentativa (formato: `PLAYER-1234567890-abc123`)
 - ✅ **Logs detalhados** em cada etapa:

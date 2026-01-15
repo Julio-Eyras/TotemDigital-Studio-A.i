@@ -116,7 +116,7 @@ router.get('/:totemId/candidates',
   query('timestamp').optional().isISO8601().withMessage('timestamp deve ser uma data ISO8601 válida'),
   query('timezone').optional().isString().withMessage('timezone deve ser uma string'),
   validateRequest,
-  authorizeRole(['admin', 'admin_sql']) as any,
+  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial']) as any,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.totemId);
@@ -152,7 +152,7 @@ router.get('/:totemId/candidates',
  * @access Private (Admin, Admin SQL)
  */
 router.get('/cache/config',
-  authorizeRole(['admin', 'admin_sql']) as any,
+  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial']) as any,
   async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const dispatcher = getDispatcherTotemService();
@@ -179,7 +179,7 @@ router.get('/cache/config',
  * @access Private (Admin, Admin SQL)
  */
 router.post('/cache/config',
-  authorizeRole(['admin', 'admin_sql']) as any,
+  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial']) as any,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { enabled, ttlSeconds, maxSize } = req.body;

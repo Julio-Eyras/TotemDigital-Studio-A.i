@@ -224,7 +224,7 @@ export class AuthService {
       
       if (error.message && error.message.includes('column') && error.message.includes('does not exist')) {
         await logError(`[AUTH] ERRO CRÍTICO: Coluna não existe na tabela users`, error);
-        return { success: false, error: 'Erro interno: Estrutura do banco de dados incorreta. Execute o smartchannel-db.sql para criar as tabelas.' };
+        return { success: false, error: 'Erro interno: Estrutura do banco de dados incorreta. Aplique o schema master (smartchannel-db-v2-refactored-apply-all.sql) para criar as tabelas.' };
       }
       
       return { success: false, error: `Erro interno do servidor: ${error.message}` };

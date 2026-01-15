@@ -206,7 +206,7 @@ docs/
 
 **Arquivos Criados/Modificados:**
 - `database/seeds-views-test.sql` - Seeds completos
-- `player/index.html` - Modo demo implementado
+- `player-web/index.html` - Modo demo implementado
 - `player/demo-vinhet.html` - Vinheta demo alternativa
 - `docs/SEEDS_E_MODO_DEMO.md` - Documentação
 

@@ -83,7 +83,7 @@ Testa a instalação completa do zero:
 cd C:\SmartSignage-Pro
 
 # Executar script de instalação
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 ```
 
 **O que verificar:**

@@ -20,7 +20,7 @@
 ### **1. Parâmetros de Linha de Comando**
 
 ```bash
-./install-smartsignage.sh [OPÇÕES]
+./scripts/install-smartsignage.sh [OPÇÕES]
 
 OPÇÕES:
   --fresh              Instalação COMPLETA do zero (apaga TUDO, incluindo volumes)
@@ -53,7 +53,7 @@ fi
 
 #### **A. Modo Normal (Padrão):**
 ```bash
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 ```
 - Detecta se precisa rebuild (automático)
 - Se já instalado, apenas atualiza e reinicia
@@ -61,7 +61,7 @@ fi
 
 #### **B. Modo Fresh (Zero Total):**
 ```bash
-./install-smartsignage.sh --fresh
+./scripts/install-smartsignage.sh --fresh
 ```
 - ⚠️ **PERIGO**: Apaga TUDO
 - Remove containers, imagens, volumes, dados
@@ -70,7 +70,7 @@ fi
 
 #### **C. Modo Rebuild (Preserva Dados):**
 ```bash
-./install-smartsignage.sh --rebuild
+./scripts/install-smartsignage.sh --rebuild
 ```
 - Rebuild containers mantendo volumes
 - Preserva: banco de dados, uploads, logs, backups
@@ -78,7 +78,7 @@ fi
 
 #### **D. Modo Rebuild Sem Cache:**
 ```bash
-./install-smartsignage.sh --rebuild-cache
+./scripts/install-smartsignage.sh --rebuild-cache
 ```
 - Rebuild completo sem usar cache Docker
 - Garante que pega últimas dependências

@@ -6,23 +6,24 @@
 # Aplica o schema de logs e verifica dependências
 # =============================================
 
-INSTALL_DIR="/home/smartchannel/smartsignage-pro-main"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DATABASE_URL="postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage"
 
 echo "🔧 Aplicando configurações de logs..."
 
 # 1. Verificar se arquivo existe
-# Nota: O schema de logs está consolidado em smartchannel-db.sql
-# Este script verifica apenas se as configurações existem no banco
-MASTER_SCHEMA_FILE="$INSTALL_DIR/database/smartchannel-db.sql"
+# Nota: O schema master foi consolidado no apply-all refatorado.
+# Este script verifica apenas se as configurações existem no banco.
+MASTER_SCHEMA_FILE="$INSTALL_DIR/database/smartchannel-db-v2-refactored-apply-all.sql"
 if [[ ! -f "$MASTER_SCHEMA_FILE" ]]; then
     echo "❌ Arquivo não encontrado: $MASTER_SCHEMA_FILE"
-    echo "⚠️ O schema de logs está consolidado em smartchannel-db.sql"
+    echo "⚠️ O schema master está consolidado em smartchannel-db-v2-refactored-apply-all.sql"
     exit 1
 fi
 
 echo "✅ Schema consolidado encontrado: $MASTER_SCHEMA_FILE"
-echo "ℹ️ As configurações de logs estão incluídas em smartchannel-db.sql"
+echo "ℹ️ As configurações de logs estão incluídas no schema master (apply-all)"
 
 # 3. Verificar configurações criadas
 LOGS_CONFIG_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM system_settings WHERE setting_key LIKE 'log.%';" 2>/dev/null | tr -d ' ' || echo "0")

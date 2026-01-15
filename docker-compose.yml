@@ -10,8 +10,7 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Schema antigo (database/smartchannel-db.sql) foi removido.
-      # Usar schema refatorado master + partes incluídas via \i (psql meta-commands).
+      # Usar schema master refatorado (apply-all) + partes incluídas via \i (psql meta-commands).
       - ./database/smartchannel-db-v2-refactored-apply-all.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./database/smartchannel-db-v2-refactored-part1-schema-setup.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part1-schema-setup.sql:ro
       - ./database/smartchannel-db-v2-refactored-part2-tables-base.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part2-tables-base.sql:ro

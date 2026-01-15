@@ -31,7 +31,7 @@ cd smartsignage-pro-main
 
 # 2. Executar instalação
 chmod +x install-smartsignage.sh
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 ```
 
 ### **Instalação Manual**

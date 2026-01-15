@@ -10,7 +10,7 @@ PACKAGE_JSON="$FRONTEND_DIR/package.json"
 echo "🔄 Forçando atualização do package.json do Git..."
 
 # Verificar se estamos no diretório raiz do projeto
-if [ ! -f "install-smartsignage.sh" ]; then
+if [ ! -f "scripts/install-smartsignage.sh" ]; then
     echo "❌ Execute este script do diretório raiz do projeto"
     exit 1
 fi

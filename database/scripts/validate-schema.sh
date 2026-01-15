@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script de Validação do Schema SQL
-# Valida a sintaxe do arquivo smartchannel-db.sql
+# Valida a sintaxe do schema master: smartchannel-db-v2-refactored-apply-all.sql
 
 set -e
 

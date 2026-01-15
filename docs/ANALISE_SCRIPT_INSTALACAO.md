@@ -121,31 +121,31 @@ O script `install-smartsignage.sh` está **completo e apto para instalação aut
 chmod +x install-smartsignage.sh
 
 # 2. Executar instalação automática (modo Docker)
-./install-smartsignage.sh --skip-menu
+./scripts/install-smartsignage.sh --skip-menu
 
 # Ou instalação completa do zero
-./install-smartsignage.sh --fresh --skip-menu
+./scripts/install-smartsignage.sh --fresh --skip-menu
 ```
 
 ### Instalação Interativa
 
 ```bash
 # Executar e escolher opções no menu
-./install-smartsignage.sh
+./scripts/install-smartsignage.sh
 ```
 
 ### Rebuild Preservando Dados
 
 ```bash
 # Rebuild containers preservando volumes
-./install-smartsignage.sh --rebuild
+./scripts/install-smartsignage.sh --rebuild
 ```
 
 ### Verificar se Rebuild é Necessário
 
 ```bash
 # Apenas verifica, não executa
-./install-smartsignage.sh --check-only
+./scripts/install-smartsignage.sh --check-only
 ```
 
 ---
@@ -222,7 +222,7 @@ O script `install-smartsignage.sh` está **100% completo e apto para instalaçã
 
 ```bash
 chmod +x install-smartsignage.sh
-./install-smartsignage.sh --skip-menu --fresh
+./scripts/install-smartsignage.sh --skip-menu --fresh
 ```
 
 Este comando irá:

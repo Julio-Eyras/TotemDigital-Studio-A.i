@@ -63,7 +63,8 @@ const validateRequest = (req: any, res: any, next: any) => {
  */
 router.get('/',
   query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
+  // Frontend pode solicitar listagem completa (ex.: agrupamento por publisher)
+  query('limit').optional().isInt({ min: 1, max: 10000 }),
   query('search').optional().isString(),
   query('publisherId').optional().isInt({ min: 1 }),
   query('active_only').optional().isBoolean(),
@@ -73,7 +74,10 @@ router.get('/',
       const { page = 1, limit = 10, search, publisherId, active_only } = req.query;
       
       // Determinar publisherId do usuário (se não for admin)
-      const isAdmin = req.user?.role === 'admin';
+      const isAdmin = Boolean(
+        req.user?.is_tenant_user ||
+        ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(req.user?.role || '')
+      );
       const requestPublisherId = req.user?.publisherId || undefined;
 
       const result = await getLocalService().getAllLocals({

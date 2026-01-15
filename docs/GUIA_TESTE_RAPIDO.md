@@ -6,7 +6,7 @@
 
 ```bash
 # Executar instalação fresh
-./install-smartsignage.sh --fresh
+./scripts/install-smartsignage.sh --fresh
 ```
 
 **O que verificar:**
