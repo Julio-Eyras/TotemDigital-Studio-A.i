@@ -20,6 +20,9 @@ export interface User {
   email: string;
   role: 'owner_system' | 'admin' | 'admin_sql' | 'manager' | 'operator' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
   isActive: boolean;
+  // Compat: backend em transição entre snake_case e camelCase para flag tenant
+  isTenantUser?: boolean;
+  is_tenant_user?: boolean;
   user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber'; // NOVO: Tipo de usuário para detecção automática
   subscriberId?: number; // NOVO: ID do subscriber (anunciante)
   clientId?: number; // DEPRECATED: Usar subscriberId - mantido para compatibilidade
@@ -200,6 +203,12 @@ const authSlice = createSlice({
         
         // Extrair ID (pode vir como id, user_id, ou userId)
         const userId = (apiUser as any).id || (apiUser as any).user_id || (apiUser as any).userId || 0;
+        const isTenantUser = Boolean(
+          (apiUser as any).isTenantUser ??
+          (apiUser as any).is_tenant_user ??
+          ((apiUser as any).user_type === 'system_user') ??
+          ((apiUser as any).userType === 'system_user')
+        );
         
         state.user = {
           id: userId,
@@ -207,6 +216,8 @@ const authSlice = createSlice({
           email: (apiUser as any).email || '',
           role: mappedRole,
           isActive: (apiUser as any).is_active !== undefined ? (apiUser as any).is_active : (apiUser as any).isActive !== undefined ? (apiUser as any).isActive : true,
+          isTenantUser,
+          is_tenant_user: isTenantUser,
           user_type: (apiUser as any).user_type || (apiUser as any).userType, // NOVO: Salvar user_type
           subscriberId: (apiUser as any).subscriberId || (apiUser as any).subscriber_id || (apiUser as any).client_id || (apiUser as any).clientId,
           publisherId: (apiUser as any).publisherId || (apiUser as any).publisher_id,
@@ -292,6 +303,12 @@ const authSlice = createSlice({
         state.isLoading = false;
         // Garantir que o role seja um dos valores permitidos e mapear campos
         const apiUser = action.payload;
+        const isTenantUser = Boolean(
+          (apiUser as any).isTenantUser ??
+          (apiUser as any).is_tenant_user ??
+          ((apiUser as any).user_type === 'system_user') ??
+          ((apiUser as any).userType === 'system_user')
+        );
         state.user = {
           id: apiUser.user_id || 0,
           name: apiUser.name || '',
@@ -302,6 +319,8 @@ const authSlice = createSlice({
             ? 'operator' as const
             : apiUser.role as any, // Manter o role original do backend
           isActive: apiUser.is_active !== undefined ? apiUser.is_active : true,
+          isTenantUser,
+          is_tenant_user: isTenantUser,
           user_type: (apiUser as any).user_type || (apiUser as any).userType, // NOVO: Extrair user_type
           subscriberId: (apiUser as any).subscriberId || (apiUser as any).subscriber_id, // NOVO
           clientId: (apiUser as any).subscriberId || (apiUser as any).subscriber_id, // DEPRECADO: compatibilidade
@@ -330,6 +349,13 @@ const authSlice = createSlice({
       .addCase(updateProfile.fulfilled, (state, action) => {
         // Garantir que o role seja um dos valores permitidos e mapear campos
         const apiUser = action.payload;
+        const isTenantUser = Boolean(
+          (apiUser as any).isTenantUser ??
+          (apiUser as any).is_tenant_user ??
+          ((apiUser as any).user_type === 'system_user') ??
+          ((apiUser as any).userType === 'system_user') ??
+          (state.user?.isTenantUser ?? state.user?.is_tenant_user)
+        );
         state.user = {
           id: apiUser.user_id || state.user?.id || 0,
           name: apiUser.name || state.user?.name || '',
@@ -340,6 +366,8 @@ const authSlice = createSlice({
             ? 'operator' as const
             : (apiUser.role as any) || (state.user?.role || 'operator') as any,
           isActive: apiUser.is_active !== undefined ? apiUser.is_active : (state.user?.isActive ?? true),
+          isTenantUser,
+          is_tenant_user: isTenantUser,
           user_type: (apiUser as any).user_type || (apiUser as any).userType || state.user?.user_type, // NOVO: Extrair user_type
           subscriberId: (apiUser as any).subscriberId || (apiUser as any).subscriber_id || state.user?.subscriberId,
           clientId: (apiUser as any).subscriberId || (apiUser as any).subscriber_id || state.user?.clientId, // DEPRECADO: compatibilidade
