@@ -49,9 +49,6 @@ export class ClientService {
     search?: string;
   }): Promise<ClientListResponse> {
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:50',message:'getAllClients entry',data:{params},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       const { page = 1, limit = 10, search } = params;
       const offset = (page - 1) * limit;
 
@@ -62,10 +59,6 @@ export class ClientService {
         whereClause += ' AND (s.name ILIKE $' + (queryParams.length + 1) + ' OR s.email ILIKE $' + (queryParams.length + 1) + ')';
         queryParams.push(`%${search}%`);
       }
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:62',message:'Before query execution',data:{whereClause,queryParams:queryParams.length,limit,offset},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
 
       // Buscar subscribers (clientes no schema v2)
       const clients = await this.db.findMany(`
@@ -85,39 +78,45 @@ export class ClientService {
         LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
       `, [...queryParams, limit, offset]);
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:78',message:'After query execution',data:{clientsCount:clients.length,clients:clients.map(c=>({id:c.client_id,name:c.name}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:81',message:'Checking if totems join needed',data:{hasPlatformInfo:false,queryIncludesTotems:false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-
       // Verificar se há totens com plataforma para esses subscribers
-      // Nota: Totems não têm mais client_id direto - usar subscriber_id via campaigns
+      // Nota (schema v2): Totems não têm subscriber_id direto.
+      // Relacionamento é via campanhas do subscriber -> (campaign_totems) ou (campaign_publishers -> locals -> totems).
       const subscriberIds = clients.map(c => c.client_id || c.subscriber_id);
       if (subscriberIds.length > 0) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:88',message:'Querying totems for platforms',data:{subscriberIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         try {
-          // Totems não têm client_id direto - buscar via campaigns
-          const totemsWithPlatform = await this.db.findMany(`
+          // Inferir plataforma a partir do JSONB network_info (quando disponível)
+          // e mapear por subscriber_id via campanhas e targets.
+          await this.db.findMany(`
+            WITH subscriber_campaigns AS (
+              SELECT c.campaign_id, c.subscriber_id
+              FROM campaigns c
+              WHERE c.is_active = true
+                AND c.subscriber_id = ANY($1)
+            ),
+            totems_for_subscriber AS (
+              -- Campanhas diretas por totem
+              SELECT sc.subscriber_id, t.totem_id, t.network_info
+              FROM subscriber_campaigns sc
+              JOIN campaign_totems ct ON ct.campaign_id = sc.campaign_id AND ct.is_active = true
+              JOIN totems t ON t.totem_id = ct.totem_id AND t.is_active = true
+              
+              UNION
+              
+              -- Campanhas por publisher/grupo -> locals -> totems
+              SELECT sc.subscriber_id, t.totem_id, t.network_info
+              FROM subscriber_campaigns sc
+              JOIN campaign_publishers cp ON cp.campaign_id = sc.campaign_id AND cp.is_active = true
+              JOIN locals l ON l.publisher_id = cp.publisher_id AND l.is_active = true
+              JOIN totems t ON t.local_id = l.local_id AND t.is_active = true
+            )
             SELECT DISTINCT
-              c.subscriber_id as client_id,
-              t.config::jsonb->'hardware'->>'platform' as platform
-            FROM totems t
-            JOIN campaigns c ON c.totem_id = t.totem_id
-            WHERE c.subscriber_id = ANY($1)
-            AND t.config::jsonb->'hardware'->>'platform' IS NOT NULL
+              subscriber_id as client_id,
+              (network_info::jsonb->'hardware'->>'platform') as platform
+            FROM totems_for_subscriber
+            WHERE (network_info::jsonb->'hardware'->>'platform') IS NOT NULL
           `, [subscriberIds]);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:97',message:'Totems with platform found',data:{totemsCount:totemsWithPlatform.length,totemsByPlatform:totemsWithPlatform.reduce((acc:any,t:any)=>{const p=t.platform||'unknown';acc[p]=(acc[p]||0)+1;return acc;},{})},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
         } catch (platformQueryError: any) {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:102',message:'Error querying totems platforms',data:{error:platformQueryError.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
+          // Essa consulta é apenas auxiliar (telemetria/analytics). Não deve quebrar a listagem de subscribers.
         }
       }
 
@@ -128,10 +127,6 @@ export class ClientService {
         ${whereClause}
       `, queryParams);
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:110',message:'getAllClients exit',data:{total:parseInt(totalResult?.total || '0'),page,limit},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-
       return {
         data: clients,
         total: parseInt(totalResult?.total || '0'),
@@ -139,9 +134,6 @@ export class ClientService {
         limit,
       };
     } catch (error: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clientService.ts:120',message:'getAllClients error',data:{error:error.message,stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       await logError('Erro ao listar clientes', error, { params });
       throw new Error('Erro interno do servidor');
     }

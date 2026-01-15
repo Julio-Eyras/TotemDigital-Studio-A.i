@@ -18,12 +18,12 @@ router.get('/player-registration-logs', async (req: Request, res: Response) => {
     // Buscar totens registrados recentemente
     const db = getDatabase();
     const query = since 
-      ? `SELECT totem_id, identifier, uin, status, created_at, config, ip_address 
+      ? `SELECT totem_id, identifier, uin, status, created_at, network_info 
          FROM totems 
          WHERE created_at >= ? 
          ORDER BY created_at DESC 
          LIMIT ?`
-      : `SELECT totem_id, identifier, uin, status, created_at, config, ip_address 
+      : `SELECT totem_id, identifier, uin, status, created_at, network_info 
          FROM totems 
          ORDER BY created_at DESC 
          LIMIT ?`;
@@ -65,7 +65,7 @@ router.get('/player-registration-logs', async (req: Request, res: Response) => {
         status: t.status,
         createdAt: t.created_at,
         ipAddress: t.ip_address,
-        hardware: t.config ? JSON.parse(t.config).hardware : null
+        hardware: t.network_info ? (typeof t.network_info === 'string' ? JSON.parse(t.network_info) : t.network_info)?.hardware : null
       })),
       systemLogs: systemLogs.slice(-200),
       count: totems.length
@@ -104,7 +104,7 @@ router.get('/totem/:id', async (req: Request, res: Response) => {
       success: true,
       totem: {
         ...totem,
-        config: typeof totem.config === 'string' ? JSON.parse(totem.config) : totem.config
+        config: typeof totem.network_info === 'string' ? JSON.parse(totem.network_info) : totem.network_info
       }
     });
   } catch (error: any) {

@@ -150,10 +150,8 @@ router.get('/validate',
           t.totem_id,
           t.identifier,
           t.status,
-          t.active,
-          t.config,
-          t.blocked,
-          t.blocked_until
+          t.is_active as active,
+          t.network_info as config
         FROM totems t
         WHERE t.identifier = ? OR t.uin = ?
         LIMIT 1
@@ -188,24 +186,7 @@ router.get('/validate',
       // Determinar o ID numérico do totem para consultas relacionadas
       const totemId = (totemFull && (totemFull as any).totem_id) || (totem as any).id;
 
-      if (totemFull && totemFull.blocked) {
-        // Verificar se bloqueio expirou
-        if (totemFull.blocked_until && new Date(totemFull.blocked_until) > new Date()) {
-          return res.status(403).json({ 
-            error: 'Totem bloqueado temporariamente',
-            blocked: true,
-            reason: 'Totem bloqueado até ' + new Date(totemFull.blocked_until).toISOString(),
-            blockedUntil: totemFull.blocked_until
-          });
-        } else if (totemFull.blocked_until && new Date(totemFull.blocked_until) <= new Date()) {
-          // Desbloquear automaticamente se expirou
-          await db.executeRaw(`
-            UPDATE totems 
-            SET blocked = false, blocked_until = NULL 
-            WHERE totem_id = ?
-          `, [totemFull.totem_id]);
-        }
-      }
+      // OBS (schema v2): colunas blocked/blocked_until não existem no schema atual.
 
       // Buscar comandos remotos pendentes
       const pendingCommands = await db.findMany(`
@@ -232,8 +213,8 @@ router.get('/validate',
           p.config,
           ct.campaign_id,
           c.title as campaign_title,
-          ct.scheduled_start as schedule_start,
-          ct.scheduled_end as schedule_end
+          ct.start_date as schedule_start,
+          ct.end_date as schedule_end
         FROM playlists p
         INNER JOIN campaign_playlists cp ON p.playlist_id = cp.playlist_id
         INNER JOIN campaign_totems ct ON cp.campaign_id = ct.campaign_id
@@ -242,9 +223,9 @@ router.get('/validate',
           AND c.is_active = true
           AND c.status = 'active'
           AND p.is_active = true
-          AND (ct.scheduled_start IS NULL OR ct.scheduled_start <= CURRENT_TIMESTAMP)
-          AND (ct.scheduled_end IS NULL OR ct.scheduled_end >= CURRENT_TIMESTAMP)
-        ORDER BY c.priority DESC, ct.scheduled_start DESC
+          AND (ct.start_date IS NULL OR ct.start_date <= CURRENT_TIMESTAMP)
+          AND (ct.end_date IS NULL OR ct.end_date >= CURRENT_TIMESTAMP)
+        ORDER BY c.priority DESC, ct.start_date DESC
         LIMIT 1
       `, [totemId]);
 

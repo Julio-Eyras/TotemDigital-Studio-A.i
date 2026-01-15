@@ -35,14 +35,11 @@ const validateRequest = (req: any, res: any, next: any) => {
  */
 router.get('/', 
   query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
+  query('limit').optional().isInt({ min: 1, max: 10000 }),
   query('search').optional().isString(),
   validateRequest,
   async (req: any, res: any) => {
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clients.ts:41',message:'GET /api/clients entry',data:{query:req.query,hasPlatformFilter:!!req.query.platform},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       const { page = 1, limit = 10, search } = req.query;
       
       const result = await getClientService().getAllClients({
@@ -51,15 +48,8 @@ router.get('/',
         search: search as string,
       });
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clients.ts:52',message:'GET /api/clients response',data:{resultTotal:result.total,resultDataCount:result.data.length,resultData:result.data.map((c:any)=>({id:c.client_id,name:c.name}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-      
       return res.json(result);
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/966e3e3f-39d6-45ad-8c92-86d4ce51a1fc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clients.ts:58',message:'GET /api/clients error',data:{error:(error as any)?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       await logError('Erro ao listar clientes', error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
