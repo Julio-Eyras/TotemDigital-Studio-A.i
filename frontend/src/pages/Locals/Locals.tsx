@@ -72,7 +72,7 @@ const Locals: React.FC = () => {
   const theme = useTheme();
   const { user } = useAppSelector((state) => state.auth);
   const isAdmin = Boolean(
-    user?.is_tenant_user ||
+    user?.isTenantUser ||
     ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(user?.role || '')
   );
   const userPublisherId = user?.publisherId;
