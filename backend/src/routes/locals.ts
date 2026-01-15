@@ -75,7 +75,7 @@ router.get('/',
       
       // Determinar publisherId do usuário (se não for admin)
       const isAdmin = Boolean(
-        req.user?.is_tenant_user ||
+        req.user?.isTenantUser ||
         ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(req.user?.role || '')
       );
       const requestPublisherId = req.user?.publisherId || undefined;
