@@ -164,7 +164,9 @@ export interface User {
   publisher_id?: number;
   subscriber_id?: number;
   user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+  // Compat: backend/frontend em transição entre snake_case e camelCase
   is_tenant_user?: boolean;
+  isTenantUser?: boolean;
   is_active: boolean;
   last_login?: string;
   created_at: string;
