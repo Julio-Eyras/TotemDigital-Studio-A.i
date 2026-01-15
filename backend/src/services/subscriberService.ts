@@ -995,28 +995,47 @@ export class SubscriberService {
     };
   }> {
     try {
+      // Subdomínio/Contrato: Subscriber acessa publishers via subscriber_publisher_access.
+      // Portanto, locals/totems/smart_tvs devem ser contados via publishers acessíveis, e não por locals.subscriber_id (que não existe no schema v2).
+      const publisherAccessCte = `
+        WITH pubs AS (
+          SELECT spa.publisher_id
+          FROM subscriber_publisher_access spa
+          WHERE spa.subscriber_id = $1
+            AND spa.is_active = true
+            AND spa.revoked_at IS NULL
+            AND (spa.expires_at IS NULL OR spa.expires_at > CURRENT_TIMESTAMP)
+        )
+      `;
+
       // Contar locals
       const localsCountResult = await this.db.findFirst(`
+        ${publisherAccessCte}
         SELECT COUNT(*) as count
-        FROM locals
-        WHERE subscriber_id = $1 AND is_active = true
+        FROM locals l
+        JOIN pubs p ON l.publisher_id = p.publisher_id
+        WHERE l.is_active = true
       `, [subscriberId]);
 
       // Contar totems
       const totemsCountResult = await this.db.findFirst(`
+        ${publisherAccessCte}
         SELECT COUNT(*) as count
         FROM totems t
         JOIN locals l ON t.local_id = l.local_id
-        WHERE l.subscriber_id = $1 AND t.is_active = true
+        JOIN pubs p ON l.publisher_id = p.publisher_id
+        WHERE t.is_active = true
       `, [subscriberId]);
 
       // Contar smart TVs
       const smartTvsCountResult = await this.db.findFirst(`
+        ${publisherAccessCte}
         SELECT COUNT(*) as count
         FROM smart_tvs st
         JOIN totems t ON st.totem_id = t.totem_id
         JOIN locals l ON t.local_id = l.local_id
-        WHERE l.subscriber_id = $1 AND st.is_active = true
+        JOIN pubs p ON l.publisher_id = p.publisher_id
+        WHERE st.is_active = true
       `, [subscriberId]);
 
       // Contar campanhas ativas
@@ -1032,23 +1051,25 @@ export class SubscriberService {
 
       // Contar totens online
       const onlineTotemsResult = await this.db.findFirst(`
+        ${publisherAccessCte}
         SELECT COUNT(*) as count
         FROM totems t
         JOIN locals l ON t.local_id = l.local_id
-        WHERE l.subscriber_id = $1 
-          AND t.is_active = true 
-          AND t.status = 'online'
+        JOIN pubs p ON l.publisher_id = p.publisher_id
+        WHERE t.is_active = true 
+          AND COALESCE(t.status, 'offline') = 'online'
       `, [subscriberId]);
 
       // Contar smart TVs reproduzindo
       const playingTvsResult = await this.db.findFirst(`
+        ${publisherAccessCte}
         SELECT COUNT(*) as count
         FROM smart_tvs st
         JOIN totems t ON st.totem_id = t.totem_id
         JOIN locals l ON t.local_id = l.local_id
-        WHERE l.subscriber_id = $1 
-          AND st.is_active = true 
-          AND st.status = 'playing'
+        JOIN pubs p ON l.publisher_id = p.publisher_id
+        WHERE st.is_active = true 
+          AND COALESCE(st.status, 'offline') = 'playing'
       `, [subscriberId]);
 
       // Contar mídias

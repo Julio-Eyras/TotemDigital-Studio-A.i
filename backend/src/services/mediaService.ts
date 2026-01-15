@@ -6,6 +6,8 @@
  */
 
 import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import sharp from 'sharp';
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
@@ -308,8 +310,9 @@ export class MediaService {
         }
 
         const filePath = item.filePath || item.filepath || null;
-        const downloadUrl = filePath ? this.getDownloadUrl(filePath) : '';
-        const thumbnailUrl = item.thumbnailUrl || item.thumbnailurl || (filePath ? this.getThumbnailUrl(filePath, item.mediaType || item.mediaType) : '');
+        // Para o frontend: sempre preferir endpoints da API (independente do layout de /assets no SO)
+        const downloadUrl = item.id ? `/api/media/${item.id}/download` : (filePath ? this.getDownloadUrl(filePath) : '');
+        const thumbnailUrl = item.id ? `/api/media/${item.id}/thumbnail` : (item.thumbnailUrl || item.thumbnailurl || (filePath ? this.getThumbnailUrl(filePath, item.mediaType || item.mediaType) : ''));
         
         return {
           id: item.id,
@@ -331,7 +334,7 @@ export class MediaService {
           width: item.width || null,
           height: item.height || null,
           thumbnailUrl: thumbnailUrl,
-          previewUrl: item.previewUrl || item.previewurl || thumbnailUrl,
+          previewUrl: item.previewUrl || item.previewurl || downloadUrl || thumbnailUrl,
           status: item.status || 'draft',
           approvalStatus: item.approvalStatus || item.approvalstatus || null,
           rejectionReason: item.rejectionReason || item.rejectionreason || null,
@@ -446,8 +449,9 @@ export class MediaService {
       }
 
       const filePath = media.filePath || media.filepath || null;
-      const downloadUrl = filePath ? this.getDownloadUrl(filePath) : '';
-      const thumbnailUrl = media.thumbnailUrl || media.thumbnailurl || (filePath ? this.getThumbnailUrl(filePath, media.mediaType || media.mediaType) : '');
+      // Para o frontend: sempre preferir endpoints da API
+      const downloadUrl = media.id ? `/api/media/${media.id}/download` : (filePath ? this.getDownloadUrl(filePath) : '');
+      const thumbnailUrl = media.id ? `/api/media/${media.id}/thumbnail` : (media.thumbnailUrl || media.thumbnailurl || (filePath ? this.getThumbnailUrl(filePath, media.mediaType || media.mediaType) : ''));
 
       return {
         id: media.id,
@@ -469,7 +473,7 @@ export class MediaService {
         width: media.width || null,
         height: media.height || null,
         thumbnailUrl: thumbnailUrl,
-        previewUrl: media.previewUrl || media.previewurl || thumbnailUrl,
+        previewUrl: media.previewUrl || media.previewurl || downloadUrl || thumbnailUrl,
         status: media.status || 'draft',
         approvalStatus: media.approvalStatus || media.approvalstatus || null,
         rejectionReason: media.rejectionReason || media.rejectionreason || null,
@@ -1036,24 +1040,63 @@ export class MediaService {
    */
   async getThumbnail(mediaId: number): Promise<string | null> {
     try {
+      const tmpDir = path.join(os.tmpdir(), 'smartsignage', 'thumbnails');
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
+
+      const placeholderPath = path.join(tmpDir, `placeholder-${mediaId}.jpg`);
+      const generatedThumbPath = path.join(tmpDir, `media-${mediaId}.jpg`);
+
       const media = await this.getMediaById(mediaId);
       if (!media || !media.filePath) {
-        return null;
+        return await this.ensurePlaceholderImage(placeholderPath);
       }
-      
-      // Construir caminho do thumbnail
-      const thumbnailPath = media.filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-      
-      // Verificar se arquivo existe
-      if (fs.existsSync(thumbnailPath)) {
-        return thumbnailPath;
+
+      // 1) Se existir thumbnail ao lado do arquivo, usar
+      const siblingThumb = media.filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+      if (fs.existsSync(siblingThumb)) {
+        return siblingThumb;
       }
-      
-      return null;
+
+      // 2) Se arquivo original existir e for imagem, gerar thumbnail em cache temporário
+      if (media.mediaType === 'image' && fs.existsSync(media.filePath)) {
+        if (fs.existsSync(generatedThumbPath)) {
+          return generatedThumbPath;
+        }
+        await (sharp as any)(media.filePath)
+          .resize(320, 180, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 80, progressive: true })
+          .toFile(generatedThumbPath);
+        return generatedThumbPath;
+      }
+
+      // 3) Fallback: placeholder
+      return await this.ensurePlaceholderImage(placeholderPath);
     } catch (error: any) {
       await logError('Erro ao buscar thumbnail', error, { mediaId });
       throw new Error('Erro interno do servidor');
     }
+  }
+
+  /**
+   * Gera (ou reutiliza) um placeholder de thumbnail para evitar 404 no frontend.
+   */
+  private async ensurePlaceholderImage(outputPath: string): Promise<string> {
+    if (fs.existsSync(outputPath)) {
+      return outputPath;
+    }
+    await (sharp as any)({
+      create: {
+        width: 320,
+        height: 180,
+        channels: 3,
+        background: { r: 45, g: 45, b: 45 }
+      }
+    })
+      .jpeg({ quality: 80, progressive: true })
+      .toFile(outputPath);
+    return outputPath;
   }
 
   /**

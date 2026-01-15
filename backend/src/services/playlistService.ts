@@ -448,7 +448,7 @@ export class PlaylistService {
           m.file_path,
           m.mime_type,
           m.duration_seconds,
-          m.size_bytes
+          m.file_size_bytes as size_bytes
         FROM playlist_items pi
         JOIN medias m ON pi.media_id = m.media_id
         WHERE pi.playlist_id = $1
@@ -510,7 +510,9 @@ export class PlaylistService {
       const media = await this.db.findFirst(`
         SELECT media_id, subscriber_id, status 
         FROM medias 
-        WHERE media_id = $1 AND status = 'active'
+        WHERE media_id = $1
+          AND COALESCE(is_active, true) = true
+          AND status IN ('approved', 'published', 'active')
       `, [mediaId]);
 
       if (!media) {

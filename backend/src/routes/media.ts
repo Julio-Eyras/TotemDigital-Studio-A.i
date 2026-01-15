@@ -687,6 +687,8 @@ router.get('/:id/thumbnail',
       const mediaId = parseInt(req.params.id);
       const thumbnail = await getMediaService().getThumbnail(mediaId);
       if (!thumbnail) {
+        // getThumbnail() tenta sempre retornar um placeholder (para evitar UI quebrada).
+        // Se ainda assim não houver, retornar 404.
         return res.status(404).json({ error: 'Thumbnail não encontrado' });
       }
 

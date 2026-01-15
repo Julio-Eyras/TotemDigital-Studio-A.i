@@ -50,6 +50,20 @@ try {
   const indexJsPath = path.join(path.dirname(foundPath), 'dist', 'index.js');
   if (fs.existsSync(indexJsPath)) {
     let content = fs.readFileSync(indexJsPath, 'utf8');
+
+    // AJV v8+: a assinatura antiga ajv.addKeyword('kw', def) é DEPRECATED e gera warning.
+    // Se já houver o stub antigo, substituir por uma versão compatível (obj-based signature).
+    if (content.includes("ajv.addKeyword('formatMinimum'")) {
+      content = content.replace(
+        /ajv\.addKeyword\('formatMinimum',\s*\{/g,
+        "ajv.addKeyword({\n      keyword: 'formatMinimum',\n      "
+      );
+      // Se fecharmos com "});" no final do objeto antigo, manteremos a sintaxe válida.
+      // (o código original fecha com "});" e continua funcionando)
+      fs.writeFileSync(indexJsPath, content);
+      console.log('✅ Atualizado stub formatMinimum para assinatura compatível com AJV v8 (sem warnings)');
+      process.exit(0);
+    }
     
     // Adicionar suporte para formatMinimum se não existir
     if (!content.includes('formatMinimum')) {
@@ -58,7 +72,9 @@ try {
 // Stub para formatMinimum (compatibilidade)
 if (typeof ajv.addKeyword === 'function') {
   try {
-    ajv.addKeyword('formatMinimum', {
+    // AJV v8+: use a assinatura baseada em objeto para evitar warnings de depreciação
+    ajv.addKeyword({
+      keyword: 'formatMinimum',
       type: 'string',
       compile: function() { return function() { return true; }; }
     });
