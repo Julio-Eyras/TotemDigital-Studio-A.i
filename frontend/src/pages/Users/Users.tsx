@@ -150,7 +150,7 @@ const Users: React.FC = () => {
         userType: selectedUser.user_type,
         publisherId: selectedUser.publisher_id,
         subscriberId: selectedUser.subscriber_id,
-        isTenantUser: selectedUser.is_tenant_user,
+        isTenantUser: (selectedUser as any).isTenantUser ?? (selectedUser as any).is_tenant_user,
         isActive: selectedUser.is_active,
       });
       setEditDialogOpen(false);
@@ -727,7 +727,9 @@ const Users: React.FC = () => {
                   user_type: value,
                   publisher_id: value !== 'publisher_user' && value !== 'publisher_subscriber' ? undefined : selectedUser?.publisher_id,
                   subscriber_id: value !== 'subscriber_user' && value !== 'publisher_subscriber' ? undefined : selectedUser?.subscriber_id,
-                  is_tenant_user: value === 'system_user' ? (selectedUser?.is_tenant_user || false) : false,
+                  is_tenant_user: value === 'system_user'
+                    ? (((selectedUser as any)?.isTenantUser ?? (selectedUser as any)?.is_tenant_user) || false)
+                    : false,
                 });
               }}
               label="Tipo de Usuário"
@@ -788,7 +790,7 @@ const Users: React.FC = () => {
             <FormControlLabel
               control={
                 <Switch
-                  checked={selectedUser?.is_tenant_user || false}
+                  checked={(((selectedUser as any)?.isTenantUser ?? (selectedUser as any)?.is_tenant_user) || false)}
                   onChange={(e) => setSelectedUser({ ...selectedUser!, is_tenant_user: e.target.checked })}
                 />
               }
