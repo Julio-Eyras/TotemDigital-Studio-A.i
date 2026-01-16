@@ -322,11 +322,11 @@ ON CONFLICT DO NOTHING;
 # Campaigns
 execute_sql "
 INSERT INTO campaigns (campaign_id, subscriber_id, title, description, campaign_type, priority, commercial_tier, default_time_share_percent, max_consecutive_slots, start_date, end_date, start_time, end_time, days_of_week, timezone, status, is_active, target_audience, metadata) VALUES
-(1, 1, 'Promoção Black Friday', 'Campanha especial para Black Friday com ofertas imperdíveis', 'scheduled', 10, 'premium', 50.00, 2, '2024-11-20', '2024-11-30', '08:00', '22:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}'),
-(2, 2, 'Campanha Medicamentos', 'Promoção de medicamentos genéricos', 'general', 8, 'standard', 30.00, 2, '2024-10-01', '2024-12-31', '08:00', '20:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}'),
-(3, 3, 'Ofertas do Dia', 'Ofertas especiais diárias do supermercado', 'general', 7, 'standard', 40.00, 3, '2024-10-01', '2024-12-31', '06:00', '23:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}'),
-(4, 4, 'Menu Executivo', 'Promoção do menu executivo', 'scheduled', 6, 'standard', 20.00, 1, '2024-10-01', '2024-12-31', '11:30', '14:30', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}'),
-(5, 5, 'Check-up Preventivo', 'Campanha de conscientização sobre check-up', 'general', 5, 'standard', 15.00, 1, '2024-10-01', '2024-12-31', '08:00', '18:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}')
+(1, 1, 'Promoção Black Friday', 'Campanha especial para Black Friday com ofertas imperdíveis', 'scheduled', 10, 'premium', 50.00, 2, '2026-11-20', '2028-11-30', '08:00', '22:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}'),
+(2, 2, 'Campanha Medicamentos', 'Promoção de medicamentos genéricos', 'general', 8, 'standard', 30.00, 2, '2026-10-01', '2028-12-31', '08:00', '20:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}'),
+(3, 3, 'Ofertas do Dia', 'Ofertas especiais diárias do supermercado', 'general', 7, 'standard', 40.00, 3, '2026-01-01', '2028-12-31', '06:00', '23:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}'),
+(4, 4, 'Menu Executivo', 'Promoção do menu executivo', 'scheduled', 6, 'standard', 20.00, 1, '2026-01-01', '2028-12-31', '11:30', '14:30', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}'),
+(5, 5, 'Check-up Preventivo', 'Campanha de conscientização sobre check-up', 'general', 5, 'standard', 15.00, 1, '2026-01-01', '2028-12-31', '08:00', '18:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\"]', 'America/Sao_Paulo', 'active', true, '{}', '{}')
 ON CONFLICT DO NOTHING;
 " "Inserindo Campaigns"
 
@@ -363,12 +363,12 @@ ON CONFLICT DO NOTHING;
 # Campaign Totems
 execute_sql "
 INSERT INTO campaign_totems (campaign_id, totem_id, start_date, end_date, start_time, end_time, days_of_week, priority, is_active) VALUES
-(1, 1, '2024-11-20', '2024-11-30', '08:00', '22:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 10, true),
-(1, 2, '2024-11-20', '2024-11-30', '08:00', '22:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 10, true),
-(1, 3, '2024-11-20', '2024-11-30', '08:00', '22:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 10, true),
-(2, 4, '2024-10-01', '2024-12-31', '08:00', '20:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\"]', 8, true),
-(2, 5, '2024-10-01', '2024-12-31', '08:00', '20:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\"]', 8, true),
-(3, 6, '2024-10-01', '2024-12-31', '06:00', '23:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 7, true)
+(1, 1, '2026-11-20', '2028-11-30', '08:00', '22:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 10, true),
+(1, 2, '2026-11-20', '2028-11-30', '08:00', '22:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 10, true),
+(1, 3, '2026-11-20', '2028-11-30', '08:00', '22:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 10, true),
+(2, 4, '2026-10-01', '2028-12-31', '08:00', '20:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\"]', 8, true),
+(2, 5, '2026-10-01', '2028-12-31', '08:00', '20:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\"]', 8, true),
+(3, 6, '2026-01-01', '2028-12-31', '06:00', '23:00', '[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\", \"saturday\", \"sunday\"]', 7, true)
 ON CONFLICT DO NOTHING;
 " "Inserindo Campaign Totems"
 
@@ -410,21 +410,21 @@ echo -e "${YELLOW}=== 6. Inserindo contratos e billing ===${NC}"
 # Subscriber Contracts
 execute_sql "
 INSERT INTO subscriber_contracts (contract_id, subscriber_id, plan_id, contract_number, contract_type, title, description, start_date, end_date, total_amount, currency, payment_terms, status, signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata) VALUES
-(1, 1, 2, 'SUB-CONT-001', 'advertising', 'Contrato Publicitário Shopping Center Norte', 'Contrato de publicidade para Black Friday', '2024-11-01', '2024-11-30', 50000.00, 'BRL', 'Pagamento em 30 dias', 'active', NOW(), NOW(), 1, '{}'),
-(2, 2, 1, 'SUB-CONT-002', 'advertising', 'Contrato Publicitário Farmácias Saúde+', 'Contrato de publicidade para campanha de medicamentos', '2024-10-01', '2024-12-31', 15000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
-(3, 3, 1, 'SUB-CONT-003', 'advertising', 'Contrato Publicitário Supermercado Econômico', 'Contrato de publicidade para ofertas do dia', '2024-10-01', '2024-12-31', 20000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
-(4, 4, 1, 'SUB-CONT-004', 'advertising', 'Contrato Publicitário Restaurante Sabor & Arte', 'Contrato de publicidade para menu executivo', '2024-10-01', '2024-12-31', 8000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
-(5, 5, 1, 'SUB-CONT-005', 'advertising', 'Contrato Publicitário Clínica Vida Saudável', 'Contrato de publicidade para check-up preventivo', '2024-10-01', '2024-12-31', 10000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}')
+(1, 1, 2, 'SUB-CONT-001', 'advertising', 'Contrato Publicitário Shopping Center Norte', 'Contrato de publicidade para Black Friday', '2026-11-01', '2028-11-30', 50000.00, 'BRL', 'Pagamento em 30 dias', 'active', NOW(), NOW(), 1, '{}'),
+(2, 2, 1, 'SUB-CONT-002', 'advertising', 'Contrato Publicitário Farmácias Saúde+', 'Contrato de publicidade para campanha de medicamentos', '2026-10-01', '2028-12-31', 15000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
+(3, 3, 1, 'SUB-CONT-003', 'advertising', 'Contrato Publicitário Supermercado Econômico', 'Contrato de publicidade para ofertas do dia', '2026-01-01', '2028-12-31', 20000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
+(4, 4, 1, 'SUB-CONT-004', 'advertising', 'Contrato Publicitário Restaurante Sabor & Arte', 'Contrato de publicidade para menu executivo', '2026-01-01', '2028-12-31', 8000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
+(5, 5, 1, 'SUB-CONT-005', 'advertising', 'Contrato Publicitário Clínica Vida Saudável', 'Contrato de publicidade para check-up preventivo', '2026-01-01', '2028-12-31', 10000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}')
 ON CONFLICT DO NOTHING;
 " "Inserindo Subscriber Contracts"
 
 # Publisher Contracts
 execute_sql "
 INSERT INTO publisher_contracts (contract_id, publisher_id, contract_number, contract_type, title, description, start_date, end_date, revenue_share_percentage, revenue_share_rules, minimum_payout_amount, subscription_amount, subscription_interval, currency, payment_terms, status, signed_by_publisher_at, signed_by_tenant_at, created_by, metadata) VALUES
-(1, 1, 'PUB-CONT-001', 'revenue_share', 'Contrato Revenue Share Shopping Center Norte', 'Contrato de revenue share com 70% para o publisher', '2024-01-01', NULL, 70.00, '{}', 1000.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
-(2, 2, 'PUB-CONT-002', 'revenue_share', 'Contrato Revenue Share Farmácia Central', 'Contrato de revenue share com 65% para o publisher', '2024-01-01', NULL, 65.00, '{}', 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
-(3, 3, 'PUB-CONT-003', 'revenue_share', 'Contrato Revenue Share Supermercado Econômico', 'Contrato de revenue share com 60% para o publisher', '2024-01-01', NULL, 60.00, '{}', 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
-(4, 4, 'PUB-CONT-004', 'hybrid', 'Contrato Híbrido Rede de Totens Urbanos', 'Contrato híbrido: revenue share + subscription', '2024-01-01', NULL, 75.00, '{}', 2000.00, 299.00, 'month', 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}')
+(1, 1, 'PUB-CONT-001', 'revenue_share', 'Contrato Revenue Share Shopping Center Norte', 'Contrato de revenue share com 70% para o publisher', '2026-01-01', NULL, 70.00, '{}', 1000.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
+(2, 2, 'PUB-CONT-002', 'revenue_share', 'Contrato Revenue Share Farmácia Central', 'Contrato de revenue share com 65% para o publisher', '2026-01-01', NULL, 65.00, '{}', 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
+(3, 3, 'PUB-CONT-003', 'revenue_share', 'Contrato Revenue Share Supermercado Econômico', 'Contrato de revenue share com 60% para o publisher', '2026-01-01', NULL, 60.00, '{}', 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'),
+(4, 4, 'PUB-CONT-004', 'hybrid', 'Contrato Híbrido Rede de Totens Urbanos', 'Contrato híbrido: revenue share + subscription', '2026-01-01', NULL, 75.00, '{}', 2000.00, 299.00, 'month', 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}')
 ON CONFLICT DO NOTHING;
 " "Inserindo Publisher Contracts"
 
@@ -459,7 +459,7 @@ ON CONFLICT DO NOTHING;
 # Subscriptions
 execute_sql "
 INSERT INTO subscriptions (subscription_id, publisher_id, plan_id, stripe_subscription_id, stripe_customer_id, status, current_period_start, current_period_end, cancel_at_period_end, trial_start, trial_end, metadata) VALUES
-(1, 4, 2, 'sub_test_001', 'cus_test_001', 'active', NOW() - INTERVAL '10 days', NOW() + INTERVAL '20 days', false, NULL, NULL, '{}')
+(1, 4, 2, 'sub_test_001', 'cus_test_001', 'active', NOW() - INTERVAL '10 days', '2028-12-31 23:59:59', false, NULL, NULL, '{}')
 ON CONFLICT DO NOTHING;
 " "Inserindo Subscriptions"
 
@@ -487,11 +487,11 @@ ON CONFLICT DO NOTHING;
 # Subscriber Publisher Access
 execute_sql "
 INSERT INTO subscriber_publisher_access (access_id, subscriber_id, publisher_id, contract_id, plan_id, access_type, granted_at, expires_at, is_active, granted_by, notes, metadata) VALUES
-(1, 1, 1, 1, 2, 'contract', NOW(), '2024-11-30', true, 1, 'Acesso via contrato Black Friday', '{}'),
-(2, 2, 2, 2, 1, 'contract', NOW(), '2024-12-31', true, 1, 'Acesso via contrato Medicamentos', '{}'),
-(3, 3, 3, 3, 1, 'contract', NOW(), '2024-12-31', true, 1, 'Acesso via contrato Ofertas do Dia', '{}'),
-(4, 4, 1, 4, 1, 'contract', NOW(), '2024-12-31', true, 1, 'Acesso via contrato Menu Executivo', '{}'),
-(5, 5, 1, 5, 1, 'contract', NOW(), '2024-12-31', true, 1, 'Acesso via contrato Check-up', '{}')
+(1, 1, 1, 1, 2, 'contract', NOW(), '2028-12-31', true, 1, 'Acesso via contrato Black Friday', '{}'),
+(2, 2, 2, 2, 1, 'contract', NOW(), '2028-12-31', true, 1, 'Acesso via contrato Medicamentos', '{}'),
+(3, 3, 3, 3, 1, 'contract', NOW(), '2028-12-31', true, 1, 'Acesso via contrato Ofertas do Dia', '{}'),
+(4, 4, 1, 4, 1, 'contract', NOW(), '2028-12-31', true, 1, 'Acesso via contrato Menu Executivo', '{}'),
+(5, 5, 1, 5, 1, 'contract', NOW(), '2028-12-31', true, 1, 'Acesso via contrato Check-up', '{}')
 ON CONFLICT DO NOTHING;
 " "Inserindo Subscriber Publisher Access"
 
@@ -613,17 +613,17 @@ echo -e "${YELLOW}=== 9. Inserindo outras tabelas ===${NC}"
 # QR Codes
 execute_sql "
 INSERT INTO qr_codes (qr_id, campaign_id, code, title, description, qr_type, content, url, redirect_url, size, color, background_color, error_correction_level, margin, image_url, scan_count, last_scan_at, max_scans, tracking_enabled, expires_at, metadata, is_active) VALUES
-(1, 1, 'QR-BF-2024-001', 'QR Code Black Friday', 'QR code para campanha Black Friday', 'url', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-bf-2024-001.png', 0, NULL, 1000, true, '2024-11-30', '{\"utm_params\": {\"utm_source\": \"totem\", \"utm_medium\": \"qr\", \"utm_campaign\": \"black-friday\"}}', true),
-(2, 2, 'QR-MED-2024-001', 'QR Code Medicamentos', 'QR code para campanha de medicamentos', 'url', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-med-2024-001.png', 0, NULL, 500, true, '2024-12-31', '{}', true)
+(1, 1, 'QR-BF-2024-001', 'QR Code Black Friday', 'QR code para campanha Black Friday', 'url', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-bf-2024-001.png', 0, NULL, 1000, true, '2028-12-31', '{\"utm_params\": {\"utm_source\": \"totem\", \"utm_medium\": \"qr\", \"utm_campaign\": \"black-friday\"}}', true),
+(2, 2, 'QR-MED-2024-001', 'QR Code Medicamentos', 'QR code para campanha de medicamentos', 'url', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-med-2024-001.png', 0, NULL, 500, true, '2028-12-31', '{}', true)
 ON CONFLICT DO NOTHING;
 " "Inserindo QR Codes"
 
 # Short Links
 execute_sql "
 INSERT INTO short_links (link_id, campaign_id, short_code, original_url, click_count, last_click_at, metadata, expires_at, is_active) VALUES
-(1, 1, 'BF2024', 'https://shoppingnorte.com.br/black-friday', 0, NULL, '{\"utm_source\": \"totem\"}', '2024-11-30', true),
-(2, 2, 'MED2024', 'https://saudemais.com.br/promocao-medicamentos', 0, NULL, '{\"utm_source\": \"totem\"}', '2024-12-31', true),
-(3, 3, 'OFERTAS', 'https://economico.com.br/ofertas-dia', 0, NULL, '{\"utm_source\": \"totem\"}', '2024-12-31', true)
+(1, 1, 'BF2024', 'https://shoppingnorte.com.br/black-friday', 0, NULL, '{\"utm_source\": \"totem\"}', '2028-12-31', true),
+(2, 2, 'MED2024', 'https://saudemais.com.br/promocao-medicamentos', 0, NULL, '{\"utm_source\": \"totem\"}', '2028-12-31', true),
+(3, 3, 'OFERTAS', 'https://economico.com.br/ofertas-dia', 0, NULL, '{\"utm_source\": \"totem\"}', '2028-12-31', true)
 ON CONFLICT DO NOTHING;
 " "Inserindo Short Links"
 
@@ -658,8 +658,8 @@ ON CONFLICT DO NOTHING;
 # Reports
 execute_sql "
 INSERT INTO reports (report_id, type, title, description, status, format, file_path, file_size, download_url, download_count, filters, template, custom_fields, ai_analysis, metadata, generated_at, expires_at, created_by) VALUES
-(1, 'campaign', 'Relatório Campanha Black Friday', 'Relatório de performance da campanha Black Friday', 'completed', 'pdf', '/reports/campaign-1-2024-11.pdf', 2048576, '/api/reports/download/1', 3, '{\"campaign_id\": 1, \"start_date\": \"2024-11-20\", \"end_date\": \"2024-11-30\"}', 'default', '{}', false, '{}', NOW() - INTERVAL '2 days', NOW() + INTERVAL '28 days', 1),
-(2, 'totem', 'Relatório Totens Shopping', 'Relatório de uso dos totens do shopping', 'completed', 'excel', '/reports/totems-shopping-2024-11.xlsx', 1536000, '/api/reports/download/2', 1, '{\"publisher_id\": 1, \"start_date\": \"2024-11-01\", \"end_date\": \"2024-11-30\"}', 'default', '{}', false, '{}', NOW() - INTERVAL '1 day', NOW() + INTERVAL '29 days', 1)
+(1, 'campaign', 'Relatório Campanha Black Friday', 'Relatório de performance da campanha Black Friday', 'completed', 'pdf', '/reports/campaign-1-2024-11.pdf', 2048576, '/api/reports/download/1', 3, '{\"campaign_id\": 1, \"start_date\": \"2026-11-20\", \"end_date\": \"2028-11-30\"}', 'default', '{}', false, '{}', NOW() - INTERVAL '2 days', NOW() + INTERVAL '28 days', 1),
+(2, 'totem', 'Relatório Totens Shopping', 'Relatório de uso dos totens do shopping', 'completed', 'excel', '/reports/totems-shopping-2024-11.xlsx', 1536000, '/api/reports/download/2', 1, '{\"publisher_id\": 1, \"start_date\": \"2026-11-01\", \"end_date\": \"2028-11-30\"}', 'default', '{}', false, '{}', NOW() - INTERVAL '1 day', NOW() + INTERVAL '29 days', 1)
 ON CONFLICT DO NOTHING;
 " "Inserindo Reports"
 

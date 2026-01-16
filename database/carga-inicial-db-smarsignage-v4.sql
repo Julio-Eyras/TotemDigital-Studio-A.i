@@ -156,11 +156,11 @@ INSERT INTO playlist_items (item_id, playlist_id, media_id, display_seconds, ord
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaigns (campaign_id, subscriber_id, title, description, campaign_type, priority, commercial_tier, default_time_share_percent, max_consecutive_slots, start_date, end_date, start_time, end_time, days_of_week, timezone, status, is_active, target_audience, metadata) VALUES
-(1, 1, 'Promoção Black Friday', 'Campanha especial para Black Friday com ofertas imperdíveis', 'scheduled', 10, 'premium', 50.00, 2, '2024-11-20 00:00:00', '2024-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(2, 2, 'Campanha Medicamentos', 'Promoção de medicamentos genéricos', 'general', 8, 'standard', 30.00, 2, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(3, 3, 'Ofertas do Dia', 'Ofertas especiais diárias do supermercado', 'general', 7, 'standard', 40.00, 3, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(4, 4, 'Menu Executivo', 'Promoção do menu executivo', 'scheduled', 6, 'standard', 20.00, 1, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '11:30', '14:30', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(5, 5, 'Check-up Preventivo', 'Campanha de conscientização sobre check-up', 'general', 5, 'standard', 15.00, 1, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '08:00', '18:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb)
+(1, 1, 'Promoção Black Friday', 'Campanha especial para Black Friday com ofertas imperdíveis', 'scheduled', 10, 'premium', 50.00, 2, '2026-11-20 00:00:00', '2028-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(2, 2, 'Campanha Medicamentos', 'Promoção de medicamentos genéricos', 'general', 8, 'standard', 30.00, 2, '2026-10-01 00:00:00', '2028-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(3, 3, 'Ofertas do Dia', 'Ofertas especiais diárias do supermercado', 'general', 7, 'standard', 40.00, 3, '2026-01-01 00:00:00', '2028-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(4, 4, 'Menu Executivo', 'Promoção do menu executivo', 'scheduled', 6, 'standard', 20.00, 1, '2026-01-01 00:00:00', '2028-12-31 23:59:59', '11:30', '14:30', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(5, 5, 'Check-up Preventivo', 'Campanha de conscientização sobre check-up', 'general', 5, 'standard', 15.00, 1, '2026-01-01 00:00:00', '2028-12-31 23:59:59', '08:00', '18:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaign_playlists (campaign_id, playlist_id, priority, is_active) VALUES
@@ -180,12 +180,12 @@ INSERT INTO campaign_medias (campaign_id, media_id, display_seconds, order_index
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaign_totems (campaign_id, totem_id, start_date, end_date, start_time, end_time, days_of_week, priority, is_active) VALUES
-(1, 1, '2024-11-20 00:00:00', '2024-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
-(1, 2, '2024-11-20 00:00:00', '2024-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
-(1, 3, '2024-11-20 00:00:00', '2024-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
-(2, 4, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 8, true),
-(2, 5, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 8, true),
-(3, 6, '2024-10-01 00:00:00', '2024-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 7, true)
+(1, 1, '2026-11-20 00:00:00', '2028-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(1, 2, '2026-11-20 00:00:00', '2028-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(1, 3, '2026-11-20 00:00:00', '2028-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(2, 4, '2026-10-01 00:00:00', '2028-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 8, true),
+(2, 5, '2026-10-01 00:00:00', '2028-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 8, true),
+(3, 6, '2026-01-01 00:00:00', '2028-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 7, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaign_publishers (campaign_id, publisher_id, revenue_share_percentage, time_share_percent, daypart_config, min_impressions_per_hour, max_impressions_per_hour, is_active) VALUES
@@ -210,18 +210,18 @@ INSERT INTO campaign_locals (campaign_id, local_id, is_active) VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO subscriber_contracts (contract_id, subscriber_id, plan_id, contract_number, contract_type, title, description, start_date, end_date, total_amount, currency, payment_terms, status, signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata) VALUES
-(1, 1, 2, 'SUB-CONT-001', 'advertising', 'Contrato Publicitário Shopping Center Norte', 'Contrato de publicidade para Black Friday', '2024-11-01', '2024-11-30', 50000.00, 'BRL', 'Pagamento em 30 dias', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(2, 2, 1, 'SUB-CONT-002', 'advertising', 'Contrato Publicitário Farmácias Saúde+', 'Contrato de publicidade para campanha de medicamentos', '2024-10-01', '2024-12-31', 15000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(3, 3, 1, 'SUB-CONT-003', 'advertising', 'Contrato Publicitário Supermercado Econômico', 'Contrato de publicidade para ofertas do dia', '2024-10-01', '2024-12-31', 20000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(4, 4, 1, 'SUB-CONT-004', 'advertising', 'Contrato Publicitário Restaurante Sabor & Arte', 'Contrato de publicidade para menu executivo', '2024-10-01', '2024-12-31', 8000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(5, 5, 1, 'SUB-CONT-005', 'advertising', 'Contrato Publicitário Clínica Vida Saudável', 'Contrato de publicidade para check-up preventivo', '2024-10-01', '2024-12-31', 10000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb)
+(1, 1, 2, 'SUB-CONT-001', 'advertising', 'Contrato Publicitário Shopping Center Norte', 'Contrato de publicidade para Black Friday', '2026-11-01', '2028-11-30', 50000.00, 'BRL', 'Pagamento em 30 dias', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(2, 2, 1, 'SUB-CONT-002', 'advertising', 'Contrato Publicitário Farmácias Saúde+', 'Contrato de publicidade para campanha de medicamentos', '2026-10-01', '2028-12-31', 15000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(3, 3, 1, 'SUB-CONT-003', 'advertising', 'Contrato Publicitário Supermercado Econômico', 'Contrato de publicidade para ofertas do dia', '2026-01-01', '2028-12-31', 20000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(4, 4, 1, 'SUB-CONT-004', 'advertising', 'Contrato Publicitário Restaurante Sabor & Arte', 'Contrato de publicidade para menu executivo', '2026-01-01', '2028-12-31', 8000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(5, 5, 1, 'SUB-CONT-005', 'advertising', 'Contrato Publicitário Clínica Vida Saudável', 'Contrato de publicidade para check-up preventivo', '2026-01-01', '2028-12-31', 10000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO publisher_contracts (contract_id, publisher_id, contract_number, contract_type, title, description, start_date, end_date, revenue_share_percentage, revenue_share_rules, minimum_payout_amount, subscription_amount, subscription_interval, currency, payment_terms, status, signed_by_publisher_at, signed_by_tenant_at, created_by, metadata) VALUES
-(1, 1, 'PUB-CONT-001', 'revenue_share', 'Contrato Revenue Share Shopping Center Norte', 'Contrato de revenue share com 70% para o publisher', '2024-01-01', NULL, 70.00, '{}'::jsonb, 1000.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(2, 2, 'PUB-CONT-002', 'revenue_share', 'Contrato Revenue Share Farmácia Central', 'Contrato de revenue share com 65% para o publisher', '2024-01-01', NULL, 65.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(3, 3, 'PUB-CONT-003', 'revenue_share', 'Contrato Revenue Share Supermercado Econômico', 'Contrato de revenue share com 60% para o publisher', '2024-01-01', NULL, 60.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(4, 4, 'PUB-CONT-004', 'hybrid', 'Contrato Híbrido Rede de Totens Urbanos', 'Contrato híbrido: revenue share + subscription', '2024-01-01', NULL, 75.00, '{}'::jsonb, 2000.00, 299.00, 'month', 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb)
+(1, 1, 'PUB-CONT-001', 'revenue_share', 'Contrato Revenue Share Shopping Center Norte', 'Contrato de revenue share com 70% para o publisher', '2026-01-01', NULL, 70.00, '{}'::jsonb, 1000.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(2, 2, 'PUB-CONT-002', 'revenue_share', 'Contrato Revenue Share Farmácia Central', 'Contrato de revenue share com 65% para o publisher', '2026-01-01', NULL, 65.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(3, 3, 'PUB-CONT-003', 'revenue_share', 'Contrato Revenue Share Supermercado Econômico', 'Contrato de revenue share com 60% para o publisher', '2026-01-01', NULL, 60.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(4, 4, 'PUB-CONT-004', 'hybrid', 'Contrato Híbrido Rede de Totens Urbanos', 'Contrato híbrido: revenue share + subscription', '2026-01-01', NULL, 75.00, '{}'::jsonb, 2000.00, 299.00, 'month', 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 UPDATE campaigns SET contract_id = 1 WHERE campaign_id = 1;
@@ -244,7 +244,7 @@ INSERT INTO publisher_billing (billing_id, publisher_id, campaign_id, totem_id, 
 ON CONFLICT DO NOTHING;
 
 INSERT INTO subscriptions (subscription_id, publisher_id, plan_id, stripe_subscription_id, stripe_customer_id, status, current_period_start, current_period_end, cancel_at_period_end, trial_start, trial_end, metadata) VALUES
-(1, 4, 2, 'sub_test_001', 'cus_test_001', 'active', NOW() - INTERVAL '10 days', NOW() + INTERVAL '20 days', false, NULL, NULL, '{}'::jsonb)
+(1, 4, 2, 'sub_test_001', 'cus_test_001', 'active', NOW() - INTERVAL '10 days', '2028-12-31 23:59:59', false, NULL, NULL, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictions, notes) VALUES
@@ -258,11 +258,11 @@ INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictio
 ON CONFLICT DO NOTHING;
 
 INSERT INTO subscriber_publisher_access (access_id, subscriber_id, publisher_id, contract_id, plan_id, access_type, granted_at, expires_at, is_active, granted_by, notes, metadata) VALUES
-(1, 1, 1, 1, 2, 'contract', NOW(), NOW() + INTERVAL '1 year', true, 1, 'Acesso via contrato Black Friday', '{}'::jsonb),
-(2, 2, 2, 2, 1, 'contract', NOW(), NOW() + INTERVAL '1 year', true, 1, 'Acesso via contrato Medicamentos', '{}'::jsonb),
-(3, 3, 3, 3, 1, 'contract', NOW(), NOW() + INTERVAL '1 year', true, 1, 'Acesso via contrato Ofertas do Dia', '{}'::jsonb),
-(4, 4, 1, 4, 1, 'contract', NOW(), NOW() + INTERVAL '1 year', true, 1, 'Acesso via contrato Menu Executivo', '{}'::jsonb),
-(5, 5, 1, 5, 1, 'contract', NOW(), NOW() + INTERVAL '1 year', true, 1, 'Acesso via contrato Check-up', '{}'::jsonb)
+(1, 1, 1, 1, 2, 'contract', NOW(), '2028-12-31 23:59:59', true, 1, 'Acesso via contrato Black Friday', '{}'::jsonb),
+(2, 2, 2, 2, 1, 'contract', NOW(), '2028-12-31 23:59:59', true, 1, 'Acesso via contrato Medicamentos', '{}'::jsonb),
+(3, 3, 3, 3, 1, 'contract', NOW(), '2028-12-31 23:59:59', true, 1, 'Acesso via contrato Ofertas do Dia', '{}'::jsonb),
+(4, 4, 1, 4, 1, 'contract', NOW(), '2028-12-31 23:59:59', true, 1, 'Acesso via contrato Menu Executivo', '{}'::jsonb),
+(5, 5, 1, 5, 1, 'contract', NOW(), '2028-12-31 23:59:59', true, 1, 'Acesso via contrato Check-up', '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO totem_playlists (totem_playlist_id, totem_id, smart_tv_id, publisher_id, playlist_hash, version, total_items, total_duration_seconds, status, is_active, generated_at, last_updated_at, expires_at, metadata, generation_log) VALUES
@@ -388,7 +388,7 @@ BEGIN
             '{
                 "temporal": {
                     "valid": true,
-                    "current_time": "2024-11-25T14:00:00Z",
+                    "current_time": "2026-01-15T14:00:00Z",
                     "campaign_active": true,
                     "within_time_window": true,
                     "within_date_range": true,
@@ -433,7 +433,7 @@ BEGIN
                     }
                 ],
                 "total_duration_seconds": 40,
-                "generated_at": "2024-11-25T13:00:00Z"
+                "generated_at": "2026-01-15T13:00:00Z"
             }'::jsonb,
             150
         ),
@@ -482,7 +482,7 @@ BEGIN
             '{
                 "temporal": {
                     "valid": true,
-                    "current_time": "2024-11-25T14:30:00Z",
+                    "current_time": "2026-01-15T14:30:00Z",
                     "campaign_active": true,
                     "within_time_window": true,
                     "within_date_range": true,
@@ -527,7 +527,7 @@ BEGIN
                     }
                 ],
                 "total_duration_seconds": 40,
-                "generated_at": "2024-11-25T14:30:00Z"
+                "generated_at": "2026-01-15T14:30:00Z"
             }'::jsonb,
             145
         ),
@@ -552,7 +552,7 @@ BEGIN
             '{
                 "temporal": {
                     "valid": true,
-                    "current_time": "2024-11-25T12:00:00Z",
+                    "current_time": "2026-01-15T12:00:00Z",
                     "campaign_active": true,
                     "within_time_window": true,
                     "within_date_range": true,
@@ -573,7 +573,7 @@ BEGIN
                     "publisher_access_valid": true
                 }
             }'::jsonb,
-            true, 'totem_4_campaign_2_2024-11-25T12:00:00Z',
+            true, 'totem_4_campaign_2_2026-01-15T12:00:00Z',
             '{
                 "totem_id": 4,
                 "selected_campaign_id": 2,
@@ -589,7 +589,7 @@ BEGIN
                     }
                 ],
                 "total_duration_seconds": 15,
-                "generated_at": "2024-11-25T12:00:00Z",
+                "generated_at": "2026-01-15T12:00:00Z",
                 "from_cache": true
             }'::jsonb,
             80
@@ -651,7 +651,7 @@ BEGIN
             '{
                 "temporal": {
                     "valid": true,
-                    "current_time": "2024-11-25T14:15:00Z",
+                    "current_time": "2026-01-15T14:15:00Z",
                     "campaign_active": true,
                     "within_time_window": true,
                     "within_date_range": true,
@@ -696,7 +696,7 @@ BEGIN
                     }
                 ],
                 "total_duration_seconds": 40,
-                "generated_at": "2024-11-25T14:15:00Z"
+                "generated_at": "2026-01-15T14:15:00Z"
             }'::jsonb,
             162
         ),
@@ -721,7 +721,7 @@ BEGIN
             '{
                 "temporal": {
                     "valid": true,
-                    "current_time": "2024-11-25T12:30:00Z",
+                    "current_time": "2026-01-15T12:30:00Z",
                     "campaign_active": true,
                     "within_time_window": true,
                     "within_date_range": true,
@@ -758,7 +758,7 @@ BEGIN
                     }
                 ],
                 "total_duration_seconds": 15,
-                "generated_at": "2024-11-25T12:30:00Z"
+                "generated_at": "2026-01-15T12:30:00Z"
             }'::jsonb,
             92
         ),
@@ -795,7 +795,7 @@ BEGIN
             '{
                 "temporal": {
                     "valid": true,
-                    "current_time": "2024-11-25T14:40:00Z",
+                    "current_time": "2026-01-15T14:40:00Z",
                     "campaign_active": true,
                     "within_time_window": true,
                     "within_date_range": true,
@@ -832,7 +832,7 @@ BEGIN
                     }
                 ],
                 "total_duration_seconds": 12,
-                "generated_at": "2024-11-25T14:40:00Z"
+                "generated_at": "2026-01-15T14:40:00Z"
             }'::jsonb,
             118
         ),
@@ -857,7 +857,7 @@ BEGIN
             '{
                 "temporal": {
                     "valid": true,
-                    "current_time": "2024-11-25T14:45:00Z",
+                    "current_time": "2026-01-15T14:45:00Z",
                     "campaign_active": false,
                     "within_time_window": false,
                     "within_date_range": false,
@@ -879,14 +879,14 @@ BEGIN
                     "reason": "Nenhuma campanha ativa disponível para este totem"
                 }
             }'::jsonb,
-            true, 'totem_8_direct_2024-11-25T14:45:00Z',
+            true, 'totem_8_direct_2026-01-15T14:45:00Z',
             '{
                 "totem_id": 8,
                 "selected_campaign_id": null,
                 "selected_playlist_id": null,
                 "playlist_items": [],
                 "total_duration_seconds": 0,
-                "generated_at": "2024-11-25T14:45:00Z",
+                "generated_at": "2026-01-15T14:45:00Z",
                 "from_cache": true,
                 "fallback_mode": true,
                 "message": "Nenhuma campanha ativa disponível"
@@ -926,7 +926,7 @@ BEGIN
             '{
                 "temporal": {
                     "valid": true,
-                    "current_time": "2024-11-25T11:00:00Z",
+                    "current_time": "2026-01-15T11:00:00Z",
                     "campaign_active": true,
                     "within_time_window": true,
                     "within_date_range": true,
@@ -971,7 +971,7 @@ BEGIN
                     }
                 ],
                 "total_duration_seconds": 40,
-                "generated_at": "2024-11-25T11:00:00Z"
+                "generated_at": "2026-01-15T11:00:00Z"
             }'::jsonb,
             138
         ),
@@ -1020,7 +1020,7 @@ BEGIN
             '{
                 "temporal": {
                     "valid": true,
-                    "current_time": "2024-11-25T09:00:00Z",
+                    "current_time": "2026-01-15T09:00:00Z",
                     "campaign_active": true,
                     "within_time_window": true,
                     "within_date_range": true,
@@ -1041,7 +1041,7 @@ BEGIN
                     "publisher_access_valid": true
                 }
             }'::jsonb,
-            true, 'totem_2_campaign_1_2024-11-25T09:00:00Z',
+            true, 'totem_2_campaign_1_2026-01-15T09:00:00Z',
             '{
                 "totem_id": 2,
                 "selected_campaign_id": 1,
@@ -1065,7 +1065,7 @@ BEGIN
                     }
                 ],
                 "total_duration_seconds": 40,
-                "generated_at": "2024-11-25T09:00:00Z",
+                "generated_at": "2026-01-15T09:00:00Z",
                 "from_cache": true
             }'::jsonb,
             52
@@ -1091,7 +1091,7 @@ BEGIN
             '{
                 "temporal": {
                     "valid": true,
-                    "current_time": "2024-11-24T12:00:00Z",
+                    "current_time": "2026-01-14T12:00:00Z",
                     "campaign_active": true,
                     "within_time_window": true,
                     "within_date_range": true,
@@ -1128,7 +1128,7 @@ BEGIN
                     }
                 ],
                 "total_duration_seconds": 15,
-                "generated_at": "2024-11-24T12:00:00Z"
+                "generated_at": "2026-01-14T12:00:00Z"
             }'::jsonb,
             88
         )
@@ -1137,14 +1137,14 @@ BEGIN
 END $$;
 
 INSERT INTO qr_codes (qr_id, campaign_id, code, title, description, qr_type, content, url, redirect_url, size, color, background_color, error_correction_level, margin, image_url, scan_count, last_scan_at, max_scans, tracking_enabled, expires_at, metadata, is_active) VALUES
-(1, 1, 'QR-BF-2024-001', 'QR Code Black Friday', 'QR code para campanha Black Friday', 'url', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-bf-2024-001.png', 0, NULL, 1000, true, '2024-11-30', '{}'::jsonb, true),
-(2, 2, 'QR-MED-2024-001', 'QR Code Medicamentos', 'QR code para campanha de medicamentos', 'url', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-med-2024-001.png', 0, NULL, 500, true, '2024-12-31', '{}'::jsonb, true)
+(1, 1, 'QR-BF-2024-001', 'QR Code Black Friday', 'QR code para campanha Black Friday', 'url', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-bf-2024-001.png', 0, NULL, 1000, true, '2028-12-31', '{}'::jsonb, true),
+(2, 2, 'QR-MED-2024-001', 'QR Code Medicamentos', 'QR code para campanha de medicamentos', 'url', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-med-2024-001.png', 0, NULL, 500, true, '2028-12-31', '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO short_links (link_id, campaign_id, short_code, original_url, click_count, last_click_at, metadata, expires_at, is_active) VALUES
-(1, 1, 'BF2024', 'https://shoppingnorte.com.br/black-friday', 0, NULL, '{}'::jsonb, '2024-11-30', true),
-(2, 2, 'MED2024', 'https://saudemais.com.br/promocao-medicamentos', 0, NULL, '{}'::jsonb, '2024-12-31', true),
-(3, 3, 'OFERTAS', 'https://economico.com.br/ofertas-dia', 0, NULL, '{}'::jsonb, '2024-12-31', true)
+(1, 1, 'BF2024', 'https://shoppingnorte.com.br/black-friday', 0, NULL, '{}'::jsonb, '2028-12-31', true),
+(2, 2, 'MED2024', 'https://saudemais.com.br/promocao-medicamentos', 0, NULL, '{}'::jsonb, '2028-12-31', true),
+(3, 3, 'OFERTAS', 'https://economico.com.br/ofertas-dia', 0, NULL, '{}'::jsonb, '2028-12-31', true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO remote_commands (command_id, totem_id, user_id, command_type, status, parameters, response, sent_at, executed_at, completed_at, error_message, retry_count) VALUES
