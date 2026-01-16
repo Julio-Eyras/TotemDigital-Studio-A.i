@@ -126,13 +126,22 @@ INSERT INTO smart_tvs (tv_id, totem_id, identifier, device_id, name, brand, mode
 (8, 8, 'TV-URBANO-001', 'TV-DEVICE-008', 'Smart TV Urbano 1', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', NOW(), '{}'::jsonb, '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO medias (media_id, subscriber_id, name, description, file_path, file_name, file_size_bytes, media_type, mime_type, duration_seconds, width, height, thumbnail_url, preview_url, status, approval_status, tags, is_active) VALUES
-(1, 1, 'black-friday-banner.jpg', 'Banner principal da Black Friday', '/media/shopping/black-friday-banner.jpg', 'black-friday-banner.jpg', 2048576, 'image', 'image/jpeg', NULL, 1920, 1080, '/thumbnails/black-friday-banner.jpg', '/previews/black-friday-banner.jpg', 'approved', 'approved', ARRAY['promocao', 'black-friday', 'ofertas'], true),
-(2, 1, 'ofertas-video.mp4', 'Vídeo com as principais ofertas', '/media/shopping/ofertas-video.mp4', 'ofertas-video.mp4', 15728640, 'video', 'video/mp4', 30, 1920, 1080, '/thumbnails/ofertas-video.jpg', '/previews/ofertas-video.mp4', 'approved', 'approved', ARRAY['promocao', 'video', 'ofertas'], true),
-(3, 2, 'medicamentos-banner.jpg', 'Banner promocional de medicamentos', '/media/farmacia/medicamentos-banner.jpg', 'medicamentos-banner.jpg', 1536000, 'image', 'image/jpeg', NULL, 1920, 1080, '/thumbnails/medicamentos-banner.jpg', '/previews/medicamentos-banner.jpg', 'approved', 'approved', ARRAY['medicamentos', 'genericos', 'promocao'], true),
-(4, 3, 'ofertas-dia.jpg', 'Banner com ofertas diárias', '/media/supermercado/ofertas-dia.jpg', 'ofertas-dia.jpg', 1024000, 'image', 'image/jpeg', NULL, 1920, 1080, '/thumbnails/ofertas-dia.jpg', '/previews/ofertas-dia.jpg', 'approved', 'approved', ARRAY['ofertas', 'diarias', 'supermercado'], true),
-(5, 4, 'menu-executivo.jpg', 'Cardápio do menu executivo', '/media/restaurante/menu-executivo.jpg', 'menu-executivo.jpg', 2560000, 'image', 'image/jpeg', NULL, 1920, 1080, '/thumbnails/menu-executivo.jpg', '/previews/menu-executivo.jpg', 'approved', 'approved', ARRAY['menu', 'executivo', 'restaurante'], true),
-(6, 5, 'check-up-video.mp4', 'Vídeo educativo sobre check-up', '/media/clinica/check-up-video.mp4', 'check-up-video.mp4', 25165824, 'video', 'video/mp4', 45, 1920, 1080, '/thumbnails/check-up-video.jpg', '/previews/check-up-video.mp4', 'approved', 'approved', ARRAY['saude', 'prevencao', 'check-up'], true)
+-- Nota: no backend v2, o frontend consome `thumbnailUrl/previewUrl` preferindo endpoints `/api/media/:id/thumbnail`.
+-- Manter URLs "legacy" (/thumbnails, /previews) tende a quebrar em ambientes novos; por isso já gravamos endpoints da API.
+INSERT INTO medias (
+  media_id, subscriber_id, name, description, file_path, file_name, file_size_bytes,
+  media_type, mime_type, duration_seconds, width, height,
+  thumbnail_url, preview_url,
+  status, approval_status, tags,
+  approved_by, approved_at, metadata,
+  is_active
+) VALUES
+(1, 1, 'black-friday-banner.jpg', 'Banner principal da Black Friday', '/media/shopping/black-friday-banner.jpg', 'black-friday-banner.jpg', 2048576, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/1/thumbnail', '/api/media/1/thumbnail', 'approved', 'approved', ARRAY['promocao', 'black-friday', 'ofertas'], 1, NOW() - INTERVAL '10 days', '{}'::jsonb, true),
+(2, 1, 'ofertas-video.mp4', 'Vídeo com as principais ofertas', '/media/shopping/ofertas-video.mp4', 'ofertas-video.mp4', 15728640, 'video', 'video/mp4', 30, 1920, 1080, '/api/media/2/thumbnail', '/api/media/2/thumbnail', 'approved', 'approved', ARRAY['promocao', 'video', 'ofertas'], 1, NOW() - INTERVAL '10 days', '{}'::jsonb, true),
+(3, 2, 'medicamentos-banner.jpg', 'Banner promocional de medicamentos', '/media/farmacia/medicamentos-banner.jpg', 'medicamentos-banner.jpg', 1536000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/3/thumbnail', '/api/media/3/thumbnail', 'approved', 'approved', ARRAY['medicamentos', 'genericos', 'promocao'], 1, NOW() - INTERVAL '9 days', '{}'::jsonb, true),
+(4, 3, 'ofertas-dia.jpg', 'Banner com ofertas diárias', '/media/supermercado/ofertas-dia.jpg', 'ofertas-dia.jpg', 1024000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/4/thumbnail', '/api/media/4/thumbnail', 'approved', 'approved', ARRAY['ofertas', 'diarias', 'supermercado'], 1, NOW() - INTERVAL '8 days', '{}'::jsonb, true),
+(5, 4, 'menu-executivo.jpg', 'Cardápio do menu executivo', '/media/restaurante/menu-executivo.jpg', 'menu-executivo.jpg', 2560000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/5/thumbnail', '/api/media/5/thumbnail', 'approved', 'approved', ARRAY['menu', 'executivo', 'restaurante'], 1, NOW() - INTERVAL '7 days', '{}'::jsonb, true),
+(6, 5, 'check-up-video.mp4', 'Vídeo educativo sobre check-up', '/media/clinica/check-up-video.mp4', 'check-up-video.mp4', 25165824, 'video', 'video/mp4', 45, 1920, 1080, '/api/media/6/thumbnail', '/api/media/6/thumbnail', 'approved', 'approved', ARRAY['saude', 'prevencao', 'check-up'], 1, NOW() - INTERVAL '6 days', '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
 ALTER TABLE playlists DISABLE TRIGGER trigger_derive_playlist_ids;
@@ -155,12 +164,31 @@ INSERT INTO playlist_items (item_id, playlist_id, media_id, display_seconds, ord
 (6, 4, 4, 12, 0, NULL, NULL, NULL, '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO campaigns (campaign_id, subscriber_id, title, description, campaign_type, priority, commercial_tier, default_time_share_percent, max_consecutive_slots, start_date, end_date, start_time, end_time, days_of_week, timezone, status, is_active, target_audience, metadata) VALUES
-(1, 1, 'Promoção Black Friday', 'Campanha especial para Black Friday com ofertas imperdíveis', 'scheduled', 10, 'premium', 50.00, 2, '2026-11-20 00:00:00', '2028-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(2, 2, 'Campanha Medicamentos', 'Promoção de medicamentos genéricos', 'general', 8, 'standard', 30.00, 2, '2026-10-01 00:00:00', '2028-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(3, 3, 'Ofertas do Dia', 'Ofertas especiais diárias do supermercado', 'general', 7, 'standard', 40.00, 3, '2026-01-01 00:00:00', '2028-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(4, 4, 'Menu Executivo', 'Promoção do menu executivo', 'scheduled', 6, 'standard', 20.00, 1, '2026-01-01 00:00:00', '2028-12-31 23:59:59', '11:30', '14:30', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(5, 5, 'Check-up Preventivo', 'Campanha de conscientização sobre check-up', 'general', 5, 'standard', 15.00, 1, '2026-01-01 00:00:00', '2028-12-31 23:59:59', '08:00', '18:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb)
+-- =============================================
+-- CONTRATOS (Subscriber/Publisher) + CAMPANHAS vinculadas ao contrato
+-- =============================================
+
+INSERT INTO subscriber_contracts (contract_id, subscriber_id, plan_id, contract_number, contract_type, title, description, start_date, end_date, total_amount, currency, payment_terms, status, signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata) VALUES
+(1, 1, 2, 'SUB-CONT-001', 'advertising', 'Contrato Publicitário Shopping Center Norte', 'Contrato de publicidade para Black Friday', '2026-11-01', '2028-11-30', 50000.00, 'BRL', 'Pagamento em 30 dias', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(2, 2, 1, 'SUB-CONT-002', 'advertising', 'Contrato Publicitário Farmácias Saúde+', 'Contrato de publicidade para campanha de medicamentos', '2026-10-01', '2028-12-31', 15000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(3, 3, 1, 'SUB-CONT-003', 'advertising', 'Contrato Publicitário Supermercado Econômico', 'Contrato de publicidade para ofertas do dia', '2026-01-01', '2028-12-31', 20000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(4, 4, 1, 'SUB-CONT-004', 'advertising', 'Contrato Publicitário Restaurante Sabor & Arte', 'Contrato de publicidade para menu executivo', '2026-01-01', '2028-12-31', 8000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(5, 5, 1, 'SUB-CONT-005', 'advertising', 'Contrato Publicitário Clínica Vida Saudável', 'Contrato de publicidade para check-up preventivo', '2026-01-01', '2028-12-31', 10000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO publisher_contracts (contract_id, publisher_id, contract_number, contract_type, title, description, start_date, end_date, revenue_share_percentage, revenue_share_rules, minimum_payout_amount, subscription_amount, subscription_interval, currency, payment_terms, status, signed_by_publisher_at, signed_by_tenant_at, created_by, metadata) VALUES
+(1, 1, 'PUB-CONT-001', 'revenue_share', 'Contrato Revenue Share Shopping Center Norte', 'Contrato de revenue share com 70% para o publisher', '2026-01-01', NULL, 70.00, '{}'::jsonb, 1000.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(2, 2, 'PUB-CONT-002', 'revenue_share', 'Contrato Revenue Share Farmácia Central', 'Contrato de revenue share com 65% para o publisher', '2026-01-01', NULL, 65.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(3, 3, 'PUB-CONT-003', 'revenue_share', 'Contrato Revenue Share Supermercado Econômico', 'Contrato de revenue share com 60% para o publisher', '2026-01-01', NULL, 60.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
+(4, 4, 'PUB-CONT-004', 'hybrid', 'Contrato Híbrido Rede de Totens Urbanos', 'Contrato híbrido: revenue share + subscription', '2026-01-01', NULL, 75.00, '{}'::jsonb, 2000.00, 299.00, 'month', 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO campaigns (campaign_id, subscriber_id, contract_id, title, description, campaign_type, priority, commercial_tier, default_time_share_percent, max_consecutive_slots, start_date, end_date, start_time, end_time, days_of_week, timezone, status, is_active, target_audience, metadata) VALUES
+(1, 1, 1, 'Promoção Black Friday', 'Campanha especial para Black Friday com ofertas imperdíveis', 'scheduled', 10, 'premium', 50.00, 2, '2026-11-20 00:00:00', '2028-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(2, 2, 2, 'Campanha Medicamentos', 'Promoção de medicamentos genéricos', 'general', 8, 'standard', 30.00, 2, '2026-10-01 00:00:00', '2028-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(3, 3, 3, 'Ofertas do Dia', 'Ofertas especiais diárias do supermercado', 'general', 7, 'standard', 40.00, 3, '2026-01-01 00:00:00', '2028-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(4, 4, 4, 'Menu Executivo', 'Promoção do menu executivo', 'scheduled', 6, 'standard', 20.00, 1, '2026-01-01 00:00:00', '2028-12-31 23:59:59', '11:30', '14:30', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(5, 5, 5, 'Check-up Preventivo', 'Campanha de conscientização sobre check-up', 'general', 5, 'standard', 15.00, 1, '2026-01-01 00:00:00', '2028-12-31 23:59:59', '08:00', '18:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaign_playlists (campaign_id, playlist_id, priority, is_active, metadata) VALUES
@@ -208,27 +236,6 @@ INSERT INTO campaign_locals (campaign_id, local_id, is_active) VALUES
 (4, 2, true),
 (5, 1, true)
 ON CONFLICT DO NOTHING;
-
-INSERT INTO subscriber_contracts (contract_id, subscriber_id, plan_id, contract_number, contract_type, title, description, start_date, end_date, total_amount, currency, payment_terms, status, signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata) VALUES
-(1, 1, 2, 'SUB-CONT-001', 'advertising', 'Contrato Publicitário Shopping Center Norte', 'Contrato de publicidade para Black Friday', '2026-11-01', '2028-11-30', 50000.00, 'BRL', 'Pagamento em 30 dias', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(2, 2, 1, 'SUB-CONT-002', 'advertising', 'Contrato Publicitário Farmácias Saúde+', 'Contrato de publicidade para campanha de medicamentos', '2026-10-01', '2028-12-31', 15000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(3, 3, 1, 'SUB-CONT-003', 'advertising', 'Contrato Publicitário Supermercado Econômico', 'Contrato de publicidade para ofertas do dia', '2026-01-01', '2028-12-31', 20000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(4, 4, 1, 'SUB-CONT-004', 'advertising', 'Contrato Publicitário Restaurante Sabor & Arte', 'Contrato de publicidade para menu executivo', '2026-01-01', '2028-12-31', 8000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(5, 5, 1, 'SUB-CONT-005', 'advertising', 'Contrato Publicitário Clínica Vida Saudável', 'Contrato de publicidade para check-up preventivo', '2026-01-01', '2028-12-31', 10000.00, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO publisher_contracts (contract_id, publisher_id, contract_number, contract_type, title, description, start_date, end_date, revenue_share_percentage, revenue_share_rules, minimum_payout_amount, subscription_amount, subscription_interval, currency, payment_terms, status, signed_by_publisher_at, signed_by_tenant_at, created_by, metadata) VALUES
-(1, 1, 'PUB-CONT-001', 'revenue_share', 'Contrato Revenue Share Shopping Center Norte', 'Contrato de revenue share com 70% para o publisher', '2026-01-01', NULL, 70.00, '{}'::jsonb, 1000.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(2, 2, 'PUB-CONT-002', 'revenue_share', 'Contrato Revenue Share Farmácia Central', 'Contrato de revenue share com 65% para o publisher', '2026-01-01', NULL, 65.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(3, 3, 'PUB-CONT-003', 'revenue_share', 'Contrato Revenue Share Supermercado Econômico', 'Contrato de revenue share com 60% para o publisher', '2026-01-01', NULL, 60.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb),
-(4, 4, 'PUB-CONT-004', 'hybrid', 'Contrato Híbrido Rede de Totens Urbanos', 'Contrato híbrido: revenue share + subscription', '2026-01-01', NULL, 75.00, '{}'::jsonb, 2000.00, 299.00, 'month', 'BRL', 'Pagamento mensal', 'active', NOW(), NOW(), 1, '{}'::jsonb)
-ON CONFLICT DO NOTHING;
-
-UPDATE campaigns SET contract_id = 1 WHERE campaign_id = 1;
-UPDATE campaigns SET contract_id = 2 WHERE campaign_id = 2;
-UPDATE campaigns SET contract_id = 3 WHERE campaign_id = 3;
-UPDATE campaigns SET contract_id = 4 WHERE campaign_id = 4;
-UPDATE campaigns SET contract_id = 5 WHERE campaign_id = 5;
 
 INSERT INTO subscriber_billing (billing_id, subscriber_id, campaign_id, billing_type, amount, currency, direction, description, invoice_number, payment_method, payment_status, payment_date, due_date, metadata) VALUES
 (1, 1, 1, 'campaign', 50000.00, 'BRL', 'incoming', 'Faturamento campanha Black Friday', 'INV-2024-001', 'bank_transfer', 'paid', NOW() - INTERVAL '5 days', NOW() + INTERVAL '25 days', '{}'::jsonb),
