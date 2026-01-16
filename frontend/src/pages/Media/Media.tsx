@@ -85,9 +85,9 @@ const Media: React.FC = () => {
   // Cleanup de Blob URLs ao desmontar
   useEffect(() => {
     return () => {
-      for (const url of thumbObjectUrlsRef.current.values()) {
+      thumbObjectUrlsRef.current.forEach((url) => {
         try { URL.revokeObjectURL(url); } catch { /* noop */ }
-      }
+      });
       thumbObjectUrlsRef.current.clear();
     };
   }, []);
