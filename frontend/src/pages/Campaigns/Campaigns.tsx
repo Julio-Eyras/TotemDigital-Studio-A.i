@@ -209,6 +209,31 @@ const Campaigns: React.FC = () => {
     }
   }, [userSubscriberId]);
 
+  const normalizeCampaign = (campaign: any) => {
+    if (!campaign) return campaign;
+    return {
+      ...campaign,
+      // Compat de ID (backend v2 usa "id")
+      campaign_id: campaign.campaign_id ?? campaign.campaignId ?? campaign.id,
+      // Compat de subscriber/cliente
+      subscriber_id: campaign.subscriber_id ?? campaign.subscriberId ?? campaign.clientId,
+      // Compat de datas
+      start_date: campaign.start_date ?? campaign.startDate,
+      end_date: campaign.end_date ?? campaign.endDate,
+      // Compat de tipo/status/ativo
+      campaign_type: campaign.campaign_type ?? campaign.campaignType ?? 'standard',
+      status: campaign.status ?? 'draft',
+      is_active:
+        campaign.is_active !== undefined
+          ? campaign.is_active
+          : campaign.isActive !== undefined
+            ? campaign.isActive
+            : true,
+      created_at: campaign.created_at ?? campaign.createdAt,
+      updated_at: campaign.updated_at ?? campaign.updatedAt,
+    };
+  };
+
   const loadCampaigns = async () => {
     try {
       setLoading(true);
@@ -218,17 +243,7 @@ const Campaigns: React.FC = () => {
         status: statusFilter !== 'all' ? statusFilter : undefined,
       });
       // Normalizar dados do backend (campaignType -> campaign_type)
-      const normalizedCampaigns = (response.data || []).map((campaign: any) => ({
-        ...campaign,
-        campaign_type: campaign.campaign_type || campaign.campaignType || 'standard',
-        status: campaign.status || 'draft',
-        subscriber_id: campaign.subscriber_id || campaign.subscriberId,
-        start_date: campaign.start_date || campaign.startDate,
-        end_date: campaign.end_date || campaign.endDate,
-        is_active: campaign.is_active !== undefined ? campaign.is_active : (campaign.isActive !== undefined ? campaign.isActive : true),
-        created_at: campaign.created_at || campaign.createdAt,
-        updated_at: campaign.updated_at || campaign.updatedAt,
-      }));
+      const normalizedCampaigns = (response.data || []).map(normalizeCampaign);
       setCampaigns(normalizedCampaigns);
     } catch (error: any) {
       console.error('Erro ao carregar campanhas:', error);
@@ -363,7 +378,7 @@ const Campaigns: React.FC = () => {
       setOrderedMediaIds(newOrder);
       // Atualizar campanha selecionada
       const updated = await campaignApi.getById(selectedCampaign.campaign_id);
-      setSelectedCampaign(updated);
+      setSelectedCampaign(normalizeCampaign(updated));
     } catch (error: any) {
       console.error('Erro ao reordenar mídias:', error);
       const errorMessage = error?.response?.data?.message 
@@ -383,7 +398,7 @@ const Campaigns: React.FC = () => {
       setOrderedPlaylistIds(newOrder);
       // Atualizar campanha selecionada
       const updated = await campaignApi.getById(selectedCampaign.campaign_id);
-      setSelectedCampaign(updated);
+      setSelectedCampaign(normalizeCampaign(updated));
     } catch (error: any) {
       console.error('Erro ao reordenar playlists:', error);
       const errorMessage = error?.response?.data?.message 
@@ -723,7 +738,7 @@ const Campaigns: React.FC = () => {
                   <Box>
                     <Tooltip title="Editar">
                       <IconButton size="small" onClick={async () => {
-                        setSelectedCampaign(campaign);
+                        setSelectedCampaign(normalizeCampaign(campaign));
                         // Carregar publishers acessíveis se houver subscriberId
                         const subscriberId = campaign.subscriber_id || (campaign as any).subscriberId;
                         if (subscriberId && !isAdmin) {
