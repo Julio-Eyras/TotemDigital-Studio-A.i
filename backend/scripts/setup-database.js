@@ -53,6 +53,7 @@ async function createDatabase() {
 
 async function applySchema() {
   const dbDir = path.join(__dirname, '../../database');
+  const loadDemoSeeds = ['1', 'true', 'yes'].includes(String(process.env.LOAD_DEMO_SEEDS || '').toLowerCase());
   
   // Ordem dos arquivos SQL a serem executados
   const sqlFiles = [
@@ -68,13 +69,21 @@ async function applySchema() {
     'smartchannel-db-v2-refactored-part10-views.sql',
     'smartchannel-db-v2-refactored-part11-playlist-mix.sql',
     'smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql',
+    'seeds-default-settings.sql',
     'seeds-playlist-mix.sql'
   ];
+
+  if (loadDemoSeeds) {
+    sqlFiles.push('carga-inicial-db-smarsignage-v4.sql');
+  }
   
   const pool = new Pool(dbConfig);
   
   try {
     console.log('📄 Aplicando schema v2.0...\n');
+    if (loadDemoSeeds) {
+      console.log('🌱 LOAD_DEMO_SEEDS ativo: aplicando carga inicial v4 (dados de demonstração) ao final.\n');
+    }
     
     for (let i = 0; i < sqlFiles.length; i++) {
       const sqlFile = sqlFiles[i];
@@ -115,6 +124,10 @@ async function applySchema() {
     }
     
     console.log('\n✅ Schema aplicado com sucesso!');
+    if (!loadDemoSeeds) {
+      console.log('\nℹ️  Dica: para carregar dados de demonstração (carga inicial v4), execute:');
+      console.log('   $env:LOAD_DEMO_SEEDS=1; node backend/scripts/setup-database.js');
+    }
     await pool.end();
     return true;
   } catch (error) {

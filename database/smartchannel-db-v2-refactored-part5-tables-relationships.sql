@@ -87,6 +87,10 @@ CREATE TABLE IF NOT EXISTS campaign_playlists (
 
 COMMENT ON TABLE campaign_playlists IS 'Relacionamento N:M entre campaigns e playlists';
 
+-- Snapshot/Auditoria: metadados (JSONB) por associação campanha↔playlist (ex: origem, estado no momento, regras aplicadas)
+ALTER TABLE campaign_playlists
+    ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+
 -- =============================================
 -- CAMPAIGN_MEDIAS (Relacionamento N:M campaigns ↔ medias)
 -- =============================================
@@ -123,6 +127,10 @@ CREATE TABLE IF NOT EXISTS campaign_medias (
 COMMENT ON TABLE campaign_medias IS 'Relacionamento N:M entre campaigns e medias (mídias diretamente associadas, sem playlist)';
 COMMENT ON COLUMN campaign_medias.display_seconds IS 'Duração de exibição em segundos (sobrescreve duração padrão da mídia)';
 COMMENT ON COLUMN campaign_medias.order_index IS 'Ordem de exibição na campanha (quando não em playlist)';
+
+-- Snapshot/Auditoria: metadados (JSONB) por associação campanha↔mídia (ex: estado no momento, regras aplicadas)
+ALTER TABLE campaign_medias
+    ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
 
 -- =============================================
 -- CAMPAIGN_TOTEMS (Relacionamento N:M campaigns ↔ totems)
@@ -197,6 +205,10 @@ CREATE TABLE IF NOT EXISTS campaign_publishers (
 
 COMMENT ON TABLE campaign_publishers IS 'Relacionamento N:M entre campaigns e publishers';
 COMMENT ON COLUMN campaign_publishers.revenue_share_percentage IS '% de revenue share específico para este publisher nesta campanha';
+
+-- Snapshot/Auditoria: metadados (JSONB) por associação campanha↔publisher (ex: contrato/plano no momento, validade atual)
+ALTER TABLE campaign_publishers
+    ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
 
 -- =============================================
 -- CAMPAIGN_LOCALS (Relacionamento N:M campaigns ↔ locals)

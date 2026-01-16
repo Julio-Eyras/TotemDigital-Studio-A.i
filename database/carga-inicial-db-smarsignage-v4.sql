@@ -163,20 +163,20 @@ INSERT INTO campaigns (campaign_id, subscriber_id, title, description, campaign_
 (5, 5, 'Check-up Preventivo', 'Campanha de conscientização sobre check-up', 'general', 5, 'standard', 15.00, 1, '2026-01-01 00:00:00', '2028-12-31 23:59:59', '08:00', '18:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO campaign_playlists (campaign_id, playlist_id, priority, is_active) VALUES
-(1, 1, 1, true),
-(1, 2, 2, true),
-(2, 3, 1, true),
-(3, 4, 1, true)
+INSERT INTO campaign_playlists (campaign_id, playlist_id, priority, is_active, metadata) VALUES
+(1, 1, 1, true, '{}'::jsonb),
+(1, 2, 2, true, '{}'::jsonb),
+(2, 3, 1, true, '{}'::jsonb),
+(3, 4, 1, true, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO campaign_medias (campaign_id, media_id, display_seconds, order_index, priority, start_time, end_time, days_of_week, transitions, is_active) VALUES
-(1, 1, 10, 0, 10, NULL, NULL, NULL, '{}'::jsonb, true),
-(1, 2, 30, 1, 10, NULL, NULL, NULL, '{}'::jsonb, true),
-(2, 3, 15, 0, 8, NULL, NULL, NULL, '{}'::jsonb, true),
-(3, 4, 12, 0, 7, NULL, NULL, NULL, '{}'::jsonb, true),
-(4, 5, 20, 0, 6, NULL, NULL, NULL, '{}'::jsonb, true),
-(5, 6, 45, 0, 5, NULL, NULL, NULL, '{}'::jsonb, true)
+INSERT INTO campaign_medias (campaign_id, media_id, display_seconds, order_index, priority, start_time, end_time, days_of_week, transitions, is_active, metadata) VALUES
+(1, 1, 10, 0, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(1, 2, 30, 1, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(2, 3, 15, 0, 8, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(3, 4, 12, 0, 7, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(4, 5, 20, 0, 6, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(5, 6, 45, 0, 5, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaign_totems (campaign_id, totem_id, start_date, end_date, start_time, end_time, days_of_week, priority, is_active) VALUES
@@ -188,12 +188,12 @@ INSERT INTO campaign_totems (campaign_id, totem_id, start_date, end_date, start_
 (3, 6, '2026-01-01 00:00:00', '2028-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 7, true)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO campaign_publishers (campaign_id, publisher_id, revenue_share_percentage, time_share_percent, daypart_config, min_impressions_per_hour, max_impressions_per_hour, is_active) VALUES
-(1, 1, 70.00, 50.00, '{}'::jsonb, 10, 20, true),
-(2, 2, 65.00, 30.00, '{}'::jsonb, 5, 15, true),
-(3, 3, 60.00, 40.00, '{}'::jsonb, 8, 18, true),
-(4, 1, 70.00, 20.00, '{}'::jsonb, 3, 10, true),
-(5, 1, 70.00, 15.00, '{}'::jsonb, 2, 8, true)
+INSERT INTO campaign_publishers (campaign_id, publisher_id, revenue_share_percentage, time_share_percent, daypart_config, min_impressions_per_hour, max_impressions_per_hour, is_active, metadata) VALUES
+(1, 1, 70.00, 50.00, '{}'::jsonb, 10, 20, true, '{}'::jsonb),
+(2, 2, 65.00, 30.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
+(3, 3, 60.00, 40.00, '{}'::jsonb, 8, 18, true, '{}'::jsonb),
+(4, 1, 70.00, 20.00, '{}'::jsonb, 3, 10, true, '{}'::jsonb),
+(5, 1, 70.00, 15.00, '{}'::jsonb, 2, 8, true, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaign_locals (campaign_id, local_id, is_active) VALUES
