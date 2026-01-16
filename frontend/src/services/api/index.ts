@@ -726,10 +726,7 @@ export const mediaApi = {
     
     // Mapear campos do backend para o formato esperado pelo frontend
     const mappedMedia = mediaArray.map((item: any) => {
-      // Debug: log primeiro item para verificar estrutura
-      if (mediaArray.indexOf(item) === 0) {
-        console.log('🔍 [Media API] Primeiro item do backend:', JSON.stringify(item, null, 2));
-      }
+      // Debug removido: evitar poluir console em produção/dev
       
       // Construir URL do arquivo se necessário
       let filePath = item.file_path || item.filePath || '';

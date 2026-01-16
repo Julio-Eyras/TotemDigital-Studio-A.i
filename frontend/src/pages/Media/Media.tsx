@@ -391,18 +391,7 @@ const Media: React.FC = () => {
                     previewUrl = filePath;
                   }
                   
-                  // Debug: log para verificar URLs
-                  if (mediaItems.indexOf(media) === 0) {
-                    console.log('🔍 [Media Preview] Media:', {
-                      name: media.name,
-                      media_type: media.media_type,
-                      file_path: media.file_path,
-                      thumbnailUrl: media.thumbnailUrl,
-                      previewUrl: media.previewUrl,
-                      finalPreviewUrl: previewUrl,
-                      size_bytes: media.size_bytes
-                    });
-                  }
+                  // Debug removido: evitar poluir console
 
                   const finalPreviewUrl = previewUrl;
 

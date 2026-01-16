@@ -99,6 +99,9 @@ const app = express();
 const PORT = config.server.port;
 const HOST = config.server.host;
 
+// Evitar ruído no console do navegador (favicon.ico 404)
+app.get('/favicon.ico', (_req, res) => res.status(204).end());
+
 // =============================================
 // MIDDLEWARE GLOBAL
 // =============================================
