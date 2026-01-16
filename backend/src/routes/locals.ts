@@ -14,6 +14,9 @@ const router = Router();
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
 
+const isAdminRole = (role?: string) =>
+  ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(role || '');
+
 // Validações
 const createLocalValidator = [
   // publisher_id é obrigatório - locais pertencem apenas a publishers
@@ -74,10 +77,7 @@ router.get('/',
       const { page = 1, limit = 10, search, publisherId, active_only } = req.query;
       
       // Determinar publisherId do usuário (se não for admin)
-      const isAdmin = Boolean(
-        req.user?.isTenantUser ||
-        ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(req.user?.role || '')
-      );
+      const isAdmin = isAdminRole(req.user?.role);
       const requestPublisherId = req.user?.publisherId || undefined;
 
       const result = await getLocalService().getAllLocals({
@@ -108,7 +108,7 @@ router.get('/:id',
     try {
       const { id } = req.params;
       
-      const isAdmin = req.user?.role === 'admin';
+      const isAdmin = isAdminRole(req.user?.role);
       const requestPublisherId = req.user?.publisherId || undefined;
 
       const local = await getLocalService().getLocalById(parseInt(id), requestPublisherId, isAdmin);
@@ -153,7 +153,7 @@ router.post('/',
         return res.status(401).json({ error: 'Usuário não autenticado' });
       }
 
-      const isAdmin = req.user.role === 'admin';
+      const isAdmin = isAdminRole(req.user?.role);
       const requestPublisherId = req.user?.publisherId || undefined;
 
       const newLocal = await getLocalService().createLocal({

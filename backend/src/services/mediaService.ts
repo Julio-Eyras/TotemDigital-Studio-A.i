@@ -334,7 +334,9 @@ export class MediaService {
           width: item.width || null,
           height: item.height || null,
           thumbnailUrl: thumbnailUrl,
-          previewUrl: item.previewUrl || item.previewurl || downloadUrl || thumbnailUrl,
+          // previewUrl deve apontar para um recurso de preview/thumbnail (imagem/vídeo embed),
+          // e NÃO para o endpoint de download.
+          previewUrl: item.previewUrl || item.previewurl || thumbnailUrl,
           status: item.status || 'draft',
           approvalStatus: item.approvalStatus || item.approvalstatus || null,
           rejectionReason: item.rejectionReason || item.rejectionreason || null,
