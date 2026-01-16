@@ -75,7 +75,7 @@ const Media: React.FC = () => {
     const admin = userRole === 'admin' || userType === 'system_user';
     setIsAdmin(admin);
     // Compat: user no localStorage pode vir em snake_case ou camelCase
-    setUserSubscriberId(user?.subscriberId ?? user?.subscriber_id);
+    setUserSubscriberId(user?.subscriberId ?? user?.subscriber_id ?? user?.clientId);
 
     if (admin) {
       loadSubscribers();

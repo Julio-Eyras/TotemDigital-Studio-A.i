@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Response, Request } from 'express';
 import { MediaService } from '../services/mediaService';
 import { StorageService } from '../services/storageService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
@@ -33,7 +33,28 @@ function getMediaService(): MediaService {
   return (global as any).mediaServiceInstance;
 }
 
-// Middleware de autenticação para todas as rotas
+/**
+ * Rotas públicas (sem auth):
+ * - thumbnails são usados em <img src> e não enviam Authorization header, então se forem privadas geram 401 no navegador.
+ */
+router.get('/:id/thumbnail',
+  ...idParamValidatorDefault,
+  validateRequest,
+  async (req: Request, res: Response) => {
+    try {
+      const mediaId = parseInt(req.params.id);
+      const thumbnail = await getMediaService().getThumbnail(mediaId);
+      if (!thumbnail) {
+        return res.status(404).json({ error: 'Thumbnail não encontrada' });
+      }
+      return res.sendFile(thumbnail);
+    } catch (_error: any) {
+      return res.status(500).json({ error: 'Erro ao obter thumbnail' });
+    }
+  }
+);
+
+// Middleware de autenticação para as demais rotas
 router.use(authMiddleware);
 
 // Aplicar bloqueio de dados de clientes para OPERATOR
@@ -674,30 +695,7 @@ router.get('/:id/download',
   }
 );
 
-/**
- * @route GET /api/media/:id/thumbnail
- * @desc Obter thumbnail do arquivo de mídia
- * @access Private
- */
-router.get('/:id/thumbnail',
-  param('id').isInt({ min: 1 }),
-  validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const mediaId = parseInt(req.params.id);
-      const thumbnail = await getMediaService().getThumbnail(mediaId);
-      if (!thumbnail) {
-        // getThumbnail() tenta sempre retornar um placeholder (para evitar UI quebrada).
-        // Se ainda assim não houver, retornar 404.
-        return res.status(404).json({ error: 'Thumbnail não encontrado' });
-      }
-
-      return res.sendFile(thumbnail);
-    } catch (error) {
-      return res.status(500).json({ error: 'Erro ao obter thumbnail' });
-    }
-  }
-);
+// (rota /:id/thumbnail movida para o topo do arquivo como rota pública)
 
 /**
  * @route POST /api/media/:id/process

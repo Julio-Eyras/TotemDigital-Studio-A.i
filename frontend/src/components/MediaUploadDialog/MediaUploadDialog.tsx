@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Box,
   Button,
@@ -78,6 +78,17 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     tags: '',
     subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined),
   });
+
+  // Sincronizar subscriberId quando props carregam/atualizam (ex.: userSubscriberId e subscribers vêm async)
+  useEffect(() => {
+    if (!open) return;
+    setFormData((prev) => {
+      if (prev.subscriberId) return prev;
+      const fallback = userSubscriberId || (isAdmin && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined);
+      return { ...prev, subscriberId: fallback };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, userSubscriberId, isAdmin, subscribers?.length]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showError } = useNotification();
