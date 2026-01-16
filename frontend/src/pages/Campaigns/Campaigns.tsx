@@ -104,7 +104,7 @@ const Campaigns: React.FC = () => {
   const [newCampaign, setNewCampaign] = useState<CreateCampaignRequest>({
     title: '',
     description: '',
-    campaign_type: 'standard',
+    campaign_type: 'general',
     status: 'draft',
     subscriberId: undefined,
     start_date: '',
@@ -209,6 +209,15 @@ const Campaigns: React.FC = () => {
     }
   }, [userSubscriberId]);
 
+  const normalizeCampaignType = (raw: any): string => {
+    const v = String(raw ?? '').trim().toLowerCase();
+    // Aceitos no DB: general, scheduled, interactive, recurring
+    if (['general', 'scheduled', 'interactive', 'recurring'].includes(v)) return v;
+    // Valores legacy do frontend -> mapear para um tipo válido
+    if (['standard', 'promotional', 'informational'].includes(v)) return 'general';
+    return 'general';
+  };
+
   const normalizeCampaign = (campaign: any) => {
     if (!campaign) return campaign;
     return {
@@ -221,7 +230,7 @@ const Campaigns: React.FC = () => {
       start_date: campaign.start_date ?? campaign.startDate,
       end_date: campaign.end_date ?? campaign.endDate,
       // Compat de tipo/status/ativo
-      campaign_type: campaign.campaign_type ?? campaign.campaignType ?? 'standard',
+      campaign_type: normalizeCampaignType(campaign.campaign_type ?? campaign.campaignType),
       status: campaign.status ?? 'draft',
       is_active:
         campaign.is_active !== undefined
@@ -342,7 +351,7 @@ const Campaigns: React.FC = () => {
       setNewCampaign({
         title: '',
         description: '',
-        campaign_type: 'standard',
+        campaign_type: 'general',
         status: 'draft',
         subscriberId: undefined,
         start_date: '',
@@ -416,7 +425,7 @@ const Campaigns: React.FC = () => {
       const updateData: UpdateCampaignRequest = {
         title: selectedCampaign.title,
         description: selectedCampaign.description,
-        campaign_type: selectedCampaign.campaign_type || (selectedCampaign as any).campaignType || 'standard',
+        campaign_type: normalizeCampaignType(selectedCampaign.campaign_type || (selectedCampaign as any).campaignType),
         status: selectedCampaign.status || 'draft',
         subscriberId: selectedCampaign.subscriber_id || (selectedCampaign as any).subscriberId,
         start_date: selectedCampaign.start_date || (selectedCampaign as any).startDate,
@@ -812,9 +821,10 @@ const Campaigns: React.FC = () => {
               onChange={(e) => setNewCampaign({ ...newCampaign, campaign_type: e.target.value })}
               label="Tipo de Campanha"
             >
-              <MenuItem value="standard">Padrão</MenuItem>
-              <MenuItem value="promotional">Promocional</MenuItem>
-              <MenuItem value="informational">Informativa</MenuItem>
+              <MenuItem value="general">Geral</MenuItem>
+              <MenuItem value="scheduled">Agendada</MenuItem>
+              <MenuItem value="interactive">Interativa</MenuItem>
+              <MenuItem value="recurring">Recorrente</MenuItem>
             </Select>
           </FormControl>
           <FormControl fullWidth margin="normal">
