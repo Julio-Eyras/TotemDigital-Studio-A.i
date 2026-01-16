@@ -5,7 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
-import { logError, logDebug } from '../utils/loggerHelper';
+import { logError, logDebug, logInfo } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 import { getSubscriberAccessServiceInstance } from './subscriberAccessService';
 import { getSubscriberService } from './subscriberService';
@@ -751,24 +751,9 @@ export class CampaignService {
         `, [campaignId]);
 
         if (campaign) {
-          // Validar acesso a publishers
-          if (data.publisherIds.length > 0) {
-            const accessService = getSubscriberAccessServiceInstance();
-            const validation = await accessService.validateCampaignPublishers(
-              campaign.subscriber_id,
-              data.publisherIds
-            );
-
-            if (!validation.valid) {
-              throw new Error(
-                `Subscriber não tem acesso aos seguintes publishers: ${validation.invalidPublishers.join(', ')}. ` +
-                `Verifique o contrato e plano do subscriber.`
-              );
-            }
-          }
-
-          // Atualizar associações de publishers
-          await this.associatePublishers(campaignId, data.publisherIds, updatedBy);
+          // Política A: manter histórico mesmo que alguns publishers não sejam acessíveis agora.
+          // A execução (dispatcher/engine) deve filtrar por acesso vigente.
+          await this.associatePublishers(campaignId, data.publisherIds, updatedBy, { allowInvalid: true });
         }
       }
 
@@ -1553,14 +1538,32 @@ export class CampaignService {
         DELETE FROM campaign_playlists WHERE campaign_id = $1
       `, [campaignId]);
 
-      // Criar novas associações
+      // Criar novas associações (com snapshot em metadata, quando disponível no schema)
       for (const playlistId of playlistIds) {
+        const playlist = playlists.find(p => p.playlist_id === playlistId);
+        const metadata = {
+          snapshotVersion: 1,
+          takenAt: new Date().toISOString(),
+          takenByUserId: userId,
+          campaignId,
+          playlistId,
+          playlistSnapshot: {
+            playlistId,
+            name: playlist?.name,
+            subscriberId: playlist?.subscriber_id,
+            isActive: true
+          },
+          validation: {
+            validNow: true,
+            reason: 'playlist_belongs_to_subscriber'
+          }
+        };
         await this.db.executeRaw(`
-          INSERT INTO campaign_playlists (campaign_id, playlist_id, priority, is_active)
-          VALUES ($1, $2, 1, true)
+          INSERT INTO campaign_playlists (campaign_id, playlist_id, priority, is_active, metadata)
+          VALUES ($1, $2, 1, true, $3::jsonb)
           ON CONFLICT (campaign_id, playlist_id) DO UPDATE
-          SET is_active = true, priority = 1
-        `, [campaignId, playlistId]);
+          SET is_active = true, priority = 1, metadata = EXCLUDED.metadata
+        `, [campaignId, playlistId, JSON.stringify(metadata)]);
       }
 
       // Log de auditoria
@@ -1620,15 +1623,35 @@ export class CampaignService {
         DELETE FROM campaign_medias WHERE campaign_id = $1
       `, [campaignId]);
 
-      // Criar novas associações
+      // Criar novas associações (com snapshot em metadata)
       for (let i = 0; i < mediaIds.length; i++) {
         const mediaId = mediaIds[i];
+        const media = medias.find(m => m.media_id === mediaId);
+        const metadata = {
+          snapshotVersion: 1,
+          takenAt: new Date().toISOString(),
+          takenByUserId: userId,
+          campaignId,
+          mediaId,
+          orderIndex: i,
+          mediaSnapshot: {
+            mediaId,
+            name: media?.name,
+            subscriberId: media?.subscriber_id,
+            status: media?.status,
+            isActive: true
+          },
+          validation: {
+            validNow: true,
+            reason: 'media_belongs_to_subscriber'
+          }
+        };
         await this.db.executeRaw(`
-          INSERT INTO campaign_medias (campaign_id, media_id, order_index, priority, is_active)
-          VALUES ($1, $2, $3, 1, true)
+          INSERT INTO campaign_medias (campaign_id, media_id, order_index, priority, is_active, metadata)
+          VALUES ($1, $2, $3, 1, true, $4::jsonb)
           ON CONFLICT (campaign_id, media_id) DO UPDATE
-          SET is_active = true, order_index = $3, priority = 1, updated_at = CURRENT_TIMESTAMP
-        `, [campaignId, mediaId, i]);
+          SET is_active = true, order_index = $3, priority = 1, updated_at = CURRENT_TIMESTAMP, metadata = EXCLUDED.metadata
+        `, [campaignId, mediaId, i, JSON.stringify(metadata)]);
       }
 
       // Log de auditoria
@@ -1655,7 +1678,8 @@ export class CampaignService {
   async associatePublishers(
     campaignId: number,
     publisherIds: number[],
-    userId: number
+    userId: number,
+    options: { allowInvalid?: boolean } = {}
   ): Promise<void> {
     try {
       // Buscar subscriber_id da campanha
@@ -1669,33 +1693,63 @@ export class CampaignService {
         throw new Error('Campanha não encontrada');
       }
 
-      // Validar acesso
+      // Validar acesso (política A):
+      // - allowInvalid=false (create): bloquear publishers inválidos
+      // - allowInvalid=true (update): permitir salvar histórico, mas marcar snapshot como inválido no momento
       const accessService = getSubscriberAccessServiceInstance();
-      const validation = await accessService.validateCampaignPublishers(
-        campaign.subscriber_id,
-        publisherIds
-      );
-
-      if (!validation.valid) {
-        throw new Error(
-          `Subscriber não tem acesso aos seguintes publishers: ${validation.invalidPublishers.join(', ')}`
-        );
+      const validation = await accessService.validateCampaignPublishers(campaign.subscriber_id, publisherIds);
+      if (!validation.valid && !options.allowInvalid) {
+        throw new Error(`Subscriber não tem acesso aos seguintes publishers: ${validation.invalidPublishers.join(', ')}`);
+      }
+      if (!validation.valid && options.allowInvalid) {
+        await logInfo('[CampaignService] Publishers inválidos mantidos por política A (histórico preservado)', {
+          campaignId,
+          subscriberId: campaign.subscriber_id,
+          invalidPublishers: validation.invalidPublishers
+        });
       }
 
       // Associar publishers
       for (const publisherId of publisherIds) {
+        const hasAccessNow = await accessService.hasAccess(campaign.subscriber_id, publisherId);
+        const accessDetails = await accessService.getAccessDetails(campaign.subscriber_id, publisherId);
+        const metadata = {
+          snapshotVersion: 1,
+          takenAt: new Date().toISOString(),
+          takenByUserId: userId,
+          campaignId,
+          publisherId,
+          subscriberId: campaign.subscriber_id,
+          accessAtThatTime: accessDetails
+            ? {
+                accessId: accessDetails.accessId,
+                accessType: accessDetails.accessType,
+                contractId: accessDetails.contractId,
+                planId: accessDetails.planId,
+                grantedAt: accessDetails.grantedAt,
+                expiresAt: accessDetails.expiresAt,
+                isActive: accessDetails.isActive
+              }
+            : null,
+          validation: {
+            validNow: hasAccessNow,
+            reason: hasAccessNow ? 'has_access_now' : 'no_access_now'
+          }
+        };
         await this.db.executeRaw(`
           INSERT INTO campaign_publishers (
             campaign_id,
             publisher_id,
-            is_active
+            is_active,
+            metadata
           )
-          VALUES ($1, $2, true)
+          VALUES ($1, $2, true, $3::jsonb)
           ON CONFLICT (campaign_id, publisher_id)
           DO UPDATE SET
             is_active = true,
+            metadata = EXCLUDED.metadata,
             updated_at = CURRENT_TIMESTAMP
-        `, [campaignId, publisherId]);
+        `, [campaignId, publisherId, JSON.stringify(metadata)]);
       }
 
       await logDebug('Publishers associados à campanha', {

@@ -138,6 +138,9 @@ export class PublisherCampaignMixService {
                     ct.days_of_week as totem_days_of_week
                 FROM campaigns c
                 INNER JOIN campaign_publishers cp ON c.campaign_id = cp.campaign_id
+                INNER JOIN subscriber_publisher_access_active spa
+                  ON spa.subscriber_id = c.subscriber_id
+                 AND spa.publisher_id = cp.publisher_id
                 INNER JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
                 INNER JOIN subscribers s ON c.subscriber_id = s.subscriber_id
                 LEFT JOIN totems t ON ct.totem_id = t.totem_id
@@ -224,6 +227,9 @@ export class PublisherCampaignMixService {
                 SELECT 1
                 FROM campaigns c
                 INNER JOIN campaign_publishers cp ON c.campaign_id = cp.campaign_id
+                INNER JOIN subscriber_publisher_access_active spa
+                  ON spa.subscriber_id = c.subscriber_id
+                 AND spa.publisher_id = cp.publisher_id
                 INNER JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
                 WHERE c.campaign_id = $1
                   AND ct.totem_id = $2

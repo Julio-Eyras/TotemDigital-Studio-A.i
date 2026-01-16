@@ -376,6 +376,11 @@ export class DispatcherTotemService {
             NULL::integer as cp_max_impressions_per_hour
           FROM campaigns c
           INNER JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
+          INNER JOIN totems t_direct ON ct.totem_id = t_direct.totem_id
+          INNER JOIN locals l_direct ON t_direct.local_id = l_direct.local_id
+          INNER JOIN subscriber_publisher_access_active spa_direct
+            ON spa_direct.subscriber_id = c.subscriber_id
+           AND spa_direct.publisher_id = l_direct.publisher_id
           WHERE ct.totem_id = $1
             AND ct.is_active = true
             AND c.is_active = true
@@ -414,6 +419,9 @@ export class DispatcherTotemService {
             cp.max_impressions_per_hour as cp_max_impressions_per_hour
           FROM campaigns c
           INNER JOIN campaign_publishers cp ON c.campaign_id = cp.campaign_id
+          INNER JOIN subscriber_publisher_access_active spa_group
+            ON spa_group.subscriber_id = c.subscriber_id
+           AND spa_group.publisher_id = cp.publisher_id
           INNER JOIN locals l ON cp.publisher_id = l.publisher_id
           INNER JOIN totems t ON l.local_id = t.local_id
           WHERE t.totem_id = $1

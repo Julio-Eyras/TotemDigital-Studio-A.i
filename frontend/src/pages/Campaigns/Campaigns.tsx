@@ -26,6 +26,8 @@ import {
   Switch,
   FormControlLabel,
   Autocomplete,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Add,
@@ -87,12 +89,18 @@ const Campaigns: React.FC = () => {
   };
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editTab, setEditTab] = useState(0);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [orderedMediaIds, setOrderedMediaIds] = useState<number[]>([]);
   const [orderedPlaylistIds, setOrderedPlaylistIds] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [error, setError] = useState<string | null>(null);
+
+  // Derivados para abas Totens/Smart TVs (impacto da seleção de publishers)
+  const [derivedTotems, setDerivedTotems] = useState<any[]>([]);
+  const [derivedSmartTvs, setDerivedSmartTvs] = useState<any[]>([]);
+  const [derivedDevicesLoading, setDerivedDevicesLoading] = useState(false);
   const [newCampaign, setNewCampaign] = useState<CreateCampaignRequest>({
     title: '',
     description: '',
@@ -124,12 +132,74 @@ const Campaigns: React.FC = () => {
       // Manter ordem das mídias e playlists
       setOrderedMediaIds(selectedCampaign.mediaIds || []);
       setOrderedPlaylistIds(selectedCampaign.playlistIds || []);
+      setEditTab(0);
     } else if (!editDialogOpen) {
       // Limpar ordem quando fechar diálogo
       setOrderedMediaIds([]);
       setOrderedPlaylistIds([]);
+      setDerivedTotems([]);
+      setDerivedSmartTvs([]);
     }
   }, [selectedCampaign, editDialogOpen]);
+
+  const getSelectedPublisherIds = (): number[] => {
+    if (!selectedCampaign) return [];
+    return (((selectedCampaign as any).publisherIds || []) as number[]).filter((x) => typeof x === 'number');
+  };
+
+  const loadDerivedDevices = async () => {
+    if (!selectedCampaign) return;
+    const publisherIds = getSelectedPublisherIds();
+    if (publisherIds.length === 0) {
+      setDerivedTotems([]);
+      setDerivedSmartTvs([]);
+      return;
+    }
+
+    try {
+      setDerivedDevicesLoading(true);
+      const results = await Promise.all(
+        publisherIds.map(async (publisherId) => {
+          const [totems, tvs] = await Promise.all([
+            publisherApi.getTotems(publisherId),
+            publisherApi.getSmartTvs(publisherId),
+          ]);
+          return { publisherId, totems, tvs };
+        })
+      );
+
+      const allTotems = results.flatMap(r => r.totems || []);
+      const allTvs = results.flatMap(r => r.tvs || []);
+
+      const uniqBy = (items: any[], key: string) => {
+        const map = new Map<any, any>();
+        for (const it of items) {
+          const k = it?.[key];
+          if (k !== undefined && k !== null) map.set(k, it);
+        }
+        return Array.from(map.values());
+      };
+
+      setDerivedTotems(uniqBy(allTotems, 'totem_id'));
+      setDerivedSmartTvs(uniqBy(allTvs, 'tv_id'));
+    } catch (e) {
+      console.error('Erro ao carregar totems/smart TVs derivados:', e);
+      setDerivedTotems([]);
+      setDerivedSmartTvs([]);
+    } finally {
+      setDerivedDevicesLoading(false);
+    }
+  };
+
+  // Carregar devices derivados quando entrar nas abas Totens/Smart TVs
+  useEffect(() => {
+    if (!editDialogOpen) return;
+    // 4 = Totens, 5 = Smart TVs (ver Tabs abaixo)
+    if (editTab === 4 || editTab === 5) {
+      loadDerivedDevices();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTab, editDialogOpen, selectedCampaign]);
 
   useEffect(() => {
     loadPlayers();
@@ -405,9 +475,42 @@ const Campaigns: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('pt-BR');
+  const formatDate = (dateValue?: any) => {
+    if (!dateValue) return 'N/A';
+    try {
+      let s = typeof dateValue === 'string' ? dateValue.trim() : '';
+      let d: Date;
+      if (dateValue instanceof Date) {
+        d = dateValue;
+      } else if (s) {
+        // Normalizar "YYYY-MM-DD HH:mm:ss" -> "YYYY-MM-DDTHH:mm:ss"
+        if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}/.test(s)) {
+          s = s.replace(' ', 'T');
+        }
+        d = new Date(s);
+      } else {
+        d = new Date(dateValue);
+      }
+      if (isNaN(d.getTime())) return 'N/A';
+      return d.toLocaleDateString('pt-BR');
+    } catch {
+      return 'N/A';
+    }
+  };
+
+  const toDateInputValue = (dateValue?: any) => {
+    if (!dateValue) return '';
+    try {
+      if (dateValue instanceof Date) {
+        return dateValue.toISOString().slice(0, 10);
+      }
+      const s = typeof dateValue === 'string' ? dateValue.trim() : '';
+      if (!s) return '';
+      const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+      return m ? m[1] : '';
+    } catch {
+      return '';
+    }
   };
 
   if (loading) {
@@ -921,6 +1024,24 @@ const Campaigns: React.FC = () => {
       <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Editar Campanha</DialogTitle>
         <DialogContent>
+          <Tabs
+            value={editTab}
+            onChange={(_, v) => setEditTab(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{ mb: 2 }}
+          >
+            <Tab label="Principal" />
+            <Tab label="Publicadores" />
+            <Tab label="Playlists" />
+            <Tab label="Mídias" />
+            <Tab label="Totens" />
+            <Tab label="Smart TVs" />
+            <Tab label="Agendamento" />
+          </Tabs>
+
+          {editTab === 0 && (
+            <>
           <TextField
             fullWidth
             label="Título"
@@ -960,33 +1081,106 @@ const Campaigns: React.FC = () => {
             }
             label="Campanha Ativa"
           />
+
+          {/* Datas (Início/Fim) */}
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Data de Início"
+                type="date"
+                value={toDateInputValue(selectedCampaign?.start_date || (selectedCampaign as any)?.startDate)}
+                onChange={(e) => setSelectedCampaign({
+                  ...selectedCampaign!,
+                  start_date: e.target.value
+                })}
+                InputLabelProps={{ shrink: true }}
+                helperText="Período de validade da campanha (início)"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Data de Fim"
+                type="date"
+                value={toDateInputValue(selectedCampaign?.end_date || (selectedCampaign as any)?.endDate)}
+                onChange={(e) => setSelectedCampaign({
+                  ...selectedCampaign!,
+                  end_date: e.target.value
+                })}
+                InputLabelProps={{ shrink: true }}
+                helperText="Período de validade da campanha (fim)"
+              />
+            </Grid>
+          </Grid>
+            </>
+          )}
           
           {/* Seleção de Publishers */}
-          {selectedCampaign && (
+          {editTab === 1 && selectedCampaign && (
             <FormControl fullWidth margin="normal">
               <InputLabel>Publishers (Onde a campanha será exibida)</InputLabel>
               <Autocomplete
                 multiple
-                options={isAdmin ? publishers : accessiblePublishers.map(ap => ({
-                  publisher_id: ap.publisher_id,
-                  name: ap.publisher_name,
-                  email: ap.publisher_email
-                }))}
-                getOptionLabel={(option) => option.name || `Publisher ${option.publisher_id}`}
-                value={(() => {
-                  const publisherOptions: PublisherOption[] = isAdmin 
-                    ? publishers.map(p => ({
-                        publisher_id: p.publisher_id,
-                        name: p.name,
-                        email: p.email
-                      }))
-                    : accessiblePublishers.map(ap => ({
-                        publisher_id: ap.publisher_id,
-                        name: ap.publisher_name || '',
-                        email: ap.publisher_email
-                      }));
+                options={(() => {
+                  if (isAdmin) return publishers;
+                  const baseOptions: any[] = accessiblePublishers.map(ap => ({
+                    publisher_id: ap.publisher_id,
+                    name: ap.publisher_name,
+                    email: ap.publisher_email,
+                    __invalid: false
+                  }));
+
+                  // Incluir publishers selecionados mas não acessíveis (para permitir remover)
                   const selectedIds = ((selectedCampaign as any).publisherIds || []) as number[];
-                  return publisherOptions.filter(p => selectedIds.includes(p.publisher_id));
+                  const accessibleIds = accessiblePublishers.map(ap => ap.publisher_id);
+                  const invalidIds = selectedIds.filter(id => !accessibleIds.includes(id));
+                  const invalidOptions = invalidIds.map((publisherId) => {
+                    const fromAll = (publishers || []).find((p: any) => p.publisher_id === publisherId);
+                    return {
+                      publisher_id: publisherId,
+                      name: fromAll?.name || `Publisher ${publisherId}`,
+                      email: fromAll?.email,
+                      __invalid: true
+                    };
+                  });
+
+                  // Merge único por publisher_id
+                  const merged = [...baseOptions, ...invalidOptions];
+                  const seen = new Set<number>();
+                  return merged.filter((p) => {
+                    if (seen.has(p.publisher_id)) return false;
+                    seen.add(p.publisher_id);
+                    return true;
+                  });
+                })()}
+                getOptionLabel={(option) => option.name || `Publisher ${option.publisher_id}`}
+                isOptionEqualToValue={(option, value) => option.publisher_id === value.publisher_id}
+                getOptionDisabled={(option: any) => !isAdmin && option.__invalid === true}
+                value={(() => {
+                  const selectedIds = ((selectedCampaign as any).publisherIds || []) as number[];
+                  const options: any[] = isAdmin
+                    ? publishers
+                    : [
+                        ...accessiblePublishers.map(ap => ({
+                          publisher_id: ap.publisher_id,
+                          name: ap.publisher_name || '',
+                          email: ap.publisher_email,
+                          __invalid: false
+                        })),
+                        ...selectedIds
+                          .filter((id) => !accessiblePublishers.map(ap => ap.publisher_id).includes(id))
+                          .map((publisherId) => {
+                            const fromAll = (publishers || []).find((p: any) => p.publisher_id === publisherId);
+                            return {
+                              publisher_id: publisherId,
+                              name: fromAll?.name || `Publisher ${publisherId}`,
+                              email: fromAll?.email,
+                              __invalid: true
+                            };
+                          })
+                      ];
+                  return options.filter(p => selectedIds.includes(p.publisher_id));
                 })()}
                 onChange={(_, newValue) => {
                   setSelectedCampaign({ 
@@ -998,6 +1192,11 @@ const Campaigns: React.FC = () => {
                   const selectedIds = ((selectedCampaign as any).publisherIds || []) as number[];
                   const accessibleIds = accessiblePublishers.map(ap => ap.publisher_id);
                   const hasInvalidPublishers = !isAdmin && selectedIds.some(id => !accessibleIds.includes(id));
+                  const invalidIds = !isAdmin ? selectedIds.filter(id => !accessibleIds.includes(id)) : [];
+                  const invalidLabels = invalidIds.map((publisherId) => {
+                    const fromAll = (publishers || []).find((p: any) => p.publisher_id === publisherId);
+                    return `${fromAll?.name || `Publisher ${publisherId}`} (#${publisherId})`;
+                  });
                   
                   return (
                     <TextField 
@@ -1007,7 +1206,7 @@ const Campaigns: React.FC = () => {
                       error={hasInvalidPublishers}
                       helperText={
                         hasInvalidPublishers
-                          ? "⚠️ Alguns publishers selecionados não estão acessíveis. Remova-os ou verifique seu contrato."
+                          ? `⚠️ Publishers não acessíveis: ${invalidLabels.join(', ')}. Remova-os ou verifique seu contrato.`
                           : isAdmin 
                           ? "Selecione os publishers onde a campanha será exibida"
                           : accessiblePublishers.length === 0
@@ -1023,6 +1222,7 @@ const Campaigns: React.FC = () => {
           )}
           
           {/* Seleção de Playlists */}
+          {editTab === 2 && (
           <Box sx={{ mt: 2 }}>
             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
               Playlists
@@ -1094,8 +1294,10 @@ const Campaigns: React.FC = () => {
               />
             )}
           </Box>
+          )}
           
           {/* Seleção de Mídias Diretas */}
+          {editTab === 3 && (
           <Box sx={{ mt: 2 }}>
             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
               Mídias Diretas (sem playlist)
@@ -1167,8 +1369,100 @@ const Campaigns: React.FC = () => {
               />
             )}
           </Box>
+          )}
+
+          {/* Aba Totens (derivados dos publishers selecionados) */}
+          {editTab === 4 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                Totens impactados (derivado dos publishers selecionados)
+              </Typography>
+              {derivedDevicesLoading ? (
+                <LinearProgress />
+              ) : (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {derivedTotems.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                      Nenhum totem encontrado para os publishers selecionados.
+                    </Typography>
+                  ) : (
+                    derivedTotems.map((t) => (
+                      <Chip
+                        key={t.totem_id}
+                        label={`${t.name || t.identifier || 'Totem'} (#${t.totem_id})`}
+                        size="small"
+                        color={t.status === 'online' ? 'success' : 'default'}
+                      />
+                    ))
+                  )}
+                </Box>
+              )}
+            </Box>
+          )}
+
+          {/* Aba Smart TVs (derivadas dos publishers selecionados) */}
+          {editTab === 5 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                Smart TVs impactadas (derivado dos publishers selecionados)
+              </Typography>
+              {derivedDevicesLoading ? (
+                <LinearProgress />
+              ) : (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {derivedSmartTvs.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                      Nenhuma Smart TV encontrada para os publishers selecionados.
+                    </Typography>
+                  ) : (
+                    derivedSmartTvs.map((tv) => (
+                      <Chip
+                        key={tv.tv_id}
+                        label={`${tv.name || tv.identifier || 'Smart TV'} (#${tv.tv_id})`}
+                        size="small"
+                        color={tv.status === 'online' ? 'success' : 'default'}
+                      />
+                    ))
+                  )}
+                </Box>
+              )}
+            </Box>
+          )}
+
+          {/* Aba Agendamento / Execução */}
+          {editTab === 6 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                Validade / Execução (política A)
+              </Typography>
+              {(() => {
+                const selectedIds = (((selectedCampaign as any)?.publisherIds || []) as number[]);
+                const accessibleIds = accessiblePublishers.map(ap => ap.publisher_id);
+                const invalidIds = !isAdmin ? selectedIds.filter(id => !accessibleIds.includes(id)) : [];
+                const invalidLabels = invalidIds.map((publisherId) => {
+                  const fromAll = (publishers || []).find((p: any) => p.publisher_id === publisherId);
+                  return `${fromAll?.name || `Publisher ${publisherId}`} (#${publisherId})`;
+                });
+                return (
+                  <>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      A campanha pode manter associações históricas. A execução (dispatcher/mix) filtra apenas o que estiver válido no momento atual.
+                    </Typography>
+                    {invalidLabels.length > 0 ? (
+                      <Alert severity="warning">
+                        Publishers bloqueados agora (não serão executados): {invalidLabels.join(', ')}
+                      </Alert>
+                    ) : (
+                      <Alert severity="success">Todos os publishers selecionados estão válidos no momento.</Alert>
+                    )}
+                  </>
+                );
+              })()}
+            </Box>
+          )}
           
           {/* Campos Comerciais */}
+          {editTab === 0 && (
           <Box sx={{ mt: 2, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: theme.palette.primary.main }}>
               Configurações Comerciais
@@ -1215,6 +1509,7 @@ const Campaigns: React.FC = () => {
               helperText="Número máximo de itens desta campanha que podem aparecer consecutivamente"
             />
           </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>

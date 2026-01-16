@@ -223,9 +223,11 @@ app.get('/health', async (_req, res) => {
   try {
     const systemService = new SystemService();
     const health = await systemService.getSystemHealth();
+    const dbStatus = String(health?.database?.status || '').toLowerCase();
+    const isDbHealthy = ['healthy', 'ok', 'connected'].includes(dbStatus);
     
-    res.status(200).json({
-      status: 'healthy',
+    res.status(isDbHealthy ? 200 : 503).json({
+      status: isDbHealthy ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
       version: '2.0.0',
       database: health.database,
@@ -258,9 +260,11 @@ app.get('/api/health', async (_req, res) => {
   try {
     const systemService = new SystemService();
     const health = await systemService.getSystemHealth();
+    const dbStatus = String(health?.database?.status || '').toLowerCase();
+    const isDbHealthy = ['healthy', 'ok', 'connected'].includes(dbStatus);
     
-    res.status(200).json({
-      status: 'healthy',
+    res.status(isDbHealthy ? 200 : 503).json({
+      status: isDbHealthy ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
       version: '2.0.0',
       database: health.database,

@@ -51,7 +51,8 @@ function Write-Info($text) {
 }
 
 # Variáveis
-$ROOT_DIR = $PSScriptRoot
+# Observação: este script fica em ./scripts. O ROOT_DIR deve ser o diretório raiz do projeto.
+$ROOT_DIR = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $BACKEND_DIR = Join-Path $ROOT_DIR "backend"
 $FRONTEND_DIR = Join-Path $ROOT_DIR "frontend"
 $NGINX_DIR = Join-Path $ROOT_DIR "nginx"
@@ -119,6 +120,136 @@ function Stop-ServiceOnPort {
     } catch {
         Write-Info "Verificacao da porta ${Port} concluida"
         return $false
+    }
+}
+
+function Test-HttpOk {
+    param(
+        [Parameter(Mandatory=$true)][string]$Url,
+        [int]$TimeoutSeconds = 3
+    )
+
+    try {
+        # Invoke-WebRequest é mais estável para retornar StatusCode
+        $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec $TimeoutSeconds -Method GET
+        return ($r.StatusCode -ge 200 -and $r.StatusCode -lt 300)
+    } catch {
+        return $false
+    }
+}
+
+function Wait-For-HttpOk {
+    param(
+        [Parameter(Mandatory=$true)][string]$Url,
+        [int]$MaxAttempts = 20,
+        [int]$DelaySeconds = 2
+    )
+
+    for ($i = 1; $i -le $MaxAttempts; $i++) {
+        if (Test-HttpOk -Url $Url) {
+            return $true
+        }
+        Start-Sleep -Seconds $DelaySeconds
+    }
+
+    return $false
+}
+
+function Test-BackendHealthy {
+    param(
+        [Parameter(Mandatory=$true)][string]$Url,
+        [int]$TimeoutSeconds = 3
+    )
+
+    try {
+        $r = Invoke-RestMethod -Uri $Url -TimeoutSec $TimeoutSeconds -Method GET
+        if (-not $r) { return $false }
+
+        # Preferir o healthcheck completo (inclui DB)
+        $statusOk = ($r.status -eq "healthy")
+        $dbOk = $false
+        try {
+            $dbOk = ($r.checks.database.status -eq "healthy")
+        } catch { $dbOk = $false }
+
+        return ($statusOk -and $dbOk)
+    } catch {
+        return $false
+    }
+}
+
+function Wait-For-BackendHealthy {
+    param(
+        [Parameter(Mandatory=$true)][string]$Url,
+        [int]$MaxAttempts = 25,
+        [int]$DelaySeconds = 2
+    )
+
+    for ($i = 1; $i -le $MaxAttempts; $i++) {
+        if (Test-BackendHealthy -Url $Url) {
+            return $true
+        }
+        Start-Sleep -Seconds $DelaySeconds
+    }
+
+    return $false
+}
+
+function Try-Check-PostgresConnectivity {
+    param(
+        [Parameter(Mandatory=$true)][string]$BackendDir
+    )
+
+    # Checagens leves (sem criar DB): porta + tentativa de SELECT 1 via pg (se possível)
+    $pgPortOpen = $false
+    try {
+        $pgPortOpen = [bool](Test-NetConnection -ComputerName "localhost" -Port 5432 -InformationLevel Quiet)
+    } catch { }
+
+    if (-not $pgPortOpen) {
+        Write-Warning-Custom "PostgreSQL não parece estar acessível em localhost:5432"
+        return $false
+    }
+
+    # Tentar conectar usando o DATABASE_URL do backend/.env (se existir).
+    $envPath = Join-Path $BackendDir ".env"
+    if (-not (Test-Path $envPath)) {
+        Write-Warning-Custom "Arquivo backend/.env não encontrado para validar DATABASE_URL"
+        return $false
+    }
+
+    $raw = Get-Content $envPath -Raw -ErrorAction SilentlyContinue
+    if (-not $raw) {
+        Write-Warning-Custom "Não foi possível ler backend/.env para validar DATABASE_URL"
+        return $false
+    }
+
+    $m = [regex]::Match($raw, "(?m)^\s*DATABASE_URL\s*=\s*(.+?)\s*$")
+    if (-not $m.Success) {
+        Write-Warning-Custom "DATABASE_URL não encontrado em backend/.env"
+        return $false
+    }
+
+    $dbUrl = $m.Groups[1].Value.Trim()
+    if ($dbUrl.StartsWith('"') -and $dbUrl.EndsWith('"')) { $dbUrl = $dbUrl.Trim('"') }
+    if ($dbUrl.StartsWith("'") -and $dbUrl.EndsWith("'")) { $dbUrl = $dbUrl.Trim("'") }
+
+    try {
+        Push-Location $BackendDir
+        $env:DATABASE_URL = $dbUrl
+        $cmd = "node -e `"const {Client}=require('pg'); const cs=process.env.DATABASE_URL; const c=new Client({connectionString:cs}); c.connect().then(()=>c.query('SELECT 1')).then(()=>{console.log('PG_OK')}).catch(e=>{console.error('PG_ERR:'+e.message); process.exit(1)}).finally(()=>c.end().catch(()=>{}));`""
+        $out = Invoke-Expression $cmd 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "PostgreSQL acessível e DATABASE_URL válido (SELECT 1 OK)"
+            return $true
+        }
+        Write-Warning-Custom "Falha ao validar conexão com PostgreSQL via DATABASE_URL: $out"
+        return $false
+    } catch {
+        Write-Warning-Custom "Erro ao validar conexão PostgreSQL via pg: $_"
+        return $false
+    } finally {
+        Pop-Location
     }
 }
 
@@ -576,24 +707,17 @@ Write-Info "Iniciando Backend em nova janela..."
 Start-Process powershell.exe -ArgumentList "-NoExit", "-File", "`"$backendScript`"" -WindowStyle Normal
 Write-Success "Backend iniciado em nova janela"
 
-# Aguardar backend iniciar
-Write-Info "Aguardando backend iniciar..."
-Start-Sleep -Seconds 8
-
-# Verificar se backend está rodando
-$backendRunning = $false
-for ($i = 0; $i -lt 15; $i++) {
-    $conn = Get-NetTCPConnection -LocalPort $BACKEND_PORT -ErrorAction SilentlyContinue
-    if ($conn) {
-        $backendRunning = $true
-        Write-Success "Backend está rodando na porta $BACKEND_PORT"
-        break
-    }
-    Start-Sleep -Seconds 2
-}
+# Aguardar backend iniciar (checar health de verdade, não só porta)
+Write-Info "Aguardando backend iniciar (healthcheck + banco)..."
+$backendHealthUrl = "http://localhost:$BACKEND_PORT/api/health/check"
+$backendRunning = Wait-For-BackendHealthy -Url $backendHealthUrl -MaxAttempts 25 -DelaySeconds 2
 
 if (-not $backendRunning) {
-    Write-Warning-Custom "Backend pode nao ter iniciado corretamente. Verifique a janela do backend."
+    Write-Warning-Custom "Backend não respondeu em $backendHealthUrl. Verifique a janela do backend."
+    Write-Info "Diagnóstico rápido: validando PostgreSQL/DATABASE_URL (sem criar banco)..."
+    [void](Try-Check-PostgresConnectivity -BackendDir $BACKEND_DIR)
+} else {
+    Write-Success "Backend respondeu OK em: $backendHealthUrl"
 }
 
 # Iniciar Frontend em nova janela
@@ -659,7 +783,7 @@ Write-Host ""
 
 Write-Host "Para parar os servicos:" -ForegroundColor Yellow
 Write-ColorOutput -ForegroundColor White "  • Feche as janelas do PowerShell (Backend e Frontend)"
-Write-ColorOutput -ForegroundColor White "  • Ou execute: .\PARAR-SERVICOS.ps1"
+Write-ColorOutput -ForegroundColor White "  • Ou execute: .\scripts\PARAR-SERVICOS.ps1"
 Write-Host ""
 
 Write-Host "Logs:" -ForegroundColor Cyan

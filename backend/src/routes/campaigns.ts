@@ -291,21 +291,30 @@ router.post('/',
       });
     }
 
-    // Mapear campos do frontend para o backend
+    // Mapear campos do frontend (snake_case) e do backend (camelCase) para o CampaignService
     const mappedData: any = {
-      // Mantemos clientId no payload, mas ele será gravado em subscriber_id no banco
-      clientId: campaignData.clientId,
+      subscriberId: campaignData.subscriberId || campaignData.subscriber_id || campaignData.clientId,
+      contractId: campaignData.contractId || campaignData.contract_id,
       title: campaignData.title,
       description: campaignData.description,
-      campaignType: campaignData.campaign_type || campaignData.campaignType || 'general',
+      campaignType: campaignData.campaignType || campaignData.campaign_type || 'general',
+      priority: campaignData.priority,
+      commercialTier: campaignData.commercialTier || campaignData.commercial_tier,
+      startDate: campaignData.startDate || campaignData.start_date,
+      endDate: campaignData.endDate || campaignData.end_date,
+      startTime: campaignData.startTime || campaignData.start_time,
+      endTime: campaignData.endTime || campaignData.end_time,
+      daysOfWeek: campaignData.daysOfWeek || campaignData.days_of_week,
+      timezone: campaignData.timezone,
       status: campaignData.status || 'draft',
-      startDate: campaignData.start_date || campaignData.startDate,
-      endDate: campaignData.end_date || campaignData.endDate,
-      isActive: campaignData.isActive !== undefined ? campaignData.isActive : true
+      isActive: campaignData.isActive !== undefined ? campaignData.isActive : (campaignData.is_active !== undefined ? campaignData.is_active : true),
+      publisherIds: campaignData.publisherIds || [],
+      playlistIds: campaignData.playlistIds || [],
+      mediaIds: campaignData.mediaIds || [],
     };
 
-    // Se clientId (subscriber) não foi fornecido, usar o do usuário autenticado ou buscar primeiro subscriber ativo
-    if (!mappedData.clientId) {
+    // Se subscriberId não foi fornecido, usar o do usuário autenticado ou buscar primeiro subscriber ativo
+    if (!mappedData.subscriberId) {
       if (req.user.role === 'client' && req.user.subscriberId) {
         mappedData.subscriberId = req.user.subscriberId;
       } else {
@@ -316,8 +325,8 @@ router.post('/',
             SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
           `);
           if (firstSubscriber) {
-            mappedData.clientId = firstSubscriber.subscriber_id;
-            await logInfo('[Campaign] Usando primeiro subscriber ativo', { clientId: mappedData.clientId });
+            mappedData.subscriberId = firstSubscriber.subscriber_id;
+            await logInfo('[Campaign] Usando primeiro subscriber ativo', { subscriberId: mappedData.subscriberId });
           } else {
             const validationError = new Error('Nenhum subscriber ativo encontrado no sistema');
             await logError('Erro: Nenhum subscriber ativo encontrado', validationError, {});
@@ -330,7 +339,7 @@ router.post('/',
           await logError('Erro ao buscar subscriber', dbError);
           return res.status(400).json({
             success: false,
-            message: 'clientId (subscriber) é obrigatório'
+            message: 'subscriberId é obrigatório'
           });
         }
       }
@@ -345,10 +354,10 @@ router.post('/',
     }
 
     // Validar limites do plano antes de criar campanha
-    if (mappedData.clientId) {
+    if (mappedData.subscriberId) {
       try {
         const subscriberService = getSubscriberService();
-        await subscriberService.validatePlanLimits(mappedData.clientId, 'campaign');
+        await subscriberService.validatePlanLimits(mappedData.subscriberId, 'campaign');
       } catch (limitError: any) {
         return res.status(400).json({
           success: false,
@@ -425,6 +434,26 @@ router.put('/:id',
   const { id } = req.params;
   try {
     const updateData = req.body;
+    // Mapear campos do frontend (snake_case) e do backend (camelCase) para o CampaignService
+    const mappedUpdateData: any = {
+      title: updateData.title,
+      description: updateData.description,
+      campaignType: updateData.campaignType || updateData.campaign_type,
+      priority: updateData.priority,
+      contractId: updateData.contractId || updateData.contract_id,
+      commercialTier: updateData.commercialTier || updateData.commercial_tier,
+      startDate: updateData.startDate || updateData.start_date,
+      endDate: updateData.endDate || updateData.end_date,
+      startTime: updateData.startTime || updateData.start_time,
+      endTime: updateData.endTime || updateData.end_time,
+      daysOfWeek: updateData.daysOfWeek || updateData.days_of_week,
+      timezone: updateData.timezone,
+      status: updateData.status,
+      isActive: updateData.isActive !== undefined ? updateData.isActive : updateData.is_active,
+      publisherIds: updateData.publisherIds,
+      playlistIds: updateData.playlistIds,
+      mediaIds: updateData.mediaIds,
+    };
 
     // Verificar se campanha existe e permissão
     const existingCampaign = await getCampaignService().getCampaignById(parseInt(id));
@@ -445,7 +474,7 @@ router.put('/:id',
 
     const campaign = await getCampaignService().updateCampaign(
       parseInt(id),
-      updateData,
+      mappedUpdateData,
       req.user.userId
     );
 

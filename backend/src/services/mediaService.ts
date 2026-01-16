@@ -101,6 +101,25 @@ export class MediaService {
     return getDatabase();
   }
   
+  private isAbsoluteUrl(url: string): boolean {
+    return /^https?:\/\//i.test(url);
+  }
+
+  /**
+   * Normaliza previewUrl/thumbnailUrl vindos do banco:
+   * - Mantém URLs absolutas (http/https) e endpoints internos (/api/...)
+   * - Ignora caminhos legacy como /previews/* e /thumbnails/* (não garantidos no backend)
+   * - Caso inválido/indesejado, cai para o fallback (tipicamente /api/media/:id/thumbnail)
+   */
+  private normalizePreviewUrl(raw: unknown, fallback: string): string {
+    const v = (typeof raw === 'string' ? raw.trim() : '');
+    if (!v) return fallback;
+    if (v.startsWith('/api/')) return v;
+    if (this.isAbsoluteUrl(v)) return v;
+    if (v.startsWith('/previews/') || v.startsWith('/thumbnails/')) return fallback;
+    return v;
+  }
+
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
     if (!(global as any).auditServiceInstance) {
@@ -314,6 +333,8 @@ export class MediaService {
         const downloadUrl = item.id ? `/api/media/${item.id}/download` : (filePath ? this.getDownloadUrl(filePath) : '');
         const thumbnailUrl = item.id ? `/api/media/${item.id}/thumbnail` : (item.thumbnailUrl || item.thumbnailurl || (filePath ? this.getThumbnailUrl(filePath, item.mediaType || item.mediaType) : ''));
         
+        const previewUrl = this.normalizePreviewUrl(item.previewUrl || item.previewurl, thumbnailUrl);
+
         return {
           id: item.id,
           subscriberId: item.subscriberId || item.subscriber_id,
@@ -336,7 +357,7 @@ export class MediaService {
           thumbnailUrl: thumbnailUrl,
           // previewUrl deve apontar para um recurso de preview/thumbnail (imagem/vídeo embed),
           // e NÃO para o endpoint de download.
-          previewUrl: item.previewUrl || item.previewurl || thumbnailUrl,
+          previewUrl,
           status: item.status || 'draft',
           approvalStatus: item.approvalStatus || item.approvalstatus || null,
           rejectionReason: item.rejectionReason || item.rejectionreason || null,
@@ -454,6 +475,7 @@ export class MediaService {
       // Para o frontend: sempre preferir endpoints da API
       const downloadUrl = media.id ? `/api/media/${media.id}/download` : (filePath ? this.getDownloadUrl(filePath) : '');
       const thumbnailUrl = media.id ? `/api/media/${media.id}/thumbnail` : (media.thumbnailUrl || media.thumbnailurl || (filePath ? this.getThumbnailUrl(filePath, media.mediaType || media.mediaType) : ''));
+      const previewUrl = this.normalizePreviewUrl(media.previewUrl || media.previewurl, thumbnailUrl);
 
       return {
         id: media.id,
@@ -475,7 +497,7 @@ export class MediaService {
         width: media.width || null,
         height: media.height || null,
         thumbnailUrl: thumbnailUrl,
-        previewUrl: media.previewUrl || media.previewurl || downloadUrl || thumbnailUrl,
+        previewUrl,
         status: media.status || 'draft',
         approvalStatus: media.approvalStatus || media.approvalstatus || null,
         rejectionReason: media.rejectionReason || media.rejectionreason || null,
