@@ -852,6 +852,14 @@ export const mediaApi = {
   delete: async (id: number): Promise<void> => {
     await api.delete(`/media/${id}`);
   },
+
+  /**
+   * Busca thumbnail como Blob usando Authorization header (necessário porque <img src> não envia Bearer token).
+   */
+  getThumbnailBlob: async (id: number): Promise<Blob> => {
+    const response = await api.get(`/media/${id}/thumbnail`, { responseType: 'blob' });
+    return response.data as Blob;
+  },
 };
 
 // =============================================

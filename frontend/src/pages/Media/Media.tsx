@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
@@ -63,6 +63,10 @@ const Media: React.FC = () => {
   const [userSubscriberId, setUserSubscriberId] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
+  // Cache de thumbnails autorizados (Blob URLs) para evitar 401 em <img src="/api/...">
+  const thumbObjectUrlsRef = useRef<Map<number, string>>(new Map());
+  const [thumbVersion, setThumbVersion] = useState(0); // força rerender quando adicionamos um blob url
+
   useEffect(() => {
     // Verificar se é admin e carregar subscribers
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -77,6 +81,70 @@ const Media: React.FC = () => {
     }
     loadMediaItems();
   }, []);
+
+  // Cleanup de Blob URLs ao desmontar
+  useEffect(() => {
+    return () => {
+      for (const url of thumbObjectUrlsRef.current.values()) {
+        try { URL.revokeObjectURL(url); } catch { /* noop */ }
+      }
+      thumbObjectUrlsRef.current.clear();
+    };
+  }, []);
+
+  const isProtectedThumbnailUrl = (url?: string) => {
+    if (!url) return false;
+    // cobre relativo e absoluto; o que importa é o path conter /api/media/:id/thumbnail
+    return /\/api\/media\/\d+\/thumbnail(\?|$)/.test(url);
+  };
+
+  const getPreviewSrc = (media: any): string | undefined => {
+    const id = media?.media_id || media?.id;
+    const cached = typeof id === 'number' ? thumbObjectUrlsRef.current.get(id) : undefined;
+    if (cached) return cached;
+    return media?.thumbnailUrl || media?.previewUrl;
+  };
+
+  // Prefetch thumbnails protegidos via axios (com token) e usar Blob URL como src
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    if (!Array.isArray(mediaItems) || mediaItems.length === 0) return;
+
+    let cancelled = false;
+    const toFetch = mediaItems
+      .map((m: any) => ({
+        id: m?.media_id || m?.id,
+        url: m?.thumbnailUrl || m?.previewUrl,
+      }))
+      .filter((x) => typeof x.id === 'number')
+      .filter((x) => isProtectedThumbnailUrl(x.url))
+      .filter((x) => !thumbObjectUrlsRef.current.has(x.id));
+
+    if (toFetch.length === 0) return;
+
+    (async () => {
+      for (const { id } of toFetch) {
+        try {
+          const blob = await mediaApi.getThumbnailBlob(id);
+          const objectUrl = URL.createObjectURL(blob);
+          if (cancelled) {
+            try { URL.revokeObjectURL(objectUrl); } catch { /* noop */ }
+            continue;
+          }
+          thumbObjectUrlsRef.current.set(id, objectUrl);
+          setThumbVersion((v) => v + 1);
+        } catch {
+          // Se falhar (ex.: 401 por token inválido), mantém fallback normal.
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaItems]);
 
   const loadSubscribers = async () => {
     try {
@@ -311,7 +379,7 @@ const Media: React.FC = () => {
                 {/* Preview da Mídia */}
                 {(() => {
                   // Construir URL do preview/thumbnail
-                  let previewUrl = media.thumbnailUrl || media.previewUrl;
+                  let previewUrl = getPreviewSrc(media);
                   
                   // Se não houver thumbnailUrl, usar file_path
                   if (!previewUrl && media.file_path) {
@@ -341,44 +409,24 @@ const Media: React.FC = () => {
                   if (finalPreviewUrl) {
                     return (
                       <>
-                        {media.media_type === 'video' ? (
-                          <Box
-                            component="video"
-                            src={finalPreviewUrl}
-                            sx={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
-                              position: 'absolute',
-                              top: 0,
-                              left: 0,
-                            }}
-                            muted
-                            playsInline
-                            onError={(e: any) => {
-                              // Se o vídeo falhar, mostrar ícone
-                              e.target.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <Box
-                            component="img"
-                            src={finalPreviewUrl}
-                            alt={media.name}
-                            sx={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
-                              position: 'absolute',
-                              top: 0,
-                              left: 0,
-                            }}
-                            onError={(e: any) => {
-                              // Se a imagem falhar ao carregar, ocultar e mostrar apenas o ícone
-                              e.target.style.display = 'none';
-                            }}
-                          />
-                        )}
+                        <Box
+                          component="img"
+                          key={`${media.media_id || media.id}-${thumbVersion}`}
+                          src={finalPreviewUrl}
+                          alt={media.name}
+                          sx={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                          }}
+                          onError={(e: any) => {
+                            // Se a imagem falhar ao carregar, ocultar e mostrar apenas o ícone
+                            e.target.style.display = 'none';
+                          }}
+                        />
                       </>
                     );
                   }
