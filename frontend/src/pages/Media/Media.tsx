@@ -74,7 +74,8 @@ const Media: React.FC = () => {
     const userType = user?.userType || '';
     const admin = userRole === 'admin' || userType === 'system_user';
     setIsAdmin(admin);
-    setUserSubscriberId(user?.subscriberId);
+    // Compat: user no localStorage pode vir em snake_case ou camelCase
+    setUserSubscriberId(user?.subscriberId ?? user?.subscriber_id);
 
     if (admin) {
       loadSubscribers();
@@ -102,7 +103,10 @@ const Media: React.FC = () => {
     const id = media?.media_id || media?.id;
     const cached = typeof id === 'number' ? thumbObjectUrlsRef.current.get(id) : undefined;
     if (cached) return cached;
-    return media?.thumbnailUrl || media?.previewUrl;
+    const url = media?.thumbnailUrl || media?.previewUrl;
+    // Evitar que o browser tente carregar /api/media/:id/thumbnail sem Authorization (gera 401)
+    if (isProtectedThumbnailUrl(url)) return undefined;
+    return url;
   };
 
   // Prefetch thumbnails protegidos via axios (com token) e usar Blob URL como src
