@@ -63,12 +63,12 @@ npm install winston-daily-rotate-file --save
 (cd "$INSTALL_DIR/database" && psql "$DATABASE_URL" -f "smartchannel-db-v2-refactored-apply-all.sql")
 
 # Executar seed de dados
-psql "$DATABASE_URL" -f "$INSTALL_DIR/database/carga-inicial-db-smarsignage-v4.sql"
+psql "$DATABASE_URL" -f "$INSTALL_DIR/database/carga-inicial-2025.sql"
 ```
 
 **Ordem de execução:**
 1. Criar schema refatorado (smartchannel-db-v2-refactored-apply-all.sql)
-2. Executar seed de dados (carga-inicial-db-smarsignage-v4.sql)
+2. Executar seed de dados (carga-inicial-2025.sql)
 
 ---
 
@@ -193,4 +193,5 @@ Após instalação completa:
 ---
 
 **Integração concluída e pronta para uso!**
+
 

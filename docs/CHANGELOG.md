@@ -29,7 +29,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 #### Alterado
 - Todas as queries agora usam PostgreSQL diretamente
 - Schema agora é gerenciado exclusivamente via `schema-postgresql.sql`
-- Seeds agora são gerenciados exclusivamente via `database/carga-inicial-db-smarsignage-v4.sql`
+- Seeds agora são gerenciados exclusivamente via `database/carga-inicial-2025.sql`
 - Melhor performance com connection pooling nativo do PostgreSQL
 - Instalador agora requer apenas PostgreSQL
 
@@ -67,4 +67,5 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ---
 
 **Última atualização**: 2025-11-03
+
 

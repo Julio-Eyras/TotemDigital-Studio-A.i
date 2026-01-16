@@ -38,7 +38,7 @@ Preparar o sistema Docker monolítico v2.1 (sem Prisma) para testes no servidor 
 - ✅ `docker/app-entrypoint.sh` - Existe e correto
 - ✅ `nginx/nginx-complete.conf` - Existe e correto
 - ✅ `database/smartchannel-db-v2-refactored-apply-all.sql` - Schema refatorado (apply-all)
-- ✅ `database/carga-inicial-db-smarsignage-v4.sql` - Seeds (carga inicial v4)
+- ✅ `database/carga-inicial-2025.sql` - Seeds (carga inicial 2025)
 - ✅ `install-smartsignage.sh` - Pronto para uso
 
 ---
@@ -146,4 +146,5 @@ docker exec smartsignage-postgres psql -U smartsignage -d smartsignage -c "SELEC
 **📅 Preparado em:** 2025-11-03  
 **👤 Por:** AI Assistant  
 **✅ Status:** Pronto para Testes no Servidor de Teste
+
 

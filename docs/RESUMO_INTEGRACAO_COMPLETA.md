@@ -26,7 +26,7 @@
 #### `database/smartchannel-db-v2-refactored-part9-triggers-functions.sql`
 - ✅ Função `get_user_effective_flags()` adicionada
 
-#### `database/carga-inicial-db-smarsignage-v4.sql`
+#### `database/carga-inicial-2025.sql`
 - ✅ Seed principal (dados de exemplo + roles/flags + módulos correlacionados)
 
 ---
@@ -92,7 +92,7 @@
    - Tabelas `user_flags` e `role_flags_default` são criadas
    - Função `get_user_effective_flags()` é criada
 
-2. ✅ Dados iniciais são inseridos (`carga-inicial-db-smarsignage-v4.sql`)
+2. ✅ Dados iniciais são inseridos (`carga-inicial-2025.sql`)
    - Roles/flags e dados de exemplo
    - Dados correlacionados dos módulos (dispatcher/device_tokens/mix/etc.)
 
@@ -126,7 +126,7 @@
 ### Dados Iniciais
 
 ```
-carga-inicial-db-smarsignage-v4.sql → Dados de exemplo + roles/flags + módulos correlacionados
+carga-inicial-2025.sql → Dados de exemplo + roles/flags + módulos correlacionados
 ```
 
 ---
@@ -209,3 +209,4 @@ sudo grep -A 2 "server_name" /etc/nginx/sites-available/smart-signage
 **Integração concluída em:** 2024-12-XX
 **Versão:** 1.0
 **Status:** ✅ Completo e Integrado
+

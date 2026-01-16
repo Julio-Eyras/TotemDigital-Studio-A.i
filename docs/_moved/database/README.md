@@ -5,7 +5,7 @@
 ```
 database/
 ├── smartchannel-db-v2-refactored-apply-all.sql          # ⭐ Schema completo (FONTE ÚNICA DA VERDADE)
-├── carga-inicial-db-smarsignage-v4.sql  # Carga inicial principal (seeds v4)
+├── carga-inicial-2025.sql  # Carga inicial principal (seeds 2025)
 ├── scripts/                      # Scripts utilitários
 │   ├── validate-schema.sh        # Validação (Linux/Mac)
 │   ├── validate-schema.ps1       # Validação (Windows)
@@ -126,4 +126,5 @@ COMMENT ON TABLE nova_tabela IS 'Descrição';
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [SQL Style Guide](https://www.sqlstyle.guide/)
 - [PostgreSQL Best Practices](https://wiki.postgresql.org/wiki/Don%27t_Do_This)
+
 

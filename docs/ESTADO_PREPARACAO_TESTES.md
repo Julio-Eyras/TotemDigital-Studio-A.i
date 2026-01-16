@@ -33,7 +33,7 @@
 - [x] `docker/app-entrypoint.sh` ✅
 - [x] `nginx/nginx-complete.conf` ✅
 - [x] `database/schema-postgresql.sql` ✅
-- [x] `database/carga-inicial-db-smarsignage-v4.sql` ✅
+- [x] `database/carga-inicial-2025.sql` ✅
 
 ### ✅ **Arquivos Sem Prisma:**
 - [x] `Dockerfile.app` - Sem Prisma ✅
@@ -222,4 +222,5 @@ docker exec smartsignage-app env | grep -E "DATABASE|REDIS"
 **📅 Preparado em:** 2025-11-03  
 **👤 Por:** AI Assistant  
 **✅ Status:** Pronto para Testes no Servidor
+
 

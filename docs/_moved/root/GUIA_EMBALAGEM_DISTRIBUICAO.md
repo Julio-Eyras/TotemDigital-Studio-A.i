@@ -20,7 +20,7 @@ SmartSignage-Pro/
 │
 ├── database/                   # ✅ Scripts e schemas do banco
 │   ├── schema.sql              # ✅ Schema principal
-│   ├── carga-inicial-db-smarsignage-v4.sql  # ✅ Carga inicial (seeds v4)
+│   ├── carga-inicial-2025.sql  # ✅ Carga inicial (seeds 2025)
 │   └── scripts/                # ✅ Scripts auxiliares
 │
 ├── docker/                    # ✅ Entrypoints Docker
@@ -205,4 +205,5 @@ chmod +x install-smartsignage.sh
 - **SEMPRE** use `env.example` como base
 - **VERIFIQUE** se não há dados sensíveis no código
 - **TESTE** o pacote em uma máquina limpa antes de distribuir
+
 

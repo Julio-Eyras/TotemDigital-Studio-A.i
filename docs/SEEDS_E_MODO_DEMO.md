@@ -182,7 +182,7 @@ SELECT * FROM v_export_executions_complete ORDER BY started_at DESC LIMIT 10;
 ```
 database/
   ├── seeds-views-test.sql      # Seeds para testar views
-  ├── carga-inicial-db-smarsignage-v4.sql  # Carga inicial principal (seeds v4)
+  ├── carga-inicial-2025.sql  # Carga inicial principal (seeds 2025)
   └── smartchannel-db-v2-refactored-apply-all.sql        # Schema refatorado (apply-all, inclui módulos e dependências via \i)
 
 player/
@@ -209,4 +209,5 @@ docs/
 - `player-web/index.html` - Modo demo implementado
 - `player/demo-vinhet.html` - Vinheta demo alternativa
 - `docs/SEEDS_E_MODO_DEMO.md` - Documentação
+
 

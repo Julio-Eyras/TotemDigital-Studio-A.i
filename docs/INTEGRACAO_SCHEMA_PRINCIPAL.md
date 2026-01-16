@@ -17,7 +17,7 @@
 #### `database/smartchannel-db-v2-refactored-part9-triggers-functions.sql`
 - ✅ Função `get_user_effective_flags()` adicionada
 
-#### `database/carga-inicial-db-smarsignage-v4.sql`
+#### `database/carga-inicial-2025.sql`
 - ✅ Seed principal do projeto (dados de exemplo + módulos novos: dispatcher/device_tokens/mix/etc.)
 - ✅ Roles/flags/dados correlacionados mantidos em um único arquivo de carga inicial
 
@@ -76,7 +76,7 @@
 
 ### Dados Iniciais
 
-- **`carga-inicial-db-smarsignage-v4.sql`**:
+- **`carga-inicial-2025.sql`**:
   - Dados de exemplo
   - Roles/flags padrão
   - Dados correlacionados dos módulos (ex.: dispatcher/device_tokens/mix)
@@ -97,7 +97,7 @@ Ao executar `install-smartsignage.sh`, tudo será criado automaticamente:
 ### Sem Necessidade de Migrations
 
 ✅ **Tudo está no schema principal**
-✅ **Tudo está na carga inicial v4 (`carga-inicial-db-smarsignage-v4.sql`)**
+✅ **Tudo está na carga inicial 2025 (`carga-inicial-2025.sql`)**
 ✅ **Nginx configurado automaticamente**
 
 ---
@@ -137,3 +137,4 @@ SELECT * FROM get_user_effective_flags(1);
 **Documento criado em:** 2024-12-XX
 **Versão:** 1.0
 **Status:** Integração Completa
+

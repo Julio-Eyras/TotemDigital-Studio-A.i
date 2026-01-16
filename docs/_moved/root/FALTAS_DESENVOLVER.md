@@ -172,7 +172,7 @@ Este documento lista todas as funcionalidades e melhorias que ainda precisam ser
 - Dados de exemplo de contexto de IA
 - Exemplos de mixagens
 
-**Localização:** `database/carga-inicial-db-smarsignage-v4.sql` (seed principal) ou novo arquivo `database/seeds-playlist-mix.sql`
+**Localização:** `database/carga-inicial-2025.sql` (seed principal) ou novo arquivo `database/seeds-playlist-mix.sql`
 
 **Exemplo:**
 ```sql
@@ -404,4 +404,5 @@ INSERT INTO playlist_mix_rules (
 ---
 
 **Última atualização:** Dezembro 2025
+
 

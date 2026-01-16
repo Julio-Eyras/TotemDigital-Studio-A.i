@@ -38,7 +38,7 @@ Preparar o sistema Docker monolítico v2.1 (sem Prisma) para testes no servidor 
 - ✅ `docker/app-entrypoint.sh` - Existe e está correto
 - ✅ `nginx/nginx-complete.conf` - Existe e está correto
 - ✅ `database/schema-postgresql.sql` - Existe
-- ✅ `database/carga-inicial-db-smarsignage-v4.sql` - Existe
+- ✅ `database/carga-inicial-2025.sql` - Existe
 - ✅ `install-smartsignage.sh` - Pronto para uso
 
 ---
@@ -120,4 +120,5 @@ curl -X POST http://localhost:3000/api/auth/login \
 
 **📅 Preparado em:** 2025-11-03  
 **✅ Status:** Pronto para Testes
+
 

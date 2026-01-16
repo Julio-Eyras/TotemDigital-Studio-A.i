@@ -762,7 +762,7 @@ createdb smartsignage
 # Executar migrations
 cd database
 psql smartsignage < smartchannel-db-v2-refactored-apply-all.sql
-psql smartsignage < carga-inicial-db-smarsignage-v4.sql
+psql smartsignage < carga-inicial-2025.sql
 ```
 
 ### 3. Configuração de Ambiente
@@ -889,7 +889,7 @@ SmartSignage-Pro/
 │
 ├── database/             # Scripts de banco
 │   ├── smartchannel-db-v2-refactored-apply-all.sql
-│   └── carga-inicial-db-smarsignage-v4.sql
+│   └── carga-inicial-2025.sql
 │
 ├── docker/               # Dockerfiles
 ├── nginx/                # Configurações Nginx
@@ -1218,4 +1218,5 @@ O sistema está **~90-95% completo** e **pronto para produção** com as funcion
 **Última atualização:** 2025-01-XX  
 **Versão do Relatório:** 1.0  
 **Autor:** Sistema de Avaliação Automática
+
 

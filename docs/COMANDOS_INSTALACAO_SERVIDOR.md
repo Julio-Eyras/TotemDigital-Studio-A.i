@@ -68,7 +68,7 @@ cd /opt/SmartSignage-Pro
 ```bash
 # Verificar arquivos essenciais
 ls -la docker-compose.yml Dockerfile.app install-smartsignage.sh
-ls -la database/smartchannel-db-v2-refactored-apply-all.sql database/carga-inicial-db-smarsignage-v4.sql
+ls -la database/smartchannel-db-v2-refactored-apply-all.sql database/carga-inicial-2025.sql
 ls -la docker/app-entrypoint.sh nginx/nginx-complete.conf
 
 # Tornar script executável
@@ -182,4 +182,5 @@ docker stats --no-stream
 ---
 
 **✅ Pronto para executar!**
+
 

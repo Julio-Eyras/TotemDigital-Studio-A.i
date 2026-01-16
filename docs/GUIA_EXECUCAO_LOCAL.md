@@ -69,7 +69,7 @@ npm install
 
 Se você ainda não inicializou o banco de dados, execute os scripts SQL na ordem:
 1. `database/smartchannel-db-v2-refactored-apply-all.sql`
-2. `database/carga-inicial-db-smarsignage-v4.sql`
+2. `database/carga-inicial-2025.sql`
 
 ## 🚀 Iniciar o Sistema
 
@@ -213,7 +213,7 @@ pkill -f "npm start"
 
 ## 🔐 Credenciais Padrão (desenvolvimento)
 
-Após executar `database/carga-inicial-db-smarsignage-v4.sql`, você pode usar:
+Após executar `database/carga-inicial-2025.sql`, você pode usar:
 
 - **Username**: `admin`
 - **Password**: `admin123`
@@ -235,3 +235,4 @@ Se encontrar problemas:
 2. Verifique os logs em `logs/backend.log` e `logs/frontend.log` (se usar script)
 3. Verifique as variáveis de ambiente
 4. Verifique a conexão com o banco de dados
+
