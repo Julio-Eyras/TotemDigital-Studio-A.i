@@ -38,6 +38,7 @@ interface UploadDialogProps {
   onClose: () => void;
   onSuccess: () => void;
   isAdmin?: boolean;
+  canSelectSubscriber?: boolean;
   subscribers?: (Client | Subscriber)[];
   userSubscriberId?: number;
 }
@@ -47,6 +48,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   onClose,
   onSuccess,
   isAdmin = false,
+  canSelectSubscriber,
   subscribers = [],
   userSubscriberId,
 }) => {
@@ -76,19 +78,21 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     name: '',
     description: '',
     tags: '',
-    subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined),
+    subscriberId: userSubscriberId || ((canSelectSubscriber ?? isAdmin) && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined),
   });
+
+  const canPickSubscriber = canSelectSubscriber !== undefined ? canSelectSubscriber : isAdmin;
 
   // Sincronizar subscriberId quando props carregam/atualizam (ex.: userSubscriberId e subscribers vêm async)
   useEffect(() => {
     if (!open) return;
     setFormData((prev) => {
       if (prev.subscriberId) return prev;
-      const fallback = userSubscriberId || (isAdmin && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined);
+      const fallback = userSubscriberId || (canPickSubscriber && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined);
       return { ...prev, subscriberId: fallback };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, userSubscriberId, isAdmin, subscribers?.length]);
+  }, [open, userSubscriberId, canPickSubscriber, subscribers?.length]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showError } = useNotification();
@@ -251,7 +255,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
       name: '', 
       description: '', 
       tags: '',
-      subscriberId: userSubscriberId || (isAdmin && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined),
+      subscriberId: userSubscriberId || ((canSelectSubscriber ?? isAdmin) && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined),
     });
     setUploading(false);
     setUploadProgress(0);
@@ -284,7 +288,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
         <Box sx={{ pt: 2 }}>
           {/* Informações gerais */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
-            {isAdmin && subscribers.length > 0 && (
+            {canPickSubscriber && subscribers.length > 0 && (
               <Grid item xs={12}>
                 <FormControl fullWidth>
                   <InputLabel>Subscriber (Anunciante) *</InputLabel>
@@ -308,7 +312,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                 </FormControl>
               </Grid>
             )}
-            {!isAdmin && userSubscriberId && (
+            {!canPickSubscriber && userSubscriberId && (
               <Grid item xs={12}>
                 <TextField
                   fullWidth

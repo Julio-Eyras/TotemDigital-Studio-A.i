@@ -60,6 +60,7 @@ const Media: React.FC = () => {
   const [subscriberFilter, setSubscriberFilter] = useState<number | 'all'>('all');
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [canSelectSubscriber, setCanSelectSubscriber] = useState(false);
   const [userSubscriberId, setUserSubscriberId] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,12 +73,14 @@ const Media: React.FC = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const userRole = user?.role || '';
     const userType = user?.userType || '';
-    const admin = userRole === 'admin' || userType === 'system_user';
-    setIsAdmin(admin);
+    const isTrueAdmin = userRole === 'admin' || userRole === 'admin_sql' || userRole === 'owner_system' || userType === 'system_user';
+    const canSelect = isTrueAdmin || userRole === 'gerente_marketing' || userRole === 'editoracao';
+    setIsAdmin(isTrueAdmin);
+    setCanSelectSubscriber(canSelect);
     // Compat: user no localStorage pode vir em snake_case ou camelCase
     setUserSubscriberId(user?.subscriberId ?? user?.subscriber_id ?? user?.clientId);
 
-    if (admin) {
+    if (canSelect) {
       loadSubscribers();
     }
     loadMediaItems();
@@ -152,8 +155,15 @@ const Media: React.FC = () => {
 
   const loadSubscribers = async () => {
     try {
-      const response = await subscriberApi.getAll({ limit: 1000, active_only: false });
-      setSubscribers(response.data || []);
+      // "aptos": apenas subscribers ativos
+      const response = await subscriberApi.getAll({ limit: 1000, active_only: true });
+      const subs = response.data || [];
+      setSubscribers(subs);
+
+      // Se o usuário não está "preso" a um subscriber e pode escolher, selecionar um padrão (evita erro no upload/listagem)
+      if (!userSubscriberId && subs.length > 0 && subscriberFilter === 'all') {
+        setSubscriberFilter(subs[0].subscriber_id);
+      }
     } catch (error) {
       console.error('Erro ao carregar subscribers:', error);
     }
@@ -166,12 +176,19 @@ const Media: React.FC = () => {
       
       // Determinar subscriberId para filtro
       let subscriberId: number | undefined = undefined;
-      if (!isAdmin && userSubscriberId) {
-        // Se não é admin, usar subscriberId do usuário
+      if (userSubscriberId) {
+        // Usuário "travado" em um subscriber (ex.: subscriber_user)
         subscriberId = userSubscriberId;
-      } else if (isAdmin && subscriberFilter !== 'all' && typeof subscriberFilter === 'number') {
-        // Se é admin e selecionou um subscriber, filtrar por ele
-        subscriberId = subscriberFilter;
+      } else if (canSelectSubscriber) {
+        // Usuário pode escolher subscriber (ex.: gerente_marketing/editoracao/admin)
+        if (subscriberFilter !== 'all' && typeof subscriberFilter === 'number') {
+          subscriberId = subscriberFilter;
+        } else if (!isAdmin) {
+          // Não-admin não pode listar sem subscriber definido (evita erro do backend)
+          setMediaItems([]);
+          setError('É necessário selecionar um subscriber (anunciante)');
+          return;
+        }
       }
       
       const response = await mediaApi.getAll({
@@ -299,7 +316,7 @@ const Media: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={isAdmin ? 4 : 6}>
+            <Grid item xs={12} md={canSelectSubscriber ? 4 : 6}>
               <TextField
                 fullWidth
                 placeholder="Buscar mídia..."
@@ -310,7 +327,7 @@ const Media: React.FC = () => {
                 }}
               />
             </Grid>
-            {isAdmin && (
+            {canSelectSubscriber && (
               <Grid item xs={12} md={3}>
                 <FormControl fullWidth>
                   <InputLabel>Subscriber (Anunciante)</InputLabel>
@@ -319,7 +336,7 @@ const Media: React.FC = () => {
                     onChange={(e) => setSubscriberFilter(e.target.value as number | 'all')}
                     label="Subscriber (Anunciante)"
                   >
-                    <MenuItem value="all">Todos os Subscribers</MenuItem>
+                    {isAdmin && <MenuItem value="all">Todos os Subscribers</MenuItem>}
                     {subscribers.map((subscriber) => (
                       <MenuItem key={subscriber.subscriber_id} value={subscriber.subscriber_id}>
                         {subscriber.name}
@@ -664,6 +681,7 @@ const Media: React.FC = () => {
         onClose={() => setUploadDialogOpen(false)}
         onSuccess={handleUploadSuccess}
         isAdmin={isAdmin}
+        canSelectSubscriber={canSelectSubscriber}
         subscribers={subscribers}
         userSubscriberId={userSubscriberId}
       />
