@@ -220,27 +220,27 @@ export class CampaignService {
       const campaigns = await this.db.findMany(`
         SELECT 
           c.campaign_id as id,
-          c.subscriber_id as clientId,
-          c.contract_id,
+          c.subscriber_id as "clientId",
+          c.contract_id as "contractId",
           c.title,
           c.description,
-          c.campaign_type as campaignType,
+          c.campaign_type as "campaignType",
           c.priority,
-          c.commercial_tier as commercialTier,
-          c.start_date as startDate,
-          c.end_date as endDate,
-          c.start_time as startTime,
-          c.end_time as endTime,
-          c.days_of_week as daysOfWeek,
+          c.commercial_tier as "commercialTier",
+          c.start_date as "startDate",
+          c.end_date as "endDate",
+          c.start_time as "startTime",
+          c.end_time as "endTime",
+          c.days_of_week as "daysOfWeek",
           c.timezone,
           c.status,
-          c.is_active as isActive,
-          c.created_at as createdAt,
-          c.updated_at as updatedAt,
-          s.name as clientName,
-          sc.contract_number,
-          sc.title as contract_title,
-          p.name as plan_name
+          c.is_active as "isActive",
+          c.created_at as "createdAt",
+          c.updated_at as "updatedAt",
+          s.name as "clientName",
+          sc.contract_number as "contractNumber",
+          sc.title as "contractTitle",
+          p.name as "planName"
         FROM campaigns c
         LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         LEFT JOIN subscriber_contracts sc ON c.contract_id = sc.contract_id
@@ -335,27 +335,27 @@ export class CampaignService {
       const campaign = await this.db.findFirst(`
         SELECT 
           c.campaign_id as id,
-          c.subscriber_id as clientId,
-          c.contract_id,
+          c.subscriber_id as "clientId",
+          c.contract_id as "contractId",
           c.title,
           c.description,
-          c.campaign_type as campaignType,
+          c.campaign_type as "campaignType",
           c.priority,
-          c.commercial_tier as commercialTier,
-          c.start_date as startDate,
-          c.end_date as endDate,
-          c.start_time as startTime,
-          c.end_time as endTime,
-          c.days_of_week as daysOfWeek,
+          c.commercial_tier as "commercialTier",
+          c.start_date as "startDate",
+          c.end_date as "endDate",
+          c.start_time as "startTime",
+          c.end_time as "endTime",
+          c.days_of_week as "daysOfWeek",
           c.timezone,
           c.status,
-          c.is_active as isActive,
-          c.created_at as createdAt,
-          c.updated_at as updatedAt,
-          s.name as clientName,
-          sc.contract_number,
-          sc.title as contract_title,
-          p.name as plan_name
+          c.is_active as "isActive",
+          c.created_at as "createdAt",
+          c.updated_at as "updatedAt",
+          s.name as "clientName",
+          sc.contract_number as "contractNumber",
+          sc.title as "contractTitle",
+          p.name as "planName"
         FROM campaigns c
         LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         LEFT JOIN subscriber_contracts sc ON c.contract_id = sc.contract_id
@@ -1435,8 +1435,11 @@ export class CampaignService {
     isActiveNow: boolean;
   } {
     const now = new Date();
-    const startDate = campaign.startDate ? new Date(campaign.startDate) : null;
-    const endDate = campaign.endDate ? new Date(campaign.endDate) : null;
+    // Compat: alguns drivers/queries podem retornar aliases em lowercase (startdate/enddate)
+    const startRaw = campaign.startDate ?? campaign.startdate;
+    const endRaw = campaign.endDate ?? campaign.enddate;
+    const startDate = startRaw ? new Date(startRaw) : null;
+    const endDate = endRaw ? new Date(endRaw) : null;
 
     const isScheduled = !!(startDate || endDate);
     const isExpired = endDate ? now > endDate : false;
@@ -1459,21 +1462,21 @@ export class CampaignService {
       const campaigns = await this.db.findMany(`
         SELECT 
           c.campaign_id as id,
-          c.subscriber_id as clientId,
+          c.subscriber_id as "clientId",
           c.title,
           c.description,
-          c.campaign_type as campaignType,
+          c.campaign_type as "campaignType",
           c.priority,
-          c.start_date as startDate,
-          c.end_date as endDate,
-          c.start_time as startTime,
-          c.end_time as endTime,
-          c.days_of_week as daysOfWeek,
+          c.start_date as "startDate",
+          c.end_date as "endDate",
+          c.start_time as "startTime",
+          c.end_time as "endTime",
+          c.days_of_week as "daysOfWeek",
           c.status,
-          c.is_active as isActive,
-          c.created_at as createdAt,
-          c.updated_at as updatedAt,
-          s.name as clientName
+          c.is_active as "isActive",
+          c.created_at as "createdAt",
+          c.updated_at as "updatedAt",
+          s.name as "clientName"
         FROM campaigns c
         LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         WHERE c.subscriber_id = ?
