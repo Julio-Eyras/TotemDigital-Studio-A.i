@@ -34,7 +34,7 @@ services:
       - ./database/smartchannel-db-v2-refactored-part10-views.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part10-views.sql:ro
       - ./database/smartchannel-db-v2-refactored-part11-playlist-mix.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part11-playlist-mix.sql:ro
       - ./database/smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql:ro
-      - ./database/carga-inicial-db-smarsignage-v4.sql:/docker-entrypoint-initdb.d/02-seeds.sql:ro
+      - ./database/carga-inicial-2025.sql:/docker-entrypoint-initdb.d/02-seeds.sql:ro
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     restart: unless-stopped

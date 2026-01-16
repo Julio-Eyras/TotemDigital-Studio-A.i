@@ -588,7 +588,7 @@ parse_arguments() {
                 echo "  --backend-only       Faz apenas build do backend (deps + TypeScript), sem tocar no banco"
                 echo "  --frontend-only      Faz apenas build do frontend (deps + build React), sem tocar no banco"
                 echo "  --backfront-build    Faz build do backend e do frontend (deps + TypeScript + React), sem tocar no banco"
-                echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt). Usa database/carga-inicial-db-smarsignage-v4.sql"
+                echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt). Usa database/carga-inicial-2025.sql"
                 echo "  --no-seeds           Não carrega dados de demonstração"
                 echo "  --help               Mostra esta ajuda"
                 exit 0
@@ -7689,11 +7689,11 @@ setup_first_boot() {
         # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
         log "Executando seed completo do banco de dados com dados correlacionados..."
 
-        # Usar apenas a carga inicial v4 como fonte única de seeds do projeto.
-        INITIAL_LOAD_SQL_FILE="$INSTALL_DIR/database/carga-inicial-db-smarsignage-v4.sql"
+        # Usar apenas a carga inicial 2025 como fonte única de seeds do projeto.
+        INITIAL_LOAD_SQL_FILE="$INSTALL_DIR/database/carga-inicial-2025.sql"
         if [[ -f "$INITIAL_LOAD_SQL_FILE" ]]; then
-            log "✅ Arquivo carga-inicial-db-smarsignage-v4.sql encontrado - usando carga inicial v4"
-            execute_psql_file "$TARGET_DB" "$INITIAL_LOAD_SQL_FILE" "Carga inicial v4 (carga-inicial-db-smarsignage-v4.sql)"
+            log "✅ Arquivo carga-inicial-2025.sql encontrado - usando carga inicial 2025"
+            execute_psql_file "$TARGET_DB" "$INITIAL_LOAD_SQL_FILE" "Carga inicial 2025 (carga-inicial-2025.sql)"
         else
             warn "⚠️ Arquivo de seeds não encontrado: $INITIAL_LOAD_SQL_FILE"
             warn "⚠️ Sem seeds. O sistema será instalado sem dados de exemplo."

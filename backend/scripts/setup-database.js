@@ -74,7 +74,7 @@ async function applySchema() {
   ];
 
   if (loadDemoSeeds) {
-    sqlFiles.push('carga-inicial-db-smarsignage-v4.sql');
+    sqlFiles.push('carga-inicial-2025.sql');
   }
   
   const pool = new Pool(dbConfig);
@@ -82,7 +82,7 @@ async function applySchema() {
   try {
     console.log('📄 Aplicando schema v2.0...\n');
     if (loadDemoSeeds) {
-      console.log('🌱 LOAD_DEMO_SEEDS ativo: aplicando carga inicial v4 (dados de demonstração) ao final.\n');
+      console.log('🌱 LOAD_DEMO_SEEDS ativo: aplicando carga inicial 2025 (dados de demonstração) ao final.\n');
     }
     
     for (let i = 0; i < sqlFiles.length; i++) {
@@ -125,7 +125,7 @@ async function applySchema() {
     
     console.log('\n✅ Schema aplicado com sucesso!');
     if (!loadDemoSeeds) {
-      console.log('\nℹ️  Dica: para carregar dados de demonstração (carga inicial v4), execute:');
+      console.log('\nℹ️  Dica: para carregar dados de demonstração (carga inicial 2025), execute:');
       console.log('   $env:LOAD_DEMO_SEEDS=1; node backend/scripts/setup-database.js');
     }
     await pool.end();

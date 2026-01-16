@@ -67,8 +67,8 @@ if [[ ! -f "database/smartchannel-db-v2-refactored-apply-all.sql" ]]; then
     MISSING_FILES=1
 fi
 
-if [[ ! -f "database/carga-inicial-db-smarsignage-v4.sql" ]]; then
-    echo -e "${RED}❌ database/carga-inicial-db-smarsignage-v4.sql não encontrado${NC}"
+if [[ ! -f "database/carga-inicial-2025.sql" ]]; then
+    echo -e "${RED}❌ database/carga-inicial-2025.sql não encontrado${NC}"
     MISSING_FILES=1
 fi
 
