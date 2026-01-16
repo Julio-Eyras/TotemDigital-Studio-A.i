@@ -63,7 +63,7 @@ router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => 
       filters
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: result
     });

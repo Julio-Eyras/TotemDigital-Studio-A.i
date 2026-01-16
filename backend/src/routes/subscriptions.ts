@@ -66,7 +66,7 @@ router.get('/', async (req: any, res) => {
 
     const subscriptions = await getSubscriptionService().getSubscriptions(filters);
 
-    res.json({
+    return res.json({
       success: true,
       data: subscriptions
     });
