@@ -21,11 +21,16 @@ export const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req: Request) => {
-    // Pular rate limit para health checks e rotas estáticas
-    return req.path === '/health' || 
-           req.path === '/api/health' ||
-           req.path.startsWith('/static/') ||
-           req.path.startsWith('/assets/');
+    // OBS: este middleware é montado em `app.use('/api', apiLimiter)`,
+    // então `req.path` aqui é relativo ao mount (ex.: '/auth/login').
+    const fullPath = (req.baseUrl || '') + (req.path || '');
+
+    // Pular rate limit para health checks, estáticos e auth (auth já tem limiter próprio)
+    return fullPath === '/api/health' ||
+           fullPath.startsWith('/api/health/') ||
+           fullPath.startsWith('/api/auth') ||
+           fullPath.startsWith('/api/static/') ||
+           fullPath.startsWith('/api/assets/');
   }
 });
 
@@ -35,7 +40,9 @@ export const apiLimiter = rateLimit({
  */
 export const authLimiter = rateLimit({
   windowMs: securityConfig.rateLimit.authWindowMs,
-  max: securityConfig.rateLimit.authMaxRequests,
+  // Default do env (5) é muito agressivo e causa 429 em uso normal (principalmente em LAN/proxy).
+  // Mantemos configurável via ENV, mas garantimos um mínimo razoável.
+  max: Math.max(securityConfig.rateLimit.authMaxRequests, 20),
   message: {
     error: 'Muitas tentativas de login. Tente novamente em 15 minutos.',
     retryAfter: '15 minutos'
