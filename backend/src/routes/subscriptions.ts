@@ -73,11 +73,10 @@ router.get('/', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao listar assinaturas', error);
-    // Evitar quebrar UI caso "subscriptions" ainda não esteja disponível no schema atual.
-    res.json({
-      success: true,
-      data: [],
-      warning: 'subscriptions indisponível no schema atual'
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao listar assinaturas',
+      error: error?.message
     });
   }
 });
