@@ -3889,22 +3889,47 @@ ensure_admin_user() {
     local admin_username="admin"
     local admin_email="admin@smart-signage.com"
 
+    # 1) Tentar OpenSSL bcrypt (nem todo OpenSSL 3 tem suporte a `passwd -bcrypt`)
     if command -v openssl >/dev/null 2>&1; then
-        if admin_hash=$(openssl passwd -bcrypt "$admin_password" 2>/dev/null | tr -d '\r'); then
-            if [[ ${#admin_hash} -ne 60 ]]; then
-                admin_hash=""
+        if openssl passwd -help 2>&1 | grep -qi "bcrypt"; then
+            if admin_hash=$(openssl passwd -bcrypt "$admin_password" 2>/dev/null | tr -d '\r'); then
+                [[ ${#admin_hash} -eq 60 ]] || admin_hash=""
             fi
+        fi
+    fi
+
+    # 2) Tentar htpasswd (bcrypt) - instalar apache2-utils se necessário (Ubuntu/Debian)
+    if [[ -z "$admin_hash" || ${#admin_hash} -ne 60 ]]; then
+        if ! command -v htpasswd >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+                log "Instalando apache2-utils para gerar bcrypt via htpasswd..."
+                sudo apt-get update -y >/dev/null 2>&1 || true
+                sudo apt-get install -y apache2-utils >/dev/null 2>&1 || true
+            fi
+        fi
+        if command -v htpasswd >/dev/null 2>&1; then
+            admin_hash=$(htpasswd -bnBC 12 "" "$admin_password" 2>/dev/null | tr -d ':\r\n')
+            [[ ${#admin_hash} -eq 60 ]] || admin_hash=""
         fi
     fi
 
     # Segunda tentativa utilizando Node + bcryptjs caso openssl não esteja disponível ou falhe
     if [[ -z "$admin_hash" || ${#admin_hash} -ne 60 ]]; then
         if command -v node >/dev/null 2>&1; then
-            admin_hash=$(node - <<'NODE' 2>/dev/null
+            # Preferir bcryptjs instalado no backend (node_modules do backend).
+            # Isso evita "Cannot find module 'bcryptjs'" quando o cwd não é /backend.
+            admin_hash=$(node - <<NODE 2>/dev/null
 const password = 'admin123';
 let hash = '';
 try {
-  const bcrypt = require('bcryptjs');
+  const path = require('path');
+  const backendBcrypt = path.resolve(process.env.INSTALL_DIR || process.cwd(), 'backend', 'node_modules', 'bcryptjs');
+  let bcrypt;
+  try {
+    bcrypt = require(backendBcrypt);
+  } catch (e) {
+    bcrypt = require('bcryptjs');
+  }
   hash = bcrypt.hashSync(password, 12);
 } catch (err) {
   process.stderr.write(err?.message || String(err));
