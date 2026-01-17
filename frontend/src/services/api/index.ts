@@ -63,9 +63,22 @@ api.interceptors.response.use(
 
     // Tratamento de 401 (Não autorizado)
     if (error.response?.status === 401) {
+      // Evitar redirect/reload no fluxo de login (senão o usuário não vê a mensagem de credenciais inválidas)
+      const reqUrl: string = String(originalRequest?.url || '');
+      const isAuthLoginRequest =
+        reqUrl.includes('/auth/login') ||
+        reqUrl.includes('/auth/subscriber-login') ||
+        reqUrl.includes('/auth/refresh');
+
+      if (isAuthLoginRequest) {
+        return Promise.reject(error);
+      }
+
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
-      window.location.href = '/login';
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
       return Promise.reject(error);
     }
 
