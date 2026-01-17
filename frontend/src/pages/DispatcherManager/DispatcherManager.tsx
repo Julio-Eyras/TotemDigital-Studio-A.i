@@ -188,7 +188,8 @@ const DispatcherManager: React.FC = () => {
   const loadTotems = async () => {
     try {
       setLoading(true);
-      const response = await totemApi.getAll();
+      // O endpoint /api/totems pagina por padrão (limit=10). Para popular o combo, buscamos um lote grande.
+      const response = await totemApi.getAll({ page: 1, limit: 10000 });
       setTotems(response.data || []);
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar totens');
