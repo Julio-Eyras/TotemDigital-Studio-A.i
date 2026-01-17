@@ -147,6 +147,35 @@ router.get('/:totemId/candidates',
 );
 
 /**
+ * @route GET /api/dispatcher-totem/:totemId/diagnostics
+ * @desc Debug: métricas para entender por que o dispatcher não encontra candidatos
+ * @access Private (Admin, Admin SQL)
+ */
+router.get(
+  '/:totemId/diagnostics',
+  ...idParamValidator('totemId'),
+  validateRequest,
+  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial']) as any,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.totemId);
+      const dispatcher = getDispatcherTotemService();
+      const diagnostics = await dispatcher.getDiagnostics(totemId);
+      return res.json({
+        success: true,
+        data: diagnostics,
+      });
+    } catch (error: any) {
+      await logError('Erro ao buscar diagnostics do dispatcher', error, { totemId: req.params.totemId });
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Erro interno do servidor',
+      });
+    }
+  }
+);
+
+/**
  * @route GET /api/dispatcher-totem/cache/config
  * @desc Obter configuração de cache atual
  * @access Private (Admin, Admin SQL)

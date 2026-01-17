@@ -527,6 +527,146 @@ export class DispatcherTotemService {
   }
 
   /**
+   * Debug: diagnosticar por que um totem não tem candidatos.
+   * Retorna contagens em cada etapa (campanhas diretas / por publisher, com e sem access_active),
+   * além de contagens na view subscriber_scheduled_campaigns_playlists_medias para comparação.
+   *
+   * Importante: esse método NÃO altera a lógica do dispatcher; é apenas para troubleshooting.
+   */
+  async getDiagnostics(totemId: number): Promise<any> {
+    const totemRow = await this.db.findFirst(
+      `
+      SELECT
+        t.totem_id,
+        t.local_id,
+        l.publisher_id
+      FROM totems t
+      LEFT JOIN locals l ON t.local_id = l.local_id
+      WHERE t.totem_id = $1
+      `,
+      [totemId]
+    );
+
+    const publisherId = totemRow?.publisher_id ? Number(totemRow.publisher_id) : null;
+
+    const accessActiveCount =
+      publisherId !== null
+        ? await this.db.findFirst(
+            `SELECT COUNT(*)::int as count FROM subscriber_publisher_access_active WHERE publisher_id = $1`,
+            [publisherId]
+          )
+        : { count: 0 };
+
+    const viewTotemCount = await this.db.findFirst(
+      `SELECT COUNT(*)::int as count FROM subscriber_scheduled_campaigns_playlists_medias WHERE totem_id = $1`,
+      [totemId]
+    );
+
+    const viewPublisherCount =
+      publisherId !== null
+        ? await this.db.findFirst(
+            `SELECT COUNT(*)::int as count FROM subscriber_scheduled_campaigns_playlists_medias WHERE target_type = 'publisher' AND publisher_id = $1`,
+            [publisherId]
+          )
+        : { count: 0 };
+
+    const directWithoutAccess = await this.db.findFirst(
+      `
+      SELECT COUNT(DISTINCT c.campaign_id)::int as count
+      FROM campaigns c
+      INNER JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
+      WHERE ct.totem_id = $1
+        AND ct.is_active = true
+        AND c.is_active = true
+        AND c.status = 'active'
+      `,
+      [totemId]
+    );
+
+    const directWithAccess =
+      publisherId !== null
+        ? await this.db.findFirst(
+            `
+            SELECT COUNT(DISTINCT c.campaign_id)::int as count
+            FROM campaigns c
+            INNER JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
+            INNER JOIN totems t_direct ON ct.totem_id = t_direct.totem_id
+            INNER JOIN locals l_direct ON t_direct.local_id = l_direct.local_id
+            INNER JOIN subscriber_publisher_access_active spa_direct
+              ON spa_direct.subscriber_id = c.subscriber_id
+             AND spa_direct.publisher_id = l_direct.publisher_id
+            WHERE ct.totem_id = $1
+              AND ct.is_active = true
+              AND c.is_active = true
+              AND c.status = 'active'
+            `,
+            [totemId]
+          )
+        : { count: 0 };
+
+    const groupWithoutAccess =
+      publisherId !== null
+        ? await this.db.findFirst(
+            `
+            SELECT COUNT(DISTINCT c.campaign_id)::int as count
+            FROM campaigns c
+            INNER JOIN campaign_publishers cp ON c.campaign_id = cp.campaign_id
+            WHERE cp.publisher_id = $1
+              AND cp.is_active = true
+              AND c.is_active = true
+              AND c.status = 'active'
+            `,
+            [publisherId]
+          )
+        : { count: 0 };
+
+    const groupWithAccess =
+      publisherId !== null
+        ? await this.db.findFirst(
+            `
+            SELECT COUNT(DISTINCT c.campaign_id)::int as count
+            FROM campaigns c
+            INNER JOIN campaign_publishers cp ON c.campaign_id = cp.campaign_id
+            INNER JOIN subscriber_publisher_access_active spa_group
+              ON spa_group.subscriber_id = c.subscriber_id
+             AND spa_group.publisher_id = cp.publisher_id
+            WHERE cp.publisher_id = $1
+              AND cp.is_active = true
+              AND c.is_active = true
+              AND c.status = 'active'
+            `,
+            [publisherId]
+          )
+        : { count: 0 };
+
+    return {
+      totem: {
+        totemId,
+        localId: totemRow?.local_id ?? null,
+        publisherId,
+      },
+      counts: {
+        subscriberPublisherAccessActiveByPublisher: accessActiveCount?.count ?? 0,
+        view: {
+          directTotemRows: viewTotemCount?.count ?? 0,
+          publisherTargetRows: viewPublisherCount?.count ?? 0,
+        },
+        dispatcherQuery: {
+          directWithoutAccess: directWithoutAccess?.count ?? 0,
+          directWithAccess: directWithAccess?.count ?? 0,
+          groupWithoutAccess: groupWithoutAccess?.count ?? 0,
+          groupWithAccess: groupWithAccess?.count ?? 0,
+        },
+      },
+      notes: [
+        `A view subscriber_scheduled_campaigns_playlists_medias não é usada pelo dispatcher; é para auditoria/BI.`,
+        `O dispatcher filtra por c.status='active' e exige subscriber_publisher_access_active (quando aplicável).`,
+        `Se as contagens "WithoutAccess" forem > 0 e "WithAccess" forem 0, o problema está no acesso ativo subscriber↔publisher (ou publisher_id do local).`,
+      ],
+    };
+  }
+
+  /**
    * FASE 2.2: Resolver conflitos usando peso completo calculado
    */
   private async resolveConflicts(
