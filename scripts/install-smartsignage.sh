@@ -7387,12 +7387,14 @@ setup_first_boot() {
         log "Executando apply-schema-v2.sh..."
         
         # Configurar variáveis de ambiente para o script
+        # IMPORTANT: aplicar o schema usando o usuário do banco da aplicação (PRIMARY_DB_USER),
+        # para que as tabelas sejam criadas com OWNER correto (evita "permission denied for table users").
         export DB_NAME="$TARGET_DB"
-        export DB_USER="${POSTGRES_SYSTEM_USER:-postgres}"
+        export DB_USER="${PRIMARY_DB_USER:-smartsignage}"
         export DB_HOST="localhost"
         export DB_PORT="5432"
         export SKIP_CONFIRM="true"
-        export PGPASSWORD="${POSTGRES_PASSWORD:-postgres}"
+        export PGPASSWORD="${DB_PASSWORD:-smartsignage123}"
         
         # Executar script de aplicação
         if cd "$INSTALL_DIR/database" && bash "$APPLY_SCHEMA_SCRIPT"; then
