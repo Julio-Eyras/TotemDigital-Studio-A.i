@@ -3886,6 +3886,8 @@ ensure_admin_user() {
     local target_db="${PRIMARY_DB_NAME:-smartsignage}"
     local admin_password="admin123"
     local admin_hash=""
+    local admin_username="admin"
+    local admin_email="admin@smart-signage.com"
 
     if command -v openssl >/dev/null 2>&1; then
         if admin_hash=$(openssl passwd -bcrypt "$admin_password" 2>/dev/null | tr -d '\r'); then
@@ -3923,16 +3925,47 @@ NODE
         admin_hash="\$2a\$12\$8qqKvzz3fLvLY7hkVx1hG.lfdeQ1PRKO6NrSGHO93WWru9gYrVf.W"
     fi
 
-    if ! sudo -u postgres psql -d "$target_db" -v ON_ERROR_STOP=1 <<SQL
-INSERT INTO users (publisher_id, username, email, password_hash, name, role, user_type, is_tenant_user, is_active, last_login, created_at, updated_at)
-VALUES (NULL, 'admin', 'admin@smart-signage.com', '${admin_hash}', 'Administrador', 'admin', 'system_user', true, true, NOW(), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    # Em SSH/servidor, `sudo -u postgres` pode falhar (TTY/senha). Preferir DATABASE_URL quando disponível.
+    local psql_cmd=""
+    if [[ -n "${DATABASE_URL:-}" && "${DATABASE_URL}" == postgresql://* ]]; then
+        psql_cmd="psql \"${DATABASE_URL}\""
+    elif command -v sudo >/dev/null 2>&1; then
+        psql_cmd="sudo -u postgres psql -d \"${target_db}\""
+    else
+        psql_cmd="psql -d \"${target_db}\""
+    fi
+
+    if ! eval "$psql_cmd -v ON_ERROR_STOP=1" <<SQL
+INSERT INTO users (
+  username, email, password_hash,
+  first_name, last_name, name, phone,
+  role, user_type, is_tenant_user,
+  publisher_id, subscriber_id,
+  is_active, email_verified,
+  last_login, created_at, updated_at
+)
+VALUES (
+  '${admin_username}', '${admin_email}', '${admin_hash}',
+  'Admin', 'Sistema', 'Administrador', NULL,
+  'admin', 'system_user', true,
+  NULL, NULL,
+  true, true,
+  NOW(), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+)
 ON CONFLICT (username)
 DO UPDATE SET
+  email = EXCLUDED.email,
   password_hash = EXCLUDED.password_hash,
+  first_name = EXCLUDED.first_name,
+  last_name = EXCLUDED.last_name,
+  name = EXCLUDED.name,
   role = EXCLUDED.role,
   user_type = EXCLUDED.user_type,
   is_tenant_user = EXCLUDED.is_tenant_user,
+  publisher_id = EXCLUDED.publisher_id,
+  subscriber_id = EXCLUDED.subscriber_id,
   is_active = EXCLUDED.is_active,
+  email_verified = EXCLUDED.email_verified,
   updated_at = CURRENT_TIMESTAMP,
   last_login = NOW();
 SQL
@@ -3941,7 +3974,7 @@ SQL
         return 1
     fi
 
-    if sudo -u postgres psql -d "$target_db" -tAc "SELECT length(password_hash) FROM users WHERE username = 'admin'" | grep -q "60"; then
+    if eval "$psql_cmd -tAc \"SELECT length(password_hash) FROM users WHERE username = '${admin_username}'\"" | tr -d ' \r\n' | grep -q "^60$"; then
         log "✅ Usuário admin está presente com hash configurado"
         return 0
     fi
