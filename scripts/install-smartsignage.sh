@@ -3925,6 +3925,11 @@ NODE
         admin_hash="\$2a\$12\$8qqKvzz3fLvLY7hkVx1hG.lfdeQ1PRKO6NrSGHO93WWru9gYrVf.W"
     fi
 
+    # Normalizar prefixos bcrypt para compatibilidade (algumas ferramentas geram $2y$)
+    if [[ "$admin_hash" == \$2y\$* ]]; then
+        admin_hash="\$2b\$${admin_hash:4}"
+    fi
+
     # Em SSH/servidor, `sudo -u postgres` pode falhar (TTY/senha). Preferir DATABASE_URL quando disponível.
     local psql_cmd=""
     if [[ -n "${DATABASE_URL:-}" && "${DATABASE_URL}" == postgresql://* ]]; then
@@ -3935,7 +3940,9 @@ NODE
         psql_cmd="psql -d \"${target_db}\""
     fi
 
-    if ! eval "$psql_cmd -v ON_ERROR_STOP=1" <<SQL
+    local tmp_sql=""
+    tmp_sql="$(mktemp)"
+    cat >"$tmp_sql" <<SQL
 INSERT INTO users (
   username, email, password_hash,
   first_name, last_name, name, phone,
@@ -3969,10 +3976,31 @@ DO UPDATE SET
   updated_at = CURRENT_TIMESTAMP,
   last_login = NOW();
 SQL
-    then
-        error "❌ Falha ao garantir usuário admin via psql"
-        return 1
+
+    local psql_out=""
+    if ! psql_out=$(eval "$psql_cmd -v ON_ERROR_STOP=1 -f \"$tmp_sql\"" 2>&1); then
+        # Se falhar por permissão (muito comum quando DATABASE_URL usa usuário de app),
+        # tentar novamente como postgres (se possível).
+        if echo "$psql_out" | grep -qi "permission denied for table users"; then
+            warn "⚠️ Sem permissão para inserir em users via DATABASE_URL. Tentando como postgres..."
+            if command -v sudo >/dev/null 2>&1; then
+                if ! sudo -u "${POSTGRES_USER:-postgres}" psql -d "$target_db" -v ON_ERROR_STOP=1 -f "$tmp_sql" >/dev/null 2>&1; then
+                    rm -f "$tmp_sql"
+                    error "❌ Falha ao garantir usuário admin via psql (postgres)"
+                    return 1
+                fi
+            else
+                rm -f "$tmp_sql"
+                error "❌ Falha ao garantir usuário admin via psql (sem sudo disponível). Erro: $psql_out"
+                return 1
+            fi
+        else
+            rm -f "$tmp_sql"
+            error "❌ Falha ao garantir usuário admin via psql: $psql_out"
+            return 1
+        fi
     fi
+    rm -f "$tmp_sql"
 
     if eval "$psql_cmd -tAc \"SELECT length(password_hash) FROM users WHERE username = '${admin_username}'\"" | tr -d ' \r\n' | grep -q "^60$"; then
         log "✅ Usuário admin está presente com hash configurado"
