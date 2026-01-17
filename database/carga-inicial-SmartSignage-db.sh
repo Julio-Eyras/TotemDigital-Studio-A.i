@@ -189,7 +189,7 @@ echo -e "${YELLOW}=== 2. Inserindo usuários e permissões ===${NC}"
 # Users (senha padrão: admin123 - hash bcrypt)
 execute_sql "
 INSERT INTO users (id, username, email, password_hash, first_name, last_name, name, phone, role, user_type, is_tenant_user, publisher_id, subscriber_id, is_active, email_verified) VALUES
-(1, 'admin', 'admin@smartsignage.local', '\$2b\$12\$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'Admin', 'Sistema', 'Admin Sistema', '+55 11 0000-0000', 'admin', 'system_user', true, NULL, NULL, true, true),
+(1, 'admin', 'admin@smartsignage.local', '$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2', 'Admin', 'Sistema', 'Admin Sistema', '+55 11 0000-0000', 'admin', 'system_user', true, NULL, NULL, true, true),
 (2, 'maria.silva', 'maria.silva@shoppingnorte.com.br', '\$2b\$12\$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'Maria', 'Silva', 'Maria Silva', '+55 11 3456-7890', 'manager', 'publisher_user', false, 1, NULL, true, true),
 (3, 'joao.santos', 'joao.santos@saudemais.com.br', '\$2b\$12\$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'João', 'Santos', 'João Santos', '+55 11 2345-6789', 'manager', 'publisher_user', false, 2, NULL, true, true),
 (4, 'ana.costa', 'ana.costa@economico.com.br', '\$2b\$12\$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4Kz8K2', 'Ana', 'Costa', 'Ana Costa', '+55 11 1234-5678', 'manager', 'subscriber_user', false, NULL, 3, true, true),

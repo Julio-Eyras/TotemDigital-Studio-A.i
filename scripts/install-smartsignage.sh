@@ -3947,7 +3947,8 @@ NODE
     # Fallback final caso ainda não tenha hash válido
     if [[ -z "$admin_hash" || ${#admin_hash} -ne 60 ]]; then
         log "⚠️ Não foi possível gerar hash dinamicamente. Usando hash padrão pré-calculado."
-        admin_hash="\$2a\$12\$8qqKvzz3fLvLY7hkVx1hG.lfdeQ1PRKO6NrSGHO93WWru9gYrVf.W"
+        # Hash bcrypt válido para senha: admin123
+        admin_hash='$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2'
     fi
 
     # Normalizar prefixos bcrypt para compatibilidade (algumas ferramentas geram $2y$)
