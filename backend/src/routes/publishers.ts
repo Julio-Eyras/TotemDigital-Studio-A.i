@@ -99,7 +99,11 @@ router.get('/',
         limit: parseInt(limit as string),
         search: search as string,
         client_type: client_type as 'subscriber' | 'publisher' | 'both' | undefined,
-        active_only: active_only === 'true',
+        // active_only:
+        // - undefined => usar default do service
+        // - true => filtrar apenas ativos
+        // - false => NÃO filtrar por ativo (incluir inativos também)
+        active_only: typeof active_only === 'string' ? active_only === 'true' : undefined,
         sortBy: sortBy as string,
         sortOrder: sortOrder as 'asc' | 'desc',
         createdFrom: createdFrom as string,

@@ -75,6 +75,10 @@ export class PublisherService {
         limit = 10, 
         search, 
         client_type, 
+        // active_only:
+        // - true => filtrar apenas ativos
+        // - false => não filtrar (incluir inativos também)
+        // - undefined => default true (manter comportamento anterior)
         active_only = true,
         sortBy = 'created_at',
         sortOrder = 'desc',
@@ -88,9 +92,9 @@ export class PublisherService {
       let paramIndex = 1;
 
       // Filtro de status ativo/inativo
-      if (active_only !== undefined) {
+      if (active_only === true) {
         whereClause += ` AND p.active = $${paramIndex}`;
-        queryParams.push(active_only);
+        queryParams.push(true);
         paramIndex++;
       }
 
