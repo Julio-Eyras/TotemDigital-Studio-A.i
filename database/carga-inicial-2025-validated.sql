@@ -164,8 +164,6 @@ INSERT INTO medias (
 (6, 5, 'check-up-video.mp4', 'Vídeo educativo sobre check-up', '/media/clinica/check-up-video.mp4', 'check-up-video.mp4', 25165824, 'video', 'video/mp4', 45, 1920, 1080, '/api/media/6/thumbnail', '/api/media/6/thumbnail', 'approved', 'approved', ARRAY['saude', 'prevencao', 'check-up'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '6 days', '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
-ALTER TABLE playlists DISABLE TRIGGER trigger_derive_playlist_ids;
-
 INSERT INTO playlists (playlist_id, subscriber_id, name, description, is_active, schedule_config, metadata) VALUES
 (1, 1, 'Playlist Black Friday - Entrada', 'Playlist principal da Black Friday na entrada', true, '{}'::jsonb, '{}'::jsonb),
 (2, 1, 'Playlist Black Friday - Praça', 'Playlist da Black Friday na praça de alimentação', true, '{}'::jsonb, '{}'::jsonb),
@@ -174,8 +172,6 @@ INSERT INTO playlists (playlist_id, subscriber_id, name, description, is_active,
 (5, 4, 'Playlist Menu Executivo', 'Playlist do menu executivo', true, '{}'::jsonb, '{}'::jsonb),
 (6, 5, 'Playlist Check-up', 'Playlist de conscientização sobre check-up', true, '{}'::jsonb, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
-
-ALTER TABLE playlists ENABLE TRIGGER trigger_derive_playlist_ids;
 
 INSERT INTO playlist_items (item_id, playlist_id, media_id, display_seconds, order_index, start_time, end_time, days_of_week, transitions, is_active) VALUES
 (1, 1, 1, 10, 0, NULL, NULL, NULL, '{}'::jsonb, true),

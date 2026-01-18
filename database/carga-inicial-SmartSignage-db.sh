@@ -342,8 +342,7 @@ SCHEDULE_MED='{"start_time": "08:00", "end_time": "20:00", "days_of_week": ["mon
 SCHEDULE_SUPER='{"start_time": "06:00", "end_time": "23:00", "days_of_week": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]}'
 METADATA_EMPTY='{}'
 
-# Desabilitar trigger temporariamente (trigger tenta acessar campaign_id que não existe na tabela)
-execute_sql "ALTER TABLE playlists DISABLE TRIGGER trigger_derive_playlist_ids;" "Desabilitando trigger playlists"
+# (schema atual) trigger_derive_playlist_ids não existe mais; não é necessário desabilitar
 
 execute_sql "INSERT INTO playlists (playlist_id, subscriber_id, name, description, is_active, schedule_config, metadata) VALUES
 (1, 1, 'Playlist Black Friday - Entrada', 'Playlist principal da Black Friday na entrada', true, '$SCHEDULE_BF'::jsonb, '$METADATA_EMPTY'::jsonb),
@@ -352,8 +351,7 @@ execute_sql "INSERT INTO playlists (playlist_id, subscriber_id, name, descriptio
 (4, 3, 'Playlist Ofertas Supermercado', 'Playlist de ofertas do supermercado', true, '$SCHEDULE_SUPER'::jsonb, '$METADATA_EMPTY'::jsonb)
 ON CONFLICT DO NOTHING;" "Inserindo Playlists"
 
-# Reabilitar trigger
-execute_sql "ALTER TABLE playlists ENABLE TRIGGER trigger_derive_playlist_ids;" "Reabilitando trigger playlists" || echo "Trigger não existe ou já está habilitado"
+# (schema atual) trigger_derive_playlist_ids não existe mais; nada a fazer
 
 # Playlist Items - JSONs
 TRANSITION_FADE_2000='{"type": "fade", "duration_ms": 2000}'
