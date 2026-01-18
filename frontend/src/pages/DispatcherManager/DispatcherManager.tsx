@@ -204,6 +204,10 @@ const DispatcherManager: React.FC = () => {
     try {
       setLoading(true);
       const timestamp = new Date(selectedTimestamp);
+      if (isNaN(timestamp.getTime())) {
+        setError('Data/hora inválida. Ajuste o campo "Timestamp" e tente novamente.');
+        return;
+      }
       
       // Buscar candidatos do dispatcher
       const candidatesResponse = await dispatcherTotemApi.getCandidates(
@@ -290,6 +294,10 @@ const DispatcherManager: React.FC = () => {
     
     try {
       const timestamp = new Date(selectedTimestamp);
+      if (isNaN(timestamp.getTime())) {
+        setError('Data/hora inválida. Ajuste o campo "Timestamp" e tente novamente.');
+        return;
+      }
       const response = await dispatcherTotemApi.dispatch(
         selectedTotemId,
         {

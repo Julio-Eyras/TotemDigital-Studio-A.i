@@ -159,6 +159,14 @@ const DispatcherMonitor: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Validar datas para evitar montar query inválida (ex.: ano 0002) e causar 500 no backend
+      const isValidYmd = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(`${v}T00:00:00Z`).getTime());
+      if (!isValidYmd(startDate) || !isValidYmd(endDate)) {
+        setError('Data inválida. Use o formato AAAA-MM-DD.');
+        return;
+      }
+
       const response = await dispatcherTotemApi.getHistory(
         totemFilter,
         `${startDate}T00:00:00Z`,
