@@ -186,12 +186,32 @@ BEGIN
     END IF;
   END IF;
 
-  -- qr_codes.qr_code_id (se existir)
+  -- qr_codes (schema v2 usa qr_id; schemas antigos podem usar qr_code_id)
   IF to_regclass('qr_codes') IS NOT NULL THEN
-    SELECT COALESCE(MAX(qr_code_id), 0) INTO _v FROM qr_codes;
-    SELECT pg_get_serial_sequence('qr_codes','qr_code_id') INTO _seq;
-    IF _seq IS NOT NULL THEN
-      PERFORM setval(_seq, _v, true);
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'qr_codes'
+        AND column_name = 'qr_id'
+    ) THEN
+      SELECT COALESCE(MAX(qr_id), 0) INTO _v FROM qr_codes;
+      SELECT pg_get_serial_sequence('qr_codes','qr_id') INTO _seq;
+      IF _seq IS NOT NULL THEN
+        PERFORM setval(_seq, _v, true);
+      END IF;
+    ELSIF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'qr_codes'
+        AND column_name = 'qr_code_id'
+    ) THEN
+      SELECT COALESCE(MAX(qr_code_id), 0) INTO _v FROM qr_codes;
+      SELECT pg_get_serial_sequence('qr_codes','qr_code_id') INTO _seq;
+      IF _seq IS NOT NULL THEN
+        PERFORM setval(_seq, _v, true);
+      END IF;
     END IF;
   END IF;
 END $$;
