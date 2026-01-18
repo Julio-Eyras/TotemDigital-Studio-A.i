@@ -175,29 +175,16 @@ CREATE TRIGGER trigger_validate_plan_jsonb
 CREATE OR REPLACE FUNCTION derive_playlist_subscriber_id()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Se playlist tem campaign_id, derivar subscriber_id da campanha
-    IF NEW.campaign_id IS NOT NULL AND NEW.subscriber_id IS NULL THEN
-        SELECT subscriber_id INTO NEW.subscriber_id
-        FROM campaigns
-        WHERE campaign_id = NEW.campaign_id;
-    END IF;
-    
-    -- Se playlist tem totem_id, derivar publisher_id do totem
-    IF NEW.totem_id IS NOT NULL AND NEW.publisher_id IS NULL THEN
-        SELECT l.publisher_id INTO NEW.publisher_id
-        FROM totems t
-        JOIN locals l ON t.local_id = l.local_id
-        WHERE t.totem_id = NEW.totem_id;
-    END IF;
-    
+    -- IMPORTANTE (schema v2): playlists não possuem campaign_id/totem_id/publisher_id.
+    -- Elas pertencem diretamente a um subscriber e se relacionam com campanhas via campaign_playlists.
+    -- Esta função é mantida apenas por compatibilidade, mas deve ser NO-OP para evitar erro:
+    -- "record \"new\" has no field \"campaign_id\""
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trigger_derive_playlist_ids ON playlists;
-CREATE TRIGGER trigger_derive_playlist_ids
-    BEFORE INSERT OR UPDATE ON playlists
-    FOR EACH ROW EXECUTE FUNCTION derive_playlist_subscriber_id();
+-- Não recriar trigger: no schema atual, derivação por campos inexistentes causaria erro.
 
 -- =============================================
 -- FUNÇÃO: Derivar publisher_id e subscriber_id em execution_logs
