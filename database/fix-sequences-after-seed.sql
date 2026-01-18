@@ -160,10 +160,10 @@ BEGIN
     END IF;
   END IF;
 
-  -- dispatcher_logs.log_id (tabela pode não existir em todos os esquemas)
-  IF to_regclass('dispatcher_logs') IS NOT NULL THEN
-    SELECT COALESCE(MAX(log_id), 0) INTO _v FROM dispatcher_logs;
-    SELECT pg_get_serial_sequence('dispatcher_logs','log_id') INTO _seq;
+  -- dispatcher_log.log_id (nome correto no schema v2 refatorado)
+  IF to_regclass('dispatcher_log') IS NOT NULL THEN
+    SELECT COALESCE(MAX(log_id), 0) INTO _v FROM dispatcher_log;
+    SELECT pg_get_serial_sequence('dispatcher_log','log_id') INTO _seq;
     IF _seq IS NOT NULL THEN
       PERFORM setval(_seq, _v, true);
     END IF;
