@@ -64,7 +64,11 @@ router.get('/player-registration-logs', async (req: Request, res: Response) => {
         uin: t.uin,
         status: t.status,
         createdAt: t.created_at,
-        ipAddress: t.ip_address,
+        // IP não existe como coluna. Vem do JSONB network_info (ex.: {"ip":"192.168.1.10"}).
+        ipAddress: (() => {
+          const ni = t.network_info ? (typeof t.network_info === 'string' ? JSON.parse(t.network_info) : t.network_info) : null;
+          return ni?.ip || ni?.ip_address || ni?.ipAddress || null;
+        })(),
         hardware: t.network_info ? (typeof t.network_info === 'string' ? JSON.parse(t.network_info) : t.network_info)?.hardware : null
       })),
       systemLogs: systemLogs.slice(-200),
