@@ -571,12 +571,20 @@ export interface PlaylistExposureRow {
   tv_name: string | null;
 }
 
+export interface PlaylistItemScheduleSummary {
+  start_time: string | null;
+  end_time: string | null;
+  days_of_week: string | null;
+  count: number;
+}
+
 export interface PlaylistExposureResponse {
   rows: PlaylistExposureRow[];
   campaigns: PlaylistCampaignInfo[];
   publishers: Array<{ publisher_id: number; name: string }>;
   totems: Array<{ totem_id: number; identifier: string; name: string | null; local_id: number | null; local_name: string | null }>;
   smartTvs: Array<{ tv_id: number; identifier: string; name: string | null; totem_id: number | null }>;
+  playlistItemSchedules?: PlaylistItemScheduleSummary[];
 }
 
 export const playlistApi = {

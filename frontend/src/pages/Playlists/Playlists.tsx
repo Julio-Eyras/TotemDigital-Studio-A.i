@@ -37,7 +37,7 @@ import {
   alpha,
   useTheme,
 } from '@mui/material';
-import { AccessTime, Add, AudioFile, Delete, Edit, Image, PlayArrow, QueueMusic, Refresh, VideoLibrary } from '@mui/icons-material';
+import { AccessTime, Add, AudioFile, Delete, Edit, ErrorOutline, Image, PlayArrow, QueueMusic, Refresh, VideoLibrary } from '@mui/icons-material';
 import {
   CreatePlaylistRequest,
   MediaItem,
@@ -45,6 +45,7 @@ import {
   PlaylistExposureResponse,
   PlaylistItem,
   PlaylistMediaItem,
+  PlaylistItemScheduleSummary,
   Subscriber,
   mediaApi,
   playlistApi,
@@ -319,6 +320,44 @@ const Playlists: React.FC = () => {
   const formatTotalDuration = (totalDurationMs?: number) => {
     if (!totalDurationMs) return '0:00';
     return formatDurationMs(totalDurationMs);
+  };
+
+  const normalizeDaysOfWeek = (v: unknown): string => {
+    if (v === null || v === undefined) return '';
+    if (Array.isArray(v)) return v.slice().sort().join(',');
+    const s = String(v).trim();
+    if (!s) return '';
+    try {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) return parsed.slice().sort().join(',');
+    } catch {
+      // ignore
+    }
+    return s;
+  };
+
+  const scheduleKey = (startTime: unknown, endTime: unknown, days: unknown): string => {
+    const st = startTime ? String(startTime).trim() : '';
+    const et = endTime ? String(endTime).trim() : '';
+    const dw = normalizeDaysOfWeek(days);
+    return `${st}|${et}|${dw}`;
+  };
+
+  const computeScheduleConflict = (campaigns: PlaylistCampaignInfo[], itemSchedules: PlaylistItemScheduleSummary[]): boolean => {
+    if (!campaigns?.length) return false;
+    if (!itemSchedules?.length) return false;
+
+    const distinctPlaylistKeys = new Set(itemSchedules.map((s) => scheduleKey(s.start_time, s.end_time, s.days_of_week)));
+    // Se playlist tem múltiplas agendas distintas, é um potencial conflito (ambiguidade)
+    if (distinctPlaylistKeys.size > 1) return true;
+
+    const playlistOnlyKey = Array.from(distinctPlaylistKeys)[0] || '';
+    // Se qualquer campanha define agenda e for diferente da agenda única da playlist, marcar conflito
+    for (const c of campaigns) {
+      const ck = scheduleKey(c.start_time, c.end_time, c.days_of_week);
+      if (ck && playlistOnlyKey && ck !== playlistOnlyKey) return true;
+    }
+    return false;
   };
 
   if (loading) {
@@ -720,22 +759,33 @@ const Playlists: React.FC = () => {
                       <Table size="small">
                         <TableHead>
                           <TableRow>
+                            <TableCell width={40}></TableCell>
                             <TableCell>Campanha</TableCell>
-                            <TableCell>Início</TableCell>
-                            <TableCell>Fim</TableCell>
+                            <TableCell>Datas (Campanha)</TableCell>
+                            <TableCell>Datas (Playlist)</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {(playlistExposure?.campaigns || []).map((c) => (
+                          {(() => {
+                            const itemSchedules = (playlistExposure?.playlistItemSchedules || []) as PlaylistItemScheduleSummary[];
+                            const conflict = computeScheduleConflict(playlistExposure?.campaigns || [], itemSchedules);
+                            return (playlistExposure?.campaigns || []).map((c) => (
                             <TableRow key={c.campaign_id}>
+                              <TableCell>
+                                {conflict ? <ErrorOutline sx={{ color: theme.palette.error.main }} /> : null}
+                              </TableCell>
                               <TableCell>{c.title}</TableCell>
-                              <TableCell>{c.start_date ? new Date(c.start_date).toLocaleDateString('pt-BR') : 'N/A'}</TableCell>
-                              <TableCell>{c.end_date ? new Date(c.end_date).toLocaleDateString('pt-BR') : 'N/A'}</TableCell>
+                              <TableCell>
+                                {c.start_date ? new Date(c.start_date).toLocaleDateString('pt-BR') : 'N/A'} →{' '}
+                                {c.end_date ? new Date(c.end_date).toLocaleDateString('pt-BR') : 'N/A'}
+                              </TableCell>
+                              <TableCell>—</TableCell>
                             </TableRow>
-                          ))}
+                            ));
+                          })()}
                           {(playlistExposure?.campaigns || []).length === 0 && (
                             <TableRow>
-                              <TableCell colSpan={3}>
+                              <TableCell colSpan={4}>
                                 <Alert severity="info">Sem dados de exposição.</Alert>
                               </TableCell>
                             </TableRow>
@@ -750,26 +800,44 @@ const Playlists: React.FC = () => {
                       <Table size="small">
                         <TableHead>
                           <TableRow>
+                            <TableCell width={40}></TableCell>
                             <TableCell>Campanha</TableCell>
-                            <TableCell>Start</TableCell>
-                            <TableCell>End</TableCell>
-                            <TableCell>Dias</TableCell>
-                            <TableCell>Timezone</TableCell>
+                            <TableCell>Agenda (Campanha)</TableCell>
+                            <TableCell>Agenda (Playlist)</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {(playlistExposure?.campaigns || []).map((c) => (
+                          {(() => {
+                            const itemSchedules = (playlistExposure?.playlistItemSchedules || []) as PlaylistItemScheduleSummary[];
+                            const conflict = computeScheduleConflict(playlistExposure?.campaigns || [], itemSchedules);
+                            const playlistAgendaText = (() => {
+                              if (!itemSchedules.length) return '—';
+                              if (itemSchedules.length === 1) {
+                                const s = itemSchedules[0];
+                                const dw = normalizeDaysOfWeek(s.days_of_week) || '—';
+                                return `${s.start_time || '—'} → ${s.end_time || '—'} | dias: ${dw}`;
+                              }
+                              return `múltiplas agendas (${itemSchedules.length})`;
+                            })();
+
+                            return (playlistExposure?.campaigns || []).map((c) => {
+                              const dw = normalizeDaysOfWeek(c.days_of_week) || '—';
+                              const campaignAgendaText = `${c.start_time || '—'} → ${c.end_time || '—'} | dias: ${dw} | tz: ${c.timezone || '—'}`;
+                              return (
                             <TableRow key={c.campaign_id}>
+                              <TableCell>
+                                {conflict ? <ErrorOutline sx={{ color: theme.palette.error.main }} /> : null}
+                              </TableCell>
                               <TableCell>{c.title}</TableCell>
-                              <TableCell>{c.start_time || '—'}</TableCell>
-                              <TableCell>{c.end_time || '—'}</TableCell>
-                              <TableCell>{c.days_of_week || '—'}</TableCell>
-                              <TableCell>{c.timezone || '—'}</TableCell>
+                              <TableCell>{campaignAgendaText}</TableCell>
+                              <TableCell>{playlistAgendaText}</TableCell>
                             </TableRow>
-                          ))}
+                              );
+                            });
+                          })()}
                           {(playlistExposure?.campaigns || []).length === 0 && (
                             <TableRow>
-                              <TableCell colSpan={5}>
+                              <TableCell colSpan={4}>
                                 <Alert severity="info">Sem dados de exposição.</Alert>
                               </TableCell>
                             </TableRow>

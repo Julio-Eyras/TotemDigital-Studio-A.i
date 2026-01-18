@@ -89,6 +89,13 @@ export interface PlaylistExposureRow {
   tv_name: string | null;
 }
 
+export interface PlaylistItemScheduleSummary {
+  start_time: string | null;
+  end_time: string | null;
+  days_of_week: string | null;
+  count: number;
+}
+
 export class PlaylistService {
   private get db() {
     return getDatabase();
@@ -746,10 +753,24 @@ export class PlaylistService {
     publishers: Array<{ publisher_id: number; name: string }>;
     totems: Array<{ totem_id: number; identifier: string; name: string | null; local_id: number | null; local_name: string | null }>;
     smartTvs: Array<{ tv_id: number; identifier: string; name: string | null; totem_id: number | null }>;
+    playlistItemSchedules: PlaylistItemScheduleSummary[];
   }> {
     try {
       const playlist = await this.getPlaylistById(playlistId, requestSubscriberId, isAdmin);
       if (!playlist) throw new Error('Playlist não encontrada');
+
+      const playlistItemSchedulesRaw = await this.db.findMany(`
+        SELECT
+          pi.start_time,
+          pi.end_time,
+          pi.days_of_week,
+          COUNT(*)::int as count
+        FROM playlist_items pi
+        WHERE pi.playlist_id = $1
+          AND COALESCE(pi.is_active, true) = true
+        GROUP BY pi.start_time, pi.end_time, pi.days_of_week
+        ORDER BY COUNT(*) DESC
+      `, [playlistId]);
 
       const rows = await this.db.findMany(`
         SELECT DISTINCT
@@ -839,6 +860,7 @@ export class PlaylistService {
         publishers: Array.from(publisherMap.values()),
         totems: Array.from(totemMap.values()),
         smartTvs: Array.from(tvMap.values()),
+        playlistItemSchedules: (playlistItemSchedulesRaw || []) as any,
       };
     } catch (error: any) {
       await logError('Erro ao listar exposição por playlist', error, { playlistId });
