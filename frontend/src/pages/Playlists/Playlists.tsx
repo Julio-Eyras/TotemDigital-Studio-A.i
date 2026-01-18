@@ -412,7 +412,7 @@ const Playlists: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            {isAdmin && (
+            {canSelectSubscriber && (
               <Grid item xs={12} md={4}>
                 <FormControl fullWidth>
                   <InputLabel>Subscriber (Anunciante)</InputLabel>
@@ -431,7 +431,7 @@ const Playlists: React.FC = () => {
                 </FormControl>
               </Grid>
             )}
-            <Grid item xs={12} md={isAdmin ? 6 : 8}>
+            <Grid item xs={12} md={canSelectSubscriber ? 6 : 8}>
               <TextField
                 fullWidth
                 placeholder="Buscar playlists..."
@@ -440,7 +440,7 @@ const Playlists: React.FC = () => {
                 InputProps={{ startAdornment: <QueueMusic sx={{ mr: 1, color: theme.palette.text.secondary }} /> }}
               />
             </Grid>
-            <Grid item xs={12} md={isAdmin ? 2 : 4}>
+            <Grid item xs={12} md={canSelectSubscriber ? 2 : 4}>
               <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={loadPlaylists}>
                 Atualizar
               </Button>
