@@ -48,6 +48,47 @@ export interface PlaylistMediaItem {
   media: any;
 }
 
+export interface PlaylistCampaignInfo {
+  campaign_id: number;
+  title: string;
+  status: string;
+  is_active: boolean;
+  start_date?: string | null;
+  end_date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  days_of_week?: string | null;
+  timezone?: string | null;
+  updated_at?: string | null;
+}
+
+export interface PlaylistExposureRow {
+  campaign_id: number;
+  campaign_title: string;
+  campaign_status: string;
+  campaign_is_active: boolean;
+  campaign_start_date?: string | null;
+  campaign_end_date?: string | null;
+  campaign_start_time?: string | null;
+  campaign_end_time?: string | null;
+  campaign_days_of_week?: string | null;
+  campaign_timezone?: string | null;
+
+  publisher_id: number;
+  publisher_name: string;
+
+  local_id: number | null;
+  local_name: string | null;
+
+  totem_id: number | null;
+  totem_identifier: string | null;
+  totem_name: string | null;
+
+  tv_id: number | null;
+  tv_identifier: string | null;
+  tv_name: string | null;
+}
+
 export class PlaylistService {
   private get db() {
     return getDatabase();
@@ -650,6 +691,157 @@ export class PlaylistService {
       await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
     } catch (error: any) {
       await logError('Erro ao atualizar duração do item da playlist', error, { playlistId, itemId, duration });
+      throw error;
+    }
+  }
+
+  /**
+   * Listar campanhas que usam uma playlist (via campaign_playlists)
+   */
+  async getCampaignsByPlaylist(
+    playlistId: number,
+    requestSubscriberId?: number,
+    isAdmin: boolean = false
+  ): Promise<PlaylistCampaignInfo[]> {
+    try {
+      const playlist = await this.getPlaylistById(playlistId, requestSubscriberId, isAdmin);
+      if (!playlist) throw new Error('Playlist não encontrada');
+
+      const rows = await this.db.findMany(`
+        SELECT
+          c.campaign_id,
+          c.title,
+          c.status,
+          COALESCE(c.is_active, true) as is_active,
+          c.start_date,
+          c.end_date,
+          c.start_time,
+          c.end_time,
+          c.days_of_week,
+          c.timezone,
+          c.updated_at
+        FROM campaign_playlists cp
+        JOIN campaigns c ON c.campaign_id = cp.campaign_id
+        WHERE cp.playlist_id = $1
+        ORDER BY c.updated_at DESC NULLS LAST, c.campaign_id DESC
+      `, [playlistId]);
+
+      return (rows || []) as any;
+    } catch (error: any) {
+      await logError('Erro ao listar campanhas por playlist', error, { playlistId });
+      throw error;
+    }
+  }
+
+  /**
+   * Exposição derivada via campaign_publishers -> locals -> totems -> smart_tvs
+   */
+  async getExposureByPlaylist(
+    playlistId: number,
+    requestSubscriberId?: number,
+    isAdmin: boolean = false
+  ): Promise<{
+    rows: PlaylistExposureRow[];
+    campaigns: PlaylistCampaignInfo[];
+    publishers: Array<{ publisher_id: number; name: string }>;
+    totems: Array<{ totem_id: number; identifier: string; name: string | null; local_id: number | null; local_name: string | null }>;
+    smartTvs: Array<{ tv_id: number; identifier: string; name: string | null; totem_id: number | null }>;
+  }> {
+    try {
+      const playlist = await this.getPlaylistById(playlistId, requestSubscriberId, isAdmin);
+      if (!playlist) throw new Error('Playlist não encontrada');
+
+      const rows = await this.db.findMany(`
+        SELECT DISTINCT
+          c.campaign_id,
+          c.title as campaign_title,
+          c.status as campaign_status,
+          COALESCE(c.is_active, true) as campaign_is_active,
+          c.start_date as campaign_start_date,
+          c.end_date as campaign_end_date,
+          c.start_time as campaign_start_time,
+          c.end_time as campaign_end_time,
+          c.days_of_week as campaign_days_of_week,
+          c.timezone as campaign_timezone,
+
+          p.publisher_id,
+          p.name as publisher_name,
+
+          l.local_id,
+          l.name as local_name,
+
+          t.totem_id,
+          t.identifier as totem_identifier,
+          t.name as totem_name,
+
+          tv.tv_id,
+          tv.identifier as tv_identifier,
+          tv.name as tv_name
+        FROM campaign_playlists cp
+        JOIN campaigns c ON c.campaign_id = cp.campaign_id
+        JOIN campaign_publishers cpub ON cpub.campaign_id = c.campaign_id AND COALESCE(cpub.is_active, true) = true
+        JOIN publishers p ON p.publisher_id = cpub.publisher_id
+        LEFT JOIN locals l ON l.publisher_id = p.publisher_id AND COALESCE(l.is_active, true) = true
+        LEFT JOIN totems t ON t.local_id = l.local_id AND COALESCE(t.is_active, true) = true
+        LEFT JOIN smart_tvs tv ON tv.totem_id = t.totem_id AND COALESCE(tv.is_active, true) = true
+        WHERE cp.playlist_id = $1
+          AND COALESCE(cp.is_active, true) = true
+          AND COALESCE(c.is_active, true) = true
+      `, [playlistId]);
+
+      const typedRows = (rows || []) as any as PlaylistExposureRow[];
+
+      const campaignMap = new Map<number, PlaylistCampaignInfo>();
+      const publisherMap = new Map<number, { publisher_id: number; name: string }>();
+      const totemMap = new Map<number, { totem_id: number; identifier: string; name: string | null; local_id: number | null; local_name: string | null }>();
+      const tvMap = new Map<number, { tv_id: number; identifier: string; name: string | null; totem_id: number | null }>();
+
+      for (const r of typedRows) {
+        if (!campaignMap.has(r.campaign_id)) {
+          campaignMap.set(r.campaign_id, {
+            campaign_id: r.campaign_id,
+            title: r.campaign_title,
+            status: r.campaign_status,
+            is_active: r.campaign_is_active,
+            start_date: r.campaign_start_date ?? null,
+            end_date: r.campaign_end_date ?? null,
+            start_time: r.campaign_start_time ?? null,
+            end_time: r.campaign_end_time ?? null,
+            days_of_week: r.campaign_days_of_week ?? null,
+            timezone: r.campaign_timezone ?? null,
+          });
+        }
+        if (!publisherMap.has(r.publisher_id)) {
+          publisherMap.set(r.publisher_id, { publisher_id: r.publisher_id, name: r.publisher_name });
+        }
+        if (typeof r.totem_id === 'number' && !totemMap.has(r.totem_id)) {
+          totemMap.set(r.totem_id, {
+            totem_id: r.totem_id,
+            identifier: r.totem_identifier || String(r.totem_id),
+            name: r.totem_name ?? null,
+            local_id: r.local_id ?? null,
+            local_name: r.local_name ?? null,
+          });
+        }
+        if (typeof r.tv_id === 'number' && !tvMap.has(r.tv_id)) {
+          tvMap.set(r.tv_id, {
+            tv_id: r.tv_id,
+            identifier: r.tv_identifier || String(r.tv_id),
+            name: r.tv_name ?? null,
+            totem_id: r.totem_id ?? null,
+          });
+        }
+      }
+
+      return {
+        rows: typedRows,
+        campaigns: Array.from(campaignMap.values()),
+        publishers: Array.from(publisherMap.values()),
+        totems: Array.from(totemMap.values()),
+        smartTvs: Array.from(tvMap.values()),
+      };
+    } catch (error: any) {
+      await logError('Erro ao listar exposição por playlist', error, { playlistId });
       throw error;
     }
   }

@@ -1,97 +1,124 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
+  Avatar,
   Box,
+  Button,
   Card,
   CardContent,
-  Typography,
-  Grid,
-  Button,
-  IconButton,
   Chip,
-  Avatar,
   Dialog,
-  DialogTitle,
-  DialogContent,
   DialogActions,
-  TextField,
+  DialogContent,
+  DialogTitle,
   FormControl,
+  Grid,
+  IconButton,
   InputLabel,
-  Select,
-  MenuItem,
-  Tooltip,
-  useTheme,
-  alpha,
   LinearProgress,
-  Alert,
   List,
   ListItem,
-  ListItemText,
   ListItemSecondaryAction,
-  Divider,
+  ListItemText,
+  MenuItem,
   Paper,
+  Select,
+  Tab,
+  Tabs,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
+  Tooltip,
+  Typography,
+  alpha,
+  useTheme,
 } from '@mui/material';
+import { AccessTime, Add, AudioFile, Delete, Edit, Image, PlayArrow, QueueMusic, Refresh, VideoLibrary } from '@mui/icons-material';
 import {
-  Add,
-  Edit,
-  Delete,
-  QueueMusic,
-  PlayArrow,
-  DragIndicator,
-  Refresh,
-  MoreVert,
-  AccessTime,
-  VideoLibrary,
-  Image,
-  AudioFile,
-} from '@mui/icons-material';
-import { playlistApi, PlaylistItem, CreatePlaylistRequest, PlaylistMediaItem, mediaApi, MediaItem, clientApi, Client } from '../../services/api';
+  CreatePlaylistRequest,
+  MediaItem,
+  PlaylistCampaignInfo,
+  PlaylistExposureResponse,
+  PlaylistItem,
+  PlaylistMediaItem,
+  Subscriber,
+  mediaApi,
+  playlistApi,
+  subscriberApi,
+} from '../../services/api';
 import { useAppSelector } from '../../store/hooks';
+
+type EditorMode = 'create' | 'edit';
 
 const Playlists: React.FC = () => {
   const theme = useTheme();
-  const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-  const [subscribers, setSubscribers] = useState<Client[]>([]);
-  const [selectedSubscriberId, setSelectedSubscriberId] = useState<number | 'all'>('all');
-  const [loading, setLoading] = useState(true);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
-  const [selectedPlaylist, setSelectedPlaylist] = useState<PlaylistItem | null>(null);
-  const [playlistMedia, setPlaylistMedia] = useState<PlaylistMediaItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  
   const user = useAppSelector((state) => state.auth.user);
-  const isAdmin = user?.role === 'admin' || user?.role === 'admin_sql';
-  const userSubscriberId = user?.subscriberId;
 
-  const [newPlaylist, setNewPlaylist] = useState<CreatePlaylistRequest>({
+  const isAdmin = useMemo(() => {
+    const u: any = user;
+    return Boolean(
+      u?.isTenantUser ??
+        u?.is_tenant_user ??
+        ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'gerente_marketing'].includes(
+          u?.role || ''
+        )
+    );
+  }, [user]);
+
+  const userSubscriberId = useMemo(() => {
+    const u: any = user;
+    return u?.subscriberId ?? u?.subscriber_id ?? u?.clientId ?? undefined;
+  }, [user]);
+
+  const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [selectedSubscriberId, setSelectedSubscriberId] = useState<number | 'all'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Editor
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorMode, setEditorMode] = useState<EditorMode>('create');
+  const [editorTab, setEditorTab] = useState(0);
+  const [exposureTab, setExposureTab] = useState(0);
+
+  const [selectedPlaylist, setSelectedPlaylist] = useState<PlaylistItem | null>(null);
+  const [draft, setDraft] = useState<CreatePlaylistRequest>({
+    subscriberId: userSubscriberId,
     name: '',
     description: '',
-    subscriberId: userSubscriberId, // NOVO: Usar subscriberId do usuário por padrão
   });
 
+  const [playlistMedia, setPlaylistMedia] = useState<PlaylistMediaItem[]>([]);
+  const [playlistCampaigns, setPlaylistCampaigns] = useState<PlaylistCampaignInfo[]>([]);
+  const [playlistExposure, setPlaylistExposure] = useState<PlaylistExposureResponse | null>(null);
+
   useEffect(() => {
-    if (isAdmin) {
-      loadSubscribers();
-    }
-    loadPlaylists();
-    loadMediaItems();
-  }, [selectedSubscriberId, searchTerm]);
+    if (isAdmin) void loadSubscribers();
+    void loadPlaylists();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, selectedSubscriberId, searchTerm]);
+
+  useEffect(() => {
+    // Carregar mídias quando editor abre (depende do subscriber alvo)
+    if (!editorOpen) return;
+    void loadMediaItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorOpen, editorMode, selectedPlaylist?.playlist_id, draft?.subscriberId]);
 
   const loadSubscribers = async () => {
     try {
-      const response = await clientApi.getAll({ limit: 1000 });
+      const response = await subscriberApi.getAll({ limit: 10000, active_only: false });
       setSubscribers(response.data || []);
-    } catch (error) {
-      console.error('Erro ao carregar subscribers:', error);
+    } catch (e) {
+      console.error('Erro ao carregar subscribers:', e);
     }
   };
 
@@ -99,25 +126,21 @@ const Playlists: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
-      // Determinar subscriberId para filtro
+
       let subscriberId: number | undefined = undefined;
       if (!isAdmin && userSubscriberId) {
-        // Não-admin: filtrar automaticamente por seu subscriber
         subscriberId = userSubscriberId;
       } else if (isAdmin && selectedSubscriberId !== 'all' && typeof selectedSubscriberId === 'number') {
-        // Admin: usar subscriber selecionado
         subscriberId = selectedSubscriberId;
       }
-      
+
       const response = await playlistApi.getAll({
         search: searchTerm || undefined,
-        subscriberId: subscriberId, // NOVO
+        subscriberId,
       });
-      const data = response?.data || response || [];
-      setPlaylists(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Erro ao carregar playlists:', error);
+      setPlaylists(Array.isArray(response.data) ? response.data : []);
+    } catch (e) {
+      console.error('Erro ao carregar playlists:', e);
       setError('Erro ao carregar lista de playlists');
       setPlaylists([]);
     } finally {
@@ -125,26 +148,19 @@ const Playlists: React.FC = () => {
     }
   };
 
+  const getTargetSubscriberIdForMedia = (): number | undefined => {
+    if (editorMode === 'edit' && selectedPlaylist) return selectedPlaylist.subscriber_id || selectedPlaylist.client_id;
+    if (editorMode === 'create') return draft.subscriberId || userSubscriberId;
+    return userSubscriberId;
+  };
+
   const loadMediaItems = async () => {
     try {
-      // Filtrar mídias por subscriber da playlist selecionada (se houver)
-      // ou pelo subscriber do usuário (se não-admin)
-      let subscriberId: number | undefined = undefined;
-      if (selectedPlaylist) {
-        subscriberId = selectedPlaylist.subscriber_id || selectedPlaylist.client_id;
-      } else if (!isAdmin && userSubscriberId) {
-        subscriberId = userSubscriberId;
-      } else if (isAdmin && selectedSubscriberId !== 'all' && typeof selectedSubscriberId === 'number') {
-        subscriberId = selectedSubscriberId;
-      }
-      
-      const response = await mediaApi.getAll({
-        subscriberId: subscriberId, // Filtrar por subscriber
-      });
-      // mediaApi.getAll já retorna { data: [...], total, page, limit }
+      const subscriberId = getTargetSubscriberIdForMedia();
+      const response = await mediaApi.getAll({ subscriberId });
       setMediaItems(Array.isArray(response?.data) ? response.data : []);
-    } catch (error) {
-      console.error('Erro ao carregar mídia:', error);
+    } catch (e) {
+      console.error('Erro ao carregar mídias:', e);
       setMediaItems([]);
     }
   };
@@ -152,113 +168,136 @@ const Playlists: React.FC = () => {
   const loadPlaylistMedia = async (playlistId: number) => {
     try {
       const media = await playlistApi.getMedia(playlistId);
-      // playlistApi.getMedia() já retorna PlaylistMediaItem[]
       setPlaylistMedia(Array.isArray(media) ? media : []);
-    } catch (error) {
-      console.error('Erro ao carregar mídia da playlist:', error);
+    } catch (e) {
+      console.error('Erro ao carregar mídia da playlist:', e);
       setPlaylistMedia([]);
     }
   };
 
-  const handleCreatePlaylist = async () => {
+  const loadPlaylistCampaigns = async (playlistId: number) => {
     try {
-      // Garantir que subscriberId está definido
-      const playlistData: CreatePlaylistRequest = {
-        ...newPlaylist,
-        subscriberId: newPlaylist.subscriberId || userSubscriberId, // Usar subscriberId do usuário se não especificado
-        clientId: newPlaylist.clientId || userSubscriberId, // DEPRECATED (compatibilidade)
-      };
-      
-      await playlistApi.create(playlistData);
-      setCreateDialogOpen(false);
-      setNewPlaylist({ 
-        name: '', 
-        description: '', 
-        subscriberId: userSubscriberId,
-        clientId: userSubscriberId 
-      });
-      loadPlaylists();
-    } catch (error: any) {
-      console.error('Erro ao criar playlist:', error);
-      const errorMessage = error?.response?.data?.error || error?.message || 'Erro ao criar playlist';
-      setError(errorMessage);
+      const campaigns = await playlistApi.getCampaigns(playlistId);
+      setPlaylistCampaigns(Array.isArray(campaigns) ? campaigns : []);
+    } catch (e) {
+      console.error('Erro ao carregar campanhas da playlist:', e);
+      setPlaylistCampaigns([]);
     }
   };
 
-  const handleEditPlaylist = async () => {
-    if (!selectedPlaylist) return;
-    
+  const loadPlaylistExposure = async (playlistId: number) => {
     try {
+      const exposure = await playlistApi.getExposure(playlistId);
+      setPlaylistExposure(exposure || null);
+    } catch (e) {
+      console.error('Erro ao carregar exposição da playlist:', e);
+      setPlaylistExposure(null);
+    }
+  };
+
+  const openCreate = () => {
+    setEditorMode('create');
+    setEditorTab(0);
+    setExposureTab(0);
+    setSelectedPlaylist(null);
+    setPlaylistMedia([]);
+    setPlaylistCampaigns([]);
+    setPlaylistExposure(null);
+    setDraft({ subscriberId: userSubscriberId, name: '', description: '' });
+    setEditorOpen(true);
+  };
+
+  const openEdit = async (pl: PlaylistItem) => {
+    setEditorMode('edit');
+    setEditorTab(0);
+    setExposureTab(0);
+    setSelectedPlaylist(pl);
+    setEditorOpen(true);
+
+    await loadPlaylistMedia(pl.playlist_id);
+    await loadPlaylistCampaigns(pl.playlist_id);
+    await loadPlaylistExposure(pl.playlist_id);
+  };
+
+  const handleCreatePlaylist = async () => {
+    try {
+      setError(null);
+      const playlistData: CreatePlaylistRequest = {
+        name: draft.name,
+        description: draft.description,
+        subscriberId: draft.subscriberId || userSubscriberId,
+        clientId: draft.subscriberId || userSubscriberId,
+      };
+      const created = await playlistApi.create(playlistData);
+      setSelectedPlaylist(created);
+      setEditorMode('edit');
+      setEditorTab(1); // Mídias
+      await loadPlaylists();
+      await loadPlaylistMedia(created.playlist_id);
+      await loadPlaylistCampaigns(created.playlist_id);
+      await loadPlaylistExposure(created.playlist_id);
+    } catch (e: any) {
+      console.error('Erro ao criar playlist:', e);
+      setError(e?.response?.data?.error || e?.message || 'Erro ao criar playlist');
+    }
+  };
+
+  const handleSavePlaylist = async () => {
+    if (!selectedPlaylist) return;
+    try {
+      setError(null);
       await playlistApi.update(selectedPlaylist.playlist_id, {
         name: selectedPlaylist.name,
         description: selectedPlaylist.description,
-        subscriberId: selectedPlaylist.subscriber_id || selectedPlaylist.client_id, // NOVO
-        clientId: selectedPlaylist.client_id, // DEPRECATED (compatibilidade)
+        subscriberId: selectedPlaylist.subscriber_id || selectedPlaylist.client_id,
+        clientId: selectedPlaylist.client_id,
         isActive: selectedPlaylist.is_active,
       });
-      setEditDialogOpen(false);
-      setSelectedPlaylist(null);
-      loadPlaylists();
-    } catch (error: any) {
-      console.error('Erro ao atualizar playlist:', error);
-      const errorMessage = error?.response?.data?.error || error?.message || 'Erro ao atualizar playlist';
-      setError(errorMessage);
+      await loadPlaylists();
+    } catch (e: any) {
+      console.error('Erro ao atualizar playlist:', e);
+      setError(e?.response?.data?.error || e?.message || 'Erro ao atualizar playlist');
     }
   };
 
   const handleDeletePlaylist = async (id: number) => {
-    if (window.confirm('Tem certeza que deseja excluir esta playlist?')) {
-      try {
-        await playlistApi.delete(id);
-        loadPlaylists();
-      } catch (error) {
-        console.error('Erro ao excluir playlist:', error);
-        setError('Erro ao excluir playlist');
-      }
+    if (!window.confirm('Tem certeza que deseja excluir esta playlist?')) return;
+    try {
+      await playlistApi.delete(id);
+      await loadPlaylists();
+    } catch (e) {
+      console.error('Erro ao excluir playlist:', e);
+      setError('Erro ao excluir playlist');
     }
   };
 
   const handleAddMediaToPlaylist = async (mediaId: number) => {
     if (!selectedPlaylist) return;
-    
     try {
-      // VALIDAÇÃO: Verificar se mídia pertence ao mesmo subscriber da playlist
-      const media = mediaItems.find(m => m.media_id === mediaId);
-      const playlistSubscriberId = selectedPlaylist.subscriber_id || selectedPlaylist.client_id;
-      const mediaSubscriberId = media?.subscriberId || media?.clientId;
-      
-      if (media && playlistSubscriberId && mediaSubscriberId && playlistSubscriberId !== mediaSubscriberId) {
-        setError(
-          `Esta mídia pertence a outro subscriber (${media.subscriberName || media.clientName || 'Desconhecido'}). ` +
-          `Você só pode adicionar mídias do mesmo subscriber da playlist.`
-        );
-        return;
-      }
-      
+      setError(null);
       await playlistApi.addMedia(selectedPlaylist.playlist_id, mediaId);
-      loadPlaylistMedia(selectedPlaylist.playlist_id);
-      setError(null); // Limpar erro anterior se sucesso
-    } catch (error: any) {
-      console.error('Erro ao adicionar mídia:', error);
-      const errorMessage = error?.response?.data?.error || error?.message || 'Erro ao adicionar mídia à playlist';
-      setError(errorMessage);
+      await loadPlaylistMedia(selectedPlaylist.playlist_id);
+      await loadPlaylists();
+    } catch (e: any) {
+      console.error('Erro ao adicionar mídia:', e);
+      setError(e?.response?.data?.error || e?.message || 'Erro ao adicionar mídia à playlist');
     }
   };
 
   const handleRemoveMediaFromPlaylist = async (itemId: number) => {
     if (!selectedPlaylist) return;
-    
     try {
       await playlistApi.removeMedia(selectedPlaylist.playlist_id, itemId);
-      loadPlaylistMedia(selectedPlaylist.playlist_id);
-    } catch (error) {
-      console.error('Erro ao remover mídia:', error);
+      await loadPlaylistMedia(selectedPlaylist.playlist_id);
+      await loadPlaylists();
+    } catch (e) {
+      console.error('Erro ao remover mídia:', e);
       setError('Erro ao remover mídia da playlist');
     }
   };
 
   const getMediaIcon = (mediaType: string) => {
-    switch (mediaType.toLowerCase()) {
+    switch ((mediaType || '').toLowerCase()) {
       case 'video':
         return <VideoLibrary />;
       case 'image':
@@ -270,16 +309,16 @@ const Playlists: React.FC = () => {
     }
   };
 
-  const formatDuration = (duration: number) => {
-    const seconds = Math.floor(duration / 1000);
+  const formatDurationMs = (durationMs: number) => {
+    const seconds = Math.floor((durationMs || 0) / 1000);
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const formatTotalDuration = (totalDuration?: number) => {
-    if (!totalDuration) return '0:00';
-    return formatDuration(totalDuration);
+  const formatTotalDuration = (totalDurationMs?: number) => {
+    if (!totalDurationMs) return '0:00';
+    return formatDurationMs(totalDurationMs);
   };
 
   if (loading) {
@@ -295,30 +334,25 @@ const Playlists: React.FC = () => {
 
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
-      {/* Header */}
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
             Playlists
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie suas playlists de mídia
+            Playlists pertencem a um subscriber e contêm mídias; campanhas apontam para playlists.
           </Typography>
         </Box>
         <Button
           variant="contained"
           startIcon={<Add />}
-          onClick={() => setCreateDialogOpen(true)}
-          sx={{ 
-            backgroundColor: theme.palette.primary.main,
-            '&:hover': { backgroundColor: theme.palette.primary.dark }
-          }}
+          onClick={openCreate}
+          sx={{ backgroundColor: theme.palette.primary.main, '&:hover': { backgroundColor: theme.palette.primary.dark } }}
         >
           Criar Playlist
         </Button>
       </Box>
 
-      {/* Filters */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
@@ -332,9 +366,9 @@ const Playlists: React.FC = () => {
                     label="Subscriber (Anunciante)"
                   >
                     <MenuItem value="all">Todos</MenuItem>
-                    {subscribers.map((subscriber) => (
-                      <MenuItem key={subscriber.client_id} value={subscriber.client_id}>
-                        {subscriber.name}
+                    {subscribers.map((s) => (
+                      <MenuItem key={s.subscriber_id} value={s.subscriber_id}>
+                        {s.name}
                       </MenuItem>
                     ))}
                   </Select>
@@ -347,18 +381,11 @@ const Playlists: React.FC = () => {
                 placeholder="Buscar playlists..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                InputProps={{
-                  startAdornment: <QueueMusic sx={{ mr: 1, color: theme.palette.text.secondary }} />,
-                }}
+                InputProps={{ startAdornment: <QueueMusic sx={{ mr: 1, color: theme.palette.text.secondary }} /> }}
               />
             </Grid>
             <Grid item xs={12} md={isAdmin ? 2 : 4}>
-              <Button
-                fullWidth
-                variant="outlined"
-                startIcon={<Refresh />}
-                onClick={loadPlaylists}
-              >
+              <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={loadPlaylists}>
                 Atualizar
               </Button>
             </Grid>
@@ -366,27 +393,24 @@ const Playlists: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Error Alert */}
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
-      {/* Playlists Grid */}
       <Grid container spacing={3}>
-        {Array.isArray(playlists) && playlists.map((playlist) => (
+        {playlists.map((playlist) => (
           <Grid item xs={12} sm={6} md={4} lg={3} key={playlist.playlist_id}>
-            <Card sx={{ 
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: theme.shadows[8],
-              }
-            }}>
+            <Card
+              sx={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                '&:hover': { transform: 'translateY(-4px)', boxShadow: theme.shadows[8] },
+              }}
+            >
               <Box sx={{ position: 'relative', height: 120, backgroundColor: theme.palette.grey[100] }}>
                 <Avatar
                   sx={{
@@ -399,7 +423,6 @@ const Playlists: React.FC = () => {
                 >
                   <QueueMusic />
                 </Avatar>
-                
                 <Chip
                   label={`${playlist.media_count || 0} itens`}
                   size="small"
@@ -412,16 +435,17 @@ const Playlists: React.FC = () => {
                     fontWeight: 'bold',
                   }}
                 />
-
-                <Box sx={{ 
-                  position: 'absolute', 
-                  bottom: 16, 
-                  left: 16, 
-                  right: 16,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: 16,
+                    left: 16,
+                    right: 16,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <AccessTime fontSize="small" color="action" />
                     <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
@@ -435,42 +459,27 @@ const Playlists: React.FC = () => {
                 <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
                   {playlist.name}
                 </Typography>
-                
                 {playlist.description && (
                   <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1 }} noWrap>
                     {playlist.description}
                   </Typography>
                 )}
-
-                {(playlist.subscriber_name || (playlist as any).client_name) && (
+                {playlist.subscriber_name && (
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
-                    Subscriber: {playlist.subscriber_name || (playlist as any).client_name}
+                    Subscriber: {playlist.subscriber_name}
                   </Typography>
                 )}
 
                 <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Chip
-                    label={playlist.is_active ? 'Ativa' : 'Inativa'}
-                    size="small"
-                    color={playlist.is_active ? 'success' : 'default'}
-                    variant="outlined"
-                  />
-                  
+                  <Chip label={playlist.is_active ? 'Ativa' : 'Inativa'} size="small" color={playlist.is_active ? 'success' : 'default'} variant="outlined" />
                   <Box>
-                    <Tooltip title="Gerenciar Mídia">
-                      <IconButton size="small" onClick={() => {
-                        setSelectedPlaylist(playlist);
-                        loadPlaylistMedia(playlist.playlist_id);
-                        setMediaDialogOpen(true);
-                      }}>
+                    <Tooltip title="Abrir editor">
+                      <IconButton size="small" onClick={() => openEdit(playlist)}>
                         <PlayArrow />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Editar">
-                      <IconButton size="small" onClick={() => {
-                        setSelectedPlaylist(playlist);
-                        setEditDialogOpen(true);
-                      }}>
+                      <IconButton size="small" onClick={() => openEdit(playlist)}>
                         <Edit />
                       </IconButton>
                     </Tooltip>
@@ -487,7 +496,6 @@ const Playlists: React.FC = () => {
         ))}
       </Grid>
 
-      {/* Empty State */}
       {playlists.length === 0 && !loading && (
         <Card sx={{ textAlign: 'center', py: 8 }}>
           <CardContent>
@@ -498,210 +506,333 @@ const Playlists: React.FC = () => {
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
               Comece criando suas primeiras playlists
             </Typography>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => setCreateDialogOpen(true)}
-            >
+            <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
               Criar Primeira Playlist
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Create Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Criar Playlist</DialogTitle>
+      <Dialog open={editorOpen} onClose={() => setEditorOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle>{editorMode === 'create' ? 'Criar Playlist' : `Editar Playlist - ${selectedPlaylist?.name || ''}`}</DialogTitle>
         <DialogContent>
-          {isAdmin && (
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Subscriber (Anunciante)</InputLabel>
-              <Select
-                value={newPlaylist.subscriberId || newPlaylist.clientId || ''}
-                onChange={(e) => {
-                  const subscriberId = e.target.value ? parseInt(String(e.target.value), 10) : undefined;
-                  setNewPlaylist({ 
-                    ...newPlaylist, 
-                    subscriberId: subscriberId,
-                    clientId: subscriberId 
-                  });
-                }}
-                label="Subscriber (Anunciante)"
-              >
-                {subscribers.map((subscriber) => (
-                  <MenuItem key={subscriber.client_id} value={subscriber.client_id}>
-                    {subscriber.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-          <TextField
-            fullWidth
-            label="Nome da Playlist"
-            value={newPlaylist.name}
-            onChange={(e) => setNewPlaylist({ ...newPlaylist, name: e.target.value })}
-            margin="normal"
-            required
-          />
-          <TextField
-            fullWidth
-            label="Descrição"
-            value={newPlaylist.description}
-            onChange={(e) => setNewPlaylist({ ...newPlaylist, description: e.target.value })}
-            margin="normal"
-            multiline
-            rows={3}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleCreatePlaylist}>Criar</Button>
-        </DialogActions>
-      </Dialog>
+          <Tabs value={editorTab} onChange={(_, v) => setEditorTab(v)} sx={{ mb: 2 }}>
+            <Tab label="Dados da Playlist" />
+            <Tab label="Mídias" />
+            <Tab label="Campanhas" disabled={!selectedPlaylist?.playlist_id} />
+            <Tab label="Exposição" disabled={!selectedPlaylist?.playlist_id} />
+          </Tabs>
 
-      {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Editar Playlist</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="Nome da Playlist"
-            value={selectedPlaylist?.name || ''}
-            onChange={(e) => setSelectedPlaylist({ ...selectedPlaylist!, name: e.target.value })}
-            margin="normal"
-            required
-          />
-          <TextField
-            fullWidth
-            label="Descrição"
-            value={selectedPlaylist?.description || ''}
-            onChange={(e) => setSelectedPlaylist({ ...selectedPlaylist!, description: e.target.value })}
-            margin="normal"
-            multiline
-            rows={3}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleEditPlaylist}>Salvar</Button>
-        </DialogActions>
-      </Dialog>
+          {editorTab === 0 && (
+            <Box>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Playlist pertence a um <strong>subscriber</strong> e contém <strong>mídias</strong> via <strong>playlist_items</strong>.
+                Campanhas apontam para playlists via <strong>campaign_playlists</strong>.
+              </Alert>
 
-      {/* Media Management Dialog */}
-      <Dialog open={mediaDialogOpen} onClose={() => setMediaDialogOpen(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>
-          Gerenciar Mídia - {selectedPlaylist?.name}
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2}>
-            {/* Available Media */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Mídia Disponível
-                {selectedPlaylist && (
-                  <Typography variant="caption" sx={{ ml: 1, color: theme.palette.text.secondary }}>
-                    (Filtrado por subscriber: {selectedPlaylist.subscriber_name || (selectedPlaylist as any).client_name || 'N/A'})
-                  </Typography>
-                )}
-              </Typography>
-              {Array.isArray(mediaItems) && mediaItems.length === 0 && (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  Nenhuma mídia disponível para este subscriber. Certifique-se de que as mídias pertencem ao mesmo subscriber da playlist.
-                </Alert>
-              )}
-              <List sx={{ maxHeight: 400, overflow: 'auto' }}>
-                {Array.isArray(mediaItems) && mediaItems.map((media) => {
-                  const playlistSubscriberId = selectedPlaylist?.subscriber_id || selectedPlaylist?.client_id;
-                  const mediaSubscriberId = media.subscriberId || media.clientId;
-                  const canAdd = !playlistSubscriberId || !mediaSubscriberId || playlistSubscriberId === mediaSubscriberId;
-                  
-                  return (
-                    <ListItem
-                      key={media.media_id}
-                      button
-                      onClick={() => canAdd && handleAddMediaToPlaylist(media.media_id)}
-                      disabled={!canAdd}
-                      sx={{
-                        opacity: canAdd ? 1 : 0.5,
-                        '&:hover': canAdd ? {} : { cursor: 'not-allowed' }
-                      }}
-                    >
-                      <Avatar sx={{ mr: 2, backgroundColor: alpha(theme.palette.primary.main, 0.1) }}>
-                        {getMediaIcon(media.media_type)}
-                      </Avatar>
-                      <ListItemText
-                        primary={media.name}
-                        secondary={
-                          <>
-                            {media.media_type}
-                            {!canAdd && (
-                              <Typography variant="caption" sx={{ color: theme.palette.error.main, display: 'block' }}>
-                                Pertence a outro subscriber
-                              </Typography>
-                            )}
-                          </>
-                        }
-                      />
-                      <ListItemSecondaryAction>
-                        <IconButton edge="end" disabled={!canAdd}>
-                          <Add />
-                        </IconButton>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                  );
-                })}
-              </List>
-            </Grid>
-
-            {/* Playlist Media */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Mídia na Playlist
-              </Typography>
-              <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Ordem</TableCell>
-                      <TableCell>Mídia</TableCell>
-                      <TableCell>Duração</TableCell>
-                      <TableCell>Ações</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {Array.isArray(playlistMedia) && playlistMedia.map((item) => (
-                      <TableRow key={item.item_id}>
-                        <TableCell>{item.order_index}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Avatar sx={{ width: 24, height: 24 }}>
-                              {getMediaIcon(item.media.media_type)}
-                            </Avatar>
-                            <Typography variant="body2" noWrap>
-                              {item.media.name}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>{formatDuration(item.duration)}</TableCell>
-                        <TableCell>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleRemoveMediaFromPlaylist(item.item_id)}
-                          >
-                            <Delete />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
+              {isAdmin && (
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Subscriber (Anunciante)</InputLabel>
+                  <Select
+                    value={editorMode === 'create' ? draft.subscriberId || '' : selectedPlaylist?.subscriber_id || selectedPlaylist?.client_id || ''}
+                    onChange={(e) => {
+                      const sid = e.target.value ? parseInt(String(e.target.value), 10) : undefined;
+                      if (editorMode === 'create') setDraft({ ...draft, subscriberId: sid, clientId: sid });
+                      else if (selectedPlaylist && sid) setSelectedPlaylist({ ...selectedPlaylist, subscriber_id: sid });
+                    }}
+                    label="Subscriber (Anunciante)"
+                  >
+                    {subscribers.map((s) => (
+                      <MenuItem key={s.subscriber_id} value={s.subscriber_id}>
+                        {s.name}
+                      </MenuItem>
                     ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Grid>
-          </Grid>
+                  </Select>
+                </FormControl>
+              )}
+
+              <TextField
+                fullWidth
+                label="Nome da Playlist *"
+                value={editorMode === 'create' ? draft.name : selectedPlaylist?.name || ''}
+                onChange={(e) => {
+                  if (editorMode === 'create') setDraft({ ...draft, name: e.target.value });
+                  else if (selectedPlaylist) setSelectedPlaylist({ ...selectedPlaylist, name: e.target.value });
+                }}
+                margin="normal"
+                required
+              />
+              <TextField
+                fullWidth
+                label="Descrição"
+                value={editorMode === 'create' ? draft.description || '' : selectedPlaylist?.description || ''}
+                onChange={(e) => {
+                  if (editorMode === 'create') setDraft({ ...draft, description: e.target.value });
+                  else if (selectedPlaylist) setSelectedPlaylist({ ...selectedPlaylist, description: e.target.value });
+                }}
+                margin="normal"
+                multiline
+                rows={3}
+              />
+            </Box>
+          )}
+
+          {editorTab === 1 && (
+            <Box>
+              {!selectedPlaylist?.playlist_id ? (
+                <Alert severity="warning">Crie a playlist primeiro para adicionar mídias.</Alert>
+              ) : (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h6" sx={{ mb: 1 }}>
+                      Mídias disponíveis
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                      Somente mídias do mesmo subscriber da playlist.
+                    </Typography>
+                    <List sx={{ maxHeight: 420, overflow: 'auto', mt: 1 }}>
+                      {mediaItems.map((m) => (
+                        <ListItem key={m.media_id} button onClick={() => handleAddMediaToPlaylist(m.media_id)}>
+                          <Avatar sx={{ mr: 2, backgroundColor: alpha(theme.palette.primary.main, 0.1) }}>{getMediaIcon(m.media_type)}</Avatar>
+                          <ListItemText primary={m.name} secondary={m.media_type} />
+                        </ListItem>
+                      ))}
+                      {mediaItems.length === 0 && <Alert severity="info">Nenhuma mídia disponível para este subscriber.</Alert>}
+                    </List>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h6" sx={{ mb: 1 }}>
+                      Itens da playlist ({playlistMedia.length})
+                    </Typography>
+                    <TableContainer component={Paper} sx={{ maxHeight: 420 }}>
+                      <Table size="small" stickyHeader>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Ordem</TableCell>
+                            <TableCell>Mídia</TableCell>
+                            <TableCell>Duração</TableCell>
+                            <TableCell>Ações</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {playlistMedia.map((it) => (
+                            <TableRow key={it.item_id}>
+                              <TableCell>{it.order_index}</TableCell>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Avatar sx={{ width: 24, height: 24 }}>{getMediaIcon(it.media?.media_type || 'video')}</Avatar>
+                                  <Typography variant="body2" noWrap>
+                                    {it.media?.name || `Media ${it.media_id}`}
+                                  </Typography>
+                                </Box>
+                              </TableCell>
+                              <TableCell>{formatDurationMs(it.duration || 10000)}</TableCell>
+                              <TableCell>
+                                <IconButton size="small" onClick={() => handleRemoveMediaFromPlaylist(it.item_id)}>
+                                  <Delete />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {playlistMedia.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={4}>
+                                <Alert severity="info">Nenhuma mídia adicionada ainda.</Alert>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Grid>
+                </Grid>
+              )}
+            </Box>
+          )}
+
+          {editorTab === 2 && (
+            <Box>
+              {!selectedPlaylist?.playlist_id ? (
+                <Alert severity="warning">Salve a playlist para ver campanhas.</Alert>
+              ) : (
+                <>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Campanhas que apontam para esta playlist (via campaign_playlists).
+                  </Alert>
+                  <TableContainer component={Paper}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>ID</TableCell>
+                          <TableCell>Título</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Ativa</TableCell>
+                          <TableCell>Início</TableCell>
+                          <TableCell>Fim</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {playlistCampaigns.map((c) => (
+                          <TableRow key={c.campaign_id}>
+                            <TableCell>{c.campaign_id}</TableCell>
+                            <TableCell>{c.title}</TableCell>
+                            <TableCell>{c.status}</TableCell>
+                            <TableCell>{c.is_active ? 'Sim' : 'Não'}</TableCell>
+                            <TableCell>{c.start_date ? new Date(c.start_date).toLocaleDateString('pt-BR') : 'N/A'}</TableCell>
+                            <TableCell>{c.end_date ? new Date(c.end_date).toLocaleDateString('pt-BR') : 'N/A'}</TableCell>
+                          </TableRow>
+                        ))}
+                        {playlistCampaigns.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={6}>
+                              <Alert severity="info">Nenhuma campanha usando esta playlist.</Alert>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </>
+              )}
+            </Box>
+          )}
+
+          {editorTab === 3 && (
+            <Box>
+              {!selectedPlaylist?.playlist_id ? (
+                <Alert severity="warning">Salve a playlist para ver exposição.</Alert>
+              ) : (
+                <>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Exposição derivada via campanhas → publishers → locals → totems → smart TVs (para entendimento/diagnóstico).
+                  </Alert>
+                  <Tabs value={exposureTab} onChange={(_, v) => setExposureTab(v)} sx={{ mb: 2 }}>
+                    <Tab label="Datas" />
+                    <Tab label="Horas" />
+                    <Tab label="Publishers" />
+                    <Tab label="Totens" />
+                    <Tab label="Smart TVs" />
+                  </Tabs>
+
+                  {exposureTab === 0 && (
+                    <TableContainer component={Paper}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Campanha</TableCell>
+                            <TableCell>Início</TableCell>
+                            <TableCell>Fim</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {(playlistExposure?.campaigns || []).map((c) => (
+                            <TableRow key={c.campaign_id}>
+                              <TableCell>{c.title}</TableCell>
+                              <TableCell>{c.start_date ? new Date(c.start_date).toLocaleDateString('pt-BR') : 'N/A'}</TableCell>
+                              <TableCell>{c.end_date ? new Date(c.end_date).toLocaleDateString('pt-BR') : 'N/A'}</TableCell>
+                            </TableRow>
+                          ))}
+                          {(playlistExposure?.campaigns || []).length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={3}>
+                                <Alert severity="info">Sem dados de exposição.</Alert>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+
+                  {exposureTab === 1 && (
+                    <TableContainer component={Paper}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Campanha</TableCell>
+                            <TableCell>Start</TableCell>
+                            <TableCell>End</TableCell>
+                            <TableCell>Dias</TableCell>
+                            <TableCell>Timezone</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {(playlistExposure?.campaigns || []).map((c) => (
+                            <TableRow key={c.campaign_id}>
+                              <TableCell>{c.title}</TableCell>
+                              <TableCell>{c.start_time || '—'}</TableCell>
+                              <TableCell>{c.end_time || '—'}</TableCell>
+                              <TableCell>{c.days_of_week || '—'}</TableCell>
+                              <TableCell>{c.timezone || '—'}</TableCell>
+                            </TableRow>
+                          ))}
+                          {(playlistExposure?.campaigns || []).length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={5}>
+                                <Alert severity="info">Sem dados de exposição.</Alert>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+
+                  {exposureTab === 2 && (
+                    <List>
+                      {(playlistExposure?.publishers || []).map((p) => (
+                        <ListItem key={p.publisher_id}>
+                          <ListItemText primary={p.name} secondary={`publisher_id: ${p.publisher_id}`} />
+                        </ListItem>
+                      ))}
+                      {(playlistExposure?.publishers || []).length === 0 && <Alert severity="info">Sem publishers.</Alert>}
+                    </List>
+                  )}
+
+                  {exposureTab === 3 && (
+                    <List>
+                      {(playlistExposure?.totems || []).map((t) => (
+                        <ListItem key={t.totem_id}>
+                          <ListItemText
+                            primary={`${t.identifier}${t.name ? ` - ${t.name}` : ''}`}
+                            secondary={t.local_name ? `Local: ${t.local_name}` : undefined}
+                          />
+                        </ListItem>
+                      ))}
+                      {(playlistExposure?.totems || []).length === 0 && <Alert severity="info">Sem totems.</Alert>}
+                    </List>
+                  )}
+
+                  {exposureTab === 4 && (
+                    <List>
+                      {(playlistExposure?.smartTvs || []).map((tv) => (
+                        <ListItem key={tv.tv_id}>
+                          <ListItemText
+                            primary={`${tv.identifier}${tv.name ? ` - ${tv.name}` : ''}`}
+                            secondary={tv.totem_id ? `Totem: ${tv.totem_id}` : undefined}
+                          />
+                        </ListItem>
+                      ))}
+                      {(playlistExposure?.smartTvs || []).length === 0 && <Alert severity="info">Sem Smart TVs.</Alert>}
+                    </List>
+                  )}
+                </>
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setMediaDialogOpen(false)}>Fechar</Button>
+          <Button onClick={() => setEditorOpen(false)}>Fechar</Button>
+          {editorMode === 'create' ? (
+            <Button variant="contained" onClick={handleCreatePlaylist} disabled={!draft.name}>
+              Criar
+            </Button>
+          ) : (
+            <Button variant="contained" onClick={handleSavePlaylist} disabled={!selectedPlaylist?.name}>
+              Salvar
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     </Box>
@@ -709,3 +840,4 @@ const Playlists: React.FC = () => {
 };
 
 export default Playlists;
+

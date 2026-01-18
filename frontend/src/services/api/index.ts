@@ -530,6 +530,55 @@ export interface PlaylistMediaItem {
   media: any;
 }
 
+export interface PlaylistCampaignInfo {
+  campaign_id: number;
+  title: string;
+  status: string;
+  is_active: boolean;
+  start_date?: string | null;
+  end_date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  days_of_week?: string | null;
+  timezone?: string | null;
+  updated_at?: string | null;
+}
+
+export interface PlaylistExposureRow {
+  campaign_id: number;
+  campaign_title: string;
+  campaign_status: string;
+  campaign_is_active: boolean;
+  campaign_start_date?: string | null;
+  campaign_end_date?: string | null;
+  campaign_start_time?: string | null;
+  campaign_end_time?: string | null;
+  campaign_days_of_week?: string | null;
+  campaign_timezone?: string | null;
+
+  publisher_id: number;
+  publisher_name: string;
+
+  local_id: number | null;
+  local_name: string | null;
+
+  totem_id: number | null;
+  totem_identifier: string | null;
+  totem_name: string | null;
+
+  tv_id: number | null;
+  tv_identifier: string | null;
+  tv_name: string | null;
+}
+
+export interface PlaylistExposureResponse {
+  rows: PlaylistExposureRow[];
+  campaigns: PlaylistCampaignInfo[];
+  publishers: Array<{ publisher_id: number; name: string }>;
+  totems: Array<{ totem_id: number; identifier: string; name: string | null; local_id: number | null; local_name: string | null }>;
+  smartTvs: Array<{ tv_id: number; identifier: string; name: string | null; totem_id: number | null }>;
+}
+
 export const playlistApi = {
   reorderItems: async (id: number, items: Array<{ itemId: number; orderIndex: number }>): Promise<void> => {
     await api.put(`/playlists/${id}/reorder`, { items });
@@ -571,8 +620,13 @@ export const playlistApi = {
     if (data.description !== undefined && data.description !== null && data.description !== '') {
       cleanData.description = data.description;
     }
-    if (data.clientId !== undefined && data.clientId !== null) {
+    if (data.subscriberId !== undefined && data.subscriberId !== null) {
+      cleanData.subscriberId = data.subscriberId;
+      // compatibilidade (backend aceita clientId também)
+      cleanData.clientId = data.subscriberId;
+    } else if (data.clientId !== undefined && data.clientId !== null) {
       cleanData.clientId = data.clientId;
+      cleanData.subscriberId = data.clientId;
     }
     const response = await api.post('/playlists', cleanData);
     return response.data;
@@ -606,6 +660,16 @@ export const playlistApi = {
 
   reorderMedia: async (playlistId: number, items: { itemId: number; orderIndex: number }[]): Promise<void> => {
     await api.put(`/playlists/${playlistId}/reorder`, { items });
+  },
+
+  getCampaigns: async (playlistId: number): Promise<PlaylistCampaignInfo[]> => {
+    const response = await api.get(`/playlists/${playlistId}/campaigns`);
+    return response.data?.data || [];
+  },
+
+  getExposure: async (playlistId: number): Promise<PlaylistExposureResponse> => {
+    const response = await api.get(`/playlists/${playlistId}/exposure`);
+    return response.data;
   },
 };
 

@@ -184,6 +184,56 @@ router.get('/:id/preview',
 );
 
 /**
+ * @route GET /api/playlists/:id/campaigns
+ * @desc Listar campanhas que usam esta playlist (via campaign_playlists)
+ */
+router.get('/:id/campaigns',
+  ...idParamValidatorDefault,
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
+
+      const campaigns = await getPlaylistService().getCampaignsByPlaylist(parseInt(id, 10), userSubscriberId, isAdmin);
+      return res.json({ data: campaigns });
+    } catch (error: any) {
+      await logError('Erro ao listar campanhas da playlist', error);
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/playlists/:id/exposure
+ * @desc Exposição derivada (publishers/locals/totems/smart_tvs) das campanhas que usam a playlist
+ */
+router.get('/:id/exposure',
+  ...idParamValidatorDefault,
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
+      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
+
+      const exposure = await getPlaylistService().getExposureByPlaylist(parseInt(id, 10), userSubscriberId, isAdmin);
+      return res.json(exposure);
+    } catch (error: any) {
+      await logError('Erro ao obter exposição da playlist', error);
+      if (error.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
+);
+
+/**
  * @route POST /api/playlists
  * @desc Criar nova playlist
  * @access Private (Admin, Gerente Marketing)
