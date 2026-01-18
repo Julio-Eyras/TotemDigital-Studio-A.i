@@ -112,6 +112,28 @@ const Media: React.FC = () => {
     return url;
   };
 
+  const normalizePublicAssetUrlFromFilePath = (raw?: string | null): string | undefined => {
+    const v = (typeof raw === 'string' ? raw.trim() : '');
+    if (!v) return undefined;
+
+    // Aceitar apenas caminhos que o backend realmente serve via static (/assets, /uploads).
+    // Não tentar carregar paths "demo" do seed como /media/... (isso gera 404 e polui o console).
+    if (v.startsWith('/assets/')) return v;
+    if (v.startsWith('/uploads/')) return v;
+    if (v.startsWith('/opt/smart-signage/public/assets/')) {
+      return v.replace('/opt/smart-signage/public/assets/', '/assets/');
+    }
+    if (v.includes('/public/assets/')) {
+      const parts = v.split('/public/assets/');
+      if (parts.length > 1) return `/assets/${parts[1]}`.replace(/\/+/g, '/');
+    }
+    if (v.includes('/assets/')) {
+      const parts = v.split('/assets/');
+      if (parts.length > 1) return `/assets/${parts[1]}`.replace(/\/+/g, '/');
+    }
+    return undefined;
+  };
+
   // Prefetch thumbnails protegidos via axios (com token) e usar Blob URL como src
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -402,14 +424,10 @@ const Media: React.FC = () => {
                   // Construir URL do preview/thumbnail
                   let previewUrl = getPreviewSrc(media);
                   
-                  // Se não houver thumbnailUrl, usar file_path
-                  if (!previewUrl && media.file_path) {
-                    // Garantir que file_path está no formato correto
-                    let filePath = media.file_path;
-                    if (filePath.startsWith('/opt/smart-signage/public/assets/')) {
-                      filePath = filePath.replace('/opt/smart-signage/public/assets/', '/assets/');
-                    }
-                    previewUrl = filePath;
+                  // Fallback seguro: usar file_path APENAS se for um caminho público servido pelo backend (/assets|/uploads).
+                  // Isso evita 404 quando o seed usa /media/... (paths demo).
+                  if (!previewUrl) {
+                    previewUrl = normalizePublicAssetUrlFromFilePath(media.file_path);
                   }
                   
                   // Debug removido: evitar poluir console

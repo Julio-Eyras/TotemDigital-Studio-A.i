@@ -242,7 +242,11 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
 
     } catch (error: any) {
       console.error('Erro no upload:', error);
-      setError(error.response?.data?.error || 'Erro ao fazer upload dos arquivos');
+      const backendMsg =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+      setError(backendMsg || 'Erro ao fazer upload dos arquivos');
       setUploadStatus('error');
     } finally {
       setUploading(false);
