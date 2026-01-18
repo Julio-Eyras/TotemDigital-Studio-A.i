@@ -72,7 +72,9 @@ export class DispatcherTotemService {
       // Verificar cache (se habilitado e não forçado a ignorar)
       if (this.cacheConfig.enabled && !skipCache && !validateOnly) {
         const cached = await this.getFromCache(cacheKey);
-        if (cached) {
+        // Se pedimos candidates, mas o cache não tem candidates (porque foi gerado via /dispatch sem includeCandidates),
+        // tratar como cache miss para evitar retorno "vazio" no endpoint /candidates.
+        if (cached && (!includeCandidates || (cached.candidates && cached.candidates.length > 0))) {
           await logDebug('[DispatcherTotem] Cache hit', { totemId, cacheKey });
           
           // Registrar log de auditoria (cache hit)

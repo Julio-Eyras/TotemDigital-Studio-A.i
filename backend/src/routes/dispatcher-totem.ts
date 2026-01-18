@@ -126,7 +126,8 @@ router.get('/:totemId/candidates',
       const dispatcher = getDispatcherTotemService();
       const result = await dispatcher.dispatch(
         { totemId, timestamp, timezone },
-        { includeCandidates: true }
+        // Sempre ignorar cache em /candidates (debug), para garantir consistência e evitar cache sem candidates.
+        { includeCandidates: true, skipCache: true }
       );
 
       return res.json({
