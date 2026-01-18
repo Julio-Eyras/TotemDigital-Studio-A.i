@@ -7861,6 +7861,14 @@ setup_first_boot() {
 
             # Copiar mídias demo para que `medias.file_path` aponte para arquivos reais em /opt
             install_demo_media_files || true
+
+            # Corrigir sequências (SERIAL) após inserts com IDs explícitos no seed
+            local FIX_SEQ_FILE="$INSTALL_DIR/database/fix-sequences-after-seed.sql"
+            if [[ -f "$FIX_SEQ_FILE" ]]; then
+                execute_psql_file "$TARGET_DB" "$FIX_SEQ_FILE" "Fix sequences after seed (fix-sequences-after-seed.sql)"
+            else
+                warn "⚠️ Arquivo de fix de sequências não encontrado: $FIX_SEQ_FILE"
+            fi
         else
             warn "⚠️ Arquivo de seeds não encontrado: $INITIAL_LOAD_SQL_FILE"
             warn "⚠️ Sem seeds. O sistema será instalado sem dados de exemplo."

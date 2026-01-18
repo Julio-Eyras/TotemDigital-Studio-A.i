@@ -79,6 +79,11 @@ async function applySchema() {
     const demoAssetsSeed = path.join(dbDir, 'carga-inicial-2025-demo-assets.sql');
     sqlFiles.push(fs.existsSync(demoAssetsSeed) ? 'carga-inicial-2025-demo-assets.sql' : 'carga-inicial-2025.sql');
   }
+  // Fix sequences after seeds (SERIAL columns with explicit IDs)
+  const fixSeqFile = path.join(dbDir, 'fix-sequences-after-seed.sql');
+  if (fs.existsSync(fixSeqFile)) {
+    sqlFiles.push('fix-sequences-after-seed.sql');
+  }
   
   const pool = new Pool(dbConfig);
   
