@@ -344,7 +344,7 @@ const Campaigns: React.FC = () => {
       }
       
       const createdCampaign = await campaignApi.create(newCampaign as any);
-      console.log('Campanha criada com sucesso:', createdCampaign);
+      // Evitar logs em produção
       
       // Fechar diálogo e limpar formulário
       setCreateDialogOpen(false);

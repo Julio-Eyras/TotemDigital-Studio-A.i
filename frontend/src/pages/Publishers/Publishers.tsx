@@ -895,9 +895,7 @@ const Publishers: React.FC = () => {
       const publisherData: CreatePublisherRequest = {
         ...newPublisher,
       };
-      console.log('Dados sendo enviados para criar publisher:', publisherData);
       const createdPublisher = await publisherApi.create(publisherData);
-      console.log('Publisher criado com sucesso:', createdPublisher);
       const publisherId = createdPublisher.publisher_id;
       
       if (!publisherId) {
@@ -942,9 +940,6 @@ const Publishers: React.FC = () => {
             return;
           }
           
-          console.log(`Criando totem ${totem.identifier || totem.name} com localId:`, localId);
-          console.log('Dados do totem antes de preparar:', totem);
-          
           // Preparar dados do totem (identifier é obrigatório na interface, mas backend aceita name OU identifier)
           const totemData: any = {
             localId: Number(localId), // Garantir que é número
@@ -982,11 +977,8 @@ const Publishers: React.FC = () => {
             totemData.firmwareVersion = totem.firmwareVersion.trim();
           }
           
-          console.log('Dados do totem sendo enviados:', totemData);
-          
           try {
             const createdTotem = await totemApi.create(totemData);
-            console.log('Totem criado com sucesso:', createdTotem);
             createdTotems.push(createdTotem);
           } catch (totemError: any) {
             console.error('Erro ao criar totem:', totemError);
@@ -1081,9 +1073,7 @@ const Publishers: React.FC = () => {
               smartTvData.orientation = smartTv.orientation;
             }
             
-            console.log(`Criando Smart TV ${smartTv.identifier} para totem ${totemId}`, smartTvData);
             await smartTvApi.create(smartTvData);
-            console.log(`Smart TV ${smartTv.identifier} criada com sucesso`);
           } catch (smartTvError: any) {
             console.error(`Erro ao criar Smart TV ${smartTv.identifier}:`, smartTvError);
             console.error('Response:', smartTvError?.response?.data);

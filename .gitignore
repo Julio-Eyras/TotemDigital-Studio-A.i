@@ -124,6 +124,9 @@ temp/
 ehthumbs.db
 Thumbs.db
 
+# Windows / recovery folder (pode causar "Permission denied" no git status em algumas máquinas)
+Recovery/
+
 # Docker
 .dockerignore
 

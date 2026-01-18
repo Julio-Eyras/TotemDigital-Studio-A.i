@@ -49,8 +49,6 @@ const SmartPlaylist: React.FC = () => {
         dataToSend.clientId = request.clientId;
       }
       
-      console.log('📝 [Frontend] Enviando dados:', dataToSend);
-      
       await smartPlaylistApi.create(dataToSend);
       setCreateOpen(false);
       setRequest({ name: '', description: '', rules: [], clientId: undefined });

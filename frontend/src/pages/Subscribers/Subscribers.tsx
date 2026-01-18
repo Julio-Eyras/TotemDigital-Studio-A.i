@@ -1236,9 +1236,7 @@ const Subscribers: React.FC = () => {
       }
 
       // 1. Criar o Subscriber (vinculado ao contrato)
-      console.log('Dados sendo enviados para criar Subscriber:', newSubscriber);
       const createdSubscriber = await subscriberApi.create(newSubscriber);
-      console.log('Subscriber criado com sucesso:', createdSubscriber);
       const subscriberId = createdSubscriber.subscriber_id;
       
       if (!subscriberId) {
@@ -1278,9 +1276,6 @@ const Subscribers: React.FC = () => {
             return;
           }
           
-          console.log(`Criando totem ${totem.identifier || totem.name} com localId:`, localId);
-          console.log('Dados do totem antes de preparar:', totem);
-          
           // Preparar dados do totem (identifier é obrigatório na interface, mas backend aceita name OU identifier)
           const totemData: any = {
             localId: Number(localId), // Garantir que é número
@@ -1317,11 +1312,8 @@ const Subscribers: React.FC = () => {
             totemData.firmwareVersion = totem.firmwareVersion.trim();
           }
           
-          console.log('Dados do totem sendo enviados:', totemData);
-          
           try {
             const createdTotem = await totemApi.create(totemData);
-            console.log('Totem criado com sucesso:', createdTotem);
             createdTotems.push(createdTotem);
           } catch (totemError: any) {
             console.error('Erro ao criar totem:', totemError);
