@@ -59,15 +59,10 @@ const Playlists: React.FC = () => {
   const theme = useTheme();
   const user = useAppSelector((state) => state.auth.user);
 
-  const isAdmin = useMemo(() => {
+  // Somente owner/admin/admin_sql podem escolher subscriber (multi-tenant)
+  const canSelectSubscriber = useMemo(() => {
     const u: any = user;
-    return Boolean(
-      u?.isTenantUser ??
-        u?.is_tenant_user ??
-        ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'gerente_marketing'].includes(
-          u?.role || ''
-        )
-    );
+    return ['owner_system', 'admin', 'admin_sql'].includes(u?.role || '');
   }, [user]);
 
   const userSubscriberId = useMemo(() => {
@@ -102,10 +97,10 @@ const Playlists: React.FC = () => {
   const [playlistExposure, setPlaylistExposure] = useState<PlaylistExposureResponse | null>(null);
 
   useEffect(() => {
-    if (isAdmin) void loadSubscribers();
+    if (canSelectSubscriber) void loadSubscribers();
     void loadPlaylists();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, selectedSubscriberId, searchTerm]);
+  }, [canSelectSubscriber, selectedSubscriberId, searchTerm]);
 
   useEffect(() => {
     // Carregar mídias quando editor abre (depende do subscriber alvo)
@@ -113,6 +108,17 @@ const Playlists: React.FC = () => {
     void loadMediaItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorOpen, editorMode, selectedPlaylist?.playlist_id, draft?.subscriberId]);
+
+  useEffect(() => {
+    // Para usuário "do subscriber", manter draft sempre fixo no subscriber do usuário
+    if (!canSelectSubscriber) {
+      setDraft((prev) => ({
+        ...prev,
+        subscriberId: userSubscriberId,
+        clientId: userSubscriberId,
+      }));
+    }
+  }, [canSelectSubscriber, userSubscriberId]);
 
   const loadSubscribers = async () => {
     try {
@@ -129,9 +135,9 @@ const Playlists: React.FC = () => {
       setError(null);
 
       let subscriberId: number | undefined = undefined;
-      if (!isAdmin && userSubscriberId) {
+      if (!canSelectSubscriber && userSubscriberId) {
         subscriberId = userSubscriberId;
-      } else if (isAdmin && selectedSubscriberId !== 'all' && typeof selectedSubscriberId === 'number') {
+      } else if (canSelectSubscriber && selectedSubscriberId !== 'all' && typeof selectedSubscriberId === 'number') {
         subscriberId = selectedSubscriberId;
       }
 
@@ -204,7 +210,7 @@ const Playlists: React.FC = () => {
     setPlaylistMedia([]);
     setPlaylistCampaigns([]);
     setPlaylistExposure(null);
-    setDraft({ subscriberId: userSubscriberId, name: '', description: '' });
+    setDraft({ subscriberId: userSubscriberId, clientId: userSubscriberId, name: '', description: '' });
     setEditorOpen(true);
   };
 
@@ -223,11 +229,16 @@ const Playlists: React.FC = () => {
   const handleCreatePlaylist = async () => {
     try {
       setError(null);
+      const targetSubscriberId = canSelectSubscriber ? (draft.subscriberId || userSubscriberId) : userSubscriberId;
+      if (!targetSubscriberId) {
+        setError('É necessário selecionar um subscriber (anunciante) para criar a playlist.');
+        return;
+      }
       const playlistData: CreatePlaylistRequest = {
         name: draft.name,
         description: draft.description,
-        subscriberId: draft.subscriberId || userSubscriberId,
-        clientId: draft.subscriberId || userSubscriberId,
+        subscriberId: targetSubscriberId,
+        clientId: targetSubscriberId,
       };
       const created = await playlistApi.create(playlistData);
       setSelectedPlaylist(created);
@@ -247,11 +258,17 @@ const Playlists: React.FC = () => {
     if (!selectedPlaylist) return;
     try {
       setError(null);
+      const targetSubscriberId =
+        canSelectSubscriber ? (selectedPlaylist.subscriber_id || selectedPlaylist.client_id || userSubscriberId) : userSubscriberId;
+      if (!targetSubscriberId) {
+        setError('É necessário um subscriber (anunciante) válido para salvar a playlist.');
+        return;
+      }
       await playlistApi.update(selectedPlaylist.playlist_id, {
         name: selectedPlaylist.name,
         description: selectedPlaylist.description,
-        subscriberId: selectedPlaylist.subscriber_id || selectedPlaylist.client_id,
-        clientId: selectedPlaylist.client_id,
+        subscriberId: targetSubscriberId,
+        clientId: targetSubscriberId,
         isActive: selectedPlaylist.is_active,
       });
       await loadPlaylists();
@@ -569,7 +586,7 @@ const Playlists: React.FC = () => {
                 Campanhas apontam para playlists via <strong>campaign_playlists</strong>.
               </Alert>
 
-              {isAdmin && (
+              {canSelectSubscriber ? (
                 <FormControl fullWidth margin="normal">
                   <InputLabel>Subscriber (Anunciante)</InputLabel>
                   <Select
@@ -577,17 +594,30 @@ const Playlists: React.FC = () => {
                     onChange={(e) => {
                       const sid = e.target.value ? parseInt(String(e.target.value), 10) : undefined;
                       if (editorMode === 'create') setDraft({ ...draft, subscriberId: sid, clientId: sid });
-                      else if (selectedPlaylist && sid) setSelectedPlaylist({ ...selectedPlaylist, subscriber_id: sid });
+                      else if (selectedPlaylist && sid) setSelectedPlaylist({ ...selectedPlaylist, subscriber_id: sid, client_id: sid });
                     }}
                     label="Subscriber (Anunciante)"
                   >
                     {subscribers.map((s) => (
                       <MenuItem key={s.subscriber_id} value={s.subscriber_id}>
-                        {s.name}
+                        {s.name} (ID: {s.subscriber_id})
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
+              ) : (
+                <TextField
+                  fullWidth
+                  margin="normal"
+                  label="Subscriber (Anunciante)"
+                  value={
+                    userSubscriberId
+                      ? `${(user as any)?.subscriberName || 'Subscriber'} (ID: ${userSubscriberId})`
+                      : '—'
+                  }
+                  disabled
+                  helperText="Campo fixo: esta playlist pertence ao subscriber do usuário logado."
+                />
               )}
 
               <TextField
