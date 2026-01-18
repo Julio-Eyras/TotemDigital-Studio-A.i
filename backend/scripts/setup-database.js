@@ -74,7 +74,10 @@ async function applySchema() {
   ];
 
   if (loadDemoSeeds) {
-    sqlFiles.push('carga-inicial-2025.sql');
+    // Preferir seed com caminhos de demo-assets compatíveis com /opt (se existir).
+    // Fallback para carga-inicial-2025.sql para manter compatibilidade.
+    const demoAssetsSeed = path.join(dbDir, 'carga-inicial-2025-demo-assets.sql');
+    sqlFiles.push(fs.existsSync(demoAssetsSeed) ? 'carga-inicial-2025-demo-assets.sql' : 'carga-inicial-2025.sql');
   }
   
   const pool = new Pool(dbConfig);

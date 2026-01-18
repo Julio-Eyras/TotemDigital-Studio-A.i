@@ -111,6 +111,76 @@ log_status() {
     echo -e "${PURPLE}[STATUS $(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
 }
 
+# Copiar mídias de demonstração do repo (demo-images) para o diretório real de uploads em /opt.
+# Isso permite que os registros seed em `medias.file_path` apontem para arquivos reais.
+install_demo_media_files() {
+    local install_dir="${INSTALL_DIR:-$(pwd)}"
+    local src_dir="${install_dir}/demo-images"
+    local uploads_base="/opt/smart-signage/public/assets/uploads"
+
+    if [[ ! -d "$src_dir" ]]; then
+        log "ℹ️  demo-images não encontrado em ${src_dir}. Pulando cópia de mídias demo."
+        return 0
+    fi
+
+    log "Copiando arquivos de mídia demo de ${src_dir} para ${uploads_base}..."
+
+    # Criar diretórios de destino (por subscriber)
+    for cid in 1 2 3 4 5; do
+        local target_dir="${uploads_base}/client-${cid}/medias"
+        sudo mkdir -p "$target_dir" 2>/dev/null || mkdir -p "$target_dir" 2>/dev/null || true
+    done
+
+    # Imagens (mapeadas 1:1)
+    declare -A image_map=(
+        ["black-friday-banner.jpg"]="client-1/medias/black-friday-banner.jpg"
+        ["medicamentos-banner.jpg"]="client-2/medias/medicamentos-banner.jpg"
+        ["ofertas-dia.jpg"]="client-3/medias/ofertas-dia.jpg"
+        ["menu-executivo.jpg"]="client-4/medias/menu-executivo.jpg"
+    )
+
+    for filename in "${!image_map[@]}"; do
+        local src="${src_dir}/${filename}"
+        local rel="${image_map[$filename]}"
+        local dst="${uploads_base}/${rel}"
+        if [[ -f "$src" ]]; then
+            sudo cp -f "$src" "$dst" 2>/dev/null || cp -f "$src" "$dst" 2>/dev/null || true
+            sudo chmod 644 "$dst" 2>/dev/null || chmod 644 "$dst" 2>/dev/null || true
+        else
+            warn "⚠️ Arquivo demo não encontrado: ${src}"
+        fi
+    done
+
+    # Vídeos: se não houver arquivo específico no demo-images, reaproveitar RabbitCoder.mp4 como placeholder
+    local video_placeholder="${src_dir}/RabbitCoder.mp4"
+    if [[ ! -f "$video_placeholder" ]]; then
+        warn "⚠️ Placeholder de vídeo não encontrado (${video_placeholder}). Thumbnails de vídeo podem ficar como placeholder."
+    fi
+
+    local ofertas_src="${src_dir}/ofertas-video.mp4"
+    local ofertas_dst="${uploads_base}/client-1/medias/ofertas-video.mp4"
+    if [[ -f "$ofertas_src" ]]; then
+        sudo cp -f "$ofertas_src" "$ofertas_dst" 2>/dev/null || cp -f "$ofertas_src" "$ofertas_dst" 2>/dev/null || true
+    elif [[ -f "$video_placeholder" ]]; then
+        sudo cp -f "$video_placeholder" "$ofertas_dst" 2>/dev/null || cp -f "$video_placeholder" "$ofertas_dst" 2>/dev/null || true
+    fi
+    sudo chmod 644 "$ofertas_dst" 2>/dev/null || chmod 644 "$ofertas_dst" 2>/dev/null || true
+
+    local checkup_src="${src_dir}/check-up-video.mp4"
+    local checkup_dst="${uploads_base}/client-5/medias/check-up-video.mp4"
+    if [[ -f "$checkup_src" ]]; then
+        sudo cp -f "$checkup_src" "$checkup_dst" 2>/dev/null || cp -f "$checkup_src" "$checkup_dst" 2>/dev/null || true
+    elif [[ -f "$video_placeholder" ]]; then
+        sudo cp -f "$video_placeholder" "$checkup_dst" 2>/dev/null || cp -f "$video_placeholder" "$checkup_dst" 2>/dev/null || true
+    fi
+    sudo chmod 644 "$checkup_dst" 2>/dev/null || chmod 644 "$checkup_dst" 2>/dev/null || true
+
+    # Ajustar dono/permissões (best-effort)
+    sudo chown -R $USER:$USER "${uploads_base}/client-1" "${uploads_base}/client-2" "${uploads_base}/client-3" "${uploads_base}/client-4" "${uploads_base}/client-5" 2>/dev/null || true
+
+    log "✅ Mídias demo copiadas para ${uploads_base}/client-*/medias"
+}
+
 # =============================================================================
 # GERENCIAMENTO DE CONFIGURAÇÃO CENTRALIZADA
 # =============================================================================
@@ -7778,11 +7848,19 @@ setup_first_boot() {
         # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
         log "Executando seed completo do banco de dados com dados correlacionados..."
 
-        # Usar apenas a carga inicial 2025 como fonte única de seeds do projeto.
-        INITIAL_LOAD_SQL_FILE="$INSTALL_DIR/database/carga-inicial-2025.sql"
+        # Preferir seed com caminhos de demo-assets já compatíveis com /opt (se existir).
+        # Mantém `carga-inicial-2025.sql` intacto, mas permite demos funcionarem sem upload manual.
+        INITIAL_LOAD_SQL_FILE="$INSTALL_DIR/database/carga-inicial-2025-demo-assets.sql"
+        if [[ ! -f "$INITIAL_LOAD_SQL_FILE" ]]; then
+            INITIAL_LOAD_SQL_FILE="$INSTALL_DIR/database/carga-inicial-2025.sql"
+        fi
+
         if [[ -f "$INITIAL_LOAD_SQL_FILE" ]]; then
-            log "✅ Arquivo carga-inicial-2025.sql encontrado - usando carga inicial 2025"
-            execute_psql_file "$TARGET_DB" "$INITIAL_LOAD_SQL_FILE" "Carga inicial 2025 (carga-inicial-2025.sql)"
+            log "✅ Arquivo de seeds encontrado: $(basename "$INITIAL_LOAD_SQL_FILE")"
+            execute_psql_file "$TARGET_DB" "$INITIAL_LOAD_SQL_FILE" "Carga inicial 2025 ($(basename "$INITIAL_LOAD_SQL_FILE"))"
+
+            # Copiar mídias demo para que `medias.file_path` aponte para arquivos reais em /opt
+            install_demo_media_files || true
         else
             warn "⚠️ Arquivo de seeds não encontrado: $INITIAL_LOAD_SQL_FILE"
             warn "⚠️ Sem seeds. O sistema será instalado sem dados de exemplo."
