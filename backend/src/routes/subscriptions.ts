@@ -38,8 +38,7 @@ router.get('/', async (req: any, res) => {
   try {
     const filters: any = {};
 
-    // NOVO: Usuários só veem suas próprias assinaturas baseado em subscriberId/publisherId
-    const userSubscriberId = req.user.subscriberId;
+    // Usuários só veem suas próprias assinaturas baseado em publisherId/userType
     const userPublisherId = req.user.publisherId;
     const userType = req.user.userType;
 
@@ -89,8 +88,7 @@ router.get('/', async (req: any, res) => {
  */
 router.get('/my-subscription', async (req: any, res) => {
   try {
-    // NOVO: Suportar subscriberId/publisherId além de clientId
-    const userSubscriberId = req.user.subscriberId;
+    // Suportar publisherId além de clientId (compatibilidade)
     const userPublisherId = req.user.publisherId;
     const userType = req.user.userType;
     const clientId = req.user.clientId; // DEPRECADO: Compatibilidade
@@ -162,7 +160,6 @@ router.get('/:id', async (req: any, res) => {
     // NOVO: Verificar permissão baseado em userType
     const userType = req.user.userType;
     const userPublisherId = req.user.publisherId;
-    const userSubscriberId = req.user.subscriberId;
     const clientId = req.user.clientId; // DEPRECADO
 
     // Regra do domínio: subscriptions são exclusivas de publishers
@@ -220,7 +217,6 @@ router.post('/', async (req: any, res) => {
     let finalPublisherId: number | undefined;
     const userType = req.user.userType;
     const userPublisherId = req.user.publisherId;
-    const userSubscriberId = req.user.subscriberId;
 
     // Regra do domínio: subscriptions são exclusivas de publishers
     if (userType === 'subscriber_user') {
@@ -320,7 +316,6 @@ router.post('/:id/cancel', async (req: any, res) => {
     // NOVO: Verificar permissão baseado em userType
     const userType = req.user.userType;
     const userPublisherId = req.user.publisherId;
-    const userSubscriberId = req.user.subscriberId;
     const clientId = req.user.clientId; // DEPRECADO
 
     // Regra do domínio: subscriptions são exclusivas de publishers
@@ -391,7 +386,6 @@ router.post('/:id/resume', async (req: any, res) => {
     // NOVO: Verificar permissão baseado em userType
     const userType = req.user.userType;
     const userPublisherId = req.user.publisherId;
-    const userSubscriberId = req.user.subscriberId;
     const clientId = req.user.clientId; // DEPRECADO
 
     // Regra do domínio: subscriptions são exclusivas de publishers
@@ -446,10 +440,9 @@ router.post('/:id/resume', async (req: any, res) => {
  */
 router.post('/checkout', async (req: any, res) => {
   try {
-    // NOVO: Suportar subscriberId/publisherId além de clientId
+    // Suportar publisherId além de clientId
     const userType = req.user.userType;
     const userPublisherId = req.user.publisherId;
-    const userSubscriberId = req.user.subscriberId;
     const clientId = req.user.clientId; // DEPRECADO
 
     // Regra do domínio: subscriptions são exclusivas de publishers
