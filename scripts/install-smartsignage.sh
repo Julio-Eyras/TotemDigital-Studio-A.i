@@ -23,7 +23,8 @@ SCRIPT_VERSION="2.1.6"
 #   --rebuild-only       Apenas rebuild, não inicia serviços
 #   --force              Força rebuild mesmo se não detectar mudanças
 #   --check-only         Apenas verifica se rebuild é necessário (não executa)
-#   --skip-menu          Pula menu interativo (usa modo Docker por padrão)
+#   --skip-menu          Pula menu interativo (usa defaults do menu: Single-Server)
+#   --mode <modo>        Define o modo (single-server|docker) e pula o menu
 #   --https-self-signed  Habilita HTTPS com certificado autoassinado (single-server)
 # =============================================================================
 
@@ -587,8 +588,16 @@ parse_arguments() {
                 ;;
             --skip-menu)
                 SKIP_MENU=true
-                INSTALL_MODE="docker"
                 shift
+                ;;
+            --mode|--install-mode)
+                SKIP_MENU=true
+                if [[ -z "${2:-}" ]]; then
+                    error "Faltou valor para --mode. Use: --mode single-server|docker"
+                    exit 1
+                fi
+                INSTALL_MODE="$2"
+                shift 2
                 ;;
             --https-self-signed)
                 ENABLE_HTTPS_SELF_SIGNED=true
@@ -650,7 +659,8 @@ parse_arguments() {
                 echo "  --rebuild-only       Apenas rebuild, não inicia"
                 echo "  --force              Força rebuild sempre"
                 echo "  --check-only         Apenas verifica se precisa rebuild"
-                echo "  --skip-menu          Pula menu (usa Docker)"
+                echo "  --skip-menu          Pula menu (usa defaults do menu: Single-Server)"
+                echo "  --mode <modo>        Define o modo (single-server|docker) e pula o menu"
                 echo "  --https-self-signed  Habilita HTTPS autoassinado (single-server)"
                 echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir (fluxo completo)"
                 echo "  --preserve-db        Preserva o banco de dados existente durante reinstalação"
@@ -740,6 +750,12 @@ install_dependencies() {
 
 # Perguntar sobre DNS local (movido para o topo junto com outras perguntas)
 ask_dns_local_configuration() {
+    # Em modo não interativo, aplicar default do prompt (N)
+    if [[ "$SKIP_MENU" == "true" ]]; then
+        CONFIGURE_DNS_LOCAL=false
+        log "DNS local não será configurado (skip-menu padrão: N)"
+        return 0
+    fi
     echo
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${CYAN}                    Configuração de DNS Local (Publishers e Subscribers)${NC}"
@@ -4286,6 +4302,14 @@ ask_https_configuration() {
     
     # Pular se já foi configurado via flag
     if [[ "$ENABLE_HTTPS_SELF_SIGNED" == "true" ]]; then
+        return 0
+    fi
+
+    # Em modo não interativo, aplicar default do menu (1 = sem HTTPS)
+    if [[ "$SKIP_MENU" == "true" ]]; then
+        ENABLE_HTTPS_SELF_SIGNED=false
+        ENABLE_HTTPS_LETSENCRYPT=false
+        log "HTTPS não será configurado (skip-menu padrão: 1 - sem HTTPS)"
         return 0
     fi
     
@@ -9116,13 +9140,25 @@ rebuild_fresh() {
 
 # Menu principal
 show_menu() {
-    # Se SKIP_MENU está ativo, usar modo padrão
-    if [[ "$SKIP_MENU" == "true" && -n "$INSTALL_MODE" ]]; then
-        log "Modo selecionado: $INSTALL_MODE (via argumento)"
+    # Se SKIP_MENU está ativo, usar defaults sem prompt (padrão do menu é Single-Server)
+    if [[ "$SKIP_MENU" == "true" ]]; then
+        if [[ -z "$INSTALL_MODE" ]]; then
+            INSTALL_MODE="single-server"
+        fi
+
+        log "Modo selecionado: $INSTALL_MODE (skip-menu)"
         case "$INSTALL_MODE" in
             docker)
                 DB_DRIVER="postgresql"
                 DATABASE_URL="postgresql://smartsignage:smartsignage123@postgres:5432/smartsignage"
+                ;;
+            single-server|development)
+                DB_DRIVER="postgresql"
+                DATABASE_URL="postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage"
+                ;;
+            *)
+                error "INSTALL_MODE inválido: $INSTALL_MODE (use single-server|docker)"
+                exit 1
                 ;;
         esac
         return
@@ -9168,6 +9204,21 @@ show_menu() {
 
 # Menu de seleção de players
 show_players_menu() {
+    # Em modo não interativo, aplicar default do menu de players (9 = todos)
+    if [[ "$SKIP_MENU" == "true" ]]; then
+        INSTALL_ALL_PLAYERS=true
+        INSTALL_PLAYER_WEBOS=true
+        INSTALL_PLAYER_ANDROID=true
+        INSTALL_PLAYER_LINUX_ELECTRON=true
+        INSTALL_PLAYER_LINUX_CPP=true
+        INSTALL_PLAYER_WINDOWS_ELECTRON=true
+        INSTALL_PLAYER_TIZEN=true
+        INSTALL_PLAYER_SMARTDISPLAYFX=true
+        INSTALL_PLAYER_FX_INTERFACE=true
+        log "✅ Players selecionados automaticamente (skip-menu padrão: 9 - todos)"
+        copy_selected_players
+        return 0
+    fi
     echo
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${CYAN}                    Seleção de Players para Instalação${NC}"
@@ -9391,6 +9442,11 @@ show_menu_continuation() {
     
     # Perguntar sobre carregamento de seeds (se não foi definido via argumento)
     if [[ "$SEEDS_OPTION_FORCED" != "true" ]]; then
+        # Em modo não interativo, aplicar default do prompt (N)
+        if [[ "$SKIP_MENU" == "true" ]]; then
+            LOAD_SEEDS=false
+            log "Dados de demonstração não serão carregados (skip-menu padrão: N)"
+        else
         echo
         echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo -e "${CYAN}                    Dados de Demonstração (Seeds)${NC}"
@@ -9407,6 +9463,7 @@ show_menu_continuation() {
             LOAD_SEEDS=false
             log "Dados de demonstração NÃO serão carregados."
         fi
+        fi
     else
         if [[ "$LOAD_SEEDS" == "true" ]]; then
             log "Dados de demonstração serão carregados (definido via argumento)."
@@ -9417,6 +9474,18 @@ show_menu_continuation() {
 
     # Perguntar sobre modo kiosk (apenas para single-server)
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        # Em modo não interativo, evitar prompts e aplicar defaults seguros:
+        # - default do prompt é "S", mas isso abriria prompts de xrandr. Aqui aplicamos:
+        #   kiosk=true, rotação=left e saída auto.
+        if [[ "$SKIP_MENU" == "true" ]]; then
+            ENABLE_KIOSK_MODE=true
+            KIOSK_ROTATION_SELECTED="left"
+            KIOSK_DISPLAY_SELECTED=""
+            export KIOSK_ROTATION_SELECTED
+            export KIOSK_DISPLAY_SELECTED
+            log "Modo Kiosk será configurado (skip-menu padrão: S). Saída=auto, rotação=left."
+            return 0
+        fi
         echo
         echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo -e "${CYAN}                    Modo Kiosk (Totem/Sinalização)${NC}"

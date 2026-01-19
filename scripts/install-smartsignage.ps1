@@ -155,7 +155,15 @@ function Parse-Arguments {
             }
             "--skip-menu" {
                 $script:SKIP_MENU = $true
-                $script:INSTALL_MODE = "docker"
+            }
+            "--mode" {
+                $script:SKIP_MENU = $true
+                if ($i + 1 -ge $Arguments.Length) {
+                    Write-LogError "Faltou valor para --mode. Use: --mode single-server|docker"
+                    exit 1
+                }
+                $script:INSTALL_MODE = $Arguments[$i + 1]
+                $i++
             }
             "--https-self-signed" {
                 $script:ENABLE_HTTPS_SELF_SIGNED = $true
@@ -201,7 +209,8 @@ function Show-Help {
     Write-Host "  --rebuild-only       Apenas rebuild, não inicia"
     Write-Host "  --force              Força rebuild sempre"
     Write-Host "  --check-only         Apenas verifica se precisa rebuild"
-    Write-Host "  --skip-menu          Pula menu (usa Docker)"
+    Write-Host "  --skip-menu          Pula menu (usa defaults do menu: Single-Server)"
+    Write-Host "  --mode <modo>        Define o modo (single-server|docker) e pula o menu"
     Write-Host "  --https-self-signed  Habilita HTTPS autoassinado (single-server)"
     Write-Host "  --reset-db           Apaga e recria o banco PostgreSQL se já existir"
     Write-Host "  --preserve-db         Preserva o banco de dados existente"
@@ -441,6 +450,9 @@ function Configure-Firewall {
 # =============================================================================
 function Show-Menu {
     if ($SKIP_MENU) {
+        if ([string]::IsNullOrWhiteSpace($INSTALL_MODE)) {
+            $script:INSTALL_MODE = "single-server"
+        }
         return
     }
     
