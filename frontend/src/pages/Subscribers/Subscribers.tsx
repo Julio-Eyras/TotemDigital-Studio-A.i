@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -67,6 +68,8 @@ import {
   DragIndicator,
   Campaign as CampaignIcon,
   QueueMusic,
+  Description,
+  OpenInNew,
 } from '@mui/icons-material';
 import { 
   subscriberApi, 
@@ -101,6 +104,7 @@ import { SortableList } from '../../components/SortableList/SortableList';
 
 const Subscribers: React.FC = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [Subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -135,7 +139,7 @@ const Subscribers: React.FC = () => {
   const [editTab, setEditTab] = useState(0); // NOVO: Aba do dialog de edição
   const [newSubscriber, setNewSubscriber] = useState<CreateSubscriberRequest>({
     name: '',
-    contract_id: undefined, // Obrigatório - será preenchido pelo usuário
+    contract_id: undefined, // Opcional - pode vincular um pré-contrato (se existir)
     contact_name: '',
     email: '',
     phone: '',
@@ -1159,7 +1163,8 @@ const Subscribers: React.FC = () => {
   // Função para validar contrato
   const validateContract = (contractId: number | undefined): { valid: boolean; error?: string } => {
     if (!contractId || contractId <= 0) {
-      return { valid: false, error: 'Contrato é obrigatório. Selecione um contrato válido.' };
+      // Contrato é opcional
+      return { valid: true };
     }
     
     const contract = availableContracts.find(c => c.contract_id === contractId);
@@ -1206,7 +1211,7 @@ const Subscribers: React.FC = () => {
         return;
       }
 
-      // Validação: contract_id é obrigatório e válido
+      // Validação: contrato é opcional (se fornecido, precisa ser válido)
       const contractValidation = validateContract(newSubscriber.contract_id);
       if (!contractValidation.valid) {
         setError(contractValidation.error || 'Contrato inválido. Por favor, selecione um contrato válido.');
@@ -1829,51 +1834,38 @@ const Subscribers: React.FC = () => {
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>Dados do Assinante</Typography>
               
-              {/* Campo de seleção de contrato - OBRIGATÓRIO */}
-              <FormControl fullWidth margin="normal" required>
-                <InputLabel>Contrato *</InputLabel>
+              {/* Campo de seleção de contrato - OPCIONAL */}
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Contrato (opcional)</InputLabel>
                 <Select
                   value={newSubscriber.contract_id || ''}
-                  label="Contrato *"
-                  onChange={(e) => setNewSubscriber({ ...newSubscriber, contract_id: Number(e.target.value) })}
+                  label="Contrato (opcional)"
+                  onChange={(e) => setNewSubscriber({ ...newSubscriber, contract_id: e.target.value ? Number(e.target.value) : undefined })}
                   disabled={loadingContracts}
-                  error={!newSubscriber.contract_id || newSubscriber.contract_id <= 0}
                 >
                   {loadingContracts ? (
                     <MenuItem disabled>Carregando contratos...</MenuItem>
-                  ) : availableContracts.length === 0 ? (
-                    <MenuItem disabled>Nenhum contrato disponível. Crie um contrato primeiro.</MenuItem>
                   ) : (
-                    availableContracts.map((contract) => (
+                    <>
+                      <MenuItem value="">Nenhum</MenuItem>
+                      {availableContracts.map((contract) => (
                       <MenuItem key={contract.contract_id} value={contract.contract_id}>
                         {contract.contract_number} - {contract.title} {contract.created_before_subscriber ? '(Pré-criado)' : ''}
                       </MenuItem>
-                    ))
+                      ))}
+                    </>
                   )}
                 </Select>
-                {!newSubscriber.contract_id || newSubscriber.contract_id <= 0 ? (
-                  <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
-                    Contrato é obrigatório. Selecione um contrato válido.
-                  </Typography>
-                ) : (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75 }}>
-                    Contrato selecionado: {availableContracts.find(c => c.contract_id === newSubscriber.contract_id)?.title}
-                  </Typography>
-                )}
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75 }}>
+                  {newSubscriber.contract_id
+                    ? `Contrato selecionado: ${availableContracts.find(c => c.contract_id === newSubscriber.contract_id)?.title || 'N/A'}`
+                    : 'Você pode criar o anunciante sem contrato e criar/vincular contratos depois.'}
+                </Typography>
               </FormControl>
-              
+
               {availableContracts.length === 0 && !loadingContracts && (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  Nenhum contrato disponível. Você precisa criar um contrato antes de criar um Assinante.
-                  <br />
-                  <Button 
-                    size="small" 
-                    variant="outlined" 
-                    sx={{ mt: 1 }}
-                    onClick={() => window.location.href = '/contracts/new'}
-                  >
-                    Criar Contrato
-                  </Button>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Nenhum pré-contrato disponível no momento (opcional). Você pode criar o anunciante normalmente e criar contratos depois.
                 </Alert>
               )}
               
@@ -2456,7 +2448,7 @@ const Subscribers: React.FC = () => {
           <Button 
             variant="contained" 
             onClick={handleCreateSubscriber}
-            disabled={!newSubscriber.contract_id || newSubscriber.contract_id <= 0 || !newSubscriber.name}
+            disabled={!newSubscriber.name}
           >
             Criar Assinante
           </Button>
@@ -3497,6 +3489,7 @@ const Subscribers: React.FC = () => {
             <Tab label="Locais" />
             <Tab label="Totens" />
             <Tab label="Smart TVs" />
+            <Tab label="Contratos" icon={activeContracts.length > 0 ? <Chip label={activeContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
             <Tab label="Estatísticas" />
           </Tabs>
 
@@ -3646,7 +3639,66 @@ const Subscribers: React.FC = () => {
             </Box>
           )}
 
-          {detailsTab === 4 && SubscriberStats && (
+          {detailsTab === 4 && selectedSubscriber && (
+            <Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2, flexWrap: 'wrap' }}>
+                <Typography variant="h6">
+                  Contratos ({activeContracts.length})
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<Add />}
+                    onClick={() => {
+                      const sid = (selectedSubscriber as any).subscriber_id || (selectedSubscriber as any).subscriberId;
+                      navigate(`/subscriber-contracts?subscriberId=${sid}&openCreate=1`);
+                    }}
+                  >
+                    Criar Contrato
+                  </Button>
+                  <Button
+                    variant="text"
+                    endIcon={<OpenInNew />}
+                    onClick={() => {
+                      const sid = (selectedSubscriber as any).subscriber_id || (selectedSubscriber as any).subscriberId;
+                      navigate(`/subscriber-contracts?subscriberId=${sid}`);
+                    }}
+                  >
+                    Abrir Manutenção
+                  </Button>
+                </Box>
+              </Box>
+
+              {activeContracts.length === 0 ? (
+                <Alert severity="info">Nenhum contrato ativo encontrado para este anunciante.</Alert>
+              ) : (
+                <List>
+                  {activeContracts.map((contract: any, idx: number) => (
+                    <ListItem
+                      key={contract.contract_id || contract.contractId || `contract-${idx}`}
+                      sx={{
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        mb: 1,
+                      }}
+                    >
+                      <ListItemIcon>
+                        <Description />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={`${contract.contract_number || contract.contractNumber || 'N/A'} - ${contract.title || 'Sem título'}`}
+                        secondary={`Status: ${contract.status || 'N/A'} • Início: ${
+                          contract.start_date ? new Date(contract.start_date).toLocaleDateString('pt-BR') : 'N/A'
+                        }${contract.end_date ? ` • Fim: ${new Date(contract.end_date).toLocaleDateString('pt-BR')}` : ''}`}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </Box>
+          )}
+
+          {detailsTab === 5 && SubscriberStats && (
             <Grid container spacing={3}>
               <Grid item xs={12} sm={6} md={3}>
                 <Card sx={{ textAlign: 'center', py: 2 }}>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -59,6 +60,7 @@ import {
   Assignment,
   AttachMoney,
   Link as LinkIcon,
+  OpenInNew,
 } from '@mui/icons-material';
 import { 
   publisherApi, 
@@ -84,6 +86,7 @@ import {
 
 const Publishers: React.FC = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [publishers, setPublishers] = useState<Publisher[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -3410,9 +3413,35 @@ const Publishers: React.FC = () => {
 
           {detailsTab === 4 && publisherStats && publisherStats.contracts && (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Contratos ({publisherStats.contracts.length})
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2, flexWrap: 'wrap' }}>
+                <Typography variant="h6">
+                  Contratos ({publisherStats.contracts.length})
+                </Typography>
+                {selectedPublisher && (
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<Add />}
+                      onClick={() => {
+                        const pid = (selectedPublisher as any).publisher_id || (selectedPublisher as any).publisherId;
+                        navigate(`/publisher-contracts?publisherId=${pid}&openCreate=1`);
+                      }}
+                    >
+                      Criar Contrato
+                    </Button>
+                    <Button
+                      variant="text"
+                      endIcon={<OpenInNew />}
+                      onClick={() => {
+                        const pid = (selectedPublisher as any).publisher_id || (selectedPublisher as any).publisherId;
+                        navigate(`/publisher-contracts?publisherId=${pid}`);
+                      }}
+                    >
+                      Abrir Manutenção
+                    </Button>
+                  </Box>
+                )}
+              </Box>
               {publisherStats.contracts.length === 0 ? (
                 <Alert severity="info">Nenhum contrato encontrado</Alert>
               ) : (

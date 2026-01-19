@@ -2746,7 +2746,7 @@ export interface Subscriber {
 
 export interface CreateSubscriberRequest {
   name: string;
-  contract_id?: number; // Obrigatório na criação - contrato que gerou a criação do subscriber
+  contract_id?: number; // Opcional - pode vincular um pré-contrato (created_before_subscriber=true)
   contact_name?: string;
   email?: string;
   phone?: string;

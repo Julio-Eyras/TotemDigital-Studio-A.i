@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -20,6 +21,7 @@ import {
   LinearProgress,
   Alert,
   FormControl,
+  FormControlLabel,
   InputLabel,
   Select,
   MenuItem,
@@ -65,8 +67,27 @@ import {
   UpdatePublisherContractRequest,
 } from '../../services/api';
 
-const Contracts: React.FC = () => {
+type ContractsInitialType = 'subscriber' | 'publisher';
+
+interface ContractsProps {
+  /**
+   * Optional: force initial context when this page is used as a maintenance entrypoint.
+   * If provided, the UI will start in that tab, but user can still switch in /contracts.
+   */
+  initialType?: ContractsInitialType;
+  initialSubscriberId?: number;
+  initialPublisherId?: number;
+}
+
+const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId, initialPublisherId }) => {
   const theme = useTheme();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const isSubscriberMaintenance = location.pathname.startsWith('/subscriber-contracts');
+  const isPublisherMaintenance = location.pathname.startsWith('/publisher-contracts');
+  const isMaintenance = isSubscriberMaintenance || isPublisherMaintenance;
   
   // Obter role do usuário para proteção de valores contratuais
   const getUserRole = (): string => {
@@ -103,7 +124,7 @@ const Contracts: React.FC = () => {
   
   // Estados para formulário de criação/edição
   const [contractForm, setContractForm] = useState<CreateContractRequest>({
-    subscriber_id: 0,
+    subscriber_id: undefined,
     plan_id: undefined,
     contract_number: '',
     contract_type: 'advertising',
@@ -116,6 +137,7 @@ const Contracts: React.FC = () => {
     payment_terms: '',
     status: 'draft',
     publisherIds: [],
+    created_before_subscriber: false,
   });
   
   // Estados para dados relacionados
@@ -130,7 +152,7 @@ const Contracts: React.FC = () => {
 
   // Estados para formulário de Publisher Contract
   const [publisherContractForm, setPublisherContractForm] = useState<CreatePublisherContractRequest>({
-    publisher_id: 0,
+    publisher_id: undefined,
     contract_number: '',
     contract_type: 'revenue_share',
     title: '',
@@ -145,7 +167,86 @@ const Contracts: React.FC = () => {
     currency: 'BRL',
     payment_terms: '',
     status: 'draft',
+    created_before_publisher: false,
   });
+
+  const effectiveType: ContractsInitialType | undefined = useMemo(() => {
+    const typeFromRoute: ContractsInitialType | undefined = isSubscriberMaintenance
+      ? 'subscriber'
+      : isPublisherMaintenance
+        ? 'publisher'
+        : undefined;
+    const typeFromQuery = searchParams.get('type');
+    if (typeFromQuery === 'subscriber' || typeFromQuery === 'publisher') return typeFromQuery;
+    return initialType || typeFromRoute;
+  }, [initialType, isPublisherMaintenance, isSubscriberMaintenance, searchParams]);
+
+  const effectiveSubscriberId = useMemo(() => {
+    const fromQuery = searchParams.get('subscriberId');
+    const parsed = fromQuery ? Number(fromQuery) : undefined;
+    if (parsed && !Number.isNaN(parsed)) return parsed;
+    return initialSubscriberId;
+  }, [initialSubscriberId, searchParams]);
+
+  const effectivePublisherId = useMemo(() => {
+    const fromQuery = searchParams.get('publisherId');
+    const parsed = fromQuery ? Number(fromQuery) : undefined;
+    if (parsed && !Number.isNaN(parsed)) return parsed;
+    return initialPublisherId;
+  }, [initialPublisherId, searchParams]);
+
+  // Apply initial tab/context
+  useEffect(() => {
+    if (effectiveType === 'publisher') setMainTab(1);
+    if (effectiveType === 'subscriber') setMainTab(0);
+  }, [effectiveType]);
+
+  // Prefill create forms when coming from a contextual entrypoint (subscriber/publisher detail)
+  useEffect(() => {
+    if (effectiveSubscriberId) {
+      setContractForm((prev) => ({
+        ...prev,
+        subscriber_id: effectiveSubscriberId,
+        created_before_subscriber: false,
+      }));
+    }
+  }, [effectiveSubscriberId]);
+
+  useEffect(() => {
+    if (effectivePublisherId) {
+      setPublisherContractForm((prev) => ({
+        ...prev,
+        publisher_id: effectivePublisherId,
+        created_before_publisher: false,
+      }));
+    }
+  }, [effectivePublisherId]);
+
+  // Open create dialog from contextual links (e.g., Subscriber/Publisher details)
+  useEffect(() => {
+    const openCreate = searchParams.get('openCreate');
+    if (openCreate !== '1') return;
+
+    if (effectiveType === 'publisher') {
+      resetPublisherContractForm();
+      setCreatePublisherContractDialogOpen(true);
+    } else {
+      resetForm();
+      setCreateTab(0);
+      setCreateDialogOpen(true);
+    }
+
+    // Remove param to prevent reopening on re-render/back
+    const next = new URLSearchParams(searchParams);
+    next.delete('openCreate');
+    navigate(
+      {
+        pathname: location.pathname,
+        search: next.toString() ? `?${next.toString()}` : '',
+      },
+      { replace: true }
+    );
+  }, [effectiveType, location.pathname, navigate, searchParams]);
 
   useEffect(() => {
     if (mainTab === 0) {
@@ -156,7 +257,7 @@ const Contracts: React.FC = () => {
       loadPublisherContracts();
       loadPublishers();
     }
-  }, [contractTypeFilter, statusFilter, mainTab]);
+  }, [contractTypeFilter, statusFilter, mainTab, searchTerm]);
 
   // Carregar publishers do contrato quando editar
   useEffect(() => {
@@ -175,6 +276,7 @@ const Contracts: React.FC = () => {
         contractType: contractTypeFilter !== 'all' ? contractTypeFilter : undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         activeOnly: false,
+        subscriberId: effectiveSubscriberId,
       });
       setContracts(response.data || []);
     } catch (error: any) {
@@ -222,6 +324,7 @@ const Contracts: React.FC = () => {
         search: searchTerm || undefined,
         contractType: contractTypeFilter !== 'all' ? contractTypeFilter : undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
+        publisherId: effectivePublisherId,
       });
       setPublisherContracts(response.data || []);
     } catch (error: any) {
@@ -230,6 +333,40 @@ const Contracts: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const pageTitle = useMemo(() => {
+    if (isSubscriberMaintenance) return '📄 Contratos do Anunciante';
+    if (isPublisherMaintenance) return '📄 Contratos do Publicador';
+    return '📄 Contratos';
+  }, [isPublisherMaintenance, isSubscriberMaintenance]);
+
+  const pageSubtitle = useMemo(() => {
+    if (isSubscriberMaintenance) return 'Gerencie contratos do Anunciante (Assinante)';
+    if (isPublisherMaintenance) return 'Gerencie contratos do Veículo de Mídia (Publicador)';
+    return 'Gerencie contratos de Assinantes e Publicadores';
+  }, [isPublisherMaintenance, isSubscriberMaintenance]);
+
+  const createButtonLabel = useMemo(() => {
+    if (mainTab === 1) return 'Adicionar Contrato do Publicador';
+    return 'Adicionar Contrato do Anunciante';
+  }, [mainTab]);
+
+  const handleOpenCreate = () => {
+    if (mainTab === 1) {
+      resetPublisherContractForm();
+      setCreatePublisherContractDialogOpen(true);
+      return;
+    }
+    resetForm();
+    setCreateDialogOpen(true);
+    setCreateTab(0);
+  };
+
+  // Helper: open "maintenance" from contextual screens
+  const goToMaintenance = (type: ContractsInitialType) => {
+    const base = type === 'subscriber' ? '/subscriber-contracts' : '/publisher-contracts';
+    navigate(base);
   };
 
   const loadContractPublishers = async (contractId: number) => {
@@ -253,7 +390,10 @@ const Contracts: React.FC = () => {
 
   const handleCreateContract = async () => {
     try {
-      if (!contractForm.subscriber_id || !contractForm.contract_number || !contractForm.title || !contractForm.start_date) {
+      const hasSubscriber = !!contractForm.subscriber_id;
+      const isPreContract = !!contractForm.created_before_subscriber;
+
+      if ((!hasSubscriber && !isPreContract) || !contractForm.contract_number || !contractForm.title || !contractForm.start_date) {
         setError('Preencha todos os campos obrigatórios');
         setCreateTab(0);
         return;
@@ -263,7 +403,8 @@ const Contracts: React.FC = () => {
         ...contractForm,
         start_date: formatDateForAPI(contractForm.start_date) || '',
         end_date: formatDateForAPI(contractForm.end_date),
-        publisherIds: selectedPublisherIds,
+        // Só permitir publisherIds quando existir subscriber_id (evita INSERT com subscriber_id NULL no backend)
+        publisherIds: hasSubscriber ? selectedPublisherIds : [],
       };
 
       await contractApi.create(contractData);
@@ -368,7 +509,7 @@ const Contracts: React.FC = () => {
 
   const resetForm = () => {
     setContractForm({
-      subscriber_id: 0,
+      subscriber_id: effectiveSubscriberId,
       plan_id: undefined,
       contract_number: '',
       contract_type: 'advertising',
@@ -381,6 +522,7 @@ const Contracts: React.FC = () => {
       payment_terms: '',
       status: 'draft',
       publisherIds: [],
+      created_before_subscriber: !effectiveSubscriberId,
     });
     setSelectedPublisherIds([]);
     setContractPublishers([]);
@@ -458,7 +600,7 @@ const Contracts: React.FC = () => {
 
   const resetPublisherContractForm = () => {
     setPublisherContractForm({
-      publisher_id: 0,
+      publisher_id: undefined,
       contract_number: '',
       contract_type: 'revenue_share',
       title: '',
@@ -473,12 +615,16 @@ const Contracts: React.FC = () => {
       currency: 'BRL',
       payment_terms: '',
       status: 'draft',
+      created_before_publisher: false,
     });
   };
 
   const handleCreatePublisherContract = async () => {
     try {
-      if (!publisherContractForm.publisher_id || !publisherContractForm.contract_number || !publisherContractForm.title || !publisherContractForm.start_date) {
+      const hasPublisher = !!publisherContractForm.publisher_id;
+      const isPreContract = !!publisherContractForm.created_before_publisher;
+
+      if ((!hasPublisher && !isPreContract) || !publisherContractForm.contract_number || !publisherContractForm.title || !publisherContractForm.start_date) {
         setError('Preencha todos os campos obrigatórios');
         return;
       }
@@ -543,7 +689,7 @@ const Contracts: React.FC = () => {
     }
   };
 
-  if (loading && contracts.length === 0) {
+  if (loading && contracts.length === 0 && publisherContracts.length === 0) {
     return (
       <Box sx={{ p: 3 }}>
         <LinearProgress />
@@ -557,31 +703,44 @@ const Contracts: React.FC = () => {
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
       {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         <Box>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            📄 Contratos
+            {pageTitle}
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie contratos de Assinantes e Publicadores
+            {pageSubtitle}
           </Typography>
         </Box>
         <Button
           variant="contained"
           startIcon={<Add />}
-          onClick={() => {
-            resetForm();
-            setCreateDialogOpen(true);
-            setCreateTab(0);
-          }}
+          onClick={handleOpenCreate}
           sx={{
             backgroundColor: theme.palette.primary.main,
             '&:hover': { backgroundColor: theme.palette.primary.dark }
           }}
         >
-          Adicionar Contrato
+          {createButtonLabel}
         </Button>
       </Box>
+
+      {!isMaintenance && (
+        <Box sx={{ mb: 3 }}>
+          <Tabs
+            value={mainTab}
+            onChange={(_, newValue) => {
+              setMainTab(newValue);
+              const next = new URLSearchParams(searchParams);
+              next.set('type', newValue === 1 ? 'publisher' : 'subscriber');
+              navigate({ pathname: location.pathname, search: `?${next.toString()}` }, { replace: true });
+            }}
+          >
+            <Tab label="Contratos do Anunciante" />
+            <Tab label="Contratos do Publicador" />
+          </Tabs>
+        </Box>
+      )}
 
       {/* Filters */}
       <Card sx={{ mb: 3 }}>
@@ -595,7 +754,8 @@ const Contracts: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => {
                   if (e.key === 'Enter') {
-                    loadContracts();
+                    if (mainTab === 1) loadPublisherContracts();
+                    else loadContracts();
                   }
                 }}
                 InputProps={{
@@ -612,9 +772,20 @@ const Contracts: React.FC = () => {
                   onChange={(e) => setContractTypeFilter(e.target.value)}
                 >
                   <MenuItem value="all">Todos</MenuItem>
-                  <MenuItem value="advertising">Publicidade</MenuItem>
-                  <MenuItem value="subscription">Assinatura</MenuItem>
-                  <MenuItem value="partnership">Parceria</MenuItem>
+                  {mainTab === 1 ? (
+                    <>
+                      <MenuItem value="revenue_share">Revenue Share</MenuItem>
+                      <MenuItem value="subscription">Assinatura</MenuItem>
+                      <MenuItem value="partnership">Parceria</MenuItem>
+                      <MenuItem value="hybrid">Híbrido</MenuItem>
+                    </>
+                  ) : (
+                    <>
+                      <MenuItem value="advertising">Publicidade</MenuItem>
+                      <MenuItem value="subscription">Assinatura</MenuItem>
+                      <MenuItem value="partnership">Parceria</MenuItem>
+                    </>
+                  )}
                 </Select>
               </FormControl>
             </Grid>
@@ -640,7 +811,7 @@ const Contracts: React.FC = () => {
                 fullWidth
                 variant="outlined"
                 startIcon={<Refresh />}
-                onClick={loadContracts}
+                onClick={() => (mainTab === 1 ? loadPublisherContracts() : loadContracts())}
               >
                 Atualizar
               </Button>
@@ -656,10 +827,11 @@ const Contracts: React.FC = () => {
         </Alert>
       )}
 
-      {/* Contracts Grid */}
-      <Grid container spacing={3}>
-        {contracts.map((contract) => (
-          <Grid item xs={12} sm={6} md={4} lg={3} key={contract.contract_id}>
+      {/* Subscriber Contracts Grid */}
+      {mainTab === 0 && (
+        <Grid container spacing={3}>
+          {contracts.map((contract) => (
+            <Grid item xs={12} sm={6} md={4} lg={3} key={contract.contract_id}>
             <Card sx={{
               height: '100%',
               display: 'flex',
@@ -777,9 +949,10 @@ const Contracts: React.FC = () => {
                 </Box>
               </CardContent>
             </Card>
-          </Grid>
-        ))}
-      </Grid>
+            </Grid>
+          ))}
+        </Grid>
+      )}
 
       {/* Empty State - Subscriber Contracts */}
       {contracts.length === 0 && !loading && mainTab === 0 && (
@@ -796,11 +969,10 @@ const Contracts: React.FC = () => {
               variant="contained"
               startIcon={<Add />}
               onClick={() => {
-                resetForm();
-                setCreateDialogOpen(true);
+                handleOpenCreate();
               }}
             >
-              Adicionar Primeiro Contrato
+              Adicionar Primeiro Contrato do Anunciante
             </Button>
           </CardContent>
         </Card>
@@ -912,8 +1084,7 @@ const Contracts: React.FC = () => {
                     variant="contained"
                     startIcon={<Add />}
                     onClick={() => {
-                      resetPublisherContractForm();
-                      setCreatePublisherContractDialogOpen(true);
+                      handleOpenCreate();
                     }}
                   >
                     Adicionar Primeiro Contrato Publicador
@@ -939,7 +1110,12 @@ const Contracts: React.FC = () => {
         <DialogContent>
           <Tabs value={createTab} onChange={(_, newValue) => setCreateTab(newValue)} sx={{ mb: 3 }}>
             <Tab label="Informações" />
-            <Tab label="Publicadores" icon={selectedPublisherIds.length > 0 ? <Chip label={selectedPublisherIds.length} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab
+              label="Publicadores"
+              disabled={!contractForm.subscriber_id}
+              icon={selectedPublisherIds.length > 0 ? <Chip label={selectedPublisherIds.length} size="small" color="primary" /> : undefined}
+              iconPosition="end"
+            />
           </Tabs>
 
           {/* Aba Informações */}
@@ -947,13 +1123,48 @@ const Contracts: React.FC = () => {
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>Dados do Contrato</Typography>
 
-              <FormControl fullWidth margin="normal" required>
-                <InputLabel>Assinante *</InputLabel>
+              <FormControlLabel
+                sx={{ mt: 1 }}
+                control={
+                  <Checkbox
+                    checked={!!contractForm.created_before_subscriber}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setContractForm((prev) => ({
+                        ...prev,
+                        created_before_subscriber: checked,
+                        subscriber_id: checked ? undefined : prev.subscriber_id,
+                      }));
+                      if (checked) {
+                        // Pré-contrato não pode conceder acessos a publishers sem subscriber_id
+                        setSelectedPublisherIds([]);
+                      }
+                    }}
+                  />
+                }
+                label="Criar contrato antes do anunciante (pré-contrato)"
+              />
+
+              {contractForm.created_before_subscriber && (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  Este contrato será criado sem Assinante. Você poderá vinculá-lo depois (quando o Anunciante existir).
+                  Enquanto isso, a seleção de Publicadores ficará desabilitada.
+                </Alert>
+              )}
+
+              <FormControl fullWidth margin="normal" required={!contractForm.created_before_subscriber}>
+                <InputLabel>{contractForm.created_before_subscriber ? 'Assinante (opcional)' : 'Assinante *'}</InputLabel>
                 <Select
                   value={contractForm.subscriber_id || ''}
-                  label="Assinante *"
-                  onChange={(e) => setContractForm({ ...contractForm, subscriber_id: Number(e.target.value) })}
+                  label={contractForm.created_before_subscriber ? 'Assinante (opcional)' : 'Assinante *'}
+                  onChange={(e) => {
+                    const nextId = e.target.value ? Number(e.target.value) : undefined;
+                    setContractForm({ ...contractForm, subscriber_id: nextId, created_before_subscriber: !nextId });
+                    if (!nextId) setSelectedPublisherIds([]);
+                  }}
+                  disabled={!!contractForm.created_before_subscriber || !!effectiveSubscriberId}
                 >
+                    <MenuItem value="">{contractForm.created_before_subscriber ? 'Nenhum (pré-contrato)' : 'Selecione...'}</MenuItem>
                     {subscribers.map((subscriber) => {
                       const subscriberId = subscriber.subscriber_id || (subscriber as any).subscriberId;
                       return (
@@ -1192,7 +1403,12 @@ const Contracts: React.FC = () => {
           <Button
             variant="contained"
             onClick={handleCreateContract}
-            disabled={!contractForm.subscriber_id || !contractForm.contract_number || !contractForm.title || !contractForm.start_date}
+            disabled={
+              ((!contractForm.subscriber_id && !contractForm.created_before_subscriber) ||
+                !contractForm.contract_number ||
+                !contractForm.title ||
+                !contractForm.start_date)
+            }
           >
             Criar Contrato
           </Button>
@@ -1476,13 +1692,42 @@ const Contracts: React.FC = () => {
       >
         <DialogTitle>Adicionar Contrato Publicador</DialogTitle>
         <DialogContent>
-          <FormControl fullWidth margin="normal" required>
-            <InputLabel>Publicador *</InputLabel>
+          <FormControlLabel
+            sx={{ mt: 1 }}
+            control={
+              <Checkbox
+                checked={!!publisherContractForm.created_before_publisher}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setPublisherContractForm((prev) => ({
+                    ...prev,
+                    created_before_publisher: checked,
+                    publisher_id: checked ? undefined : prev.publisher_id,
+                  }));
+                }}
+              />
+            }
+            label="Criar contrato antes do publicador (pré-contrato)"
+          />
+
+          {publisherContractForm.created_before_publisher && (
+            <Alert severity="info" sx={{ mt: 1 }}>
+              Este contrato será criado sem Publicador. Você poderá vinculá-lo depois (quando o Veículo existir).
+            </Alert>
+          )}
+
+          <FormControl fullWidth margin="normal" required={!publisherContractForm.created_before_publisher}>
+            <InputLabel>{publisherContractForm.created_before_publisher ? 'Publicador (opcional)' : 'Publicador *'}</InputLabel>
             <Select
               value={publisherContractForm.publisher_id || ''}
-              label="Publicador *"
-              onChange={(e) => setPublisherContractForm({ ...publisherContractForm, publisher_id: Number(e.target.value) })}
+              label={publisherContractForm.created_before_publisher ? 'Publicador (opcional)' : 'Publicador *'}
+              onChange={(e) => {
+                const nextId = e.target.value ? Number(e.target.value) : undefined;
+                setPublisherContractForm({ ...publisherContractForm, publisher_id: nextId, created_before_publisher: !nextId });
+              }}
+              disabled={!!publisherContractForm.created_before_publisher || !!effectivePublisherId}
             >
+              <MenuItem value="">{publisherContractForm.created_before_publisher ? 'Nenhum (pré-contrato)' : 'Selecione...'}</MenuItem>
               {publishers.map((publisher) => (
                 <MenuItem key={publisher.publisher_id} value={publisher.publisher_id}>
                   {publisher.name}
@@ -1630,7 +1875,12 @@ const Contracts: React.FC = () => {
           <Button 
             variant="contained" 
             onClick={handleCreatePublisherContract}
-            disabled={!publisherContractForm.publisher_id || !publisherContractForm.contract_number || !publisherContractForm.title || !publisherContractForm.start_date}
+            disabled={
+              ((!publisherContractForm.publisher_id && !publisherContractForm.created_before_publisher) ||
+                !publisherContractForm.contract_number ||
+                !publisherContractForm.title ||
+                !publisherContractForm.start_date)
+            }
           >
             Criar
           </Button>
@@ -1649,13 +1899,36 @@ const Contracts: React.FC = () => {
       >
         <DialogTitle>Editar Contrato Publicador - {selectedPublisherContract?.title || ''}</DialogTitle>
         <DialogContent>
-          <FormControl fullWidth margin="normal" required>
-            <InputLabel>Publicador *</InputLabel>
+          <FormControlLabel
+            sx={{ mt: 1 }}
+            control={
+              <Checkbox
+                checked={!!publisherContractForm.created_before_publisher}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setPublisherContractForm((prev) => ({
+                    ...prev,
+                    created_before_publisher: checked,
+                    publisher_id: checked ? undefined : prev.publisher_id,
+                  }));
+                }}
+              />
+            }
+            label="Contrato sem publicador (pré-contrato)"
+          />
+
+          <FormControl fullWidth margin="normal" required={!publisherContractForm.created_before_publisher}>
+            <InputLabel>{publisherContractForm.created_before_publisher ? 'Publicador (opcional)' : 'Publicador *'}</InputLabel>
             <Select
               value={publisherContractForm.publisher_id || ''}
-              label="Publicador *"
-              onChange={(e) => setPublisherContractForm({ ...publisherContractForm, publisher_id: Number(e.target.value) })}
+              label={publisherContractForm.created_before_publisher ? 'Publicador (opcional)' : 'Publicador *'}
+              onChange={(e) => {
+                const nextId = e.target.value ? Number(e.target.value) : undefined;
+                setPublisherContractForm({ ...publisherContractForm, publisher_id: nextId, created_before_publisher: !nextId });
+              }}
+              disabled={!!publisherContractForm.created_before_publisher}
             >
+              <MenuItem value="">{publisherContractForm.created_before_publisher ? 'Nenhum (pré-contrato)' : 'Selecione...'}</MenuItem>
               {publishers.map((publisher) => (
                 <MenuItem key={publisher.publisher_id} value={publisher.publisher_id}>
                   {publisher.name}
@@ -1803,7 +2076,12 @@ const Contracts: React.FC = () => {
           <Button 
             variant="contained" 
             onClick={handleEditPublisherContract}
-            disabled={!publisherContractForm.publisher_id || !publisherContractForm.contract_number || !publisherContractForm.title || !publisherContractForm.start_date}
+            disabled={
+              ((!publisherContractForm.publisher_id && !publisherContractForm.created_before_publisher) ||
+                !publisherContractForm.contract_number ||
+                !publisherContractForm.title ||
+                !publisherContractForm.start_date)
+            }
           >
             Salvar
           </Button>

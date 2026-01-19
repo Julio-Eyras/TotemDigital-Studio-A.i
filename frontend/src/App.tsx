@@ -56,6 +56,8 @@ const Locals = React.lazy(() => import('./pages/Locals/Locals'));
 const SmartTvs = React.lazy(() => import('./pages/SmartTvs/SmartTvs'));
 const Subscribers = React.lazy(() => import('./pages/Subscribers/Subscribers'));
 const Contracts = React.lazy(() => import('./pages/Contracts/Contracts'));
+const SubscriberContracts = React.lazy(() => import('./pages/SubscriberContracts/SubscriberContracts'));
+const PublisherContracts = React.lazy(() => import('./pages/PublisherContracts/PublisherContracts'));
 
 /**
  * Detecta o tipo de subdomínio da requisição
@@ -366,6 +368,26 @@ const AppContent: React.FC = () => {
               <ProtectedRoute>
                 <Suspense fallback={<CircularProgress />}>
                   <Contracts />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/subscriber-contracts"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<CircularProgress />}>
+                  <SubscriberContracts />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/publisher-contracts"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<CircularProgress />}>
+                  <PublisherContracts />
                 </Suspense>
               </ProtectedRoute>
             }
