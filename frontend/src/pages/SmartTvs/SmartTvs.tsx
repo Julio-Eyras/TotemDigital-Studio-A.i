@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Card,
@@ -21,6 +21,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Add,
@@ -39,7 +41,10 @@ import { useAppSelector } from '../../store';
 const SmartTvs: React.FC = () => {
   const theme = useTheme();
   const { user } = useAppSelector((state) => state.auth);
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = Boolean(
+    (user?.isTenantUser ?? (user as any)?.is_tenant_user) ||
+      ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(user?.role || '')
+  );
   const userPublisherId = user?.publisherId;
 
   const [smartTvs, setSmartTvs] = useState<SmartTv[]>([]);
@@ -53,6 +58,12 @@ const SmartTvs: React.FC = () => {
   const [publisherFilter, setPublisherFilter] = useState<number | undefined>(undefined);
   const [activeOnlyFilter, setActiveOnlyFilter] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [createTab, setCreateTab] = useState(0);
+  const [editTab, setEditTab] = useState(0);
+  const [capabilitiesText, setCapabilitiesText] = useState('');
+  const [settingsText, setSettingsText] = useState('');
+  const [editCapabilitiesText, setEditCapabilitiesText] = useState('');
+  const [editSettingsText, setEditSettingsText] = useState('');
   const [newSmartTv, setNewSmartTv] = useState<CreateSmartTvRequest>({
     totem_id: 0,
     identifier: '',
@@ -74,9 +85,16 @@ const SmartTvs: React.FC = () => {
     loadTotems();
   }, [totemFilter, publisherFilter, activeOnlyFilter]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadSmartTvs();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const loadTotems = async () => {
     try {
-      const response = await totemApi.getAll();
+      const response = await totemApi.getAll({ limit: 10000 });
       // Filtrar totens por publisher se não for admin
       let filteredTotems = response.data || [];
       if (!isAdmin && userPublisherId) {
@@ -109,6 +127,16 @@ const SmartTvs: React.FC = () => {
     }
   };
 
+  const tryParseJson = (text: string): any | undefined => {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return undefined;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      throw new Error('JSON inválido');
+    }
+  };
+
   const handleCreateSmartTv = async () => {
     try {
       if (!newSmartTv.totem_id) {
@@ -119,8 +147,19 @@ const SmartTvs: React.FC = () => {
         setError('Identifier é obrigatório');
         return;
       }
-      await smartTvApi.create(newSmartTv);
+
+      const parsedCapabilities = tryParseJson(capabilitiesText);
+      const parsedSettings = tryParseJson(settingsText);
+
+      await smartTvApi.create({
+        ...newSmartTv,
+        capabilities: parsedCapabilities,
+        settings: parsedSettings,
+      });
       setCreateDialogOpen(false);
+      setCreateTab(0);
+      setCapabilitiesText('');
+      setSettingsText('');
       setNewSmartTv({
         totem_id: 0,
         identifier: '',
@@ -139,7 +178,7 @@ const SmartTvs: React.FC = () => {
       loadSmartTvs();
     } catch (error: any) {
       console.error('Erro ao criar Smart TV:', error);
-      setError(error.response?.data?.error || 'Erro ao criar Smart TV');
+      setError(error.response?.data?.error || error.message || 'Erro ao criar Smart TV');
     }
   };
 
@@ -159,17 +198,18 @@ const SmartTvs: React.FC = () => {
         resolution_height: selectedSmartTv.resolution_height,
         orientation: selectedSmartTv.orientation,
         status: selectedSmartTv.status,
-        capabilities: selectedSmartTv.capabilities,
-        settings: selectedSmartTv.settings,
+        capabilities: tryParseJson(editCapabilitiesText),
+        settings: tryParseJson(editSettingsText),
         is_active: selectedSmartTv.is_active,
       };
       await smartTvApi.update(selectedSmartTv.tv_id, updateData);
       setEditDialogOpen(false);
       setSelectedSmartTv(null);
+      setEditTab(0);
       loadSmartTvs();
     } catch (error: any) {
       console.error('Erro ao atualizar Smart TV:', error);
-      setError(error.response?.data?.error || 'Erro ao atualizar Smart TV');
+      setError(error.response?.data?.error || error.message || 'Erro ao atualizar Smart TV');
     }
   };
 
@@ -189,6 +229,9 @@ const SmartTvs: React.FC = () => {
 
   const handleOpenEditDialog = (smartTv: SmartTv) => {
     setSelectedSmartTv(smartTv);
+    setEditTab(0);
+    setEditCapabilitiesText(smartTv.capabilities ? JSON.stringify(smartTv.capabilities, null, 2) : '');
+    setEditSettingsText(smartTv.settings ? JSON.stringify(smartTv.settings, null, 2) : '');
     setEditDialogOpen(true);
   };
 
@@ -215,17 +258,43 @@ const SmartTvs: React.FC = () => {
     );
   }
 
+  const smartTvsByTotem = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const tv of smartTvs) {
+      const tid = Number((tv as any).totem_id ?? (tv as any).totemId);
+      if (!Number.isNaN(tid) && tid > 0) {
+        map.set(tid, (map.get(tid) || 0) + 1);
+      }
+    }
+    return map;
+  }, [smartTvs]);
+
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1">
-          Smart TVs
-        </Typography>
+    <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
+      {/* Header */}
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <Box>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
+            📺 Smart TVs
+          </Typography>
+          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
+            Gerencie Smart TVs vinculadas a Totens
+          </Typography>
+        </Box>
         {isAdmin && (
           <Button
             variant="contained"
             startIcon={<Add />}
-            onClick={() => setCreateDialogOpen(true)}
+            onClick={() => {
+              setCreateTab(0);
+              setCapabilitiesText('');
+              setSettingsText('');
+              setCreateDialogOpen(true);
+            }}
+            sx={{
+              backgroundColor: theme.palette.primary.main,
+              '&:hover': { backgroundColor: theme.palette.primary.dark },
+            }}
           >
             Nova Smart TV
           </Button>
@@ -238,48 +307,69 @@ const SmartTvs: React.FC = () => {
         </Alert>
       )}
 
-      <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
-        <TextField
-          label="Buscar"
-          variant="outlined"
-          size="small"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter') {
-              loadSmartTvs();
-            }
-          }}
-          sx={{ flexGrow: 1 }}
-        />
-        <FormControl size="small" sx={{ minWidth: 200 }}>
-          <InputLabel>Totem</InputLabel>
-          <Select
-            value={totemFilter || ''}
-            label="Totem"
-            onChange={(e) => setTotemFilter(e.target.value ? Number(e.target.value) : undefined)}
-          >
-            <MenuItem value="">Todos</MenuItem>
-            {totems.map((totem) => (
-              <MenuItem key={totem.totem_id} value={totem.totem_id}>
-                {totem.name || totem.identifier}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={loadSmartTvs}
-        >
-          Atualizar
-        </Button>
-      </Box>
+      {/* Filters */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                placeholder="Buscar Smart TVs..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <FormControl fullWidth>
+                <InputLabel>Totem</InputLabel>
+                <Select
+                  value={totemFilter || ''}
+                  label="Totem"
+                  onChange={(e) => setTotemFilter(e.target.value ? Number(e.target.value) : undefined)}
+                >
+                  <MenuItem value="">Todos</MenuItem>
+                  {totems.map((totem) => (
+                    <MenuItem key={totem.totem_id} value={totem.totem_id}>
+                      {totem.name || totem.identifier} ({smartTvsByTotem.get(totem.totem_id) || 0})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={activeOnlyFilter ? 'active' : 'all'}
+                  label="Status"
+                  onChange={(e) => setActiveOnlyFilter(e.target.value === 'active')}
+                >
+                  <MenuItem value="active">Ativos</MenuItem>
+                  <MenuItem value="all">Todos</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={1}>
+              <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={loadSmartTvs}>
+                Atualizar
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
       <Grid container spacing={3}>
         {smartTvs.map((smartTv) => (
           <Grid item xs={12} sm={6} md={4} key={smartTv.tv_id}>
-            <Card>
+            <Card
+              sx={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                '&:hover': { transform: 'translateY(-4px)', boxShadow: theme.shadows[8] },
+              }}
+            >
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
                   <Box>
@@ -343,20 +433,27 @@ const SmartTvs: React.FC = () => {
                   sx={{ mb: 1 }}
                 />
 
-                {isAdmin && (
-                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                    <Tooltip title="Editar">
-                      <IconButton size="small" onClick={() => handleOpenEditDialog(smartTv)}>
-                        <Edit />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Deletar">
-                      <IconButton size="small" color="error" onClick={() => handleDeleteSmartTv(smartTv.tv_id)}>
-                        <Delete />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                )}
+                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', mt: 2 }}>
+                  <Tooltip title="Configurações (em breve)">
+                    <IconButton size="small" disabled>
+                      <Settings />
+                    </IconButton>
+                  </Tooltip>
+                  {isAdmin && (
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Tooltip title="Editar">
+                        <IconButton size="small" onClick={() => handleOpenEditDialog(smartTv)}>
+                          <Edit />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Deletar">
+                        <IconButton size="small" color="error" onClick={() => handleDeleteSmartTv(smartTv.tv_id)}>
+                          <Delete />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  )}
+                </Box>
               </CardContent>
             </Card>
           </Grid>
@@ -376,7 +473,13 @@ const SmartTvs: React.FC = () => {
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Criar Nova Smart TV</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <Tabs value={createTab} onChange={(_, v) => setCreateTab(v)} sx={{ mb: 2 }}>
+            <Tab label="Dados" />
+            <Tab label="Config (JSON)" />
+          </Tabs>
+
+          {createTab === 0 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
             <FormControl fullWidth>
               <InputLabel>Totem *</InputLabel>
               <Select
@@ -463,7 +566,31 @@ const SmartTvs: React.FC = () => {
                 <MenuItem value="portrait">Retrato</MenuItem>
               </Select>
             </FormControl>
-          </Box>
+            </Box>
+          )}
+
+          {createTab === 1 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+              <TextField
+                label="Capabilities (JSON)"
+                value={capabilitiesText}
+                onChange={(e) => setCapabilitiesText(e.target.value)}
+                fullWidth
+                multiline
+                minRows={6}
+                placeholder="{}"
+              />
+              <TextField
+                label="Settings (JSON)"
+                value={settingsText}
+                onChange={(e) => setSettingsText(e.target.value)}
+                fullWidth
+                multiline
+                minRows={6}
+                placeholder="{}"
+              />
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateDialogOpen(false)}>Cancelar</Button>
@@ -478,7 +605,14 @@ const SmartTvs: React.FC = () => {
         <DialogTitle>Editar Smart TV</DialogTitle>
         <DialogContent>
           {selectedSmartTv && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+            <>
+              <Tabs value={editTab} onChange={(_, v) => setEditTab(v)} sx={{ mb: 2 }}>
+                <Tab label="Dados" />
+                <Tab label="Config (JSON)" />
+              </Tabs>
+
+              {editTab === 0 && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
               <TextField
                 label="Identifier *"
                 value={selectedSmartTv.identifier}
@@ -564,7 +698,32 @@ const SmartTvs: React.FC = () => {
                   <MenuItem value="error">Error</MenuItem>
                 </Select>
               </FormControl>
-            </Box>
+                </Box>
+              )}
+
+              {editTab === 1 && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+                  <TextField
+                    label="Capabilities (JSON)"
+                    value={editCapabilitiesText}
+                    onChange={(e) => setEditCapabilitiesText(e.target.value)}
+                    fullWidth
+                    multiline
+                    minRows={6}
+                    placeholder="{}"
+                  />
+                  <TextField
+                    label="Settings (JSON)"
+                    value={editSettingsText}
+                    onChange={(e) => setEditSettingsText(e.target.value)}
+                    fullWidth
+                    multiline
+                    minRows={6}
+                    placeholder="{}"
+                  />
+                </Box>
+              )}
+            </>
           )}
         </DialogContent>
         <DialogActions>
