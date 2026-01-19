@@ -160,31 +160,50 @@ const Locals: React.FC = () => {
     const statsRecord: Record<number, { totens: number; smartTvs: number }> = {};
     
     try {
-      // Buscar totens e Smart TVs para todos os locais
+      // PERFORMANCE: buscar totens e Smart TVs UMA vez e agregar por local_id (evita N chamadas por local)
+      const [totemsResponse, smartTvsResponse] = await Promise.all([
+        totemApi.getAll({ limit: 10000 }).catch(() => ({ data: [] })),
+        smartTvApi.getAll({ limit: 10000 }).catch(() => ({ data: [] })),
+      ]);
+
+      const totems = Array.isArray(totemsResponse.data) ? totemsResponse.data : [];
+      const smartTvs = Array.isArray(smartTvsResponse.data) ? smartTvsResponse.data : [];
+
+      // Mapear totem_id -> local_id
+      const totemLocalMap = new Map<number, number>();
+      for (const t of totems) {
+        const totemId = Number((t as any).totem_id ?? (t as any).id);
+        const localId = Number((t as any).localId ?? (t as any).local_id);
+        if (!Number.isNaN(totemId) && !Number.isNaN(localId)) {
+          totemLocalMap.set(totemId, localId);
+        }
+      }
+
+      // Inicializar stats para todos os locais
       for (const local of localsList) {
-        try {
-          const [totemsResponse, smartTvsResponse] = await Promise.all([
-            totemApi.getAll({ limit: 1000 }).catch(() => ({ data: [] })),
-            smartTvApi.getAll({ limit: 1000 }).catch(() => ({ data: [] })),
-          ]);
-          
-          const totems = Array.isArray(totemsResponse.data) ? totemsResponse.data : [];
-          const smartTvs = Array.isArray(smartTvsResponse.data) ? smartTvsResponse.data : [];
-          
-          const localTotems = totems.filter((t: any) => t.localId === local.local_id || t.local_id === local.local_id);
-          const localSmartTvs = smartTvs.filter((tv: any) => {
-            // Smart TVs podem estar vinculadas via totem
-            const totemIds = localTotems.map((t: any) => t.totem_id || t.id);
-            return totemIds.includes(tv.totem_id) || tv.local_id === local.local_id;
-          });
-          
-          statsRecord[local.local_id] = {
-            totens: localTotems.length,
-            smartTvs: localSmartTvs.length,
-          };
-        } catch (err) {
-          console.error(`Erro ao carregar stats para local ${local.local_id}:`, err);
-          statsRecord[local.local_id] = { totens: 0, smartTvs: 0 };
+        statsRecord[local.local_id] = { totens: 0, smartTvs: 0 };
+      }
+
+      // Contar totens por local
+      for (const t of totems) {
+        const localId = Number((t as any).localId ?? (t as any).local_id);
+        if (!Number.isNaN(localId) && statsRecord[localId]) {
+          statsRecord[localId].totens += 1;
+        }
+      }
+
+      // Contar Smart TVs por local (via local_id direto OU via totem_id)
+      for (const tv of smartTvs) {
+        const directLocalId = Number((tv as any).localId ?? (tv as any).local_id);
+        if (!Number.isNaN(directLocalId) && statsRecord[directLocalId]) {
+          statsRecord[directLocalId].smartTvs += 1;
+          continue;
+        }
+
+        const totemId = Number((tv as any).totem_id ?? (tv as any).totemId);
+        const inferredLocalId = totemLocalMap.get(totemId);
+        if (inferredLocalId && statsRecord[inferredLocalId]) {
+          statsRecord[inferredLocalId].smartTvs += 1;
         }
       }
       
@@ -347,16 +366,26 @@ const Locals: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1">
-          Locais
-        </Typography>
+    <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
+      {/* Header */}
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <Box>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
+            📍 Locais
+          </Typography>
+          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
+            Gerencie locais vinculados aos Veículos de Mídia (Publicadores)
+          </Typography>
+        </Box>
         {isAdmin && (
           <Button
             variant="contained"
             startIcon={<Add />}
             onClick={() => setCreateDialogOpen(true)}
+            sx={{
+              backgroundColor: theme.palette.primary.main,
+              '&:hover': { backgroundColor: theme.palette.primary.dark },
+            }}
           >
             Novo Local
           </Button>
@@ -369,143 +398,158 @@ const Locals: React.FC = () => {
         </Alert>
       )}
 
-      <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
-        <TextField
-          label="Buscar"
-          variant="outlined"
-          size="small"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter') {
-              loadLocals();
-            }
-          }}
-          sx={{ flexGrow: 1 }}
-        />
-        {isAdmin && (
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>Publisher</InputLabel>
-            <Select
-              value={publisherFilter || ''}
-              label="Publisher"
-              onChange={(e) => setPublisherFilter(e.target.value ? Number(e.target.value) : undefined)}
-            >
-              <MenuItem value="">Todos</MenuItem>
-              {publishers.map((publisher) => (
-                <MenuItem key={publisher.publisher_id} value={publisher.publisher_id}>
-                  {publisher.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={loadLocals}
-        >
-          Atualizar
-        </Button>
-      </Box>
+      {/* Filters */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                placeholder="Buscar locais..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    loadLocals();
+                  }
+                }}
+                InputProps={{
+                  startAdornment: <LocationOn sx={{ mr: 1, color: theme.palette.text.secondary }} />,
+                }}
+              />
+            </Grid>
+            {isAdmin && (
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth>
+                  <InputLabel>Publisher</InputLabel>
+                  <Select
+                    value={publisherFilter || ''}
+                    label="Publisher"
+                    onChange={(e) => setPublisherFilter(e.target.value ? Number(e.target.value) : undefined)}
+                  >
+                    <MenuItem value="">Todos</MenuItem>
+                    {publishers.map((publisher) => (
+                      <MenuItem key={publisher.publisher_id} value={publisher.publisher_id}>
+                        {publisher.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
+            <Grid item xs={12} md={isAdmin ? 1.5 : 3}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={activeOnlyFilter ? 'active' : 'all'}
+                  label="Status"
+                  onChange={(e) => setActiveOnlyFilter(e.target.value === 'active')}
+                >
+                  <MenuItem value="active">Ativos</MenuItem>
+                  <MenuItem value="all">Todos</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={isAdmin ? 1.5 : 3}>
+              <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={loadLocals}>
+                Atualizar
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
-      {/* Listagem agrupada por Publisher */}
+      {/* Listagem (Card Grid) agrupada por Publisher */}
       {Object.entries(groupedLocals).map(([publisherName, publisherLocals]) => (
         <Box key={publisherName} sx={{ mb: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
             <Business color="primary" />
             <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
               {publisherName}
             </Typography>
             <Chip label={`${publisherLocals.length} local(is)`} size="small" color="primary" variant="outlined" />
           </Box>
-          
-          <TableContainer component={Paper} sx={{ mb: 3 }}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Nome do Local</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Endereço</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Totens</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Smart TVs</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }} align="right">Ações</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {publisherLocals.map((local) => {
-                  const stats = localStats[local.local_id] || { totens: 0, smartTvs: 0 };
-                  return (
-                    <TableRow key={local.local_id} hover>
-                      <TableCell>
-                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                          {local.name}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <LocationOn fontSize="small" color="action" />
-                          <Typography variant="body2" color="text.secondary">
+
+          <Grid container spacing={3}>
+            {publisherLocals.map((local) => {
+              const stats = localStats[local.local_id] || { totens: 0, smartTvs: 0 };
+              return (
+                <Grid item xs={12} sm={6} md={4} lg={3} key={local.local_id}>
+                  <Card
+                    sx={{
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: theme.shadows[8],
+                      },
+                    }}
+                  >
+                    <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold' }} noWrap>
+                            {local.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
                             {local.address || 'Sem endereço'}
-                            {local.city && `, ${local.city}`}
-                            {local.state && ` - ${local.state}`}
+                            {local.city ? `, ${local.city}` : ''}
+                            {local.state ? ` - ${local.state}` : ''}
                           </Typography>
                         </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={stats.totens} 
-                          size="small" 
-                          color="info" 
-                          variant="outlined"
-                          icon={<Computer fontSize="small" />}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={stats.smartTvs} 
-                          size="small" 
-                          color="secondary" 
-                          variant="outlined"
-                          icon={<Tv fontSize="small" />}
-                        />
-                      </TableCell>
-                      <TableCell>
                         <Chip
                           label={local.is_active ? 'Ativo' : 'Inativo'}
                           color={local.is_active ? 'success' : 'default'}
                           size="small"
                         />
-                      </TableCell>
-                      <TableCell align="right">
-                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                          <Tooltip title="Ver Detalhes">
-                            <IconButton size="small" onClick={() => handleOpenDetailsDialog(local)}>
-                              <Visibility />
-                            </IconButton>
-                          </Tooltip>
-                          {isAdmin && (
-                            <>
-                              <Tooltip title="Editar">
-                                <IconButton size="small" onClick={() => handleOpenEditDialog(local)}>
-                                  <Edit />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Deletar">
-                                <IconButton size="small" color="error" onClick={() => handleDeleteLocal(local.local_id)}>
-                                  <Delete />
-                                </IconButton>
-                              </Tooltip>
-                            </>
-                          )}
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                      </Box>
+
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mt: 2 }}>
+                        <Chip
+                          label={`${stats.totens} Totens`}
+                          size="small"
+                          color="info"
+                          variant="outlined"
+                          icon={<Computer fontSize="small" />}
+                        />
+                        <Chip
+                          label={`${stats.smartTvs} Smart TVs`}
+                          size="small"
+                          color="secondary"
+                          variant="outlined"
+                          icon={<Tv fontSize="small" />}
+                        />
+                      </Box>
+
+                      <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Tooltip title="Ver Detalhes">
+                          <IconButton size="small" onClick={() => handleOpenDetailsDialog(local)}>
+                            <Visibility />
+                          </IconButton>
+                        </Tooltip>
+                        {isAdmin && (
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Tooltip title="Editar">
+                              <IconButton size="small" onClick={() => handleOpenEditDialog(local)}>
+                                <Edit />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Deletar">
+                              <IconButton size="small" color="error" onClick={() => handleDeleteLocal(local.local_id)}>
+                                <Delete />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        )}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
         </Box>
       ))}
 
