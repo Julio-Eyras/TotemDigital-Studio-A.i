@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS users (
     
     -- NOVO: Tipo de usuário
     user_type TEXT NOT NULL DEFAULT 'publisher_user', 
-        -- 'system_user' (tenant/admin), 'subscriber_user', 'publisher_user', 'publisher_subscriber'
+        -- 'system_user' (tenant/admin), 'subscriber_user', 'publisher_user'
     is_tenant_user BOOLEAN DEFAULT false, -- True se for admin/operador do sistema
     
     role TEXT, -- Role direta (mantido para compatibilidade)
@@ -179,13 +179,20 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT chk_users_user_type 
-        CHECK (user_type IN ('system_user', 'subscriber_user', 'publisher_user', 'publisher_subscriber')),
+        CHECK (user_type IN ('system_user', 'subscriber_user', 'publisher_user')),
     CONSTRAINT chk_users_tenant_logic 
         CHECK (
-            -- Se for tenant user, ambos devem ser NULL
-            (is_tenant_user = true AND publisher_id IS NULL AND subscriber_id IS NULL) OR
-            -- Se não for tenant user, pode ter publisher_id OU subscriber_id (ou ambos para publisher_subscriber)
-            (is_tenant_user = false)
+            -- Se for tenant user, ambos devem ser NULL e user_type deve ser system_user
+            (is_tenant_user = true AND publisher_id IS NULL AND subscriber_id IS NULL AND user_type = 'system_user') OR
+            -- Se não for tenant user, deve ter EXATAMENTE UM vínculo e user_type coerente
+            (
+              is_tenant_user = false
+              AND (
+                (publisher_id IS NOT NULL AND subscriber_id IS NULL AND user_type = 'publisher_user')
+                OR
+                (subscriber_id IS NOT NULL AND publisher_id IS NULL AND user_type = 'subscriber_user')
+              )
+            )
         ),
     
     -- Foreign Keys
@@ -202,7 +209,7 @@ CREATE TABLE IF NOT EXISTS users (
 COMMENT ON TABLE users IS 'Usuários do sistema SmartSignage';
 COMMENT ON COLUMN users.publisher_id IS 'FK para publisher (NULL se for tenant user ou subscriber)';
 COMMENT ON COLUMN users.subscriber_id IS 'FK para subscriber (NULL se for tenant user ou publisher)';
-COMMENT ON COLUMN users.user_type IS 'Tipo: system_user, subscriber_user, publisher_user, publisher_subscriber (Publisher que também anuncia)';
+COMMENT ON COLUMN users.user_type IS 'Tipo: system_user, subscriber_user, publisher_user';
 COMMENT ON COLUMN users.is_tenant_user IS 'True se for admin/operador do sistema (tenant)';
 
 -- =============================================

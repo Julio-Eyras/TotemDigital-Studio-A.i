@@ -88,8 +88,8 @@ const Login: React.FC = () => {
       if (userType === 'subscriber_user') {
         // Subscriber: redirecionar para dashboard de subscriber
         navigate('/subscriber/dashboard');
-      } else if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
-        // Publisher ou Publisher que também anuncia: redirecionar para dashboard (PublisherLayout será aplicado automaticamente)
+      } else if (userType === 'publisher_user') {
+        // Publisher: redirecionar para dashboard (PublisherLayout será aplicado automaticamente)
         navigate('/dashboard');
       } else {
         // System user: redirecionar para dashboard padrão

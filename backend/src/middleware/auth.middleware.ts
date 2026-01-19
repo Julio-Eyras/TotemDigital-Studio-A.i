@@ -23,7 +23,7 @@ declare global {
         publisherId?: number; // NOVO: FK para publishers
         subscriberId?: number; // NOVO: Para subscribers (derivado de publisher ou direto)
         clientId?: number; // DEPRECADO: Mantido para compatibilidade
-        userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber'; // NOVO
+        userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
         isTenantUser?: boolean; // NOVO
         flags?: UserFlags; // NOVO: Flags de permissão do usuário
       };
@@ -42,7 +42,7 @@ export interface AuthenticatedRequest extends Request {
     publisherId?: number; // NOVO
     subscriberId?: number; // NOVO
     clientId?: number; // DEPRECADO
-    userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber'; // NOVO
+    userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
     isTenantUser?: boolean; // NOVO
     flags?: UserFlags; // NOVO: Flags de permissão do usuário
   };
@@ -60,7 +60,7 @@ export interface AuthenticatedRequestWithUser extends Request {
     publisherId?: number; // NOVO
     subscriberId?: number; // NOVO
     clientId?: number; // DEPRECADO
-    userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber'; // NOVO
+    userType?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO
     isTenantUser?: boolean; // NOVO
     flags?: UserFlags; // NOVO
   };

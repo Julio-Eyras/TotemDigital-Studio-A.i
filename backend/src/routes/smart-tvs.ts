@@ -87,8 +87,8 @@ router.get('/',
       
       // Determinar se é publisher ou subscriber
       // Verifica userType primeiro, depois fallback para role e publisherId/subscriberId
-      const isPublisher = userType === 'publisher_user' || userType === 'publisher_subscriber' || 
-                         userRole === 'publisher_user' || userRole === 'publisher_subscriber' ||
+      const isPublisher = userType === 'publisher_user' || 
+                         userRole === 'publisher_user' ||
                          (userPublisherId !== undefined && userPublisherId > 0);
       const isSubscriber = userType === 'subscriber_user' || 
                           userRole === 'subscriber_user' ||

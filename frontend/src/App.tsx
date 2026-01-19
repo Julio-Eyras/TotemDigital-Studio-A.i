@@ -121,7 +121,7 @@ const AppContent: React.FC = () => {
     }
     
     // Prioridade 2: user_type (quando não há subdomínio)
-    if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+    if (userType === 'publisher_user') {
       return <PublisherLayout>{children}</PublisherLayout>;
     }
     
@@ -157,9 +157,8 @@ const AppContent: React.FC = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     
     if (subdomainType === 'publisher') {
-      // Publisher subdomain: apenas publisher_user, publisher_subscriber ou admins
+      // Publisher subdomain: apenas publisher_user ou admins
       if (user.user_type !== 'publisher_user' && 
-          user.user_type !== 'publisher_subscriber' &&
           user.role !== 'owner_system' && 
           user.role !== 'admin_sql' && 
           user.role !== 'admin' &&
@@ -169,9 +168,8 @@ const AppContent: React.FC = () => {
     }
     
     if (subdomainType === 'subscriber') {
-      // Subscriber subdomain: apenas subscriber_user, publisher_subscriber ou admins
+      // Subscriber subdomain: apenas subscriber_user ou admins
       if (user.user_type !== 'subscriber_user' && 
-          user.user_type !== 'publisher_subscriber' &&
           user.role !== 'owner_system' && 
           user.role !== 'admin_sql' && 
           user.role !== 'admin' &&

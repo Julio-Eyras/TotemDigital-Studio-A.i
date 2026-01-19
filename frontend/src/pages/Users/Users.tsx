@@ -306,7 +306,6 @@ const Users: React.FC = () => {
                   <MenuItem value="user">Usuário</MenuItem>
                   <MenuItem value="publisher_user">Publisher</MenuItem>
                   <MenuItem value="subscriber_user">Subscriber</MenuItem>
-                  <MenuItem value="publisher_subscriber">Publisher/Subscriber</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -322,7 +321,6 @@ const Users: React.FC = () => {
                   <MenuItem value="system_user">Sistema</MenuItem>
                   <MenuItem value="publisher_user">Publisher</MenuItem>
                   <MenuItem value="subscriber_user">Subscriber</MenuItem>
-                  <MenuItem value="publisher_subscriber">Publisher/Subscriber</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -570,7 +568,6 @@ const Users: React.FC = () => {
               <MenuItem value="user">Usuário</MenuItem>
               <MenuItem value="publisher_user">Publisher</MenuItem>
               <MenuItem value="subscriber_user">Subscriber</MenuItem>
-              <MenuItem value="publisher_subscriber">Publisher/Subscriber</MenuItem>
             </Select>
           </FormControl>
           <FormControl fullWidth margin="normal">
@@ -592,10 +589,9 @@ const Users: React.FC = () => {
               <MenuItem value="system_user">Sistema</MenuItem>
               <MenuItem value="publisher_user">Publisher</MenuItem>
               <MenuItem value="subscriber_user">Subscriber</MenuItem>
-              <MenuItem value="publisher_subscriber">Publisher/Subscriber</MenuItem>
             </Select>
           </FormControl>
-          {(newUser.userType === 'publisher_user' || newUser.userType === 'publisher_subscriber') && (
+          {newUser.userType === 'publisher_user' && (
             <FormControl fullWidth margin="normal">
               <InputLabel>Publisher</InputLabel>
               <Select
@@ -618,7 +614,7 @@ const Users: React.FC = () => {
               </Select>
             </FormControl>
           )}
-          {(newUser.userType === 'subscriber_user' || newUser.userType === 'publisher_subscriber') && (
+          {newUser.userType === 'subscriber_user' && (
             <FormControl fullWidth margin="normal">
               <InputLabel>Subscriber</InputLabel>
               <Select
@@ -713,7 +709,7 @@ const Users: React.FC = () => {
               <MenuItem value="user">Usuário</MenuItem>
               <MenuItem value="publisher_user">Publisher</MenuItem>
               <MenuItem value="subscriber_user">Subscriber</MenuItem>
-              <MenuItem value="publisher_subscriber">Publisher/Subscriber</MenuItem>
+              {/* Removido: publisher_subscriber não existe no domínio */}
             </Select>
           </FormControl>
           <FormControl fullWidth margin="normal">
@@ -725,8 +721,8 @@ const Users: React.FC = () => {
                 setSelectedUser({ 
                   ...selectedUser!, 
                   user_type: value,
-                  publisher_id: value !== 'publisher_user' && value !== 'publisher_subscriber' ? undefined : selectedUser?.publisher_id,
-                  subscriber_id: value !== 'subscriber_user' && value !== 'publisher_subscriber' ? undefined : selectedUser?.subscriber_id,
+                  publisher_id: value !== 'publisher_user' ? undefined : selectedUser?.publisher_id,
+                  subscriber_id: value !== 'subscriber_user' ? undefined : selectedUser?.subscriber_id,
                   is_tenant_user: value === 'system_user'
                     ? (((selectedUser as any)?.isTenantUser ?? (selectedUser as any)?.is_tenant_user) || false)
                     : false,
@@ -737,10 +733,10 @@ const Users: React.FC = () => {
               <MenuItem value="system_user">Sistema</MenuItem>
               <MenuItem value="publisher_user">Publisher</MenuItem>
               <MenuItem value="subscriber_user">Subscriber</MenuItem>
-              <MenuItem value="publisher_subscriber">Publisher/Subscriber</MenuItem>
+              {/* Removido: publisher_subscriber não existe no domínio */}
             </Select>
           </FormControl>
-          {(selectedUser?.user_type === 'publisher_user' || selectedUser?.user_type === 'publisher_subscriber') && (
+          {selectedUser?.user_type === 'publisher_user' && (
             <FormControl fullWidth margin="normal">
               <InputLabel>Publisher</InputLabel>
               <Select
@@ -763,7 +759,7 @@ const Users: React.FC = () => {
               </Select>
             </FormControl>
           )}
-          {(selectedUser?.user_type === 'subscriber_user' || selectedUser?.user_type === 'publisher_subscriber') && (
+          {selectedUser?.user_type === 'subscriber_user' && (
             <FormControl fullWidth margin="normal">
               <InputLabel>Subscriber</InputLabel>
               <Select

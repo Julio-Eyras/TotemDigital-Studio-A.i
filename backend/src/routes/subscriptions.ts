@@ -46,7 +46,7 @@ router.get('/', async (req: any, res) => {
     if (userType === 'subscriber_user' && userSubscriberId) {
       // Subscribers veem assinaturas do seu publisher
       filters.publisherId = userPublisherId || userSubscriberId;
-    } else if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+    } else if (userType === 'publisher_user') {
       if (userPublisherId) {
         filters.publisherId = userPublisherId;
       }
@@ -99,7 +99,7 @@ router.get('/my-subscription', async (req: any, res) => {
     if (userType === 'subscriber_user' && userSubscriberId) {
       // Subscribers veem assinatura do seu publisher
       publisherId = userPublisherId || userSubscriberId;
-    } else if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+    } else if (userType === 'publisher_user') {
       publisherId = userPublisherId;
     } else if (req.user.role === 'client' && clientId) {
       // DEPRECADO: Compatibilidade
@@ -162,7 +162,7 @@ router.get('/:id', async (req: any, res) => {
 
     let hasAccess = false;
 
-    if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+    if (userType === 'publisher_user') {
       hasAccess = userPublisherId === subscription.publisherId;
     } else if (userType === 'subscriber_user' && userSubscriberId) {
       // Subscribers veem assinaturas do seu publisher
@@ -212,7 +212,7 @@ router.post('/', async (req: any, res) => {
     const userPublisherId = req.user.publisherId;
     const userSubscriberId = req.user.subscriberId;
 
-    if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+    if (userType === 'publisher_user') {
       // Publishers criam assinaturas para si mesmos
       finalPublisherId = userPublisherId;
     } else if (userType === 'subscriber_user' && userSubscriberId) {
@@ -310,7 +310,7 @@ router.post('/:id/cancel', async (req: any, res) => {
 
     let hasAccess = false;
 
-    if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+    if (userType === 'publisher_user') {
       hasAccess = userPublisherId === subscription.publisherId;
     } else if (userType === 'subscriber_user' && userSubscriberId) {
       hasAccess = userPublisherId === subscription.publisherId;
@@ -375,7 +375,7 @@ router.post('/:id/resume', async (req: any, res) => {
 
     let hasAccess = false;
 
-    if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+    if (userType === 'publisher_user') {
       hasAccess = userPublisherId === subscription.publisherId;
     } else if (userType === 'subscriber_user' && userSubscriberId) {
       hasAccess = userPublisherId === subscription.publisherId;
@@ -427,7 +427,7 @@ router.post('/checkout', async (req: any, res) => {
 
     let publisherId: number | undefined;
 
-    if (userType === 'publisher_user' || userType === 'publisher_subscriber') {
+    if (userType === 'publisher_user') {
       publisherId = userPublisherId;
     } else if (userType === 'subscriber_user' && userSubscriberId) {
       publisherId = userPublisherId || userSubscriberId;

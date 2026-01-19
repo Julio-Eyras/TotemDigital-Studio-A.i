@@ -173,10 +173,10 @@ export interface User {
   username: string;
   email?: string;
   name: string;
-  role: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
+  role: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'publisher_user' | 'subscriber_user';
   publisher_id?: number;
   subscriber_id?: number;
-  user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+  user_type?: 'system_user' | 'subscriber_user' | 'publisher_user';
   // Compat: backend/frontend em transição entre snake_case e camelCase
   is_tenant_user?: boolean;
   isTenantUser?: boolean;
@@ -192,10 +192,10 @@ export interface CreateUserRequest {
   email?: string;
   password: string;
   name: string;
-  role: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
+  role: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'publisher_user' | 'subscriber_user';
   publisherId?: number;
   subscriberId?: number;
-  userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+  userType?: 'system_user' | 'subscriber_user' | 'publisher_user';
   isTenantUser?: boolean;
   flags?: Partial<UserFlags>; // NOVO
 }
@@ -205,10 +205,10 @@ export interface UpdateUserRequest {
   email?: string;
   password?: string;
   name?: string;
-  role?: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'client' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
+  role?: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'client' | 'publisher_user' | 'subscriber_user';
   publisherId?: number;
   subscriberId?: number;
-  userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+  userType?: 'system_user' | 'subscriber_user' | 'publisher_user';
   isTenantUser?: boolean;
   isActive?: boolean;
   flags?: Partial<UserFlags>; // NOVO

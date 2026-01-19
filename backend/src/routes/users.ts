@@ -24,14 +24,12 @@ const VALID_ROLES = [
   'user',
   'publisher_user',
   'subscriber_user',
-  'publisher_subscriber'
 ];
 
 const VALID_USER_TYPES = [
   'system_user',
   'subscriber_user',
   'publisher_user',
-  'publisher_subscriber'
 ];
 
 const VALID_FLAGS = [

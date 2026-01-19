@@ -37,7 +37,7 @@ export interface AuthResponse {
     subscriberId?: number;
     publisherId?: number;
     subscriberName?: string;
-    user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+    user_type?: 'system_user' | 'subscriber_user' | 'publisher_user';
     isTenantUser?: boolean;
     flags?: {
       flag_smart_0: boolean;

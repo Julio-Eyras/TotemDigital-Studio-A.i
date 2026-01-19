@@ -58,7 +58,7 @@ export const validateSubdomainAccess = (
   // IMPORTANTE: Isolamento de dados - apenas owner_system pode acessar qualquer subdomínio
   // Admin e admin_sql não devem acessar subdomínios de publishers/subscribers para manter isolamento
   if (subdomainType === 'publisher') {
-    const isPublisher = user.user_type === 'publisher_user' || user.user_type === 'publisher_subscriber';
+    const isPublisher = user.user_type === 'publisher_user';
     const isOwnerSystem = user.role === 'owner_system';
     
     if (!isPublisher && !isOwnerSystem) {
@@ -69,7 +69,7 @@ export const validateSubdomainAccess = (
       return;
     }
   } else if (subdomainType === 'subscriber') {
-    const isSubscriber = user.user_type === 'subscriber_user' || user.user_type === 'publisher_subscriber';
+    const isSubscriber = user.user_type === 'subscriber_user';
     const isOwnerSystem = user.role === 'owner_system';
     
     if (!isSubscriber && !isOwnerSystem) {

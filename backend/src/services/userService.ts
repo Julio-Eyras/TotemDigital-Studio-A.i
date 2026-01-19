@@ -10,7 +10,7 @@ export interface User {
   role: 'admin' | 'user' | 'client' | 'subscriber' | 'publisher';
   publisher_id?: number;
   subscriber_id?: number;
-  user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+  user_type?: 'system_user' | 'subscriber_user' | 'publisher_user';
   is_tenant_user?: boolean; // NOVO: True se for admin/operador do sistema
   is_active: boolean;
   last_login?: string;
@@ -37,10 +37,10 @@ export interface CreateUserRequest {
   email?: string;
   password: string;
   name: string;
-  role: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
+  role: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'publisher_user' | 'subscriber_user';
   publisherId?: number;
   subscriberId?: number;
-  userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+  userType?: 'system_user' | 'subscriber_user' | 'publisher_user';
   isTenantUser?: boolean;
   flags?: Partial<UserFlags>;
 }
@@ -50,10 +50,10 @@ export interface UpdateUserRequest {
   email?: string;
   password?: string;
   name?: string;
-  role?: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
+  role?: 'owner_system' | 'admin_sql' | 'admin' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'user' | 'publisher_user' | 'subscriber_user';
   publisherId?: number;
   subscriberId?: number;
-  userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+  userType?: 'system_user' | 'subscriber_user' | 'publisher_user';
   isTenantUser?: boolean;
   isActive?: boolean;
   flags?: Partial<UserFlags>;
@@ -175,7 +175,7 @@ export class UserService {
     role?: string;
     publisherId?: number;
     subscriberId?: number;
-    userType?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber';
+    userType?: 'system_user' | 'subscriber_user' | 'publisher_user';
     isTenantUser?: boolean;
   }): Promise<UserListResponse> {
     try {
@@ -315,7 +315,7 @@ export class UserService {
       }
 
       // Mapeamento de roles para recursos
-      const ROLE_RESOURCE_MAPPING: Record<string, 'publisher' | 'subscriber' | 'system' | 'both'> = {
+      const ROLE_RESOURCE_MAPPING: Record<string, 'publisher' | 'subscriber' | 'system'> = {
         'owner_system': 'system',
         'admin_sql': 'system',
         'admin': 'system',
@@ -328,10 +328,9 @@ export class UserService {
         'user': 'system',
         'publisher_user': 'publisher',
         'subscriber_user': 'subscriber',
-        'publisher_subscriber': 'both',
       };
 
-      // Determinar publisher_id, subscriber_id e user_type
+      // Determinar publisher_id, subscriber_id e user_type (NÃO existe "both")
       let finalPublisherId: number | null = null;
       let finalSubscriberId: number | null = null;
       let finalUserType: string = 'system_user';
@@ -354,6 +353,9 @@ export class UserService {
           finalPublisherId = publisherId;
           finalSubscriberId = null;
           finalUserType = userType || 'publisher_user';
+          if (finalUserType !== 'publisher_user') {
+            throw new Error(`userType inválido para role '${role}': use 'publisher_user'`);
+          }
         } else if (resourceType === 'subscriber') {
           if (!subscriberId) {
             throw new Error(`Role '${role}' requer subscriber_id`);
@@ -361,18 +363,17 @@ export class UserService {
           finalPublisherId = null;
           finalSubscriberId = subscriberId;
           finalUserType = userType || 'subscriber_user';
-        } else if (resourceType === 'both') {
-          if (!publisherId && !subscriberId) {
-            throw new Error(`Role '${role}' requer publisher_id ou subscriber_id`);
+          if (finalUserType !== 'subscriber_user') {
+            throw new Error(`userType inválido para role '${role}': use 'subscriber_user'`);
           }
-          finalPublisherId = publisherId || null;
-          finalSubscriberId = subscriberId || null;
-          finalUserType = userType || 'publisher_subscriber';
         } else {
           // system roles
           finalPublisherId = null;
           finalSubscriberId = null;
           finalUserType = userType || 'system_user';
+          if (finalUserType !== 'system_user') {
+            throw new Error(`userType inválido para role '${role}': use 'system_user'`);
+          }
         }
         finalIsTenantUser = false;
       }
@@ -538,10 +539,42 @@ export class UserService {
       if (isTenantUser !== undefined) {
         updateFields.push(`is_tenant_user = $${paramIndex++}`);
         updateParams.push(isTenantUser);
-        
-        // Se isTenantUser = true, publisher_id deve ser NULL
-        if (isTenantUser === true && publisherId === undefined) {
+
+        // Se isTenantUser = true, publisher_id/subscriber_id devem ser NULL e user_type deve ser system_user
+        if (isTenantUser === true) {
           updateFields.push(`publisher_id = NULL`);
+          updateFields.push(`subscriber_id = NULL`);
+          updateFields.push(`user_type = 'system_user'`);
+        }
+      }
+
+      // (Regra do domínio) Não existe user "both".
+      // Se não for tenant, precisa ter exatamente um vínculo (publisher OU subscriber) e user_type coerente.
+      // Para evitar estados inválidos, normalizamos sempre que for possível a partir do role/userType/publisherId/subscriberId.
+      const nextIsTenant = isTenantUser !== undefined ? isTenantUser : (existingUser as any).is_tenant_user;
+      const nextRole = role || (existingUser as any).role;
+      const nextPublisherId = publisherId !== undefined ? publisherId : (existingUser as any).publisher_id ?? null;
+      const nextSubscriberId = subscriberId !== undefined ? subscriberId : (existingUser as any).subscriber_id ?? null;
+      const nextUserType = userType || (existingUser as any).user_type || null;
+
+      if (nextIsTenant === false) {
+        // Proibir vínculo duplo
+        if (nextPublisherId && nextSubscriberId) {
+          throw new Error('Usuário não pode ter publisher_id e subscriber_id ao mesmo tempo');
+        }
+
+        // Se role indica publisher/subscriber, exigir o vínculo correspondente
+        if (nextRole === 'publisher_user') {
+          if (!nextPublisherId) throw new Error(`Role 'publisher_user' requer publisher_id`);
+          if (nextUserType && nextUserType !== 'publisher_user') throw new Error(`userType inválido para role 'publisher_user'`);
+          updateFields.push(`subscriber_id = NULL`);
+          updateFields.push(`user_type = 'publisher_user'`);
+        }
+        if (nextRole === 'subscriber_user') {
+          if (!nextSubscriberId) throw new Error(`Role 'subscriber_user' requer subscriber_id`);
+          if (nextUserType && nextUserType !== 'subscriber_user') throw new Error(`userType inválido para role 'subscriber_user'`);
+          updateFields.push(`publisher_id = NULL`);
+          updateFields.push(`user_type = 'subscriber_user'`);
         }
       }
 

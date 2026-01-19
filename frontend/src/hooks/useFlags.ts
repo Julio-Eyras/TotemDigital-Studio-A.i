@@ -66,8 +66,8 @@ export function useFlags() {
     isOperadorTecnico: user?.role === 'operador_tecnico',
     isOperadorFaturamento: user?.role === 'operador_faturamento',
     isOperadorComercial: user?.role === 'operador_comercial',
-    isPublisher: user?.role === 'publisher_user' || user?.user_type === 'publisher_user' || user?.user_type === 'publisher_subscriber' || user?.publisherId !== undefined,
-    isSubscriber: user?.role === 'subscriber_user' || user?.user_type === 'subscriber_user' || user?.user_type === 'publisher_subscriber' || user?.subscriberId !== undefined,
-    isPublisherSubscriber: user?.user_type === 'publisher_subscriber',
+    isPublisher: user?.role === 'publisher_user' || user?.user_type === 'publisher_user' || user?.publisherId !== undefined,
+    isSubscriber: user?.role === 'subscriber_user' || user?.user_type === 'subscriber_user' || user?.subscriberId !== undefined,
+    isPublisherSubscriber: false,
   };
 }

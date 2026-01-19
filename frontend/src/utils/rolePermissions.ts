@@ -17,7 +17,7 @@ export type UserRole =
   | 'client'
   | 'publisher_user'
   | 'subscriber_user'
-  | 'publisher_subscriber';
+  ;
 
 export interface UserFlags {
   flag_smart_0: boolean;
@@ -44,7 +44,7 @@ export interface MenuItemPermission {
  */
 export const menuPermissions: MenuItemPermission[] = [
   // Dashboard - Todos exceto client
-  { path: '/dashboard', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'gerente_marketing', 'editoracao', 'visualizador', 'publisher_user', 'publisher_subscriber', 'subscriber_user'] },
+  { path: '/dashboard', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'gerente_marketing', 'editoracao', 'visualizador', 'publisher_user', 'subscriber_user'] },
   
   // Mídia - Todos exceto operator e client
   { path: '/media', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao', 'visualizador'], requiresClientAccess: true },
@@ -65,10 +65,10 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/totems', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico', 'gerente_marketing', 'visualizador'], requiredFlag: 'flag_smart_0' },
   
   // Smart TVs - Hierárquico: Totens → Smart TVs
-  { path: '/smart-tvs', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico', 'gerente_marketing', 'visualizador', 'publisher_user', 'publisher_subscriber'], requiredFlag: 'flag_smart_0' },
+  { path: '/smart-tvs', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico', 'gerente_marketing', 'visualizador', 'publisher_user'], requiredFlag: 'flag_smart_0' },
   
   // Locais - Publishers e admins
-  { path: '/locals', roles: ['owner_system', 'admin_sql', 'admin', 'publisher_user', 'publisher_subscriber'] },
+  { path: '/locals', roles: ['owner_system', 'admin_sql', 'admin', 'publisher_user'] },
   
   // Usuários - admin_sql, admin (próprio cliente)
   { path: '/users', roles: ['owner_system', 'admin_sql', 'admin'] },
@@ -89,7 +89,7 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/qr-codes', roles: ['admin_sql', 'admin', 'gerente_marketing'], requiresClientAccess: true },
   
   // Faturamento - admin_sql, admin, operador_faturamento (próprio cliente)
-  { path: '/billing', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'subscriber_user', 'publisher_subscriber'], requiresClientAccess: true, requiredFlag: 'flag_smart_3' },
+  { path: '/billing', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'subscriber_user'], requiresClientAccess: true, requiredFlag: 'flag_smart_3' },
   
   // IA - admin_sql, admin, gerente_marketing
   { path: '/ai', roles: ['admin_sql', 'admin', 'gerente_marketing'], requiresClientAccess: true },
@@ -127,13 +127,13 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/clients/new', roles: ['owner_system', 'admin_sql', 'admin'] },
   { path: '/totems/status', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
   { path: '/totems/config', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
-  { path: '/smart-tvs/by-totem', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico', 'publisher_user', 'publisher_subscriber'], requiredFlag: 'flag_smart_0' },
+  { path: '/smart-tvs/by-totem', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico', 'publisher_user'], requiredFlag: 'flag_smart_0' },
   { path: '/smart-tvs/config', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
   { path: '/players/status', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
   { path: '/ota-updates/history', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_1' },
-  { path: '/billing/invoices', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'subscriber_user', 'publisher_subscriber'], requiredFlag: 'flag_smart_3' },
-  { path: '/billing/payments', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'subscriber_user', 'publisher_subscriber'], requiredFlag: 'flag_smart_3' },
-  { path: '/billing/history', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'subscriber_user', 'publisher_subscriber'], requiredFlag: 'flag_smart_3' },
+  { path: '/billing/invoices', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'subscriber_user'], requiredFlag: 'flag_smart_3' },
+  { path: '/billing/payments', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'subscriber_user'], requiredFlag: 'flag_smart_3' },
+  { path: '/billing/history', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'subscriber_user'], requiredFlag: 'flag_smart_3' },
   { path: '/subscriber-publisher-access/new', roles: ['admin_sql', 'admin'] },
   { path: '/plan-publisher-access/config', roles: ['admin_sql', 'admin'] },
   { path: '/publishers/details', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },

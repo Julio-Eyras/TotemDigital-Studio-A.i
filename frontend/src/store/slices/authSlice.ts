@@ -18,12 +18,12 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  role: 'owner_system' | 'admin' | 'admin_sql' | 'manager' | 'operator' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber';
+  role: 'owner_system' | 'admin' | 'admin_sql' | 'manager' | 'operator' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'publisher_user' | 'subscriber_user';
   isActive: boolean;
   // Compat: backend em transição entre snake_case e camelCase para flag tenant
   isTenantUser?: boolean;
   is_tenant_user?: boolean;
-  user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | 'publisher_subscriber'; // NOVO: Tipo de usuário para detecção automática
+  user_type?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO: Tipo de usuário para detecção automática
   subscriberId?: number; // NOVO: ID do subscriber (anunciante)
   clientId?: number; // DEPRECATED: Usar subscriberId - mantido para compatibilidade
   publisherId?: number; // NOVO: ID do publisher (publicador)
@@ -188,13 +188,13 @@ const authSlice = createSlice({
         }
         
         const userRole = (apiUser as any).role as string;
-        let mappedRole: 'admin' | 'admin_sql' | 'manager' | 'operator' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'owner_system' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'publisher_user' | 'subscriber_user' | 'publisher_subscriber' = 'operator';
+        let mappedRole: 'admin' | 'admin_sql' | 'manager' | 'operator' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'owner_system' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'publisher_user' | 'subscriber_user' = 'operator';
         
         if (userRole === 'admin' || userRole === 'admin_sql' || userRole === 'owner_system') {
           mappedRole = userRole === 'admin_sql' ? 'admin_sql' : userRole === 'owner_system' ? 'owner_system' : 'admin';
         } else if (userRole === 'user') {
           mappedRole = 'operator';
-        } else if (['gerente_marketing', 'editoracao', 'visualizador', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user', 'subscriber_user', 'publisher_subscriber'].includes(userRole)) {
+        } else if (['gerente_marketing', 'editoracao', 'visualizador', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user', 'subscriber_user'].includes(userRole)) {
           mappedRole = userRole as any;
         } else {
           // Fallback: manter role original ou usar 'operator'
