@@ -51,6 +51,7 @@ import { billingApi, BillingItem, CreateBillingRequest, subscriberBillingApi, Su
 import { planApi, Plan, subscriptionApi, Subscription } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
 import { useSearchParams } from 'react-router-dom';
+import { useAppSelector } from '../../store';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -71,6 +72,9 @@ const Billing: React.FC = () => {
   const { showSuccess, showError } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
   const billingType = searchParams.get('type') || 'all'; // 'all', 'subscriber', 'publisher'
+  const { user } = useAppSelector((state) => state.auth);
+  const userType = (user as any)?.user_type || (user as any)?.userType;
+  const isSubscriberUser = userType === 'subscriber_user' || user?.role === 'subscriber_user';
   
   const [tabValue, setTabValue] = useState(0);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -142,7 +146,8 @@ const Billing: React.FC = () => {
       setLoading(true);
       await Promise.all([
         loadPlans(),
-        loadSubscriptions(),
+        // Subscriptions são apenas para publishers (subscriber_user não deve carregar)
+        isSubscriberUser ? Promise.resolve() : loadSubscriptions(),
         billingType === 'all' || billingType === 'subscriber' ? loadSubscriberBillings() : Promise.resolve(),
         billingType === 'all' || billingType === 'publisher' ? loadPublisherBillings() : Promise.resolve(),
         billingType === 'all' ? loadBillings() : Promise.resolve(),
@@ -167,6 +172,10 @@ const Billing: React.FC = () => {
 
   const loadSubscriptions = async () => {
     try {
+      if (isSubscriberUser) {
+        setSubscriptions([]);
+        return;
+      }
       const subsData = await subscriptionApi.getAll();
       setSubscriptions(subsData);
     } catch (e) {

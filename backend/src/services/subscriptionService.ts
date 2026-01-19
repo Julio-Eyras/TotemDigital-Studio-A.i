@@ -16,7 +16,7 @@ export interface Subscription {
   stripeSubscriptionId?: string;
   stripeCustomerId?: string;
   status: string;
-  billingInterval: string;
+  billingInterval: string; // derivado do plano (não armazenado em subscriptions)
   currentPeriodStart?: string;
   currentPeriodEnd?: string;
   cancelAtPeriodEnd: boolean;
@@ -64,7 +64,8 @@ export class SubscriptionService {
   async getSubscriptions(
     filters: {
       publisherId?: number; // NOVO
-      subscriberId?: number; // clientId deprecated, usar subscriberId
+      // subscriberId não é aplicável aqui: subscriptions são apenas de publishers
+      subscriberId?: number;
       planId?: number;
       status?: string;
     } = {}
@@ -79,11 +80,7 @@ export class SubscriptionService {
         params.push(filters.publisherId);
       }
 
-      // Filtrar por subscriber_id
-      if (filters.subscriberId !== undefined && filters.publisherId === undefined) {
-        whereClause += ' AND s.publisher_id = $' + (params.length + 1);
-        params.push(filters.subscriberId);
-      }
+      // subscriberId ignorado (não existe relação subscriber↔subscriptions)
 
       if (filters.planId) {
         whereClause += ' AND s.plan_id = $' + (params.length + 1);
@@ -95,46 +92,71 @@ export class SubscriptionService {
         params.push(filters.status);
       }
 
+      // NOTA: o frontend (Billing) ainda consome campos "legacy" (snake_case, amount/currency/billing_interval).
+      // Como a tabela subscriptions não armazena amount/currency/billing_interval, derivamos do plano.
       const subscriptions = await this.db.findMany(`
         SELECT 
+          -- snake_case (frontend legado)
+          s.subscription_id,
+          s.publisher_id as client_id, -- compat: client_id = publisher_id
+          s.plan_id,
+          s.stripe_subscription_id,
+          s.stripe_customer_id,
+          s.status,
+          COALESCE(pl.billing_interval, 'month') as billing_interval,
+          COALESCE(pl.currency, 'BRL') as currency,
+          CASE
+            WHEN COALESCE(pl.billing_interval, 'month') = 'year' THEN COALESCE(pl.price_yearly, pl.price_monthly, 0)
+            ELSE COALESCE(pl.price_monthly, 0)
+          END as amount,
+          COALESCE(s.current_period_start, s.created_at) as start_date,
+          s.current_period_end as end_date,
+          s.current_period_start,
+          s.current_period_end,
+          s.cancel_at_period_end,
+          s.cancelled_at,
+          s.trial_start,
+          s.trial_end,
+          s.metadata,
+          s.created_at,
+          s.updated_at,
+
+          -- camelCase (backend/serviços)
           s.subscription_id as "subscriptionId",
           s.publisher_id as "publisherId",
-          s.publisher_id as "clientId", -- Mantido para compatibilidade
+          s.publisher_id as "clientId",
           s.plan_id as "planId",
           s.stripe_subscription_id as "stripeSubscriptionId",
           s.stripe_customer_id as "stripeCustomerId",
-          s.status,
-          s.billing_interval as "billingInterval",
+          COALESCE(pl.billing_interval, 'month') as "billingInterval",
           s.current_period_start as "currentPeriodStart",
           s.current_period_end as "currentPeriodEnd",
           s.cancel_at_period_end as "cancelAtPeriodEnd",
-          s.canceled_at as "canceledAt",
+          s.cancelled_at as "canceledAt",
           s.trial_start as "trialStart",
           s.trial_end as "trialEnd",
-          s.metadata,
           s.created_at as "createdAt",
           s.updated_at as "updatedAt",
-          p.name as "publisher_name"
+          pub.name as "publisher_name"
         FROM subscriptions s
-        LEFT JOIN publishers p ON s.publisher_id = p.publisher_id
+        LEFT JOIN publishers pub ON s.publisher_id = pub.publisher_id
+        LEFT JOIN plans pl ON s.plan_id = pl.plan_id
         ${whereClause}
         ORDER BY s.created_at DESC
       `, params);
 
-      // Adicionar informações do plano
+      // Adicionar informações do plano (quando disponível)
       const subscriptionsWithPlan = await Promise.all(
-        subscriptions.map(async (sub) => {
-          const plan = await this.planService.getPlanById(sub.planId);
-          return { 
-            ...sub, 
+        subscriptions.map(async (sub: any) => {
+          const plan = await this.planService.getPlanById(sub.plan_id);
+          return {
+            ...sub,
             plan,
-            publisher: sub.publisher_name ? { name: sub.publisher_name } : undefined,
-            client: sub.publisher_name ? { name: sub.publisher_name } : undefined // Compatibilidade
           };
         })
       );
 
-      return subscriptionsWithPlan;
+      return subscriptionsWithPlan as any;
 
     } catch (error: any) {
       await logError('Erro ao buscar assinaturas', error, { filters });
@@ -148,27 +170,52 @@ export class SubscriptionService {
   async getSubscriptionById(subscriptionId: number): Promise<Subscription | null> {
     try {
       const subscription = await this.db.findFirst(`
-        SELECT 
+        SELECT
+          -- snake_case (frontend legado)
+          s.subscription_id,
+          s.publisher_id as client_id,
+          s.plan_id,
+          s.stripe_subscription_id,
+          s.stripe_customer_id,
+          s.status,
+          COALESCE(pl.billing_interval, 'month') as billing_interval,
+          COALESCE(pl.currency, 'BRL') as currency,
+          CASE
+            WHEN COALESCE(pl.billing_interval, 'month') = 'year' THEN COALESCE(pl.price_yearly, pl.price_monthly, 0)
+            ELSE COALESCE(pl.price_monthly, 0)
+          END as amount,
+          COALESCE(s.current_period_start, s.created_at) as start_date,
+          s.current_period_end as end_date,
+          s.current_period_start,
+          s.current_period_end,
+          s.cancel_at_period_end,
+          s.cancelled_at,
+          s.trial_start,
+          s.trial_end,
+          s.metadata,
+          s.created_at,
+          s.updated_at,
+
+          -- camelCase (backend/serviços)
           s.subscription_id as "subscriptionId",
           s.publisher_id as "publisherId",
-          s.publisher_id as "clientId", -- Mantido para compatibilidade
+          s.publisher_id as "clientId",
           s.plan_id as "planId",
           s.stripe_subscription_id as "stripeSubscriptionId",
           s.stripe_customer_id as "stripeCustomerId",
-          s.status,
-          s.billing_interval as "billingInterval",
+          COALESCE(pl.billing_interval, 'month') as "billingInterval",
           s.current_period_start as "currentPeriodStart",
           s.current_period_end as "currentPeriodEnd",
           s.cancel_at_period_end as "cancelAtPeriodEnd",
-          s.canceled_at as "canceledAt",
+          s.cancelled_at as "canceledAt",
           s.trial_start as "trialStart",
           s.trial_end as "trialEnd",
-          s.metadata,
           s.created_at as "createdAt",
           s.updated_at as "updatedAt",
-          p.name as "publisher_name"
+          pub.name as "publisher_name"
         FROM subscriptions s
-        LEFT JOIN publishers p ON s.publisher_id = p.publisher_id
+        LEFT JOIN publishers pub ON s.publisher_id = pub.publisher_id
+        LEFT JOIN plans pl ON s.plan_id = pl.plan_id
         WHERE s.subscription_id = $1
       `, [subscriptionId]);
 
@@ -196,27 +243,52 @@ export class SubscriptionService {
   async getSubscriptionByPublisher(publisherId: number): Promise<Subscription | null> {
     try {
       const subscription = await this.db.findFirst(`
-        SELECT 
+        SELECT
+          -- snake_case (frontend legado)
+          s.subscription_id,
+          s.publisher_id as client_id,
+          s.plan_id,
+          s.stripe_subscription_id,
+          s.stripe_customer_id,
+          s.status,
+          COALESCE(pl.billing_interval, 'month') as billing_interval,
+          COALESCE(pl.currency, 'BRL') as currency,
+          CASE
+            WHEN COALESCE(pl.billing_interval, 'month') = 'year' THEN COALESCE(pl.price_yearly, pl.price_monthly, 0)
+            ELSE COALESCE(pl.price_monthly, 0)
+          END as amount,
+          COALESCE(s.current_period_start, s.created_at) as start_date,
+          s.current_period_end as end_date,
+          s.current_period_start,
+          s.current_period_end,
+          s.cancel_at_period_end,
+          s.cancelled_at,
+          s.trial_start,
+          s.trial_end,
+          s.metadata,
+          s.created_at,
+          s.updated_at,
+
+          -- camelCase (backend/serviços)
           s.subscription_id as "subscriptionId",
           s.publisher_id as "publisherId",
-          s.publisher_id as "clientId", -- Mantido para compatibilidade
+          s.publisher_id as "clientId",
           s.plan_id as "planId",
           s.stripe_subscription_id as "stripeSubscriptionId",
           s.stripe_customer_id as "stripeCustomerId",
-          s.status,
-          s.billing_interval as "billingInterval",
+          COALESCE(pl.billing_interval, 'month') as "billingInterval",
           s.current_period_start as "currentPeriodStart",
           s.current_period_end as "currentPeriodEnd",
           s.cancel_at_period_end as "cancelAtPeriodEnd",
-          s.canceled_at as "canceledAt",
+          s.cancelled_at as "canceledAt",
           s.trial_start as "trialStart",
           s.trial_end as "trialEnd",
-          s.metadata,
           s.created_at as "createdAt",
           s.updated_at as "updatedAt",
-          p.name as "publisher_name"
+          pub.name as "publisher_name"
         FROM subscriptions s
-        LEFT JOIN publishers p ON s.publisher_id = p.publisher_id
+        LEFT JOIN publishers pub ON s.publisher_id = pub.publisher_id
+        LEFT JOIN plans pl ON s.plan_id = pl.plan_id
         WHERE s.publisher_id = $1 AND s.status = 'active'
         ORDER BY s.created_at DESC
         LIMIT 1
@@ -362,10 +434,10 @@ export class SubscriptionService {
       const result = await this.db.executeRaw(`
         INSERT INTO subscriptions (
           publisher_id, plan_id, stripe_subscription_id, stripe_customer_id,
-          status, billing_interval, current_period_start, current_period_end,
+          status, current_period_start, current_period_end,
           trial_start, trial_end, metadata
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING subscription_id
       `, [
         publisherId,
@@ -373,7 +445,6 @@ export class SubscriptionService {
         stripeSubscriptionId,
         stripeCustomerId,
         trialStart ? 'trialing' : 'active',
-        billingInterval,
         currentPeriodStart,
         currentPeriodEnd,
         trialStart,
@@ -391,7 +462,7 @@ export class SubscriptionService {
         throw new Error('Erro ao buscar assinatura criada');
       }
 
-      await logInfo('Assinatura criada com sucesso', { subscriptionId: newSubscription.subscriptionId, publisherId, planId });
+      await logInfo('Assinatura criada com sucesso', { subscriptionId: (newSubscription as any).subscriptionId ?? (newSubscription as any).subscription_id, publisherId, planId });
 
       return newSubscription;
 
@@ -525,8 +596,8 @@ export class SubscriptionService {
       await this.db.executeRaw(`
         UPDATE subscriptions 
         SET cancel_at_period_end = ?,
-            canceled_at = ?,
-            status = CASE WHEN ? THEN status ELSE 'canceled' END,
+            cancelled_at = ?,
+            status = CASE WHEN ? THEN status ELSE 'cancelled' END,
             updated_at = CURRENT_TIMESTAMP
         WHERE subscription_id = ?
       `, [cancelAtPeriodEnd, canceledAt, cancelAtPeriodEnd, subscriptionId]);
@@ -624,8 +695,8 @@ export class SubscriptionService {
     try {
       await this.db.executeRaw(`
         UPDATE subscriptions 
-        SET status = 'canceled',
-            canceled_at = CURRENT_TIMESTAMP,
+        SET status = 'cancelled',
+            cancelled_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE stripe_subscription_id = ?
       `, [stripeSubscription.id]);

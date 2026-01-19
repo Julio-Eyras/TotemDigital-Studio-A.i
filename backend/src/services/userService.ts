@@ -204,11 +204,9 @@ export class UserService {
         queryParams.push(publisherId);
       }
 
-      // Filtrar por subscriber_id (via publisher ou direto)
+      // Filtrar por subscriber_id (vínculo direto)
       if (subscriberId !== undefined) {
-        // Subscribers podem estar vinculados a publishers ou diretamente
-        whereClause += ' AND (u.publisher_id = $' + (queryParams.length + 1) + ' OR EXISTS (SELECT 1 FROM subscribers s WHERE s.subscriber_id = $' + (queryParams.length + 1) + ' AND s.publisher_id = u.publisher_id))';
-        queryParams.push(subscriberId);
+        whereClause += ' AND u.subscriber_id = $' + (queryParams.length + 1);
         queryParams.push(subscriberId);
       }
 

@@ -43,22 +43,23 @@ router.get('/', async (req: any, res) => {
     const userPublisherId = req.user.publisherId;
     const userType = req.user.userType;
 
-    if (userType === 'subscriber_user' && userSubscriberId) {
-      // Subscribers veem assinaturas do seu publisher
-      filters.publisherId = userPublisherId || userSubscriberId;
-    } else if (userType === 'publisher_user') {
+    // Regra do domínio: subscriptions são APENAS de publishers (publishers pagam para usar o sistema)
+    if (userType === 'subscriber_user') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado: assinaturas são exclusivas de publishers'
+      });
+    }
+
+    if (userType === 'publisher_user') {
       if (userPublisherId) {
         filters.publisherId = userPublisherId;
       }
-    } else if ((req.user.role === 'client' || req.user.role === 'subscriber') && req.user.subscriberId) {
-      filters.subscriberId = req.user.subscriberId;
     } else {
       // Admins podem filtrar
-      const { subscriberId, publisherId, planId, status } = req.query;
+      const { publisherId, planId, status } = req.query;
       if (publisherId) {
         filters.publisherId = parseInt(publisherId as string);
-      } else if (subscriberId) {
-        filters.subscriberId = parseInt(subscriberId as string);
       }
       if (planId) filters.planId = parseInt(planId as string);
       if (status) filters.status = status as string;
@@ -96,10 +97,14 @@ router.get('/my-subscription', async (req: any, res) => {
 
     let publisherId: number | undefined;
 
-    if (userType === 'subscriber_user' && userSubscriberId) {
-      // Subscribers veem assinatura do seu publisher
-      publisherId = userPublisherId || userSubscriberId;
-    } else if (userType === 'publisher_user') {
+    if (userType === 'subscriber_user') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado: assinaturas são exclusivas de publishers'
+      });
+    }
+
+    if (userType === 'publisher_user') {
       publisherId = userPublisherId;
     } else if (req.user.role === 'client' && clientId) {
       // DEPRECADO: Compatibilidade
@@ -160,12 +165,17 @@ router.get('/:id', async (req: any, res) => {
     const userSubscriberId = req.user.subscriberId;
     const clientId = req.user.clientId; // DEPRECADO
 
+    // Regra do domínio: subscriptions são exclusivas de publishers
+    if (userType === 'subscriber_user') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado: assinaturas são exclusivas de publishers'
+      });
+    }
+
     let hasAccess = false;
 
     if (userType === 'publisher_user') {
-      hasAccess = userPublisherId === subscription.publisherId;
-    } else if (userType === 'subscriber_user' && userSubscriberId) {
-      // Subscribers veem assinaturas do seu publisher
       hasAccess = userPublisherId === subscription.publisherId;
     } else if (req.user.role === 'client' && clientId) {
       // DEPRECADO: Compatibilidade
@@ -212,12 +222,17 @@ router.post('/', async (req: any, res) => {
     const userPublisherId = req.user.publisherId;
     const userSubscriberId = req.user.subscriberId;
 
+    // Regra do domínio: subscriptions são exclusivas de publishers
+    if (userType === 'subscriber_user') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado: assinaturas são exclusivas de publishers'
+      });
+    }
+
     if (userType === 'publisher_user') {
       // Publishers criam assinaturas para si mesmos
       finalPublisherId = userPublisherId;
-    } else if (userType === 'subscriber_user' && userSubscriberId) {
-      // Subscribers criam assinaturas para seu publisher
-      finalPublisherId = userPublisherId || userSubscriberId;
     } else if (req.user.role === 'client' && req.user.clientId) {
       // DEPRECADO: Compatibilidade
       finalPublisherId = req.user.clientId;
@@ -308,11 +323,17 @@ router.post('/:id/cancel', async (req: any, res) => {
     const userSubscriberId = req.user.subscriberId;
     const clientId = req.user.clientId; // DEPRECADO
 
+    // Regra do domínio: subscriptions são exclusivas de publishers
+    if (userType === 'subscriber_user') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado: assinaturas são exclusivas de publishers'
+      });
+    }
+
     let hasAccess = false;
 
     if (userType === 'publisher_user') {
-      hasAccess = userPublisherId === subscription.publisherId;
-    } else if (userType === 'subscriber_user' && userSubscriberId) {
       hasAccess = userPublisherId === subscription.publisherId;
     } else if (req.user.role === 'client' && clientId) {
       hasAccess = clientId === subscription.subscriberId || clientId === subscription.publisherId;
@@ -373,11 +394,17 @@ router.post('/:id/resume', async (req: any, res) => {
     const userSubscriberId = req.user.subscriberId;
     const clientId = req.user.clientId; // DEPRECADO
 
+    // Regra do domínio: subscriptions são exclusivas de publishers
+    if (userType === 'subscriber_user') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado: assinaturas são exclusivas de publishers'
+      });
+    }
+
     let hasAccess = false;
 
     if (userType === 'publisher_user') {
-      hasAccess = userPublisherId === subscription.publisherId;
-    } else if (userType === 'subscriber_user' && userSubscriberId) {
       hasAccess = userPublisherId === subscription.publisherId;
     } else if (req.user.role === 'client' && clientId) {
       hasAccess = clientId === subscription.subscriberId || clientId === subscription.publisherId;
@@ -425,12 +452,18 @@ router.post('/checkout', async (req: any, res) => {
     const userSubscriberId = req.user.subscriberId;
     const clientId = req.user.clientId; // DEPRECADO
 
+    // Regra do domínio: subscriptions são exclusivas de publishers
+    if (userType === 'subscriber_user') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado: assinaturas são exclusivas de publishers'
+      });
+    }
+
     let publisherId: number | undefined;
 
     if (userType === 'publisher_user') {
       publisherId = userPublisherId;
-    } else if (userType === 'subscriber_user' && userSubscriberId) {
-      publisherId = userPublisherId || userSubscriberId;
     } else if (req.user.role === 'client' && clientId) {
       publisherId = clientId;
     }
