@@ -134,8 +134,7 @@ echo -e "${GREEN}Executando script de instalação principal...${NC}"
 echo ""
 
 # Executar em modo não-interativo para Docker
-export INSTALL_MODE=docker
-./scripts/install-smartsignage.sh --skip-menu || {
+./scripts/install-smartsignage.sh --skip-menu --mode docker || {
     echo -e "${RED}❌ Erro durante instalação${NC}"
     echo "Verifique os logs acima para mais detalhes"
     exit 1
