@@ -52,9 +52,7 @@ const createPublisherValidator = [
   ...emailValidators,
   ...phoneValidators,
   ...descriptionValidators,
-  body('is_subscriber').optional().isBoolean(),
-  body('is_publisher').optional().isBoolean(),
-  body('client_type').optional().isIn(['subscriber', 'publisher', 'both']).withMessage('client_type deve ser subscriber, publisher ou both'),
+  // Regra do domínio: Publisher NUNCA é Subscriber/ambos. Esses campos são ignorados/removidos.
 ];
 
 const validateRequest = (req: any, res: any, next: any) => {
@@ -77,7 +75,6 @@ router.get('/',
   ...searchValidators,
   ...sortValidators,
   ...dateRangeValidators,
-  query('client_type').optional().isIn(['subscriber', 'publisher', 'both']),
   query('active_only').optional().isBoolean(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -86,7 +83,6 @@ router.get('/',
         page = 1, 
         limit = 10, 
         search, 
-        client_type, 
         active_only,
         sortBy = 'created_at',
         sortOrder = 'desc',
@@ -98,7 +94,6 @@ router.get('/',
         page: parseInt(page as string),
         limit: parseInt(limit as string),
         search: search as string,
-        client_type: client_type as 'subscriber' | 'publisher' | 'both' | undefined,
         // active_only:
         // - undefined => usar default do service
         // - true => filtrar apenas ativos
@@ -129,7 +124,7 @@ router.post('/',
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { name, contact_name, email, phone, whatsapp, description, is_subscriber, is_publisher, client_type, contract_id } = req.body;
+      const { name, contact_name, email, phone, whatsapp, description, contract_id } = req.body;
       
       const newPublisher = await getPublisherService().createPublisher({
         name,
@@ -138,9 +133,6 @@ router.post('/',
         phone,
         whatsapp,
         description,
-        is_subscriber,
-        is_publisher,
-        client_type,
         contract_id, // Opcional - vincula publisher ao contrato (para rastreabilidade)
       });
       
@@ -395,7 +387,7 @@ router.put('/:id',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const { name, contact_name, email, phone, whatsapp, description, is_subscriber, is_publisher, client_type, active } = req.body;
+      const { name, contact_name, email, phone, whatsapp, description, active } = req.body;
       
       const updatedPublisher = await getPublisherService().updatePublisher(parseInt(id), {
         name,
@@ -404,9 +396,6 @@ router.put('/:id',
         phone,
         whatsapp,
         description,
-        is_subscriber,
-        is_publisher,
-        client_type,
         active
       });
       

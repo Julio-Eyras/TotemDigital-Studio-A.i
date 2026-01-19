@@ -41,24 +41,29 @@ CREATE TABLE IF NOT EXISTS publishers (
     whatsapp TEXT,
     description TEXT,
     
-    -- Flags de tipo
+    -- (Regra do domínio) Publisher NUNCA é Subscriber/ambos
+    -- Mantemos os campos por compatibilidade histórica, mas eles devem ser sempre fixos.
     is_subscriber BOOLEAN DEFAULT false,
     is_publisher BOOLEAN DEFAULT true,
-    client_type TEXT NOT NULL DEFAULT 'publisher', -- 'subscriber', 'publisher', 'both'
+    client_type TEXT NOT NULL DEFAULT 'publisher', -- fixo
     
     active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT chk_publisher_client_type 
-        CHECK (client_type IN ('subscriber', 'publisher', 'both'))
+        CHECK (
+          client_type = 'publisher'
+          AND is_subscriber = false
+          AND is_publisher = true
+        )
 );
 
 COMMENT ON TABLE publishers IS 'Publicadores - clientes que instalam totens e Smart TVs';
 COMMENT ON COLUMN publishers.publisher_id IS 'ID único do publisher';
-COMMENT ON COLUMN publishers.is_subscriber IS 'Se true, publisher também é assinante';
-COMMENT ON COLUMN publishers.is_publisher IS 'Se true, publisher publica conteúdo';
-COMMENT ON COLUMN publishers.client_type IS 'Tipo: subscriber, publisher ou both';
+COMMENT ON COLUMN publishers.is_subscriber IS 'Fixado: false (publisher não pode ser subscriber)';
+COMMENT ON COLUMN publishers.is_publisher IS 'Fixado: true';
+COMMENT ON COLUMN publishers.client_type IS 'Fixado: publisher';
 
 -- =============================================
 -- ROLES (sem mudanças)

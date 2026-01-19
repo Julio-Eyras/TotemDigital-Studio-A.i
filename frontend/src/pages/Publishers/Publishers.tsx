@@ -98,7 +98,6 @@ const Publishers: React.FC = () => {
     stats: any;
   } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [clientTypeFilter, setClientTypeFilter] = useState<string>('all');
   const [activeOnlyFilter, setActiveOnlyFilter] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [detailsTab, setDetailsTab] = useState(0);
@@ -218,7 +217,7 @@ const Publishers: React.FC = () => {
 
   useEffect(() => {
     loadPublishers();
-  }, [clientTypeFilter, activeOnlyFilter]);
+  }, [activeOnlyFilter]);
 
   // Carregar dados quando dialog de edição abre
   useEffect(() => {
@@ -235,7 +234,6 @@ const Publishers: React.FC = () => {
       setError(null);
       const response = await publisherApi.getAll({
         search: searchTerm || undefined,
-        client_type: clientTypeFilter !== 'all' ? clientTypeFilter as any : undefined,
         active_only: activeOnlyFilter,
       });
       setPublishers(response.data || []);
@@ -1327,21 +1325,7 @@ const Publishers: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth>
-                <InputLabel>Tipo</InputLabel>
-                <Select
-                  value={clientTypeFilter}
-                  label="Tipo"
-                  onChange={(e) => setClientTypeFilter(e.target.value)}
-                >
-                  <MenuItem value="all">Todos</MenuItem>
-                  <MenuItem value="subscriber">Assinante</MenuItem>
-                  <MenuItem value="publisher">Publicador</MenuItem>
-                  <MenuItem value="both">Ambos</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
+            {/* (Regra do sistema) Publisher NUNCA é Subscriber/ambos, então removemos filtro de tipo */}
             <Grid item xs={12} md={2}>
               <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
@@ -1608,26 +1592,7 @@ const Publishers: React.FC = () => {
                 multiline
                 rows={3}
               />
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Tipo de Cliente</InputLabel>
-                <Select
-                  value={newPublisher.client_type}
-                  label="Tipo de Cliente"
-                  onChange={(e) => {
-                    const value = e.target.value as 'subscriber' | 'publisher' | 'both';
-                    setNewPublisher({
-                      ...newPublisher,
-                      client_type: value,
-                      is_subscriber: value === 'subscriber' || value === 'both',
-                      is_publisher: value === 'publisher' || value === 'both',
-                    });
-                  }}
-                >
-                  <MenuItem value="publisher">Apenas Publicador</MenuItem>
-                  <MenuItem value="subscriber">Apenas Assinante</MenuItem>
-                  <MenuItem value="both">Ambos (Publicador e Assinante)</MenuItem>
-                </Select>
-              </FormControl>
+              {/* (Regra do sistema) Publisher é sempre Publicador. Não permitir marcar como subscriber/ambos. */}
 
             </Box>
           )}
@@ -2461,26 +2426,7 @@ const Publishers: React.FC = () => {
                 multiline
                 rows={3}
               />
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Tipo de Cliente</InputLabel>
-                <Select
-                  value={selectedPublisher.client_type || 'publisher'}
-                  label="Tipo de Cliente"
-                  onChange={(e) => {
-                    const value = e.target.value as 'subscriber' | 'publisher' | 'both';
-                    setSelectedPublisher({
-                      ...selectedPublisher,
-                      client_type: value,
-                      is_subscriber: value === 'subscriber' || value === 'both',
-                      is_publisher: value === 'publisher' || value === 'both',
-                    });
-                  }}
-                >
-                  <MenuItem value="publisher">Apenas Publicador</MenuItem>
-                  <MenuItem value="subscriber">Apenas Assinante</MenuItem>
-                  <MenuItem value="both">Ambos (Publicador e Assinante)</MenuItem>
-                </Select>
-              </FormControl>
+              {/* (Regra do sistema) Publisher é sempre Publicador. Não permitir marcar como subscriber/ambos. */}
               <FormControl fullWidth margin="normal">
                 <InputLabel>Status</InputLabel>
                 <Select

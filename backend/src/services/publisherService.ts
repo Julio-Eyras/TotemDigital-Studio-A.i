@@ -9,6 +9,8 @@ export interface Publisher {
   phone?: string;
   whatsapp?: string;
   description?: string;
+  // Regra do domínio: publisher não pode ser subscriber/ambos.
+  // Campos mantidos por compatibilidade com schema, mas devem ser fixos: is_subscriber=false, is_publisher=true, client_type='publisher'
   is_subscriber: boolean;
   is_publisher: boolean;
   client_type: 'subscriber' | 'publisher' | 'both';
@@ -25,9 +27,7 @@ export interface CreatePublisherRequest {
   phone?: string;
   whatsapp?: string;
   description?: string;
-  is_subscriber?: boolean;
-  is_publisher?: boolean;
-  client_type?: 'subscriber' | 'publisher' | 'both';
+  // Campos removidos/ignorados: publisher não pode ser subscriber/ambos
 }
 
 export interface UpdatePublisherRequest {
@@ -37,9 +37,7 @@ export interface UpdatePublisherRequest {
   phone?: string;
   whatsapp?: string;
   description?: string;
-  is_subscriber?: boolean;
-  is_publisher?: boolean;
-  client_type?: 'subscriber' | 'publisher' | 'both';
+  // Campos removidos/ignorados: publisher não pode ser subscriber/ambos
   active?: boolean;
 }
 
@@ -62,7 +60,7 @@ export class PublisherService {
     page?: number;
     limit?: number;
     search?: string;
-    client_type?: 'subscriber' | 'publisher' | 'both';
+    // client_type removido: sempre listar apenas publishers "puros"
     active_only?: boolean;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
@@ -74,7 +72,6 @@ export class PublisherService {
         page = 1, 
         limit = 10, 
         search, 
-        client_type, 
         // active_only:
         // - true => filtrar apenas ativos
         // - false => não filtrar (incluir inativos também)
@@ -88,6 +85,9 @@ export class PublisherService {
       const offset = (page - 1) * limit;
 
       let whereClause = 'WHERE 1=1';
+      // Regra do domínio: retornar apenas publishers (nunca subscribers/ambos)
+      whereClause += ` AND p.is_publisher = true AND p.is_subscriber = false AND p.client_type = 'publisher'`;
+
       const queryParams: any[] = [];
       let paramIndex = 1;
 
@@ -109,12 +109,6 @@ export class PublisherService {
           p.description ILIKE $${paramIndex}
         )`;
         queryParams.push(`%${search}%`);
-        paramIndex++;
-      }
-
-      if (client_type) {
-        whereClause += ` AND p.client_type = $${paramIndex}`;
-        queryParams.push(client_type);
         paramIndex++;
       }
 
@@ -225,10 +219,7 @@ export class PublisherService {
         email, 
         phone, 
         whatsapp, 
-        description,
-        is_subscriber = false,
-        is_publisher = true,
-        client_type = 'publisher'
+        description
       } = data;
 
       // Validar contrato apenas se contract_id foi fornecido
@@ -260,15 +251,10 @@ export class PublisherService {
         }
       }
 
-      // Validar client_type baseado nos flags
-      let finalClientType = client_type;
-      if (is_subscriber && is_publisher) {
-        finalClientType = 'both';
-      } else if (is_subscriber) {
-        finalClientType = 'subscriber';
-      } else if (is_publisher) {
-        finalClientType = 'publisher';
-      }
+      // Regra do domínio: publisher é sempre publisher (nunca subscriber/ambos)
+      const finalIsSubscriber = false;
+      const finalIsPublisher = true;
+      const finalClientType: 'publisher' = 'publisher';
 
       // Verificar se publisher já existe
       const existingPublisher = await this.db.findFirst(`
@@ -287,7 +273,7 @@ export class PublisherService {
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING publisher_id
-      `, [name, contact_name, email, phone, whatsapp, description, is_subscriber, is_publisher, finalClientType]);
+      `, [name, contact_name, email, phone, whatsapp, description, finalIsSubscriber, finalIsPublisher, finalClientType]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar publisher');
@@ -329,9 +315,6 @@ export class PublisherService {
         phone, 
         whatsapp, 
         description,
-        is_subscriber,
-        is_publisher,
-        client_type,
         active 
       } = data;
 
@@ -352,20 +335,10 @@ export class PublisherService {
         }
       }
 
-      // Determinar client_type final
-      let finalClientType = client_type || existingPublisher.client_type;
-      if (is_subscriber !== undefined || is_publisher !== undefined) {
-        const finalIsSubscriber = is_subscriber !== undefined ? is_subscriber : existingPublisher.is_subscriber;
-        const finalIsPublisher = is_publisher !== undefined ? is_publisher : existingPublisher.is_publisher;
-        
-        if (finalIsSubscriber && finalIsPublisher) {
-          finalClientType = 'both';
-        } else if (finalIsSubscriber) {
-          finalClientType = 'subscriber';
-        } else if (finalIsPublisher) {
-          finalClientType = 'publisher';
-        }
-      }
+      // Regra do domínio: corrigir/forçar publisher-only sempre que atualizar
+      const finalIsSubscriber = false;
+      const finalIsPublisher = true;
+      const finalClientType: 'publisher' = 'publisher';
 
       // Preparar campos para atualização
       const updateFields: string[] = [];
@@ -408,23 +381,18 @@ export class PublisherService {
         paramIndex++;
       }
 
-      if (is_subscriber !== undefined) {
-        updateFields.push(`is_subscriber = $${paramIndex}`);
-        updateParams.push(is_subscriber);
-        paramIndex++;
-      }
+      // Sempre forçar os flags para o estado correto (publisher-only)
+      updateFields.push(`is_subscriber = $${paramIndex}`);
+      updateParams.push(finalIsSubscriber);
+      paramIndex++;
 
-      if (is_publisher !== undefined) {
-        updateFields.push(`is_publisher = $${paramIndex}`);
-        updateParams.push(is_publisher);
-        paramIndex++;
-      }
+      updateFields.push(`is_publisher = $${paramIndex}`);
+      updateParams.push(finalIsPublisher);
+      paramIndex++;
 
-      if (client_type || is_subscriber !== undefined || is_publisher !== undefined) {
-        updateFields.push(`client_type = $${paramIndex}`);
-        updateParams.push(finalClientType);
-        paramIndex++;
-      }
+      updateFields.push(`client_type = $${paramIndex}`);
+      updateParams.push(finalClientType);
+      paramIndex++;
 
       if (active !== undefined) {
         updateFields.push(`active = $${paramIndex}`);
