@@ -1535,7 +1535,8 @@ const Subscribers: React.FC = () => {
     }
   };
 
-  if (loading && Subscribers.length === 0) {
+  // Evitar mostrar a tela vazia enquanto carrega a primeira página
+  if (loading && subscribers.length === 0) {
     return (
       <Box sx={{ p: 3 }}>
         <LinearProgress />
@@ -1552,10 +1553,10 @@ const Subscribers: React.FC = () => {
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            📢 Assinante
+            📢 Anunciantes
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie Assinantes e suas informações, mídias, playlists e campanhas
+            Gerencie anunciantes e suas informações, mídias, playlists, campanhas e contratos
           </Typography>
         </Box>
         <Button
@@ -1571,11 +1572,95 @@ const Subscribers: React.FC = () => {
         </Button>
       </Box>
 
+      {/* Resumo */}
+      {overallStats && (
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={2}>
+            <Card sx={{ textAlign: 'center', py: 2 }}>
+              <CardContent>
+                <People sx={{ fontSize: 40, color: theme.palette.primary.main, mb: 1 }} />
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {overallStats.total}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Total
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <Card sx={{ textAlign: 'center', py: 2 }}>
+              <CardContent>
+                <CheckCircle sx={{ fontSize: 40, color: theme.palette.success.main, mb: 1 }} />
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {overallStats.active}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Ativos
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <Card sx={{ textAlign: 'center', py: 2 }}>
+              <CardContent>
+                <ErrorIcon sx={{ fontSize: 40, color: theme.palette.error.main, mb: 1 }} />
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {overallStats.inactive}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Inativos
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <Card sx={{ textAlign: 'center', py: 2 }}>
+              <CardContent>
+                <VideoLibrary sx={{ fontSize: 40, color: theme.palette.info.main, mb: 1 }} />
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {overallStats.totalMedias}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Mídias
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <Card sx={{ textAlign: 'center', py: 2 }}>
+              <CardContent>
+                <QueueMusic sx={{ fontSize: 40, color: theme.palette.warning.main, mb: 1 }} />
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {overallStats.totalPlaylists}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Playlists
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <Card sx={{ textAlign: 'center', py: 2 }}>
+              <CardContent>
+                <CampaignIcon sx={{ fontSize: 40, color: theme.palette.secondary.main, mb: 1 }} />
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {overallStats.totalCampaigns}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Campanhas
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
       {/* Filters */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
                 placeholder="Buscar Assinantes..."
@@ -1592,9 +1677,6 @@ const Subscribers: React.FC = () => {
               />
             </Grid>
             <Grid item xs={12} md={3}>
-              {/* Removido: Subscribers não têm tipos - todos são "Assinante" */}
-            </Grid>
-            <Grid item xs={12} md={2}>
               <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
                 <Select
