@@ -25,7 +25,6 @@ const Media = React.lazy(() => import('./pages/Media/Media'));
 const Playlists = React.lazy(() => import('./pages/Playlists/Playlists'));
 const Players = React.lazy(() => import('./pages/Players/Players'));
 const Users = React.lazy(() => import('./pages/Users/Users'));
-const Clients = React.lazy(() => import('./pages/Clients/Clients'));
 const Publishers = React.lazy(() => import('./pages/Publishers/Publishers'));
 const Campaigns = React.lazy(() => import('./pages/Campaigns/Campaigns'));
 const Reports = React.lazy(() => import('./pages/Reports/Reports'));
@@ -336,9 +335,7 @@ const AppContent: React.FC = () => {
             path="/clients"
             element={
               <ProtectedRoute>
-                <Suspense fallback={<CircularProgress />}>
-                  <Clients />
-                </Suspense>
+                <Navigate to="/subscribers" replace />
               </ProtectedRoute>
             }
           />

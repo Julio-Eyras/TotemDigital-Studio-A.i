@@ -18,26 +18,16 @@ import {
   Tabs,
   Tab,
   LinearProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   Tooltip,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  Divider,
 } from '@mui/material';
 import {
   Refresh,
@@ -110,7 +100,7 @@ const TotemPlayListPage: React.FC = () => {
       setError(null);
 
       const [totemsRes, publishersRes] = await Promise.all([
-        totemApi.getAll({ limit: 1000 }),
+        totemApi.getAll({ limit: 10000 }),
         publisherApi.getAll({ active_only: true }),
       ]);
 
@@ -198,17 +188,18 @@ const TotemPlayListPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          Playlists de Totens
-        </Typography>
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={loadPlaylists}
-          disabled={loading}
-        >
+    <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
+      {/* Header */}
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <Box>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
+            📺 Playlists de Totens
+          </Typography>
+          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
+            Visualize e regenere a playlist consolidada por Totem
+          </Typography>
+        </Box>
+        <Button variant="outlined" startIcon={<Refresh />} onClick={loadPlaylists} disabled={loading}>
           Atualizar
         </Button>
       </Box>
@@ -273,81 +264,72 @@ const TotemPlayListPage: React.FC = () => {
         <TabPanel value={tabValue} index={0}>
           {loading ? (
             <LinearProgress />
+          ) : playlists.length === 0 ? (
+            <Alert severity="info">Nenhuma playlist encontrada</Alert>
           ) : (
-            <TableContainer component={Paper}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Totem</TableCell>
-                    <TableCell>Publisher</TableCell>
-                    <TableCell>Versão</TableCell>
-                    <TableCell>Itens</TableCell>
-                    <TableCell>Duração Total</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Última Atualização</TableCell>
-                    <TableCell align="right">Ações</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {playlists.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} align="center">
-                        <Typography variant="body2" color="text.secondary">
-                          Nenhuma playlist encontrada
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    playlists.map((playlist) => (
-                      <TableRow key={playlist.totem_playlist_id} hover>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Grid container spacing={2}>
+              {playlists.map((playlist) => (
+                <Grid item xs={12} sm={6} md={4} lg={3} key={playlist.totem_playlist_id}>
+                  <Card
+                    sx={{
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                      '&:hover': { transform: 'translateY(-4px)', boxShadow: theme.shadows[8] },
+                    }}
+                  >
+                    <CardContent sx={{ flexGrow: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                        <Box>
+                          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Tv fontSize="small" />
-                            <Typography variant="body2" fontWeight={500}>
-                              {playlist.totem_name || `Totem #${playlist.totem_id}`}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>{playlist.publisher_name || `Publisher #${playlist.publisher_id}`}</TableCell>
-                        <TableCell>
-                          <Chip label={`v${playlist.version}`} size="small" />
-                        </TableCell>
-                        <TableCell>{playlist.total_items}</TableCell>
-                        <TableCell>{formatDuration(playlist.total_duration_seconds)}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={playlist.status}
-                            size="small"
-                            color={playlist.status === 'active' ? 'success' : playlist.status === 'paused' ? 'warning' : 'default'}
-                          />
-                        </TableCell>
-                        <TableCell>{formatDate(playlist.last_updated_at)}</TableCell>
-                        <TableCell align="right">
-                          <Tooltip title="Visualizar Playlist">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleOpenPlaylist(playlist.totem_id)}
-                              disabled={loadingPlaylist}
-                            >
-                              <PlayArrow />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Regenerar Playlist">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleRegenerate(playlist.totem_id)}
-                              disabled={loading}
-                            >
-                              <Refresh />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                            {playlist.totem_name || `Totem #${playlist.totem_id}`}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {playlist.publisher_name || `Publisher #${playlist.publisher_id}`}
+                          </Typography>
+                        </Box>
+                        <Chip label={`v${playlist.version}`} size="small" />
+                      </Box>
+
+                      <Divider sx={{ my: 2 }} />
+
+                      <Typography variant="body2" color="text.secondary">
+                        Itens: <strong>{playlist.total_items}</strong>
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Duração: <strong>{formatDuration(playlist.total_duration_seconds)}</strong>
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Atualizada: <strong>{formatDate(playlist.last_updated_at)}</strong>
+                      </Typography>
+
+                      <Box sx={{ mt: 2 }}>
+                        <Chip
+                          label={playlist.status}
+                          size="small"
+                          color={playlist.status === 'active' ? 'success' : playlist.status === 'paused' ? 'warning' : 'default'}
+                        />
+                      </Box>
+
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 2 }}>
+                        <Tooltip title="Visualizar Playlist">
+                          <IconButton size="small" onClick={() => handleOpenPlaylist(playlist.totem_id)} disabled={loadingPlaylist}>
+                            <PlayArrow />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Regenerar Playlist">
+                          <IconButton size="small" onClick={() => handleRegenerate(playlist.totem_id)} disabled={loading}>
+                            <Refresh />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
           )}
         </TabPanel>
 

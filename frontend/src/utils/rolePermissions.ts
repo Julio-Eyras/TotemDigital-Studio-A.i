@@ -76,8 +76,8 @@ export const menuPermissions: MenuItemPermission[] = [
   // Publishers - admin_sql, admin, operador_comercial (visualização)
   { path: '/publishers', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
   
-  // Clientes/Subscribers - admin_sql, admin, operador_comercial (visualização)
-  { path: '/clients', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
+  // Subscribers - admin_sql, admin, operador_comercial (visualização)
+  { path: '/subscribers', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
   
   // Analytics - Todos exceto operator, editoracao e client
   { path: '/analytics', roles: ['admin_sql', 'admin', 'gerente_marketing', 'visualizador'], requiresClientAccess: true },
@@ -124,7 +124,6 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/users/roles', roles: ['owner_system', 'admin_sql'] },
   { path: '/users/flags', roles: ['owner_system', 'admin_sql'] },
   { path: '/publishers/new', roles: ['owner_system', 'admin_sql', 'admin'] },
-  { path: '/clients/new', roles: ['owner_system', 'admin_sql', 'admin'] },
   { path: '/totems/status', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
   { path: '/totems/config', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
   { path: '/smart-tvs/by-totem', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico', 'publisher_user'], requiredFlag: 'flag_smart_0' },
@@ -137,7 +136,7 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/subscriber-publisher-access/new', roles: ['admin_sql', 'admin'] },
   { path: '/plan-publisher-access/config', roles: ['admin_sql', 'admin'] },
   { path: '/publishers/details', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
-  { path: '/clients/details', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
+  { path: '/subscribers/details', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
   { path: '/campaigns/stats', roles: ['admin_sql', 'admin', 'gerente_marketing', 'visualizador', 'operador_comercial'] },
 ];
 
