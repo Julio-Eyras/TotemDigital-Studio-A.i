@@ -1536,7 +1536,7 @@ const Subscribers: React.FC = () => {
   };
 
   // Evitar mostrar a tela vazia enquanto carrega a primeira página
-  if (loading && subscribers.length === 0) {
+  if (loading && Subscribers.length === 0) {
     return (
       <Box sx={{ p: 3 }}>
         <LinearProgress />

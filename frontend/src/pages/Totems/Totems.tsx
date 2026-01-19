@@ -1,5 +1,33 @@
-import React, { useEffect, useState } from 'react';
-import { Box, Typography, Grid, Card, CardContent, Avatar, Chip, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControlLabel, Switch, Alert, Tab, Tabs, Badge, Tooltip, IconButton, LinearProgress, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Box,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  Avatar,
+  Chip,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControlLabel,
+  Switch,
+  Alert,
+  Tab,
+  Tabs,
+  Badge,
+  Tooltip,
+  IconButton,
+  LinearProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  useTheme,
+} from '@mui/material';
 import { Tv, Add, Refresh, LocationOn, CheckCircle, Pending, Warning, Settings } from '@mui/icons-material';
 import { totemApi, Player, CreatePlayerRequest, localApi, Local } from '../../services/api';
 import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteControl';
@@ -22,7 +50,8 @@ function TabPanel(props: TabPanelProps) {
 
 const Totems: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
-  const isAdmin = user?.role === 'admin';
+  const theme = useTheme();
+  const canAdministerTotems = ['admin', 'admin_sql', 'owner_system'].includes(user?.role || '');
   const userPublisherId = user?.publisherId;
 
   const [totems, setTotems] = useState<Player[]>([]);
@@ -48,6 +77,9 @@ const Totems: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [remoteControlOpen, setRemoteControlOpen] = useState(false);
   const [selectedTotemForControl, setSelectedTotemForControl] = useState<Player | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [localFilter, setLocalFilter] = useState<number | 'all'>('all');
 
   useEffect(() => {
     loadAll();
@@ -57,7 +89,7 @@ const Totems: React.FC = () => {
   const loadLocals = async () => {
     try {
       const response = await localApi.getAll({
-        publisherId: isAdmin ? undefined : userPublisherId,
+        publisherId: canAdministerTotems ? undefined : userPublisherId,
         active_only: true,
       });
       setLocals(response.data);
@@ -135,6 +167,63 @@ const Totems: React.FC = () => {
     setApproveOpen(true);
   };
 
+  const openRemoteControl = (totem: Player) => {
+    setSelectedTotemForControl(totem);
+    setRemoteControlOpen(true);
+  };
+
+  const filteredTotems = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return (totems || []).filter((t: any) => {
+      if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+
+      if (localFilter !== 'all') {
+        const totemLocalId = Number(t.localId ?? t.local_id);
+        if (!Number.isNaN(totemLocalId) && totemLocalId !== localFilter) return false;
+
+        // Fallback: comparar por nome do local no campo location
+        const localName = locals.find((l) => l.local_id === localFilter)?.name;
+        if (localName && typeof t.location === 'string') {
+          if (!t.location.toLowerCase().includes(localName.toLowerCase())) return false;
+        } else if (Number.isNaN(totemLocalId)) {
+          // Sem como inferir o local
+          return false;
+        }
+      }
+
+      if (!q) return true;
+      const name = (t.name || t.identifier || '').toLowerCase();
+      const uin = (t.uin || '').toLowerCase();
+      const location = (t.location || '').toLowerCase();
+      return name.includes(q) || uin.includes(q) || location.includes(q);
+    });
+  }, [locals, localFilter, searchTerm, statusFilter, totems]);
+
+  const filteredPendingTotems = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return (pendingTotems || []).filter((t: any) => {
+      // Pendentes já têm status próprio, mas respeitamos filtro se usuário quiser
+      if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+
+      if (localFilter !== 'all') {
+        const totemLocalId = Number(t.localId ?? t.local_id);
+        if (!Number.isNaN(totemLocalId) && totemLocalId !== localFilter) return false;
+        const localName = locals.find((l) => l.local_id === localFilter)?.name;
+        if (localName && typeof t.location === 'string') {
+          if (!t.location.toLowerCase().includes(localName.toLowerCase())) return false;
+        } else if (Number.isNaN(totemLocalId)) {
+          return false;
+        }
+      }
+
+      if (!q) return true;
+      const name = (t.name || t.identifier || '').toLowerCase();
+      const uin = (t.uin || '').toLowerCase();
+      const location = (t.location || '').toLowerCase();
+      return name.includes(q) || uin.includes(q) || location.includes(q);
+    });
+  }, [locals, localFilter, pendingTotems, searchTerm, statusFilter]);
+
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'online':
@@ -164,10 +253,29 @@ const Totems: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: 4 }}>
-        Gerenciamento de Totems
-      </Typography>
+    <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
+      {/* Header */}
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <Box>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
+            🖥️ Totens
+          </Typography>
+          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
+            Gerencie totens, aprovações e controle remoto
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {canAdministerTotems && (
+            <Button startIcon={<Add />} variant="contained" onClick={() => setCreateOpen(true)}>
+              Adicionar Totem
+            </Button>
+          )}
+          <Button startIcon={<Refresh />} variant="outlined" onClick={loadAll} disabled={loading}>
+            Atualizar
+          </Button>
+        </Box>
+      </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
@@ -181,12 +289,50 @@ const Totems: React.FC = () => {
         </Alert>
       )}
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
-        {isAdmin && (
-          <Button startIcon={<Add />} variant="contained" onClick={() => setCreateOpen(true)}>Adicionar Totem</Button>
-        )}
-        <Button startIcon={<Refresh />} variant="outlined" onClick={loadAll} disabled={loading}>Atualizar</Button>
-      </Box>
+      {/* Filters */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                placeholder="Buscar totems..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <FormControl fullWidth>
+                <InputLabel>Local</InputLabel>
+                <Select
+                  value={localFilter}
+                  label="Local"
+                  onChange={(e) => setLocalFilter((e.target.value as any) || 'all')}
+                >
+                  <MenuItem value="all">Todos</MenuItem>
+                  {locals.map((l) => (
+                    <MenuItem key={l.local_id} value={l.local_id}>
+                      {l.name} {l.publisher_name ? `(${l.publisher_name})` : ''}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select value={statusFilter} label="Status" onChange={(e) => setStatusFilter(e.target.value)}>
+                  <MenuItem value="all">Todos</MenuItem>
+                  <MenuItem value="online">Online</MenuItem>
+                  <MenuItem value="offline">Offline</MenuItem>
+                  <MenuItem value="error">Erro</MenuItem>
+                  <MenuItem value="pending_approval">Pendente</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
@@ -205,12 +351,12 @@ const Totems: React.FC = () => {
 
       <TabPanel value={tabValue} index={0}>
         <Grid container spacing={3}>
-          {totems.length === 0 && !loading ? (
+          {filteredTotems.length === 0 && !loading ? (
             <Grid item xs={12}>
               <Alert severity="info">Nenhum totem encontrado</Alert>
             </Grid>
           ) : (
-            totems.map((t) => (
+            filteredTotems.map((t) => (
               <Grid item xs={12} sm={6} md={4} key={t.totem_id}>
                 <Card>
                   <CardContent>
@@ -242,6 +388,19 @@ const Totems: React.FC = () => {
                         color={getStatusColor(t.status) as any}
                       />
                     </Box>
+                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Tooltip title="Controle remoto">
+                        <span>
+                          <IconButton
+                            size="small"
+                            onClick={() => openRemoteControl(t)}
+                            disabled={!t?.totem_id}
+                          >
+                            <Settings />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Box>
                   </CardContent>
                 </Card>
               </Grid>
@@ -252,12 +411,12 @@ const Totems: React.FC = () => {
 
       <TabPanel value={tabValue} index={1}>
         <Grid container spacing={3}>
-          {pendingTotems.length === 0 && !loading ? (
+          {filteredPendingTotems.length === 0 && !loading ? (
             <Grid item xs={12}>
               <Alert severity="info">Nenhum totem pendente de aprovação</Alert>
             </Grid>
           ) : (
-            pendingTotems.map((t) => (
+            filteredPendingTotems.map((t) => (
               <Grid item xs={12} sm={6} md={4} key={t.totem_id}>
                 <Card sx={{ border: '2px solid', borderColor: 'warning.main' }}>
                   <CardContent>
@@ -289,7 +448,7 @@ const Totems: React.FC = () => {
                         )}
                       </Box>
                     </Box>
-                    {isAdmin && (
+                    {canAdministerTotems && (
                       <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
                         <Button
                           variant="contained"
@@ -378,6 +537,44 @@ const Totems: React.FC = () => {
         <DialogActions>
           <Button onClick={() => setCreateOpen(false)}>Cancelar</Button>
           <Button variant="contained" onClick={handleCreate} disabled={!newTotem.identifier || !newTotem.localId}>Criar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={remoteControlOpen}
+        onClose={() => {
+          setRemoteControlOpen(false);
+          setSelectedTotemForControl(null);
+        }}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          Controle remoto — {selectedTotemForControl?.name || selectedTotemForControl?.identifier || `Totem ${selectedTotemForControl?.totem_id || ''}`}
+        </DialogTitle>
+        <DialogContent>
+          {selectedTotemForControl?.totem_id ? (
+            <TotemRemoteControl
+              totemId={selectedTotemForControl.totem_id}
+              totemName={selectedTotemForControl.name || selectedTotemForControl.identifier}
+              onClose={() => {
+                setRemoteControlOpen(false);
+                setSelectedTotemForControl(null);
+              }}
+            />
+          ) : (
+            <Alert severity="warning">Selecione um totem válido para abrir o controle remoto.</Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setRemoteControlOpen(false);
+              setSelectedTotemForControl(null);
+            }}
+          >
+            Fechar
+          </Button>
         </DialogActions>
       </Dialog>
 

@@ -47,7 +47,7 @@ import {
   CheckCircle,
   Warning,
   Store,
-  Map,
+  Map as MapIcon,
   Visibility,
   Business,
   Computer,
