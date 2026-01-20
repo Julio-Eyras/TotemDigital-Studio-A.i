@@ -281,14 +281,23 @@ const PlaylistMix: React.FC = () => {
                 <Select
                   labelId="totem-select-label"
                   label="Totem"
+                  displayEmpty
                   value={selectedTotemId}
-                  onChange={(e) => setSelectedTotemId(e.target.value as number | '')}
+                  onChange={(e) => {
+                    const v = e.target.value as any;
+                    setSelectedTotemId(v === '' ? '' : Number(v));
+                  }}
                 >
-                  {totems.map((t) => (
-                    <MenuItem key={t.totem_id} value={t.totem_id}>
-                      {t.name || t.identifier || `Totem ${t.totem_id}`}
-                    </MenuItem>
-                  ))}
+                  <MenuItem value="">Selecione...</MenuItem>
+                  {totems.map((t, idx) => {
+                    const totemId = Number((t as any).totem_id ?? (t as any).id);
+                    if (!totemId) return null;
+                    return (
+                      <MenuItem key={`totem-${totemId}-${idx}`} value={totemId}>
+                        {t.name || t.identifier || `Totem ${totemId}`}
+                      </MenuItem>
+                    );
+                  })}
                 </Select>
               </FormControl>
 

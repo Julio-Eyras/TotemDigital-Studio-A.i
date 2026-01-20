@@ -107,7 +107,8 @@ const TotemPlayListPage: React.FC = () => {
       setError(null);
 
       const [totemsRes, publishersRes] = await Promise.all([
-        totemApi.getAll({ limit: 10000 }),
+        // Backend limita paginação; manter compatível para evitar 400/429
+        totemApi.getAll({ limit: 100 }),
         publisherApi.getAll({ active_only: true }),
       ]);
 

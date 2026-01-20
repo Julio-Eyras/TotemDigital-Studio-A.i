@@ -13,7 +13,13 @@ export const queryClient = new QueryClient({
       // Manter dados em cache por 10 minutos
       gcTime: 10 * 60 * 1000, // 10 minutos (anteriormente cacheTime)
       // Retry automático em caso de erro
-      retry: 2,
+      retry: (failureCount, error: any) => {
+        const status = error?.response?.status ?? error?.status;
+        // Evitar martelar o backend em erros de rate limit / 4xx
+        if (status === 429) return false;
+        if (typeof status === 'number' && status >= 400 && status < 500) return false;
+        return failureCount < 2;
+      },
       // Refetch quando a janela ganha foco
       refetchOnWindowFocus: true,
       // Refetch quando reconecta à rede

@@ -356,8 +356,10 @@ const Totems: React.FC = () => {
               <Alert severity="info">Nenhum totem encontrado</Alert>
             </Grid>
           ) : (
-            filteredTotems.map((t) => (
-              <Grid item xs={12} sm={6} md={4} key={t.totem_id}>
+            filteredTotems.map((t, idx) => {
+              const totemKey = String((t as any).totem_id ?? (t as any).id ?? (t as any).identifier ?? idx);
+              return (
+              <Grid item xs={12} sm={6} md={4} key={totemKey}>
                 <Card>
                   <CardContent>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -404,7 +406,8 @@ const Totems: React.FC = () => {
                   </CardContent>
                 </Card>
               </Grid>
-            ))
+            );
+            })
           )}
         </Grid>
       </TabPanel>
@@ -416,8 +419,10 @@ const Totems: React.FC = () => {
               <Alert severity="info">Nenhum totem pendente de aprovação</Alert>
             </Grid>
           ) : (
-            filteredPendingTotems.map((t) => (
-              <Grid item xs={12} sm={6} md={4} key={t.totem_id}>
+            filteredPendingTotems.map((t, idx) => {
+              const totemKey = String((t as any).totem_id ?? (t as any).id ?? (t as any).identifier ?? `pending-${idx}`);
+              return (
+              <Grid item xs={12} sm={6} md={4} key={totemKey}>
                 <Card sx={{ border: '2px solid', borderColor: 'warning.main' }}>
                   <CardContent>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -465,7 +470,8 @@ const Totems: React.FC = () => {
                   </CardContent>
                 </Card>
               </Grid>
-            ))
+            );
+            })
           )}
         </Grid>
       </TabPanel>

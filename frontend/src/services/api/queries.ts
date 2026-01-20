@@ -447,8 +447,10 @@ export const useSystemAlerts = (limit: number = 20) => {
   return useQuery<SystemAlert[]>({
     queryKey: ['alerts', 'active', limit],
     queryFn: () => alertsApi.getActive(limit),
-    refetchInterval: 30 * 1000, // 30 segundos
-    staleTime: 15 * 1000,
+    // Evitar spam/429 em ambiente local (rate limit) + evitar retry automático
+    retry: false,
+    refetchInterval: 60 * 1000, // 60 segundos
+    staleTime: 60 * 1000,
   });
 };
 

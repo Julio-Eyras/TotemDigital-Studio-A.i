@@ -122,7 +122,8 @@ const Playlists: React.FC = () => {
 
   const loadSubscribers = async () => {
     try {
-      const response = await subscriberApi.getAll({ limit: 10000, active_only: false });
+      // Backend limita paginação; manter compatível para evitar 400/429
+      const response = await subscriberApi.getAll({ limit: 100, active_only: false });
       setSubscribers(response.data || []);
     } catch (e) {
       console.error('Erro ao carregar subscribers:', e);

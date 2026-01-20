@@ -94,7 +94,8 @@ const SmartTvs: React.FC = () => {
 
   const loadTotems = async () => {
     try {
-      const response = await totemApi.getAll({ limit: 10000 });
+      // Backend limita paginação; manter compatível para evitar 400/429
+      const response = await totemApi.getAll({ limit: 100 });
       // Filtrar totens por publisher se não for admin
       let filteredTotems = response.data || [];
       if (!isAdmin && userPublisherId) {
@@ -333,11 +334,15 @@ const SmartTvs: React.FC = () => {
                   inputProps={{ name: 'totemFilter' }}
                 >
                   <MenuItem value="">Todos</MenuItem>
-                  {totems.map((totem) => (
-                    <MenuItem key={totem.totem_id} value={totem.totem_id}>
-                      {totem.name || totem.identifier} ({smartTvsByTotem.get(totem.totem_id) || 0})
-                    </MenuItem>
-                  ))}
+                  {totems.map((totem, idx) => {
+                    const totemId = Number((totem as any).totem_id ?? (totem as any).id);
+                    if (!totemId) return null;
+                    return (
+                      <MenuItem key={`totem-${totemId}-${idx}`} value={totemId}>
+                        {totem.name || totem.identifier || `Totem ${totemId}`} ({smartTvsByTotem.get(totemId) || 0})
+                      </MenuItem>
+                    );
+                  })}
                 </Select>
               </FormControl>
             </Grid>
@@ -443,9 +448,11 @@ const SmartTvs: React.FC = () => {
 
                 <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', mt: 2 }}>
                   <Tooltip title="Configurações (em breve)">
-                    <IconButton size="small" disabled>
-                      <Settings />
-                    </IconButton>
+                    <span>
+                      <IconButton size="small" disabled>
+                        <Settings />
+                      </IconButton>
+                    </span>
                   </Tooltip>
                   {isAdmin && (
                     <Box sx={{ display: 'flex', gap: 1 }}>
@@ -498,11 +505,15 @@ const SmartTvs: React.FC = () => {
                 onChange={(e) => setNewSmartTv({ ...newSmartTv, totem_id: Number(e.target.value) })}
                 inputProps={{ name: 'totem_id' }}
               >
-                {totems.map((totem) => (
-                  <MenuItem key={totem.totem_id} value={totem.totem_id}>
-                    {totem.name || totem.identifier}
-                  </MenuItem>
-                ))}
+                {totems.map((totem, idx) => {
+                  const totemId = Number((totem as any).totem_id ?? (totem as any).id);
+                  if (!totemId) return null;
+                  return (
+                    <MenuItem key={`totem-create-${totemId}-${idx}`} value={totemId}>
+                      {totem.name || totem.identifier || `Totem ${totemId}`}
+                    </MenuItem>
+                  );
+                })}
               </Select>
             </FormControl>
             <TextField

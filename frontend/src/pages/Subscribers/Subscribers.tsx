@@ -342,7 +342,8 @@ const Subscribers: React.FC = () => {
 
   const loadOverallStats = async () => {
     try {
-      const allSubscribers = await subscriberApi.getAll({ limit: 10000 });
+      // Backend limita paginação; manter compatível para evitar 400/429
+      const allSubscribers = await subscriberApi.getAll({ limit: 100 });
       const subscribers = allSubscribers.data || [];
       
       let totalMedias = 0;

@@ -134,7 +134,8 @@ const Locals: React.FC = () => {
         search: searchTerm || undefined,
         publisherId: publisherFilter || (isAdmin ? undefined : userPublisherId),
         active_only: activeOnlyFilter,
-        limit: 10000, // Buscar todos
+        // Backend limita paginação; manter compatível para evitar 400/429
+        limit: 100,
       });
       
       // Ordenar por publisher_name e depois por name
@@ -162,7 +163,7 @@ const Locals: React.FC = () => {
     try {
       // PERFORMANCE: buscar totens e Smart TVs UMA vez e agregar por local_id (evita N chamadas por local)
       const [totemsResponse, smartTvsResponse] = await Promise.all([
-        totemApi.getAll({ limit: 10000 }).catch(() => ({ data: [] })),
+        totemApi.getAll({ limit: 100 }).catch(() => ({ data: [] })),
         // Backend de Smart TVs limita limit em 100 (validação). Manter compatível para evitar 400.
         smartTvApi.getAll({ limit: 100 }).catch(() => ({ data: [] })),
       ]);
