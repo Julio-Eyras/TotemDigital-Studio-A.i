@@ -20,19 +20,19 @@ BEGIN
   END IF;
 END $$;
 
-INSERT INTO subscribers (subscriber_id, name, contact_name, email, phone, whatsapp, address, description, is_active) VALUES
-(1, 'Shopping Center Norte', 'Maria Silva', 'maria.silva@shoppingnorte.com.br', '+55 11 3456-7890', '+55 11 98765-4321', 'Av. Cruzeiro do Sul, 1100 - Santana, São Paulo/SP - CEP 02013-000', 'Shopping center localizado na zona norte de São Paulo', true),
-(2, 'Rede de Farmácias Saúde+', 'João Santos', 'joao.santos@saudemais.com.br', '+55 11 2345-6789', '+55 11 87654-3210', 'Rua XV de Novembro, 250 - Centro, São Paulo/SP - CEP 01010-000', 'Rede de farmácias com múltiplas unidades', true),
-(3, 'Supermercado Econômico', 'Ana Costa', 'ana.costa@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', 'Av. Paulista, 1500 - Bela Vista, São Paulo/SP - CEP 01310-100', 'Supermercado com foco em economia', true),
-(4, 'Restaurante Sabor & Arte', 'Carlos Oliveira', 'carlos.oliveira@saborearte.com.br', '+55 11 4567-8901', '+55 11 65432-1098', 'Rua Oscar Freire, 200 - Jardins, São Paulo/SP - CEP 01426-000', 'Restaurante gourmet especializado em culinária brasileira', true),
-(5, 'Clínica Médica Vida Saudável', 'Dr. Roberto Lima', 'roberto.lima@vidasaudavel.com.br', '+55 11 5678-9012', '+55 11 54321-0987', 'Rua do Carmo, 45 - Centro, São Paulo/SP - CEP 01310-100', 'Clínica médica com foco em prevenção', true)
+INSERT INTO subscribers (subscriber_id, name, contact_name, email, phone, whatsapp, address, category_segment, description, is_active) VALUES
+(1, 'Shopping Center Norte', 'Maria Silva', 'maria.silva@shoppingnorte.com.br', '+55 11 3456-7890', '+55 11 98765-4321', 'Av. Cruzeiro do Sul, 1100 - Santana, São Paulo/SP - CEP 02013-000', 'Shopping', 'Shopping center localizado na zona norte de São Paulo', true),
+(2, 'Rede de Farmácias Saúde+', 'João Santos', 'joao.santos@saudemais.com.br', '+55 11 2345-6789', '+55 11 87654-3210', 'Rua XV de Novembro, 250 - Centro, São Paulo/SP - CEP 01010-000', 'Farmácia', 'Rede de farmácias com múltiplas unidades', true),
+(3, 'Supermercado Econômico', 'Ana Costa', 'ana.costa@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', 'Av. Paulista, 1500 - Bela Vista, São Paulo/SP - CEP 01310-100', 'Supermercado', 'Supermercado com foco em economia', true),
+(4, 'Restaurante Sabor & Arte', 'Carlos Oliveira', 'carlos.oliveira@saborearte.com.br', '+55 11 4567-8901', '+55 11 65432-1098', 'Rua Oscar Freire, 200 - Jardins, São Paulo/SP - CEP 01426-000', 'Restaurante', 'Restaurante gourmet especializado em culinária brasileira', true),
+(5, 'Clínica Médica Vida Saudável', 'Dr. Roberto Lima', 'roberto.lima@vidasaudavel.com.br', '+55 11 5678-9012', '+55 11 54321-0987', 'Rua do Carmo, 45 - Centro, São Paulo/SP - CEP 01310-100', 'Saúde', 'Clínica médica com foco em prevenção', true)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO publishers (publisher_id, name, contact_name, email, phone, whatsapp, description, is_subscriber, is_publisher, client_type, active) VALUES
-(1, 'Shopping Center Norte - Administração', 'Maria Silva', 'admin@shoppingnorte.com.br', '+55 11 3456-7890', '+55 11 98765-4321', 'Administração do shopping center', false, true, 'publisher', true),
-(2, 'Farmácia Central - Matriz', 'João Santos', 'matriz@saudemais.com.br', '+55 11 2345-6789', '+55 11 87654-3210', 'Matriz da rede de farmácias', false, true, 'publisher', true),
-(3, 'Supermercado Econômico - Filial Centro', 'Ana Costa', 'centro@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', 'Filial central do supermercado', false, true, 'publisher', true),
-(4, 'Rede de Totens Urbanos', 'Pedro Almeida', 'pedro@totensurbanos.com.br', '+55 11 9999-8888', '+55 11 99999-8888', 'Rede de totens em pontos estratégicos da cidade', false, true, 'publisher', true)
+INSERT INTO publishers (publisher_id, name, contact_name, email, phone, whatsapp, category_segment, description, is_subscriber, is_publisher, client_type, active) VALUES
+(1, 'Shopping Center Norte - Administração', 'Maria Silva', 'admin@shoppingnorte.com.br', '+55 11 3456-7890', '+55 11 98765-4321', 'Shopping', 'Administração do shopping center', false, true, 'publisher', true),
+(2, 'Farmácia Central - Matriz', 'João Santos', 'matriz@saudemais.com.br', '+55 11 2345-6789', '+55 11 87654-3210', 'Farmácia', 'Matriz da rede de farmácias', false, true, 'publisher', true),
+(3, 'Supermercado Econômico - Filial Centro', 'Ana Costa', 'centro@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', 'Supermercado', 'Filial central do supermercado', false, true, 'publisher', true),
+(4, 'Rede de Totens Urbanos', 'Pedro Almeida', 'pedro@totensurbanos.com.br', '+55 11 9999-8888', '+55 11 99999-8888', 'OOH', 'Rede de totens em pontos estratégicos da cidade', false, true, 'publisher', true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO roles (role_id, name, description, is_active) VALUES
@@ -113,15 +113,15 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES
 (5, 2), (5, 5), (5, 6)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO locals (local_id, publisher_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description, is_active) VALUES
-(1, 1, 'Entrada Principal', 'Av. Cruzeiro do Sul, 1100', 'São Paulo', 'SP', '02013-000', 'BR', -23.5000, -46.6333, 'America/Sao_Paulo', 'Entrada principal do shopping', true),
-(2, 1, 'Praça de Alimentação', 'Av. Cruzeiro do Sul, 1100', 'São Paulo', 'SP', '02013-000', 'BR', -23.5001, -46.6334, 'America/Sao_Paulo', 'Praça de alimentação do shopping', true),
-(3, 1, 'Área do Cinema', 'Av. Cruzeiro do Sul, 1100', 'São Paulo', 'SP', '02013-000', 'BR', -23.5002, -46.6335, 'America/Sao_Paulo', 'Área do cinema', true),
-(4, 2, 'Farmácia Matriz - Centro', 'Rua XV de Novembro, 250', 'São Paulo', 'SP', '01010-000', 'BR', -23.5500, -46.6333, 'America/Sao_Paulo', 'Farmácia matriz no centro', true),
-(5, 2, 'Farmácia Filial - Zona Sul', 'Av. Paulista, 1000', 'São Paulo', 'SP', '01310-100', 'BR', -23.5615, -46.6560, 'America/Sao_Paulo', 'Farmácia filial zona sul', true),
-(6, 3, 'Área de Caixas', 'Av. Paulista, 1500', 'São Paulo', 'SP', '01310-100', 'BR', -23.5615, -46.6560, 'America/Sao_Paulo', 'Área dos caixas do supermercado', true),
-(7, 3, 'Seção de Açougue', 'Av. Paulista, 1500', 'São Paulo', 'SP', '01310-100', 'BR', -23.5615, -46.6560, 'America/Sao_Paulo', 'Seção de açougue', true),
-(8, 4, 'Ponto Estratégico 1', 'Av. Brigadeiro Faria Lima, 2000', 'São Paulo', 'SP', '01452-000', 'BR', -23.5775, -46.6910, 'America/Sao_Paulo', 'Totem em ponto estratégico', true)
+INSERT INTO locals (local_id, publisher_id, name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description, is_active) VALUES
+(1, 1, 'Entrada Principal', 'Shopping', 'Av. Cruzeiro do Sul, 1100', 'São Paulo', 'SP', '02013-000', 'BR', -23.5000, -46.6333, 'America/Sao_Paulo', 'Entrada principal do shopping', true),
+(2, 1, 'Praça de Alimentação', 'Shopping', 'Av. Cruzeiro do Sul, 1100', 'São Paulo', 'SP', '02013-000', 'BR', -23.5001, -46.6334, 'America/Sao_Paulo', 'Praça de alimentação do shopping', true),
+(3, 1, 'Área do Cinema', 'Cinema', 'Av. Cruzeiro do Sul, 1100', 'São Paulo', 'SP', '02013-000', 'BR', -23.5002, -46.6335, 'America/Sao_Paulo', 'Área do cinema', true),
+(4, 2, 'Farmácia Matriz - Centro', 'Farmácia', 'Rua XV de Novembro, 250', 'São Paulo', 'SP', '01010-000', 'BR', -23.5500, -46.6333, 'America/Sao_Paulo', 'Farmácia matriz no centro', true),
+(5, 2, 'Farmácia Filial - Zona Sul', 'Farmácia', 'Av. Paulista, 1000', 'São Paulo', 'SP', '01310-100', 'BR', -23.5615, -46.6560, 'America/Sao_Paulo', 'Farmácia filial zona sul', true),
+(6, 3, 'Área de Caixas', 'Supermercado', 'Av. Paulista, 1500', 'São Paulo', 'SP', '01310-100', 'BR', -23.5615, -46.6560, 'America/Sao_Paulo', 'Área dos caixas do supermercado', true),
+(7, 3, 'Seção de Açougue', 'Supermercado', 'Av. Paulista, 1500', 'São Paulo', 'SP', '01310-100', 'BR', -23.5615, -46.6560, 'America/Sao_Paulo', 'Seção de açougue', true),
+(8, 4, 'Ponto Estratégico 1', 'OOH', 'Av. Brigadeiro Faria Lima, 2000', 'São Paulo', 'SP', '01452-000', 'BR', -23.5775, -46.6910, 'America/Sao_Paulo', 'Totem em ponto estratégico', true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, name, description, model, manufacturer, firmware_version, hardware_version, os_version, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active) VALUES
@@ -164,13 +164,13 @@ INSERT INTO medias (
 (6, 5, 'check-up-video.mp4', 'Vídeo educativo sobre check-up', '/opt/smart-signage/public/assets/uploads/client-5/medias/check-up-video.mp4', 'check-up-video.mp4', 984314, 'video', 'video/mp4', 45, 1920, 1080, '/api/media/6/thumbnail', '/api/media/6/thumbnail', 'approved', 'approved', ARRAY['saude', 'prevencao', 'check-up'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '6 days', '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO playlists (playlist_id, subscriber_id, name, description, is_active, schedule_config, metadata) VALUES
-(1, 1, 'Playlist Black Friday - Entrada', 'Playlist principal da Black Friday na entrada', true, '{}'::jsonb, '{}'::jsonb),
-(2, 1, 'Playlist Black Friday - Praça', 'Playlist da Black Friday na praça de alimentação', true, '{}'::jsonb, '{}'::jsonb),
-(3, 2, 'Playlist Medicamentos', 'Playlist promocional de medicamentos', true, '{}'::jsonb, '{}'::jsonb),
-(4, 3, 'Playlist Ofertas Supermercado', 'Playlist de ofertas do supermercado', true, '{}'::jsonb, '{}'::jsonb),
-(5, 4, 'Playlist Menu Executivo', 'Playlist do menu executivo', true, '{}'::jsonb, '{}'::jsonb),
-(6, 5, 'Playlist Check-up', 'Playlist de conscientização sobre check-up', true, '{}'::jsonb, '{}'::jsonb)
+INSERT INTO playlists (playlist_id, subscriber_id, name, category_segment, description, is_active, schedule_config, metadata) VALUES
+(1, 1, 'Playlist Black Friday - Entrada', 'Black Friday', 'Playlist principal da Black Friday na entrada', true, '{}'::jsonb, '{}'::jsonb),
+(2, 1, 'Playlist Black Friday - Praça', 'Black Friday', 'Playlist da Black Friday na praça de alimentação', true, '{}'::jsonb, '{}'::jsonb),
+(3, 2, 'Playlist Medicamentos', 'Saúde', 'Playlist promocional de medicamentos', true, '{}'::jsonb, '{}'::jsonb),
+(4, 3, 'Playlist Ofertas Supermercado', 'Promoções', 'Playlist de ofertas do supermercado', true, '{}'::jsonb, '{}'::jsonb),
+(5, 4, 'Playlist Menu Executivo', 'Cardápio', 'Playlist do menu executivo', true, '{}'::jsonb, '{}'::jsonb),
+(6, 5, 'Playlist Check-up', 'Saúde', 'Playlist de conscientização sobre check-up', true, '{}'::jsonb, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO playlist_items (item_id, playlist_id, media_id, display_seconds, order_index, start_time, end_time, days_of_week, transitions, is_active) VALUES
@@ -203,12 +203,12 @@ INSERT INTO publisher_contracts (contract_id, publisher_id, contract_number, con
 (4, 4, 'PUB-CONT-004', 'hybrid', 'Contrato Híbrido Rede de Totens Urbanos', 'Contrato híbrido: revenue share + subscription', '2025-01-01', NULL, 75.00, '{}'::jsonb, 2000.00, 299.00, 'month', 'BRL', 'Pagamento mensal', 'active', (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), 1, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO campaigns (campaign_id, subscriber_id, contract_id, title, description, campaign_type, priority, commercial_tier, default_time_share_percent, max_consecutive_slots, start_date, end_date, start_time, end_time, days_of_week, timezone, status, is_active, target_audience, metadata) VALUES
-(1, 1, 1, 'Promoção Black Friday', 'Campanha especial para Black Friday com ofertas imperdíveis', 'scheduled', 10, 'premium', 50.00, 2, '2025-11-20 00:00:00', '2035-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(2, 2, 2, 'Campanha Medicamentos', 'Promoção de medicamentos genéricos', 'general', 8, 'standard', 30.00, 2, '2025-10-01 00:00:00', '2035-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(3, 3, 3, 'Ofertas do Dia', 'Ofertas especiais diárias do supermercado', 'general', 7, 'standard', 40.00, 3, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(4, 4, 4, 'Menu Executivo', 'Promoção do menu executivo', 'scheduled', 6, 'standard', 20.00, 1, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '11:30', '14:30', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(5, 5, 5, 'Check-up Preventivo', 'Campanha de conscientização sobre check-up', 'general', 5, 'standard', 15.00, 1, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '08:00', '18:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb)
+INSERT INTO campaigns (campaign_id, subscriber_id, contract_id, title, category_segment, description, campaign_type, priority, commercial_tier, default_time_share_percent, max_consecutive_slots, start_date, end_date, start_time, end_time, days_of_week, timezone, status, is_active, target_audience, metadata) VALUES
+(1, 1, 1, 'Promoção Black Friday', 'Black Friday', 'Campanha especial para Black Friday com ofertas imperdíveis', 'scheduled', 10, 'premium', 50.00, 2, '2025-11-20 00:00:00', '2035-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(2, 2, 2, 'Campanha Medicamentos', 'Saúde', 'Promoção de medicamentos genéricos', 'general', 8, 'standard', 30.00, 2, '2025-10-01 00:00:00', '2035-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(3, 3, 3, 'Ofertas do Dia', 'Promoções', 'Ofertas especiais diárias do supermercado', 'general', 7, 'standard', 40.00, 3, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(4, 4, 4, 'Menu Executivo', 'Restaurante', 'Promoção do menu executivo', 'scheduled', 6, 'standard', 20.00, 1, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '11:30', '14:30', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(5, 5, 5, 'Check-up Preventivo', 'Saúde', 'Campanha de conscientização sobre check-up', 'general', 5, 'standard', 15.00, 1, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '08:00', '18:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaign_playlists (campaign_id, playlist_id, priority, is_active, metadata) VALUES

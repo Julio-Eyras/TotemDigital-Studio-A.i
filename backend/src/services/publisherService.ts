@@ -8,6 +8,7 @@ export interface Publisher {
   email?: string;
   phone?: string;
   whatsapp?: string;
+  category_segment?: string;
   description?: string;
   // Regra do domínio: publisher não pode ser subscriber/ambos.
   // Campos mantidos por compatibilidade com schema, mas devem ser fixos: is_subscriber=false, is_publisher=true, client_type='publisher'
@@ -26,6 +27,7 @@ export interface CreatePublisherRequest {
   email?: string;
   phone?: string;
   whatsapp?: string;
+  category_segment?: string;
   description?: string;
   // Campos removidos/ignorados: publisher não pode ser subscriber/ambos
 }
@@ -36,6 +38,7 @@ export interface UpdatePublisherRequest {
   email?: string;
   phone?: string;
   whatsapp?: string;
+  category_segment?: string;
   description?: string;
   // Campos removidos/ignorados: publisher não pode ser subscriber/ambos
   active?: boolean;
@@ -106,6 +109,7 @@ export class PublisherService {
           p.contact_name ILIKE $${paramIndex} OR 
           p.phone ILIKE $${paramIndex} OR
           p.whatsapp ILIKE $${paramIndex} OR
+          p.category_segment ILIKE $${paramIndex} OR
           p.description ILIKE $${paramIndex}
         )`;
         queryParams.push(`%${search}%`);
@@ -143,6 +147,7 @@ export class PublisherService {
           p.email,
           p.phone,
           p.whatsapp,
+          p.category_segment,
           p.description,
           p.is_subscriber,
           p.is_publisher,
@@ -188,6 +193,7 @@ export class PublisherService {
           p.email,
           p.phone,
           p.whatsapp,
+          p.category_segment,
           p.description,
           p.is_subscriber,
           p.is_publisher,
@@ -219,6 +225,7 @@ export class PublisherService {
         email, 
         phone, 
         whatsapp, 
+        category_segment,
         description
       } = data;
 
@@ -268,12 +275,12 @@ export class PublisherService {
       // Criar publisher
       const result = await this.db.executeRaw(`
         INSERT INTO publishers (
-          name, contact_name, email, phone, whatsapp, description,
+          name, contact_name, email, phone, whatsapp, category_segment, description,
           is_subscriber, is_publisher, client_type, active, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING publisher_id
-      `, [name, contact_name, email, phone, whatsapp, description, finalIsSubscriber, finalIsPublisher, finalClientType]);
+      `, [name, contact_name, email, phone, whatsapp, category_segment || null, description, finalIsSubscriber, finalIsPublisher, finalClientType]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar publisher');
@@ -314,6 +321,7 @@ export class PublisherService {
         email, 
         phone, 
         whatsapp, 
+        category_segment,
         description,
         active 
       } = data;
@@ -372,6 +380,12 @@ export class PublisherService {
       if (whatsapp !== undefined) {
         updateFields.push(`whatsapp = $${paramIndex}`);
         updateParams.push(whatsapp);
+        paramIndex++;
+      }
+
+      if (category_segment !== undefined) {
+        updateFields.push(`category_segment = $${paramIndex}`);
+        updateParams.push(category_segment || null);
         paramIndex++;
       }
 

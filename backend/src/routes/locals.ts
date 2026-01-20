@@ -23,6 +23,7 @@ const createLocalValidator = [
   body('publisher_id').notEmpty().isInt({ min: 1 }).withMessage('publisher_id é obrigatório'),
   body('contract_id').optional().isInt({ min: 1 }).withMessage('Contract ID inválido (opcional, para rastreabilidade)'),
   body('name').notEmpty().isString().withMessage('Nome é obrigatório'),
+  body('category_segment').optional().isString(),
   body('address').optional().isString(),
   body('city').optional().isString(),
   body('state').optional().isString(),
@@ -36,6 +37,7 @@ const createLocalValidator = [
 
 const updateLocalValidator = [
   body('name').optional().isString(),
+  body('category_segment').optional().isString(),
   body('address').optional().isString(),
   body('city').optional().isString(),
   body('state').optional().isString(),
@@ -139,7 +141,7 @@ router.post('/',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { publisher_id, contract_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = req.body;
+      const { publisher_id, contract_id, name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description } = req.body;
       
       // publisher_id é obrigatório - locais pertencem apenas a publishers
       if (!publisher_id) {
@@ -160,6 +162,7 @@ router.post('/',
         publisher_id,
         contract_id, // Opcional - para rastreabilidade
         name,
+        category_segment,
         address,
         city,
         state,
@@ -195,7 +198,7 @@ router.put('/:id',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const { name, address, city, state, zip_code, country, latitude, longitude, timezone, description, is_active } = req.body;
+      const { name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description, is_active } = req.body;
       
       if (!req.user?.id) {
         return res.status(401).json({ error: 'Usuário não autenticado' });
@@ -208,6 +211,7 @@ router.put('/:id',
         parseInt(id),
         {
           name,
+          category_segment,
           address,
           city,
           state,

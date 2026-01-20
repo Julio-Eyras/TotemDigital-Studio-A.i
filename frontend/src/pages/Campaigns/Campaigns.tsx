@@ -103,6 +103,7 @@ const Campaigns: React.FC = () => {
   const [derivedDevicesLoading, setDerivedDevicesLoading] = useState(false);
   const [newCampaign, setNewCampaign] = useState<CreateCampaignRequest>({
     title: '',
+    categorySegment: '',
     description: '',
     campaign_type: 'general',
     status: 'draft',
@@ -350,6 +351,7 @@ const Campaigns: React.FC = () => {
       setCreateDialogOpen(false);
       setNewCampaign({
         title: '',
+        categorySegment: '',
         description: '',
         campaign_type: 'general',
         status: 'draft',
@@ -424,6 +426,7 @@ const Campaigns: React.FC = () => {
     try {
       const updateData: UpdateCampaignRequest = {
         title: selectedCampaign.title,
+        categorySegment: (selectedCampaign as any).categorySegment || (selectedCampaign as any).category_segment,
         description: selectedCampaign.description,
         campaign_type: normalizeCampaignType(selectedCampaign.campaign_type || (selectedCampaign as any).campaignType),
         status: selectedCampaign.status || 'draft',
@@ -807,6 +810,16 @@ const Campaigns: React.FC = () => {
           />
           <TextField
             fullWidth
+            id="campaign-create-category-segment"
+            name="categorySegment"
+            label="Categoria/Segmento"
+            value={(newCampaign as any).categorySegment || (newCampaign as any).category_segment || ''}
+            onChange={(e) => setNewCampaign({ ...(newCampaign as any), categorySegment: e.target.value } as any)}
+            margin="normal"
+            helperText="Ex.: Black Friday, Saúde, Promoções..."
+          />
+          <TextField
+            fullWidth
             label="Descrição"
             value={newCampaign.description}
             onChange={(e) => setNewCampaign({ ...newCampaign, description: e.target.value })}
@@ -1074,6 +1087,16 @@ const Campaigns: React.FC = () => {
             onChange={(e) => setSelectedCampaign({ ...selectedCampaign!, title: e.target.value })}
             margin="normal"
             required
+          />
+          <TextField
+            fullWidth
+            id="campaign-edit-category-segment"
+            name="categorySegment"
+            label="Categoria/Segmento"
+            value={(selectedCampaign as any)?.categorySegment || (selectedCampaign as any)?.category_segment || ''}
+            onChange={(e) => setSelectedCampaign({ ...(selectedCampaign as any), categorySegment: e.target.value } as any)}
+            margin="normal"
+            helperText="Ex.: Black Friday, Saúde, Promoções..."
           />
           <TextField
             fullWidth

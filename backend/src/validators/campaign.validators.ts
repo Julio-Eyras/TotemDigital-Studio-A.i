@@ -12,6 +12,8 @@ export const createCampaignValidators = [
   body('subscriberId').optional({ checkFalsy: true }).isInt({ min: 1 }).toInt().withMessage('subscriberId deve ser um número inteiro maior que 0'),
   body('contractId').optional({ checkFalsy: true }).isInt({ min: 1 }).toInt().withMessage('contractId deve ser um número inteiro maior que 0'),
   body('title').notEmpty().withMessage('Título é obrigatório').isLength({ min: 3, max: 200 }).withMessage('Título deve ter entre 3 e 200 caracteres'),
+  body('categorySegment').optional({ checkFalsy: true }).isString().isLength({ max: 100 }).withMessage('Categoria/Segmento deve ter no máximo 100 caracteres'),
+  body('category_segment').optional({ checkFalsy: true }).isString().isLength({ max: 100 }).withMessage('Categoria/Segmento deve ter no máximo 100 caracteres'),
   body('description').optional({ checkFalsy: true }).isString().isLength({ max: 1000 }).withMessage('Descrição deve ter no máximo 1000 caracteres'),
   body('campaignType').optional({ checkFalsy: true }).isString().withMessage('Tipo de campanha deve ser uma string'),
   body('priority').optional({ checkFalsy: true }).isInt({ min: 0, max: 10 }).toInt().withMessage('Prioridade deve ser entre 0 e 10'),
@@ -32,6 +34,8 @@ export const createCampaignValidators = [
  */
 export const updateCampaignValidators = [
   body('title').optional().notEmpty().isLength({ min: 3, max: 200 }).withMessage('Título deve ter entre 3 e 200 caracteres'),
+  body('categorySegment').optional().isString().isLength({ max: 100 }).withMessage('Categoria/Segmento deve ter no máximo 100 caracteres'),
+  body('category_segment').optional().isString().isLength({ max: 100 }).withMessage('Categoria/Segmento deve ter no máximo 100 caracteres'),
   body('description').optional().isString().isLength({ max: 1000 }).withMessage('Descrição deve ter no máximo 1000 caracteres'),
   body('campaignType').optional().isString().withMessage('Tipo de campanha deve ser uma string'),
   body('priority').optional().isInt({ min: 0, max: 10 }).withMessage('Prioridade deve ser entre 0 e 10'),

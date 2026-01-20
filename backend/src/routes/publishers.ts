@@ -49,6 +49,7 @@ const createPublisherValidator = [
   ...nameValidators,
   body('contract_id').optional().isInt({ min: 1 }).withMessage('Contract ID inválido (opcional, para rastreabilidade)'),
   body('contact_name').optional().isString(),
+  body('category_segment').optional().isString(),
   ...emailValidators,
   ...phoneValidators,
   ...descriptionValidators,
@@ -124,7 +125,7 @@ router.post('/',
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { name, contact_name, email, phone, whatsapp, description, contract_id } = req.body;
+      const { name, contact_name, email, phone, whatsapp, category_segment, description, contract_id } = req.body;
       
       const newPublisher = await getPublisherService().createPublisher({
         name,
@@ -132,6 +133,7 @@ router.post('/',
         email,
         phone,
         whatsapp,
+        category_segment,
         description,
         contract_id, // Opcional - vincula publisher ao contrato (para rastreabilidade)
       });
@@ -387,7 +389,7 @@ router.put('/:id',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const { name, contact_name, email, phone, whatsapp, description, active } = req.body;
+      const { name, contact_name, email, phone, whatsapp, category_segment, description, active } = req.body;
       
       const updatedPublisher = await getPublisherService().updatePublisher(parseInt(id), {
         name,
@@ -395,6 +397,7 @@ router.put('/:id',
         email,
         phone,
         whatsapp,
+        category_segment,
         description,
         active
       });

@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS locals (
     publisher_id INTEGER NOT NULL, -- FK para publishers (obrigatório - locals pertencem apenas a publishers)
     created_via_contract_id INTEGER, -- FK para subscriber_contracts ou publisher_contracts (rastreabilidade)
     name TEXT NOT NULL,
+    category_segment TEXT, -- Categoria/segmento do local (ex.: Farmácia, Cinema, Academia, etc.)
     address TEXT,
     city TEXT,
     state TEXT,
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS locals (
 COMMENT ON TABLE locals IS 'Locais físicos onde totens estão instalados';
 COMMENT ON COLUMN locals.publisher_id IS 'Publisher (publicador) dono deste local';
 COMMENT ON COLUMN locals.created_via_contract_id IS 'Contrato que gerou a criação deste local (rastreabilidade)';
+COMMENT ON COLUMN locals.category_segment IS 'Categoria/segmento do local (taxonomia livre ou controlada)';
 
 -- =============================================
 -- TOTEMS (Edge Nodes - Micro-servidores)
@@ -126,6 +128,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     contract_id INTEGER, -- FK para subscriber_contracts (opcional, mas necessário para execução nos totens)
     
     title TEXT NOT NULL,
+    category_segment TEXT, -- Categoria/segmento da campanha (ex.: Black Friday, Saúde, Cinema, etc.)
     description TEXT,
     campaign_type TEXT DEFAULT 'general', -- general, scheduled, interactive
     priority INTEGER DEFAULT 1, -- 1-10, maior = mais prioridade
@@ -171,6 +174,7 @@ COMMENT ON TABLE campaigns IS 'Campanhas publicitárias criadas por subscribers 
 COMMENT ON COLUMN campaigns.subscriber_id IS 'Subscriber (anunciante) dono da campanha';
 COMMENT ON COLUMN campaigns.contract_id IS 'Contrato do subscriber vinculado à campanha. Opcional, mas necessário para execução nos totens.';
 COMMENT ON COLUMN campaigns.status IS 'Status: draft, pending_approval, approved, active, paused, finished';
+COMMENT ON COLUMN campaigns.category_segment IS 'Categoria/segmento da campanha (taxonomia livre ou controlada)';
 
 -- =============================================
 -- MEDIAS (Mídias dos Subscribers)
@@ -234,6 +238,7 @@ CREATE TABLE IF NOT EXISTS playlists (
     subscriber_id INTEGER NOT NULL, -- FK para subscribers (OBRIGATÓRIO)
     
     name TEXT NOT NULL,
+    category_segment TEXT, -- Categoria/segmento da playlist (ex.: Promoções, Institucional, Cinema, etc.)
     description TEXT,
     is_active BOOLEAN DEFAULT true,
     
@@ -251,6 +256,7 @@ CREATE TABLE IF NOT EXISTS playlists (
 
 COMMENT ON TABLE playlists IS 'Playlists criadas por subscribers (anunciantes). Podem estar associadas a múltiplas campanhas via campaign_playlists.';
 COMMENT ON COLUMN playlists.subscriber_id IS 'Subscriber (anunciante) que criou a playlist - OBRIGATÓRIO';
+COMMENT ON COLUMN playlists.category_segment IS 'Categoria/segmento da playlist (taxonomia livre ou controlada)';
 
 -- =============================================
 -- PLAYLIST_ITEMS (Itens das Playlists)

@@ -9,6 +9,7 @@ import { body, query } from 'express-validator';
  */
 export const createPlaylistValidators = [
   body('name').notEmpty().withMessage('Nome é obrigatório').isLength({ min: 2, max: 100 }).withMessage('Nome deve ter entre 2 e 100 caracteres'),
+  body('categorySegment').optional().isString().isLength({ max: 100 }).withMessage('Categoria/Segmento deve ter no máximo 100 caracteres'),
   body('description').optional().isString().isLength({ max: 1000 }).withMessage('Descrição deve ter no máximo 1000 caracteres'),
   body('subscriberId').optional().isInt({ min: 1 }).withMessage('subscriberId deve ser um número inteiro maior que 0'),
   body('clientId').optional().isInt({ min: 1 }).withMessage('clientId (deprecated) deve ser um número inteiro maior que 0'),
@@ -19,6 +20,7 @@ export const createPlaylistValidators = [
  */
 export const updatePlaylistValidators = [
   body('name').optional().notEmpty().isLength({ min: 2, max: 100 }).withMessage('Nome deve ter entre 2 e 100 caracteres'),
+  body('categorySegment').optional().isString().isLength({ max: 100 }).withMessage('Categoria/Segmento deve ter no máximo 100 caracteres'),
   body('description').optional().isString().isLength({ max: 1000 }).withMessage('Descrição deve ter no máximo 1000 caracteres'),
   body('subscriberId').optional().isInt({ min: 1 }).withMessage('subscriberId deve ser um número inteiro maior que 0'),
   body('clientId').optional().isInt({ min: 1 }).withMessage('clientId (deprecated) deve ser um número inteiro maior que 0'),

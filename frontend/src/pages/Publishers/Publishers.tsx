@@ -112,6 +112,7 @@ const Publishers: React.FC = () => {
     email: '',
     phone: '',
     whatsapp: '',
+    category_segment: '',
     description: '',
     is_subscriber: false,
     is_publisher: true,
@@ -151,6 +152,7 @@ const Publishers: React.FC = () => {
   const [editLocalForm, setEditLocalForm] = useState<CreateLocalRequest>({
     publisher_id: 0,
     name: '',
+    category_segment: '',
     address: '',
     city: '',
     state: '',
@@ -183,6 +185,7 @@ const Publishers: React.FC = () => {
   const [localForm, setLocalForm] = useState<CreateLocalRequest>({
     publisher_id: 0, // Será preenchido após criar o publisher
     name: '',
+    category_segment: '',
     address: '',
     city: '',
     state: '',
@@ -1564,6 +1567,16 @@ const Publishers: React.FC = () => {
               />
               <TextField
                 fullWidth
+                id="publisher-create-category-segment"
+                name="category_segment"
+                label="Categoria/Segmento"
+                value={newPublisher.category_segment || ''}
+                onChange={(e) => setNewPublisher({ ...newPublisher, category_segment: e.target.value })}
+                margin="normal"
+                helperText="Ex.: Farmácia, Cinema, Shopping, OOH..."
+              />
+              <TextField
+                fullWidth
                 label="Email"
                 type="email"
                 value={newPublisher.email}
@@ -1621,6 +1634,18 @@ const Publishers: React.FC = () => {
                       onChange={(e) => setLocalForm({ ...localForm, name: e.target.value })}
                       size="small"
                       required
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      id="publisher-local-create-category-segment"
+                      name="category_segment"
+                      label="Categoria/Segmento"
+                      value={localForm.category_segment || ''}
+                      onChange={(e) => setLocalForm({ ...localForm, category_segment: e.target.value })}
+                      size="small"
+                      helperText="Ex.: Farmácia, Cinema, Shopping..."
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
@@ -2398,6 +2423,16 @@ const Publishers: React.FC = () => {
               />
               <TextField
                 fullWidth
+                id="publisher-edit-category-segment"
+                name="category_segment"
+                label="Categoria/Segmento"
+                value={selectedPublisher.category_segment || ''}
+                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, category_segment: e.target.value })}
+                margin="normal"
+                helperText="Ex.: Farmácia, Cinema, Shopping, OOH..."
+              />
+              <TextField
+                fullWidth
                 label="Email"
                 type="email"
                 value={selectedPublisher.email || ''}
@@ -2462,6 +2497,17 @@ const Publishers: React.FC = () => {
                       onChange={(e) => setEditLocalForm({ ...editLocalForm, name: e.target.value })}
                       size="small"
                       required
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      id="publisher-local-edit-category-segment"
+                      name="category_segment"
+                      label="Categoria/Segmento"
+                      value={editLocalForm.category_segment || ''}
+                      onChange={(e) => setEditLocalForm({ ...editLocalForm, category_segment: e.target.value })}
+                      size="small"
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>

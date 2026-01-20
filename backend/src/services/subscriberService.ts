@@ -10,6 +10,8 @@ export interface Subscriber {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  category_segment?: string;
+  description?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -23,6 +25,7 @@ export interface CreateSubscriberRequest {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  category_segment?: string;
   description?: string;
 }
 
@@ -33,6 +36,7 @@ export interface UpdateSubscriberRequest {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  category_segment?: string;
   description?: string;
   isActive?: boolean;
 }
@@ -135,6 +139,8 @@ export class SubscriberService {
           s.phone,
           s.whatsapp,
           s.address,
+          s.category_segment,
+          s.description,
           s.is_active,
           s.created_at,
           s.updated_at
@@ -221,6 +227,7 @@ export class SubscriberService {
           s.phone,
           s.whatsapp,
           s.address,
+          s.category_segment,
           s.description,
           s.is_active,
           s.created_at,
@@ -243,7 +250,7 @@ export class SubscriberService {
    */
   async createSubscriber(data: CreateSubscriberRequest): Promise<Subscriber> {
     try {
-      const { name, contract_id, contact_name, email, phone, whatsapp, address, description } = data;
+      const { name, contract_id, contact_name, email, phone, whatsapp, address, category_segment, description } = data;
 
       // Validar contrato apenas se contract_id foi fornecido
       if (contract_id) {
@@ -296,10 +303,10 @@ export class SubscriberService {
 
       // Criar subscriber
       const result = await this.db.executeRaw(`
-        INSERT INTO subscribers (name, contact_name, email, phone, whatsapp, address, description, is_active, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO subscribers (name, contact_name, email, phone, whatsapp, address, category_segment, description, is_active, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING subscriber_id
-      `, [name, contact_name, email, phone, whatsapp, address, description || null]);
+      `, [name, contact_name, email, phone, whatsapp, address, category_segment || null, description || null]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar subscriber');
@@ -336,7 +343,7 @@ export class SubscriberService {
    */
   async updateSubscriber(id: number, data: UpdateSubscriberRequest): Promise<Subscriber> {
     try {
-      const { name, contact_name, email, phone, whatsapp, address, description, isActive } = data;
+      const { name, contact_name, email, phone, whatsapp, address, category_segment, description, isActive } = data;
 
       // Verificar se subscriber existe
       const existingSubscriber = await this.getSubscriberById(id);
@@ -404,6 +411,12 @@ export class SubscriberService {
       if (address !== undefined) {
         updateFields.push(`address = $${paramIndex}`);
         updateParams.push(address);
+        paramIndex++;
+      }
+
+      if (category_segment !== undefined) {
+        updateFields.push(`category_segment = $${paramIndex}`);
+        updateParams.push(category_segment || null);
         paramIndex++;
       }
 

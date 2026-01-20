@@ -244,7 +244,7 @@ router.post('/',
   validateRequest,
   async (req: any, res: any) => {
     try {
-      const { name, description, subscriberId, clientId } = req.body; // Aceita subscriberId e clientId (deprecated)
+      const { name, categorySegment, description, subscriberId, clientId } = req.body; // Aceita subscriberId e clientId (deprecated)
       const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
       const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
       const finalSubscriberId = subscriberId || clientId;
@@ -264,6 +264,7 @@ router.post('/',
       
       const newPlaylist = await getPlaylistService().createPlaylist({
         name,
+        categorySegment,
         description,
         subscriberId: finalSubscriberId, // Priorizar subscriberId
         clientId, // Deprecated, mantido para compatibilidade
@@ -292,12 +293,13 @@ router.put('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const { name, description, subscriberId, clientId, isActive } = req.body;
+      const { name, categorySegment, description, subscriberId, clientId, isActive } = req.body;
       const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
       const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
       
       const updatedPlaylist = await getPlaylistService().updatePlaylist(parseInt(id), {
         name,
+        categorySegment,
         description,
         subscriberId: subscriberId || clientId, // Priorizar subscriberId
         clientId, // Deprecated

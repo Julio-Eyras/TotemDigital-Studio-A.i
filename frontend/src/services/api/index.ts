@@ -488,6 +488,7 @@ export const playerApi = {
 export interface PlaylistItem {
   playlist_id: number;
   name: string;
+  category_segment?: string;
   description?: string;
   subscriber_id: number; // NOVO: OBRIGATÓRIO
   subscriber_name?: string; // NOVO: Nome do subscriber
@@ -501,6 +502,7 @@ export interface PlaylistItem {
 
 export interface CreatePlaylistRequest {
   name: string;
+  categorySegment?: string;
   description?: string;
   subscriberId?: number; // NOVO: Use subscriberId
   clientId?: number; // DEPRECATED: Mantido para compatibilidade
@@ -508,6 +510,7 @@ export interface CreatePlaylistRequest {
 
 export interface UpdatePlaylistRequest {
   name?: string;
+  categorySegment?: string;
   description?: string;
   subscriberId?: number; // NOVO: Use subscriberId
   clientId?: number; // DEPRECATED: Mantido para compatibilidade
@@ -1018,6 +1021,8 @@ export const authApi = {
 export interface Campaign {
   campaign_id: number;
   title: string;
+  category_segment?: string;
+  categorySegment?: string;
   description?: string;
   campaign_type: string;
   status: string;
@@ -1048,6 +1053,8 @@ export interface Campaign {
 
 export interface CreateCampaignRequest {
   title: string;
+  categorySegment?: string;
+  category_segment?: string;
   description?: string;
   campaign_type?: string;
   status?: string;
@@ -1070,6 +1077,8 @@ export interface CreateCampaignRequest {
 
 export interface UpdateCampaignRequest {
   title?: string;
+  categorySegment?: string;
+  category_segment?: string;
   description?: string;
   campaign_type?: string;
   status?: string;
@@ -2621,6 +2630,7 @@ export interface Publisher {
   email?: string;
   phone?: string;
   whatsapp?: string;
+  category_segment?: string;
   description?: string;
   is_subscriber?: boolean;
   is_publisher?: boolean;
@@ -2637,6 +2647,7 @@ export interface CreatePublisherRequest {
   email?: string;
   phone?: string;
   whatsapp?: string;
+  category_segment?: string;
   description?: string;
   is_subscriber?: boolean;
   is_publisher?: boolean;
@@ -2649,6 +2660,7 @@ export interface UpdatePublisherRequest {
   email?: string;
   phone?: string;
   whatsapp?: string;
+  category_segment?: string;
   description?: string;
   is_subscriber?: boolean;
   is_publisher?: boolean;
@@ -2737,6 +2749,7 @@ export interface Subscriber {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  category_segment?: string;
   description?: string;
   is_active: boolean;
   created_at: string;
@@ -2752,6 +2765,7 @@ export interface CreateSubscriberRequest {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  category_segment?: string;
   description?: string;
 }
 
@@ -2762,6 +2776,7 @@ export interface UpdateSubscriberRequest {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  category_segment?: string;
   description?: string;
   isActive?: boolean;
 }
@@ -3135,6 +3150,7 @@ export interface Local {
   local_id: number;
   publisher_id: number; // Obrigatório: locais pertencem apenas a publishers
   name: string;
+  category_segment?: string;
   address?: string;
   city?: string;
   state?: string;
@@ -3154,6 +3170,7 @@ export interface CreateLocalRequest {
   publisher_id: number; // Obrigatório: locais pertencem apenas a publishers
   contract_id?: number; // Opcional: contrato que gerou a criação (rastreabilidade)
   name: string;
+  category_segment?: string;
   address?: string;
   city?: string;
   state?: string;
@@ -3167,6 +3184,7 @@ export interface CreateLocalRequest {
 
 export interface UpdateLocalRequest {
   name?: string;
+  category_segment?: string;
   address?: string;
   city?: string;
   state?: string;

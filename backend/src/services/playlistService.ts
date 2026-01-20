@@ -5,6 +5,7 @@ import { getCacheService } from './cacheService';
 export interface PlaylistItem {
   playlist_id: number;
   name: string;
+  category_segment?: string;
   description?: string;
   subscriber_id: number; // OBRIGATÓRIO: Playlist pertence a um subscriber
   subscriber_name?: string; // Nome do subscriber
@@ -19,6 +20,7 @@ export interface PlaylistItem {
 
 export interface CreatePlaylistRequest {
   name: string;
+  categorySegment?: string;
   description?: string;
   subscriberId?: number; // NOVO: Use subscriberId
   clientId?: number; // DEPRECATED: Mantido para compatibilidade
@@ -26,6 +28,7 @@ export interface CreatePlaylistRequest {
 
 export interface UpdatePlaylistRequest {
   name?: string;
+  categorySegment?: string;
   description?: string;
   subscriberId?: number; // NOVO: Use subscriberId
   clientId?: number; // DEPRECATED: Mantido para compatibilidade
@@ -168,6 +171,7 @@ export class PlaylistService {
         SELECT 
           p.playlist_id,
           p.name,
+          p.category_segment,
           p.description,
           p.subscriber_id,
           s.name as subscriber_name,
@@ -231,6 +235,7 @@ export class PlaylistService {
         SELECT 
           p.playlist_id,
           p.name,
+          p.category_segment,
           p.description,
           p.subscriber_id,
           s.name as subscriber_name,
@@ -321,10 +326,10 @@ export class PlaylistService {
 
       // Criar playlist
       const result = await this.db.executeRaw(`
-        INSERT INTO playlists (name, description, subscriber_id, is_active)
-        VALUES ($1, $2, $3, true)
+        INSERT INTO playlists (name, category_segment, description, subscriber_id, is_active)
+        VALUES ($1, $2, $3, $4, true)
         RETURNING playlist_id
-      `, [name, description, subscriberId]);
+      `, [name, data.categorySegment || null, description, subscriberId]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar playlist');
@@ -396,6 +401,12 @@ export class PlaylistService {
       if (name) {
         updateFields.push(`name = $${paramIndex}`);
         updateParams.push(name);
+        paramIndex++;
+      }
+
+      if (data.categorySegment !== undefined) {
+        updateFields.push(`category_segment = $${paramIndex}`);
+        updateParams.push(data.categorySegment || null);
         paramIndex++;
       }
 

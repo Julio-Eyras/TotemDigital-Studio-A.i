@@ -14,6 +14,7 @@ export interface CreateCampaignRequest {
   subscriberId: number; // subscriber_id explícito
   contractId?: number; // ⭐ NOVO: Contrato vinculado (opcional, mas recomendado para execução)
   title: string;
+  categorySegment?: string; // Categoria/segmento (para agrupamento/observabilidade)
   description?: string;
   campaignType?: string;
   priority?: number;
@@ -33,6 +34,7 @@ export interface CreateCampaignRequest {
 
 export interface UpdateCampaignRequest {
   title?: string;
+  categorySegment?: string; // Categoria/segmento
   description?: string;
   campaignType?: string;
   priority?: number;
@@ -56,6 +58,7 @@ export interface CampaignResponse {
   subscriberId: number;
   contractId?: number; // ⭐ NOVO: Contrato vinculado
   title: string;
+  categorySegment?: string;
   description?: string;
   campaignType: string;
   priority: number;
@@ -223,6 +226,7 @@ export class CampaignService {
           c.subscriber_id as "clientId",
           c.contract_id as "contractId",
           c.title,
+          c.category_segment as "categorySegment",
           c.description,
           c.campaign_type as "campaignType",
           c.priority,
@@ -338,6 +342,7 @@ export class CampaignService {
           c.subscriber_id as "clientId",
           c.contract_id as "contractId",
           c.title,
+          c.category_segment as "categorySegment",
           c.description,
           c.campaign_type as "campaignType",
           c.priority,
@@ -526,16 +531,17 @@ export class CampaignService {
 
       const result = await this.db.executeRaw(`
         INSERT INTO campaigns (
-          subscriber_id, contract_id, title, description, campaign_type, priority,
+          subscriber_id, contract_id, title, category_segment, description, campaign_type, priority,
           commercial_tier, start_date, end_date, start_time, end_time, days_of_week,
           timezone, status, is_active
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING campaign_id
       `, [
         subscriberId, // subscriber_id
         contractId || null, // contract_id (opcional)
         title,
+        data.categorySegment || null,
         description,
         campaignType,
         priority,
@@ -633,6 +639,11 @@ export class CampaignService {
       if (data.description !== undefined) {
         updates.push('description = ?');
         params.push(data.description);
+      }
+
+      if (data.categorySegment !== undefined) {
+        updates.push('category_segment = ?');
+        params.push(data.categorySegment || null);
       }
 
       if (data.campaignType !== undefined) {

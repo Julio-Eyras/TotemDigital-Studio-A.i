@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS subscribers (
     phone TEXT,
     whatsapp TEXT,
     address TEXT,
+    category_segment TEXT, -- Categoria/segmento (ex.: Farmácia, Cinema, Restaurante, etc.)
     description TEXT,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -25,6 +26,7 @@ COMMENT ON TABLE subscribers IS 'Anunciantes/Assinantes que compram espaço publ
 COMMENT ON COLUMN subscribers.subscriber_id IS 'ID único do assinante (anunciante)';
 COMMENT ON COLUMN subscribers.name IS 'Nome/razão social do assinante';
 COMMENT ON COLUMN subscribers.email IS 'Email único do assinante';
+COMMENT ON COLUMN subscribers.category_segment IS 'Categoria/segmento do assinante (taxonomia livre ou controlada)';
 COMMENT ON COLUMN subscribers.description IS 'Descrição/observações sobre o assinante';
 COMMENT ON COLUMN subscribers.is_active IS 'Se false, assinante está inativo';
 
@@ -39,6 +41,7 @@ CREATE TABLE IF NOT EXISTS publishers (
     email TEXT,
     phone TEXT,
     whatsapp TEXT,
+    category_segment TEXT, -- Categoria/segmento (ex.: Farmácia, Cinema, Shopping, etc.)
     description TEXT,
     
     -- (Regra do domínio) Publisher NUNCA é Subscriber/ambos
@@ -61,6 +64,7 @@ CREATE TABLE IF NOT EXISTS publishers (
 
 COMMENT ON TABLE publishers IS 'Publicadores - clientes que instalam totens e Smart TVs';
 COMMENT ON COLUMN publishers.publisher_id IS 'ID único do publisher';
+COMMENT ON COLUMN publishers.category_segment IS 'Categoria/segmento do publisher (taxonomia livre ou controlada)';
 COMMENT ON COLUMN publishers.is_subscriber IS 'Fixado: false (publisher não pode ser subscriber)';
 COMMENT ON COLUMN publishers.is_publisher IS 'Fixado: true';
 COMMENT ON COLUMN publishers.client_type IS 'Fixado: publisher';

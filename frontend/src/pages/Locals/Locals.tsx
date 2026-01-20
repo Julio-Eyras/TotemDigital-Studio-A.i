@@ -98,6 +98,7 @@ const Locals: React.FC = () => {
   const [newLocal, setNewLocal] = useState<CreateLocalRequest>({
     publisher_id: userPublisherId || 0,
     name: '',
+    category_segment: '',
     address: '',
     city: '',
     state: '',
@@ -593,6 +594,14 @@ const Locals: React.FC = () => {
               fullWidth
             />
             <TextField
+              id="local-create-category-segment"
+              name="category_segment"
+              label="Categoria/Segmento"
+              value={newLocal.category_segment || ''}
+              onChange={(e) => setNewLocal({ ...newLocal, category_segment: e.target.value })}
+              fullWidth
+            />
+            <TextField
               label="Endereço"
               value={newLocal.address}
               onChange={(e) => setNewLocal({ ...newLocal, address: e.target.value })}
@@ -933,6 +942,14 @@ const Locals: React.FC = () => {
                 label="Nome *"
                 value={selectedLocal.name}
                 onChange={(e) => setSelectedLocal({ ...selectedLocal, name: e.target.value })}
+                fullWidth
+              />
+              <TextField
+                id="local-edit-category-segment"
+                name="category_segment"
+                label="Categoria/Segmento"
+                value={selectedLocal.category_segment || ''}
+                onChange={(e) => setSelectedLocal({ ...selectedLocal, category_segment: e.target.value })}
                 fullWidth
               />
               <TextField

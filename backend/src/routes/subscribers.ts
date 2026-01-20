@@ -28,6 +28,7 @@ const createSubscriberValidator = [
   ...nameValidators,
   body('contract_id').isInt({ min: 1 }).withMessage('Contract ID é obrigatório'),
   body('contact_name').optional().isString(),
+  body('category_segment').optional().isString(),
   ...emailValidators,
   ...phoneValidators,
   body('address').optional().isString(),
@@ -125,7 +126,7 @@ router.post('/',
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   async (req: any, res: any) => {
     try {
-      const { name, contact_name, email, phone, whatsapp, address, description, contract_id } = req.body;
+      const { name, contact_name, email, phone, whatsapp, address, category_segment, description, contract_id } = req.body;
       
       const newSubscriber = await getSubscriberService().createSubscriber({
         name,
@@ -134,6 +135,7 @@ router.post('/',
         phone,
         whatsapp,
         address,
+        category_segment,
         description,
         contract_id, // Obrigatório - vincula subscriber ao contrato
       });
@@ -158,11 +160,12 @@ router.put('/:id',
   body('phone').optional().isString(),
   body('whatsapp').optional().isString(),
   body('address').optional().isString(),
+  body('category_segment').optional().isString(),
   validateRequest,
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const { name, contact_name, email, phone, whatsapp, address, description } = req.body;
+      const { name, contact_name, email, phone, whatsapp, address, category_segment, description } = req.body;
       
       const updatedSubscriber = await getSubscriberService().updateSubscriber(parseInt(id), {
         name,
@@ -171,6 +174,7 @@ router.put('/:id',
         phone,
         whatsapp,
         address,
+        category_segment,
         description,
       });
 

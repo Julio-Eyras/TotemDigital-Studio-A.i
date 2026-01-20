@@ -145,6 +145,7 @@ const Subscribers: React.FC = () => {
     phone: '',
     whatsapp: '',
     address: '',
+    category_segment: '',
     description: '',
   });
   
@@ -1473,6 +1474,7 @@ const Subscribers: React.FC = () => {
         email: selectedSubscriber.email,
         phone: selectedSubscriber.phone,
         whatsapp: selectedSubscriber.whatsapp,
+        category_segment: selectedSubscriber.category_segment,
         description: selectedSubscriber.description,
         isActive: selectedSubscriber.is_active,
       };
@@ -1968,6 +1970,16 @@ const Subscribers: React.FC = () => {
                 onChange={(e) => setNewSubscriber({ ...newSubscriber, contact_name: e.target.value })}
                 margin="normal"
                 helperText="Nome da pessoa responsável pelo contato"
+              />
+              <TextField
+                fullWidth
+                id="subscriber-create-category-segment"
+                name="category_segment"
+                label="Categoria/Segmento"
+                value={newSubscriber.category_segment || ''}
+                onChange={(e) => setNewSubscriber({ ...newSubscriber, category_segment: e.target.value })}
+                margin="normal"
+                helperText="Ex.: Farmácia, Cinema, Shopping..."
               />
               <TextField
                 fullWidth
@@ -2597,6 +2609,16 @@ const Subscribers: React.FC = () => {
                 onChange={(e) => setSelectedSubscriber({ ...selectedSubscriber, contact_name: e.target.value })}
                 margin="normal"
                 helperText="Nome da pessoa responsável pelo contato"
+              />
+              <TextField
+                fullWidth
+                id="subscriber-edit-category-segment"
+                name="category_segment"
+                label="Categoria/Segmento"
+                value={selectedSubscriber.category_segment || ''}
+                onChange={(e) => setSelectedSubscriber({ ...selectedSubscriber, category_segment: e.target.value })}
+                margin="normal"
+                helperText="Ex.: Farmácia, Cinema, Shopping..."
               />
               <TextField
                 fullWidth

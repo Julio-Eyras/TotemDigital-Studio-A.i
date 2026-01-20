@@ -11,6 +11,7 @@ export interface Local {
   local_id: number;
   publisher_id: number;
   name: string;
+  category_segment?: string;
   address?: string;
   city?: string;
   state?: string;
@@ -30,6 +31,7 @@ export interface CreateLocalRequest {
   publisher_id: number; // Obrigatório: local pertence a um publisher
   contract_id?: number; // Opcional: contrato que gerou a criação (rastreabilidade)
   name: string;
+  category_segment?: string;
   address?: string;
   city?: string;
   state?: string;
@@ -43,6 +45,7 @@ export interface CreateLocalRequest {
 
 export interface UpdateLocalRequest {
   name?: string;
+  category_segment?: string;
   address?: string;
   city?: string;
   state?: string;
@@ -129,6 +132,7 @@ export class LocalService {
           l.local_id,
           l.publisher_id,
           l.name,
+          l.category_segment,
           l.address,
           l.city,
           l.state,
@@ -181,6 +185,7 @@ export class LocalService {
           l.local_id,
           l.publisher_id,
           l.name,
+          l.category_segment,
           l.address,
           l.city,
           l.state,
@@ -229,7 +234,7 @@ export class LocalService {
     isAdmin: boolean = false
   ): Promise<Local> {
     try {
-      const { publisher_id, contract_id, name, address, city, state, zip_code, country, latitude, longitude, timezone, description } = data;
+      const { publisher_id, contract_id, name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description } = data;
 
       // Validar que tem publisher_id (obrigatório)
       if (!publisher_id) {
@@ -293,13 +298,13 @@ export class LocalService {
       // Criar local
       const result = await this.db.executeRaw(`
         INSERT INTO locals (
-          publisher_id, created_via_contract_id, name, address, city, state, zip_code, country,
+          publisher_id, created_via_contract_id, name, category_segment, address, city, state, zip_code, country,
           latitude, longitude, timezone, description, is_active,
           created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING local_id
-      `, [publisher_id, contract_id || null, name, address || null, city || null, state || null, zip_code || null, country || 'BR', latitude || null, longitude || null, timezone || 'America/Sao_Paulo', description || null]);
+      `, [publisher_id, contract_id || null, name, category_segment || null, address || null, city || null, state || null, zip_code || null, country || 'BR', latitude || null, longitude || null, timezone || 'America/Sao_Paulo', description || null]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar local');
@@ -367,6 +372,12 @@ export class LocalService {
       if (data.name) {
         updateFields.push(`name = $${paramIndex}`);
         updateParams.push(data.name);
+        paramIndex++;
+      }
+
+      if (data.category_segment !== undefined) {
+        updateFields.push(`category_segment = $${paramIndex}`);
+        updateParams.push(data.category_segment || null);
         paramIndex++;
       }
 

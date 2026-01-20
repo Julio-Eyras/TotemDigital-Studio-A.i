@@ -89,6 +89,7 @@ const Playlists: React.FC = () => {
   const [draft, setDraft] = useState<CreatePlaylistRequest>({
     subscriberId: userSubscriberId,
     name: '',
+    categorySegment: '',
     description: '',
   });
 
@@ -237,6 +238,7 @@ const Playlists: React.FC = () => {
       }
       const playlistData: CreatePlaylistRequest = {
         name: draft.name,
+        categorySegment: draft.categorySegment,
         description: draft.description,
         subscriberId: targetSubscriberId,
         clientId: targetSubscriberId,
@@ -267,6 +269,7 @@ const Playlists: React.FC = () => {
       }
       await playlistApi.update(selectedPlaylist.playlist_id, {
         name: selectedPlaylist.name,
+        categorySegment: selectedPlaylist.category_segment,
         description: selectedPlaylist.description,
         subscriberId: targetSubscriberId,
         clientId: targetSubscriberId,
@@ -631,6 +634,23 @@ const Playlists: React.FC = () => {
                 }}
                 margin="normal"
                 required
+              />
+              <TextField
+                fullWidth
+                id="playlist-category-segment"
+                name="categorySegment"
+                label="Categoria/Segmento"
+                value={
+                  editorMode === 'create'
+                    ? draft.categorySegment || ''
+                    : selectedPlaylist?.category_segment || ''
+                }
+                onChange={(e) => {
+                  if (editorMode === 'create') setDraft({ ...draft, categorySegment: e.target.value });
+                  else if (selectedPlaylist) setSelectedPlaylist({ ...selectedPlaylist, category_segment: e.target.value });
+                }}
+                margin="normal"
+                helperText="Ex.: Promoções, Institucional, Saúde..."
               />
               <TextField
                 fullWidth
