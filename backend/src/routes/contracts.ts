@@ -72,7 +72,7 @@ router.get('/',
  * @route GET /api/contracts/:id
  * @desc Obter contrato por ID
  */
-router.get('/:id',
+router.get('/:id(\\d+)',
   ...idParamValidatorDefault,
   validateRequest,
   protectContractValues,
@@ -98,7 +98,7 @@ router.get('/:id',
  * @route GET /api/contracts/:id/publishers
  * @desc Obter publishers associados a um contrato
  */
-router.get('/:id/publishers',
+router.get('/:id(\\d+)/publishers',
   ...idParamValidatorDefault,
   validateRequest,
   async (req: any, res: any) => {
@@ -145,7 +145,7 @@ router.post('/',
  * @route PUT /api/contracts/:id
  * @desc Atualizar contrato
  */
-router.put('/:id',
+router.put('/:id(\\d+)',
   ...idParamValidatorDefault,
   ...updateContractValidator,
   validateRequest,
@@ -166,7 +166,7 @@ router.put('/:id',
  * @route DELETE /api/contracts/:id
  * @desc Excluir contrato (soft delete)
  */
-router.delete('/:id',
+router.delete('/:id(\\d+)',
   ...idParamValidatorDefault,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento']),

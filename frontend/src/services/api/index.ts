@@ -3304,7 +3304,15 @@ export const smartTvApi = {
     active_only?: boolean;
   }): Promise<SmartTvListResponse> => {
     const response = await api.get('/smart-tvs', { params });
-    return response.data;
+    // Normalizar formato de retorno (backend pode retornar { success, data, total, page, limit })
+    const raw = response.data;
+    const data = (raw?.data && Array.isArray(raw.data)) ? raw.data : [];
+    return {
+      data,
+      total: raw?.total ?? data.length,
+      page: raw?.page ?? 1,
+      limit: raw?.limit ?? (params?.limit ?? 10),
+    };
   },
 
   getById: async (id: number): Promise<SmartTv> => {

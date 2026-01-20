@@ -118,7 +118,7 @@ const SmartTvs: React.FC = () => {
         publisherId: publisherFilter || (isAdmin ? undefined : userPublisherId),
         active_only: activeOnlyFilter,
       });
-      setSmartTvs(response.data);
+      setSmartTvs(Array.isArray(response.data) ? response.data : []);
     } catch (error: any) {
       console.error('Erro ao carregar Smart TVs:', error);
       setError(error.response?.data?.error || 'Erro ao carregar lista de Smart TVs');
@@ -559,7 +559,7 @@ const SmartTvs: React.FC = () => {
               <InputLabel>Orientação</InputLabel>
               <Select
                 value={newSmartTv.orientation}
-                label="Orientaçã"
+                label="Orientação"
                 onChange={(e) => setNewSmartTv({ ...newSmartTv, orientation: e.target.value as 'landscape' | 'portrait' })}
               >
                 <MenuItem value="landscape">Paisagem</MenuItem>
@@ -678,7 +678,7 @@ const SmartTvs: React.FC = () => {
                 <InputLabel>Orientação</InputLabel>
                 <Select
                   value={selectedSmartTv.orientation || 'landscape'}
-                  label="Orientaçã"
+                  label="Orientação"
                   onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, orientation: e.target.value as 'landscape' | 'portrait' })}
                 >
                   <MenuItem value="landscape">Paisagem</MenuItem>

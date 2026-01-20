@@ -111,8 +111,20 @@ const TotemPlayListPage: React.FC = () => {
         publisherApi.getAll({ active_only: true }),
       ]);
 
-      setTotems(totemsRes.data || []);
-      setPublishers(publishersRes.data || []);
+      // Blindagem: algumas APIs retornam formatos diferentes; garantir arrays sempre
+      const totemsData = Array.isArray((totemsRes as any)?.data)
+        ? (totemsRes as any).data
+        : Array.isArray((totemsRes as any)?.data?.data)
+          ? (totemsRes as any).data.data
+          : [];
+      const publishersData = Array.isArray((publishersRes as any)?.data)
+        ? (publishersRes as any).data
+        : Array.isArray((publishersRes as any)?.data?.data)
+          ? (publishersRes as any).data.data
+          : [];
+
+      setTotems(totemsData);
+      setPublishers(publishersData);
     } catch (e: any) {
       setError('Erro ao carregar dados: ' + (e.message || 'Erro desconhecido'));
     } finally {
@@ -360,7 +372,7 @@ const TotemPlayListPage: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {selectedPlaylist.items.map((item, index) => (
+                    {(selectedPlaylist.items || []).map((item, index) => (
                       <TableRow key={item.item_id || index}>
                         <TableCell>{item.order_index + 1}</TableCell>
                         <TableCell>{item.media_id}</TableCell>
@@ -469,7 +481,7 @@ const TotemPlayListPage: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {selectedPlaylist.items.map((item, index) => (
+                    {(selectedPlaylist.items || []).map((item, index) => (
                       <TableRow key={item.item_id || index}>
                         <TableCell>{item.order_index + 1}</TableCell>
                         <TableCell>{item.media_id}</TableCell>
