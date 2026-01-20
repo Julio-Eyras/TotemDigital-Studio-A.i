@@ -145,7 +145,6 @@ export class PlaylistMixWorker {
             SELECT 1 FROM totems t 
             WHERE t.totem_id = ct.totem_id 
             AND t.is_active = true 
-            AND t.active = true
           )
       `);
 

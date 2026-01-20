@@ -629,7 +629,7 @@ router.get(
           t.totem_id,
           t.identifier,
           t.status,
-          t.active
+          t.is_active as active
         FROM totems t
         WHERE t.uin = ? OR t.identifier = ?
         LIMIT 1

@@ -264,7 +264,7 @@ const Dashboard: React.FC = () => {
               
               <List sx={{ maxHeight: 400, overflow: 'auto' }}>
                 {activities.map((activity, index) => (
-                  <React.Fragment key={activity.id}>
+                  <React.Fragment key={`${activity.type}-${String((activity as any).id ?? index)}-${String((activity as any).timestamp ?? '')}`}>
                     <ListItem sx={{ px: 0 }}>
                       <ListItemAvatar>
                         <Avatar sx={{ 
@@ -275,6 +275,8 @@ const Dashboard: React.FC = () => {
                         </Avatar>
                       </ListItemAvatar>
                       <ListItemText
+                        primaryTypographyProps={{ component: 'div' }}
+                        secondaryTypographyProps={{ component: 'div' }}
                         primary={
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Typography variant="body2" sx={{ fontWeight: 500 }}>
