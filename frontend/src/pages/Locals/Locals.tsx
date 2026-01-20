@@ -163,7 +163,8 @@ const Locals: React.FC = () => {
       // PERFORMANCE: buscar totens e Smart TVs UMA vez e agregar por local_id (evita N chamadas por local)
       const [totemsResponse, smartTvsResponse] = await Promise.all([
         totemApi.getAll({ limit: 10000 }).catch(() => ({ data: [] })),
-        smartTvApi.getAll({ limit: 10000 }).catch(() => ({ data: [] })),
+        // Backend de Smart TVs limita limit em 100 (validação). Manter compatível para evitar 400.
+        smartTvApi.getAll({ limit: 100 }).catch(() => ({ data: [] })),
       ]);
 
       const totems = Array.isArray(totemsResponse.data) ? totemsResponse.data : [];
@@ -318,7 +319,8 @@ const Locals: React.FC = () => {
       
       // Carregar Smart TVs do local (via totens)
       try {
-        const smartTvsResponse = await smartTvApi.getAll({ limit: 1000 });
+        // Backend de Smart TVs limita limit em 100 (validação). Manter compatível para evitar 400.
+        const smartTvsResponse = await smartTvApi.getAll({ limit: 100 });
         const smartTvs = Array.isArray(smartTvsResponse.data) ? smartTvsResponse.data : [];
         const totemIds = localTotems.map((t: any) => t.totem_id || t.id);
         const localSmartTvs = smartTvs.filter((tv: any) => 

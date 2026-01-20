@@ -250,14 +250,6 @@ const SmartTvs: React.FC = () => {
     }
   };
 
-  if (loading && smartTvs.length === 0) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <LinearProgress />
-      </Box>
-    );
-  }
-
   const smartTvsByTotem = useMemo(() => {
     const map = new Map<number, number>();
     for (const tv of smartTvs) {
@@ -268,6 +260,14 @@ const SmartTvs: React.FC = () => {
     }
     return map;
   }, [smartTvs]);
+
+  if (loading && smartTvs.length === 0) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <LinearProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
