@@ -199,9 +199,9 @@ function getSystemAdminMenu(): HierarchicalMenuItem[] {
       ],
     },
 
-    // Anunciantes (conteúdo + campanhas)
+    // Assinantes (conteúdo + campanhas)
     {
-      text: 'Anunciantes',
+      text: 'Assinantes',
       icon: <Campaign />,
       path: '/subscribers',
       children: [
@@ -209,7 +209,7 @@ function getSystemAdminMenu(): HierarchicalMenuItem[] {
         { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
         { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
         { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
-        { text: 'Contratos (Anunciantes)', icon: <Description />, path: '/subscriber-contracts' },
+        { text: 'Contratos (Assinantes)', icon: <Description />, path: '/subscriber-contracts' },
         { text: 'Smart Playlist', icon: <AutoAwesome />, path: '/smart-playlist' },
         { text: 'IA', icon: <SmartToy />, path: '/ai' },
       ],
