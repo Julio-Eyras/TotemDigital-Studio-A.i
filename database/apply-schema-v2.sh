@@ -101,6 +101,7 @@ main() {
         "smartchannel-db-v2-refactored-part10-views.sql|Parte 10: Views"
         "smartchannel-db-v2-refactored-part11-playlist-mix.sql|Parte 11: Playlist Mix (Tabelas)"
         "smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql|Parte 12: Playlist Mix (Funções e Triggers)"
+        "smartchannel-db-v2-refactored-part13-dispatcher-views.sql|Parte 13: Dispatcher Views"
         "seeds-playlist-mix.sql|Seeds: Dados Iniciais Playlist Mix"
     )
     
