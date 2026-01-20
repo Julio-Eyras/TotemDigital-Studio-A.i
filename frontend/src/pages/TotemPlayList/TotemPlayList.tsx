@@ -244,11 +244,17 @@ const TotemPlayListPage: React.FC = () => {
                   inputProps={{ name: 'publisherId' }}
                 >
                   <MenuItem value="">Todos</MenuItem>
-                  {publishers.map((pub) => (
-                    <MenuItem key={pub.publisher_id} value={pub.publisher_id.toString()}>
-                      {pub.name}
-                    </MenuItem>
-                  ))}
+                  {publishers
+                    .map((pub: any) => {
+                      const publisherId = Number(pub?.publisher_id ?? pub?.publisherId ?? pub?.id);
+                      if (!publisherId || Number.isNaN(publisherId)) return null;
+                      return (
+                        <MenuItem key={`publisher-${publisherId}`} value={String(publisherId)}>
+                          {pub?.name || `Publisher #${publisherId}`}
+                        </MenuItem>
+                      );
+                    })
+                    .filter(Boolean)}
                 </Select>
               </FormControl>
             </Grid>
@@ -264,11 +270,17 @@ const TotemPlayListPage: React.FC = () => {
                   inputProps={{ name: 'totemId' }}
                 >
                   <MenuItem value="">Todos</MenuItem>
-                  {totems.map((totem) => (
-                    <MenuItem key={totem.totem_id} value={totem.totem_id.toString()}>
-                      {totem.name || totem.identifier}
-                    </MenuItem>
-                  ))}
+                  {totems
+                    .map((totem: any) => {
+                      const totemId = Number(totem?.totem_id ?? totem?.id ?? totem?.totemId);
+                      if (!totemId || Number.isNaN(totemId)) return null;
+                      return (
+                        <MenuItem key={`totem-${totemId}`} value={String(totemId)}>
+                          {totem?.name || totem?.identifier || `Totem #${totemId}`}
+                        </MenuItem>
+                      );
+                    })
+                    .filter(Boolean)}
                 </Select>
               </FormControl>
             </Grid>
