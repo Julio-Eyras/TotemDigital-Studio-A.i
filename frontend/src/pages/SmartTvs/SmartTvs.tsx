@@ -313,6 +313,8 @@ const SmartTvs: React.FC = () => {
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={6}>
               <TextField
+                id="smart-tvs-search"
+                name="search"
                 fullWidth
                 placeholder="Buscar Smart TVs..."
                 value={searchTerm}
@@ -321,11 +323,14 @@ const SmartTvs: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={3}>
               <FormControl fullWidth>
-                <InputLabel>Totem</InputLabel>
+                <InputLabel id="smart-tvs-filter-totem-label">Totem</InputLabel>
                 <Select
+                  id="smart-tvs-filter-totem"
+                  labelId="smart-tvs-filter-totem-label"
                   value={totemFilter || ''}
                   label="Totem"
                   onChange={(e) => setTotemFilter(e.target.value ? Number(e.target.value) : undefined)}
+                  inputProps={{ name: 'totemFilter' }}
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {totems.map((totem) => (
@@ -338,11 +343,14 @@ const SmartTvs: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={2}>
               <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
+                <InputLabel id="smart-tvs-filter-status-label">Status</InputLabel>
                 <Select
+                  id="smart-tvs-filter-status"
+                  labelId="smart-tvs-filter-status-label"
                   value={activeOnlyFilter ? 'active' : 'all'}
                   label="Status"
                   onChange={(e) => setActiveOnlyFilter(e.target.value === 'active')}
+                  inputProps={{ name: 'activeOnlyFilter' }}
                 >
                   <MenuItem value="active">Ativos</MenuItem>
                   <MenuItem value="all">Todos</MenuItem>
@@ -481,11 +489,14 @@ const SmartTvs: React.FC = () => {
           {createTab === 0 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
             <FormControl fullWidth>
-              <InputLabel>Totem *</InputLabel>
+              <InputLabel id="smart-tv-create-totem-label">Totem *</InputLabel>
               <Select
+                id="smart-tv-create-totem"
+                labelId="smart-tv-create-totem-label"
                 value={newSmartTv.totem_id || ''}
                 label="Totem *"
                 onChange={(e) => setNewSmartTv({ ...newSmartTv, totem_id: Number(e.target.value) })}
+                inputProps={{ name: 'totem_id' }}
               >
                 {totems.map((totem) => (
                   <MenuItem key={totem.totem_id} value={totem.totem_id}>
@@ -495,6 +506,8 @@ const SmartTvs: React.FC = () => {
               </Select>
             </FormControl>
             <TextField
+              id="smart-tv-create-identifier"
+              name="identifier"
               label="Identifier *"
               value={newSmartTv.identifier}
               onChange={(e) => setNewSmartTv({ ...newSmartTv, identifier: e.target.value })}
@@ -502,12 +515,16 @@ const SmartTvs: React.FC = () => {
               required
             />
             <TextField
+              id="smart-tv-create-device-id"
+              name="device_id"
               label="Device ID"
               value={newSmartTv.device_id}
               onChange={(e) => setNewSmartTv({ ...newSmartTv, device_id: e.target.value })}
               fullWidth
             />
             <TextField
+              id="smart-tv-create-name"
+              name="name"
               label="Nome"
               value={newSmartTv.name}
               onChange={(e) => setNewSmartTv({ ...newSmartTv, name: e.target.value })}
@@ -515,12 +532,16 @@ const SmartTvs: React.FC = () => {
             />
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField
+                id="smart-tv-create-brand"
+                name="brand"
                 label="Marca"
                 value={newSmartTv.brand}
                 onChange={(e) => setNewSmartTv({ ...newSmartTv, brand: e.target.value })}
                 fullWidth
               />
               <TextField
+                id="smart-tv-create-model"
+                name="model"
                 label="Modelo"
                 value={newSmartTv.model}
                 onChange={(e) => setNewSmartTv({ ...newSmartTv, model: e.target.value })}
@@ -528,12 +549,16 @@ const SmartTvs: React.FC = () => {
               />
             </Box>
             <TextField
+              id="smart-tv-create-platform"
+              name="platform"
               label="Plataforma"
               value={newSmartTv.platform}
               onChange={(e) => setNewSmartTv({ ...newSmartTv, platform: e.target.value })}
               fullWidth
             />
             <TextField
+              id="smart-tv-create-firmware-version"
+              name="firmware_version"
               label="Versão do Firmware"
               value={newSmartTv.firmware_version}
               onChange={(e) => setNewSmartTv({ ...newSmartTv, firmware_version: e.target.value })}
@@ -541,6 +566,8 @@ const SmartTvs: React.FC = () => {
             />
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField
+                id="smart-tv-create-resolution-width"
+                name="resolution_width"
                 label="Largura (px)"
                 type="number"
                 value={newSmartTv.resolution_width || ''}
@@ -548,6 +575,8 @@ const SmartTvs: React.FC = () => {
                 fullWidth
               />
               <TextField
+                id="smart-tv-create-resolution-height"
+                name="resolution_height"
                 label="Altura (px)"
                 type="number"
                 value={newSmartTv.resolution_height || ''}
@@ -556,11 +585,14 @@ const SmartTvs: React.FC = () => {
               />
             </Box>
             <FormControl fullWidth>
-              <InputLabel>Orientação</InputLabel>
+              <InputLabel id="smart-tv-create-orientation-label">Orientação</InputLabel>
               <Select
+                id="smart-tv-create-orientation"
+                labelId="smart-tv-create-orientation-label"
                 value={newSmartTv.orientation}
                 label="Orientação"
                 onChange={(e) => setNewSmartTv({ ...newSmartTv, orientation: e.target.value as 'landscape' | 'portrait' })}
+                inputProps={{ name: 'orientation' }}
               >
                 <MenuItem value="landscape">Paisagem</MenuItem>
                 <MenuItem value="portrait">Retrato</MenuItem>
@@ -572,6 +604,8 @@ const SmartTvs: React.FC = () => {
           {createTab === 1 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
               <TextField
+                id="smart-tv-create-capabilities"
+                name="capabilities"
                 label="Capabilities (JSON)"
                 value={capabilitiesText}
                 onChange={(e) => setCapabilitiesText(e.target.value)}
@@ -581,6 +615,8 @@ const SmartTvs: React.FC = () => {
                 placeholder="{}"
               />
               <TextField
+                id="smart-tv-create-settings"
+                name="settings"
                 label="Settings (JSON)"
                 value={settingsText}
                 onChange={(e) => setSettingsText(e.target.value)}
@@ -614,6 +650,8 @@ const SmartTvs: React.FC = () => {
               {editTab === 0 && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
               <TextField
+                id="smart-tv-edit-identifier"
+                name="identifier"
                 label="Identifier *"
                 value={selectedSmartTv.identifier}
                 onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, identifier: e.target.value })}
@@ -621,12 +659,16 @@ const SmartTvs: React.FC = () => {
                 required
               />
               <TextField
+                id="smart-tv-edit-device-id"
+                name="device_id"
                 label="Device ID"
                 value={selectedSmartTv.device_id || ''}
                 onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, device_id: e.target.value })}
                 fullWidth
               />
               <TextField
+                id="smart-tv-edit-name"
+                name="name"
                 label="Nome"
                 value={selectedSmartTv.name || ''}
                 onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, name: e.target.value })}
@@ -634,12 +676,16 @@ const SmartTvs: React.FC = () => {
               />
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <TextField
+                  id="smart-tv-edit-brand"
+                  name="brand"
                   label="Marca"
                   value={selectedSmartTv.brand || ''}
                   onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, brand: e.target.value })}
                   fullWidth
                 />
                 <TextField
+                  id="smart-tv-edit-model"
+                  name="model"
                   label="Modelo"
                   value={selectedSmartTv.model || ''}
                   onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, model: e.target.value })}
@@ -647,12 +693,16 @@ const SmartTvs: React.FC = () => {
                 />
               </Box>
               <TextField
+                id="smart-tv-edit-platform"
+                name="platform"
                 label="Plataforma"
                 value={selectedSmartTv.platform || ''}
                 onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, platform: e.target.value })}
                 fullWidth
               />
               <TextField
+                id="smart-tv-edit-firmware-version"
+                name="firmware_version"
                 label="Versão do Firmware"
                 value={selectedSmartTv.firmware_version || ''}
                 onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, firmware_version: e.target.value })}
@@ -660,6 +710,8 @@ const SmartTvs: React.FC = () => {
               />
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <TextField
+                  id="smart-tv-edit-resolution-width"
+                  name="resolution_width"
                   label="Largura (px)"
                   type="number"
                   value={selectedSmartTv.resolution_width || ''}
@@ -667,6 +719,8 @@ const SmartTvs: React.FC = () => {
                   fullWidth
                 />
                 <TextField
+                  id="smart-tv-edit-resolution-height"
+                  name="resolution_height"
                   label="Altura (px)"
                   type="number"
                   value={selectedSmartTv.resolution_height || ''}
@@ -675,22 +729,28 @@ const SmartTvs: React.FC = () => {
                 />
               </Box>
               <FormControl fullWidth>
-                <InputLabel>Orientação</InputLabel>
+                <InputLabel id="smart-tv-edit-orientation-label">Orientação</InputLabel>
                 <Select
+                  id="smart-tv-edit-orientation"
+                  labelId="smart-tv-edit-orientation-label"
                   value={selectedSmartTv.orientation || 'landscape'}
                   label="Orientação"
                   onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, orientation: e.target.value as 'landscape' | 'portrait' })}
+                  inputProps={{ name: 'orientation' }}
                 >
                   <MenuItem value="landscape">Paisagem</MenuItem>
                   <MenuItem value="portrait">Retrato</MenuItem>
                 </Select>
               </FormControl>
               <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
+                <InputLabel id="smart-tv-edit-status-label">Status</InputLabel>
                 <Select
+                  id="smart-tv-edit-status"
+                  labelId="smart-tv-edit-status-label"
                   value={selectedSmartTv.status || 'offline'}
                   label="Status"
                   onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, status: e.target.value })}
+                  inputProps={{ name: 'status' }}
                 >
                   <MenuItem value="offline">Offline</MenuItem>
                   <MenuItem value="online">Online</MenuItem>
@@ -704,6 +764,8 @@ const SmartTvs: React.FC = () => {
               {editTab === 1 && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
                   <TextField
+                    id="smart-tv-edit-capabilities"
+                    name="capabilities"
                     label="Capabilities (JSON)"
                     value={editCapabilitiesText}
                     onChange={(e) => setEditCapabilitiesText(e.target.value)}
@@ -713,6 +775,8 @@ const SmartTvs: React.FC = () => {
                     placeholder="{}"
                   />
                   <TextField
+                    id="smart-tv-edit-settings"
+                    name="settings"
                     label="Settings (JSON)"
                     value={editSettingsText}
                     onChange={(e) => setEditSettingsText(e.target.value)}

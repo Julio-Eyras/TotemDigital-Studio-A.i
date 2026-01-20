@@ -748,6 +748,8 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={4}>
               <TextField
+                id="contracts-search"
+                name="search"
                 fullWidth
                 placeholder="Buscar contratos..."
                 value={searchTerm}
@@ -765,11 +767,14 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
             </Grid>
             <Grid item xs={12} md={3}>
               <FormControl fullWidth>
-                <InputLabel>Tipo</InputLabel>
+                <InputLabel id="contracts-filter-type-label">Tipo</InputLabel>
                 <Select
+                  id="contracts-filter-type"
+                  labelId="contracts-filter-type-label"
                   value={contractTypeFilter}
                   label="Tipo"
                   onChange={(e) => setContractTypeFilter(e.target.value)}
+                  inputProps={{ name: 'contractTypeFilter' }}
                 >
                   <MenuItem value="all">Todos</MenuItem>
                   {mainTab === 1 ? (
@@ -791,11 +796,14 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
             </Grid>
             <Grid item xs={12} md={3}>
               <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
+                <InputLabel id="contracts-filter-status-label">Status</InputLabel>
                 <Select
+                  id="contracts-filter-status"
+                  labelId="contracts-filter-status-label"
                   value={statusFilter}
                   label="Status"
                   onChange={(e) => setStatusFilter(e.target.value)}
+                  inputProps={{ name: 'statusFilter' }}
                 >
                   <MenuItem value="all">Todos</MenuItem>
                   <MenuItem value="draft">Rascunho</MenuItem>

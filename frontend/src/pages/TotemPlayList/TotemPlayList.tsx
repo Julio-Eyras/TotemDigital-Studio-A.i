@@ -234,11 +234,14 @@ const TotemPlayListPage: React.FC = () => {
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6} md={4}>
               <FormControl fullWidth>
-                <InputLabel>Publisher</InputLabel>
+                <InputLabel id="totem-playlists-filter-publisher-label">Publisher</InputLabel>
                 <Select
+                  id="totem-playlists-filter-publisher"
+                  labelId="totem-playlists-filter-publisher-label"
                   value={filters.publisherId}
                   label="Publisher"
                   onChange={(e) => setFilters({ ...filters, publisherId: e.target.value })}
+                  inputProps={{ name: 'publisherId' }}
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {publishers.map((pub) => (
@@ -251,11 +254,14 @@ const TotemPlayListPage: React.FC = () => {
             </Grid>
             <Grid item xs={12} sm={6} md={4}>
               <FormControl fullWidth>
-                <InputLabel>Totem</InputLabel>
+                <InputLabel id="totem-playlists-filter-totem-label">Totem</InputLabel>
                 <Select
+                  id="totem-playlists-filter-totem"
+                  labelId="totem-playlists-filter-totem-label"
                   value={filters.totemId}
                   label="Totem"
                   onChange={(e) => setFilters({ ...filters, totemId: e.target.value })}
+                  inputProps={{ name: 'totemId' }}
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {totems.map((totem) => (
