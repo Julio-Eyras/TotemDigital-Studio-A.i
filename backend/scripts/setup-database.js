@@ -6,18 +6,29 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-// Configuração para conectar ao banco postgres (padrão) para criar o banco smartsignage
+/**
+ * Configuração para conectar ao Postgres local
+ * - Prioriza variáveis de ambiente (útil no Windows, onde psql pode não estar instalado)
+ * - Mantém defaults para ambiente dev
+ */
+const PG_HOST = process.env.PGHOST || 'localhost';
+const PG_PORT = Number(process.env.PGPORT || 5432);
+const PG_USER = process.env.PGUSER || 'postgres';
+const PG_PASSWORD = process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || 'postgres';
+const DB_NAME = process.env.DB_NAME || 'smartsignage';
+
+// Conectar ao banco postgres (padrão) para criar o banco alvo
 const adminConfig = {
-  host: 'localhost',
-  port: 5432,
-  user: 'postgres',
-  password: 'postgres',
-  database: 'postgres' // Conectar ao banco padrão primeiro
+  host: PG_HOST,
+  port: PG_PORT,
+  user: PG_USER,
+  password: PG_PASSWORD,
+  database: 'postgres'
 };
 
 const dbConfig = {
   ...adminConfig,
-  database: 'smartsignage'
+  database: DB_NAME
 };
 
 async function createDatabase() {
@@ -29,17 +40,17 @@ async function createDatabase() {
     // Verificar se o banco já existe
     const checkResult = await adminPool.query(
       "SELECT 1 FROM pg_database WHERE datname = $1",
-      ['smartsignage']
+      [DB_NAME]
     );
     
     if (checkResult.rows.length > 0) {
-      console.log('✅ Banco de dados "smartsignage" já existe');
+      console.log(`✅ Banco de dados \"${DB_NAME}\" já existe`);
       await adminPool.end();
       return true;
     }
     
-    console.log('📦 Criando banco de dados "smartsignage"...');
-    await adminPool.query('CREATE DATABASE smartsignage');
+    console.log(`📦 Criando banco de dados \"${DB_NAME}\"...`);
+    await adminPool.query(`CREATE DATABASE ${DB_NAME}`);
     console.log('✅ Banco de dados criado com sucesso!');
     
     await adminPool.end();
@@ -69,6 +80,7 @@ async function applySchema() {
     'smartchannel-db-v2-refactored-part10-views.sql',
     'smartchannel-db-v2-refactored-part11-playlist-mix.sql',
     'smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql',
+    'smartchannel-db-v2-refactored-part13-dispatcher-views.sql',
     'seeds-default-settings.sql',
     'seeds-playlist-mix.sql'
   ];
@@ -98,7 +110,7 @@ async function applySchema() {
   try {
     console.log('📄 Aplicando schema v2.0...\n');
     if (loadDemoSeeds) {
-      console.log('🌱 LOAD_DEMO_SEEDS ativo: aplicando carga inicial 2025 (dados de demonstração) ao final.\n');
+      console.log('🌱 LOAD_DEMO_SEEDS ativo: aplicando carga inicial (v5) ao final.\n');
     }
     
     for (let i = 0; i < sqlFiles.length; i++) {

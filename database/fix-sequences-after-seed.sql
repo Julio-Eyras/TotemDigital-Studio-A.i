@@ -169,6 +169,15 @@ BEGIN
     END IF;
   END IF;
 
+  -- audit_logs.id (evita duplicate key em auditoria após seed com IDs explícitos)
+  IF to_regclass('audit_logs') IS NOT NULL THEN
+    SELECT COALESCE(MAX(id), 0) INTO _v FROM audit_logs;
+    SELECT pg_get_serial_sequence('audit_logs','id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
   -- billing tables
   IF to_regclass('subscriber_billing') IS NOT NULL THEN
     SELECT COALESCE(MAX(billing_id), 0) INTO _v FROM subscriber_billing;
