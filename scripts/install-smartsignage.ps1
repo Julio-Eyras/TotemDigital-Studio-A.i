@@ -729,7 +729,14 @@ function Setup-Database {
         # Schema antigo foi descontinuado/removido.
         # Usar schema refatorado master, que inclui os módulos do Dispatcher (dispatcher_log, device_tokens, playlist mix, etc.).
         $schemaFile = Join-Path $INSTALL_DIR "database\smartchannel-db-v2-refactored-apply-all.sql"
-        $seedsFile = Join-Path $INSTALL_DIR "database\carga-inicial-2025.sql"
+        # Preferir seed v5 (demo-assets) como padrão; manter fallback para seeds antigos
+        $seedsFile = Join-Path $INSTALL_DIR "database\carga-inicial-v5.sql"
+        if (-not (Test-Path $seedsFile)) {
+            $seedsFile = Join-Path $INSTALL_DIR "database\carga-inicial-2025-demo-assets.sql"
+            if (-not (Test-Path $seedsFile)) {
+                $seedsFile = Join-Path $INSTALL_DIR "database\carga-inicial-2025.sql"
+            }
+        }
 
         if ($dbWasCreatedOrReset) {
             if (Test-Path $schemaFile) {
@@ -751,7 +758,7 @@ function Setup-Database {
 
         if ($LOAD_SEEDS) {
             if (Test-Path $seedsFile) {
-                Write-Log "Aplicando seeds: database/carga-inicial-2025.sql"
+                Write-Log "Aplicando seeds: $(Split-Path -Leaf $seedsFile)"
                 psql $databaseUrl -f $seedsFile 2>&1 | Out-Null
                 Write-Log "✅ Seeds aplicadas"
             } else {

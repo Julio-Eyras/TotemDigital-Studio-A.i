@@ -74,10 +74,18 @@ async function applySchema() {
   ];
 
   if (loadDemoSeeds) {
-    // Preferir seed com caminhos de demo-assets compatíveis com /opt (se existir).
-    // Fallback para carga-inicial-2025.sql para manter compatibilidade.
+    // Preferir seed v5 (demo-assets) como padrão.
+    // Fallback para seeds antigos por compatibilidade.
+    const v5Seed = path.join(dbDir, 'carga-inicial-v5.sql');
     const demoAssetsSeed = path.join(dbDir, 'carga-inicial-2025-demo-assets.sql');
-    sqlFiles.push(fs.existsSync(demoAssetsSeed) ? 'carga-inicial-2025-demo-assets.sql' : 'carga-inicial-2025.sql');
+
+    if (fs.existsSync(v5Seed)) {
+      sqlFiles.push('carga-inicial-v5.sql');
+    } else if (fs.existsSync(demoAssetsSeed)) {
+      sqlFiles.push('carga-inicial-2025-demo-assets.sql');
+    } else {
+      sqlFiles.push('carga-inicial-2025.sql');
+    }
   }
   // Fix sequences after seeds (SERIAL columns with explicit IDs)
   const fixSeqFile = path.join(dbDir, 'fix-sequences-after-seed.sql');
@@ -133,7 +141,7 @@ async function applySchema() {
     
     console.log('\n✅ Schema aplicado com sucesso!');
     if (!loadDemoSeeds) {
-      console.log('\nℹ️  Dica: para carregar dados de demonstração (carga inicial 2025), execute:');
+      console.log('\nℹ️  Dica: para carregar dados de demonstração (carga inicial v5), execute:');
       console.log('   $env:LOAD_DEMO_SEEDS=1; node backend/scripts/setup-database.js');
     }
     await pool.end();
