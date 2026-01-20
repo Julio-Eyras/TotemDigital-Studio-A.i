@@ -51,9 +51,14 @@ router.get('/', async (req: any, res) => {
     }
 
     if (userType === 'publisher_user') {
-      if (userPublisherId) {
-        filters.publisherId = userPublisherId;
+      if (!userPublisherId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Acesso negado: usuário publisher não possui publisherId'
+        });
       }
+
+      filters.publisherId = userPublisherId;
     } else {
       // Admins podem filtrar
       const { publisherId, planId, status } = req.query;
