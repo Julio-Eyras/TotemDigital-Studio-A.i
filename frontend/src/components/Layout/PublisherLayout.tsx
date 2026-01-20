@@ -43,6 +43,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { authApi } from '../../services/api';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setTheme } from '../../store/slices/uiSlice';
+import { getMenuHierarchyByRole, HierarchicalMenuItem } from '../../utils/menuHierarchy';
+import { UserRole } from '../../utils/rolePermissions';
+import { useFlags } from '../../hooks/useFlags';
 
 const drawerWidth = 280;
 
@@ -50,12 +53,7 @@ interface PublisherLayoutProps {
   children: React.ReactNode;
 }
 
-interface MenuItem {
-  text: string;
-  icon: React.ReactElement;
-  path: string;
-  children?: MenuItem[];
-}
+type MenuItem = HierarchicalMenuItem;
 
 const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) => {
   const theme = useTheme();
@@ -68,6 +66,7 @@ const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [user, setUser] = useState<any>(null);
+  const { flags } = useFlags();
   const [openMenus, setOpenMenus] = useState<{ [key: string]: boolean }>({
     locals: false,
     totems: false,
@@ -80,44 +79,20 @@ const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) => {
     }
   }, []);
 
-  // Menu hierárquico específico para Publishers
-  const menuItems: MenuItem[] = [
-    { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-    {
-      text: 'Meus Locais',
-      icon: <LocationOn />,
-      path: '/locals',
-      children: [
-        { text: 'Listar Locais', icon: <LocationOn />, path: '/locals' },
-        { text: 'Criar Local', icon: <LocationOn />, path: '/locals/new' },
-      ],
-    },
-    {
-      text: 'Meus Totens',
-      icon: <Computer />,
-      path: '/totems',
-      children: [
-        { text: 'Listar Totens', icon: <Computer />, path: '/totems' },
-        { text: 'Criar Totem', icon: <Computer />, path: '/totems/new' },
-        {
-          text: 'Smart TVs por Totem',
-          icon: <Tv />,
-          path: '/totems/smart-tvs',
-        },
-      ],
-    },
-    {
-      text: 'Minhas Smart TVs',
-      icon: <Tv />,
-      path: '/smart-tvs',
-      children: [
-        { text: 'Listar Smart TVs', icon: <Tv />, path: '/smart-tvs' },
-        { text: 'Smart TVs por Totem', icon: <Tv />, path: '/smart-tvs/by-totem' },
-      ],
-    },
-    { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
-    { text: 'Configurações', icon: <Settings />, path: '/settings' },
-  ];
+  const menuItems: MenuItem[] = (() => {
+    if (!user?.role) {
+      return [
+        { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+        { text: 'Locais', icon: <LocationOn />, path: '/locals' },
+        { text: 'Totens', icon: <Computer />, path: '/totems' },
+        { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
+        { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
+        { text: 'Configurações', icon: <Settings />, path: '/settings' },
+      ];
+    }
+    const userFlags = user?.flags || flags;
+    return getMenuHierarchyByRole(user.role as UserRole, userFlags);
+  })();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);

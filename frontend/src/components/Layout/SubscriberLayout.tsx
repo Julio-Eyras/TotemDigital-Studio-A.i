@@ -23,6 +23,7 @@ import {
   MenuItem,
   useTheme,
   useMediaQuery,
+  Collapse,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -36,11 +37,16 @@ import {
   AccountCircle,
   Settings,
   Business,
+  ExpandLess,
+  ExpandMore,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authApi } from '../../services/api';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setTheme } from '../../store/slices/uiSlice';
+import { getMenuHierarchyByRole, HierarchicalMenuItem } from '../../utils/menuHierarchy';
+import { UserRole } from '../../utils/rolePermissions';
+import { useFlags } from '../../hooks/useFlags';
 
 const drawerWidth = 280;
 
@@ -48,10 +54,8 @@ interface SubscriberLayoutProps {
   children: React.ReactNode;
 }
 
-interface MenuItem {
-  text: string;
-  icon: React.ReactElement;
-  path: string;
+interface OpenMenusState {
+  [key: string]: boolean;
 }
 
 const SubscriberLayout: React.FC<SubscriberLayoutProps> = ({ children }) => {
@@ -65,6 +69,8 @@ const SubscriberLayout: React.FC<SubscriberLayoutProps> = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [user, setUser] = useState<any>(null);
+  const [openMenus, setOpenMenus] = useState<OpenMenusState>({});
+  const { flags } = useFlags();
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -73,16 +79,79 @@ const SubscriberLayout: React.FC<SubscriberLayoutProps> = ({ children }) => {
     }
   }, []);
 
-  // Menu específico para Subscribers
-  const menuItems: MenuItem[] = [
-    { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-    { text: 'Minhas Campanhas', icon: <Campaign />, path: '/campaigns' },
-    { text: 'Minhas Mídias', icon: <VideoLibrary />, path: '/media' },
-    { text: 'Minhas Playlists', icon: <QueueMusic />, path: '/playlists' },
-    { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
-    { text: 'Faturamento', icon: <Payment />, path: '/billing' },
-    { text: 'Configurações', icon: <Settings />, path: '/settings' },
-  ];
+  const menuItems: HierarchicalMenuItem[] = (() => {
+    if (!user?.role) {
+      return [
+        { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+        { text: 'Minhas Campanhas', icon: <Campaign />, path: '/campaigns' },
+        { text: 'Minhas Mídias', icon: <VideoLibrary />, path: '/media' },
+        { text: 'Minhas Playlists', icon: <QueueMusic />, path: '/playlists' },
+        { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
+        { text: 'Faturamento', icon: <Payment />, path: '/billing' },
+        { text: 'Configurações', icon: <Settings />, path: '/settings' },
+      ];
+    }
+    const userFlags = user?.flags || flags;
+    return getMenuHierarchyByRole(user.role as UserRole, userFlags);
+  })();
+
+  const handleToggleMenu = (menuKey: string) => {
+    setOpenMenus((prev) => ({
+      ...prev,
+      [menuKey]: !prev[menuKey],
+    }));
+  };
+
+  const renderMenuItem = (item: HierarchicalMenuItem, level: number = 0) => {
+    const isActive =
+      location.pathname === item.path ||
+      location.pathname.startsWith(item.path + '/') ||
+      (item.children?.some((child) => location.pathname === child.path || location.pathname.startsWith(child.path + '/')));
+    const hasChildren = item.children && item.children.length > 0;
+    const menuKey = item.text.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const isOpen = openMenus[menuKey] || false;
+
+    return (
+      <React.Fragment key={`${item.path}-${level}`}>
+        <ListItem disablePadding sx={{ mb: 0.5, pl: level * 2 }}>
+          <ListItemButton
+            onClick={() => {
+              if (hasChildren) {
+                handleToggleMenu(menuKey);
+              } else {
+                handleNavigation(item.path);
+              }
+            }}
+            sx={{
+              borderRadius: 2,
+              backgroundColor: isActive ? theme.palette.secondary.main : 'transparent',
+              color: isActive ? 'white' : theme.palette.text.primary,
+              '&:hover': {
+                backgroundColor: isActive ? theme.palette.secondary.dark : theme.palette.action.hover,
+              },
+              transition: 'all 0.2s ease-in-out',
+            }}
+          >
+            <ListItemIcon sx={{ color: isActive ? 'white' : theme.palette.text.secondary, minWidth: 40 }}>
+              {item.icon}
+            </ListItemIcon>
+            <ListItemText
+              primary={item.text}
+              primaryTypographyProps={{ fontWeight: isActive ? 'bold' : 'normal', fontSize: level > 0 ? '0.875rem' : '1rem' }}
+            />
+            {hasChildren && (isOpen ? <ExpandLess /> : <ExpandMore />)}
+          </ListItemButton>
+        </ListItem>
+        {hasChildren && (
+          <Collapse in={isOpen} timeout="auto" unmountOnExit>
+            <List component="div" disablePadding>
+              {item.children?.map((child) => renderMenuItem(child, level + 1))}
+            </List>
+          </Collapse>
+        )}
+      </React.Fragment>
+    );
+  };
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -140,42 +209,7 @@ const SubscriberLayout: React.FC<SubscriberLayoutProps> = ({ children }) => {
 
       {/* Navigation Menu */}
       <List sx={{ px: 2, py: 1 }}>
-        {menuItems.map((item) => {
-          const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
-          return (
-            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
-              <ListItemButton
-                onClick={() => handleNavigation(item.path)}
-                sx={{
-                  borderRadius: 2,
-                  backgroundColor: isActive ? theme.palette.secondary.main : 'transparent',
-                  color: isActive ? 'white' : theme.palette.text.primary,
-                  '&:hover': {
-                    backgroundColor: isActive 
-                      ? theme.palette.secondary.dark 
-                      : theme.palette.action.hover,
-                  },
-                  transition: 'all 0.2s ease-in-out',
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    color: isActive ? 'white' : theme.palette.text.secondary,
-                    minWidth: 40,
-                  }}
-                >
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={item.text}
-                  primaryTypographyProps={{
-                    fontWeight: isActive ? 'bold' : 'normal',
-                  }}
-                />
-              </ListItemButton>
-            </ListItem>
-          );
-        })}
+        {menuItems.map((item) => renderMenuItem(item))}
       </List>
 
       <Divider sx={{ mx: 2 }} />

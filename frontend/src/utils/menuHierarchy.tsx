@@ -127,6 +127,12 @@ export const getMenuHierarchyByRole = (
     case 'visualizador':
       menu = getDefaultMenu(); // Usar menu padrão
       break;
+    case 'publisher_user':
+      menu = getPublisherUserMenu();
+      break;
+    case 'subscriber_user':
+      menu = getSubscriberUserMenu();
+      break;
     default:
       menu = getDefaultMenu();
   }
@@ -443,16 +449,9 @@ function getOperadorFaturamentoMenu(): HierarchicalMenuItem[] {
       path: '/admin',
       requiredFlag: 'flag_smart_3',
       children: [
-        {
-          text: 'Contratos',
-          icon: <Description />,
-          path: '/subscriber-contracts',
-          requiredFlag: 'flag_smart_5',
-          children: [
-            { text: 'Contratos do Anunciante', icon: <Description />, path: '/subscriber-contracts' },
-            { text: 'Contratos do Publicador', icon: <Description />, path: '/publisher-contracts' },
-          ],
-        },
+        // Mantemos as 2 manutenções separadas, como acordado
+        { text: 'Manutenção Contratos Assinantes', icon: <Description />, path: '/subscriber-contracts', requiredFlag: 'flag_smart_5' },
+        { text: 'Manutenção Contratos Publicadores', icon: <Description />, path: '/publisher-contracts', requiredFlag: 'flag_smart_5' },
         {
           text: 'Planos',
           icon: <Link />,
@@ -485,23 +484,23 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
       path: '/admin',
       children: [
         {
-          text: '📢 Publicador',
+          text: '📢 Veículos de Mídia',
           icon: <Business />,
           path: '/publishers',
           children: [
-            { text: 'Manter Publicadores', icon: <Business />, path: '/publishers' },
-            { text: 'Detalhes', icon: <Business />, path: '/publishers/details' },
+            { text: 'Manutenção Veículo de Mídia', icon: <Business />, path: '/publishers' },
+            { text: 'Locais', icon: <LocationOn />, path: '/locals' },
+            { text: 'Totens', icon: <Tv />, path: '/totems' },
+            { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
             { text: 'Contratos do Publicador', icon: <Description />, path: '/publisher-contracts' },
           ],
         },
         {
-          text: 'Assinantes',
+          text: 'Anunciantes',
           icon: <Business />,
           path: '/subscribers',
           children: [
-            { text: 'Listar Assinantes', icon: <Business />, path: '/subscribers' },
-            { text: 'Criar Assinante', icon: <Business />, path: '/subscribers/new' },
-            { text: 'Detalhes', icon: <Business />, path: '/subscribers/details' },
+            { text: 'Manter Anunciante', icon: <Business />, path: '/subscribers' },
             { text: 'Contratos do Anunciante', icon: <Description />, path: '/subscriber-contracts' },
           ],
         },
@@ -531,6 +530,50 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
       ],
     },
     { text: 'Relatórios Comerciais', icon: <Assessment />, path: '/reports' },
+  ];
+}
+
+/**
+ * Menu: PUBLISHER_USER (portal/subdomínio publisher)
+ */
+function getPublisherUserMenu(): HierarchicalMenuItem[] {
+  return [
+    { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    {
+      text: '📢 Veículos de Mídia',
+      icon: <Business />,
+      path: '/locals',
+      children: [
+        { text: 'Locais', icon: <LocationOn />, path: '/locals' },
+        { text: 'Totens', icon: <Tv />, path: '/totems' },
+        { text: 'Playlists de Totens', icon: <QueueMusic />, path: '/totem-playlists' },
+        { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
+      ],
+    },
+    { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
+    { text: 'Configurações', icon: <Settings />, path: '/settings' },
+  ];
+}
+
+/**
+ * Menu: SUBSCRIBER_USER (portal/subdomínio subscriber)
+ */
+function getSubscriberUserMenu(): HierarchicalMenuItem[] {
+  return [
+    { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    {
+      text: 'Anunciantes',
+      icon: <Business />,
+      path: '/campaigns',
+      children: [
+        { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
+        { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
+        { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
+      ],
+    },
+    { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
+    { text: 'Faturamento', icon: <Payment />, path: '/billing' },
+    { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 }
 
