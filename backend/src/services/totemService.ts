@@ -182,25 +182,30 @@ export class TotemService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      // Aplicar filtros
+      // Aplicar filtros (PostgreSQL placeholders $1, $2, ...)
+      let paramIndex = 1;
       if (filters.status) {
-        whereClause += ' AND t.status = ?';
+        whereClause += ` AND t.status = $${paramIndex}`;
         params.push(filters.status);
+        paramIndex++;
       }
 
       if (filters.isActive !== undefined) {
-        whereClause += ' AND COALESCE(t.is_active, false) = ?';
+        whereClause += ` AND COALESCE(t.is_active, false) = $${paramIndex}`;
         params.push(filters.isActive);
+        paramIndex++;
       }
 
       if (filters.localId) {
-        whereClause += ' AND t.local_id = ?';
+        whereClause += ` AND t.local_id = $${paramIndex}`;
         params.push(filters.localId);
+        paramIndex++;
       }
 
       if (filters.search) {
-        whereClause += ' AND (t.identifier LIKE ? OR t.description LIKE ? OR t.device_id LIKE ?)';
+        whereClause += ` AND (t.identifier LIKE $${paramIndex} OR t.description LIKE $${paramIndex + 1} OR t.device_id LIKE $${paramIndex + 2})`;
         params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
+        paramIndex += 3;
       }
 
       // Buscar totems (schema v2 - colunas ajustadas)
@@ -232,7 +237,7 @@ export class TotemService {
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         ${whereClause}
         ORDER BY t.last_heartbeat DESC NULLS LAST, t.created_at DESC
-        LIMIT ? OFFSET ?
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `, [...params, limit, offset]);
 
       // Contar total
@@ -295,7 +300,7 @@ export class TotemService {
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
-        WHERE t.uin = ? OR t.identifier = ?
+        WHERE t.uin = $1 OR t.identifier = $2
       `, [uin, uin]);
 
       return totem;
@@ -336,7 +341,7 @@ export class TotemService {
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
-        WHERE t.totem_id = ?
+        WHERE t.totem_id = $1
       `, [totemId]);
 
       if (!totem) {
@@ -385,7 +390,7 @@ export class TotemService {
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
-        WHERE t.identifier = ?
+        WHERE t.identifier = $1
       `, [identifier]);
 
       if (!totem) {
@@ -434,7 +439,7 @@ export class TotemService {
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
-        WHERE t.device_id = ?
+        WHERE t.device_id = $1
       `, [deviceId]);
 
       if (!totem) {
@@ -494,7 +499,7 @@ export class TotemService {
           p.name as publisher_name
         FROM locals l
         JOIN publishers p ON l.publisher_id = p.publisher_id
-        WHERE l.local_id = ?
+        WHERE l.local_id = $1
       `, [localId]);
 
       if (!local) {
@@ -508,7 +513,7 @@ export class TotemService {
 
       // Verificar se identifier já existe
       const existingTotem = await this.db.findFirst(`
-        SELECT totem_id FROM totems WHERE identifier = ?
+        SELECT totem_id FROM totems WHERE identifier = $1
       `, [totemIdentifier]);
 
       if (existingTotem) {
@@ -518,7 +523,7 @@ export class TotemService {
       // Verificar se UIN já existe (se fornecido)
       if (uin) {
         const existingUin = await this.db.findFirst(`
-          SELECT totem_id FROM totems WHERE uin = ?
+          SELECT totem_id FROM totems WHERE uin = $1
         `, [uin]);
 
         if (existingUin) {
@@ -529,7 +534,7 @@ export class TotemService {
       // Verificar se device ID já existe (se fornecido)
       if (deviceId) {
         const existingDevice = await this.db.findFirst(`
-          SELECT totem_id FROM totems WHERE device_id = ?
+          SELECT totem_id FROM totems WHERE device_id = $1
         `, [deviceId]);
 
         if (existingDevice) {
@@ -568,7 +573,7 @@ export class TotemService {
         }
       }
 
-      // Criar totem
+      // Criar totem (PostgreSQL placeholders $1, $2, ...)
       const result = await this.db.executeRaw(`
         INSERT INTO totems (
           name,
@@ -585,7 +590,7 @@ export class TotemService {
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'offline', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'offline', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING totem_id
       `, [
         name || identifier,
@@ -655,7 +660,7 @@ export class TotemService {
             p.publisher_id
           FROM locals l
           JOIN publishers p ON l.publisher_id = p.publisher_id
-          WHERE l.local_id = ?
+          WHERE l.local_id = $1
         `, [data.localId]);
 
         if (!local) {
@@ -671,7 +676,7 @@ export class TotemService {
       // Verificar se identifier já existe (se estiver sendo alterado)
       if (data.identifier && data.identifier !== existingTotem.identifier) {
         const identifierExists = await this.db.findFirst(`
-          SELECT totem_id FROM totems WHERE identifier = ? AND totem_id != ?
+          SELECT totem_id FROM totems WHERE identifier = $1 AND totem_id != $2
         `, [data.identifier, totemId]);
 
         if (identifierExists) {
@@ -683,7 +688,7 @@ export class TotemService {
       if (data.uin !== undefined && data.uin !== existingTotem.uin) {
         if (data.uin) {
           const uinExists = await this.db.findFirst(`
-            SELECT totem_id FROM totems WHERE uin = ? AND totem_id != ?
+            SELECT totem_id FROM totems WHERE uin = $1 AND totem_id != $2
           `, [data.uin, totemId]);
 
           if (uinExists) {
@@ -695,7 +700,7 @@ export class TotemService {
       // Verificar se device ID já existe (se estiver sendo alterado)
       if (data.deviceId && data.deviceId !== existingTotem.deviceId) {
         const deviceIdExists = await this.db.findFirst(`
-          SELECT totem_id FROM totems WHERE device_id = ? AND totem_id != ?
+          SELECT totem_id FROM totems WHERE device_id = $1 AND totem_id != $2
         `, [data.deviceId, totemId]);
 
         if (deviceIdExists) {
@@ -703,77 +708,73 @@ export class TotemService {
         }
       }
 
-      // Construir query de atualização
+      // Construir query de atualização (PostgreSQL placeholders $1, $2, ...)
       const updates: string[] = [];
       const params: any[] = [];
+      let paramIndex = 1;
 
       if (data.name !== undefined) {
-        updates.push('name = ?');
+        updates.push(`name = $${paramIndex++}`);
         params.push(data.name);
       }
 
       if (data.identifier !== undefined) {
-        updates.push('identifier = ?');
+        updates.push(`identifier = $${paramIndex++}`);
         params.push(data.identifier);
       }
 
       if (data.uin !== undefined) {
-        updates.push('uin = ?');
+        updates.push(`uin = $${paramIndex++}`);
         params.push(data.uin || null);
       }
 
       if (data.deviceId !== undefined) {
-        updates.push('device_id = ?');
+        updates.push(`device_id = $${paramIndex++}`);
         params.push(data.deviceId);
       }
 
       if (data.localId !== undefined) {
-        updates.push('local_id = ?');
+        updates.push(`local_id = $${paramIndex++}`);
         params.push(data.localId);
       }
 
-      // location não existe mais na tabela totems (vem de locals.name)
-      // Removido: if (data.location !== undefined) { ... }
-
       if (data.description !== undefined) {
-        updates.push('description = ?');
+        updates.push(`description = $${paramIndex++}`);
         params.push(data.description);
       }
 
       if (data.config !== undefined) {
-        updates.push('network_info = ?');
+        updates.push(`network_info = $${paramIndex++}::jsonb`);
         params.push(JSON.stringify(data.config));
       }
 
-      // version não existe mais no schema v2
-      // Removido: if (data.version !== undefined) { ... }
-
       if (data.firmwareVersion !== undefined) {
-        updates.push('firmware_version = ?');
+        updates.push(`firmware_version = $${paramIndex++}`);
         params.push(data.firmwareVersion);
       }
 
       if (data.ipAddress !== undefined) {
-        updates.push('ip_address = ?');
-        params.push(data.ipAddress);
+        // ipAddress deve ser atualizado em network_info (JSONB)
+        const currentNetworkInfo = existingTotem.config || {};
+        const updatedNetworkInfo = { ...currentNetworkInfo, ip: data.ipAddress };
+        updates.push(`network_info = $${paramIndex++}::jsonb`);
+        params.push(JSON.stringify(updatedNetworkInfo));
       }
 
-      // REMOVIDO: clientId - totem não pertence a subscriber, pertence a publisher via local_id
-
       if (data.active !== undefined) {
-        const value = data.active ? 1 : 0;
-        updates.push('active = ?');
+        const value = data.active ? true : false;
+        updates.push(`active = $${paramIndex++}`);
         params.push(value);
-        updates.push('is_active = ?');
+        updates.push(`is_active = $${paramIndex++}`);
         params.push(value);
       }
 
       if (data.isActive !== undefined) {
-        const value = data.isActive ? 1 : 0;
-        updates.push('is_active = ?');
+        const value = data.isActive ? true : false;
+        updates.push(`is_active = $${paramIndex++}`);
         params.push(value);
         if (data.active === undefined) {
-          updates.push('active = ?');
+          updates.push(`active = $${paramIndex++}`);
           params.push(value);
         }
       }
@@ -783,16 +784,19 @@ export class TotemService {
       }
 
       updates.push('updated_at = CURRENT_TIMESTAMP');
+
+      // Adicionar totemId como último parâmetro
       params.push(totemId);
+      const totemIdPlaceholder = `$${paramIndex}`;
 
       // Atualizar totem
       await this.db.executeRaw(`
         UPDATE totems 
         SET ${updates.join(', ')}
-        WHERE totem_id = ?
+        WHERE totem_id = ${totemIdPlaceholder}
       `, params);
 
-      // Buscar totem atualizado
+      // Buscar totem atualizado (após update)
       const updatedTotem = await this.getTotemById(totemId);
       if (!updatedTotem) {
         throw new Error('Erro ao buscar totem atualizado');
@@ -829,45 +833,53 @@ export class TotemService {
       }
       const previousStatus = totem.status;
 
-      // Atualizar dados do heartbeat
+      // Atualizar dados do heartbeat (PostgreSQL placeholders $1, $2, ...)
       const updates: string[] = [];
       const params: any[] = [];
+      let paramIndex = 1;
 
       updates.push('last_heartbeat = CURRENT_TIMESTAMP');
       updates.push('last_seen = CURRENT_TIMESTAMP');
 
       if (status) {
-        updates.push('status = ?');
+        updates.push(`status = $${paramIndex++}`);
         params.push(status);
       }
 
       if (version) {
-        updates.push('version = ?');
-        params.push(version);
+        // version não existe mais no schema v2, mas mantido para compatibilidade
+        // Não fazer update se coluna não existir
       }
 
       if (firmwareVersion) {
-        updates.push('firmware_version = ?');
+        updates.push(`firmware_version = $${paramIndex++}`);
         params.push(firmwareVersion);
       }
 
       if (ipAddress) {
-        updates.push('ip_address = ?');
-        params.push(ipAddress);
+        // ipAddress deve ser atualizado em network_info (JSONB)
+        updates.push(`network_info = jsonb_set(COALESCE(network_info, '{}'::jsonb), '{ip}', $${paramIndex++}::jsonb)`);
+        params.push(JSON.stringify(ipAddress));
       }
 
       if (config) {
-        updates.push('config = ?');
+        updates.push(`network_info = $${paramIndex++}::jsonb`);
         params.push(JSON.stringify(config));
       }
 
+      if (updates.length <= 2) {
+        // Apenas timestamps, não precisa de UPDATE
+        return await this.getTotemById(totemId) as TotemResponse;
+      }
+
       params.push(totemId);
+      const totemIdPlaceholder = `$${paramIndex}`;
 
       // Atualizar totem
       await this.db.executeRaw(`
         UPDATE totems 
         SET ${updates.join(', ')}
-        WHERE totem_id = ?
+        WHERE totem_id = ${totemIdPlaceholder}
       `, params);
 
       // Salvar métricas se fornecidas
@@ -957,19 +969,19 @@ export class TotemService {
       cacheKey,
       async () => {
         try {
-          // Contar campanhas
+          // Contar campanhas (PostgreSQL placeholders)
           const campaignCountResult = await this.db.findFirst(`
             SELECT COUNT(*) as count
             FROM campaign_totems ct
             JOIN campaigns c ON ct.campaign_id = c.campaign_id
-            WHERE ct.totem_id = ? AND COALESCE(c.is_active, true) = true
+            WHERE ct.totem_id = $1 AND COALESCE(c.is_active, true) = true
           `, [totemId]);
 
-          // Contar playlists
+          // Contar playlists (PostgreSQL placeholders)
           const playlistCountResult = await this.db.findFirst(`
             SELECT COUNT(*) as count
             FROM totem_playlists tp
-            WHERE tp.totem_id = ?
+            WHERE tp.totem_id = $1
               AND COALESCE(tp.is_active, true) = true
               AND COALESCE(tp.status, 'active') = 'active'
           `, [totemId]);
@@ -1002,19 +1014,24 @@ export class TotemService {
       }
       const previousStatus = existingTotem.status;
 
+      // Atualizar heartbeat (PostgreSQL placeholders)
+      // Nota: ip_address e mac_address devem ser armazenados em network_info (JSONB)
+      // Atualizar network_info em uma única operação jsonb_set aninhada
+      const networkInfo = {
+        ip: heartbeatData.ipAddress || null,
+        mac: heartbeatData.macAddress || null,
+        system_info: heartbeatData.systemInfo || {}
+      };
+
       await this.db.executeRaw(`
         UPDATE totems 
         SET last_heartbeat = CURRENT_TIMESTAMP,
-            status = ?,
-            ip_address = ?,
-            mac_address = ?,
-            system_info = ?
-        WHERE totem_id = ?
+            status = $1,
+            network_info = COALESCE(network_info, '{}'::jsonb) || $2::jsonb
+        WHERE totem_id = $3
       `, [
         heartbeatData.status || 'online',
-        heartbeatData.ipAddress,
-        heartbeatData.macAddress,
-        JSON.stringify(heartbeatData.systemInfo),
+        JSON.stringify(networkInfo),
         totemId
       ]);
 
@@ -1055,9 +1072,9 @@ export class TotemService {
           h.timestamp,
           h.created_at as createdAt
         FROM totem_heartbeats h
-        WHERE h.totem_id = ?
+        WHERE h.totem_id = $1
         ORDER BY h.timestamp DESC
-        LIMIT ?
+        LIMIT $2
       `, [totemId, filters.limit || 100]);
 
       return heartbeats;
@@ -1232,8 +1249,8 @@ export class TotemService {
           AVG(duration_seconds) as averageDuration,
           COUNT(DISTINCT session_id) as uniqueSessions
         FROM totem_analytics
-        WHERE totem_id = ?
-        AND timestamp >= ? AND timestamp <= ?
+        WHERE totem_id = $1
+        AND timestamp >= $2 AND timestamp <= $3
       `, [totemId, filters.startDate, filters.endDate]);
 
       return {
@@ -1349,17 +1366,17 @@ export class TotemService {
         SELECT COUNT(*) as count FROM totems WHERE status = 'maintenance' AND active = true
       `);
 
-      // Atividade recente (últimos 7 dias)
+      // Atividade recente (últimos 7 dias) - PostgreSQL syntax
       const newTotemsResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM totems WHERE created_at >= datetime('now', '-7 days')
+        SELECT COUNT(*) as count FROM totems WHERE created_at >= NOW() - INTERVAL '7 days'
       `);
 
       const heartbeatsResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM totems WHERE last_heartbeat >= datetime('now', '-7 days')
+        SELECT COUNT(*) as count FROM totems WHERE last_heartbeat >= NOW() - INTERVAL '7 days'
       `);
 
       const errorsResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM totems WHERE status = 'error' AND updated_at >= datetime('now', '-7 days')
+        SELECT COUNT(*) as count FROM totems WHERE status = 'error' AND updated_at >= NOW() - INTERVAL '7 days'
       `);
 
       return {
@@ -1397,11 +1414,11 @@ export class TotemService {
         throw new Error('Totem já está inativo');
       }
 
-      // Desativar totem
+      // Desativar totem (PostgreSQL placeholders)
       await this.db.executeRaw(`
         UPDATE totems 
-        SET active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP 
-        WHERE totem_id = ?
+        SET active = false, is_active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP 
+        WHERE totem_id = $1
       `, [totemId]);
 
       // Log de auditoria
@@ -1431,11 +1448,11 @@ export class TotemService {
         throw new Error('Totem já está ativo');
       }
 
-      // Ativar totem
+      // Ativar totem (PostgreSQL placeholders)
       await this.db.executeRaw(`
         UPDATE totems 
-        SET active = true, updated_at = CURRENT_TIMESTAMP
-        WHERE totem_id = ?
+        SET active = true, is_active = true, updated_at = CURRENT_TIMESTAMP
+        WHERE totem_id = $1
       `, [totemId]);
 
       // Log de auditoria
@@ -1461,24 +1478,24 @@ export class TotemService {
         throw new Error('Totem não encontrado');
       }
 
-      // Verificar se tem dados associados
+      // Verificar se tem dados associados (PostgreSQL placeholders)
       const hasCampaigns = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM campaign_totems WHERE totem_id = ?
+        SELECT COUNT(*) as count FROM campaign_totems WHERE totem_id = $1
       `, [totemId]);
 
       const hasPlaylists = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM playlists WHERE totem_id = ?
+        SELECT COUNT(*) as count FROM totem_playlists WHERE totem_id = $1
       `, [totemId]);
 
-      if (hasCampaigns.count > 0 || hasPlaylists.count > 0) {
+      if (hasCampaigns?.count > 0 || hasPlaylists?.count > 0) {
         throw new Error('Não é possível remover totem com dados associados. Desative-o primeiro.');
       }
 
-      // Desativar totem (soft delete)
+      // Desativar totem (soft delete) - PostgreSQL placeholders
       await this.db.executeRaw(`
         UPDATE totems 
-        SET active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP
-        WHERE totem_id = ?
+        SET active = false, is_active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP
+        WHERE totem_id = $1
       `, [totemId]);
 
       // Log de auditoria
@@ -1525,10 +1542,10 @@ export class TotemService {
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE t.is_active = true AND (
           t.last_heartbeat IS NULL OR 
-          t.last_heartbeat < NOW() - INTERVAL '${minutes} minutes'
+          t.last_heartbeat < NOW() - INTERVAL '1 minute' * $1
         )
         ORDER BY t.last_heartbeat ASC
-      `);
+      `, [minutes]);
 
       return totems;
 

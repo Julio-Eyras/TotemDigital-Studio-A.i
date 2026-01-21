@@ -7,6 +7,7 @@ import { getDatabase } from '../config/database';
 import * as os from 'os';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { config } from '../config/env';
+import { APP_VERSION, APP_NAME, APP_DESCRIPTION } from '../config/version';
 
 export interface SystemHealth {
   status: 'healthy' | 'unhealthy' | 'degraded';
@@ -177,9 +178,9 @@ export class SystemService {
       };
 
       return {
-        name: 'Smart Signage v2.0',
-        version: '2.0.0',
-        description: 'Sistema unificado de digital signage',
+        name: APP_NAME,
+        version: APP_VERSION,
+        description: APP_DESCRIPTION,
         environment: process.env.NODE_ENV || 'development',
         database: {
           driver: 'postgresql',

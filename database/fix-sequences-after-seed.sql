@@ -255,5 +255,142 @@ BEGIN
       END IF;
     END IF;
   END IF;
+
+  -- webhooks.id
+  IF to_regclass('webhooks') IS NOT NULL THEN
+    SELECT COALESCE(MAX(id), 0) INTO _v FROM webhooks;
+    SELECT pg_get_serial_sequence('webhooks','id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- alerts.alert_id
+  IF to_regclass('alerts') IS NOT NULL THEN
+    SELECT COALESCE(MAX(alert_id), 0) INTO _v FROM alerts;
+    SELECT pg_get_serial_sequence('alerts','alert_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- event_logs.event_log_id
+  IF to_regclass('event_logs') IS NOT NULL THEN
+    SELECT COALESCE(MAX(event_log_id), 0) INTO _v FROM event_logs;
+    SELECT pg_get_serial_sequence('event_logs','event_log_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- notifications.notification_id
+  IF to_regclass('notifications') IS NOT NULL THEN
+    SELECT COALESCE(MAX(notification_id), 0) INTO _v FROM notifications;
+    SELECT pg_get_serial_sequence('notifications','notification_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- plans.plan_id
+  IF to_regclass('plans') IS NOT NULL THEN
+    SELECT COALESCE(MAX(plan_id), 0) INTO _v FROM plans;
+    SELECT pg_get_serial_sequence('plans','plan_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- reports.report_id
+  IF to_regclass('reports') IS NOT NULL THEN
+    SELECT COALESCE(MAX(report_id), 0) INTO _v FROM reports;
+    SELECT pg_get_serial_sequence('reports','report_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- dashboard_layouts.layout_id
+  IF to_regclass('dashboard_layouts') IS NOT NULL THEN
+    SELECT COALESCE(MAX(layout_id), 0) INTO _v FROM dashboard_layouts;
+    SELECT pg_get_serial_sequence('dashboard_layouts','layout_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- backups.backup_id
+  IF to_regclass('backups') IS NOT NULL THEN
+    SELECT COALESCE(MAX(backup_id), 0) INTO _v FROM backups;
+    SELECT pg_get_serial_sequence('backups','backup_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- tags.tag_id
+  IF to_regclass('tags') IS NOT NULL THEN
+    SELECT COALESCE(MAX(tag_id), 0) INTO _v FROM tags;
+    SELECT pg_get_serial_sequence('tags','tag_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- campaign_publishers.id (pode não ter sequence, mas verificar)
+  IF to_regclass('campaign_publishers') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'campaign_publishers' AND column_name = 'id'
+    ) THEN
+      SELECT COALESCE(MAX(id), 0) INTO _v FROM campaign_publishers;
+      SELECT pg_get_serial_sequence('campaign_publishers','id') INTO _seq;
+      IF _seq IS NOT NULL THEN
+        PERFORM setval(_seq, _v, true);
+      END IF;
+    END IF;
+  END IF;
+
+  -- campaign_playlists.id
+  IF to_regclass('campaign_playlists') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'campaign_playlists' AND column_name = 'id'
+    ) THEN
+      SELECT COALESCE(MAX(id), 0) INTO _v FROM campaign_playlists;
+      SELECT pg_get_serial_sequence('campaign_playlists','id') INTO _seq;
+      IF _seq IS NOT NULL THEN
+        PERFORM setval(_seq, _v, true);
+      END IF;
+    END IF;
+  END IF;
+
+  -- campaign_medias.id
+  IF to_regclass('campaign_medias') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'campaign_medias' AND column_name = 'id'
+    ) THEN
+      SELECT COALESCE(MAX(id), 0) INTO _v FROM campaign_medias;
+      SELECT pg_get_serial_sequence('campaign_medias','id') INTO _seq;
+      IF _seq IS NOT NULL THEN
+        PERFORM setval(_seq, _v, true);
+      END IF;
+    END IF;
+  END IF;
+
+  -- campaign_totems.id
+  IF to_regclass('campaign_totems') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'campaign_totems' AND column_name = 'id'
+    ) THEN
+      SELECT COALESCE(MAX(id), 0) INTO _v FROM campaign_totems;
+      SELECT pg_get_serial_sequence('campaign_totems','id') INTO _seq;
+      IF _seq IS NOT NULL THEN
+        PERFORM setval(_seq, _v, true);
+      END IF;
+    END IF;
+  END IF;
 END $$;
 

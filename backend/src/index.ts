@@ -30,6 +30,7 @@ import { getLogger } from './config/logger';
 import { LogRotationService } from './services/logRotationService';
 import { logInfo, logError, logWarn, logInfoSync } from './utils/loggerHelper';
 import { getWebSocketService } from './services/websocketService';
+import { APP_VERSION, APP_NAME, APP_DESCRIPTION } from './config/version';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -199,10 +200,10 @@ app.use('/uploads', express.static('/opt/smart-signage/public/assets/uploads'));
 // Root route - API information
 app.get('/', (_req, res) => {
   res.json({
-    name: 'Smart Signage Pro v2.0',
-    version: '2.0.0',
+    name: APP_NAME,
+    version: APP_VERSION,
     type: 'REST API',
-    description: 'API Backend do Sistema de Sinalização Digital',
+    description: APP_DESCRIPTION,
     endpoints: {
       health: '/health',
       api: '/api',
@@ -232,7 +233,7 @@ app.get('/health', async (_req, res) => {
     res.status(isDbHealthy ? 200 : 503).json({
       status: isDbHealthy ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
-      version: '2.0.0',
+      version: APP_VERSION,
       database: health.database,
       memory: health.memory,
       disk: health.disk,
@@ -269,7 +270,7 @@ app.get('/api/health', async (_req, res) => {
     res.status(isDbHealthy ? 200 : 503).json({
       status: isDbHealthy ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
-      version: '2.0.0',
+      version: APP_VERSION,
       database: health.database,
       memory: health.memory,
       disk: health.disk,
@@ -404,12 +405,16 @@ app.use(errorHandler);
 // GRACEFUL SHUTDOWN
 // =============================================
 
-process.on('SIGTERM', async () => {
+/**
+ * Executa shutdown graceful de todos os recursos
+ * Extraído para função reutilizável para evitar duplicação
+ */
+async function gracefulShutdown(signal: string): Promise<void> {
   let shutdownFailed = false;
   
   // Usar try/catch explícito para capturar erros síncronos e assíncronos
   try {
-    await logInfo('SIGTERM recebido. Iniciando shutdown graceful...');
+    await logInfo(`${signal} recebido. Iniciando shutdown graceful...`);
   } catch {
     // Silenciosamente falhar - logging não disponível
   }
@@ -491,96 +496,10 @@ process.on('SIGTERM', async () => {
     }
     process.exit(1);
   }
-});
+}
 
-process.on('SIGINT', async () => {
-  let shutdownFailed = false;
-  
-  // Usar try/catch explícito para capturar erros síncronos e assíncronos
-  try {
-    await logInfo('SIGINT recebido. Iniciando shutdown graceful...');
-  } catch {
-    // Silenciosamente falhar - logging não disponível
-  }
-  
-  try {
-    // Export queue
-    try {
-      await closeExportQueue();
-      await logInfo('Queue de exportação fechada');
-    } catch {
-      shutdownFailed = true;
-    }
-    
-    // Advanced schedule queue
-    try {
-      await closeAdvancedScheduleQueue();
-      await logInfo('Queue de agendamento avançado fechada');
-    } catch {
-      shutdownFailed = true;
-    }
-    
-    // Redis
-    try {
-      await closeRedis();
-      await logInfo('Redis desconectado');
-    } catch {
-      shutdownFailed = true;
-    }
-    
-    // Invoice Worker
-    try {
-      if ((global as any).invoiceWorker) {
-        (global as any).invoiceWorker.stop();
-        await logInfo('Invoice Worker parado');
-      }
-    } catch {
-      shutdownFailed = true;
-    }
-    
-    // Subscriber Access Notification Worker
-    try {
-      if ((global as any).subscriberAccessNotificationWorker) {
-        (global as any).subscriberAccessNotificationWorker.stop();
-        await logInfo('Subscriber Access Notification Worker parado');
-      }
-      if ((global as any).playlistEngineWorker) {
-        (global as any).playlistEngineWorker.stop();
-        await logInfo('Playlist Engine Worker parado');
-      }
-    } catch {
-      shutdownFailed = true;
-    }
-    
-    // Playlist Mix Worker
-    try {
-      if ((global as any).playlistMixWorker) {
-        (global as any).playlistMixWorker.stop();
-        await logInfo('Playlist Mix Worker parado');
-      }
-    } catch {
-      shutdownFailed = true;
-    }
-    
-    // Database
-    try {
-      await closeDatabase();
-      await logInfo('Database desconectado');
-    } catch {
-      shutdownFailed = true;
-    }
-    
-    // Sair com código de erro se alguma operação falhou
-    process.exit(shutdownFailed ? 1 : 0);
-  } catch (error) {
-    try {
-      await logError('Erro durante shutdown', error);
-    } catch {
-      // Silenciosamente falhar - logging não disponível
-    }
-    process.exit(1);
-  }
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // =============================================
 // STARTUP

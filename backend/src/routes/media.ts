@@ -9,6 +9,7 @@ import { body, param } from 'express-validator';
 import { logError, logDebug, logWarnSync, sanitizeForLogging } from '../utils/loggerHelper';
 import { uploadLimiter } from '../middleware/security.middleware';
 import { getSubscriberService } from '../services/subscriberService';
+import { determineSubscriberId } from '../utils/subscriberHelper';
 import { 
   paginationValidators, 
   searchValidators, 
@@ -449,45 +450,17 @@ router.post('/upload-multiple',
       // Determinar se é admin
       const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
       
-      // Obter subscriberId do request
-      const requestSubscriberId = req.subscriberId || req.user?.subscriberId || req.user?.clientId;
-      
-      // Determinar subscriberId final
-      let finalSubscriberId: number | undefined = req.body.subscriberId ? parseInt(req.body.subscriberId) : undefined;
-      
-      // Se não foi fornecido e usuário não é admin, usar subscriberId do usuário
-      if (!finalSubscriberId && !isAdmin && requestSubscriberId) {
-        finalSubscriberId = requestSubscriberId;
-      }
-      
-      // Se admin não forneceu subscriberId, buscar primeiro subscriber ativo
-      if (!finalSubscriberId && isAdmin) {
-        try {
-          const db = require('../config/database').getDatabase();
-          const firstSubscriber = await db.findFirst(`
-            SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
-          `);
-          if (firstSubscriber) {
-            finalSubscriberId = firstSubscriber.subscriber_id;
-            await logDebug('[Media] Admin usando primeiro subscriber ativo para upload múltiplo', { subscriberId: finalSubscriberId });
-          } else {
-            return res.status(400).json({
-              success: false,
-              error: 'subscriberId é obrigatório',
-              message: 'É necessário fornecer subscriberId ou ter pelo menos um subscriber ativo'
-            });
-          }
-        } catch (dbError: any) {
-          await logError('Erro ao buscar subscriber', dbError);
-          return res.status(400).json({
-            success: false,
-            error: 'subscriberId é obrigatório',
-            message: 'Não foi possível determinar o subscriber. Forneça subscriberId explicitamente.'
-          });
-        }
-      }
+      // Determinar subscriberId usando helper centralizado
+      const finalSubscriberId = await determineSubscriberId({
+        bodySubscriberId: req.body.subscriberId,
+        userSubscriberId: req.user?.subscriberId,
+        userClientId: req.user?.clientId,
+        requestSubscriberId: req.subscriberId,
+        isAdmin,
+        fallbackToFirstActive: isAdmin // Admin pode usar primeiro ativo como fallback
+      });
 
-      // Validar que finalSubscriberId foi definido
+      // Validar que subscriberId foi determinado
       if (!finalSubscriberId || finalSubscriberId <= 0) {
         return res.status(400).json({
           success: false,
@@ -528,16 +501,21 @@ router.post('/upload-multiple',
         });
       }
 
+      // Ler todos os arquivos de forma assíncrona (paralelo)
+      const fileBuffers = await Promise.all(
+        files.map(file => fs.promises.readFile(file.path))
+      );
+
       const created = await getMediaService().createMultipleMedia(
-        files.map(file => ({
-          buffer: fs.readFileSync(file.path),
+        files.map((file, index) => ({
+          buffer: fileBuffers[index],
           originalname: file.originalname,
           mimetype: file.mimetype,
           size: file.size,
         })),
         finalSubscriberId,
         req.user?.id || 0,
-        requestSubscriberId,
+        req.subscriberId || req.user?.subscriberId || req.user?.clientId,
         isAdmin
       );
       

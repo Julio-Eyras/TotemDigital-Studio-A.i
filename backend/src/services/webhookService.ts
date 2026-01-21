@@ -50,10 +50,37 @@ export class WebhookService {
   }
 
   /**
+   * Validar formato de URL
+   */
+  private validateUrl(url: string): boolean {
+    try {
+      const urlObj = new URL(url);
+      // Aceitar apenas http e https
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Criar webhook
    */
   async createWebhook(data: CreateWebhookRequest): Promise<Webhook> {
     try {
+      // Validar formato de URL
+      if (!this.validateUrl(data.url)) {
+        throw new Error('URL inválida. Use formato http:// ou https://');
+      }
+
+      // Validar que channels e events não estão vazios
+      if (!data.channels || data.channels.length === 0) {
+        throw new Error('Channels é obrigatório e deve conter pelo menos um canal');
+      }
+
+      if (!data.events || data.events.length === 0) {
+        throw new Error('Events é obrigatório e deve conter pelo menos um evento');
+      }
+
       const query = `
         INSERT INTO webhooks (
           name, url, secret, channels, events, enabled, retry_count, timeout_ms
@@ -142,6 +169,21 @@ export class WebhookService {
    */
   async updateWebhook(id: number, data: UpdateWebhookRequest): Promise<Webhook> {
     try {
+      // Validar URL se fornecida
+      if (data.url !== undefined && !this.validateUrl(data.url)) {
+        throw new Error('URL inválida. Use formato http:// ou https://');
+      }
+
+      // Validar channels se fornecido
+      if (data.channels !== undefined && (!Array.isArray(data.channels) || data.channels.length === 0)) {
+        throw new Error('Channels deve ser um array com pelo menos um canal');
+      }
+
+      // Validar events se fornecido
+      if (data.events !== undefined && (!Array.isArray(data.events) || data.events.length === 0)) {
+        throw new Error('Events deve ser um array com pelo menos um evento');
+      }
+
       const updates: string[] = [];
       const params: any[] = [];
       let paramIndex = 1;

@@ -14,6 +14,7 @@ import { AuditService } from './auditService';
 import { StorageService } from './storageService';
 import { getCacheService } from './cacheService';
 import { logError, logWarn } from '../utils/loggerHelper';
+import { normalizeDownloadUrl, generateThumbnailUrl } from '../utils/pathHelper';
 
 export interface CreateMediaRequest {
   name: string;
@@ -330,8 +331,8 @@ export class MediaService {
 
         const filePath = item.filePath || item.filepath || null;
         // Para o frontend: sempre preferir endpoints da API (independente do layout de /assets no SO)
-        const downloadUrl = item.id ? `/api/media/${item.id}/download` : (filePath ? this.getDownloadUrl(filePath) : '');
-        const thumbnailUrl = item.id ? `/api/media/${item.id}/thumbnail` : (item.thumbnailUrl || item.thumbnailurl || (filePath ? this.getThumbnailUrl(filePath, item.mediaType || item.mediaType) : ''));
+        const downloadUrl = item.id ? `/api/media/${item.id}/download` : (filePath ? normalizeDownloadUrl(filePath) : '');
+        const thumbnailUrl = item.id ? `/api/media/${item.id}/thumbnail` : (item.thumbnailUrl || item.thumbnailurl || (filePath ? generateThumbnailUrl(filePath, item.mediaType || 'image') : ''));
         
         const previewUrl = this.normalizePreviewUrl(item.previewUrl || item.previewurl, thumbnailUrl);
 
@@ -473,8 +474,8 @@ export class MediaService {
 
       const filePath = media.filePath || media.filepath || null;
       // Para o frontend: sempre preferir endpoints da API
-      const downloadUrl = media.id ? `/api/media/${media.id}/download` : (filePath ? this.getDownloadUrl(filePath) : '');
-      const thumbnailUrl = media.id ? `/api/media/${media.id}/thumbnail` : (media.thumbnailUrl || media.thumbnailurl || (filePath ? this.getThumbnailUrl(filePath, media.mediaType || media.mediaType) : ''));
+      const downloadUrl = media.id ? `/api/media/${media.id}/download` : (filePath ? normalizeDownloadUrl(filePath) : '');
+      const thumbnailUrl = media.id ? `/api/media/${media.id}/thumbnail` : (media.thumbnailUrl || media.thumbnailurl || (filePath ? generateThumbnailUrl(filePath, media.mediaType || 'image') : ''));
       const previewUrl = this.normalizePreviewUrl(media.previewUrl || media.previewurl, thumbnailUrl);
 
       return {
@@ -867,7 +868,7 @@ export class MediaService {
 
         // Gerar thumbnail
         const thumbnailPath = await this.generateThumbnail(buffer, filePath);
-        result.previewUrl = this.getThumbnailUrl(thumbnailPath, 'image');
+        result.previewUrl = generateThumbnailUrl(thumbnailPath, 'image');
 
       } else if (mimetype.startsWith('video/')) {
         // Para vídeo, você pode usar ffmpeg para extrair metadados
@@ -878,7 +879,7 @@ export class MediaService {
 
         // Gerar thumbnail do vídeo
         const thumbnailPath = await this.generateVideoThumbnail(buffer, filePath);
-        result.previewUrl = this.getThumbnailUrl(thumbnailPath, 'video');
+        result.previewUrl = generateThumbnailUrl(thumbnailPath, 'video');
 
       } else if (mimetype.startsWith('audio/')) {
         // Para áudio, extrair duração
@@ -973,91 +974,7 @@ export class MediaService {
   //   return crypto.createHash('md5').update(buffer).digest('hex');
   // }
 
-  /**
-   * Gera URL de download
-   * Converte caminho absoluto para URL relativa que o Nginx pode servir
-   * Exemplos:
-   *   /opt/smart-signage/public/assets/uploads/file.jpg -> /assets/uploads/file.jpg
-   *   /home/user/project/public/assets/uploads/uploads/file.jpg -> /assets/uploads/file.jpg
-   *   /assets/uploads/file.jpg -> /assets/uploads/file.jpg (já está correto)
-   */
-  private getDownloadUrl(filePath: string | null | undefined): string {
-    if (!filePath) {
-      return '';
-    }
-    
-    // Se já começa com /assets/, limpar e retornar
-    if (filePath.startsWith('/assets/')) {
-      // Remover duplicações de /assets/ no início e normalizar
-      let cleaned = filePath.replace(/^\/assets+\//, '/assets/');
-      // Remover duplicações de uploads/ no caminho
-      cleaned = cleaned.replace(/uploads\/+/g, 'uploads/');
-      return cleaned;
-    }
-    
-    // Tentar extrair parte relativa após /public/assets/ ou /assets/
-    let relativePath = filePath;
-    
-    // Caso 1: Caminho contém /public/assets/ (ex: /opt/smart-signage/public/assets/uploads/...)
-    if (relativePath.includes('/public/assets/')) {
-      const parts = relativePath.split('/public/assets/');
-      if (parts.length > 1) {
-        relativePath = parts[1];
-      }
-    }
-    // Caso 2: Caminho contém /assets/ mas não /public/assets/ (ex: /home/user/project/assets/uploads/...)
-    else if (relativePath.includes('/assets/')) {
-      const parts = relativePath.split('/assets/');
-      if (parts.length > 1) {
-        relativePath = parts[1];
-      }
-    }
-    // Caso 3: Caminho absoluto sem /assets/ - manter apenas o nome do arquivo ou último diretório
-    else {
-      // Extrair apenas a parte final relevante (client-X/medias/filename)
-      const pathParts = relativePath.split('/');
-      const assetsIndex = pathParts.findIndex(part => part === 'assets' || part === 'uploads');
-      if (assetsIndex >= 0 && assetsIndex < pathParts.length - 1) {
-        relativePath = pathParts.slice(assetsIndex).join('/');
-      } else {
-        // Último recurso: extrair apenas após 'uploads'
-        const uploadsIndex = relativePath.indexOf('uploads');
-        if (uploadsIndex >= 0) {
-          relativePath = relativePath.substring(uploadsIndex);
-        }
-      }
-    }
-    
-    // Limpar o caminho: remover duplicações de uploads/ e barras duplas
-    relativePath = relativePath.replace(/uploads\/+/g, 'uploads/');
-    relativePath = relativePath.replace(/\/+/g, '/');
-    
-    // Garantir que comece com /assets/ e não tenha duplicações
-    if (!relativePath.startsWith('/assets/')) {
-      relativePath = `/assets/${relativePath}`;
-    }
-    
-    // Remover duplicações finais
-    relativePath = relativePath.replace(/^\/assets+\//, '/assets/');
-    relativePath = relativePath.replace(/uploads\/+/g, 'uploads/');
-    relativePath = relativePath.replace(/\/+/g, '/');
-    
-    return relativePath;
-  }
-
-  /**
-   * Gera URL de thumbnail
-   */
-  private getThumbnailUrl(filePath: string | null | undefined, mediaType: string): string {
-    if (!filePath) {
-      return '';
-    }
-    if (mediaType === 'image') {
-      const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-      return this.getDownloadUrl(thumbnailPath);
-    }
-    return this.getDownloadUrl(filePath);
-  }
+  // Métodos getDownloadUrl() e getThumbnailUrl() removidos - usar helpers de pathHelper.ts
 
   /**
    * Busca thumbnail de mídia
@@ -1163,8 +1080,8 @@ export class MediaService {
         resized: false
       };
 
-      // Ler arquivo
-      const fileBuffer = fs.readFileSync(media.filePath);
+      // Ler arquivo de forma assíncrona para não bloquear event loop
+      const fileBuffer = await fs.promises.readFile(media.filePath);
 
       // Processar apenas imagens por enquanto
       if (media.mediaType === 'image') {
@@ -1239,10 +1156,10 @@ export class MediaService {
               .jpeg({ quality: 80, progressive: true })
               .toFile(thumbnailPath);
 
-            result.thumbnailUrl = this.getThumbnailUrl(thumbnailPath, 'image');
+            result.thumbnailUrl = generateThumbnailUrl(thumbnailPath, 'image');
             processed = true;
           } else {
-            result.thumbnailUrl = this.getThumbnailUrl(thumbnailPath, 'image');
+            result.thumbnailUrl = generateThumbnailUrl(thumbnailPath, 'image');
           }
         }
 
@@ -1268,7 +1185,7 @@ export class MediaService {
         if (options.generateThumbnail !== false) {
           const thumbnailPath = await this.generateVideoThumbnail(fileBuffer, media.filePath);
           if (thumbnailPath && thumbnailPath !== media.filePath) {
-            result.thumbnailUrl = this.getThumbnailUrl(thumbnailPath, 'video');
+            result.thumbnailUrl = generateThumbnailUrl(thumbnailPath, 'video');
             result.message = 'Thumbnail de vídeo gerado (requer ffmpeg para processamento completo)';
           } else {
             result.message = 'Processamento de vídeo requer ffmpeg. Thumbnail não gerado.';
@@ -1464,8 +1381,8 @@ export class MediaService {
       return media.map(item => ({
         ...item,
         tags: item.tags ? (Array.isArray(item.tags) ? item.tags : (typeof item.tags === 'string' ? (() => { try { return JSON.parse(item.tags); } catch { return item.tags.includes(',') ? item.tags.split(',').map((t: string) => t.trim()) : [item.tags]; } })() : [])) : [],
-        downloadUrl: item.filePath ? this.getDownloadUrl(item.filePath) : '',
-        thumbnailUrl: item.filePath ? this.getThumbnailUrl(item.filePath, item.mediaType) : ''
+        downloadUrl: item.filePath ? normalizeDownloadUrl(item.filePath) : '',
+        thumbnailUrl: item.filePath ? generateThumbnailUrl(item.filePath, item.mediaType || 'image') : ''
       }));
 
     } catch (error: any) {

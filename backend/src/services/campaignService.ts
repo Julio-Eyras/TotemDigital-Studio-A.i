@@ -219,11 +219,12 @@ export class CampaignService {
       const sortField = validSortFields[sortBy] || 'c.created_at';
       const orderDirection = (filters.sortOrder || 'desc').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-      // Buscar campanhas
+      // Buscar campanhas (usar subscriberId em vez de clientId para consistência)
       const campaigns = await this.db.findMany(`
         SELECT 
           c.campaign_id as id,
-          c.subscriber_id as "clientId",
+          c.subscriber_id as "subscriberId",
+          c.subscriber_id as "clientId", -- Mantido para compatibilidade
           c.contract_id as "contractId",
           c.title,
           c.category_segment as "categorySegment",
@@ -339,7 +340,8 @@ export class CampaignService {
       const campaign = await this.db.findFirst(`
         SELECT 
           c.campaign_id as id,
-          c.subscriber_id as "clientId",
+          c.subscriber_id as "subscriberId",
+          c.subscriber_id as "clientId", -- Mantido para compatibilidade
           c.contract_id as "contractId",
           c.title,
           c.category_segment as "categorySegment",

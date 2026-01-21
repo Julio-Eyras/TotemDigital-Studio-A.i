@@ -79,18 +79,51 @@ const PlaylistMix: React.FC = () => {
   }>({});
 
   useEffect(() => {
-    loadTotems();
+    let isMounted = true;
+    
+    const loadData = async () => {
+      try {
+        await loadTotems();
+      } catch (error: any) {
+        if (isMounted) {
+          setError('Erro ao carregar totems: ' + (error.message || 'Erro desconhecido'));
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+    
     if (selectedTotemId) {
-      loadAllForTotem(selectedTotemId);
+      const loadData = async () => {
+        try {
+          await loadAllForTotem(selectedTotemId);
+        } catch (error: any) {
+          if (isMounted) {
+            setError('Erro ao carregar dados: ' + (error.message || 'Erro desconhecido'));
+          }
+        }
+      };
+      loadData();
     } else {
-      setMix(null);
-      setAiContext(null);
-      setRules([]);
-      setHistory([]);
+      if (isMounted) {
+        setMix(null);
+        setAiContext(null);
+        setRules([]);
+        setHistory([]);
+      }
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [selectedTotemId]);
 
   const loadTotems = async () => {
