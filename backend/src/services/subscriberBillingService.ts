@@ -11,8 +11,10 @@
  */
 
 import { getDatabase } from '../config/database';
+import { transaction } from '../config/database-pg';
 // import { AuditService } from './auditService'; // Não utilizado no momento
 import { logError, logDebug } from '../utils/loggerHelper';
+import type { PoolClient } from 'pg';
 
 export interface CreateSubscriberBillingRequest {
   subscriberId: number;
@@ -207,6 +209,55 @@ export class SubscriberBillingService {
   }
 
   /**
+   * Obter fatura por ID usando client específico (para transações)
+   */
+  private async getBillingByIdWithClient(client: PoolClient, billingId: number): Promise<SubscriberBillingResponse | null> {
+    const result = await client.query(`
+      SELECT 
+        sb.billing_id as "billingId",
+        sb.subscriber_id as "subscriberId",
+        sb.campaign_id as "campaignId",
+        sb.billing_type as "billingType",
+        sb.amount,
+        sb.currency,
+        sb.description,
+        sb.due_date as "dueDate",
+        sb.payment_status as "status",
+        sb.payment_method as "paymentMethod",
+        sb.metadata,
+        sb.created_at as "createdAt",
+        sb.updated_at as "updatedAt",
+        sb.payment_date as "paidAt",
+        s.name as "subscriberName",
+        c.title as "campaignTitle",
+        CASE 
+          WHEN sb.payment_status = 'pending' AND sb.due_date < CURRENT_DATE THEN true
+          ELSE false
+        END as "isOverdue",
+        CASE 
+          WHEN sb.payment_status = 'pending' AND sb.due_date < CURRENT_DATE 
+          THEN EXTRACT(DAY FROM CURRENT_DATE - sb.due_date)::int
+          ELSE 0
+        END as "daysOverdue"
+      FROM subscriber_billing sb
+      LEFT JOIN subscribers s ON sb.subscriber_id = s.subscriber_id
+      LEFT JOIN campaigns c ON sb.campaign_id = c.campaign_id
+      WHERE sb.billing_id = $1
+    `, [billingId]);
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const billing = result.rows[0];
+    return {
+      ...billing,
+      isOverdue: billing.isOverdue || false,
+      daysOverdue: billing.daysOverdue || 0
+    };
+  }
+
+  /**
    * Obter fatura por ID
    */
   async getBillingById(billingId: number): Promise<SubscriberBillingResponse | null> {
@@ -260,72 +311,76 @@ export class SubscriberBillingService {
   }
 
   /**
-   * Criar nova fatura para subscriber
+   * Criar nova fatura para subscriber (com transação para garantir consistência)
    */
   async createBilling(data: CreateSubscriberBillingRequest): Promise<SubscriberBillingResponse> {
-    try {
-      // Validar subscriber existe
-      const subscriber = await this.db.findFirst(`
-        SELECT subscriber_id FROM subscribers 
-        WHERE subscriber_id = $1 AND COALESCE(is_active, true) = true
-      `, [data.subscriberId]);
+    return await transaction(async (client) => {
+      try {
+        // Validar subscriber existe (dentro da transação)
+        const subscriberResult = await client.query(`
+          SELECT subscriber_id FROM subscribers 
+          WHERE subscriber_id = $1 AND COALESCE(is_active, true) = true
+        `, [data.subscriberId]);
 
-      if (!subscriber) {
-        throw new Error('Subscriber não encontrado ou inativo');
-      }
-
-      // Validar campaign se fornecida
-      if (data.campaignId) {
-        const campaign = await this.db.findFirst(`
-          SELECT campaign_id FROM campaigns 
-          WHERE campaign_id = $1 AND subscriber_id = $2
-        `, [data.campaignId, data.subscriberId]);
-
-        if (!campaign) {
-          throw new Error('Campanha não encontrada ou não pertence a este subscriber');
+        if (subscriberResult.rows.length === 0) {
+          throw new Error('Subscriber não encontrado ou inativo');
         }
+
+        // Validar campaign se fornecida (dentro da transação)
+        if (data.campaignId) {
+          const campaignResult = await client.query(`
+            SELECT campaign_id FROM campaigns 
+            WHERE campaign_id = $1 AND subscriber_id = $2
+          `, [data.campaignId, data.subscriberId]);
+
+          if (campaignResult.rows.length === 0) {
+            throw new Error('Campanha não encontrada ou não pertence a este subscriber');
+          }
+        }
+
+        // Criar fatura (dentro da transação)
+        const result = await client.query(`
+          INSERT INTO subscriber_billing (
+            subscriber_id, campaign_id, billing_type, amount, currency, 
+            description, due_date, payment_status, payment_method, payment_reference, 
+            notes, metadata, created_at, updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          RETURNING billing_id
+        `, [
+          data.subscriberId,
+          data.campaignId || null,
+          data.billingType,
+          data.amount,
+          data.currency || 'BRL',
+          data.description || '',
+          data.dueDate || null,
+          data.status || 'pending',
+          data.paymentMethod || null,
+          data.paymentReference || null,
+          data.notes || null,
+          data.metadata ? JSON.stringify(data.metadata) : null
+        ]);
+
+        const billingId = result.rows[0]?.billing_id;
+        if (!billingId) {
+          throw new Error('Erro ao criar fatura');
+        }
+
+        await logDebug('Fatura de subscriber criada', { billingId, subscriberId: data.subscriberId });
+
+        // Buscar fatura criada (dentro da transação)
+        const billing = await this.getBillingByIdWithClient(client, billingId);
+        if (!billing) {
+          throw new Error('Erro ao buscar fatura criada');
+        }
+
+        return billing;
+      } catch (error: any) {
+        await logError('Erro ao criar fatura de subscriber', error);
+        throw error;
       }
-
-      const result = await this.db.executeRaw(`
-        INSERT INTO subscriber_billing (
-          subscriber_id, campaign_id, billing_type, amount, currency, 
-          description, due_date, status, payment_method, payment_reference, 
-          notes, metadata, created_at, updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        RETURNING billing_id
-      `, [
-        data.subscriberId,
-        data.campaignId || null,
-        data.billingType,
-        data.amount,
-        data.currency || 'BRL',
-        data.description || '',
-        data.dueDate || null,
-        data.status || 'pending',
-        data.paymentMethod || null,
-        data.paymentReference || null,
-        data.notes || null,
-        data.metadata ? JSON.stringify(data.metadata) : null
-      ]);
-
-      const billingId = result[0]?.billing_id;
-      if (!billingId) {
-        throw new Error('Erro ao criar fatura');
-      }
-
-      await logDebug('Fatura de subscriber criada', { billingId, subscriberId: data.subscriberId });
-
-      const billing = await this.getBillingById(billingId);
-      if (!billing) {
-        throw new Error('Erro ao buscar fatura criada');
-      }
-
-      return billing;
-    } catch (error: any) {
-      await logError('Erro ao criar fatura de subscriber', error);
-      throw error;
-    }
+    });
   }
 
   /**
