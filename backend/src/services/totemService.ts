@@ -4,11 +4,13 @@
  */
 
 import { getDatabase } from '../config/database';
+import { transaction } from '../config/database-pg';
 import { AuditService } from './auditService';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from './eventLogService';
 import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService } from './totemPlaylistMixService';
+import type { PoolClient } from 'pg';
 
 export interface CreateTotemRequest {
   name?: string;
@@ -311,6 +313,48 @@ export class TotemService {
   }
 
   /**
+   * Busca totem por ID usando client específico (para transações)
+   */
+  private async getTotemByIdWithClient(client: PoolClient, totemId: number): Promise<TotemResponse | null> {
+    const result = await client.query(`
+      SELECT 
+        t.totem_id as id,
+        t.name,
+        t.identifier,
+        t.device_id as deviceId,
+        t.local_id as localId,
+        l.name as location,
+        t.description,
+        t.network_info as config,
+        t.status,
+        t.firmware_version as firmwareVersion,
+        t.network_info->>'ip' as ipAddress,
+        t.last_heartbeat as lastSeen,
+        t.last_heartbeat as lastHeartbeat,
+        t.is_active as active,
+        t.is_active as is_active,
+        NULL as current_playlist_id,
+        t.created_at as createdAt,
+        t.updated_at as updatedAt,
+        l.name as localName,
+        p.name as hostName,
+        p.publisher_id as publisherId
+      FROM totems t
+      LEFT JOIN locals l ON t.local_id = l.local_id
+      LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
+      WHERE t.totem_id = $1
+    `, [totemId]);
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const totem = result.rows[0];
+    // Estatísticas e uptime serão calculados depois (fora da transação)
+    return { ...totem, stats: {}, uptime: 0 };
+  }
+
+  /**
    * Busca totem por ID
    */
   async getTotemById(totemId: number): Promise<TotemResponse | null> {
@@ -458,7 +502,7 @@ export class TotemService {
   }
 
   /**
-   * Cria novo totem
+   * Cria novo totem (com transação para garantir consistência)
    */
   async createTotem(
     data: CreateTotemRequest,
@@ -466,115 +510,117 @@ export class TotemService {
     requestPublisherId?: number,
     isAdmin: boolean = false
   ): Promise<TotemResponse> {
-    try {
-      const { 
-        name,
-        identifier, 
-        uin,
-        deviceId, 
-        localId,
-        contract_id,
-        description, 
-        config, 
-        firmwareVersion, 
-        isActive = true
-      } = data;
+    // Validações prévias (fora da transação - são apenas leituras)
+    const { 
+      name,
+      identifier, 
+      uin,
+      deviceId, 
+      localId,
+      contract_id,
+      description, 
+      config, 
+      firmwareVersion, 
+      isActive = true
+    } = data;
 
-      const totemIdentifier = identifier || name;
+    const totemIdentifier = identifier || name;
 
-      if (!totemIdentifier) {
-        throw new Error('Identifier é obrigatório');
+    if (!totemIdentifier) {
+      throw new Error('Identifier é obrigatório');
+    }
+
+    if (!localId) {
+      throw new Error('local_id é obrigatório. Totem deve pertencer a um local.');
+    }
+
+    // Validar se local existe e obter publisher_id
+    const local = await this.db.findFirst(`
+      SELECT 
+        l.local_id,
+        l.name as local_name,
+        p.publisher_id,
+        p.name as publisher_name
+      FROM locals l
+      JOIN publishers p ON l.publisher_id = p.publisher_id
+      WHERE l.local_id = $1
+    `, [localId]);
+
+    if (!local) {
+      throw new Error('Local não encontrado');
+    }
+
+    // Validação de ownership: não-admin só pode criar totens em locals do seu publisher
+    if (!isAdmin && requestPublisherId && local.publisher_id !== requestPublisherId) {
+      throw new Error('Acesso negado: Você só pode criar totens em locals do seu próprio publisher');
+    }
+
+    // Verificar se identifier já existe
+    const existingTotem = await this.db.findFirst(`
+      SELECT totem_id FROM totems WHERE identifier = $1
+    `, [totemIdentifier]);
+
+    if (existingTotem) {
+      throw new Error('Identifier já existe');
+    }
+
+    // Verificar se UIN já existe (se fornecido)
+    if (uin) {
+      const existingUin = await this.db.findFirst(`
+        SELECT totem_id FROM totems WHERE uin = $1
+      `, [uin]);
+
+      if (existingUin) {
+        throw new Error('UIN já existe');
+      }
+    }
+
+    // Verificar se device ID já existe (se fornecido)
+    if (deviceId) {
+      const existingDevice = await this.db.findFirst(`
+        SELECT totem_id FROM totems WHERE device_id = $1
+      `, [deviceId]);
+
+      if (existingDevice) {
+        throw new Error('Device ID já existe');
+      }
+    }
+
+    // Validar contract_id se fornecido (deve existir e estar ativo)
+    if (contract_id) {
+      const contract = await this.db.findFirst(`
+        SELECT contract_id, status, start_date, end_date
+        FROM subscriber_contracts 
+        WHERE contract_id = $1
+        UNION ALL
+        SELECT contract_id, status, start_date, end_date
+        FROM publisher_contracts 
+        WHERE contract_id = $1
+      `, [contract_id]);
+
+      if (!contract) {
+        throw new Error('Contrato não encontrado');
       }
 
-      if (!localId) {
-        throw new Error('local_id é obrigatório. Totem deve pertencer a um local.');
+      if (contract.status !== 'active' && contract.status !== 'draft') {
+        throw new Error('Contrato deve estar em status "active" ou "draft"');
       }
 
-      // Validar se local existe e obter publisher_id
-      const local = await this.db.findFirst(`
-        SELECT 
-          l.local_id,
-          l.name as local_name,
-          p.publisher_id,
-          p.name as publisher_name
-        FROM locals l
-        JOIN publishers p ON l.publisher_id = p.publisher_id
-        WHERE l.local_id = $1
-      `, [localId]);
-
-      if (!local) {
-        throw new Error('Local não encontrado');
-      }
-
-      // Validação de ownership: não-admin só pode criar totens em locals do seu publisher
-      if (!isAdmin && requestPublisherId && local.publisher_id !== requestPublisherId) {
-        throw new Error('Acesso negado: Você só pode criar totens em locals do seu próprio publisher');
-      }
-
-      // Verificar se identifier já existe
-      const existingTotem = await this.db.findFirst(`
-        SELECT totem_id FROM totems WHERE identifier = $1
-      `, [totemIdentifier]);
-
-      if (existingTotem) {
-        throw new Error('Identifier já existe');
-      }
-
-      // Verificar se UIN já existe (se fornecido)
-      if (uin) {
-        const existingUin = await this.db.findFirst(`
-          SELECT totem_id FROM totems WHERE uin = $1
-        `, [uin]);
-
-        if (existingUin) {
-          throw new Error('UIN já existe');
+      // Validar se contrato não está expirado
+      if (contract.end_date) {
+        const endDate = new Date(contract.end_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (endDate < today) {
+          throw new Error('Contrato está expirado');
         }
       }
+    }
 
-      // Verificar se device ID já existe (se fornecido)
-      if (deviceId) {
-        const existingDevice = await this.db.findFirst(`
-          SELECT totem_id FROM totems WHERE device_id = $1
-        `, [deviceId]);
-
-        if (existingDevice) {
-          throw new Error('Device ID já existe');
-        }
-      }
-
-      // Validar contract_id se fornecido (deve existir e estar ativo)
-      if (contract_id) {
-        const contract = await this.db.findFirst(`
-          SELECT contract_id, status, start_date, end_date
-          FROM subscriber_contracts 
-          WHERE contract_id = $1
-          UNION ALL
-          SELECT contract_id, status, start_date, end_date
-          FROM publisher_contracts 
-          WHERE contract_id = $1
-        `, [contract_id]);
-
-        if (!contract) {
-          throw new Error('Contrato não encontrado');
-        }
-
-        if (contract.status !== 'active' && contract.status !== 'draft') {
-          throw new Error('Contrato deve estar em status "active" ou "draft"');
-        }
-
-        // Validar se contrato não está expirado
-        if (contract.end_date) {
-          const endDate = new Date(contract.end_date);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          if (endDate < today) {
-            throw new Error('Contrato está expirado');
-          }
-        }
-      }
-
-      // Criar totem (PostgreSQL placeholders $1, $2, ...)
-      const result = await this.db.executeRaw(`
+    // Executar operações críticas dentro de transação
+    return await transaction(async (client) => {
+      // Criar totem (dentro da transação)
+      const result = await client.query(`
         INSERT INTO totems (
           name,
           identifier,
@@ -605,33 +651,46 @@ export class TotemService {
         isActive
       ]);
 
-      const insertedId = result?.rows?.[0]?.totem_id;
-
+      const insertedId = result.rows[0]?.totem_id;
       if (!insertedId) {
         throw new Error('Erro ao criar totem');
       }
 
-      // Buscar totem criado
-      const newTotem = await this.getTotemById(insertedId);
+      // Log de auditoria (dentro da transação)
+      await client.query(`
+        INSERT INTO audit_logs (user_id, action, entity, entity_id, metadata, timestamp)
+        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+      `, [
+        createdBy,
+        'created',
+        'totem',
+        insertedId,
+        JSON.stringify({
+          totemId: insertedId,
+          identifier: totemIdentifier
+        })
+      ]);
+
+      // Buscar totem criado (dentro da transação)
+      const newTotem = await this.getTotemByIdWithClient(client, insertedId);
       if (!newTotem) {
         throw new Error('Erro ao buscar totem criado');
       }
 
-      // Log de auditoria
-      await this.getAuditService().log('totem', 'created', createdBy, {
-        totemId: newTotem.id,
-        identifier: newTotem.identifier
-      });
-
-      // Invalidar cache relacionado
-      await this.cache.invalidateEntity('totem', newTotem.id).catch(() => {});
-
       return newTotem;
-
-    } catch (error: any) {
-      await logError('Erro ao criar totem', error);
+    }).then(async (newTotem) => {
+      // Buscar estatísticas e calcular uptime (fora da transação - não crítico)
+      const stats = await this.getTotemStats(newTotem.id);
+      const uptime = await this.calculateUptime(newTotem.lastHeartbeat);
+      
+      // Invalidar cache relacionado (fora da transação - não crítico)
+      await this.cache.invalidateEntity('totem', newTotem.id).catch(() => {});
+      
+      return { ...newTotem, ...stats, uptime };
+    }).catch((error: any) => {
+      logError('Erro ao criar totem', error);
       throw error;
-    }
+    });
   }
 
   /**
