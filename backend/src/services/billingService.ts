@@ -365,7 +365,7 @@ export class BillingService {
       // Verificar se totem existe (se fornecido)
       if (totemId) {
         const totem = await this.db.findFirst(`
-          SELECT totem_id FROM totems WHERE totem_id = ?
+          SELECT totem_id FROM totems WHERE totem_id = $1
         `, [totemId]);
 
         if (!totem) {
@@ -380,7 +380,7 @@ export class BillingService {
           description, due_date, status, payment_method, payment_reference,
           notes, metadata
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING billing_id
       `, [
         clientId,

@@ -86,7 +86,7 @@ export class UserService {
           ur.granted_by
         FROM user_roles ur
         JOIN roles r ON ur.role_id = r.role_id
-        WHERE ur.user_id = ?
+        WHERE ur.user_id = $1
         ORDER BY r.name
       `, [userId]);
 
@@ -106,7 +106,7 @@ export class UserService {
       const existing = await this.db.findFirst(`
         SELECT id
         FROM user_roles
-        WHERE user_id = ? AND role_id = ?
+        WHERE user_id = $1 AND role_id = $2
       `, [userId, roleId]);
 
       if (existing) {
@@ -115,7 +115,7 @@ export class UserService {
 
       await this.db.executeRaw(`
         INSERT INTO user_roles (user_id, role_id, granted_by)
-        VALUES (?, ?, ?)
+        VALUES ($1, $2, $3)
       `, [userId, roleId, grantedBy]);
     } catch (error: any) {
       await logError('Erro ao atribuir role ao usuário', error, { userId, roleId });
@@ -130,7 +130,7 @@ export class UserService {
     try {
       await this.db.executeRaw(`
         DELETE FROM user_roles
-        WHERE user_id = ? AND role_id = ?
+        WHERE user_id = $1 AND role_id = $2
       `, [userId, roleId]);
     } catch (error: any) {
       await logError('Erro ao remover role do usuário', error, { userId, roleId });
@@ -146,12 +146,17 @@ export class UserService {
       // Remover todas as roles existentes
       await this.db.executeRaw(`
         DELETE FROM user_roles
-        WHERE user_id = ?
+        WHERE user_id = $1
       `, [userId]);
 
       // Adicionar novas roles
       if (roleIds.length > 0) {
-        const values = roleIds.map(() => '(?, ?, ?)').join(', ');
+        // Construir placeholders PostgreSQL dinamicamente
+        let paramIndex = 1;
+        const values = roleIds.map(() => {
+          const placeholder = `($${paramIndex++}, $${paramIndex++}, $${paramIndex++})`;
+          return placeholder;
+        }).join(', ');
         const params = roleIds.flatMap(id => [userId, id, grantedBy]);
         
         await this.db.executeRaw(`

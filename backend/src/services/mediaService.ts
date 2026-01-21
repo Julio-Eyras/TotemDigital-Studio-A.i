@@ -1132,8 +1132,8 @@ export class MediaService {
           const stats = fs.statSync(outputPath);
           await this.db.executeRaw(`
             UPDATE medias
-            SET file_size_bytes = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE media_id = ?
+            SET file_size_bytes = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE media_id = $2
           `, [stats.size, mediaId]);
 
           result.metadata = {
@@ -1167,8 +1167,8 @@ export class MediaService {
         if (processed && result.metadata) {
           await this.db.executeRaw(`
             UPDATE medias
-            SET width = ?, height = ?, file_size_bytes = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE media_id = ?
+            SET width = $1, height = $2, file_size_bytes = $3, updated_at = CURRENT_TIMESTAMP
+            WHERE media_id = $4
           `, [
             result.metadata.width || metadata.width,
             result.metadata.height || metadata.height,

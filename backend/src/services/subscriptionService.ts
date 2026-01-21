@@ -548,12 +548,21 @@ export class SubscriptionService {
       }
 
       updates.push('updated_at = CURRENT_TIMESTAMP');
+      
+      // Converter placeholders dinâmicos ? para PostgreSQL $1, $2...
+      let updateClause = updates.join(', ');
+      let updateParamIndex = 1;
+      updateClause = updateClause.replace(/\?/g, () => `$${updateParamIndex++}`);
+      
+      // Adicionar subscriptionId ao final dos params para WHERE
       params.push(subscriptionId);
-
+      const whereParamIndex = updateParamIndex;
+      const whereClause = `WHERE subscription_id = $${whereParamIndex}`;
+      
       await this.db.executeRaw(`
         UPDATE subscriptions 
-        SET ${updates.join(', ')}
-        WHERE subscription_id = ?
+        SET ${updateClause}
+        ${whereClause}
       `, params);
 
       const updatedSubscription = await this.getSubscriptionById(subscriptionId);
@@ -595,11 +604,11 @@ export class SubscriptionService {
 
       await this.db.executeRaw(`
         UPDATE subscriptions 
-        SET cancel_at_period_end = ?,
-            cancelled_at = ?,
-            status = CASE WHEN ? THEN status ELSE 'cancelled' END,
+        SET cancel_at_period_end = $1,
+            cancelled_at = $2,
+            status = CASE WHEN $3 THEN status ELSE 'cancelled' END,
             updated_at = CURRENT_TIMESTAMP
-        WHERE subscription_id = ?
+        WHERE subscription_id = $4
       `, [cancelAtPeriodEnd, canceledAt, cancelAtPeriodEnd, subscriptionId]);
 
       const updatedSubscription = await this.getSubscriptionById(subscriptionId);
@@ -656,7 +665,7 @@ export class SubscriptionService {
     try {
       const subscription = await this.db.findFirst(`
         SELECT subscription_id FROM subscriptions 
-        WHERE stripe_subscription_id = ?
+        WHERE stripe_subscription_id = $1
       `, [stripeSubscription.id]);
 
       if (!subscription) {
@@ -666,12 +675,12 @@ export class SubscriptionService {
 
       await this.db.executeRaw(`
         UPDATE subscriptions 
-        SET status = ?,
-            current_period_start = ?,
-            current_period_end = ?,
-            cancel_at_period_end = ?,
+        SET status = $1,
+            current_period_start = $2,
+            current_period_end = $3,
+            cancel_at_period_end = $4,
             updated_at = CURRENT_TIMESTAMP
-        WHERE subscription_id = ?
+        WHERE subscription_id = $5
       `, [
         stripeSubscription.status,
         new Date(stripeSubscription.current_period_start * 1000),
@@ -698,7 +707,7 @@ export class SubscriptionService {
         SET status = 'cancelled',
             cancelled_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
-        WHERE stripe_subscription_id = ?
+        WHERE stripe_subscription_id = $1
       `, [stripeSubscription.id]);
 
       await logInfo('Subscription cancelada via webhook', { stripeSubscriptionId: stripeSubscription.id });
@@ -717,7 +726,7 @@ export class SubscriptionService {
       // Buscar billing relacionado
       const billing = await this.db.findFirst(`
         SELECT billing_id FROM billing 
-        WHERE stripe_invoice_id = ?
+        WHERE stripe_invoice_id = $1
       `, [invoice.id]);
 
       if (billing) {
@@ -726,7 +735,7 @@ export class SubscriptionService {
           SET status = 'paid',
               paid_at = CURRENT_TIMESTAMP,
               updated_at = CURRENT_TIMESTAMP
-          WHERE billing_id = ?
+          WHERE billing_id = $1
         `, [billing.billing_id]);
 
         await logInfo('Billing atualizado via webhook', { billingId: billing.billing_id, invoiceId: invoice.id });
@@ -745,7 +754,7 @@ export class SubscriptionService {
     try {
       const billing = await this.db.findFirst(`
         SELECT billing_id FROM billing 
-        WHERE stripe_invoice_id = ?
+        WHERE stripe_invoice_id = $1
       `, [invoice.id]);
 
       if (billing) {
@@ -753,7 +762,7 @@ export class SubscriptionService {
           UPDATE billing 
           SET status = 'overdue',
               updated_at = CURRENT_TIMESTAMP
-          WHERE billing_id = ?
+          WHERE billing_id = $1
         `, [billing.billing_id]);
 
         await logInfo('Billing marcado como overdue via webhook', { billingId: billing.billing_id, invoiceId: invoice.id });

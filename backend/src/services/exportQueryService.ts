@@ -74,7 +74,7 @@ export class ExportQueryService {
     try {
       // Validar nome único
       const existing = await this.db.findFirst(`
-        SELECT query_id FROM export_queries WHERE name = ?
+        SELECT query_id FROM export_queries WHERE name = $1
       `, [data.name]);
 
       if (existing) {
@@ -87,7 +87,7 @@ export class ExportQueryService {
           name, description, provider, sql_query, 
           database_config, export_config, enabled, created_by
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
       `, [
         data.name,
@@ -121,7 +121,7 @@ export class ExportQueryService {
   async getQueryById(queryId: number): Promise<ExportQuery | null> {
     try {
       const query = await this.db.findFirst(`
-        SELECT * FROM export_queries WHERE query_id = ?
+        SELECT * FROM export_queries WHERE query_id = $1
       `, [queryId]);
 
       if (!query) {
@@ -223,9 +223,9 @@ export class ExportQueryService {
 
       // Validar nome único se estiver mudando
       if (data.name && data.name !== existing.name) {
-        const duplicate = await this.db.findFirst(`
-          SELECT query_id FROM export_queries WHERE name = ? AND query_id != ?
-        `, [data.name, queryId]);
+          const duplicate = await this.db.findFirst(`
+            SELECT query_id FROM export_queries WHERE name = $1 AND query_id != $2
+          `, [data.name, queryId]);
 
         if (duplicate) {
           throw new Error(`Query com nome '${data.name}' já existe`);
@@ -235,33 +235,34 @@ export class ExportQueryService {
       // Construir query de atualização dinâmica
       const updates: string[] = [];
       const params: any[] = [];
+      let paramIndex = 1;
 
       if (data.name !== undefined) {
-        updates.push('name = ?');
+        updates.push(`name = $${paramIndex++}`);
         params.push(data.name);
       }
       if (data.description !== undefined) {
-        updates.push('description = ?');
+        updates.push(`description = $${paramIndex++}`);
         params.push(data.description || null);
       }
       if (data.provider !== undefined) {
-        updates.push('provider = ?');
+        updates.push(`provider = $${paramIndex++}`);
         params.push(data.provider);
       }
       if (data.sqlQuery !== undefined) {
-        updates.push('sql_query = ?');
+        updates.push(`sql_query = $${paramIndex++}`);
         params.push(data.sqlQuery);
       }
       if (data.databaseConfig !== undefined) {
-        updates.push('database_config = ?');
+        updates.push(`database_config = $${paramIndex++}`);
         params.push(JSON.stringify(data.databaseConfig));
       }
       if (data.exportConfig !== undefined) {
-        updates.push('export_config = ?');
+        updates.push(`export_config = $${paramIndex++}`);
         params.push(JSON.stringify(data.exportConfig));
       }
       if (data.enabled !== undefined) {
-        updates.push('enabled = ?');
+        updates.push(`enabled = $${paramIndex++}`);
         params.push(data.enabled);
       }
 
@@ -269,12 +270,13 @@ export class ExportQueryService {
         return existing;
       }
 
+      const queryIdPlaceholder = `$${paramIndex++}`;
       params.push(queryId);
 
       const result = await this.db.executeRaw(`
         UPDATE export_queries 
         SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-        WHERE query_id = ?
+        WHERE query_id = ${queryIdPlaceholder}
         RETURNING *
       `, params);
 
@@ -306,7 +308,7 @@ export class ExportQueryService {
 
       // Verificar se há agendamentos associados
       const schedules = await this.db.findMany(`
-        SELECT schedule_id FROM export_schedules WHERE query_id = ?
+        SELECT schedule_id FROM export_schedules WHERE query_id = $1
       `, [queryId]);
 
       if (schedules.length > 0) {
@@ -315,7 +317,7 @@ export class ExportQueryService {
 
       // Excluir query
       await this.db.executeRaw(`
-        DELETE FROM export_queries WHERE query_id = ?
+        DELETE FROM export_queries WHERE query_id = $1
       `, [queryId]);
 
       // Log de auditoria
