@@ -1,20 +1,20 @@
+-- ==============================================================================
+-- SmartSignage Pro - Corrigir sequências após inserções manuais de IDs (seeds)
 -- =============================================================================
--- SmartSignage Pro - Fix sequences after manual ID inserts (seeds)
--- =============================================================================
--- When seeds insert explicit IDs into SERIAL columns, PostgreSQL sequences are NOT advanced.
--- This script aligns sequences with current MAX(id) to avoid "duplicate key violates ..._pkey".
+-- Quando seeds inserem IDs explícitos em colunas SERIAL, as sequências do PostgreSQL NÃO são avançadas.
+-- Este script alinha as sequências com o MAX(id) atual para evitar "chave duplicada viola ..._pkey".
 --
--- Safe to run multiple times.
+-- Pode ser executado várias vezes sem problemas.
 
 DO $$
 DECLARE
   _v bigint;
   _seq text;
 BEGIN
-  -- Helper pattern:
-  -- 1) check table exists
-  -- 2) get sequence name (can be NULL if column isn't backed by a sequence)
-  -- 3) setval to MAX(id) ou 1 se não houver registros (setval não aceita 0)
+-- Padrão auxiliar: 
+-- 1) a tabela de verificação existe 
+-- 2) obter o nome da sequência (pode ser NULL se a coluna não for apoiada por uma sequência) 
+-- 3) setval to MAX(id) ou 1 se não houver registros (setval não aceita 0)
 
   -- medias.media_id
   IF to_regclass('medias') IS NOT NULL THEN
@@ -274,10 +274,10 @@ BEGIN
     END IF;
   END IF;
 
-  -- event_logs.event_log_id
+  -- event_logs.id
   IF to_regclass('event_logs') IS NOT NULL THEN
-    SELECT GREATEST(COALESCE(MAX(event_log_id), 0), 1) INTO _v FROM event_logs;
-    SELECT pg_get_serial_sequence('event_logs','event_log_id') INTO _seq;
+    SELECT GREATEST(COALESCE(MAX(id), 0), 1) INTO _v FROM event_logs;
+    SELECT pg_get_serial_sequence('event_logs','id') INTO _seq;
     IF _seq IS NOT NULL THEN
       PERFORM setval(_seq, _v, true);
     END IF;
