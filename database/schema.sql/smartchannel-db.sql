@@ -1152,32 +1152,7 @@ CREATE TABLE IF NOT EXISTS public.event_logs (
 
 -- Garantir que instalações existentes recebam a coluna logged_at em event_logs
 DO $$
-BEGIN
-    -- Verificar no schema public primeiro
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'event_logs') THEN
-        IF NOT EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_schema = 'public' AND table_name = 'event_logs' AND column_name = 'logged_at'
-        ) THEN
-            ALTER TABLE public.event_logs ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-        END IF;
-    END IF;
-    
-    -- Verificação alternativa sem schema explícito (para tabelas criadas sem schema)
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'event_logs') THEN
-        IF NOT EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name = 'event_logs' AND column_name = 'logged_at'
-        ) THEN
-            BEGIN
-                ALTER TABLE event_logs ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-            EXCEPTION WHEN OTHERS THEN
-                -- Coluna pode já existir ou tabela pode estar em outro schema, ignorar
-                NULL;
-            END;
-        END IF;
-    END IF;
-END $$;
+-- Schema V2: event_logs não usa logged_at (usa apenas timestamp)
 
 CREATE TABLE IF NOT EXISTS analytics_qr_scans (
     id SERIAL PRIMARY KEY,

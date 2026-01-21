@@ -1088,11 +1088,11 @@ export class TotemPlaylistMixService {
       const recentData = await this.db.findFirst(`
         SELECT 
           t.name as totem_name,
-          COUNT(DISTINCT el.event_id) as recent_views
+          COUNT(DISTINCT el.log_id) as recent_views
         FROM totems t
         LEFT JOIN event_logs el ON el.totem_id = t.totem_id 
           AND el.event_type = 'media_play'
-          AND el.created_at > NOW() - INTERVAL '24 hours'
+          AND el.timestamp > NOW() - INTERVAL '24 hours'
         WHERE t.totem_id = $1
         GROUP BY t.totem_id, t.name
       `, [totemId]);
