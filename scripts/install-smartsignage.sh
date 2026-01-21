@@ -3686,6 +3686,94 @@ setup_database() {
                 DROP_DB=false
             else
                 DROP_DB=true
+                
+                # Limpar cache do nginx e compilar backend/frontend antes do reset do banco
+                log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                log "🧹 LIMPANDO CACHE E COMPILANDO ANTES DO RESET DO BANCO..."
+                log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                
+                # 1. Limpar cache do nginx
+                log "1️⃣  Limpando cache do Nginx..."
+                local nginx_cache_dirs=(
+                    "/var/cache/nginx"
+                    "/var/lib/nginx/cache"
+                    "/tmp/nginx_cache"
+                    "$INSTALL_DIR/nginx/cache"
+                    "$INSTALL_DIR/nginx/proxy_cache"
+                    "$INSTALL_DIR/nginx/fastcgi_cache"
+                )
+                
+                for cache_dir in "${nginx_cache_dirs[@]}"; do
+                    if [[ -d "$cache_dir" ]]; then
+                        log "Removendo cache do Nginx: $cache_dir"
+                        sudo rm -rf "$cache_dir"/* 2>/dev/null || true
+                    fi
+                done
+                
+                # Recarregar nginx para limpar cache em memória
+                if command -v nginx &> /dev/null && systemctl is-active --quiet nginx 2>/dev/null; then
+                    log "Recarregando configuração do Nginx..."
+                    sudo systemctl reload nginx 2>/dev/null || true
+                fi
+                log "✅ Cache do Nginx limpo"
+                
+                # 2. Compilar backend
+                if [[ -d "$INSTALL_DIR/backend" ]]; then
+                    log "2️⃣  Compilando backend (TypeScript)..."
+                    cd "$INSTALL_DIR/backend" || warn "Não foi possível acessar $INSTALL_DIR/backend"
+                    
+                    # Instalar dependências se necessário
+                    if [[ ! -d "node_modules" ]] || [[ "package.json" -nt "node_modules" ]]; then
+                        log "Instalando dependências do backend..."
+                        npm install --legacy-peer-deps 2>&1 | tee -a "$INSTALL_DIR/logs/backend-install.log" || {
+                            warn "⚠️  Alguns avisos durante instalação de dependências (pode ser normal)"
+                        }
+                    fi
+                    
+                    # Limpar build anterior
+                    rm -rf dist 2>/dev/null || true
+                    
+                    # Compilar TypeScript
+                    log "Compilando TypeScript do backend..."
+                    if npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/backend-build.log"; then
+                        log "✅ Backend compilado com sucesso"
+                    else
+                        warn "⚠️  Erro ao compilar backend. Verifique os logs em $INSTALL_DIR/logs/backend-build.log"
+                    fi
+                else
+                    warn "⚠️  Diretório backend não encontrado: $INSTALL_DIR/backend"
+                fi
+                
+                # 3. Compilar frontend
+                if [[ -d "$INSTALL_DIR/frontend" ]]; then
+                    log "3️⃣  Compilando frontend (React)..."
+                    cd "$INSTALL_DIR/frontend" || warn "Não foi possível acessar $INSTALL_DIR/frontend"
+                    
+                    # Instalar dependências se necessário
+                    if [[ ! -d "node_modules" ]] || [[ "package.json" -nt "node_modules" ]]; then
+                        log "Instalando dependências do frontend..."
+                        npm install --legacy-peer-deps 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-install.log" || {
+                            warn "⚠️  Alguns avisos durante instalação de dependências (pode ser normal)"
+                        }
+                    fi
+                    
+                    # Limpar build anterior
+                    rm -rf build dist 2>/dev/null || true
+                    
+                    # Compilar React
+                    log "Compilando frontend (React)..."
+                    if npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-build.log"; then
+                        log "✅ Frontend compilado com sucesso"
+                    else
+                        warn "⚠️  Erro ao compilar frontend. Verifique os logs em $INSTALL_DIR/logs/frontend-build.log"
+                    fi
+                else
+                    warn "⚠️  Diretório frontend não encontrado: $INSTALL_DIR/frontend"
+                fi
+                
+                log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                log "✅ Limpeza e compilação concluídas. Prosseguindo com reset do banco..."
+                log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             fi
         fi
 
