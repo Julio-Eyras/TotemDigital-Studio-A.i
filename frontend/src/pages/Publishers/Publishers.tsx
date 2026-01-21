@@ -1025,8 +1025,8 @@ const Publishers: React.FC = () => {
         const totemIndex = smartTv.totem_id; // totem_id já é o índice
         if (totemIndex >= 0 && totemIndex < createdTotems.length && createdTotems[totemIndex]) {
           const totem = createdTotems[totemIndex];
-          // Obter o ID do totem (pode ser totem_id ou id)
-          const totemId = totem.totem_id || totem.id;
+          // Obter o ID do totem (padronizado: totem_id)
+          const totemId = totem.totem_id;
           
           // Validar que temos identifier (obrigatório)
           if (!smartTv.identifier || !smartTv.identifier.trim()) {

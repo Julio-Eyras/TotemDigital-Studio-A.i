@@ -357,7 +357,7 @@ const Totems: React.FC = () => {
             </Grid>
           ) : (
             filteredTotems.map((t, idx) => {
-              const totemKey = String((t as any).totem_id ?? (t as any).id ?? (t as any).identifier ?? idx);
+              const totemKey = String((t as any).totem_id ?? (t as any).identifier ?? idx);
               return (
               <Grid item xs={12} sm={6} md={4} key={totemKey}>
                 <Card>
@@ -420,7 +420,7 @@ const Totems: React.FC = () => {
             </Grid>
           ) : (
             filteredPendingTotems.map((t, idx) => {
-              const totemKey = String((t as any).totem_id ?? (t as any).id ?? (t as any).identifier ?? `pending-${idx}`);
+              const totemKey = String((t as any).totem_id ?? (t as any).identifier ?? `pending-${idx}`);
               return (
               <Grid item xs={12} sm={6} md={4} key={totemKey}>
                 <Card sx={{ border: '2px solid', borderColor: 'warning.main' }}>

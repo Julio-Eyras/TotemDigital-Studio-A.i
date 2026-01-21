@@ -378,8 +378,8 @@ const DispatcherManager: React.FC = () => {
                 >
                   <MenuItem value="">Selecione um totem</MenuItem>
                   {totems.map((totem) => (
-                    <MenuItem key={totem.id ?? totem.totem_id} value={totem.id ?? totem.totem_id}>
-                      {totem.name || totem.identifier} ({totem.id ?? totem.totem_id})
+                    <MenuItem key={totem.totem_id} value={totem.totem_id}>
+                      {totem.name || totem.identifier} ({totem.totem_id})
                     </MenuItem>
                   ))}
                 </Select>

@@ -175,8 +175,8 @@ const Locals: React.FC = () => {
       // Mapear totem_id -> local_id
       const totemLocalMap = new Map<number, number>();
       for (const t of totems) {
-        const totemId = Number((t as any).totem_id ?? (t as any).id);
-        const localId = Number((t as any).localId ?? (t as any).local_id);
+        const totemId = Number((t as any).totem_id);
+        const localId = Number((t as any).local_id);
         if (!Number.isNaN(totemId) && !Number.isNaN(localId)) {
           totemLocalMap.set(totemId, localId);
         }
@@ -324,7 +324,7 @@ const Locals: React.FC = () => {
         // Backend de Smart TVs limita limit em 100 (validação). Manter compatível para evitar 400.
         const smartTvsResponse = await smartTvApi.getAll({ limit: 100 });
         const smartTvs = Array.isArray(smartTvsResponse.data) ? smartTvsResponse.data : [];
-        const totemIds = localTotems.map((t: any) => t.totem_id || t.id);
+        const totemIds = localTotems.map((t: any) => t.totem_id);
         const localSmartTvs = smartTvs.filter((tv: any) => 
           totemIds.includes(tv.totem_id) || tv.local_id === local.local_id
         );
@@ -823,7 +823,7 @@ const Locals: React.FC = () => {
                   ) : (
                     <List>
                       {selectedTotems.map((totem) => (
-                        <ListItem key={totem.totem_id || totem.id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
+                        <ListItem key={totem.totem_id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
                           <ListItemIcon>
                             <Computer />
                           </ListItemIcon>

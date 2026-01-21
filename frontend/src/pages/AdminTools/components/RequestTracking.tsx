@@ -174,7 +174,7 @@ const RequestTracking: React.FC = () => {
                   {results.totems.map((totem: any, index: number) => (
                     <Box key={index} sx={{ mb: 2, p: 2, bgcolor: 'white', borderRadius: 1 }}>
                       <Typography variant="body1" fontWeight="bold">
-                        {totem.identifier || `Totem ${totem.id}`}
+                        {totem.identifier || `Totem ${totem.totem_id}`}
                       </Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
                         UIN: {totem.uin}

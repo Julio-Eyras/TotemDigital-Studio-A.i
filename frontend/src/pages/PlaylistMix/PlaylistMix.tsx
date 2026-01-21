@@ -336,7 +336,7 @@ const PlaylistMix: React.FC = () => {
                 >
                   <MenuItem value="">Selecione...</MenuItem>
                   {totems.map((t, idx) => {
-                    const totemId = Number((t as any).totem_id ?? (t as any).id);
+                    const totemId = Number((t as any).totem_id);
                     if (!totemId) return null;
                     return (
                       <MenuItem key={`totem-${totemId}-${idx}`} value={totemId}>

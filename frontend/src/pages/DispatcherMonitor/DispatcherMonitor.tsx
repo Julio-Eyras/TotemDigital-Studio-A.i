@@ -113,10 +113,17 @@ const DispatcherMonitor: React.FC = () => {
     format(new Date(), 'yyyy-MM-dd')
   );
   const [totems, setTotems] = useState<any[]>([]);
-  const allOption = React.useMemo(() => ({ id: 0, name: 'Todos (*)', identifier: '*' }), []);
+  const allOption = React.useMemo(() => ({ totem_id: 0, name: 'Todos (*)', identifier: '*' }), []);
   const [selectedTotemOption, setSelectedTotemOption] = useState<any>(allOption);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(30); // segundos
+
+  // Helper para extrair totem_id de forma padronizada
+  const getTotemId = (item: any): number => {
+    if (!item) return 0;
+    // Padronização: sempre usar totem_id (não mais 'id')
+    return item.totem_id ?? 0;
+  };
 
   // Playlists elegíveis (aba extra)
   const [eligiblePlaylists, setEligiblePlaylists] = useState<EligiblePlaylistRow[]>([]);
@@ -170,7 +177,7 @@ const DispatcherMonitor: React.FC = () => {
       if (!totemFilter || totemFilter === 0) {
         setSelectedTotemOption(allOption);
       } else {
-        const match = list.find((t) => (t.id ?? t.totem_id) === totemFilter);
+        const match = list.find((t) => getTotemId(t) === totemFilter);
         setSelectedTotemOption(match || allOption);
       }
     } catch (err) {
@@ -209,11 +216,11 @@ const DispatcherMonitor: React.FC = () => {
           await loadTotems();
         }
 
-        const targetTotems = (totems || []).filter((t) => (t.id ?? t.totem_id));
+        const targetTotems = (totems || []).filter((t) => getTotemId(t) > 0);
 
         const results = await Promise.all(
           targetTotems.map(async (t) => {
-            const id = t.id ?? t.totem_id;
+            const id = getTotemId(t);
             try {
               const resp = await dispatcherTotemApi.getHistory(id, startIso, endIso);
               return resp.data || [];
@@ -400,7 +407,7 @@ const DispatcherMonitor: React.FC = () => {
         }
 
         for (const t of totems) {
-          const id = t.id ?? t.totem_id;
+          const id = getTotemId(t);
           if (!id) continue;
           try {
             const resp = await dispatcherTotemApi.getCandidates(id, {
@@ -484,17 +491,17 @@ const DispatcherMonitor: React.FC = () => {
               <Autocomplete
                 options={[allOption, ...totems]}
                 isOptionEqualToValue={(option, value) =>
-                  (option.id ?? option.totem_id) === (value.id ?? value.totem_id)
+                  getTotemId(option) === getTotemId(value)
                 }
                 getOptionLabel={(option) => {
                   if (!option) return '';
-                  if ((option.id ?? option.totem_id) === 0) return 'Todos (*)';
-                  const id = option.id ?? option.totem_id;
+                  if (getTotemId(option) === 0) return 'Todos (*)';
+                  const id = getTotemId(option);
                   return `${option.name || option.identifier} (ID: ${id})`;
                 }}
                 value={selectedTotemOption}
                 onChange={(_, newValue) => {
-                  const valId = newValue ? (newValue.id ?? newValue.totem_id) : 0;
+                  const valId = getTotemId(newValue);
                   setTotemFilter(valId || 0);
                   setSelectedTotemOption(newValue || allOption);
                 }}

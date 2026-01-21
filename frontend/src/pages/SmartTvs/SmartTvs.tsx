@@ -335,7 +335,7 @@ const SmartTvs: React.FC = () => {
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {totems.map((totem, idx) => {
-                    const totemId = Number((totem as any).totem_id ?? (totem as any).id);
+                    const totemId = Number((totem as any).totem_id);
                     if (!totemId) return null;
                     return (
                       <MenuItem key={`totem-${totemId}-${idx}`} value={totemId}>
@@ -506,7 +506,7 @@ const SmartTvs: React.FC = () => {
                 inputProps={{ name: 'totem_id' }}
               >
                 {totems.map((totem, idx) => {
-                  const totemId = Number((totem as any).totem_id ?? (totem as any).id);
+                  const totemId = Number((totem as any).totem_id);
                   if (!totemId) return null;
                   return (
                     <MenuItem key={`totem-create-${totemId}-${idx}`} value={totemId}>
