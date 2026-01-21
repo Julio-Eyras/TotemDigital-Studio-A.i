@@ -21,11 +21,11 @@ BEGIN
 END $$;
 
 INSERT INTO subscribers (subscriber_id, name, contact_name, email, phone, whatsapp, address, category_segment, description, is_active) VALUES
-(1, 'Shopping Center Norte', 'Maria Silva', 'maria.silva@shoppingnorte.com.br', '+55 11 3456-7890', '+55 11 98765-4321', 'Av. Cruzeiro do Sul, 1100 - Santana, São Paulo/SP - CEP 02013-000', 'Shopping', 'Shopping center localizado na zona norte de São Paulo', true),
-(2, 'Rede de Farmácias Saúde+', 'João Santos', 'joao.santos@saudemais.com.br', '+55 11 2345-6789', '+55 11 87654-3210', 'Rua XV de Novembro, 250 - Centro, São Paulo/SP - CEP 01010-000', 'Farmácia', 'Rede de farmácias com múltiplas unidades', true),
-(3, 'Supermercado Econômico', 'Ana Costa', 'ana.costa@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', 'Av. Paulista, 1500 - Bela Vista, São Paulo/SP - CEP 01310-100', 'Supermercado', 'Supermercado com foco em economia', true),
-(4, 'Restaurante Sabor & Arte', 'Carlos Oliveira', 'carlos.oliveira@saborearte.com.br', '+55 11 4567-8901', '+55 11 65432-1098', 'Rua Oscar Freire, 200 - Jardins, São Paulo/SP - CEP 01426-000', 'Restaurante', 'Restaurante gourmet especializado em culinária brasileira', true),
-(5, 'Clínica Médica Vida Saudável', 'Dr. Roberto Lima', 'roberto.lima@vidasaudavel.com.br', '+55 11 5678-9012', '+55 11 54321-0987', 'Rua do Carmo, 45 - Centro, São Paulo/SP - CEP 01310-100', 'Saúde', 'Clínica médica com foco em prevenção', true)
+(1, 'Maria Silva ', 'Maria Silva roupa elegante', 'maria.silva@shoppingnorte.com.br', '+55 11 3456-7890', '+55 11 98765-4321', 'Av. Cruzeiro do Sul, 1100 - Santana, São Paulo/SP - CEP 02013-000', 'Shopping', 'Shopping center localizado na zona norte de São Paulo', true),
+(2, 'Farmácias João Santos+', 'João Santos', 'joao.santos@saudemais.com.br', '+55 11 2345-6789', '+55 11 87654-3210', 'Rua XV de Novembro, 250 - Centro, São Paulo/SP - CEP 01010-000', 'Farmácia', 'Rede de farmácias com múltiplas unidades', true),
+(3, 'Ana Costa moveis', 'Ana Costa', 'ana.costa@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', 'Av. Paulista, 1500 - Bela Vista, São Paulo/SP - CEP 01310-100', 'Supermercado', 'Supermercado com foco em economia', true),
+(4, 'Cafe Sabor & Companhia', 'Carlos Oliveira', 'carlos.oliveira@saborearte.com.br', '+55 11 4567-8901', '+55 11 65432-1098', 'Rua Oscar Freire, 200 - Jardins, São Paulo/SP - CEP 01426-000', 'Restaurante', 'Restaurante gourmet especializado em culinária brasileira', true),
+(5, 'Clínica PET Saudável', 'Dr. Roberto pe de joelho Lima', 'roberto.lima@vidasaudavel.com.br', '+55 11 5678-9012', '+55 11 54321-0987', 'Rua do Carmo, 45 - Centro, São Paulo/SP - CEP 01310-100', 'Saúde', 'Clínica médica com foco em prevenção', true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO publishers (publisher_id, name, contact_name, email, phone, whatsapp, category_segment, description, is_subscriber, is_publisher, client_type, active) VALUES

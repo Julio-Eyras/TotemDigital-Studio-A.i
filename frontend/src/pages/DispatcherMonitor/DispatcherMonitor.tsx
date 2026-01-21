@@ -114,6 +114,7 @@ const DispatcherMonitor: React.FC = () => {
   );
   const [totems, setTotems] = useState<any[]>([]);
   const allOption = React.useMemo(() => ({ id: 0, name: 'Todos (*)', identifier: '*' }), []);
+  const [selectedTotemOption, setSelectedTotemOption] = useState<any>(allOption);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(30); // segundos
 
@@ -163,7 +164,15 @@ const DispatcherMonitor: React.FC = () => {
   const loadTotems = async () => {
     try {
       const response = await totemApi.getAll({ limit: 1000 });
-      setTotems(Array.isArray(response.data) ? response.data : []);
+      const list = Array.isArray(response.data) ? response.data : [];
+      setTotems(list);
+      // Sincronizar opção selecionada com o filtro atual
+      if (!totemFilter || totemFilter === 0) {
+        setSelectedTotemOption(allOption);
+      } else {
+        const match = list.find((t) => (t.id ?? t.totem_id) === totemFilter);
+        setSelectedTotemOption(match || allOption);
+      }
     } catch (err) {
       console.error('Erro ao carregar totens:', err);
     }
@@ -483,14 +492,11 @@ const DispatcherMonitor: React.FC = () => {
                   const id = option.id ?? option.totem_id;
                   return `${option.name || option.identifier} (ID: ${id})`;
                 }}
-                value={
-                  totemFilter && totemFilter !== 0
-                    ? totems.find((t) => (t.id ?? t.totem_id) === totemFilter) || null
-                    : allOption
-                }
+                value={selectedTotemOption}
                 onChange={(_, newValue) => {
                   const valId = newValue ? (newValue.id ?? newValue.totem_id) : 0;
                   setTotemFilter(valId || 0);
+                  setSelectedTotemOption(newValue || allOption);
                 }}
                 renderInput={(params) => (
                   <TextField
