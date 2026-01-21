@@ -10290,22 +10290,6 @@ main() {
         save_build_info
     fi
     
-    # Executar carga inicial de dados (sempre ao final da instalação)
-    log "Executando carga inicial de dados..."
-    if [[ -f "$INSTALL_DIR/database/carga-inicial-SmartSignage-db.sh" ]]; then
-        log "Executando script de carga inicial..."
-        cd "$INSTALL_DIR/database"
-        chmod +x carga-inicial-SmartSignage-db.sh
-        if bash carga-inicial-SmartSignage-db.sh; then
-            log "✅ Carga inicial de dados concluída com sucesso"
-        else
-            warn "⚠️  Alguns erros ocorreram na carga inicial, mas a instalação foi concluída"
-        fi
-        cd "$INSTALL_DIR"
-    else
-        warn "⚠️  Script de carga inicial não encontrado em $INSTALL_DIR/database/carga-inicial-SmartSignage-db.sh"
-    fi
-    
     # Garantir que informações finais sejam sempre exibidas
     export SHOW_FINAL_INFO_CALLED=true
     show_final_info
