@@ -846,7 +846,7 @@ const Locals: React.FC = () => {
                   ) : (
                     <List>
                       {selectedSmartTvs.map((tv) => (
-                        <ListItem key={tv.tv_id || tv.smart_tv_id || tv.id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
+                        <ListItem key={tv.smart_tv_id || tv.id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
                           <ListItemIcon>
                             <Tv />
                           </ListItemIcon>

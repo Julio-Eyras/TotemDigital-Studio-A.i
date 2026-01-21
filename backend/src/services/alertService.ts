@@ -237,7 +237,7 @@ export class AlertService {
     const diskUsage = await this.db.findFirst(`
       SELECT 
         pg_database_size(current_database()) as db_size,
-        (SELECT setting::bigint FROM pg_settings WHERE name = 'data_directory') as data_dir
+        (SELECT setting FROM pg_settings WHERE name = 'data_directory') as data_dir
     `);
 
     // Calcular porcentagem (simplificado - em produção usar fs.stat)

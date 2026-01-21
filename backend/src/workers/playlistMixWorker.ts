@@ -71,7 +71,7 @@ export class PlaylistMixWorker {
       const totems = await this.db.findMany(`
         SELECT totem_id, identifier, name
         FROM totems
-        WHERE is_active = true AND active = true
+        WHERE is_active = true
         ORDER BY totem_id
       `);
 

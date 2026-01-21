@@ -237,6 +237,65 @@ CREATE INDEX IF NOT EXISTS idx_dispatcher_log_playlist
 CREATE INDEX IF NOT EXISTS idx_dispatcher_log_created_at 
     ON dispatcher_log(created_at DESC);
 
+-- =============================================
+-- Dispatcher Timeline (Tabular) - índices para UI/filters/group-by
+-- =============================================
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decisions_time
+    ON dispatcher_decisions(ref_timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decisions_totem_time
+    ON dispatcher_decisions(totem_id, ref_timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decisions_publisher_time
+    ON dispatcher_decisions(publisher_id, ref_timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decisions_status_time
+    ON dispatcher_decisions(status, ref_timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decisions_mode_bucket
+    ON dispatcher_decisions(decision_mode, bucket_start DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decisions_local_category
+    ON dispatcher_decisions(local_category_segment)
+    WHERE local_category_segment IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decisions_campaign_category
+    ON dispatcher_decisions(dominant_campaign_category_segment)
+    WHERE dominant_campaign_category_segment IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decision_campaigns_decision
+    ON dispatcher_decision_campaigns(decision_id);
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decision_campaigns_campaign
+    ON dispatcher_decision_campaigns(campaign_id);
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decision_campaigns_subscriber
+    ON dispatcher_decision_campaigns(subscriber_id)
+    WHERE subscriber_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decision_items_decision_order
+    ON dispatcher_decision_items(decision_id, order_index);
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decision_items_playlist
+    ON dispatcher_decision_items(playlist_id)
+    WHERE playlist_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_decision_items_media
+    ON dispatcher_decision_items(media_id)
+    WHERE media_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_events_decision
+    ON dispatcher_events(decision_id, ts DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_events_totem_time
+    ON dispatcher_events(totem_id, ts DESC)
+    WHERE totem_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_events_reason
+    ON dispatcher_events(reason_code, ts DESC)
+    WHERE reason_code IS NOT NULL;
+
 -- Audit Logs
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_time ON audit_logs(user_id, timestamp DESC) 
     WHERE user_id IS NOT NULL;

@@ -128,6 +128,95 @@ ON CONFLICT (setting_key) DO UPDATE SET
   updated_at = CURRENT_TIMESTAMP;
 
 -- =============================================
+-- CONFIGURAÇÕES DO DISPATCHER (DB-first / Timeline)
+-- =============================================
+
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options)
+VALUES
+  (
+    'dispatcher.default_mode',
+    'MIXED',
+    'string',
+    'dispatcher',
+    'Modo padrão do dispatcher: MIXED (gera sequência mixada por janela) ou SINGLE_WINNER (1 vencedor por instante).',
+    false,
+    true,
+    'MIXED',
+    '^(MIXED|SINGLE_WINNER)$',
+    '["MIXED","SINGLE_WINNER"]'
+  ),
+  (
+    'dispatcher.window_seconds',
+    '600',
+    'number',
+    'dispatcher',
+    'Tamanho padrão da janela do dispatcher em segundos (ex.: 600 = 10 minutos).',
+    false,
+    true,
+    '600',
+    '^[1-9]\d*$',
+    NULL
+  ),
+  (
+    'dispatcher.max_items_per_window',
+    '300',
+    'number',
+    'dispatcher',
+    'Limite máximo de itens gerados por janela (cap de segurança para payload/performance).',
+    false,
+    true,
+    '300',
+    '^[1-9]\d*$',
+    NULL
+  ),
+  (
+    'dispatcher.inner_rotation',
+    'RR_CAMPAIGN_PLAYLISTS',
+    'string',
+    'dispatcher',
+    'Estratégia determinística dentro da campanha: round-robin entre playlists da campanha.',
+    false,
+    true,
+    'RR_CAMPAIGN_PLAYLISTS',
+    '^(RR_CAMPAIGN_PLAYLISTS)$',
+    '["RR_CAMPAIGN_PLAYLISTS"]'
+  ),
+  (
+    'dispatcher.inner_item_rotation',
+    'RR_PLAYLIST_ITEMS',
+    'string',
+    'dispatcher',
+    'Estratégia determinística dentro da playlist: round-robin entre itens/mídias da playlist.',
+    false,
+    true,
+    'RR_PLAYLIST_ITEMS',
+    '^(RR_PLAYLIST_ITEMS)$',
+    '["RR_PLAYLIST_ITEMS"]'
+  ),
+  (
+    'dispatcher.seed_strategy',
+    'TIME_BUCKET_HASH',
+    'string',
+    'dispatcher',
+    'Estratégia de seed para replay determinístico (ex.: hash(totem_id, bucket_start, context_snapshot_hash)).',
+    false,
+    true,
+    'TIME_BUCKET_HASH',
+    '^(TIME_BUCKET_HASH)$',
+    '["TIME_BUCKET_HASH"]'
+  )
+ON CONFLICT (setting_key) DO UPDATE SET
+  description = EXCLUDED.description,
+  is_editable = EXCLUDED.is_editable,
+  validation = EXCLUDED.validation,
+  options = EXCLUDED.options,
+  default_value = EXCLUDED.default_value,
+  setting_type = EXCLUDED.setting_type,
+  category = EXCLUDED.category,
+  is_public = EXCLUDED.is_public,
+  updated_at = CURRENT_TIMESTAMP;
+
+-- =============================================
 -- CONFIGURAÇÕES DE MÍDIA
 -- =============================================
 

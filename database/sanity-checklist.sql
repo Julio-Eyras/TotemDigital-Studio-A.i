@@ -98,7 +98,7 @@ LEFT JOIN locals l ON l.local_id = t.local_id
 WHERE l.local_id IS NULL;
 
 -- 3.3 smart_tvs.totem_id deve existir
-SELECT tv.tv_id, tv.identifier, tv.totem_id
+SELECT tv.smart_tv_id, tv.identifier, tv.totem_id
 FROM smart_tvs tv
 LEFT JOIN totems t ON t.totem_id = tv.totem_id
 WHERE t.totem_id IS NULL;

@@ -8,7 +8,7 @@ import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
 
 export interface SmartTv {
-  tv_id: number;
+  smart_tv_id: number;
   totem_id: number;
   identifier: string;
   device_id?: string;
@@ -145,7 +145,7 @@ export class SmartTvService {
       // Buscar Smart TVs
       const smartTvs = await this.db.findMany(`
         SELECT 
-          st.tv_id,
+          st.smart_tv_id,
           st.totem_id,
           st.identifier,
           st.device_id,
@@ -210,7 +210,7 @@ export class SmartTvService {
     try {
       const smartTv = await this.db.findFirst(`
         SELECT 
-          st.tv_id,
+          st.smart_tv_id,
           st.totem_id,
           st.identifier,
           st.device_id,
@@ -238,7 +238,7 @@ export class SmartTvService {
         JOIN totems t ON st.totem_id = t.totem_id
         JOIN locals l ON t.local_id = l.local_id
         JOIN publishers p ON l.publisher_id = p.publisher_id
-        WHERE st.tv_id = $1
+        WHERE st.smart_tv_id = $1
       `, [id]);
 
       if (!smartTv) {
@@ -332,7 +332,7 @@ export class SmartTvService {
 
       // Verificar se identifier já existe
       const existingTv = await this.db.findFirst(`
-        SELECT tv_id FROM smart_tvs WHERE identifier = $1
+        SELECT smart_tv_id FROM smart_tvs WHERE identifier = $1
       `, [identifier]);
 
       if (existingTv) {
@@ -342,7 +342,7 @@ export class SmartTvService {
       // Verificar se device_id já existe (se fornecido)
       if (device_id) {
         const existingDevice = await this.db.findFirst(`
-          SELECT tv_id FROM smart_tvs WHERE device_id = $1
+          SELECT smart_tv_id FROM smart_tvs WHERE device_id = $1
         `, [device_id]);
 
         if (existingDevice) {
@@ -359,7 +359,7 @@ export class SmartTvService {
           created_at, updated_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'offline', $13, $14, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        RETURNING tv_id
+        RETURNING smart_tv_id
       `, [
         totem_id,
         contract_id || null,
@@ -381,7 +381,7 @@ export class SmartTvService {
         throw new Error('Erro ao criar Smart TV');
       }
 
-      const tvId = result.rows[0].tv_id;
+      const tvId = result.rows[0].smart_tv_id;
       const newSmartTv = await this.getSmartTvById(tvId, requestPublisherId, isAdmin);
 
       if (!newSmartTv) {
@@ -427,7 +427,7 @@ export class SmartTvService {
       // Verificar se identifier já existe (se mudou)
       if (data.identifier && data.identifier !== existingSmartTv.identifier) {
         const tvWithSameIdentifier = await this.db.findFirst(`
-          SELECT tv_id FROM smart_tvs WHERE identifier = $1 AND tv_id != $2
+          SELECT smart_tv_id FROM smart_tvs WHERE identifier = $1 AND smart_tv_id != $2
         `, [data.identifier, id]);
 
         if (tvWithSameIdentifier) {
@@ -438,7 +438,7 @@ export class SmartTvService {
       // Verificar se device_id já existe (se mudou)
       if (data.device_id && data.device_id !== existingSmartTv.device_id) {
         const tvWithSameDevice = await this.db.findFirst(`
-          SELECT tv_id FROM smart_tvs WHERE device_id = $1 AND tv_id != $2
+          SELECT smart_tv_id FROM smart_tvs WHERE device_id = $1 AND smart_tv_id != $2
         `, [data.device_id, id]);
 
         if (tvWithSameDevice) {
@@ -541,7 +541,7 @@ export class SmartTvService {
       await this.db.executeRaw(`
         UPDATE smart_tvs 
         SET ${updateFields.join(', ')}
-        WHERE tv_id = $${paramIndex}
+        WHERE smart_tv_id = $${paramIndex}
       `, [...updateParams, id]);
 
       const updatedSmartTv = await this.getSmartTvById(id, requestPublisherId, isAdmin);
@@ -586,7 +586,7 @@ export class SmartTvService {
       await this.db.executeRaw(`
         UPDATE smart_tvs 
         SET is_active = false, updated_at = CURRENT_TIMESTAMP
-        WHERE tv_id = $1
+        WHERE smart_tv_id = $1
       `, [id]);
 
       // Log de auditoria
@@ -635,7 +635,7 @@ export class SmartTvService {
 
       const smartTvs = await this.db.findMany(`
         SELECT 
-          st.tv_id,
+          st.smart_tv_id,
           st.totem_id,
           st.identifier,
           st.device_id,

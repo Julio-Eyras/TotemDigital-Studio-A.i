@@ -36,6 +36,8 @@ async function createDatabase() {
   
   try {
     console.log('🔍 Verificando se o banco de dados existe...');
+
+    const resetDb = ['1', 'true', 'yes'].includes(String(process.env.RESET_DB || '').toLowerCase());
     
     // Verificar se o banco já existe
     const checkResult = await adminPool.query(
@@ -44,7 +46,36 @@ async function createDatabase() {
     );
     
     if (checkResult.rows.length > 0) {
-      console.log(`✅ Banco de dados \"${DB_NAME}\" já existe`);
+      if (!resetDb) {
+        console.log(`✅ Banco de dados \"${DB_NAME}\" já existe`);
+        await adminPool.end();
+        return true;
+      }
+
+      if (!/^[a-zA-Z0-9_]+$/.test(DB_NAME)) {
+        throw new Error(`Nome de banco inválido para reset: "${DB_NAME}". Use apenas [a-zA-Z0-9_].`);
+      }
+
+      console.log(`🧹 RESET_DB ativo: recriando banco \"${DB_NAME}\" (isso vai apagar todos os dados)...`);
+
+      // Encerrar conexões ativas para permitir DROP DATABASE
+      await adminPool.query(
+        `
+        SELECT pg_terminate_backend(pid)
+        FROM pg_stat_activity
+        WHERE datname = $1
+          AND pid <> pg_backend_pid()
+        `,
+        [DB_NAME]
+      );
+
+      await adminPool.query(`DROP DATABASE IF EXISTS ${DB_NAME}`);
+      console.log('✅ Banco de dados removido');
+
+      console.log(`📦 Criando banco de dados \"${DB_NAME}\"...`);
+      await adminPool.query(`CREATE DATABASE ${DB_NAME}`);
+      console.log('✅ Banco de dados recriado com sucesso!');
+
       await adminPool.end();
       return true;
     }

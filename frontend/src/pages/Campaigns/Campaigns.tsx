@@ -182,7 +182,7 @@ const Campaigns: React.FC = () => {
       };
 
       setDerivedTotems(uniqBy(allTotems, 'totem_id'));
-      setDerivedSmartTvs(uniqBy(allTvs, 'tv_id'));
+      setDerivedSmartTvs(uniqBy(allTvs, 'smart_tv_id'));
     } catch (e) {
       console.error('Erro ao carregar totems/smart TVs derivados:', e);
       setDerivedTotems([]);
@@ -1465,8 +1465,8 @@ const Campaigns: React.FC = () => {
                   ) : (
                     derivedSmartTvs.map((tv) => (
                       <Chip
-                        key={tv.tv_id}
-                        label={`${tv.name || tv.identifier || 'Smart TV'} (#${tv.tv_id})`}
+                        key={tv.smart_tv_id}
+                        label={`${tv.name || tv.identifier || 'Smart TV'} (#${tv.smart_tv_id})`}
                         size="small"
                         color={tv.status === 'online' ? 'success' : 'default'}
                       />

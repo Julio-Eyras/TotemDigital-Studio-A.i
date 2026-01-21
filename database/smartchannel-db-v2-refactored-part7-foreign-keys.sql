@@ -916,6 +916,130 @@ BEGIN
 END $$;
 
 -- =============================================
+-- FKs das tabelas DISPATCHER TIMELINE (Tabular)
+-- =============================================
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_dispatcher_decisions_totem'
+        AND t.relname = 'dispatcher_decisions'
+    ) THEN
+        ALTER TABLE dispatcher_decisions
+            ADD CONSTRAINT fk_dispatcher_decisions_totem
+            FOREIGN KEY (totem_id) REFERENCES totems(totem_id)
+            ON DELETE CASCADE;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_dispatcher_decisions_local'
+        AND t.relname = 'dispatcher_decisions'
+    ) THEN
+        ALTER TABLE dispatcher_decisions
+            ADD CONSTRAINT fk_dispatcher_decisions_local
+            FOREIGN KEY (local_id) REFERENCES locals(local_id)
+            ON DELETE SET NULL;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_dispatcher_decisions_publisher'
+        AND t.relname = 'dispatcher_decisions'
+    ) THEN
+        ALTER TABLE dispatcher_decisions
+            ADD CONSTRAINT fk_dispatcher_decisions_publisher
+            FOREIGN KEY (publisher_id) REFERENCES publishers(publisher_id)
+            ON DELETE CASCADE;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_dispatcher_decisions_dominant_campaign'
+        AND t.relname = 'dispatcher_decisions'
+    ) THEN
+        ALTER TABLE dispatcher_decisions
+            ADD CONSTRAINT fk_dispatcher_decisions_dominant_campaign
+            FOREIGN KEY (dominant_campaign_id) REFERENCES campaigns(campaign_id)
+            ON DELETE SET NULL;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_dispatcher_decisions_dominant_subscriber'
+        AND t.relname = 'dispatcher_decisions'
+    ) THEN
+        ALTER TABLE dispatcher_decisions
+            ADD CONSTRAINT fk_dispatcher_decisions_dominant_subscriber
+            FOREIGN KEY (dominant_subscriber_id) REFERENCES subscribers(subscriber_id)
+            ON DELETE SET NULL;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_dispatcher_decision_campaigns_decision'
+        AND t.relname = 'dispatcher_decision_campaigns'
+    ) THEN
+        ALTER TABLE dispatcher_decision_campaigns
+            ADD CONSTRAINT fk_dispatcher_decision_campaigns_decision
+            FOREIGN KEY (decision_id) REFERENCES dispatcher_decisions(decision_id)
+            ON DELETE CASCADE;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_dispatcher_decision_items_decision'
+        AND t.relname = 'dispatcher_decision_items'
+    ) THEN
+        ALTER TABLE dispatcher_decision_items
+            ADD CONSTRAINT fk_dispatcher_decision_items_decision
+            FOREIGN KEY (decision_id) REFERENCES dispatcher_decisions(decision_id)
+            ON DELETE CASCADE;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_dispatcher_events_decision'
+        AND t.relname = 'dispatcher_events'
+    ) THEN
+        ALTER TABLE dispatcher_events
+            ADD CONSTRAINT fk_dispatcher_events_decision
+            FOREIGN KEY (decision_id) REFERENCES dispatcher_decisions(decision_id)
+            ON DELETE CASCADE;
+    END IF;
+END $$;
+
+-- =============================================
 -- FKs da tabela TOTEM_PLAYLISTS
 -- =============================================
 

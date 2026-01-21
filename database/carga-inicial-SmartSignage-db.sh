@@ -296,7 +296,7 @@ TV_SETTINGS_75='{"brightness": 75}'
 TV_SETTINGS_80='{"brightness": 80}'
 TV_SETTINGS_85='{"brightness": 85}'
 
-execute_sql "INSERT INTO smart_tvs (tv_id, totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, last_seen, capabilities, settings, is_active) VALUES
+execute_sql "INSERT INTO smart_tvs (smart_tv_id, totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, last_seen, capabilities, settings, is_active) VALUES
 (1, 1, 'TV-SHOPPING-001', 'TV-DEVICE-001', 'Smart TV Shopping Entrada', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', NOW(), '$TV_CAPABILITIES_HDR'::jsonb, '$TV_SETTINGS_80'::jsonb, true),
 (2, 2, 'TV-SHOPPING-002', 'TV-DEVICE-002', 'Smart TV Shopping Praça', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', NOW(), '$TV_CAPABILITIES_HDR'::jsonb, '$TV_SETTINGS_75'::jsonb, true),
 (3, 3, 'TV-SHOPPING-003', 'TV-DEVICE-003', 'Smart TV Shopping Cinema', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', NOW(), '$TV_CAPABILITIES_HDR'::jsonb, '$TV_SETTINGS_70'::jsonb, true),

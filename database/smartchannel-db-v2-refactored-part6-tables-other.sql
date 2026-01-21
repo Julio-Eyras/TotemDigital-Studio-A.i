@@ -149,6 +149,122 @@ COMMENT ON COLUMN dispatcher_log.dispatch_plan IS 'Plano completo gerado (JSON)'
 COMMENT ON COLUMN dispatcher_log.from_cache IS 'Indica se o resultado veio do cache';
 COMMENT ON COLUMN dispatcher_log.execution_time_ms IS 'Tempo de execução em milissegundos';
 
+-- =============================================
+-- DISPATCHER TIMELINE (Tabular/indexável para UI)
+-- =============================================
+-- Objetivo:
+--  - Evitar filtros pesados em JSONB no dispatcher_log
+--  - Permitir group-by por Local (categoria) e Campanha (categoria dominante)
+--  - Manter payloads completos (plan/events/candidates) para replay/auditoria
+
+CREATE TABLE IF NOT EXISTS dispatcher_decisions (
+    decision_id BIGSERIAL PRIMARY KEY,
+
+    -- Link opcional com dispatcher_log (quando gravado pelo gateway)
+    log_id INTEGER,
+
+    -- Contexto
+    totem_id INTEGER NOT NULL,
+    smart_tv_id INTEGER, -- futuro (decisão por TV)
+
+    local_id INTEGER,
+    publisher_id INTEGER NOT NULL,
+
+    -- Dominantes (group-by rápido)
+    dominant_campaign_id INTEGER,
+    dominant_subscriber_id INTEGER,
+
+    -- Categorias/segmentos (denormalizado para performance)
+    local_category_segment TEXT,
+    dominant_campaign_category_segment TEXT,
+
+    -- Janela / replay
+    decision_mode TEXT NOT NULL DEFAULT 'MIXED', -- MIXED | SINGLE_WINNER
+    window_seconds INTEGER NOT NULL DEFAULT 600,
+    bucket_start TIMESTAMPTZ NOT NULL,
+    bucket_end TIMESTAMPTZ NOT NULL,
+    ref_timestamp TIMESTAMPTZ NOT NULL,
+    seed_hash TEXT,
+    context_snapshot_hash TEXT,
+
+    -- Status para UI
+    status TEXT NOT NULL DEFAULT 'despachado', -- solicitado|despachado|ativo|expirado|erro
+    severity TEXT DEFAULT 'info', -- debug|info|warning|error|critical
+    has_error BOOLEAN DEFAULT false,
+
+    -- Performance
+    execution_time_ms INTEGER,
+    from_cache BOOLEAN DEFAULT false,
+    cache_key TEXT,
+
+    -- Payloads completos (replay)
+    dispatch_plan JSONB,
+    events JSONB,
+    candidates JSONB,
+
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dispatcher_decision_campaigns (
+    id BIGSERIAL PRIMARY KEY,
+    decision_id BIGINT NOT NULL,
+
+    campaign_id INTEGER NOT NULL,
+    subscriber_id INTEGER,
+    commercial_tier TEXT,
+    scope TEXT, -- direct|group
+
+    share_percent NUMERIC(5, 2),
+    target_seconds INTEGER,
+    used_seconds INTEGER,
+
+    skips_max_impressions INTEGER DEFAULT 0,
+    skips_max_consecutive INTEGER DEFAULT 0,
+
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dispatcher_decision_items (
+    id BIGSERIAL PRIMARY KEY,
+    decision_id BIGINT NOT NULL,
+
+    order_index INTEGER NOT NULL,
+    campaign_id INTEGER,
+    playlist_id INTEGER,
+    media_id INTEGER,
+
+    display_seconds INTEGER,
+    source TEXT, -- campaign_playlist, campaign_medias, etc.
+
+    -- offsets determinísticos (replay)
+    playlist_rr_index INTEGER,
+    item_rr_index INTEGER,
+
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Opcional: eventos tabulares (timeline super rápida). Mantemos junto do schema para uso futuro.
+CREATE TABLE IF NOT EXISTS dispatcher_events (
+    event_id BIGSERIAL PRIMARY KEY,
+    decision_id BIGINT NOT NULL,
+
+    event_type TEXT NOT NULL,
+    reason_code TEXT,
+    severity TEXT DEFAULT 'info',
+    ts TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
+    totem_id INTEGER,
+    publisher_id INTEGER,
+    subscriber_id INTEGER,
+    campaign_id INTEGER,
+    playlist_id INTEGER,
+    media_id INTEGER,
+
+    data JSONB,
+
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS interaction_logs (
     interaction_id SERIAL PRIMARY KEY,
     totem_id INTEGER NOT NULL, -- FK para totems

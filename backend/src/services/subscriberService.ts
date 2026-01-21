@@ -581,7 +581,7 @@ export class SubscriberService {
     try {
       const smartTvs = await this.db.findMany(`
         SELECT DISTINCT
-          st.tv_id,
+          st.smart_tv_id,
           st.identifier,
           st.device_id,
           st.name,

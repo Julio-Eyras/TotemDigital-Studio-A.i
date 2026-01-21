@@ -569,7 +569,7 @@ export interface PlaylistExposureRow {
   totem_identifier: string | null;
   totem_name: string | null;
 
-  tv_id: number | null;
+  smart_tv_id: number | null;
   tv_identifier: string | null;
   tv_name: string | null;
 }
@@ -586,7 +586,7 @@ export interface PlaylistExposureResponse {
   campaigns: PlaylistCampaignInfo[];
   publishers: Array<{ publisher_id: number; name: string }>;
   totems: Array<{ totem_id: number; identifier: string; name: string | null; local_id: number | null; local_name: string | null }>;
-  smartTvs: Array<{ tv_id: number; identifier: string; name: string | null; totem_id: number | null }>;
+  smartTvs: Array<{ smart_tv_id: number; identifier: string; name: string | null; totem_id: number | null }>;
   playlistItemSchedules?: PlaylistItemScheduleSummary[];
 }
 
@@ -3246,7 +3246,7 @@ export const localApi = {
 // =============================================
 
 export interface SmartTv {
-  tv_id: number;
+  smart_tv_id: number;
   totem_id: number;
   identifier: string;
   device_id?: string;

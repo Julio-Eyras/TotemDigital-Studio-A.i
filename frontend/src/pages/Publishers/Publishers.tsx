@@ -617,7 +617,7 @@ const Publishers: React.FC = () => {
         try {
           const smartTvsToRemove = editSmartTvs.filter(tv => tv.totem_id === totem.totem_id);
           for (const tv of smartTvsToRemove) {
-            await smartTvApi.delete(tv.smart_tv_id || tv.tv_id);
+            await smartTvApi.delete(tv.smart_tv_id);
           }
           await totemApi.delete(totem.totem_id);
         } catch (err) {
@@ -713,7 +713,7 @@ const Publishers: React.FC = () => {
       const smartTvsToRemove = editSmartTvs.filter(tv => tv.totem_id === totem.totem_id);
       for (const tv of smartTvsToRemove) {
         try {
-          await smartTvApi.delete(tv.smart_tv_id || tv.tv_id);
+          await smartTvApi.delete(tv.smart_tv_id);
         } catch (err) {
           console.error('Erro ao excluir Smart TV:', err);
         }
@@ -761,7 +761,7 @@ const Publishers: React.FC = () => {
       if (editingEditSmartTvIndex !== null) {
         // Atualizar Smart TV existente
         const tvToUpdate = editSmartTvs[editingEditSmartTvIndex];
-        await smartTvApi.update(tvToUpdate.smart_tv_id || tvToUpdate.tv_id, smartTvData);
+        await smartTvApi.update(tvToUpdate.smart_tv_id, smartTvData);
         // Recarregar dados
         await loadPublisherDataForEdit(selectedPublisher.publisher_id);
         setEditingEditSmartTvIndex(null);
@@ -815,7 +815,7 @@ const Publishers: React.FC = () => {
     
     try {
       const smartTv = editSmartTvs[index];
-      await smartTvApi.delete(smartTv.smart_tv_id || smartTv.tv_id);
+      await smartTvApi.delete(smartTv.smart_tv_id);
       // Recarregar dados
       await loadPublisherDataForEdit(selectedPublisher.publisher_id);
     } catch (error: any) {
@@ -2955,7 +2955,7 @@ const Publishers: React.FC = () => {
                     const totem = editTotems.find(t => t.totem_id === smartTv.totem_id);
                     const totemName = totem?.name || totem?.identifier || 'Totem não encontrado';
                     return (
-                      <ListItem key={smartTv.smart_tv_id || smartTv.tv_id || index} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
+                      <ListItem key={smartTv.smart_tv_id || index} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
                         <ListItemIcon><Tv /></ListItemIcon>
                         <ListItemText
                           primary={smartTv.name || smartTv.identifier}
@@ -3442,7 +3442,7 @@ const Publishers: React.FC = () => {
               ) : (
                 <List>
                   {publisherStats.smartTvs.map((tv: any, index: number) => (
-                    <ListItem key={tv.tv_id || tv.smart_tv_id || `tv-${index}`}>
+                    <ListItem key={tv.smart_tv_id || `tv-${index}`}>
                       <ListItemIcon>
                         <Tv />
                       </ListItemIcon>

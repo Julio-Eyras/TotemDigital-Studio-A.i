@@ -42,12 +42,15 @@ FILES=(
     "part4-billing-contracts.sql"
     "part5-tables-relationships.sql"
     "part6-tables-other.sql"
+    "seeds-default-settings.sql"
     "part7-foreign-keys.sql"
     "part8-indexes.sql"
     "part9-triggers-functions.sql"
     "part10-views.sql"
     "part11-playlist-mix.sql"
     "part12-playlist-mix-functions.sql"
+    "part13-dispatcher-views.sql"
+    "seeds-playlist-mix.sql"
 )
 
 TOTAL=${#FILES[@]}
@@ -63,7 +66,11 @@ set +e
 
 for i in "${!FILES[@]}"; do
     file="${FILES[$i]}"
-    full_path="${SCRIPT_DIR}/smartchannel-db-v2-refactored-${file}"
+    if [[ "$file" == "seeds-default-settings.sql" || "$file" == "seeds-playlist-mix.sql" ]]; then
+        full_path="${SCRIPT_DIR}/${file}"
+    else
+        full_path="${SCRIPT_DIR}/smartchannel-db-v2-refactored-${file}"
+    fi
     num=$((i + 1))
     
     if [ ! -f "$full_path" ]; then

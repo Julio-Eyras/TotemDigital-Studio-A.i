@@ -203,7 +203,7 @@ const SmartTvs: React.FC = () => {
         settings: tryParseJson(editSettingsText),
         is_active: selectedSmartTv.is_active,
       };
-      await smartTvApi.update(selectedSmartTv.tv_id, updateData);
+      await smartTvApi.update(selectedSmartTv.smart_tv_id, updateData);
       setEditDialogOpen(false);
       setSelectedSmartTv(null);
       setEditTab(0);
@@ -373,7 +373,7 @@ const SmartTvs: React.FC = () => {
 
       <Grid container spacing={3}>
         {smartTvs.map((smartTv) => (
-          <Grid item xs={12} sm={6} md={4} key={smartTv.tv_id}>
+          <Grid item xs={12} sm={6} md={4} key={smartTv.smart_tv_id}>
             <Card
               sx={{
                 height: '100%',
@@ -462,7 +462,7 @@ const SmartTvs: React.FC = () => {
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Deletar">
-                        <IconButton size="small" color="error" onClick={() => handleDeleteSmartTv(smartTv.tv_id)}>
+                        <IconButton size="small" color="error" onClick={() => handleDeleteSmartTv(smartTv.smart_tv_id)}>
                           <Delete />
                         </IconButton>
                       </Tooltip>

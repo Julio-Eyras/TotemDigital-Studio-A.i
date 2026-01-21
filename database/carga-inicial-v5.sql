@@ -68,7 +68,13 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, category,
 ('app.name', 'SmartSignage Pro', 'string', 'system', 'Nome da aplicação'),
 ('app.version', '2.0.0', 'string', 'system', 'Versão da aplicação'),
 ('dispatcher.cache_ttl_seconds', '300', 'number', 'dispatcher', 'TTL do cache do dispatcher em segundos'),
-('dispatcher.cache_enabled', 'true', 'boolean', 'dispatcher', 'Habilitar cache do dispatcher')
+('dispatcher.cache_enabled', 'true', 'boolean', 'dispatcher', 'Habilitar cache do dispatcher'),
+('dispatcher.default_mode', 'MIXED', 'string', 'dispatcher', 'Modo padrão do dispatcher: MIXED (gera sequência mixada por janela) ou SINGLE_WINNER (1 vencedor por instante).'),
+('dispatcher.window_seconds', '600', 'number', 'dispatcher', 'Tamanho padrão da janela do dispatcher em segundos (ex.: 600 = 10 minutos).'),
+('dispatcher.max_items_per_window', '300', 'number', 'dispatcher', 'Limite máximo de itens gerados por janela (cap de segurança para payload/performance).'),
+('dispatcher.inner_rotation', 'RR_CAMPAIGN_PLAYLISTS', 'string', 'dispatcher', 'Estratégia determinística dentro da campanha: round-robin entre playlists da campanha.'),
+('dispatcher.inner_item_rotation', 'RR_PLAYLIST_ITEMS', 'string', 'dispatcher', 'Estratégia determinística dentro da playlist: round-robin entre itens/mídias da playlist.'),
+('dispatcher.seed_strategy', 'TIME_BUCKET_HASH', 'string', 'dispatcher', 'Estratégia de seed para replay determinístico (ex.: hash(totem_id, bucket_start, context_snapshot_hash)).')
 ON CONFLICT (setting_key) DO NOTHING;
 
 INSERT INTO users (id, username, email, password_hash, first_name, last_name, name, phone, role, user_type, is_tenant_user, publisher_id, subscriber_id, is_active, email_verified) VALUES
@@ -135,7 +141,7 @@ INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, name, descri
 (8, 'TOTEM-URBANO-001', 'UIN-URBANO-001-2024', 'DEVICE-008', 8, 'Totem Urbano 1', 'Totem em ponto estratégico', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', (NOW() - INTERVAL '1 year'), 60, '{}'::jsonb, '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO smart_tvs (tv_id, totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, last_seen, capabilities, settings, is_active) VALUES
+INSERT INTO smart_tvs (smart_tv_id, totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, last_seen, capabilities, settings, is_active) VALUES
 (1, 1, 'TV-SHOPPING-001', 'TV-DEVICE-001', 'Smart TV Shopping Entrada', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true),
 (2, 2, 'TV-SHOPPING-002', 'TV-DEVICE-002', 'Smart TV Shopping Praça', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true),
 (3, 3, 'TV-SHOPPING-003', 'TV-DEVICE-003', 'Smart TV Shopping Cinema', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true),

@@ -116,6 +116,7 @@ export class PublisherCampaignMixService {
                     c.description,
                     c.campaign_type,
                     c.priority,
+                    c.created_at as campaign_created_at,
                     c.commercial_tier,
                     c.default_time_share_percent,
                     c.max_consecutive_slots,
@@ -164,6 +165,8 @@ export class PublisherCampaignMixService {
             // Buscar playlists para cada campanha
             const campaignsWithPlaylists = await Promise.all(
                 campaigns.map(async (campaign: any) => {
+                    // Não expor campos auxiliares usados apenas para ordenação
+                    const { campaign_created_at: _campaignCreatedAt, ...campaignPublic } = campaign;
                     const playlists = await this.db.findMany(`
                         SELECT 
                             p.playlist_id,
@@ -178,7 +181,7 @@ export class PublisherCampaignMixService {
                     `, [campaign.campaign_id]);
                     
                     return {
-                        ...campaign,
+                        ...campaignPublic,
                         playlists: playlists.map((pl: any) => ({
                             playlist_id: pl.playlist_id,
                             name: pl.name,

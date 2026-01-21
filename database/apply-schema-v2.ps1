@@ -106,7 +106,7 @@ function Main {
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
     $databaseDir = $scriptDir
     
-    # Lista de scripts na ordem correta
+    # Lista de scripts na ordem correta (alinhada ao apply-schema-v2.sh)
     $scripts = @(
         @{ File = "smartchannel-db-v2-refactored-part1-schema-setup.sql"; Description = "Parte 1: Setup do Schema" },
         @{ File = "smartchannel-db-v2-refactored-part2-tables-base.sql"; Description = "Parte 2: Tabelas Base" },
@@ -114,10 +114,15 @@ function Main {
         @{ File = "smartchannel-db-v2-refactored-part4-billing-contracts.sql"; Description = "Parte 4: Billing e Contratos" },
         @{ File = "smartchannel-db-v2-refactored-part5-tables-relationships.sql"; Description = "Parte 5: Relacionamentos N:N" },
         @{ File = "smartchannel-db-v2-refactored-part6-tables-other.sql"; Description = "Parte 6: Outras Tabelas" },
+        @{ File = "seeds-default-settings.sql"; Description = "Seeds: Configurações Padrão do Sistema" },
         @{ File = "smartchannel-db-v2-refactored-part7-foreign-keys.sql"; Description = "Parte 7: Foreign Keys" },
         @{ File = "smartchannel-db-v2-refactored-part8-indexes.sql"; Description = "Parte 8: Índices" },
         @{ File = "smartchannel-db-v2-refactored-part9-triggers-functions.sql"; Description = "Parte 9: Triggers e Funções" },
-        @{ File = "smartchannel-db-v2-refactored-part10-views.sql"; Description = "Parte 10: Views" }
+        @{ File = "smartchannel-db-v2-refactored-part10-views.sql"; Description = "Parte 10: Views" },
+        @{ File = "smartchannel-db-v2-refactored-part11-playlist-mix.sql"; Description = "Parte 11: Playlist Mix (Tabelas)" },
+        @{ File = "smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql"; Description = "Parte 12: Playlist Mix (Funções e Triggers)" },
+        @{ File = "smartchannel-db-v2-refactored-part13-dispatcher-views.sql"; Description = "Parte 13: Dispatcher Views" },
+        @{ File = "seeds-playlist-mix.sql"; Description = "Seeds: Dados Iniciais Playlist Mix" }
     )
     
     # Mostrar configuração

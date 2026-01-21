@@ -70,10 +70,10 @@ BEGIN
     END IF;
   END IF;
 
-  -- smart_tvs.tv_id
+  -- smart_tvs.smart_tv_id
   IF to_regclass('smart_tvs') IS NOT NULL THEN
-    SELECT COALESCE(MAX(tv_id), 0) INTO _v FROM smart_tvs;
-    SELECT pg_get_serial_sequence('smart_tvs','tv_id') INTO _seq;
+    SELECT COALESCE(MAX(smart_tv_id), 0) INTO _v FROM smart_tvs;
+    SELECT pg_get_serial_sequence('smart_tvs','smart_tv_id') INTO _seq;
     IF _seq IS NOT NULL THEN
       PERFORM setval(_seq, _v, true);
     END IF;

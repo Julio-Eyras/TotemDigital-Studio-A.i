@@ -968,9 +968,10 @@ export class TotemService {
           // Contar playlists
           const playlistCountResult = await this.db.findFirst(`
             SELECT COUNT(*) as count
-            FROM playlists p
-            JOIN campaigns c ON p.campaign_id = c.campaign_id
-            WHERE p.totem_id = ? AND COALESCE(c.is_active, true) = true
+            FROM totem_playlists tp
+            WHERE tp.totem_id = ?
+              AND COALESCE(tp.is_active, true) = true
+              AND COALESCE(tp.status, 'active') = 'active'
           `, [totemId]);
 
           return {

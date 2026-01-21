@@ -87,7 +87,7 @@ export interface PlaylistExposureRow {
   totem_identifier: string | null;
   totem_name: string | null;
 
-  tv_id: number | null;
+  smart_tv_id: number | null;
   tv_identifier: string | null;
   tv_name: string | null;
 }
@@ -763,7 +763,7 @@ export class PlaylistService {
     campaigns: PlaylistCampaignInfo[];
     publishers: Array<{ publisher_id: number; name: string }>;
     totems: Array<{ totem_id: number; identifier: string; name: string | null; local_id: number | null; local_name: string | null }>;
-    smartTvs: Array<{ tv_id: number; identifier: string; name: string | null; totem_id: number | null }>;
+    smartTvs: Array<{ smart_tv_id: number; identifier: string; name: string | null; totem_id: number | null }>;
     playlistItemSchedules: PlaylistItemScheduleSummary[];
   }> {
     try {
@@ -806,7 +806,7 @@ export class PlaylistService {
           t.identifier as totem_identifier,
           t.name as totem_name,
 
-          tv.tv_id,
+          tv.smart_tv_id as smart_tv_id,
           tv.identifier as tv_identifier,
           tv.name as tv_name
         FROM campaign_playlists cp
@@ -826,7 +826,7 @@ export class PlaylistService {
       const campaignMap = new Map<number, PlaylistCampaignInfo>();
       const publisherMap = new Map<number, { publisher_id: number; name: string }>();
       const totemMap = new Map<number, { totem_id: number; identifier: string; name: string | null; local_id: number | null; local_name: string | null }>();
-      const tvMap = new Map<number, { tv_id: number; identifier: string; name: string | null; totem_id: number | null }>();
+      const tvMap = new Map<number, { smart_tv_id: number; identifier: string; name: string | null; totem_id: number | null }>();
 
       for (const r of typedRows) {
         if (!campaignMap.has(r.campaign_id)) {
@@ -855,10 +855,10 @@ export class PlaylistService {
             local_name: r.local_name ?? null,
           });
         }
-        if (typeof r.tv_id === 'number' && !tvMap.has(r.tv_id)) {
-          tvMap.set(r.tv_id, {
-            tv_id: r.tv_id,
-            identifier: r.tv_identifier || String(r.tv_id),
+        if (typeof r.smart_tv_id === 'number' && !tvMap.has(r.smart_tv_id)) {
+          tvMap.set(r.smart_tv_id, {
+            smart_tv_id: r.smart_tv_id,
+            identifier: r.tv_identifier || String(r.smart_tv_id),
             name: r.tv_name ?? null,
             totem_id: r.totem_id ?? null,
           });

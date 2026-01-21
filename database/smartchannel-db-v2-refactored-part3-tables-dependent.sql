@@ -83,7 +83,7 @@ COMMENT ON COLUMN totems.status IS 'Status atual do totem';
 -- =============================================
 
 CREATE TABLE IF NOT EXISTS smart_tvs (
-    tv_id SERIAL PRIMARY KEY,
+    smart_tv_id SERIAL PRIMARY KEY,
     totem_id INTEGER NOT NULL, -- FK para totems (1 totem : N TVs)
     created_via_contract_id INTEGER, -- FK para subscriber_contracts ou publisher_contracts (rastreabilidade)
     
@@ -117,6 +117,26 @@ CREATE TABLE IF NOT EXISTS smart_tvs (
 
 COMMENT ON TABLE smart_tvs IS 'Smart TVs controladas pelos totens';
 COMMENT ON COLUMN smart_tvs.totem_id IS 'Totem que controla estas TVs (1:N) - Um totem pode controlar múltiplas Smart TVs';
+
+-- Compatibilidade: se o banco já foi criado com coluna `tv_id`, renomear para `smart_tv_id`.
+-- (Sem migração dedicada; idempotente para ambientes novos e re-aplicações do schema.)
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'smart_tvs'
+          AND column_name = 'tv_id'
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'smart_tvs'
+          AND column_name = 'smart_tv_id'
+    ) THEN
+        ALTER TABLE smart_tvs RENAME COLUMN tv_id TO smart_tv_id;
+    END IF;
+END $$;
 
 -- =============================================
 -- CAMPAIGNS (Campanhas dos Subscribers)

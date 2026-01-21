@@ -37,6 +37,52 @@ JOIN subscribers s ON c.subscriber_id = s.subscriber_id;
 COMMENT ON VIEW campaigns_with_subscriber IS 'View denormalizada com informações completas de campanha e subscriber';
 
 -- =============================================
+-- VIEW: Dispatcher Timeline (Tabular, pronta para UI)
+-- =============================================
+
+CREATE OR REPLACE VIEW v_dispatcher_timeline AS
+SELECT
+    d.decision_id,
+    d.log_id,
+    d.ref_timestamp,
+    d.bucket_start,
+    d.bucket_end,
+    d.decision_mode,
+    d.window_seconds,
+    d.status,
+    d.severity,
+    d.has_error,
+    d.execution_time_ms,
+    d.from_cache,
+
+    d.totem_id,
+    t.identifier AS totem_identifier,
+    t.name AS totem_name,
+
+    d.publisher_id,
+    p.name AS publisher_name,
+
+    d.local_id,
+    l.name AS local_name,
+    d.local_category_segment,
+
+    d.dominant_campaign_id,
+    c.title AS dominant_campaign_title,
+    d.dominant_campaign_category_segment,
+
+    d.dominant_subscriber_id,
+    s.name AS dominant_subscriber_name
+FROM dispatcher_decisions d
+JOIN totems t ON t.totem_id = d.totem_id
+JOIN publishers p ON p.publisher_id = d.publisher_id
+LEFT JOIN locals l ON l.local_id = d.local_id
+LEFT JOIN campaigns c ON c.campaign_id = d.dominant_campaign_id
+LEFT JOIN subscribers s ON s.subscriber_id = d.dominant_subscriber_id;
+
+COMMENT ON VIEW v_dispatcher_timeline IS
+    'Timeline tabular (indexável) de decisões do dispatcher. Fonte principal para UI de auditoria/traceability.';
+
+-- =============================================
 -- VIEW: Conteúdo agendado por Subscriber (campanhas → playlists → mídias)
 -- =============================================
 -- Objetivo: facilitar auditoria/BI e debugging do agendamento por subscriber.
@@ -282,8 +328,8 @@ SELECT
     COUNT(DISTINCT l.local_id) as total_locals,
     COUNT(DISTINCT t.totem_id) as total_totems,
     COUNT(DISTINCT CASE WHEN t.status = 'online' THEN t.totem_id END) as online_totems,
-    COUNT(DISTINCT st.tv_id) as total_smart_tvs,
-    COUNT(DISTINCT CASE WHEN st.status = 'online' THEN st.tv_id END) as online_smart_tvs
+    COUNT(DISTINCT st.smart_tv_id) as total_smart_tvs,
+    COUNT(DISTINCT CASE WHEN st.status = 'online' THEN st.smart_tv_id END) as online_smart_tvs
 FROM publishers p
 LEFT JOIN locals l ON p.publisher_id = l.publisher_id
 LEFT JOIN totems t ON l.local_id = t.local_id

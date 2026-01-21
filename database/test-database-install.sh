@@ -105,12 +105,15 @@ SQL_FILES=(
     "smartchannel-db-v2-refactored-part4-billing-contracts.sql"
     "smartchannel-db-v2-refactored-part5-tables-relationships.sql"
     "smartchannel-db-v2-refactored-part6-tables-other.sql"
+    "seeds-default-settings.sql"
     "smartchannel-db-v2-refactored-part7-foreign-keys.sql"
     "smartchannel-db-v2-refactored-part8-indexes.sql"
     "smartchannel-db-v2-refactored-part9-triggers-functions.sql"
     "smartchannel-db-v2-refactored-part10-views.sql"
     "smartchannel-db-v2-refactored-part11-playlist-mix.sql"
     "smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql"
+    "smartchannel-db-v2-refactored-part13-dispatcher-views.sql"
+    "seeds-playlist-mix.sql"
 )
 
 TOTAL_FILES=${#SQL_FILES[@]}

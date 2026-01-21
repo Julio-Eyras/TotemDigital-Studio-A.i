@@ -135,7 +135,7 @@ INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, name, descri
 (8, 'TOTEM-URBANO-001', 'UIN-URBANO-001-2024', 'DEVICE-008', 8, 'Totem Urbano 1', 'Totem em ponto estratégico', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', (NOW() - INTERVAL '1 year'), 60, '{}'::jsonb, '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO smart_tvs (tv_id, totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, last_seen, capabilities, settings, is_active) VALUES
+INSERT INTO smart_tvs (smart_tv_id, totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, last_seen, capabilities, settings, is_active) VALUES
 (1, 1, 'TV-SHOPPING-001', 'TV-DEVICE-001', 'Smart TV Shopping Entrada', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true),
 (2, 2, 'TV-SHOPPING-002', 'TV-DEVICE-002', 'Smart TV Shopping Praça', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true),
 (3, 3, 'TV-SHOPPING-003', 'TV-DEVICE-003', 'Smart TV Shopping Cinema', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true),

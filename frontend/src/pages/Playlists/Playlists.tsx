@@ -926,7 +926,7 @@ const Playlists: React.FC = () => {
                   {exposureTab === 4 && (
                     <List>
                       {(playlistExposure?.smartTvs || []).map((tv) => (
-                        <ListItem key={tv.tv_id}>
+                        <ListItem key={tv.smart_tv_id}>
                           <ListItemText
                             primary={`${tv.identifier}${tv.name ? ` - ${tv.name}` : ''}`}
                             secondary={tv.totem_id ? `Totem: ${tv.totem_id}` : undefined}
