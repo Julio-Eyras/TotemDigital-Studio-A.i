@@ -294,7 +294,14 @@ app.use('/api', validateSubdomainAccess);
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', authMiddleware as any, userRoutes);
-app.use('/api/clients', authMiddleware as any, blockClientDataAccess as any, clientRoutes); // TODO: Deprecar - usar /api/subscribers
+// ⚠️ DEPRECATED: Esta rota está deprecated. Use /api/subscribers em vez de /api/clients
+// Será removida em versão futura. Migre para /api/subscribers
+app.use('/api/clients', authMiddleware as any, blockClientDataAccess as any, (_req, res, next) => {
+  // Adicionar header de deprecação
+  res.setHeader('X-Deprecated-Route', 'true');
+  res.setHeader('X-Deprecated-Message', 'Esta rota está deprecated. Use /api/subscribers');
+  next();
+}, clientRoutes);
 app.use('/api/subscribers', authMiddleware as any, blockClientDataAccess as any, subscriberRoutes); // NOVO: Subscribers (anunciantes)
 app.use('/api/publishers', authMiddleware as any, publisherRoutes); // NOVO: Publishers (publicadores)
 app.use('/api/locals', authMiddleware as any, localRoutes); // NOVO: Locals (locais físicos dos publishers)
@@ -312,7 +319,14 @@ app.use('/api/campaigns', blockClientDataAccess as any, campaignRoutes);
 app.use('/api/qrcodes', blockClientDataAccess as any, qrcodeRoutes);
 app.use('/api/qr-codes', blockClientDataAccess as any, qrcodeRoutes); // Alias para compatibilidade com frontend
 app.use('/api/analytics', blockClientDataAccess as any, analyticsRoutes);
-app.use('/api/billing', authMiddleware as any, blockClientDataAccess as any, billingRoutes); // TODO: Deprecar - usar /api/subscriber-billing e /api/publisher-billing
+// ⚠️ DEPRECATED: Esta rota está deprecated. Use /api/subscriber-billing e /api/publisher-billing
+// Será removida em versão futura
+app.use('/api/billing', authMiddleware as any, blockClientDataAccess as any, (_req, res, next) => {
+  // Adicionar header de deprecação
+  res.setHeader('X-Deprecated-Route', 'true');
+  res.setHeader('X-Deprecated-Message', 'Esta rota está deprecated. Use /api/subscriber-billing ou /api/publisher-billing');
+  next();
+}, billingRoutes);
 app.use('/api/subscriber-billing', authMiddleware as any, blockClientDataAccess as any, subscriberBillingRoutes); // NOVO: Billing de subscribers
 app.use('/api/publisher-billing', authMiddleware as any, publisherBillingRoutes); // NOVO: Billing de publishers
 app.use('/api/plans', plansRoutes);

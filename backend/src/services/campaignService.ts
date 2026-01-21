@@ -419,7 +419,7 @@ export class CampaignService {
         LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         LEFT JOIN subscriber_contracts sc ON c.contract_id = sc.contract_id
         LEFT JOIN plans p ON sc.plan_id = p.plan_id
-        WHERE c.campaign_id = ?
+        WHERE c.campaign_id = $1
       `, [campaignId]);
 
       if (!campaign) {
@@ -583,13 +583,14 @@ export class CampaignService {
         isActive
       });
 
+      // Criar campanha (PostgreSQL placeholders $1, $2, ...)
       const result = await this.db.executeRaw(`
         INSERT INTO campaigns (
           subscriber_id, contract_id, title, category_segment, description, campaign_type, priority,
           commercial_tier, start_date, end_date, start_time, end_time, days_of_week,
           timezone, status, is_active
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING campaign_id
       `, [
         subscriberId, // subscriber_id
@@ -802,10 +803,14 @@ export class CampaignService {
 
       // Atualizar campanha
       params.push(campaignId);
+      // Adicionar campaignId como último parâmetro
+      params.push(campaignId);
+      const campaignIdPlaceholder = `$${params.length}`;
+
       await this.db.executeRaw(`
         UPDATE campaigns 
         SET ${updates.join(', ')}
-        WHERE campaign_id = ?
+        WHERE campaign_id = ${campaignIdPlaceholder}
       `, params);
 
       // Atualizar publishers se fornecidos
@@ -874,9 +879,9 @@ export class CampaignService {
         throw new Error('Não é possível remover campanha com dados associados (playlists, totems ou mídias). Desative-a primeiro.');
       }
 
-      // Remover campanha
+      // Remover campanha (PostgreSQL placeholders)
       await this.db.executeRaw(`
-        DELETE FROM campaigns WHERE campaign_id = ?
+        DELETE FROM campaigns WHERE campaign_id = $1
       `, [campaignId]);
 
       // Log de auditoria
@@ -912,31 +917,31 @@ export class CampaignService {
         throw new Error(validation.error || 'Campanha não pode ser executada neste totem');
       }
 
-      // Verificar se totem existe
+      // Verificar se totem existe (PostgreSQL placeholders)
       const totem = await this.db.findFirst(`
-        SELECT totem_id FROM totems WHERE totem_id = ? AND COALESCE(is_active, true) = true
+        SELECT totem_id FROM totems WHERE totem_id = $1 AND COALESCE(is_active, true) = true
       `, [data.totemId]);
 
       if (!totem) {
         throw new Error('Totem não encontrado ou inativo');
       }
 
-      // Verificar se já está associado
+      // Verificar se já está associado (PostgreSQL placeholders)
       const existing = await this.db.findFirst(`
-        SELECT id FROM campaign_totems WHERE campaign_id = ? AND totem_id = ?
+        SELECT id FROM campaign_totems WHERE campaign_id = $1 AND totem_id = $2
       `, [campaignId, data.totemId]);
 
       if (existing) {
         throw new Error('Totem já está associado à campanha');
       }
 
-      // Adicionar totem à campanha
+      // Adicionar totem à campanha (PostgreSQL placeholders)
       await this.db.executeRaw(`
         INSERT INTO campaign_totems (
           campaign_id, totem_id, scheduled_start, scheduled_end, 
           status, config, is_active
         )
-        VALUES (?, ?, ?, ?, 'pending', ?, 1)
+        VALUES ($1, $2, $3, $4, 'pending', $5, 1)
       `, [
         campaignId,
         data.totemId,
@@ -962,18 +967,18 @@ export class CampaignService {
    */
   async removeTotemFromCampaign(campaignId: number, totemId: number, removedBy: number): Promise<void> {
     try {
-      // Verificar se associação existe
+      // Verificar se associação existe (PostgreSQL placeholders)
       const association = await this.db.findFirst(`
-        SELECT id FROM campaign_totems WHERE campaign_id = ? AND totem_id = ?
+        SELECT id FROM campaign_totems WHERE campaign_id = $1 AND totem_id = $2
       `, [campaignId, totemId]);
 
       if (!association) {
         throw new Error('Totem não está associado à campanha');
       }
 
-      // Remover associação
+      // Remover associação (PostgreSQL placeholders)
       await this.db.executeRaw(`
-        DELETE FROM campaign_totems WHERE campaign_id = ? AND totem_id = ?
+        DELETE FROM campaign_totems WHERE campaign_id = $1 AND totem_id = $2
       `, [campaignId, totemId]);
 
       // Log de auditoria
@@ -1093,11 +1098,11 @@ export class CampaignService {
         }
       }
 
-      // Ativar campanha
+      // Ativar campanha (PostgreSQL placeholders)
       await this.db.executeRaw(`
         UPDATE campaigns 
         SET is_active = true, status = 'active', updated_at = CURRENT_TIMESTAMP 
-        WHERE campaign_id = ?
+        WHERE campaign_id = $1
       `, [campaignId]);
 
       // Log de auditoria
@@ -1191,14 +1196,14 @@ export class CampaignService {
       cacheKey,
       async () => {
         try {
-          // Contar totems
+          // Contar totems (PostgreSQL placeholders)
           const totemCountResult = await this.db.findFirst(`
-            SELECT COUNT(*) as count FROM campaign_totems WHERE campaign_id = ? AND is_active = true
+            SELECT COUNT(*) as count FROM campaign_totems WHERE campaign_id = $1 AND is_active = true
           `, [campaignId]);
 
-          // Contar playlists
+          // Contar playlists (PostgreSQL placeholders)
           const playlistCountResult = await this.db.findFirst(`
-            SELECT COUNT(*) as count FROM playlists WHERE campaign_id = ? AND is_active = true
+            SELECT COUNT(*) as count FROM campaign_playlists WHERE campaign_id = $1 AND is_active = true
           `, [campaignId]);
 
           // Contar mídias únicas (via playlists associadas)
@@ -1267,7 +1272,7 @@ export class CampaignService {
           t.created_at as createdAt
         FROM totems t
         INNER JOIN campaign_totems ct ON t.totem_id = ct.totem_id
-        WHERE ct.campaign_id = ?
+        WHERE ct.campaign_id = $1
         ORDER BY t.name
       `, [campaignId]);
 
@@ -1403,7 +1408,7 @@ export class CampaignService {
         FROM campaigns c
         LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
         JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
-        WHERE ct.totem_id = ? AND c.is_active = true AND c.status = 'active'
+        WHERE ct.totem_id = $1 AND c.is_active = true AND c.status = 'active'
         ORDER BY c.priority DESC, c.created_at DESC
       `, [totemId]);
 

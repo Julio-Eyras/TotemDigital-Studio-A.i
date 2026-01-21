@@ -156,25 +156,29 @@ export class ExportQueryService {
       const params: any[] = [];
       const countParams: any[] = [];
 
+      // Construir WHERE clause com placeholders PostgreSQL ($1, $2, ...)
+      let paramIndex = 1;
+      let countParamIndex = 1;
+
       if (filters?.provider) {
-        sql += ' AND provider = ?';
+        sql += ` AND provider = $${paramIndex++}`;
         params.push(filters.provider);
-        countSql += ' AND provider = ?';
+        countSql += ` AND provider = $${countParamIndex++}`;
         countParams.push(filters.provider);
       }
 
       if (filters?.enabled !== undefined) {
-        sql += ' AND enabled = ?';
+        sql += ` AND enabled = $${paramIndex++}`;
         params.push(filters.enabled);
-        countSql += ' AND enabled = ?';
+        countSql += ` AND enabled = $${countParamIndex++}`;
         countParams.push(filters.enabled);
       }
 
       if (filters?.search) {
-        sql += ' AND (name ILIKE ? OR description ILIKE ?)';
         const searchTerm = `%${filters.search}%`;
+        sql += ` AND (name ILIKE $${paramIndex++} OR description ILIKE $${paramIndex++})`;
         params.push(searchTerm, searchTerm);
-        countSql += ' AND (name ILIKE ? OR description ILIKE ?)';
+        countSql += ` AND (name ILIKE $${countParamIndex++} OR description ILIKE $${countParamIndex++})`;
         countParams.push(searchTerm, searchTerm);
       }
 
@@ -184,7 +188,7 @@ export class ExportQueryService {
       const limit = Math.max(1, Math.min(filters?.limit || 25, 100));
       const offset = (page - 1) * limit;
 
-      sql += ' LIMIT ? OFFSET ?';
+      sql += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
       params.push(limit, offset);
 
       const [rows, countRow] = await Promise.all([
