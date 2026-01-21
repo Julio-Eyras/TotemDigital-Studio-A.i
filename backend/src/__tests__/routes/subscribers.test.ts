@@ -122,8 +122,8 @@ describe('Subscribers Routes', () => {
       const response = await request(app).get('/api/subscribers/1');
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('data');
-      expect(response.body.data.subscriber_id).toBe(1);
+      expect(response.body).toHaveProperty('subscriber_id');
+      expect(response.body.subscriber_id).toBe(1);
     });
 
     it('deve retornar 404 se subscriber não encontrado', async () => {
@@ -156,8 +156,8 @@ describe('Subscribers Routes', () => {
         .send(newSubscriber);
 
       expect(response.status).toBe(201);
-      expect(response.body).toHaveProperty('data');
-      expect(response.body.data.subscriber_id).toBe(1);
+      expect(response.body).toHaveProperty('subscriber_id');
+      expect(response.body.subscriber_id).toBe(1);
     });
 
     it('deve retornar 400 se dados inválidos', async () => {
@@ -192,8 +192,8 @@ describe('Subscribers Routes', () => {
         .send(updateData);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('data');
-      expect(response.body.data.name).toBe('Updated Name');
+      expect(response.body).toHaveProperty('name');
+      expect(response.body.name).toBe('Updated Name');
     });
 
     it('deve retornar 404 se subscriber não encontrado', async () => {

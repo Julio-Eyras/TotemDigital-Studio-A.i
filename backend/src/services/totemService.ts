@@ -1151,21 +1151,69 @@ export class TotemService {
    */
   async getCurrentPlaylist(totemId: number): Promise<any> {
     try {
-      const playlist = await this.db.findFirst(`
-        SELECT 
-          p.playlist_id as id,
-          p.name,
-          p.description,
-          p.is_active as isActive,
-          p.created_at as createdAt
-        FROM playlists p
-        INNER JOIN totem_playlists tp ON p.playlist_id = tp.playlist_id
-        WHERE tp.totem_id = ? AND p.is_active = 1
-        ORDER BY tp.assigned_at DESC
+      // Implementação legado anterior assumia tabela de vínculo `totem_playlists` -> `playlists`,
+      // mas no schema v2 `totem_playlists` é a playlist FINAL gerada (totem_playlist_id) + itens.
+      const latest = await this.db.findFirst(
+        `
+        SELECT
+          tp.totem_playlist_id,
+          tp.totem_id,
+          tp.smart_tv_id,
+          tp.publisher_id,
+          tp.version,
+          tp.total_items,
+          tp.total_duration_seconds,
+          tp.status,
+          tp.is_active,
+          tp.generated_at,
+          tp.last_updated_at,
+          tp.playlist_hash
+        FROM totem_playlists tp
+        WHERE tp.totem_id = $1
+          AND COALESCE(tp.is_active, true) = true
+          AND COALESCE(tp.status, 'active') = 'active'
+        ORDER BY tp.generated_at DESC NULLS LAST, tp.totem_playlist_id DESC
         LIMIT 1
-      `, [totemId]);
+        `,
+        [totemId],
+      );
 
-      return playlist;
+      if (!latest) return null;
+
+      const items = await this.db.findMany(
+        `
+        SELECT
+          tpi.item_id,
+          tpi.media_id,
+          tpi.campaign_id,
+          tpi.subscriber_id,
+          tpi.publisher_id,
+          tpi.order_index,
+          COALESCE(tpi.display_seconds, m.duration_seconds, 10) AS duration,
+          m.name AS media_name,
+          m.media_type,
+          m.file_path,
+          m.url
+        FROM totem_playlist_items tpi
+        JOIN medias m ON m.media_id = tpi.media_id
+        WHERE tpi.totem_playlist_id = $1
+          AND COALESCE(tpi.is_active, true) = true
+        ORDER BY tpi.order_index ASC, tpi.item_id ASC
+        `,
+        [latest.totem_playlist_id],
+      );
+
+      return {
+        id: latest.totem_playlist_id,
+        name: `Playlist Gerada v${latest.version}`,
+        description: `Playlist final gerada automaticamente para o Totem #${totemId}`,
+        isActive: latest.is_active,
+        createdAt: latest.generated_at,
+        totem_playlist_id: latest.totem_playlist_id,
+        items,
+        total_items: latest.total_items,
+        total_duration: latest.total_duration_seconds,
+      };
     } catch (error: any) {
       await logError('Erro ao buscar playlist atual', error);
       throw new Error('Erro interno do servidor');

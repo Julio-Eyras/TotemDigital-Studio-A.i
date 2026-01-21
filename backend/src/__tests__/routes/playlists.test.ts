@@ -6,6 +6,7 @@
 import request from 'supertest';
 import express from 'express';
 import { getPlaylistService } from '../../services/playlistService';
+import { getSubscriberService } from '../../services/subscriberService';
 
 // Mock do serviço
 jest.mock('../../services/playlistService');
@@ -15,15 +16,15 @@ jest.mock('../../services/subscriberService', () => ({
   })),
 }));
 jest.mock('../../middleware/auth.middleware', () => ({
-  authMiddleware: (req: any, res: any, next: any) => {
+  authMiddleware: (req: any, _res: any, next: any) => {
     req.user = { userId: 1, role: 'admin', subscriberId: 1 };
     req.subscriberId = 1;
     next();
   },
-  authorizeRole: () => (req: any, res: any, next: any) => next(),
+  authorizeRole: () => (_req: any, _res: any, next: any) => next(),
 }));
 jest.mock('../../middleware/subscriberIsolation.middleware', () => ({
-  subscriberIsolationMiddleware: (req: any, res: any, next: any) => next(),
+  subscriberIsolationMiddleware: (_req: any, _res: any, next: any) => next(),
 }));
 
 import playlistsRouter from '../../routes/playlists';
@@ -46,6 +47,9 @@ describe('Playlists Routes', () => {
     };
 
     (getPlaylistService as jest.Mock).mockReturnValue(mockPlaylistService);
+    (getSubscriberService as unknown as jest.Mock).mockReturnValue({
+      validatePlanLimits: jest.fn().mockResolvedValue(true),
+    });
   });
 
   afterEach(() => {
@@ -55,7 +59,7 @@ describe('Playlists Routes', () => {
   describe('GET /api/playlists', () => {
     it('deve retornar lista de playlists', async () => {
       const mockPlaylists = {
-        playlists: [
+        data: [
           { playlist_id: 1, name: 'Playlist 1', subscriber_id: 1 },
           { playlist_id: 2, name: 'Playlist 2', subscriber_id: 1 },
         ],
@@ -77,7 +81,7 @@ describe('Playlists Routes', () => {
 
     it('deve aplicar filtro de subscriberId', async () => {
       mockPlaylistService.getAllPlaylists.mockResolvedValue({
-        playlists: [],
+        data: [],
         total: 0,
         page: 1,
         limit: 10,
@@ -89,7 +93,9 @@ describe('Playlists Routes', () => {
 
       expect(response.status).toBe(200);
       expect(mockPlaylistService.getAllPlaylists).toHaveBeenCalledWith(
-        expect.objectContaining({ subscriberId: 1 })
+        expect.objectContaining({ subscriberId: 1 }),
+        1,
+        true
       );
     });
   });
@@ -107,8 +113,8 @@ describe('Playlists Routes', () => {
       const response = await request(app).get('/api/playlists/1');
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('data');
-      expect(response.body.data.playlist_id).toBe(1);
+      expect(response.body).toHaveProperty('playlist_id');
+      expect(response.body.playlist_id).toBe(1);
     });
 
     it('deve retornar 404 se playlist não encontrada', async () => {
@@ -140,8 +146,8 @@ describe('Playlists Routes', () => {
         .send(newPlaylist);
 
       expect(response.status).toBe(201);
-      expect(response.body).toHaveProperty('data');
-      expect(response.body.data.playlist_id).toBe(1);
+      expect(response.body).toHaveProperty('playlist_id');
+      expect(response.body.playlist_id).toBe(1);
     });
 
     it('deve retornar 400 se dados inválidos', async () => {
@@ -160,19 +166,25 @@ describe('Playlists Routes', () => {
   describe('PUT /api/playlists/:id/media/reorder', () => {
     it('deve reordenar mídias da playlist', async () => {
       const reorderData = {
-        mediaIds: [3, 1, 2],
+        items: [
+          { itemId: 3, orderIndex: 0 },
+          { itemId: 1, orderIndex: 1 },
+          { itemId: 2, orderIndex: 2 },
+        ],
       };
 
       mockPlaylistService.reorderPlaylistMedia.mockResolvedValue(true);
 
       const response = await request(app)
-        .put('/api/playlists/1/media/reorder')
+        .put('/api/playlists/1/reorder')
         .send(reorderData);
 
       expect(response.status).toBe(200);
       expect(mockPlaylistService.reorderPlaylistMedia).toHaveBeenCalledWith(
         1,
-        reorderData.mediaIds
+        reorderData.items,
+        1,
+        true
       );
     });
   });

@@ -180,11 +180,23 @@ const PlaylistMix: React.FC = () => {
     return `${mins.toFixed(1)} min`;
   };
 
+  // Compat de payload: alguns endpoints retornam `mix_items`, outros retornam `items`.
+  // Garantir sempre um array para evitar "is not iterable".
+  const mixItems = useMemo<any[]>(() => {
+    if (!mix) return [];
+    const candidate =
+      (mix as any).mix_items ??
+      (mix as any).items ??
+      (mix as any).data?.mix_items ??
+      (mix as any).data?.items;
+    return Array.isArray(candidate) ? candidate : [];
+  }, [mix]);
+
   // Resumo por campanha (quantidade de itens e duração total)
   const campaignSummary = useMemo(() => {
     if (!mix) return [];
     const byCampaign = new Map<number, { campaignId: number; items: number; duration: number }>();
-    for (const item of mix.mix_items) {
+    for (const item of mixItems) {
       const dur = item.duration || 10;
       const existing = byCampaign.get(item.campaign_id) || {
         campaignId: item.campaign_id,
@@ -203,10 +215,10 @@ const PlaylistMix: React.FC = () => {
         sharePercent: (c.duration / totalDuration) * 100,
       }))
       .sort((a, b) => b.sharePercent - a.sharePercent);
-  }, [mix]);
+  }, [mix, mixItems]);
 
   // Mapa de cores para campanhas (determinístico)
-  const getCampaignColor = (campaignId: number) => {
+  const getCampaignColor = (campaignId: number | null | undefined) => {
     const palette = [
       theme.palette.primary.main,
       theme.palette.success.main,
@@ -215,7 +227,8 @@ const PlaylistMix: React.FC = () => {
       theme.palette.error.main,
       theme.palette.secondary.main,
     ];
-    const index = campaignId % palette.length;
+    const safeId = Number(campaignId ?? 0);
+    const index = Math.abs(safeId) % palette.length;
     return palette[index];
   };
 
@@ -474,7 +487,7 @@ const PlaylistMix: React.FC = () => {
                         height: 28,
                       }}
                     >
-                      {mix.mix_items.map((item, index) => (
+                      {mixItems.map((item, index) => (
                         <Tooltip
                           key={`${item.campaign_id}-${item.media_id}-${index}`}
                           title={
@@ -524,7 +537,7 @@ const PlaylistMix: React.FC = () => {
 
                   {/* Lista detalhada de itens */}
                   <List dense>
-                  {mix.mix_items.map((item, index) => (
+                  {mixItems.map((item, index) => (
                     <React.Fragment key={`${item.campaign_id}-${item.media_id}-${index}`}>
                       <ListItem>
                         <ListItemText
@@ -539,8 +552,9 @@ const PlaylistMix: React.FC = () => {
                           }
                           secondary={
                             <Typography variant="caption" color="text.secondary">
-                              Duração: {(item.duration || 10)}s • Peso: {item.weight.toFixed(2)} •
-                              Prioridade: {item.priority.toFixed(2)}
+                              Duração: {(item.duration || 10)}s • Peso:{' '}
+                              {Number(item.weight ?? 0).toFixed(2)} • Prioridade:{' '}
+                              {Number(item.priority ?? 0).toFixed(2)}
                             </Typography>
                           }
                         />
@@ -665,7 +679,7 @@ const PlaylistMix: React.FC = () => {
                             <TableCell>{h.total_items}</TableCell>
                             <TableCell>{formatDurationMinutes(h.total_duration || 0)}</TableCell>
                             <TableCell>
-                              {h.engagement_score !== undefined ? (
+                              {typeof h.engagement_score === 'number' ? (
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                   <LinearProgress
                                     variant="determinate"

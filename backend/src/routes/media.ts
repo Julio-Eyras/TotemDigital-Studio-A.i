@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { MediaService } from '../services/mediaService';
+import { getMediaService } from '../services/mediaService';
 import { StorageService } from '../services/storageService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
@@ -24,14 +24,6 @@ import fs from 'fs';
 import { getMediaConfig, getAllowedMimeTypes, getStoragePath } from '../config/mediaConfig';
 
 const router = Router();
-
-// Lazy initialization - só criar quando necessário
-function getMediaService(): MediaService {
-  if (!(global as any).mediaServiceInstance) {
-    (global as any).mediaServiceInstance = new MediaService();
-  }
-  return (global as any).mediaServiceInstance;
-}
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);

@@ -6,6 +6,7 @@
 import request from 'supertest';
 import express from 'express';
 import { getCampaignService } from '../../services/campaignService';
+import { getSubscriberService } from '../../services/subscriberService';
 
 // Mock do serviço
 jest.mock('../../services/campaignService');
@@ -15,15 +16,16 @@ jest.mock('../../services/subscriberService', () => ({
   })),
 }));
 jest.mock('../../middleware/auth.middleware', () => ({
-  authMiddleware: (req: any, res: any, next: any) => {
+  // campaigns router usa authenticateToken
+  authenticateToken: (req: any, _res: any, next: any) => {
     req.user = { userId: 1, role: 'admin', subscriberId: 1 };
     req.subscriberId = 1;
     next();
   },
-  authorizeRole: () => (req: any, res: any, next: any) => next(),
+  authorizeRole: () => (_req: any, _res: any, next: any) => next(),
 }));
 jest.mock('../../middleware/subscriberIsolation.middleware', () => ({
-  subscriberIsolationMiddleware: (req: any, res: any, next: any) => next(),
+  subscriberIsolationMiddleware: (_req: any, _res: any, next: any) => next(),
 }));
 
 import campaignsRouter from '../../routes/campaigns';
@@ -47,6 +49,9 @@ describe('Campaigns Routes', () => {
     };
 
     (getCampaignService as jest.Mock).mockReturnValue(mockCampaignService);
+    (getSubscriberService as unknown as jest.Mock).mockReturnValue({
+      validatePlanLimits: jest.fn().mockResolvedValue(true),
+    });
   });
 
   afterEach(() => {
@@ -73,7 +78,8 @@ describe('Campaigns Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('data');
-      expect(response.body.data).toHaveLength(2);
+      expect(response.body.data).toHaveProperty('data');
+      expect(response.body.data.data).toHaveLength(2);
     });
 
     it('deve aplicar filtro de subscriberId', async () => {
@@ -195,7 +201,8 @@ describe('Campaigns Routes', () => {
       expect(response.status).toBe(200);
       expect(mockCampaignService.reorderCampaignMedias).toHaveBeenCalledWith(
         1,
-        reorderData.mediaIds
+        reorderData.mediaIds,
+        1
       );
     });
   });
@@ -215,7 +222,8 @@ describe('Campaigns Routes', () => {
       expect(response.status).toBe(200);
       expect(mockCampaignService.reorderCampaignPlaylists).toHaveBeenCalledWith(
         1,
-        reorderData.playlistIds
+        reorderData.playlistIds,
+        1
       );
     });
   });

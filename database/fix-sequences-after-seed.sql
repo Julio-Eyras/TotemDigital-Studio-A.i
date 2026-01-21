@@ -159,6 +159,38 @@ BEGIN
       PERFORM setval(_seq, _v, true);
     END IF;
   END IF;
+  -- totem_playlist_mix.mix_id
+  IF to_regclass('totem_playlist_mix') IS NOT NULL THEN
+    SELECT COALESCE(MAX(mix_id), 0) INTO _v FROM totem_playlist_mix;
+    SELECT pg_get_serial_sequence('totem_playlist_mix','mix_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, GREATEST(_v, 1), (_v > 0));
+    END IF;
+  END IF;
+  -- playlist_mix_history.history_id
+  IF to_regclass('playlist_mix_history') IS NOT NULL THEN
+    SELECT COALESCE(MAX(history_id), 0) INTO _v FROM playlist_mix_history;
+    SELECT pg_get_serial_sequence('playlist_mix_history','history_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, GREATEST(_v, 1), (_v > 0));
+    END IF;
+  END IF;
+  -- playlist_mix_rules.rule_id
+  IF to_regclass('playlist_mix_rules') IS NOT NULL THEN
+    SELECT COALESCE(MAX(rule_id), 0) INTO _v FROM playlist_mix_rules;
+    SELECT pg_get_serial_sequence('playlist_mix_rules','rule_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, GREATEST(_v, 1), (_v > 0));
+    END IF;
+  END IF;
+  -- ai_context_data.context_id
+  IF to_regclass('ai_context_data') IS NOT NULL THEN
+    SELECT COALESCE(MAX(context_id), 0) INTO _v FROM ai_context_data;
+    SELECT pg_get_serial_sequence('ai_context_data','context_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, GREATEST(_v, 1), (_v > 0));
+    END IF;
+  END IF;
 
   -- dispatcher_log.log_id (nome correto no schema v2 refatorado)
   IF to_regclass('dispatcher_log') IS NOT NULL THEN

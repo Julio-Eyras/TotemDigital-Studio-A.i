@@ -6,7 +6,7 @@
  */
 
 import { Router } from 'express';
-import { CampaignService } from '../services/campaignService';
+import { getCampaignService } from '../services/campaignService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation.middleware';
@@ -36,14 +36,6 @@ router.use(blockClientDataAccess);
 
 // Aplicar isolamento de dados por subscriber
 router.use(subscriberIsolationMiddleware);
-
-// Lazy initialization - só criar quando necessário
-function getCampaignService(): CampaignService {
-  if (!(global as any).campaignServiceInstance) {
-    (global as any).campaignServiceInstance = new CampaignService();
-  }
-  return (global as any).campaignServiceInstance;
-}
 
 // Middleware de autenticação para todas as rotas
 router.use(authenticateToken);

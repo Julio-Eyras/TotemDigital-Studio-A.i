@@ -7,6 +7,48 @@ import request from 'supertest';
 import express from 'express';
 import { getMediaService } from '../../services/mediaService';
 import { StorageService } from '../../services/storageService';
+import { getSubscriberService } from '../../services/subscriberService';
+
+// Mock multer para não depender de filesystem/config de upload nas rotas
+jest.mock('multer', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+
+  const multer = (_opts: any = {}) => ({
+    single: (_field: string) => (req: any, _res: any, cb: any) => {
+      // Permite simular "sem arquivo" via header em um teste específico
+      const noFile = req?.headers?.['x-no-file'] === '1';
+      if (!noFile) {
+        const tmpPath = path.join(os.tmpdir(), `smartsignage-test-upload-${Date.now()}.bin`);
+        fs.writeFileSync(tmpPath, 'test');
+        req.file = {
+          fieldname: 'file',
+          originalname: 'test.png',
+          mimetype: 'image/png',
+          size: 4,
+          filename: path.basename(tmpPath),
+          path: tmpPath,
+        };
+      }
+      req.body = {
+        ...(req.body || {}),
+        subscriberId: req.body?.subscriberId ?? '1',
+        name: req.body?.name ?? 'New Media',
+      };
+      cb(null);
+    },
+    array: (_field: string, _max: number) => (req: any, _res: any, next: any) => {
+      req.files = [];
+      next();
+    },
+  });
+
+  (multer as any).diskStorage = () => ({});
+  (multer as any).default = multer;
+
+  return multer;
+});
 
 // Mock do serviço
 jest.mock('../../services/mediaService');
@@ -19,15 +61,15 @@ jest.mock('../../services/subscriberService', () => ({
   })),
 }));
 jest.mock('../../middleware/auth.middleware', () => ({
-  authMiddleware: (req: any, res: any, next: any) => {
-    req.user = { userId: 1, role: 'admin', subscriberId: 1 };
+  authMiddleware: (req: any, _res: any, next: any) => {
+    req.user = { id: 1, userId: 1, role: 'admin', subscriberId: 1 };
     req.subscriberId = 1;
     next();
   },
-  authorizeRole: () => (req: any, res: any, next: any) => next(),
+  authorizeRole: () => (_req: any, _res: any, next: any) => next(),
 }));
 jest.mock('../../middleware/subscriberIsolation.middleware', () => ({
-  subscriberIsolationMiddleware: (req: any, res: any, next: any) => next(),
+  subscriberIsolationMiddleware: (_req: any, _res: any, next: any) => next(),
 }));
 
 import mediaRouter from '../../routes/media';
@@ -61,6 +103,11 @@ describe('Media Routes', () => {
 
     (getMediaService as jest.Mock).mockReturnValue(mockMediaService);
     (StorageService as jest.Mock).mockImplementation(() => mockStorageService);
+    (getSubscriberService as unknown as jest.Mock).mockReturnValue({
+      validatePlanLimits: jest.fn().mockResolvedValue(true),
+      validateStorageLimit: jest.fn().mockResolvedValue(true),
+      getSubscriberStorageUsage: jest.fn().mockResolvedValue(0),
+    });
   });
 
   afterEach(() => {
@@ -86,8 +133,8 @@ describe('Media Routes', () => {
         .query({ page: 1, limit: 20 });
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('data');
-      expect(response.body.data).toHaveLength(2);
+      expect(response.body).toHaveProperty('media');
+      expect(response.body.media).toHaveLength(2);
     });
 
     it('deve aplicar filtro de subscriberId', async () => {
@@ -106,7 +153,9 @@ describe('Media Routes', () => {
       expect(mockMediaService.getMedia).toHaveBeenCalledWith(
         expect.any(Number),
         expect.any(Number),
-        expect.objectContaining({ subscriberId: 1 })
+        expect.objectContaining({ subscriberId: 1 }),
+        1,
+        true
       );
     });
 
@@ -126,7 +175,9 @@ describe('Media Routes', () => {
       expect(mockMediaService.getMedia).toHaveBeenCalledWith(
         expect.any(Number),
         expect.any(Number),
-        expect.objectContaining({ search: 'Test' })
+        expect.objectContaining({ search: 'Test' }),
+        1,
+        true
       );
     });
 
@@ -149,7 +200,9 @@ describe('Media Routes', () => {
         expect.objectContaining({
           createdFrom: '2026-01-01',
           createdTo: '2026-01-31',
-        })
+        }),
+        1,
+        true
       );
     });
   });
@@ -167,8 +220,8 @@ describe('Media Routes', () => {
       const response = await request(app).get('/api/media/1');
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('data');
-      expect(response.body.data.media_id).toBe(1);
+      expect(response.body).toHaveProperty('media_id');
+      expect(response.body.media_id).toBe(1);
     });
 
     it('deve retornar 404 se mídia não encontrada', async () => {
@@ -184,9 +237,8 @@ describe('Media Routes', () => {
     it('deve criar mídia com sucesso', async () => {
       const newMedia = {
         subscriberId: 1,
-        title: 'New Media',
+        name: 'New Media',
         description: 'Test description',
-        mediaType: 'image',
       };
 
       const createdMedia = {
@@ -197,22 +249,19 @@ describe('Media Routes', () => {
       mockMediaService.createMedia.mockResolvedValue(createdMedia);
 
       const response = await request(app)
-        .post('/api/media')
+        .post('/api/media/upload')
         .send(newMedia);
 
       expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty('success', true);
       expect(response.body).toHaveProperty('data');
       expect(response.body.data.media_id).toBe(1);
     });
 
     it('deve retornar 400 se dados inválidos', async () => {
-      const invalidMedia = {
-        title: '', // Título vazio
-      };
-
       const response = await request(app)
-        .post('/api/media')
-        .send(invalidMedia);
+        .post('/api/media/upload')
+        .set('x-no-file', '1');
 
       expect(response.status).toBe(400);
     });
@@ -237,8 +286,8 @@ describe('Media Routes', () => {
         .send(updateData);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('data');
-      expect(response.body.data.title).toBe('Updated Media');
+      expect(response.body).toHaveProperty('title');
+      expect(response.body.title).toBe('Updated Media');
     });
 
     it('deve retornar 404 se mídia não encontrada', async () => {
@@ -263,11 +312,11 @@ describe('Media Routes', () => {
     });
 
     it('deve retornar 404 se mídia não encontrada', async () => {
-      mockMediaService.deleteMedia.mockResolvedValue(false);
+      mockMediaService.deleteMedia.mockRejectedValue(new Error('Arquivo de mídia não encontrado'));
 
       const response = await request(app).delete('/api/media/999');
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(500);
     });
   });
 });

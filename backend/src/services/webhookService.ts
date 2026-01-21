@@ -101,14 +101,16 @@ export class WebhookService {
       }
 
       if (filters?.channel) {
-        whereClause += ` AND channels @> $${paramIndex}::jsonb`;
-        params.push(JSON.stringify([filters.channel]));
+        // channels/events são TEXT[] no schema (não JSONB)
+        whereClause += ` AND channels @> ARRAY[$${paramIndex}]::text[]`;
+        params.push(filters.channel);
         paramIndex++;
       }
 
       if (filters?.event) {
-        whereClause += ` AND events @> $${paramIndex}::jsonb`;
-        params.push(JSON.stringify([filters.event]));
+        // channels/events são TEXT[] no schema (não JSONB)
+        whereClause += ` AND events @> ARRAY[$${paramIndex}]::text[]`;
+        params.push(filters.event);
         paramIndex++;
       }
 

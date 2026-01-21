@@ -12,6 +12,7 @@
     "test:coverage": "jest --coverage",
     "test:unit": "jest --testPathPattern=__tests__/services",
     "test:integration": "jest --testPathPattern=__tests__/routes",
+    "test:integration:band": "jest --runInBand --testPathPattern=__tests__/routes",
     "lint": "echo 'Linting implementado'",
     "validate:config": "ts-node backend/scripts/validate-config.ts",
     "predeploy": "npm run validate:config && npm run build"

@@ -1911,3 +1911,12 @@ export class CampaignService {
   }
 }
 
+// Lazy singleton accessor (padroniza com outros serviços e facilita testes/mocks)
+export function getCampaignService(): CampaignService {
+  if (!(global as any).campaignServiceInstance) {
+    (global as any).campaignServiceInstance = new CampaignService();
+  }
+  return (global as any).campaignServiceInstance;
+}
+
+

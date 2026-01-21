@@ -1475,3 +1475,12 @@ export class MediaService {
   }
 }
 
+// Lazy singleton accessor (padroniza com outros serviços e facilita testes/mocks)
+export function getMediaService(): MediaService {
+  if (!(global as any).mediaServiceInstance) {
+    (global as any).mediaServiceInstance = new MediaService();
+  }
+  return (global as any).mediaServiceInstance;
+}
+
+

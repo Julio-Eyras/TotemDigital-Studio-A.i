@@ -747,24 +747,37 @@ async function startServer() {
   }
 }
 
-// Tratamento de erros não capturados para evitar crashes
-process.on('uncaughtException', async (error: Error) => {
-  await logError('Erro não capturado (uncaughtException)', error, {
+// Tratamento de erros não capturados para evitar crashes.
+// IMPORTANTE: estes handlers NÃO PODEM depender do banco/redis (podem estar indisponíveis),
+// e NUNCA devem lançar exceções (senão vira loop e o processo cai).
+process.on('uncaughtException', (error: Error) => {
+  // Log mínimo síncrono para garantir visibilidade mesmo sem DB
+  // eslint-disable-next-line no-console
+  console.error('[FATAL][uncaughtException]', error);
+
+  // Tenta registrar no sistema de logs; se falhar, ignora (não pode quebrar o processo)
+  logError('Erro não capturado (uncaughtException)', error, {
     type: 'uncaughtException',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+  }).catch((e) => {
+    // eslint-disable-next-line no-console
+    console.error('[FATAL][uncaughtException][logError failed]', e);
   });
-  // Não fazer exit imediato - deixar o servidor tentar continuar
-  // process.exit(1); // Comentado para evitar crash imediato
 });
 
-process.on('unhandledRejection', async (reason: any, promise: Promise<any>) => {
-  await logError('Promise rejeitada não tratada (unhandledRejection)', reason instanceof Error ? reason : new Error(String(reason)), {
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  // eslint-disable-next-line no-console
+  console.error('[FATAL][unhandledRejection]', err);
+
+  logError('Promise rejeitada não tratada (unhandledRejection)', err, {
     type: 'unhandledRejection',
     promise: String(promise),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+  }).catch((e) => {
+    // eslint-disable-next-line no-console
+    console.error('[FATAL][unhandledRejection][logError failed]', e);
   });
-  // Não fazer exit imediato - deixar o servidor tentar continuar
-  // process.exit(1); // Comentado para evitar crash imediato
 });
 
 // Iniciar servidor
