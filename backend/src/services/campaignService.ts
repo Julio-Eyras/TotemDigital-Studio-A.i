@@ -646,7 +646,7 @@ export class CampaignService {
     client: PoolClient,
     campaignId: number,
     playlistIds: number[],
-    campaignSubscriberId: number,
+    _campaignSubscriberId: number,
     userId: number,
     playlistsInfo: Array<{ playlist_id: number; subscriber_id: number; name: string }>
   ): Promise<void> {
@@ -689,7 +689,7 @@ export class CampaignService {
     client: PoolClient,
     campaignId: number,
     mediaIds: number[],
-    campaignSubscriberId: number,
+    _campaignSubscriberId: number,
     userId: number,
     mediasInfo: Array<{ media_id: number; subscriber_id: number; name: string; status: string }>
   ): Promise<void> {
@@ -965,7 +965,7 @@ export class CampaignService {
       // Invalidar cache relacionado (fora da transação - não crítico)
       await this.cache.invalidateEntity('campaign', newCampaign.id).catch(() => {});
       return newCampaign;
-    }).catch((error: any) => {
+    }).catch(async (error: any) => {
       await logError('Erro ao criar campanha', error);
       throw error;
     });
