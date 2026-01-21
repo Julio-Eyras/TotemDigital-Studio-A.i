@@ -14,6 +14,7 @@ import { logError, logInfo, logDebug, sanitizeForLogging } from '../utils/logger
 import { getEventLogService, EventType } from '../services/eventLogService';
 import { getSubscriberService } from '../services/subscriberService';
 import { determineSubscriberId, normalizeCampaignData } from '../utils/subscriberHelper';
+import { paginatedResponse, successResponse, errorResponse } from '../utils/apiResponse';
 import { 
   paginationValidators, 
   searchValidators, 
@@ -105,16 +106,12 @@ router.get('/',
       filters
     );
 
-    // Converter estrutura { campaigns: [...] } para { data: [...] } para compatibilidade com frontend
-    return res.json({
-      success: true,
-      data: {
-        data: result.campaigns,
-        total: result.total,
-        page: result.page,
-        limit: result.limit
-      }
-    });
+    // Usar helper padronizado para resposta paginada
+    return res.json(paginatedResponse(result.campaigns, {
+      page: result.page,
+      limit: result.limit,
+      total: result.total
+    }));
 
   } catch (error: any) {
     await logError('Erro ao listar campanhas', error, { filters: req.query });
