@@ -190,11 +190,16 @@ export class SmartPlaylistService {
       }
 
       if (filters.search) {
-        whereClause += ' AND (sp.name LIKE ? OR sp.description LIKE ?)';
+        const searchParamIndex = params.length + 1;
+        whereClause += ` AND (sp.name LIKE $${searchParamIndex} OR sp.description LIKE $${searchParamIndex + 1})`;
         params.push(`%${filters.search}%`, `%${filters.search}%`);
       }
 
       // Buscar smart playlists
+      const limitParamIndex = params.length + 1;
+      const offsetParamIndex = params.length + 2;
+      params.push(limit, offset);
+      
       const playlists = await this.db.findMany(`
         SELECT 
           sp.smart_playlist_id,
@@ -232,8 +237,8 @@ export class SmartPlaylistService {
         LEFT JOIN totems t ON sp.totem_id = t.totem_id
         ${whereClause}
         ORDER BY sp.created_at DESC
-        LIMIT ? OFFSET ?
-      `, [...params, limit, offset]);
+        LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
+      `, params);
 
       // Contar total
       const totalResult = await this.db.findFirst(`
@@ -435,7 +440,7 @@ export class SmartPlaylistService {
           time_of_day, day_of_week, season, weather, location, content_type,
           duration, max_items, ai_enabled, rules, status
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         RETURNING smart_playlist_id
       `, [
         subscriberId,
@@ -663,11 +668,11 @@ export class SmartPlaylistService {
             status = 'active',
             last_generated = CURRENT_TIMESTAMP,
             next_generation = NOW() + INTERVAL '1 day',
-            generated_items = ?,
-            total_duration = ?,
-            effectiveness = ?,
+            generated_items = $1,
+            total_duration = $2,
+            effectiveness = $3,
             updated_at = CURRENT_TIMESTAMP
-          WHERE smart_playlist_id = ?
+          WHERE smart_playlist_id = $4
         `, [
           result.generatedItems,
           result.totalDuration,

@@ -201,7 +201,8 @@ export class QRCodeService {
       }
 
       if (filters.search) {
-        whereClause += ' AND (q.title LIKE ? OR q.description LIKE ?)';
+        const paramIndex = params.length + 1;
+        whereClause += ` AND (q.title LIKE $${paramIndex} OR q.description LIKE $${paramIndex + 1})`;
         params.push(`%${filters.search}%`, `%${filters.search}%`);
       }
 

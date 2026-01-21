@@ -216,8 +216,8 @@ export class SettingsService {
           // Atualizar configuração
           await this.db.executeRaw(`
             UPDATE system_settings 
-            SET setting_value = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE setting_key = ?
+            SET setting_value = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE setting_key = $2
           `, [stringValue, key]);
 
           updates.push(key);
@@ -270,8 +270,8 @@ export class SettingsService {
       // Resetar para valor padrão
       await this.db.executeRaw(`
         UPDATE system_settings 
-        SET setting_value = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE setting_key = ?
+        SET setting_value = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE setting_key = $2
       `, [setting.defaultValue, key]);
 
       // Log de auditoria
@@ -325,7 +325,7 @@ export class SettingsService {
           setting_key, setting_value, setting_type, category, description,
           is_public, is_editable, validation, options, default_value
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING setting_id
       `, [
         setting.key,
@@ -493,8 +493,8 @@ export class SettingsService {
           
           await this.db.executeRaw(`
             UPDATE system_settings 
-            SET setting_value = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE setting_key = ?
+            SET setting_value = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE setting_key = $2
           `, [stringValue, key]);
 
           updates.push(key);

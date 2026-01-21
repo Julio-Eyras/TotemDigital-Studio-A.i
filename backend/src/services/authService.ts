@@ -94,7 +94,7 @@ export class AuthService {
             SELECT u.*, c.name as client_name 
             FROM users u 
             LEFT JOIN clients c ON u.client_id = c.client_id 
-            WHERE u.username = ? AND u.is_active = true
+            WHERE u.username = $1 AND u.is_active = true
           `, [username]);
         } catch (error: unknown) {
           // Se falhar mesmo com a tabela existindo, tentar sem JOIN
@@ -103,7 +103,7 @@ export class AuthService {
           user = await this.db.findFirst(`
             SELECT u.*
             FROM users u 
-            WHERE u.username = ? AND u.is_active = true
+            WHERE u.username = $1 AND u.is_active = true
           `, [username]);
         }
       } else {
@@ -142,7 +142,7 @@ export class AuthService {
       await this.db.executeRaw(`
         UPDATE users 
         SET last_login = CURRENT_TIMESTAMP 
-        WHERE id = ?
+        WHERE id = $1
       `, [user.id]).catch(e => logError('[AUTH] Erro ao atualizar last_login', e));
 
       // Verificar se 2FA está habilitado
@@ -254,7 +254,7 @@ export class AuthService {
       // Criar usuário
       const result = await this.db.executeRaw(`
         INSERT INTO users (username, password_hash, role, client_id, is_active)
-        VALUES (?, ?, ?, ?, true)
+        VALUES ($1, $2, $3, $4, true)
         RETURNING id
       `, [username, passwordHash, role, null]); // clientId removido
 
@@ -563,8 +563,8 @@ export class AuthService {
       // Atualizar senha
       await this.db.executeRaw(`
         UPDATE users 
-        SET password_hash = ?, updated_at = CURRENT_TIMESTAMP 
-        WHERE id = ?
+        SET password_hash = $1, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = $2
       `, [newPasswordHash, userId]);
 
       // Log de alteração
@@ -752,7 +752,7 @@ export class AuthService {
       // Salvar token no banco
       await this.db.executeRaw(`
         INSERT INTO password_reset_tokens (user_id, token, expires_at)
-        VALUES (?, ?, ?)
+        VALUES ($1, $2, $3)
       `, [user.id, token, expiresAt]);
 
       // Log de auditoria
@@ -836,8 +836,8 @@ export class AuthService {
       // Atualizar senha do usuário
       await this.db.executeRaw(`
         UPDATE users
-        SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
       `, [passwordHash, resetToken.user_id]);
 
       // Marcar token como usado
@@ -911,7 +911,7 @@ export class AuthService {
 
       await this.db.executeRaw(`
         INSERT INTO users (username, password_hash, role, is_active)
-        VALUES ('admin', ?, 'admin', 1)
+        VALUES ('admin', $1, 'admin', 1)
       `, [passwordHash]);
 
       await logInfo('Usuário admin padrão criado (admin/admin)');

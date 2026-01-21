@@ -51,7 +51,8 @@ export class RoleService {
       const paramsArray: any[] = [];
 
       if (search) {
-        whereClause += ' AND (name ILIKE ? OR description ILIKE ?)';
+        const searchParamIndex = paramsArray.length + 1;
+        whereClause += ` AND (name ILIKE $${searchParamIndex} OR description ILIKE $${searchParamIndex + 1})`;
         const searchTerm = `%${search}%`;
         paramsArray.push(searchTerm, searchTerm);
       }
@@ -322,7 +323,7 @@ export class RoleService {
 
       await this.db.executeRaw(`
         INSERT INTO role_permissions (role_id, permission_id)
-        VALUES (?, ?)
+        VALUES ($1, $2)
       `, [roleId, permissionId]);
     } catch (error: any) {
       await logError('Erro ao atribuir permissão à role', error, { roleId, permissionId });
