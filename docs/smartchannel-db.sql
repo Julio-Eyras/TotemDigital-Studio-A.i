@@ -2419,20 +2419,29 @@ END $$;
 -- (playback de vídeo, exibição de anúncios, BI, campanhas)
 -- Estratégia: Arquivos locais para logs operacionais, banco para eventos importantes
 
+-- Schema V2 Refatorado: event_logs usa log_id BIGSERIAL
+-- Ver: database/smartchannel-db-v2-refactored-part6-tables-other.sql
 CREATE TABLE IF NOT EXISTS event_logs (
-    id SERIAL PRIMARY KEY,
+    log_id BIGSERIAL PRIMARY KEY,
     event_type TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
+    entity_type TEXT NOT NULL, -- campaign, media, totem, playlist, etc.
     entity_id INTEGER,
+    
     totem_id INTEGER,
     campaign_id INTEGER,
-    playlist_id INTEGER,
     media_id INTEGER,
+    publisher_id INTEGER,
+    subscriber_id INTEGER,
+    
+    user_id INTEGER, -- FK para users (quem gerou o evento)
+    
     metadata JSONB,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    severity TEXT DEFAULT 'info', -- debug, info, warning, error, critical
+    
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
     FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE SET NULL,
     FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE SET NULL,
-    FOREIGN KEY (playlist_id) REFERENCES playlists(playlist_id) ON DELETE SET NULL,
     FOREIGN KEY (media_id) REFERENCES medias(media_id) ON DELETE SET NULL
 );
 

@@ -11,7 +11,7 @@ import { getDatabase } from '../config/database';
 import { getLogger } from '../config/logger';
 
 export interface EventLogEntry {
-  id?: number;
+  logId?: number; // Schema V2: log_id BIGSERIAL
   eventType: EventType;
   entityType: string;
   entityId?: number;
@@ -93,7 +93,7 @@ export class EventLogService {
           timestamp
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
-        RETURNING id
+        RETURNING log_id
       `, [
         event.eventType,
         event.entityType,
@@ -105,7 +105,7 @@ export class EventLogService {
         event.metadata ? JSON.stringify(event.metadata) : null
       ]);
 
-      const eventId = result.rows[0]?.id;
+      const eventId = result.rows[0]?.log_id;
       
       // Log operacional em arquivo (para debug)
       const logger = await getLogger();
@@ -347,7 +347,7 @@ export class EventLogService {
 
       const results = await this.db.findMany(`
         SELECT 
-          id,
+          log_id as "logId",
           event_type as "eventType",
           entity_type as "entityType",
           entity_id as "entityId",
@@ -364,7 +364,7 @@ export class EventLogService {
       `, [...params, limit, offset]);
 
       return results.map((row: any) => ({
-        id: row.id,
+        logId: row.logId,
         eventType: row.eventType,
         entityType: row.entityType,
         entityId: row.entityId,

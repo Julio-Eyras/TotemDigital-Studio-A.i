@@ -212,15 +212,15 @@ router.get(
 
       const query = `
         SELECT
-          id,
+          log_id as id,
           event_type,
           entity_type,
           media_id,
           metadata,
-          created_at
+          timestamp as created_at
         FROM event_logs
         ${where}
-        ORDER BY created_at DESC
+        ORDER BY timestamp DESC
         LIMIT $${params.length}
       `;
 

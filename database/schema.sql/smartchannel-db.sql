@@ -1124,22 +1124,29 @@ CREATE TABLE IF NOT EXISTS campaign_playlists (
     UNIQUE(campaign_id, playlist_id)
 );
 
+-- Schema V2 Refatorado: event_logs usa log_id BIGSERIAL
+-- Ver: database/smartchannel-db-v2-refactored-part6-tables-other.sql
 CREATE TABLE IF NOT EXISTS public.event_logs (
-    id SERIAL PRIMARY KEY,
+    log_id BIGSERIAL PRIMARY KEY,
     event_type TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
+    entity_type TEXT NOT NULL, -- campaign, media, totem, playlist, etc.
     entity_id INTEGER,
+    
     totem_id INTEGER,
     campaign_id INTEGER,
-    playlist_id INTEGER,
     media_id INTEGER,
+    publisher_id INTEGER,
+    subscriber_id INTEGER,
+    
+    user_id INTEGER, -- FK para users (quem gerou o evento)
+    
     metadata JSONB,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- Campo de log refinado para consultas (mantido separado de timestamp por compatibilidade)
-    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    severity TEXT DEFAULT 'info', -- debug, info, warning, error, critical
+    
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
     FOREIGN KEY (totem_id) REFERENCES public.totems(totem_id) ON DELETE SET NULL,
     FOREIGN KEY (campaign_id) REFERENCES public.campaigns(campaign_id) ON DELETE SET NULL,
-    FOREIGN KEY (playlist_id) REFERENCES public.playlists(playlist_id) ON DELETE SET NULL,
     FOREIGN KEY (media_id) REFERENCES public.medias(media_id) ON DELETE SET NULL
 );
 
@@ -1528,33 +1535,7 @@ CREATE INDEX IF NOT EXISTS idx_fx_totem_sites_role ON fx_totem_sites(role);
 CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_id ON playlist_items(playlist_id);
 CREATE INDEX IF NOT EXISTS idx_playlist_items_order ON playlist_items(playlist_id, order_index);
 
--- Garantir que event_logs.logged_at existe antes de criar índices
-DO $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'event_logs') THEN
-        IF NOT EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_schema = 'public' AND table_name = 'event_logs' AND column_name = 'logged_at'
-        ) THEN
-            ALTER TABLE public.event_logs ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-        END IF;
-    END IF;
-    
-    -- Verificação alternativa sem schema explícito (para tabelas criadas sem schema)
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'event_logs') THEN
-        IF NOT EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name = 'event_logs' AND column_name = 'logged_at'
-        ) THEN
-            BEGIN
-                ALTER TABLE event_logs ADD COLUMN logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-            EXCEPTION WHEN OTHERS THEN
-                -- Coluna pode já existir ou tabela pode estar em outro schema, ignorar
-                NULL;
-            END;
-        END IF;
-    END IF;
-END $$;
+-- Schema V2: event_logs não usa logged_at (usa apenas timestamp)
 
 -- Índices para event_logs (usar schema explícito para evitar ambiguidade)
 CREATE INDEX IF NOT EXISTS idx_event_logs_event_type ON public.event_logs(event_type);
@@ -1565,8 +1546,7 @@ CREATE INDEX IF NOT EXISTS idx_event_logs_media_id ON public.event_logs(media_id
 CREATE INDEX IF NOT EXISTS idx_event_logs_timestamp ON public.event_logs(timestamp);
 CREATE INDEX IF NOT EXISTS idx_event_logs_entity ON public.event_logs(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_event_logs_bi ON public.event_logs(totem_id, campaign_id, timestamp);
-CREATE INDEX IF NOT EXISTS idx_event_logs_logged_at ON public.event_logs(logged_at);
-CREATE INDEX IF NOT EXISTS idx_event_logs_totem_type ON public.event_logs(totem_id, event_type, logged_at);
+CREATE INDEX IF NOT EXISTS idx_event_logs_totem_type ON public.event_logs(totem_id, event_type, timestamp);
 CREATE INDEX IF NOT EXISTS idx_event_logs_totem_timestamp ON public.event_logs(totem_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_event_logs_timestamp_desc ON public.event_logs(timestamp DESC);
 
