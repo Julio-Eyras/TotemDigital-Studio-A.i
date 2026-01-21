@@ -126,7 +126,7 @@ export class ReportsService {
           type, title, description, status, format, filters, 
           template, custom_fields, ai_analysis, created_by
         )
-        VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7, $8, $9)
         RETURNING report_id
       `, [
         request.type,
@@ -169,13 +169,13 @@ export class ReportsService {
           UPDATE reports 
           SET 
             status = 'completed',
-            file_path = ?,
-            file_size = ?,
-            download_url = ?,
+            file_path = $1,
+            file_size = $2,
+            download_url = $3,
             generated_at = CURRENT_TIMESTAMP,
-            expires_at = datetime('now', '+30 days'),
-            metadata = ?
-          WHERE report_id = ?
+            expires_at = NOW() + INTERVAL '30 days',
+            metadata = $4
+          WHERE report_id = $5
         `, [
           fileInfo.filePath,
           fileInfo.fileSize,
@@ -333,7 +333,7 @@ export class ReportsService {
         FROM reports
         ${whereClause}
         ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}
       `, [...params, limit, offset]);
 
       // Contar total
@@ -459,24 +459,27 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
+      // Construir WHERE clause com placeholders PostgreSQL ($1, $2, ...)
+      let paramIndex = 1;
+      
       const subscriberId = filters.subscriberId;
       if (subscriberId) {
-        whereClause += ' AND c.subscriber_id = $' + (params.length + 1);
+        whereClause += ` AND c.subscriber_id = $${paramIndex++}`;
         params.push(subscriberId);
       }
 
       if (filters.campaignId) {
-        whereClause += ' AND c.campaign_id = ?';
+        whereClause += ` AND c.campaign_id = $${paramIndex++}`;
         params.push(filters.campaignId);
       }
 
       if (filters.startDate) {
-        whereClause += ' AND c.created_at >= ?';
+        whereClause += ` AND c.created_at >= $${paramIndex++}`;
         params.push(filters.startDate);
       }
 
       if (filters.endDate) {
-        whereClause += ' AND c.created_at <= ?';
+        whereClause += ` AND c.created_at <= $${paramIndex++}`;
         params.push(filters.endDate);
       }
 
@@ -1347,7 +1350,7 @@ export class ReportsService {
         await this.db.executeRaw(`
           UPDATE report_templates
           SET is_default = false
-          WHERE type = ? AND is_default = true
+          WHERE type = $1 AND is_default = true
         `, [templateData.type]);
       }
 
@@ -1357,7 +1360,7 @@ export class ReportsService {
           name, description, type, template_config,
           is_default, is_public, created_by
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING template_id
       `, [
         templateData.name,
@@ -1425,17 +1428,20 @@ export class ReportsService {
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
+      // Construir WHERE clause com placeholders PostgreSQL ($1, $2, ...)
+      let paramIndex = 1;
+      
       if (filters.type) {
-        whereClause += ' AND type = ?';
+        whereClause += ` AND type = $${paramIndex++}`;
         params.push(filters.type);
       }
 
       if (filters.isPublic !== undefined) {
-        whereClause += ' AND (is_public = ? OR created_by = ?)';
+        whereClause += ` AND (is_public = $${paramIndex++} OR created_by = $${paramIndex++})`;
         params.push(filters.isPublic ? 1 : 0);
         params.push(filters.createdBy || 0);
       } else if (filters.createdBy) {
-        whereClause += ' AND (is_public = 1 OR created_by = ?)';
+        whereClause += ` AND (is_public = 1 OR created_by = $${paramIndex++})`;
         params.push(filters.createdBy);
       }
 

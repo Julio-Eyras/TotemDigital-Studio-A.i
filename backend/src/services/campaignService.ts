@@ -264,46 +264,98 @@ export class CampaignService {
 
       const total = totalResult?.total || 0;
 
-      // Buscar estatísticas e publishers para cada campanha
+      // Otimização: Buscar relacionamentos em batch para evitar N+1 queries
+      const campaignIds = campaigns.map(c => c.id);
+      
+      if (campaignIds.length === 0) {
+        return {
+          campaigns: [],
+          total,
+          page,
+          limit
+        };
+      }
+
+      // Buscar todos os publishers de uma vez (batch query)
+      const allPublishers = await this.db.findMany(`
+        SELECT 
+          cp.campaign_id,
+          cp.publisher_id,
+          p.name as publisher_name
+        FROM campaign_publishers cp
+        JOIN publishers p ON cp.publisher_id = p.publisher_id
+        WHERE cp.campaign_id = ANY($1::int[]) AND cp.is_active = true
+        ORDER BY cp.campaign_id, p.name
+      `, [campaignIds]);
+
+      // Buscar todas as playlists de uma vez (batch query)
+      const allPlaylists = await this.db.findMany(`
+        SELECT 
+          cp.campaign_id,
+          cp.playlist_id,
+          p.name as playlist_name,
+          cp.priority
+        FROM campaign_playlists cp
+        JOIN playlists p ON cp.playlist_id = p.playlist_id
+        WHERE cp.campaign_id = ANY($1::int[]) AND cp.is_active = true
+        ORDER BY cp.campaign_id, cp.priority DESC, p.name
+      `, [campaignIds]);
+
+      // Buscar todas as mídias de uma vez (batch query)
+      const allMedias = await this.db.findMany(`
+        SELECT 
+          cm.campaign_id,
+          cm.media_id,
+          m.name as media_name,
+          m.file_name,
+          m.media_type,
+          cm.order_index,
+          cm.priority
+        FROM campaign_medias cm
+        JOIN medias m ON cm.media_id = m.media_id
+        WHERE cm.campaign_id = ANY($1::int[]) AND cm.is_active = true
+        ORDER BY cm.campaign_id, cm.order_index, cm.priority
+      `, [campaignIds]);
+
+      // Criar mapas para acesso rápido
+      const publishersMap = new Map<number, Array<{ publisher_id: number; publisher_name: string }>>();
+      const playlistsMap = new Map<number, Array<{ playlist_id: number; playlist_name: string }>>();
+      const mediasMap = new Map<number, Array<{ media_id: number; media_name: string | null; file_name: string }>>();
+
+      allPublishers.forEach(p => {
+        if (!publishersMap.has(p.campaign_id)) {
+          publishersMap.set(p.campaign_id, []);
+        }
+        publishersMap.get(p.campaign_id)!.push({ publisher_id: p.publisher_id, publisher_name: p.publisher_name });
+      });
+
+      allPlaylists.forEach(p => {
+        if (!playlistsMap.has(p.campaign_id)) {
+          playlistsMap.set(p.campaign_id, []);
+        }
+        playlistsMap.get(p.campaign_id)!.push({ playlist_id: p.playlist_id, playlist_name: p.playlist_name });
+      });
+
+      allMedias.forEach(m => {
+        if (!mediasMap.has(m.campaign_id)) {
+          mediasMap.set(m.campaign_id, []);
+        }
+        mediasMap.get(m.campaign_id)!.push({ 
+          media_id: m.media_id, 
+          media_name: m.media_name, 
+          file_name: m.file_name 
+        });
+      });
+
+      // Combinar dados das campanhas com relacionamentos (paralelo para stats)
       const campaignsWithStats = await Promise.all(
         campaigns.map(async (campaign) => {
           const stats = await this.getCampaignStats(campaign.id);
           const scheduleInfo = this.getScheduleInfo(campaign);
           
-          // Buscar publishers associados
-          const publishers = await this.db.findMany(`
-            SELECT 
-              cp.publisher_id,
-              p.name as publisher_name
-            FROM campaign_publishers cp
-            JOIN publishers p ON cp.publisher_id = p.publisher_id
-            WHERE cp.campaign_id = $1 AND cp.is_active = true
-            ORDER BY p.name
-          `, [campaign.id]);
-
-          // Buscar playlists associadas
-          const playlists = await this.db.findMany(`
-            SELECT 
-              cp.playlist_id,
-              p.name as playlist_name
-            FROM campaign_playlists cp
-            JOIN playlists p ON cp.playlist_id = p.playlist_id
-            WHERE cp.campaign_id = $1 AND cp.is_active = true
-            ORDER BY cp.priority DESC, p.name
-          `, [campaign.id]);
-
-          // Buscar mídias diretamente associadas
-          const directMedias = await this.db.findMany(`
-            SELECT 
-              cm.media_id,
-              m.name as media_name,
-              m.file_name,
-              m.media_type
-            FROM campaign_medias cm
-            JOIN medias m ON cm.media_id = m.media_id
-            WHERE cm.campaign_id = $1 AND cm.is_active = true
-            ORDER BY cm.order_index, cm.priority
-          `, [campaign.id]);
+          const publishers = publishersMap.get(campaign.id) || [];
+          const playlists = playlistsMap.get(campaign.id) || [];
+          const directMedias = mediasMap.get(campaign.id) || [];
 
           return { 
             ...campaign, 
