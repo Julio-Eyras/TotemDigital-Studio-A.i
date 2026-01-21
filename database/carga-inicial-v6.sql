@@ -28,18 +28,18 @@ BEGIN
 END $$;
 
 INSERT INTO subscribers (subscriber_id, name, contact_name, email, phone, whatsapp, address, category_segment, description, is_active) VALUES
-(1, 'Maria Silva ', 'Maria Silva roupa elegante', 'maria.silva@shoppingnorte.com.br', '+55 11 3456-7890', '+55 11 98765-4321', 'Av. Cruzeiro do Sul, 1100 - Santana, São Paulo/SP - CEP 02013-000', 'Shopping', 'Shopping center localizado na zona norte de São Paulo', true),
-(2, 'Farmácias João Santos+', 'João Santos', 'joao.santos@saudemais.com.br', '+55 11 2345-6789', '+55 11 87654-3210', 'Rua XV de Novembro, 250 - Centro, São Paulo/SP - CEP 01010-000', 'Farmácia', 'Rede de farmácias com múltiplas unidades', true),
-(3, 'Ana Costa moveis', 'Ana Costa', 'ana.costa@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', 'Av. Paulista, 1500 - Bela Vista, São Paulo/SP - CEP 01310-100', 'Supermercado', 'Supermercado com foco em economia', true),
-(4, 'Cafe Sabor & Companhia', 'Carlos Oliveira', 'carlos.oliveira@saborearte.com.br', '+55 11 4567-8901', '+55 11 65432-1098', 'Rua Oscar Freire, 200 - Jardins, São Paulo/SP - CEP 01426-000', 'Restaurante', 'Restaurante gourmet especializado em culinária brasileira', true),
-(5, 'Clínica PET Saudável', 'Dr. Roberto pe de joelho Lima', 'roberto.lima@vidasaudavel.com.br', '+55 11 5678-9012', '+55 11 54321-0987', 'Rua do Carmo, 45 - Centro, São Paulo/SP - CEP 01310-100', 'Saúde', 'Clínica médica com foco em prevenção', true)
+(1, 'Marca Fashion Brasil', 'Patricia Mendes', 'contato@marcafashion.com.br', '+55 11 3456-7890', '+55 11 98765-4321', 'Av. Brigadeiro Faria Lima, 1500 - Itaim Bibi, São Paulo/SP - CEP 01452-000', 'Moda', 'Empresa de moda e vestuário que anuncia em totens de shopping centers', true),
+(2, 'Laboratório FarmaVida', 'Dr. João Santos', 'comercial@farmavida.com.br', '+55 11 2345-6789', '+55 11 87654-3210', 'Rua Haddock Lobo, 500 - Cerqueira César, São Paulo/SP - CEP 01414-000', 'Farmacêutico', 'Laboratório farmacêutico que promove medicamentos em farmácias', true),
+(3, 'Supermercado Econômico', 'Ana Costa', 'marketing@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', 'Av. Paulista, 1500 - Bela Vista, São Paulo/SP - CEP 01310-100', 'Varejo', 'Rede de supermercados que anuncia ofertas e promoções', true),
+(4, 'Rede de Restaurantes Sabor & Arte', 'Carlos Oliveira', 'publicidade@saborearte.com.br', '+55 11 4567-8901', '+55 11 65432-1098', 'Rua Oscar Freire, 200 - Jardins, São Paulo/SP - CEP 01426-000', 'Alimentação', 'Rede de restaurantes que promove cardápios e eventos', true),
+(5, 'Clínica Saúde Total', 'Dr. Roberto Lima', 'marketing@saudetotal.com.br', '+55 11 5678-9012', '+55 11 54321-0987', 'Rua do Carmo, 45 - Centro, São Paulo/SP - CEP 01310-100', 'Saúde', 'Clínica médica que promove serviços de saúde e prevenção', true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO publishers (publisher_id, name, contact_name, email, phone, whatsapp, category_segment, description, is_subscriber, is_publisher, client_type, active) VALUES
-(1, 'Shopping Center Norte - Administração', 'Maria Silva', 'admin@shoppingnorte.com.br', '+55 11 3456-7890', '+55 11 98765-4321', 'Shopping', 'Administração do shopping center', false, true, 'publisher', true),
-(2, 'Farmácia Central - Matriz', 'João Santos', 'matriz@saudemais.com.br', '+55 11 2345-6789', '+55 11 87654-3210', 'Farmácia', 'Matriz da rede de farmácias', false, true, 'publisher', true),
-(3, 'Supermercado Econômico - Filial Centro', 'Ana Costa', 'centro@economico.com.br', '+55 11 1234-5678', '+55 11 76543-2109', 'Supermercado', 'Filial central do supermercado', false, true, 'publisher', true),
-(4, 'Rede de Totens Urbanos', 'Pedro Almeida', 'pedro@totensurbanos.com.br', '+55 11 9999-8888', '+55 11 99999-8888', 'OOH', 'Rede de totens em pontos estratégicos da cidade', false, true, 'publisher', true)
+(1, 'Shopping Center Norte', 'Fernando Alves', 'administracao@shoppingnorte.com.br', '+55 11 3111-2222', '+55 11 91111-2222', 'Shopping', 'Shopping center localizado na zona norte de São Paulo com totens instalados', false, true, 'publisher', true),
+(2, 'Farmácia Saúde Mais', 'Juliana Rodrigues', 'gerencia@saudemais.com.br', '+55 11 3222-3333', '+55 11 92222-3333', 'Farmácia', 'Rede de farmácias com múltiplas unidades e totens para publicidade', false, true, 'publisher', true),
+(3, 'Aeroporto Internacional de São Paulo', 'Ricardo Souza', 'comercial@aeroportosp.com.br', '+55 11 3333-4444', '+55 11 93333-4444', 'Transporte', 'Aeroporto com totens em áreas de embarque e desembarque', false, true, 'publisher', true),
+(4, 'Rede de Totens Urbanos SP', 'Pedro Almeida', 'contato@totensurbanos.com.br', '+55 11 3444-5555', '+55 11 94444-5555', 'OOH', 'Rede de totens em pontos estratégicos da cidade para publicidade externa', false, true, 'publisher', true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO roles (role_id, name, description, is_active) VALUES
@@ -86,18 +86,28 @@ ON CONFLICT (setting_key) DO NOTHING;
 
 INSERT INTO users (id, username, email, password_hash, first_name, last_name, name, phone, role, user_type, is_tenant_user, publisher_id, subscriber_id, is_active, email_verified) VALUES
 (1, 'admin', 'admin@smartsignage.local', '$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2', 'Admin', 'Sistema', 'Admin Sistema', '+55 11 0000-0000', 'admin', 'system_user', true, NULL, NULL, true, true),
-(2, 'maria.silva', 'maria.silva@shoppingnorte.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Maria', 'Silva', 'Maria Silva', '+55 11 3456-7890', 'manager', 'publisher_user', false, 1, NULL, true, true),
-(3, 'joao.santos', 'joao.santos@saudemais.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'João', 'Santos', 'João Santos', '+55 11 2345-6789', 'manager', 'publisher_user', false, 2, NULL, true, true),
-(4, 'ana.costa', 'ana.costa@economico.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Ana', 'Costa', 'Ana Costa', '+55 11 1234-5678', 'manager', 'subscriber_user', false, NULL, 3, true, true),
-(5, 'carlos.oliveira', 'carlos.oliveira@saborearte.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Carlos', 'Oliveira', 'Carlos Oliveira', '+55 11 4567-8901', 'manager', 'subscriber_user', false, NULL, 4, true, true)
+(2, 'fernando.alves', 'fernando.alves@shoppingnorte.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Fernando', 'Alves', 'Fernando Alves', '+55 11 3111-2222', 'manager', 'publisher_user', false, 1, NULL, true, true),
+(3, 'juliana.rodrigues', 'juliana.rodrigues@saudemais.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Juliana', 'Rodrigues', 'Juliana Rodrigues', '+55 11 3222-3333', 'manager', 'publisher_user', false, 2, NULL, true, true),
+(4, 'ricardo.souza', 'ricardo.souza@aeroportosp.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Ricardo', 'Souza', 'Ricardo Souza', '+55 11 3333-4444', 'manager', 'publisher_user', false, 3, NULL, true, true),
+(5, 'pedro.almeida', 'pedro.almeida@totensurbanos.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Pedro', 'Almeida', 'Pedro Almeida', '+55 11 3444-5555', 'manager', 'publisher_user', false, 4, NULL, true, true),
+(6, 'patricia.mendes', 'patricia.mendes@marcafashion.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Patricia', 'Mendes', 'Patricia Mendes', '+55 11 3456-7890', 'manager', 'subscriber_user', false, NULL, 1, true, true),
+(7, 'joao.santos', 'joao.santos@farmavida.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'João', 'Santos', 'Dr. João Santos', '+55 11 2345-6789', 'manager', 'subscriber_user', false, NULL, 2, true, true),
+(8, 'ana.costa', 'ana.costa@economico.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Ana', 'Costa', 'Ana Costa', '+55 11 1234-5678', 'manager', 'subscriber_user', false, NULL, 3, true, true),
+(9, 'carlos.oliveira', 'carlos.oliveira@saborearte.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Carlos', 'Oliveira', 'Carlos Oliveira', '+55 11 4567-8901', 'manager', 'subscriber_user', false, NULL, 4, true, true),
+(10, 'roberto.lima', 'roberto.lima@saudetotal.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Roberto', 'Lima', 'Dr. Roberto Lima', '+55 11 5678-9012', 'manager', 'subscriber_user', false, NULL, 5, true, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_flags (user_id, flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4, flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9) VALUES
 (1, true, true, true, true, true, true, true, true, true, true),
 (2, true, false, false, true, false, true, true, false, true, false),
 (3, true, false, false, true, false, true, true, false, true, false),
-(4, false, false, false, false, false, false, true, false, false, true),
-(5, false, false, false, false, false, false, true, false, false, true)
+(4, true, false, false, true, false, true, true, false, true, false),
+(5, true, false, false, true, false, true, true, false, true, false),
+(6, false, false, false, false, false, false, true, false, false, true),
+(7, false, false, false, false, false, false, true, false, false, true),
+(8, false, false, false, false, false, false, true, false, false, true),
+(9, false, false, false, false, false, false, true, false, false, true),
+(10, false, false, false, false, false, false, true, false, false, true)
 ON CONFLICT (user_id) DO NOTHING;
 
 INSERT INTO role_flags_default (role, flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4, flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9) VALUES
@@ -114,8 +124,13 @@ INSERT INTO user_roles (user_id, role_id, assigned_by) VALUES
 (1, 1, 1),
 (2, 4, 1),
 (3, 4, 1),
-(4, 5, 1),
-(5, 5, 1)
+(4, 4, 1),
+(5, 4, 1),
+(6, 5, 1),
+(7, 5, 1),
+(8, 5, 1),
+(9, 5, 1),
+(10, 5, 1)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_id) VALUES
@@ -174,21 +189,21 @@ INSERT INTO medias (
   approved_by, approved_at, metadata,
   is_active
 ) VALUES
-(1, 1, 'black-friday-banner.jpg', 'Banner principal da Black Friday', '/opt/smart-signage/public/assets/uploads/client-1/medias/black-friday-banner.jpg', 'black-friday-banner.jpg', 550388, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/1/thumbnail', '/api/media/1/thumbnail', 'approved', 'approved', ARRAY['promocao', 'black-friday', 'ofertas'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '10 days', '{}'::jsonb, true),
-(2, 1, 'ofertas-video.mp4', 'Vídeo com as principais ofertas', '/opt/smart-signage/public/assets/uploads/client-1/medias/ofertas-video.mp4', 'ofertas-video.mp4', 984314, 'video', 'video/mp4', 30, 1920, 1080, '/api/media/2/thumbnail', '/api/media/2/thumbnail', 'approved', 'approved', ARRAY['promocao', 'video', 'ofertas'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '10 days', '{}'::jsonb, true),
-(3, 2, 'medicamentos-banner.jpg', 'Banner promocional de medicamentos', '/opt/smart-signage/public/assets/uploads/client-2/medias/medicamentos-banner.jpg', 'medicamentos-banner.jpg', 576108, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/3/thumbnail', '/api/media/3/thumbnail', 'approved', 'approved', ARRAY['medicamentos', 'genericos', 'promocao'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '9 days', '{}'::jsonb, true),
-(4, 3, 'ofertas-dia.jpg', 'Banner com ofertas diárias', '/opt/smart-signage/public/assets/uploads/client-3/medias/ofertas-dia.jpg', 'ofertas-dia.jpg', 1113286, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/4/thumbnail', '/api/media/4/thumbnail', 'approved', 'approved', ARRAY['ofertas', 'diarias', 'supermercado'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '8 days', '{}'::jsonb, true),
-(5, 4, 'menu-executivo.jpg', 'Cardápio do menu executivo', '/opt/smart-signage/public/assets/uploads/client-4/medias/menu-executivo.jpg', 'menu-executivo.jpg', 753361, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/5/thumbnail', '/api/media/5/thumbnail', 'approved', 'approved', ARRAY['menu', 'executivo', 'restaurante'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '7 days', '{}'::jsonb, true),
-(6, 5, 'check-up-video.mp4', 'Vídeo educativo sobre check-up', '/opt/smart-signage/public/assets/uploads/client-5/medias/check-up-video.mp4', 'check-up-video.mp4', 984314, 'video', 'video/mp4', 45, 1920, 1080, '/api/media/6/thumbnail', '/api/media/6/thumbnail', 'approved', 'approved', ARRAY['saude', 'prevencao', 'check-up'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '6 days', '{}'::jsonb, true)
+(1, 1, 'colecao-verao-2024.jpg', 'Banner da coleção verão 2024', '/opt/smart-signage/public/assets/uploads/client-1/medias/colecao-verao-2024.jpg', 'colecao-verao-2024.jpg', 550388, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/1/thumbnail', '/api/media/1/thumbnail', 'approved', 'approved', ARRAY['moda', 'verao', 'colecao'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '10 days', '{}'::jsonb, true),
+(2, 1, 'promocao-fashion-video.mp4', 'Vídeo promocional da marca de moda', '/opt/smart-signage/public/assets/uploads/client-1/medias/promocao-fashion-video.mp4', 'promocao-fashion-video.mp4', 984314, 'video', 'video/mp4', 30, 1920, 1080, '/api/media/2/thumbnail', '/api/media/2/thumbnail', 'approved', 'approved', ARRAY['moda', 'video', 'promocao'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '10 days', '{}'::jsonb, true),
+(3, 2, 'medicamentos-genericos-banner.jpg', 'Banner promocional de medicamentos genéricos', '/opt/smart-signage/public/assets/uploads/client-2/medias/medicamentos-genericos-banner.jpg', 'medicamentos-genericos-banner.jpg', 576108, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/3/thumbnail', '/api/media/3/thumbnail', 'approved', 'approved', ARRAY['medicamentos', 'genericos', 'promocao'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '9 days', '{}'::jsonb, true),
+(4, 3, 'ofertas-dia.jpg', 'Banner com ofertas diárias do supermercado', '/opt/smart-signage/public/assets/uploads/client-3/medias/ofertas-dia.jpg', 'ofertas-dia.jpg', 1113286, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/4/thumbnail', '/api/media/4/thumbnail', 'approved', 'approved', ARRAY['ofertas', 'diarias', 'supermercado'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '8 days', '{}'::jsonb, true),
+(5, 4, 'menu-executivo.jpg', 'Cardápio do menu executivo do restaurante', '/opt/smart-signage/public/assets/uploads/client-4/medias/menu-executivo.jpg', 'menu-executivo.jpg', 753361, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/5/thumbnail', '/api/media/5/thumbnail', 'approved', 'approved', ARRAY['menu', 'executivo', 'restaurante'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '7 days', '{}'::jsonb, true),
+(6, 5, 'check-up-preventivo-video.mp4', 'Vídeo educativo sobre check-up preventivo', '/opt/smart-signage/public/assets/uploads/client-5/medias/check-up-preventivo-video.mp4', 'check-up-preventivo-video.mp4', 984314, 'video', 'video/mp4', 45, 1920, 1080, '/api/media/6/thumbnail', '/api/media/6/thumbnail', 'approved', 'approved', ARRAY['saude', 'prevencao', 'check-up'], 1, (NOW() - INTERVAL '1 year') - INTERVAL '6 days', '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO playlists (playlist_id, subscriber_id, name, category_segment, description, is_active, schedule_config, metadata) VALUES
-(1, 1, 'Playlist Black Friday - Entrada', 'Black Friday', 'Playlist principal da Black Friday na entrada', true, '{}'::jsonb, '{}'::jsonb),
-(2, 1, 'Playlist Black Friday - Praça', 'Black Friday', 'Playlist da Black Friday na praça de alimentação', true, '{}'::jsonb, '{}'::jsonb),
-(3, 2, 'Playlist Medicamentos', 'Saúde', 'Playlist promocional de medicamentos', true, '{}'::jsonb, '{}'::jsonb),
-(4, 3, 'Playlist Ofertas Supermercado', 'Promoções', 'Playlist de ofertas do supermercado', true, '{}'::jsonb, '{}'::jsonb),
-(5, 4, 'Playlist Menu Executivo', 'Cardápio', 'Playlist do menu executivo', true, '{}'::jsonb, '{}'::jsonb),
-(6, 5, 'Playlist Check-up', 'Saúde', 'Playlist de conscientização sobre check-up', true, '{}'::jsonb, '{}'::jsonb)
+(1, 1, 'Playlist Coleção Verão - Shopping', 'Moda', 'Playlist da coleção verão 2024 para shopping centers', true, '{}'::jsonb, '{}'::jsonb),
+(2, 1, 'Playlist Promoção Fashion', 'Moda', 'Playlist promocional da marca de moda', true, '{}'::jsonb, '{}'::jsonb),
+(3, 2, 'Playlist Medicamentos Genéricos', 'Farmacêutico', 'Playlist promocional de medicamentos genéricos', true, '{}'::jsonb, '{}'::jsonb),
+(4, 3, 'Playlist Ofertas Supermercado', 'Varejo', 'Playlist de ofertas e promoções do supermercado', true, '{}'::jsonb, '{}'::jsonb),
+(5, 4, 'Playlist Menu Executivo', 'Alimentação', 'Playlist do menu executivo do restaurante', true, '{}'::jsonb, '{}'::jsonb),
+(6, 5, 'Playlist Check-up Preventivo', 'Saúde', 'Playlist de conscientização sobre check-up preventivo', true, '{}'::jsonb, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO playlist_items (item_id, playlist_id, media_id, display_seconds, order_index, start_time, end_time, days_of_week, transitions, is_active) VALUES
