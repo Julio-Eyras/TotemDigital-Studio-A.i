@@ -14,7 +14,7 @@ import { logError, logInfo, logDebug, sanitizeForLogging } from '../utils/logger
 import { getEventLogService, EventType } from '../services/eventLogService';
 import { getSubscriberService } from '../services/subscriberService';
 import { determineSubscriberId, normalizeCampaignData } from '../utils/subscriberHelper';
-import { paginatedResponse, successResponse, errorResponse } from '../utils/apiResponse';
+import { paginatedResponse } from '../utils/apiResponse';
 import { 
   paginationValidators, 
   searchValidators, 
