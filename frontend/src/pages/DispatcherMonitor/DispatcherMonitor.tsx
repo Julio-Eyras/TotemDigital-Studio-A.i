@@ -29,11 +29,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   Paper,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Autocomplete,
   Tabs,
   Tab,
@@ -48,6 +45,7 @@ import {
   Switch,
   FormControlLabel,
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import {
   Refresh,
   Visibility,
@@ -62,6 +60,7 @@ import {
   Cached,
   Timer,
   FilterList,
+  PlayArrow,
 } from '@mui/icons-material';
 import { dispatcherTotemApi, DispatchLogEntry, DispatchPlan, totemApi } from '../../services/api';
 import { format } from 'date-fns';
@@ -81,8 +80,22 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
+type Order = 'asc' | 'desc';
+
+interface EligiblePlaylistRow {
+  playlistId: number;
+  name: string;
+  campaignId: number;
+  campaignTitle: string;
+  priority: number;
+  commercialTier?: string;
+  timeSharePercent?: number;
+  status: string;
+}
+
 const DispatcherMonitor: React.FC = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
   const [logs, setLogs] = useState<DispatchLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -91,7 +104,8 @@ const DispatcherMonitor: React.FC = () => {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   
   // Filtros
-  const [totemFilter, setTotemFilter] = useState<number | undefined>(undefined);
+  // totemFilter: undefined ou 0 => "Todos (*)"; > 0 => totem específico
+  const [totemFilter, setTotemFilter] = useState<number | undefined>(0);
   const [startDate, setStartDate] = useState<string>(
     format(new Date(Date.now() - 24 * 60 * 60 * 1000), 'yyyy-MM-dd')
   );
@@ -99,8 +113,22 @@ const DispatcherMonitor: React.FC = () => {
     format(new Date(), 'yyyy-MM-dd')
   );
   const [totems, setTotems] = useState<any[]>([]);
+  const allOption = React.useMemo(() => ({ id: 0, name: 'Todos (*)', identifier: '*' }), []);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(30); // segundos
+
+  // Playlists elegíveis (aba extra)
+  const [eligiblePlaylists, setEligiblePlaylists] = useState<EligiblePlaylistRow[]>([]);
+
+  // Ordenação da tabela de logs
+  const [orderBy, setOrderBy] = useState<
+    keyof DispatchLogEntry | 'playlistName' | 'publisherName' | 'subscriberName'
+  >('timestamp');
+  const [order, setOrder] = useState<Order>('desc');
+
+  // Ordenação da tabela de playlists elegíveis
+  const [playlistOrderBy, setPlaylistOrderBy] = useState<keyof EligiblePlaylistRow>('priority');
+  const [playlistOrder, setPlaylistOrder] = useState<Order>('desc');
 
   // Cache config
   const [cacheConfig, setCacheConfig] = useState<{
@@ -115,14 +143,14 @@ const DispatcherMonitor: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (totemFilter) {
-      loadLogs();
-    }
+    // Sempre tenta carregar logs quando filtros de data mudam ou quando muda o filtro de totem.
+    // Quando totemFilter for "Todos (*)", buscamos históricos de múltiplos totens.
+    loadLogs();
   }, [totemFilter, startDate, endDate]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
-    if (autoRefresh && totemFilter) {
+    if (autoRefresh) {
       interval = setInterval(() => {
         loadLogs();
       }, refreshInterval * 1000);
@@ -151,11 +179,6 @@ const DispatcherMonitor: React.FC = () => {
   };
 
   const loadLogs = async () => {
-    if (!totemFilter) {
-      setError('Selecione um totem para visualizar os logs');
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
@@ -167,15 +190,244 @@ const DispatcherMonitor: React.FC = () => {
         return;
       }
 
-      const response = await dispatcherTotemApi.getHistory(
-        totemFilter,
-        `${startDate}T00:00:00Z`,
-        `${endDate}T23:59:59Z`
-      );
-      setLogs(response.data || []);
+      const startIso = `${startDate}T00:00:00Z`;
+      const endIso = `${endDate}T23:59:59Z`;
+
+      // Caso "Todos (*)": buscar histórico de vários totens e agrupar
+      if (!totemFilter || totemFilter === 0) {
+        // Garantir que temos a lista de totens carregada
+        if (!totems || totems.length === 0) {
+          await loadTotems();
+        }
+
+        const targetTotems = (totems || []).filter((t) => (t.id ?? t.totem_id));
+
+        const results = await Promise.all(
+          targetTotems.map(async (t) => {
+            const id = t.id ?? t.totem_id;
+            try {
+              const resp = await dispatcherTotemApi.getHistory(id, startIso, endIso);
+              return resp.data || [];
+            } catch (e) {
+              // Se um totem falhar, apenas ignora seus logs, mas registra no console
+              // para não quebrar a experiência ao listar "Todos"
+              // eslint-disable-next-line no-console
+              console.error('Erro ao carregar histórico para totem', id, e);
+              return [];
+            }
+          })
+        );
+
+        const allLogs = results.flat();
+        setLogs(allLogs);
+      } else {
+        const response = await dispatcherTotemApi.getHistory(
+          totemFilter,
+          startIso,
+          endIso
+        );
+        setLogs(response.data || []);
+      }
     } catch (err: any) {
       console.error('Erro ao carregar logs:', err);
       setError(err.response?.data?.error || 'Erro ao carregar logs do dispatcher');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadEligiblePlaylists = async () => {
+    // Requer totem específico; faz mais sentido olhar playlists elegíveis por totem
+    if (!totemFilter || totemFilter === 0) {
+      setEligiblePlaylists([]);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const now = new Date();
+      const response = await dispatcherTotemApi.getCandidates(totemFilter, {
+        timestamp: now.toISOString(),
+      });
+
+      const playlistsMap = new Map<number, EligiblePlaylistRow>();
+
+      (response.candidates || []).forEach((c: any) => {
+        if (!c.playlistId) return;
+        if (!playlistsMap.has(c.playlistId)) {
+          playlistsMap.set(c.playlistId, {
+            playlistId: c.playlistId,
+            name: c.playlistName,
+            campaignId: c.campaignId,
+            campaignTitle: c.campaignTitle,
+            priority: c.priority,
+            commercialTier: c.commercialTier,
+            timeSharePercent: c.timeSharePercent,
+            status: c.temporalValid ? 'elegível' : 'inválida',
+          });
+        }
+      });
+
+      setEligiblePlaylists(Array.from(playlistsMap.values()));
+    } catch (err: any) {
+      console.error('Erro ao carregar playlists elegíveis:', err);
+      setError(err.response?.data?.error || 'Erro ao carregar playlists elegíveis');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSort = (
+    property: keyof DispatchLogEntry | 'playlistName' | 'publisherName' | 'subscriberName'
+  ) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  const sortedLogs = React.useMemo(() => {
+    const data = [...logs];
+    return data.sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (orderBy) {
+        case 'timestamp':
+          aValue = a.timestamp;
+          bValue = b.timestamp;
+          break;
+        case 'totemId':
+          aValue = a.totemId;
+          bValue = b.totemId;
+          break;
+        case 'playlistName':
+          aValue = a.dispatchPlan?.playlistName || a.selectedPlaylistId || '';
+          bValue = b.dispatchPlan?.playlistName || b.selectedPlaylistId || '';
+          break;
+        case 'priority':
+          aValue = a.priority ?? 0;
+          bValue = b.priority ?? 0;
+          break;
+        case 'executionTimeMs':
+          aValue = a.executionTimeMs ?? 0;
+          bValue = b.executionTimeMs ?? 0;
+          break;
+        case 'publisherName':
+          aValue = a.publisherName || '';
+          bValue = b.publisherName || '';
+          break;
+        case 'subscriberName':
+          aValue = a.subscriberName || '';
+          bValue = b.subscriberName || '';
+          break;
+        default:
+          aValue = (a as any)[orderBy];
+          bValue = (b as any)[orderBy];
+      }
+
+      if (aValue < bValue) {
+        return order === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return order === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [logs, order, orderBy]);
+
+  const sortedEligiblePlaylists = React.useMemo(() => {
+    const data = [...eligiblePlaylists];
+    return data.sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (playlistOrderBy) {
+        case 'priority':
+          aValue = a.priority ?? 0;
+          bValue = b.priority ?? 0;
+          break;
+        case 'campaignTitle':
+          aValue = a.campaignTitle || '';
+          bValue = b.campaignTitle || '';
+          break;
+        case 'name':
+          aValue = a.name || '';
+          bValue = b.name || '';
+          break;
+        case 'timeSharePercent':
+          aValue = a.timeSharePercent ?? 0;
+          bValue = b.timeSharePercent ?? 0;
+          break;
+        default:
+          aValue = (a as any)[playlistOrderBy];
+          bValue = (b as any)[playlistOrderBy];
+      }
+
+      if (aValue < bValue) {
+        return playlistOrder === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return playlistOrder === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [eligiblePlaylists, playlistOrder, playlistOrderBy]);
+
+  const handleSimulateDispatch = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const now = new Date();
+      let targetTotemId = totemFilter && totemFilter !== 0 ? totemFilter : undefined;
+
+      // Se nenhum totem específico estiver selecionado, encontrar automaticamente
+      // um totem com candidatos válidos (playlist/campanha) usando o endpoint /candidates.
+      if (!targetTotemId) {
+        if (!totems || totems.length === 0) {
+          await loadTotems();
+        }
+
+        for (const t of totems) {
+          const id = t.id ?? t.totem_id;
+          if (!id) continue;
+          try {
+            const resp = await dispatcherTotemApi.getCandidates(id, {
+              timestamp: now.toISOString(),
+            });
+            if (resp.success && resp.candidates && resp.candidates.length > 0) {
+              targetTotemId = id;
+              break;
+            }
+          } catch (e) {
+            // Ignorar erros individuais e tentar próximo totem
+            // eslint-disable-next-line no-console
+            console.error('Erro ao buscar candidatos para totem', id, e);
+          }
+        }
+
+        if (!targetTotemId) {
+          setError('Nenhum totem com playlists elegíveis encontrado para simulação.');
+          return;
+        }
+
+        // Atualizar filtro visualmente para o totem escolhido
+        setTotemFilter(targetTotemId);
+      }
+
+      await dispatcherTotemApi.dispatch(targetTotemId, {
+        timestamp: now.toISOString(),
+        includeCandidates: true,
+        skipCache: false,
+      });
+
+      // Após simular, recarregar históricos (para que o novo log apareça)
+      await loadLogs();
+    } catch (err: any) {
+      console.error('Erro ao simular dispatch:', err);
+      setError(err.response?.data?.error || 'Erro ao simular solicitação do totem');
     } finally {
       setLoading(false);
     }
@@ -221,12 +473,31 @@ const DispatcherMonitor: React.FC = () => {
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={3}>
               <Autocomplete
-                options={totems}
-                getOptionLabel={(option) => `${option.name || option.identifier} (ID: ${option.id})`}
-                value={totems.find(t => t.id === totemFilter) || null}
-                onChange={(_, newValue) => setTotemFilter(newValue?.id)}
+                options={[allOption, ...totems]}
+                isOptionEqualToValue={(option, value) =>
+                  (option.id ?? option.totem_id) === (value.id ?? value.totem_id)
+                }
+                getOptionLabel={(option) => {
+                  if (!option) return '';
+                  if ((option.id ?? option.totem_id) === 0) return 'Todos (*)';
+                  const id = option.id ?? option.totem_id;
+                  return `${option.name || option.identifier} (ID: ${id})`;
+                }}
+                value={
+                  totemFilter && totemFilter !== 0
+                    ? totems.find((t) => (t.id ?? t.totem_id) === totemFilter) || null
+                    : allOption
+                }
+                onChange={(_, newValue) => {
+                  const valId = newValue ? (newValue.id ?? newValue.totem_id) : 0;
+                  setTotemFilter(valId || 0);
+                }}
                 renderInput={(params) => (
-                  <TextField {...params} label="Totem" placeholder="Selecione um totem" />
+                  <TextField
+                    {...params}
+                    label="Totem"
+                    placeholder="Todos (*)"
+                  />
                 )}
               />
             </Grid>
@@ -262,14 +533,22 @@ const DispatcherMonitor: React.FC = () => {
               />
             </Grid>
             <Grid item xs={12} md={3}>
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                 <Button
                   variant="contained"
                   startIcon={<Refresh />}
                   onClick={loadLogs}
-                  disabled={!totemFilter || loading}
+                  disabled={loading}
                 >
                   Carregar
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<PlayArrow />}
+                  onClick={handleSimulateDispatch}
+                  disabled={loading}
+                >
+                  Simular solicitação
                 </Button>
                 <Button
                   variant="outlined"
@@ -320,11 +599,18 @@ const DispatcherMonitor: React.FC = () => {
       <Paper sx={{ mb: 3 }}>
         <Tabs
           value={tabValue}
-          onChange={(_, newValue) => setTabValue(newValue)}
+          onChange={(_, newValue) => {
+            setTabValue(newValue);
+            if (newValue === 1) {
+              // Carregar playlists elegíveis ao entrar na aba
+              loadEligiblePlaylists();
+            }
+          }}
           variant="scrollable"
           scrollButtons="auto"
         >
           <Tab label={`Logs (${logs.length})`} />
+          <Tab label="Playlists elegíveis" />
           <Tab label="Estatísticas" />
         </Tabs>
       </Paper>
@@ -335,29 +621,89 @@ const DispatcherMonitor: React.FC = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Timestamp</TableCell>
-                <TableCell>Totem ID</TableCell>
-                <TableCell>Playlist</TableCell>
+                <TableCell sortDirection={orderBy === 'timestamp' ? order : false}>
+                  <TableSortLabel
+                    active={orderBy === 'timestamp'}
+                    direction={orderBy === 'timestamp' ? order : 'asc'}
+                    onClick={() => handleSort('timestamp')}
+                  >
+                    Timestamp
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={orderBy === 'totemId' ? order : false}>
+                  <TableSortLabel
+                    active={orderBy === 'totemId'}
+                    direction={orderBy === 'totemId' ? order : 'asc'}
+                    onClick={() => handleSort('totemId')}
+                  >
+                    Totem ID
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={orderBy === 'playlistName' ? order : false}>
+                  <TableSortLabel
+                    active={orderBy === 'playlistName'}
+                    direction={orderBy === 'playlistName' ? order : 'asc'}
+                    onClick={() => handleSort('playlistName')}
+                  >
+                    Playlist
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell>Fonte</TableCell>
-                <TableCell>Prioridade</TableCell>
+                <TableCell sortDirection={orderBy === 'priority' ? order : false}>
+                  <TableSortLabel
+                    active={orderBy === 'priority'}
+                    direction={orderBy === 'priority' ? order : 'asc'}
+                    onClick={() => handleSort('priority')}
+                  >
+                    Prioridade
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={orderBy === 'publisherName' ? order : false}>
+                  <TableSortLabel
+                    active={orderBy === 'publisherName'}
+                    direction={orderBy === 'publisherName' ? order : 'asc'}
+                    onClick={() => handleSort('publisherName')}
+                  >
+                    Publisher
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={orderBy === 'subscriberName' ? order : false}>
+                  <TableSortLabel
+                    active={orderBy === 'subscriberName'}
+                    direction={orderBy === 'subscriberName' ? order : 'asc'}
+                    onClick={() => handleSort('subscriberName')}
+                  >
+                    Subscriber
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell>Candidatos</TableCell>
                 <TableCell>Validações</TableCell>
                 <TableCell>Cache</TableCell>
-                <TableCell>Tempo (ms)</TableCell>
+                <TableCell sortDirection={orderBy === 'executionTimeMs' ? order : false}>
+                  <TableSortLabel
+                    active={orderBy === 'executionTimeMs'}
+                    direction={orderBy === 'executionTimeMs' ? order : 'asc'}
+                    onClick={() => handleSort('executionTimeMs')}
+                  >
+                    Tempo (ms)
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell>Ações</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {logs.length === 0 ? (
+              {sortedLogs.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={10} align="center">
                     <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                      {totemFilter ? 'Nenhum log encontrado para o período selecionado' : 'Selecione um totem para visualizar os logs'}
+                      {totemFilter && totemFilter !== 0
+                        ? 'Nenhum log encontrado para o período selecionado'
+                        : 'Nenhum log encontrado para o período selecionado'}
                     </Typography>
                   </TableCell>
                 </TableRow>
               ) : (
-                logs.map((log) => (
+                sortedLogs.map((log) => (
                   <TableRow key={log.logId} hover>
                     <TableCell>
                       {format(new Date(log.timestamp), 'dd/MM/yyyy HH:mm:ss')}
@@ -385,6 +731,16 @@ const DispatcherMonitor: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <Chip label={log.priority} size="small" color="info" />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {log.publisherName || log.publisherId || '-'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {log.subscriberName || log.subscriberId || '-'}
+                      </Typography>
                     </TableCell>
                     <TableCell>
                       <Chip label={log.candidatesCount} size="small" variant="outlined" />
@@ -452,8 +808,158 @@ const DispatcherMonitor: React.FC = () => {
         </TableContainer>
       </TabPanel>
 
-      {/* Tab: Estatísticas */}
+      {/* Tab: Playlists elegíveis */}
       <TabPanel value={tabValue} index={1}>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell sortDirection={playlistOrderBy === 'playlistId' ? playlistOrder : false}>
+                  <TableSortLabel
+                    active={playlistOrderBy === 'playlistId'}
+                    direction={playlistOrderBy === 'playlistId' ? playlistOrder : 'asc'}
+                    onClick={() => {
+                      const isAsc = playlistOrderBy === 'playlistId' && playlistOrder === 'asc';
+                      setPlaylistOrder(isAsc ? 'desc' : 'asc');
+                      setPlaylistOrderBy('playlistId');
+                    }}
+                  >
+                    Playlist ID
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={playlistOrderBy === 'name' ? playlistOrder : false}>
+                  <TableSortLabel
+                    active={playlistOrderBy === 'name'}
+                    direction={playlistOrderBy === 'name' ? playlistOrder : 'asc'}
+                    onClick={() => {
+                      const isAsc = playlistOrderBy === 'name' && playlistOrder === 'asc';
+                      setPlaylistOrder(isAsc ? 'desc' : 'asc');
+                      setPlaylistOrderBy('name');
+                    }}
+                  >
+                    Playlist
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={playlistOrderBy === 'campaignTitle' ? playlistOrder : false}>
+                  <TableSortLabel
+                    active={playlistOrderBy === 'campaignTitle'}
+                    direction={playlistOrderBy === 'campaignTitle' ? playlistOrder : 'asc'}
+                    onClick={() => {
+                      const isAsc = playlistOrderBy === 'campaignTitle' && playlistOrder === 'asc';
+                      setPlaylistOrder(isAsc ? 'desc' : 'asc');
+                      setPlaylistOrderBy('campaignTitle');
+                    }}
+                  >
+                    Campanha
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={playlistOrderBy === 'priority' ? playlistOrder : false}>
+                  <TableSortLabel
+                    active={playlistOrderBy === 'priority'}
+                    direction={playlistOrderBy === 'priority' ? playlistOrder : 'asc'}
+                    onClick={() => {
+                      const isAsc = playlistOrderBy === 'priority' && playlistOrder === 'asc';
+                      setPlaylistOrder(isAsc ? 'desc' : 'asc');
+                      setPlaylistOrderBy('priority');
+                    }}
+                  >
+                    Prioridade
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={playlistOrderBy === 'timeSharePercent' ? playlistOrder : false}>
+                  <TableSortLabel
+                    active={playlistOrderBy === 'timeSharePercent'}
+                    direction={playlistOrderBy === 'timeSharePercent' ? playlistOrder : 'asc'}
+                    onClick={() => {
+                      const isAsc =
+                        playlistOrderBy === 'timeSharePercent' && playlistOrder === 'asc';
+                      setPlaylistOrder(isAsc ? 'desc' : 'asc');
+                      setPlaylistOrderBy('timeSharePercent');
+                    }}
+                  >
+                    Time share (%)
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell>Tier</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Ações</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {sortedEligiblePlaylists.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} align="center">
+                    <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                      {totemFilter && totemFilter !== 0
+                        ? 'Nenhuma playlist elegível encontrada para o totem selecionado'
+                        : 'Selecione um totem específico para ver playlists elegíveis'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                sortedEligiblePlaylists.map((row) => (
+                  <TableRow key={row.playlistId} hover>
+                    <TableCell>{row.playlistId}</TableCell>
+                    <TableCell>{row.name}</TableCell>
+                    <TableCell>
+                      {row.campaignTitle} (ID: {row.campaignId})
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={row.priority} size="small" />
+                    </TableCell>
+                    <TableCell>
+                      {row.timeSharePercent && row.timeSharePercent > 0
+                        ? `${row.timeSharePercent}%`
+                        : '0%'}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={row.commercialTier || 'standard'}
+                        size="small"
+                        color={
+                          row.commercialTier === 'premium'
+                            ? 'success'
+                            : row.commercialTier === 'remnant'
+                            ? 'default'
+                            : 'info'
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={row.status === 'elegível' ? 'Elegível' : 'Inválida'}
+                        size="small"
+                        color={row.status === 'elegível' ? 'success' : 'default'}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => navigate('/playlists', { state: { highlightId: row.playlistId } })}
+                        >
+                          Ver playlist
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => navigate('/campaigns', { state: { highlightId: row.campaignId } })}
+                        >
+                          Ver campanha
+                        </Button>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </TabPanel>
+
+      {/* Tab: Estatísticas */}
+      <TabPanel value={tabValue} index={2}>
         <Grid container spacing={3}>
           <Grid item xs={12} md={4}>
             <Card>

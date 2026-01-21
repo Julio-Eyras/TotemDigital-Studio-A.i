@@ -11,7 +11,7 @@
 
 ### Schema Padrão (id SERIAL) - **PARA ELIMINAR**
 
-#### 1.1 `database/schema.sql/smartchannel-db.sql` (linha 1127-1144)
+#### 1.1 ~~`database/schema.sql/smartchannel-db.sql`~~ (linha 1127-1144) - ✅ **REMOVIDO**
 ```sql
 CREATE TABLE IF NOT EXISTS public.event_logs (
     id SERIAL PRIMARY KEY,  -- ❌ Schema antigo
@@ -142,7 +142,7 @@ FROM event_logs
 
 ### Arquivos para Modificar:
 
-1. ✅ **`database/schema.sql/smartchannel-db.sql`**
+1. ✅ ~~**`database/schema.sql/smartchannel-db.sql`**~~ - **REMOVIDO**
    - Remover definição de `event_logs` com `id SERIAL`
    - Ou atualizar para usar `log_id BIGSERIAL` (se ainda for usado)
 
@@ -174,7 +174,7 @@ FROM event_logs
 2. Atualizar `smartdisplayfx.ts` para usar `log_id` e `timestamp`
 
 ### Fase 2: Remover Schema Padrão
-1. Remover ou atualizar `database/schema.sql/smartchannel-db.sql`
+1. ✅ Removido `database/schema.sql/smartchannel-db.sql` (arquivo legado não utilizado)
 2. Remover ou atualizar `docs/smartchannel-db.sql`
 
 ### Fase 3: Validação

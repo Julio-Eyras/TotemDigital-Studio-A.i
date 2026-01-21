@@ -85,7 +85,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 ```bash
 # No servidor
-psql -U postgres -d smartchannel_db -f database/smartchannel-db-v2-refactored-part8-indexes-optimization.sql
+psql -U postgres -d smartchannel_db -f database/smartchannel-db-v2-refactored-part8-indexes.sql
 ```
 
 ### 3. Verificar Índices Criados

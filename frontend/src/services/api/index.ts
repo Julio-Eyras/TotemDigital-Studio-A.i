@@ -3681,9 +3681,14 @@ export interface DispatchLogEntry {
   logId: number;
   totemId: number;
   timestamp: string;
+  // Identidade comercial
+  subscriberId?: number;
+  subscriberName?: string;
+  publisherId?: number;
+  publisherName?: string;
   selectedCampaignId?: number;
   selectedPlaylistId: number;
-  selectedSource: 'direct' | 'group' | 'campaign';
+  selectedSource: 'direct' | 'group' | 'campaign' | 'mix';
   selectedSourceId: number;
   priority: number;
   candidatesCount: number;

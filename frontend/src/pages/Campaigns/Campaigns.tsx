@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
@@ -46,6 +46,7 @@ import {
 } from '@mui/icons-material';
 import { campaignApi, Campaign, CreateCampaignRequest, UpdateCampaignRequest, clientApi, Client, playlistApi, PlaylistItem, playerApi, Player, publisherApi, Publisher, subscriberAccessApi, AccessiblePublisher, mediaApi, MediaItem } from '../../services/api';
 import { useAppSelector } from '../../store/hooks';
+import { useLocation } from 'react-router-dom';
 import { SortableList } from '../../components/SortableList/SortableList';
 
 interface PublisherOption {
@@ -56,6 +57,9 @@ interface PublisherOption {
 
 const Campaigns: React.FC = () => {
   const theme = useTheme();
+  const location = useLocation() as { state?: { highlightId?: number } };
+  const [highlightId, setHighlightId] = useState<number | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
@@ -126,6 +130,18 @@ const Campaigns: React.FC = () => {
     loadPlaylists();
     loadMediaItems(); // NOVO: Carregar mídias
   }, []);
+
+  useEffect(() => {
+    if (location.state?.highlightId) {
+      setHighlightId(location.state.highlightId);
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    if (highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightId, campaigns]);
 
   // Inicializar ordem quando abrir diálogo de edição
   useEffect(() => {
@@ -630,13 +646,25 @@ const Campaigns: React.FC = () => {
 
       {/* Campaigns Grid */}
       <Grid container spacing={3}>
-        {campaigns.map((campaign) => (
-          <Grid item xs={12} sm={6} md={4} lg={3} key={campaign.campaign_id}>
+        {campaigns.map((campaign) => {
+          const isHighlighted = highlightId === campaign.campaign_id;
+          return (
+          <Grid
+            item
+            xs={12}
+            sm={6}
+            md={4}
+            lg={3}
+            key={campaign.campaign_id}
+            ref={isHighlighted ? highlightRef : null}
+          >
             <Card sx={{ 
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
               transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+              border: isHighlighted ? `2px solid ${theme.palette.primary.main}` : 'none',
+              boxShadow: isHighlighted ? theme.shadows[8] : theme.shadows[1],
               '&:hover': {
                 transform: 'translateY(-4px)',
                 boxShadow: theme.shadows[8],
@@ -771,7 +799,7 @@ const Campaigns: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-        ))}
+        )})}
       </Grid>
 
       {/* Empty State */}

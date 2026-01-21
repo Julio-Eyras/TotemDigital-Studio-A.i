@@ -363,3 +363,9 @@ CREATE INDEX IF NOT EXISTS idx_tags_subscriber ON tags(subscriber_id) WHERE subs
 CREATE INDEX IF NOT EXISTS idx_interaction_logs_totem_time ON interaction_logs(totem_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_interaction_logs_tag ON interaction_logs(tag_id) WHERE tag_id IS NOT NULL;
 
+-- Dashboard Layouts
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_user_id ON dashboard_layouts(user_id);
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_is_default ON dashboard_layouts(user_id, is_default) WHERE is_default = true;
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_is_shared ON dashboard_layouts(is_shared) WHERE is_shared = true;
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_data ON dashboard_layouts USING GIN (layout_data);
+

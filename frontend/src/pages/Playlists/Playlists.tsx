@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Avatar,
@@ -52,12 +52,16 @@ import {
   subscriberApi,
 } from '../../services/api';
 import { useAppSelector } from '../../store/hooks';
+import { useLocation } from 'react-router-dom';
 
 type EditorMode = 'create' | 'edit';
 
 const Playlists: React.FC = () => {
   const theme = useTheme();
   const user = useAppSelector((state) => state.auth.user);
+  const location = useLocation() as { state?: { highlightId?: number } };
+  const [highlightId, setHighlightId] = useState<number | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
 
   // Somente owner/admin/admin_sql podem escolher subscriber (multi-tenant)
   const canSelectSubscriber = useMemo(() => {
@@ -102,6 +106,18 @@ const Playlists: React.FC = () => {
     void loadPlaylists();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canSelectSubscriber, selectedSubscriberId, searchTerm]);
+
+  useEffect(() => {
+    if (location.state?.highlightId) {
+      setHighlightId(location.state.highlightId);
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    if (highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightId, playlists]);
 
   useEffect(() => {
     // Carregar mídias quando editor abre (depende do subscriber alvo)
@@ -460,14 +476,26 @@ const Playlists: React.FC = () => {
       )}
 
       <Grid container spacing={3}>
-        {playlists.map((playlist) => (
-          <Grid item xs={12} sm={6} md={4} lg={3} key={playlist.playlist_id}>
+        {playlists.map((playlist) => {
+          const isHighlighted = highlightId === playlist.playlist_id;
+          return (
+          <Grid
+            item
+            xs={12}
+            sm={6}
+            md={4}
+            lg={3}
+            key={playlist.playlist_id}
+            ref={isHighlighted ? highlightRef : null}
+          >
             <Card
               sx={{
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
                 transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                border: isHighlighted ? `2px solid ${theme.palette.primary.main}` : 'none',
+                boxShadow: isHighlighted ? theme.shadows[8] : theme.shadows[1],
                 '&:hover': { transform: 'translateY(-4px)', boxShadow: theme.shadows[8] },
               }}
             >
@@ -553,7 +581,7 @@ const Playlists: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-        ))}
+        )})}
       </Grid>
 
       {playlists.length === 0 && !loading && (

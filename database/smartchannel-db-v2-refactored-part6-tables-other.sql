@@ -741,7 +741,7 @@ CREATE TABLE IF NOT EXISTS short_links (
 -- =============================================
 
 CREATE TABLE IF NOT EXISTS dashboard_layouts (
-    id SERIAL PRIMARY KEY,
+    layout_id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL, -- FK para users
     name TEXT NOT NULL,
     layout_data JSONB NOT NULL DEFAULT '{}'::jsonb,

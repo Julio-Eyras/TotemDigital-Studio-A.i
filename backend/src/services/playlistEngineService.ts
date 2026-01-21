@@ -197,7 +197,7 @@ export class PlaylistEngineService {
             items_generated: sortedItems.length,
             duration_seconds: sortedItems.reduce((sum, item) => sum + (item.display_seconds || 0), 0),
             campaigns_included: new Set(sortedItems.map(i => i.campaign_id).filter(Boolean)).size,
-            playlists_included: 0, // Será calculado no collectPlaylistItems
+            playlists_included: 0, // Não calculado quando playlist já existe (cache hit)
             medias_included: sortedItems.length,
             subscribers_included: accessibleSubscribers.length,
             generation_time_ms: Date.now() - startTime
@@ -209,6 +209,18 @@ export class PlaylistEngineService {
       const totalDuration = sortedItems.reduce((sum, item) => sum + (item.display_seconds || 0), 0);
       const uniqueCampaigns = new Set(sortedItems.map(i => i.campaign_id).filter(Boolean));
       const uniqueSubscribers = new Set(sortedItems.map(i => i.subscriber_id));
+      
+      // Calcular playlists únicas incluídas
+      let uniquePlaylistsCount = 0;
+      if (uniqueCampaigns.size > 0) {
+        const playlistsResult = await this.db.findFirst(`
+          SELECT COUNT(DISTINCT cp.playlist_id) as count
+          FROM campaign_playlists cp
+          WHERE cp.campaign_id = ANY($1::int[])
+            AND cp.is_active = true
+        `, [Array.from(uniqueCampaigns)]);
+        uniquePlaylistsCount = parseInt(playlistsResult?.count || '0', 10);
+      }
 
       // 8. Buscar playlist existente para atualizar ou criar nova
       const existingPlaylist = await this.db.findFirst(`
@@ -351,7 +363,7 @@ export class PlaylistEngineService {
         totemPlaylistId,
         publisherId,
         uniqueCampaigns.size,
-        0, // playlists_included (será calculado no collectPlaylistItems)
+        uniquePlaylistsCount,
         sortedItems.length,
         uniqueSubscribers.size,
         Date.now() - startTime,
@@ -369,6 +381,7 @@ export class PlaylistEngineService {
         items: sortedItems.length,
         duration: totalDuration,
         campaigns: uniqueCampaigns.size,
+        playlists: uniquePlaylistsCount,
         subscribers: uniqueSubscribers.size
       });
 
@@ -378,7 +391,7 @@ export class PlaylistEngineService {
         items_generated: sortedItems.length,
         duration_seconds: totalDuration,
         campaigns_included: uniqueCampaigns.size,
-        playlists_included: 0, // TODO: calcular no collectPlaylistItems
+        playlists_included: uniquePlaylistsCount,
         medias_included: sortedItems.length,
         subscribers_included: uniqueSubscribers.size,
         generation_time_ms: Date.now() - startTime

@@ -1440,30 +1440,39 @@ export class DispatcherTotemService {
     try {
       const logs = await this.db.findMany(`
         SELECT 
-          log_id,
-          totem_id,
-          timestamp,
-          selected_campaign_id,
-          selected_playlist_id,
-          selected_source,
-          selected_source_id,
-          priority,
-          candidates_count,
-          candidates,
-          temporal_validation,
-          technical_validation,
-          integrity_validation,
-          validation_details,
-          from_cache,
-          cache_key,
-          dispatch_plan,
-          execution_time_ms,
-          created_at
-        FROM dispatcher_log
-        WHERE totem_id = $1
-          AND timestamp >= $2
-          AND timestamp <= $3
-        ORDER BY timestamp DESC
+          dl.log_id,
+          dl.totem_id,
+          dl.timestamp,
+          dl.selected_campaign_id,
+          dl.selected_playlist_id,
+          dl.selected_source,
+          dl.selected_source_id,
+          dl.priority,
+          dl.candidates_count,
+          dl.candidates,
+          dl.temporal_validation,
+          dl.technical_validation,
+          dl.integrity_validation,
+          dl.validation_details,
+          dl.from_cache,
+          dl.cache_key,
+          dl.dispatch_plan,
+          dl.execution_time_ms,
+          dl.created_at,
+          c.subscriber_id as subscriber_id,
+          s.name as subscriber_name,
+          l.publisher_id as publisher_id,
+          p.name as publisher_name
+        FROM dispatcher_log dl
+        LEFT JOIN campaigns c ON dl.selected_campaign_id = c.campaign_id
+        LEFT JOIN subscribers s ON c.subscriber_id = s.subscriber_id
+        LEFT JOIN totems t ON dl.totem_id = t.totem_id
+        LEFT JOIN locals l ON t.local_id = l.local_id
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
+        WHERE dl.totem_id = $1
+          AND dl.timestamp >= $2
+          AND dl.timestamp <= $3
+        ORDER BY dl.timestamp DESC
         LIMIT 1000
       `, [totemId, startDate, endDate]);
 
@@ -1471,6 +1480,10 @@ export class DispatcherTotemService {
         logId: log.log_id,
         totemId: log.totem_id,
         timestamp: new Date(log.timestamp),
+        subscriberId: log.subscriber_id ? Number(log.subscriber_id) : undefined,
+        subscriberName: log.subscriber_name || undefined,
+        publisherId: log.publisher_id ? Number(log.publisher_id) : undefined,
+        publisherName: log.publisher_name || undefined,
         selectedCampaignId: log.selected_campaign_id,
         selectedPlaylistId: log.selected_playlist_id,
         selectedSource: log.selected_source,

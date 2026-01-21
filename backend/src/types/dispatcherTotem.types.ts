@@ -81,6 +81,11 @@ export interface DispatchLogEntry {
   logId: number;
   totemId: number;
   timestamp: Date;
+  // Identidade comercial
+  subscriberId?: number;
+  subscriberName?: string;
+  publisherId?: number;
+  publisherName?: string;
   selectedCampaignId?: number;
   selectedPlaylistId: number;
   selectedSource: 'direct' | 'group' | 'campaign';

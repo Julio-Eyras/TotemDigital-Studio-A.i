@@ -117,7 +117,7 @@ export class DashboardLayoutService {
   async getLayoutById(layoutId: number): Promise<DashboardLayout | null> {
     try {
       const result = await this.db.findFirst(
-        'SELECT * FROM dashboard_layouts WHERE id = $1',
+        'SELECT * FROM dashboard_layouts WHERE layout_id = $1',
         [layoutId]
       );
       return result ? this.mapRowToLayout(result) : null;
@@ -160,7 +160,7 @@ export class DashboardLayoutService {
         await this.db.executeRaw(`
           UPDATE dashboard_layouts
           SET is_default = false
-          WHERE user_id = $1 AND id != $2
+          WHERE user_id = $1 AND layout_id != $2
         `, [layout.userId, layoutId]);
       }
 
@@ -222,7 +222,7 @@ export class DashboardLayoutService {
   async deleteLayout(layoutId: number): Promise<void> {
     try {
       const result = await this.db.executeRaw(
-        'DELETE FROM dashboard_layouts WHERE id = $1',
+        'DELETE FROM dashboard_layouts WHERE layout_id = $1',
         [layoutId]
       );
       if (result.rowCount === 0) {
@@ -240,7 +240,7 @@ export class DashboardLayoutService {
    */
   private mapRowToLayout(row: any): DashboardLayout {
     return {
-      id: row.id,
+      id: row.layout_id || row.id, // Suporta ambos durante migração
       userId: row.user_id,
       name: row.name,
       layoutData: typeof row.layout_data === 'string'

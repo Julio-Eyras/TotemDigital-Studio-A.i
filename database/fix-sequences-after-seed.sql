@@ -283,6 +283,51 @@ BEGIN
     END IF;
   END IF;
 
+  -- analytics_sessions.session_id
+  IF to_regclass('analytics_sessions') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(session_id), 0), 1) INTO _v FROM analytics_sessions;
+    SELECT pg_get_serial_sequence('analytics_sessions','session_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- analytics_emotions.emotion_id
+  IF to_regclass('analytics_emotions') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(emotion_id), 0), 1) INTO _v FROM analytics_emotions;
+    SELECT pg_get_serial_sequence('analytics_emotions','emotion_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- analytics_gestures.gesture_id
+  IF to_regclass('analytics_gestures') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(gesture_id), 0), 1) INTO _v FROM analytics_gestures;
+    SELECT pg_get_serial_sequence('analytics_gestures','gesture_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- execution_logs.log_id (BIGSERIAL)
+  IF to_regclass('execution_logs') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(log_id), 0), 1) INTO _v FROM execution_logs;
+    SELECT pg_get_serial_sequence('execution_logs','log_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- interaction_logs.interaction_id
+  IF to_regclass('interaction_logs') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(interaction_id), 0), 1) INTO _v FROM interaction_logs;
+    SELECT pg_get_serial_sequence('interaction_logs','interaction_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
   -- notifications.notification_id
   IF to_regclass('notifications') IS NOT NULL THEN
     SELECT GREATEST(COALESCE(MAX(notification_id), 0), 1) INTO _v FROM notifications;
@@ -319,10 +364,10 @@ BEGIN
     END IF;
   END IF;
 
-  -- backups.backup_id
+  -- backups.id (backup_id é TEXT, não SERIAL)
   IF to_regclass('backups') IS NOT NULL THEN
-    SELECT GREATEST(COALESCE(MAX(backup_id), 0), 1) INTO _v FROM backups;
-    SELECT pg_get_serial_sequence('backups','backup_id') INTO _seq;
+    SELECT GREATEST(COALESCE(MAX(id), 0), 1) INTO _v FROM backups;
+    SELECT pg_get_serial_sequence('backups','id') INTO _seq;
     IF _seq IS NOT NULL THEN
       PERFORM setval(_seq, _v, true);
     END IF;
@@ -332,6 +377,114 @@ BEGIN
   IF to_regclass('tags') IS NOT NULL THEN
     SELECT GREATEST(COALESCE(MAX(tag_id), 0), 1) INTO _v FROM tags;
     SELECT pg_get_serial_sequence('tags','tag_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- short_links.link_id
+  IF to_regclass('short_links') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(link_id), 0), 1) INTO _v FROM short_links;
+    SELECT pg_get_serial_sequence('short_links','link_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- recognized_persons.person_id
+  IF to_regclass('recognized_persons') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(person_id), 0), 1) INTO _v FROM recognized_persons;
+    SELECT pg_get_serial_sequence('recognized_persons','person_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- remote_commands.command_id
+  IF to_regclass('remote_commands') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(command_id), 0), 1) INTO _v FROM remote_commands;
+    SELECT pg_get_serial_sequence('remote_commands','command_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- ota_updates.id
+  IF to_regclass('ota_updates') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(id), 0), 1) INTO _v FROM ota_updates;
+    SELECT pg_get_serial_sequence('ota_updates','id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- device_tokens.device_token_id
+  IF to_regclass('device_tokens') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(device_token_id), 0), 1) INTO _v FROM device_tokens;
+    SELECT pg_get_serial_sequence('device_tokens','device_token_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- advanced_schedules.schedule_id
+  IF to_regclass('advanced_schedules') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(schedule_id), 0), 1) INTO _v FROM advanced_schedules;
+    SELECT pg_get_serial_sequence('advanced_schedules','schedule_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- totem_ml_config.config_id
+  IF to_regclass('totem_ml_config') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(config_id), 0), 1) INTO _v FROM totem_ml_config;
+    SELECT pg_get_serial_sequence('totem_ml_config','config_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- emotion_data.id
+  IF to_regclass('emotion_data') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(id), 0), 1) INTO _v FROM emotion_data;
+    SELECT pg_get_serial_sequence('emotion_data','id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- system_settings.setting_id
+  IF to_regclass('system_settings') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(setting_id), 0), 1) INTO _v FROM system_settings;
+    SELECT pg_get_serial_sequence('system_settings','setting_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- user_two_factor.id
+  IF to_regclass('user_two_factor') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(id), 0), 1) INTO _v FROM user_two_factor;
+    SELECT pg_get_serial_sequence('user_two_factor','id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- two_factor_attempts.id
+  IF to_regclass('two_factor_attempts') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(id), 0), 1) INTO _v FROM two_factor_attempts;
+    SELECT pg_get_serial_sequence('two_factor_attempts','id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
+    END IF;
+  END IF;
+
+  -- password_reset_tokens.id
+  IF to_regclass('password_reset_tokens') IS NOT NULL THEN
+    SELECT GREATEST(COALESCE(MAX(id), 0), 1) INTO _v FROM password_reset_tokens;
+    SELECT pg_get_serial_sequence('password_reset_tokens','id') INTO _seq;
     IF _seq IS NOT NULL THEN
       PERFORM setval(_seq, _v, true);
     END IF;

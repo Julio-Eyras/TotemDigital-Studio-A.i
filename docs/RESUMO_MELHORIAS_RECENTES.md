@@ -17,7 +17,7 @@
   - Persistência automática da ordem
 
 ### 2. ✅ Otimização de Índices no Banco de Dados
-- **Arquivo:** `database/smartchannel-db-v2-refactored-part8-indexes-optimization.sql`
+- **Arquivo:** `database/smartchannel-db-v2-refactored-part8-indexes.sql` (consolidado - arquivo `-optimization.sql` foi removido)
 - **Índices Criados:**
   - Índices compostos para filtros de data e ordenação
   - Índices GIN para busca textual (requer pg_trgm)
@@ -110,7 +110,7 @@
 - `frontend/package.json` - Dependências @dnd-kit
 
 ### Database
-- `database/smartchannel-db-v2-refactored-part8-indexes-optimization.sql` - Novos índices
+- `database/smartchannel-db-v2-refactored-part8-indexes.sql` - Índices (consolidado)
 
 ### Documentação
 - `docs/IMPLEMENTAR_DRAG_DROP_CAMPANHAS.md` - Guia de implementação
