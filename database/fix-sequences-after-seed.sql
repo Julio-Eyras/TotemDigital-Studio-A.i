@@ -274,7 +274,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- event_logs.id
+  -- event_logs.id (coluna PRIMARY KEY)
   IF to_regclass('event_logs') IS NOT NULL THEN
     SELECT GREATEST(COALESCE(MAX(id), 0), 1) INTO _v FROM event_logs;
     SELECT pg_get_serial_sequence('event_logs','id') INTO _seq;
