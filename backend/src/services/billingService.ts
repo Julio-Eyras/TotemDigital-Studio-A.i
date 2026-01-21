@@ -4,8 +4,10 @@
  */
 
 import { getDatabase } from '../config/database';
+import { transaction } from '../config/database-pg';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
+import type { PoolClient } from 'pg';
 
 export interface CreateBillingRequest {
   clientId: number;
@@ -286,7 +288,7 @@ export class BillingService {
         LEFT JOIN clients cl ON b.client_id = cl.client_id
         LEFT JOIN campaigns c ON b.campaign_id = c.campaign_id
         LEFT JOIN totems t ON b.totem_id = t.totem_id
-        WHERE b.billing_id = ?
+        WHERE b.billing_id = $1
       `, [billingId]);
 
       if (!billing) {
@@ -303,126 +305,179 @@ export class BillingService {
   }
 
   /**
-   * Cria nova fatura
+   * Busca fatura por ID usando client específico (para transações)
+   */
+  private async getBillingByIdWithClient(client: PoolClient, billingId: number): Promise<BillingResponse | null> {
+    const result = await client.query(`
+      SELECT 
+        b.billing_id as id,
+        b.client_id as clientId,
+        b.campaign_id as campaignId,
+        b.totem_id as totemId,
+        b.billing_type as billingType,
+        b.amount,
+        b.currency,
+        b.description,
+        b.due_date as dueDate,
+        b.status,
+        b.payment_method as paymentMethod,
+        b.payment_reference as paymentReference,
+        b.notes,
+        b.metadata,
+        b.created_at as createdAt,
+        b.updated_at as updatedAt,
+        b.paid_at as paidAt,
+        cl.name as clientName,
+        c.title as campaignTitle,
+        t.name as totemName
+      FROM billing b
+      LEFT JOIN clients cl ON b.client_id = cl.client_id
+      LEFT JOIN campaigns c ON b.campaign_id = c.campaign_id
+      LEFT JOIN totems t ON b.totem_id = t.totem_id
+      WHERE b.billing_id = $1
+    `, [billingId]);
+
+    const billing = result.rows[0];
+    if (!billing) {
+      return null;
+    }
+
+    const info = this.getBillingInfo(billing);
+    return { ...billing, ...info };
+  }
+
+  /**
+   * Cria nova fatura (com transação para garantir consistência)
    */
   async createBilling(data: CreateBillingRequest, createdBy: number): Promise<BillingResponse> {
-    try {
-      const {
-        clientId,
-        campaignId,
-        totemId,
-        billingType,
-        amount,
-        currency = 'BRL',
-        description,
-        dueDate,
-        status = 'pending',
-        paymentMethod,
-        paymentReference,
-        notes,
-        metadata
-      } = data;
+    return await transaction(async (client) => {
+      try {
+        const {
+          clientId,
+          campaignId,
+          totemId,
+          billingType,
+          amount,
+          currency = 'BRL',
+          description,
+          dueDate,
+          status = 'pending',
+          paymentMethod,
+          paymentReference,
+          notes,
+          metadata
+        } = data;
 
-      // Validar campos obrigatórios
-      if (!clientId || (typeof clientId === 'number' && clientId <= 0)) {
-        throw new Error('clientId é obrigatório e deve ser um número válido');
-      }
-
-      if (!billingType || (typeof billingType === 'string' && billingType.trim() === '')) {
-        throw new Error('billingType é obrigatório');
-      }
-
-      if (!amount || (typeof amount === 'number' && amount <= 0)) {
-        throw new Error('amount é obrigatório e deve ser maior que zero');
-      }
-
-      // Gerar descrição padrão se não fornecida
-      const finalDescription = description || `Fatura ${billingType} - R$ ${amount.toFixed(2)}`;
-
-      // Gerar data de vencimento padrão se não fornecida (30 dias a partir de hoje)
-      const finalDueDate = dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-      // Verificar se cliente existe
-      const client = await this.db.findFirst(`
-        SELECT client_id FROM clients WHERE client_id = ? AND COALESCE(is_active, true) = true
-      `, [clientId]);
-
-      if (!client) {
-        throw new Error('Cliente não encontrado ou inativo');
-      }
-
-      // Verificar se campanha existe (se fornecida)
-      if (campaignId) {
-        const campaign = await this.db.findFirst(`
-          SELECT campaign_id FROM campaigns WHERE campaign_id = ?
-        `, [campaignId]);
-
-        if (!campaign) {
-          throw new Error('Campanha não encontrada');
+        // Validar campos obrigatórios
+        if (!clientId || (typeof clientId === 'number' && clientId <= 0)) {
+          throw new Error('clientId é obrigatório e deve ser um número válido');
         }
-      }
 
-      // Verificar se totem existe (se fornecido)
-      if (totemId) {
-        const totem = await this.db.findFirst(`
-          SELECT totem_id FROM totems WHERE totem_id = $1
-        `, [totemId]);
-
-        if (!totem) {
-          throw new Error('Totem não encontrado');
+        if (!billingType || (typeof billingType === 'string' && billingType.trim() === '')) {
+          throw new Error('billingType é obrigatório');
         }
+
+        if (!amount || (typeof amount === 'number' && amount <= 0)) {
+          throw new Error('amount é obrigatório e deve ser maior que zero');
+        }
+
+        // Gerar descrição padrão se não fornecida
+        const finalDescription = description || `Fatura ${billingType} - R$ ${amount.toFixed(2)}`;
+
+        // Gerar data de vencimento padrão se não fornecida (30 dias a partir de hoje)
+        const finalDueDate = dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        // Verificar se cliente existe
+        const clientResult = await client.query(`
+          SELECT client_id FROM clients WHERE client_id = $1 AND COALESCE(is_active, true) = true
+        `, [clientId]);
+
+        if (clientResult.rows.length === 0) {
+          throw new Error('Cliente não encontrado ou inativo');
+        }
+
+        // Verificar se campanha existe (se fornecida)
+        if (campaignId) {
+          const campaignResult = await client.query(`
+            SELECT campaign_id FROM campaigns WHERE campaign_id = $1
+          `, [campaignId]);
+
+          if (campaignResult.rows.length === 0) {
+            throw new Error('Campanha não encontrada');
+          }
+        }
+
+        // Verificar se totem existe (se fornecido)
+        if (totemId) {
+          const totemResult = await client.query(`
+            SELECT totem_id FROM totems WHERE totem_id = $1
+          `, [totemId]);
+
+          if (totemResult.rows.length === 0) {
+            throw new Error('Totem não encontrado');
+          }
+        }
+
+        // Criar fatura
+        const result = await client.query(`
+          INSERT INTO billing (
+            client_id, campaign_id, totem_id, billing_type, amount, currency,
+            description, due_date, status, payment_method, payment_reference,
+            notes, metadata
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          RETURNING billing_id
+        `, [
+          clientId,
+          campaignId,
+          totemId,
+          billingType,
+          amount,
+          currency,
+          finalDescription,
+          finalDueDate,
+          status,
+          paymentMethod,
+          paymentReference,
+          notes,
+          metadata ? JSON.stringify(metadata) : null
+        ]);
+
+        const billingRow = result.rows[0];
+        if (!billingRow || !billingRow.billing_id) {
+          throw new Error('Erro ao criar fatura');
+        }
+
+        // Buscar fatura criada (dentro da transação)
+        const newBilling = await this.getBillingByIdWithClient(client, billingRow.billing_id);
+        if (!newBilling) {
+          throw new Error('Erro ao buscar fatura criada');
+        }
+
+        // Log de auditoria (dentro da transação)
+        await client.query(`
+          INSERT INTO audit_logs (user_id, action, entity, entity_id, metadata, timestamp)
+          VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+        `, [
+          createdBy,
+          'created',
+          'billing',
+          newBilling.id,
+          JSON.stringify({
+            billingId: newBilling.id,
+            clientId: newBilling.clientId,
+            amount: newBilling.amount,
+            billingType: newBilling.billingType
+          })
+        ]);
+
+        return newBilling;
+
+      } catch (error: any) {
+        await logError('❌ Erro ao criar fatura', error, { clientId: data.clientId, billingType: data.billingType });
+        throw error;
       }
-
-      // Criar fatura
-      const result = await this.db.executeRaw(`
-        INSERT INTO billing (
-          client_id, campaign_id, totem_id, billing_type, amount, currency,
-          description, due_date, status, payment_method, payment_reference,
-          notes, metadata
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        RETURNING billing_id
-      `, [
-        clientId,
-        campaignId,
-        totemId,
-        billingType,
-        amount,
-        currency,
-        finalDescription,
-        finalDueDate,
-        status,
-        paymentMethod,
-        paymentReference,
-        notes,
-        metadata ? JSON.stringify(metadata) : null
-      ]);
-
-      const billingRow = result.rows?.[0];
-      if (!billingRow || !billingRow.billing_id) {
-        throw new Error('Erro ao criar fatura');
-      }
-
-      // Buscar fatura criada
-      const newBilling = await this.getBillingById(billingRow.billing_id);
-      if (!newBilling) {
-        throw new Error('Erro ao buscar fatura criada');
-      }
-
-      // Log de auditoria
-      await this.getAuditService().log('billing', 'created', createdBy, {
-        billingId: newBilling.id,
-        clientId: newBilling.clientId,
-        amount: newBilling.amount,
-        billingType: newBilling.billingType
-      });
-
-      return newBilling;
-
-    } catch (error: any) {
-      await logError('❌ Erro ao criar fatura', error, { clientId: data.clientId, billingType: data.billingType });
-      throw error;
-    }
+    });
   }
 
   /**
