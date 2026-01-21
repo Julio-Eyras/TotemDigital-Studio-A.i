@@ -278,7 +278,12 @@ export class PlaylistEngineService {
         })
       ]);
 
-      totemPlaylistId = newPlaylist[0].totem_playlist_id;
+      // DatabaseWrapper.executeRaw retorna o objeto do driver (pg.Result) com `.rows`
+      // Em versões antigas do código, isso era tratado como array.
+      totemPlaylistId = (newPlaylist?.rows?.[0] as any)?.totem_playlist_id;
+      if (!totemPlaylistId) {
+        throw new Error('Falha ao criar totem_playlists (RETURNING totem_playlist_id vazio)');
+      }
 
       // 10. Inserir itens da playlist
       for (let i = 0; i < sortedItems.length; i++) {
