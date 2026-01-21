@@ -274,35 +274,12 @@ BEGIN
     END IF;
   END IF;
 
-  -- event_logs (suporta ambos: id SERIAL ou log_id BIGSERIAL)
+  -- event_logs.log_id (Schema V2: log_id BIGSERIAL)
   IF to_regclass('event_logs') IS NOT NULL THEN
-    -- Verificar qual coluna existe (schema v2 usa log_id, schema padrão usa id)
-    IF EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'event_logs'
-        AND column_name = 'log_id'
-    ) THEN
-      -- Schema v2 refatorado: usa log_id BIGSERIAL
-      SELECT GREATEST(COALESCE(MAX(log_id), 0), 1) INTO _v FROM event_logs;
-      SELECT pg_get_serial_sequence('event_logs','log_id') INTO _seq;
-      IF _seq IS NOT NULL THEN
-        PERFORM setval(_seq, _v, true);
-      END IF;
-    ELSIF EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'event_logs'
-        AND column_name = 'id'
-    ) THEN
-      -- Schema padrão: usa id SERIAL
-      SELECT GREATEST(COALESCE(MAX(id), 0), 1) INTO _v FROM event_logs;
-      SELECT pg_get_serial_sequence('event_logs','id') INTO _seq;
-      IF _seq IS NOT NULL THEN
-        PERFORM setval(_seq, _v, true);
-      END IF;
+    SELECT GREATEST(COALESCE(MAX(log_id), 0), 1) INTO _v FROM event_logs;
+    SELECT pg_get_serial_sequence('event_logs','log_id') INTO _seq;
+    IF _seq IS NOT NULL THEN
+      PERFORM setval(_seq, _v, true);
     END IF;
   END IF;
 
