@@ -125,33 +125,55 @@ export class AlertService {
   /**
    * Verifica FPS baixo
    */
-  private async checkFpsLow(_rule: AlertRule): Promise<Alert | null> {
-    // Tabela fx_telemetry não existe no schema v2 - desabilitar verificação
-    // TODO: Implementar quando tabela de telemetria for criada no schema v2
-    return null;
-    
-    /* Código original comentado - tabela fx_telemetry não existe no schema v2
-    const durationMinutes = rule.duration || 5;
-    const threshold = rule.threshold;
-    const lowFpsTotems = await this.db.findMany(`
-      SELECT totem_id, COUNT(*) as count, AVG(avg_fps) as avg_fps
-      FROM fx_telemetry
-      WHERE created_at >= NOW() - INTERVAL '${durationMinutes} minutes'
-        AND avg_fps < $1 AND avg_fps IS NOT NULL
-      GROUP BY totem_id HAVING COUNT(*) >= 3
-    `, [threshold]);
-    if (lowFpsTotems.length === 0) return null;
-    return {
-      id: `alert_${Date.now()}_${rule.id}`,
-      ruleId: rule.id,
-      type: rule.type,
-      severity: rule.severity,
-      message: `${lowFpsTotems.length} totem(s) com FPS abaixo de ${threshold}`,
-      details: { totems: lowFpsTotems, threshold, duration: durationMinutes },
-      timestamp: new Date().toISOString(),
-      acknowledged: false,
-    };
-    */
+  private async checkFpsLow(rule: AlertRule): Promise<Alert | null> {
+    try {
+      const durationMinutes = rule.duration || 5;
+      const threshold = rule.threshold;
+      
+      const lowFpsTotems = await this.db.findMany(`
+        SELECT 
+          totem_id, 
+          COUNT(*)::int as count, 
+          AVG(avg_fps)::numeric(10,2) as avg_fps,
+          MIN(avg_fps)::numeric(10,2) as min_fps,
+          MAX(avg_fps)::numeric(10,2) as max_fps
+        FROM fx_telemetry
+        WHERE created_at >= NOW() - INTERVAL '${durationMinutes} minutes'
+          AND avg_fps IS NOT NULL
+          AND avg_fps < $1
+        GROUP BY totem_id 
+        HAVING COUNT(*) >= 3
+        ORDER BY avg_fps ASC
+      `, [threshold]);
+      
+      if (lowFpsTotems.length === 0) {
+        return null;
+      }
+      
+      return {
+        id: `alert_${Date.now()}_${rule.id}`,
+        ruleId: rule.id,
+        type: rule.type,
+        severity: rule.severity,
+        message: `${lowFpsTotems.length} totem(s) com FPS abaixo de ${threshold} nos últimos ${durationMinutes} minutos`,
+        details: { 
+          totems: lowFpsTotems.map(t => ({
+            totem_id: t.totem_id,
+            count: t.count,
+            avg_fps: parseFloat(t.avg_fps),
+            min_fps: parseFloat(t.min_fps),
+            max_fps: parseFloat(t.max_fps)
+          })), 
+          threshold, 
+          duration: durationMinutes 
+        },
+        timestamp: new Date().toISOString(),
+        acknowledged: false,
+      };
+    } catch (error: any) {
+      await logError('Erro ao verificar FPS baixo', error, { ruleId: rule.id });
+      return null;
+    }
   }
 
   /**
@@ -199,32 +221,49 @@ export class AlertService {
   /**
    * Verifica taxa de falha alta
    */
-  private async checkFailureRate(_rule: AlertRule): Promise<Alert | null> {
-    // Tabela fx_telemetry não existe no schema v2 - desabilitar verificação
-    // TODO: Implementar quando tabela de telemetria for criada no schema v2
-    return null;
-    
-    /* Código original comentado - tabela fx_telemetry não existe no schema v2
-    const durationMinutes = rule.duration || 60;
-    const threshold = rule.threshold;
-    const stats = await this.db.findFirst(`
-      SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'failed') as failed
-      FROM fx_telemetry WHERE created_at >= NOW() - INTERVAL '${durationMinutes} minutes'
-    `);
-    if (!stats || stats.total === 0) return null;
-    const failureRate = (stats.failed / stats.total) * 100;
-    if (failureRate < threshold) return null;
-    return {
-      id: `alert_${Date.now()}_${rule.id}`,
-      ruleId: rule.id,
-      type: rule.type,
-      severity: rule.severity,
-      message: `Taxa de falha de ${failureRate.toFixed(2)}% nos últimos ${durationMinutes} minutos`,
-      details: { failureRate: Math.round(failureRate), threshold, total: stats.total, failed: stats.failed, duration: durationMinutes },
-      timestamp: new Date().toISOString(),
-      acknowledged: false,
-    };
-    */
+  private async checkFailureRate(rule: AlertRule): Promise<Alert | null> {
+    try {
+      const durationMinutes = rule.duration || 60;
+      const threshold = rule.threshold;
+      
+      const stats = await this.db.findFirst(`
+        SELECT 
+          COUNT(*)::int as total, 
+          COUNT(*) FILTER (WHERE status = 'failed' OR status = 'error')::int as failed
+        FROM fx_telemetry 
+        WHERE created_at >= NOW() - INTERVAL '${durationMinutes} minutes'
+      `);
+      
+      if (!stats || stats.total === 0) {
+        return null;
+      }
+      
+      const failureRate = (stats.failed / stats.total) * 100;
+      
+      if (failureRate < threshold) {
+        return null;
+      }
+      
+      return {
+        id: `alert_${Date.now()}_${rule.id}`,
+        ruleId: rule.id,
+        type: rule.type,
+        severity: rule.severity,
+        message: `Taxa de falha de ${failureRate.toFixed(2)}% nos últimos ${durationMinutes} minutos (threshold: ${threshold}%)`,
+        details: { 
+          failureRate: Math.round(failureRate * 100) / 100, 
+          threshold, 
+          total: stats.total, 
+          failed: stats.failed, 
+          duration: durationMinutes 
+        },
+        timestamp: new Date().toISOString(),
+        acknowledged: false,
+      };
+    } catch (error: any) {
+      await logError('Erro ao verificar taxa de falha', error, { ruleId: rule.id });
+      return null;
+    }
   }
 
   /**
@@ -321,7 +360,30 @@ export class AlertService {
       const emailService = new EmailService();
       
       const rule = this.alertRules.find(r => r.id === alert.ruleId);
-      const recipients = rule?.recipients || [];
+      
+      // Buscar destinatários: primeiro da regra, depois de env vars, depois admins do banco
+      let recipients: string[] = rule?.recipients || [];
+      
+      // Se não houver destinatários na regra, usar variável de ambiente
+      if (recipients.length === 0) {
+        const envRecipients = process.env.ALERT_EMAIL_RECIPIENTS;
+        if (envRecipients) {
+          recipients = envRecipients.split(',').map(r => r.trim()).filter(r => r.length > 0);
+        }
+      }
+      
+      // Se ainda não houver, buscar admins do banco
+      if (recipients.length === 0) {
+        try {
+          const admins = await this.db.findMany(`
+            SELECT email FROM users 
+            WHERE role = 'admin' AND is_active = true AND email IS NOT NULL
+          `);
+          recipients = admins.map((a: any) => a.email).filter((e: string) => e && e.length > 0);
+        } catch (error: any) {
+          await logWarn('Erro ao buscar admins para alertas', { error: error.message });
+        }
+      }
       
       if (recipients.length === 0) {
         await logWarn('Nenhum destinatário configurado para alerta por email', { alertId: alert.id });

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Box, Typography, Grid, Card, CardContent, LinearProgress, Alert } from '@mui/material';
 import { analyticsApi, AnalyticsData } from '../../services/api';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from 'recharts';
+import ExportButton from '../../components/ExportButton/ExportButton';
 
 const Analytics: React.FC = () => {
   const [data, setData] = useState<AnalyticsData | null>(null);
@@ -38,9 +39,17 @@ const Analytics: React.FC = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: 4 }}>
-        Analytics e Relatórios
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <Typography variant="h4" sx={{ fontWeight: 600 }}>
+          Analytics e Relatórios
+        </Typography>
+        <ExportButton
+          type="analytics"
+          filters={{}}
+          title="Relatório de Analytics"
+          description="Exportação completa de dados de analytics"
+        />
+      </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>

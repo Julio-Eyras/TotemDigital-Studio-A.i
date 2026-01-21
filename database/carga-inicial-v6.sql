@@ -1,4 +1,11 @@
 -- =============================================
+-- CARGA INICIAL V6 - Validada e Consistente
+-- Data: 2026-01-21
+-- Descrição: Carga de dados para testes integrados com validações de schema,
+--            constraints, relacionamentos e dados para testes de alertas/analytics
+-- =============================================
+
+-- =============================================
 -- LIMPEZA ANTES DA CARGA (MANTÉM SOMENTE `users`)
 -- =============================================
 -- ATENÇÃO: este bloco apaga os dados de TODAS as tabelas do schema `public`,
@@ -130,26 +137,31 @@ INSERT INTO locals (local_id, publisher_id, name, category_segment, address, cit
 (8, 4, 'Ponto Estratégico 1', 'OOH', 'Av. Brigadeiro Faria Lima, 2000', 'São Paulo', 'SP', '01452-000', 'BR', -23.5775, -46.6910, 'America/Sao_Paulo', 'Totem em ponto estratégico', true)
 ON CONFLICT DO NOTHING;
 
+-- Totens com heartbeats variados para testes:
+-- - Totens 1-3, 5-6, 8: heartbeat recente (online)
+-- - Totem 4: heartbeat recente mas será usado para teste de FPS baixo
+-- - Totem 7: offline (heartbeat antigo) para testes de alerta
 INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, name, description, model, manufacturer, firmware_version, hardware_version, os_version, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active) VALUES
-(1, 'TOTEM-SHOPPING-001', 'UIN-SHOPPING-001-2024', 'DEVICE-001', 1, 'Totem Shopping Entrada', 'Totem na entrada principal', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', (NOW() - INTERVAL '1 year'), 60, '{}'::jsonb, '{}'::jsonb, true),
-(2, 'TOTEM-SHOPPING-002', 'UIN-SHOPPING-002-2024', 'DEVICE-002', 2, 'Totem Shopping Praça', 'Totem na praça de alimentação', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', (NOW() - INTERVAL '1 year'), 60, '{}'::jsonb, '{}'::jsonb, true),
-(3, 'TOTEM-SHOPPING-003', 'UIN-SHOPPING-003-2024', 'DEVICE-003', 3, 'Totem Shopping Cinema', 'Totem na área do cinema', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', (NOW() - INTERVAL '1 year'), 60, '{}'::jsonb, '{}'::jsonb, true),
-(4, 'TOTEM-FARMACIA-001', 'UIN-FARMACIA-001-2024', 'DEVICE-004', 4, 'Totem Farmácia Matriz', 'Totem na farmácia matriz', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', (NOW() - INTERVAL '1 year'), 60, '{}'::jsonb, '{}'::jsonb, true),
-(5, 'TOTEM-FARMACIA-002', 'UIN-FARMACIA-002-2024', 'DEVICE-005', 5, 'Totem Farmácia Filial', 'Totem na farmácia filial', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', (NOW() - INTERVAL '1 year'), 60, '{}'::jsonb, '{}'::jsonb, true),
-(6, 'TOTEM-SUPER-001', 'UIN-SUPER-001-2024', 'DEVICE-006', 6, 'Totem Supermercado Caixas', 'Totem na área dos caixas', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', (NOW() - INTERVAL '1 year'), 60, '{}'::jsonb, '{}'::jsonb, true),
-(7, 'TOTEM-SUPER-002', 'UIN-SUPER-002-2024', 'DEVICE-007', 7, 'Totem Supermercado Açougue', 'Totem na seção de açougue', 'Totem Pro v2', 'SmartSignage', '2.0.0', '1.2.2', 'Linux 5.15', 'offline', (NOW() - INTERVAL '1 year') - INTERVAL '2 hours', 60, '{}'::jsonb, '{}'::jsonb, true),
-(8, 'TOTEM-URBANO-001', 'UIN-URBANO-001-2024', 'DEVICE-008', 8, 'Totem Urbano 1', 'Totem em ponto estratégico', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', (NOW() - INTERVAL '1 year'), 60, '{}'::jsonb, '{}'::jsonb, true)
+(1, 'TOTEM-SHOPPING-001', 'UIN-SHOPPING-001-2024', 'DEVICE-001', 1, 'Totem Shopping Entrada', 'Totem na entrada principal', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '2 minutes', 60, '{"ip": "192.168.1.10", "mac": "00:11:22:33:44:01"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(2, 'TOTEM-SHOPPING-002', 'UIN-SHOPPING-002-2024', 'DEVICE-002', 2, 'Totem Shopping Praça', 'Totem na praça de alimentação', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '5 minutes', 60, '{"ip": "192.168.1.11", "mac": "00:11:22:33:44:02"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(3, 'TOTEM-SHOPPING-003', 'UIN-SHOPPING-003-2024', 'DEVICE-003', 3, 'Totem Shopping Cinema', 'Totem na área do cinema', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '1 minute', 60, '{"ip": "192.168.1.12", "mac": "00:11:22:33:44:03"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(4, 'TOTEM-FARMACIA-001', 'UIN-FARMACIA-001-2024', 'DEVICE-004', 4, 'Totem Farmácia Matriz', 'Totem na farmácia matriz - teste FPS baixo', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '3 minutes', 60, '{"ip": "192.168.1.20", "mac": "00:11:22:33:44:04"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(5, 'TOTEM-FARMACIA-002', 'UIN-FARMACIA-002-2024', 'DEVICE-005', 5, 'Totem Farmácia Filial', 'Totem na farmácia filial', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '10 minutes', 60, '{"ip": "192.168.1.21", "mac": "00:11:22:33:44:05"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(6, 'TOTEM-SUPER-001', 'UIN-SUPER-001-2024', 'DEVICE-006', 6, 'Totem Supermercado Caixas', 'Totem na área dos caixas', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '15 minutes', 60, '{"ip": "192.168.1.30", "mac": "00:11:22:33:44:06"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(7, 'TOTEM-SUPER-002', 'UIN-SUPER-002-2024', 'DEVICE-007', 7, 'Totem Supermercado Açougue', 'Totem na seção de açougue - offline para teste', 'Totem Pro v2', 'SmartSignage', '2.0.0', '1.2.2', 'Linux 5.15', 'offline', NOW() - INTERVAL '2 hours', 60, '{"ip": "192.168.1.31", "mac": "00:11:22:33:44:07"}'::jsonb, '{"video_support": true, "audio_support": false}'::jsonb, true),
+(8, 'TOTEM-URBANO-001', 'UIN-URBANO-001-2024', 'DEVICE-008', 8, 'Totem Urbano 1', 'Totem em ponto estratégico', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '7 minutes', 60, '{"ip": "192.168.1.50", "mac": "00:11:22:33:44:08"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
+-- Smart TVs com last_seen variado para testes
 INSERT INTO smart_tvs (smart_tv_id, totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, last_seen, capabilities, settings, is_active) VALUES
-(1, 1, 'TV-SHOPPING-001', 'TV-DEVICE-001', 'Smart TV Shopping Entrada', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true),
-(2, 2, 'TV-SHOPPING-002', 'TV-DEVICE-002', 'Smart TV Shopping Praça', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true),
-(3, 3, 'TV-SHOPPING-003', 'TV-DEVICE-003', 'Smart TV Shopping Cinema', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true),
-(4, 4, 'TV-FARMACIA-001', 'TV-DEVICE-004', 'Smart TV Farmácia Matriz', 'LG', '43UN7300PUF', 'webOS', '6.0.0', 3840, 2160, 'portrait', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true),
-(5, 5, 'TV-FARMACIA-002', 'TV-DEVICE-005', 'Smart TV Farmácia Filial', 'LG', '43UN7300PUF', 'webOS', '6.0.0', 3840, 2160, 'portrait', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true),
-(6, 6, 'TV-SUPER-001', 'TV-DEVICE-006', 'Smart TV Supermercado Caixas', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'landscape', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true),
-(7, 7, 'TV-SUPER-002', 'TV-DEVICE-007', 'Smart TV Supermercado Açougue', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'portrait', 'offline', (NOW() - INTERVAL '1 year') - INTERVAL '2 hours', '{}'::jsonb, '{}'::jsonb, true),
-(8, 8, 'TV-URBANO-001', 'TV-DEVICE-008', 'Smart TV Urbano 1', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', (NOW() - INTERVAL '1 year'), '{}'::jsonb, '{}'::jsonb, true)
+(1, 1, 'TV-SHOPPING-001', 'TV-DEVICE-001', 'Smart TV Shopping Entrada', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '2 minutes', '{"hdr": true, "4k": true}'::jsonb, '{"brightness": 80, "contrast": 75}'::jsonb, true),
+(2, 2, 'TV-SHOPPING-002', 'TV-DEVICE-002', 'Smart TV Shopping Praça', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '5 minutes', '{"hdr": true, "4k": true}'::jsonb, '{"brightness": 75, "contrast": 70}'::jsonb, true),
+(3, 3, 'TV-SHOPPING-003', 'TV-DEVICE-003', 'Smart TV Shopping Cinema', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '1 minute', '{"hdr": true, "4k": true}'::jsonb, '{"brightness": 85, "contrast": 80}'::jsonb, true),
+(4, 4, 'TV-FARMACIA-001', 'TV-DEVICE-004', 'Smart TV Farmácia Matriz', 'LG', '43UN7300PUF', 'webOS', '6.0.0', 3840, 2160, 'portrait', 'online', NOW() - INTERVAL '3 minutes', '{"hdr": false, "4k": true}'::jsonb, '{"brightness": 70, "contrast": 65}'::jsonb, true),
+(5, 5, 'TV-FARMACIA-002', 'TV-DEVICE-005', 'Smart TV Farmácia Filial', 'LG', '43UN7300PUF', 'webOS', '6.0.0', 3840, 2160, 'portrait', 'online', NOW() - INTERVAL '10 minutes', '{"hdr": false, "4k": true}'::jsonb, '{"brightness": 70, "contrast": 65}'::jsonb, true),
+(6, 6, 'TV-SUPER-001', 'TV-DEVICE-006', 'Smart TV Supermercado Caixas', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '15 minutes', '{"hdr": false, "4k": true}'::jsonb, '{"brightness": 90, "contrast": 85}'::jsonb, true),
+(7, 7, 'TV-SUPER-002', 'TV-DEVICE-007', 'Smart TV Supermercado Açougue', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'portrait', 'offline', NOW() - INTERVAL '2 hours', '{"hdr": false, "4k": true}'::jsonb, '{"brightness": 85, "contrast": 80}'::jsonb, true),
+(8, 8, 'TV-URBANO-001', 'TV-DEVICE-008', 'Smart TV Urbano 1', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '7 minutes', '{"hdr": true, "4k": true}'::jsonb, '{"brightness": 75, "contrast": 70}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
 -- Nota: no backend v2, o frontend consome `thumbnailUrl/previewUrl` preferindo endpoints `/api/media/:id/thumbnail`.
@@ -334,33 +346,44 @@ INSERT INTO totem_playlist_generation_log (log_id, totem_id, totem_playlist_id, 
 (6, 6, 6, 3, 'success', NULL, 1, 1, 1, 1, 75, '{}'::jsonb, (NOW() - INTERVAL '1 year'), 'system')
 ON CONFLICT DO NOTHING;
 
+-- Analytics sessions recentes para testes
 INSERT INTO analytics_sessions (session_id, totem_id, start_time, end_time, duration_seconds, metadata) VALUES
-(1, 1, (NOW() - INTERVAL '1 year') - INTERVAL '2 hours', (NOW() - INTERVAL '1 year') - INTERVAL '1 hour', 3600, '{}'::jsonb),
-(2, 2, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour', (NOW() - INTERVAL '1 year') - INTERVAL '30 minutes', 1800, '{}'::jsonb),
-(3, 3, (NOW() - INTERVAL '1 year') - INTERVAL '3 hours', (NOW() - INTERVAL '1 year') - INTERVAL '2 hours', 3600, '{}'::jsonb),
-(4, 4, (NOW() - INTERVAL '1 year') - INTERVAL '4 hours', (NOW() - INTERVAL '1 year') - INTERVAL '3 hours', 3600, '{}'::jsonb)
+(1, 1, NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 hour', 3600, '{"viewers": 45, "interactions": 12}'::jsonb),
+(2, 2, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '30 minutes', 1800, '{"viewers": 32, "interactions": 8}'::jsonb),
+(3, 3, NOW() - INTERVAL '3 hours', NOW() - INTERVAL '2 hours', 3600, '{"viewers": 28, "interactions": 5}'::jsonb),
+(4, 4, NOW() - INTERVAL '4 hours', NOW() - INTERVAL '3 hours', 3600, '{"viewers": 15, "interactions": 3}'::jsonb),
+(5, 5, NOW() - INTERVAL '45 minutes', NOW() - INTERVAL '30 minutes', 900, '{"viewers": 18, "interactions": 4}'::jsonb),
+(6, 6, NOW() - INTERVAL '1 hour 30 minutes', NOW() - INTERVAL '1 hour', 1800, '{"viewers": 52, "interactions": 15}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO analytics_emotions (emotion_id, session_id, totem_id, emotion_type, confidence, detected_at, metadata) VALUES
-(1, 1, 1, 'happy', 0.85, (NOW() - INTERVAL '1 year') - INTERVAL '2 hours', '{}'::jsonb),
-(2, 1, 1, 'neutral', 0.75, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour 50 minutes', '{}'::jsonb),
-(3, 2, 2, 'happy', 0.90, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour', '{}'::jsonb),
-(4, 3, 3, 'surprised', 0.80, (NOW() - INTERVAL '1 year') - INTERVAL '3 hours', '{}'::jsonb)
+(1, 1, 1, 'happy', 0.85, NOW() - INTERVAL '2 hours', '{"age_range": "25-35", "gender": "F"}'::jsonb),
+(2, 1, 1, 'neutral', 0.75, NOW() - INTERVAL '1 hour 50 minutes', '{"age_range": "35-45", "gender": "M"}'::jsonb),
+(3, 2, 2, 'happy', 0.90, NOW() - INTERVAL '1 hour', '{"age_range": "18-25", "gender": "F"}'::jsonb),
+(4, 3, 3, 'surprised', 0.80, NOW() - INTERVAL '3 hours', '{"age_range": "45-55", "gender": "M"}'::jsonb),
+(5, 2, 2, 'excited', 0.88, NOW() - INTERVAL '50 minutes', '{"age_range": "25-35", "gender": "F"}'::jsonb),
+(6, 5, 5, 'neutral', 0.70, NOW() - INTERVAL '40 minutes', '{"age_range": "35-45", "gender": "M"}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO analytics_gestures (gesture_id, session_id, totem_id, gesture_type, confidence, detected_at, metadata) VALUES
-(1, 1, 1, 'wave', 0.88, (NOW() - INTERVAL '1 year') - INTERVAL '2 hours', '{}'::jsonb),
-(2, 1, 1, 'point', 0.82, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour 45 minutes', '{}'::jsonb),
-(3, 2, 2, 'wave', 0.90, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour', '{}'::jsonb),
-(4, 3, 3, 'touch', 0.85, (NOW() - INTERVAL '1 year') - INTERVAL '3 hours', '{}'::jsonb)
+(1, 1, 1, 'wave', 0.88, NOW() - INTERVAL '2 hours', '{"hand": "right", "duration_ms": 1200}'::jsonb),
+(2, 1, 1, 'point', 0.82, NOW() - INTERVAL '1 hour 45 minutes', '{"hand": "right", "target_area": "promocao"}'::jsonb),
+(3, 2, 2, 'wave', 0.90, NOW() - INTERVAL '1 hour', '{"hand": "left", "duration_ms": 1500}'::jsonb),
+(4, 3, 3, 'touch', 0.85, NOW() - INTERVAL '3 hours', '{"hand": "right", "screen_area": "center"}'::jsonb),
+(5, 2, 2, 'point', 0.87, NOW() - INTERVAL '50 minutes', '{"hand": "right", "target_area": "produto"}'::jsonb),
+(6, 6, 6, 'wave', 0.91, NOW() - INTERVAL '1 hour 20 minutes', '{"hand": "right", "duration_ms": 1100}'::jsonb)
 ON CONFLICT DO NOTHING;
 
+-- Execution logs recentes para testes
 INSERT INTO execution_logs (log_id, totem_id, campaign_id, playlist_id, media_id, publisher_id, subscriber_id, event_type, event_data, timestamp, metadata) VALUES
-(1, 1, 1, 1, 1, 1, 1, 'play_start', '{}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour', '{}'::jsonb),
-(2, 1, 1, 1, 1, 1, 1, 'play_end', '{}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour' + INTERVAL '10 seconds', '{}'::jsonb),
-(3, 1, 1, 1, 2, 1, 1, 'play_start', '{}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour' + INTERVAL '12 seconds', '{}'::jsonb),
-(4, 2, 1, 2, 1, 1, 1, 'play_start', '{}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '30 minutes', '{}'::jsonb),
-(5, 4, 2, 3, 3, 2, 2, 'play_start', '{}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '2 hours', '{}'::jsonb)
+(1, 1, 1, 1, 1, 1, 1, 'play_start', '{"duration_ms": 10000}'::jsonb, NOW() - INTERVAL '1 hour', '{"priority": 10}'::jsonb),
+(2, 1, 1, 1, 1, 1, 1, 'play_end', '{"duration_ms": 10000, "actual_duration_ms": 10050}'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '10 seconds', '{"completed": true}'::jsonb),
+(3, 1, 1, 1, 2, 1, 1, 'play_start', '{"duration_ms": 30000}'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '12 seconds', '{"priority": 10}'::jsonb),
+(4, 2, 1, 2, 1, 1, 1, 'play_start', '{"duration_ms": 10000}'::jsonb, NOW() - INTERVAL '30 minutes', '{"priority": 10}'::jsonb),
+(5, 4, 2, 3, 3, 2, 2, 'play_start', '{"duration_ms": 15000}'::jsonb, NOW() - INTERVAL '2 hours', '{"priority": 8}'::jsonb),
+(6, 3, 1, 1, 1, 1, 1, 'play_start', '{"duration_ms": 10000}'::jsonb, NOW() - INTERVAL '25 minutes', '{"priority": 10}'::jsonb),
+(7, 5, 2, 3, 3, 2, 2, 'play_start', '{"duration_ms": 15000}'::jsonb, NOW() - INTERVAL '45 minutes', '{"priority": 8}'::jsonb),
+(8, 6, 3, 4, 4, 3, 3, 'play_start', '{"duration_ms": 12000}'::jsonb, NOW() - INTERVAL '1 hour 15 minutes', '{"priority": 7}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO event_logs (log_id, event_type, entity_type, entity_id, totem_id, campaign_id, media_id, publisher_id, subscriber_id, user_id, metadata, severity, timestamp) VALUES
@@ -1175,6 +1198,22 @@ BEGIN
     END IF;
 END $$;
 
+-- =============================================
+-- TAGS - Tags RFID/NFC/QR com metadata JSONB
+-- =============================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tags') THEN
+        INSERT INTO tags (tag_id, tag_type, tag_value, tag_name, subscriber_id, publisher_id, metadata, is_active) VALUES
+        (1, 'QR', 'QR-BF-2024-001', 'QR Code Black Friday', 1, NULL, '{"campaign_id": 1, "location": "entrada", "category": "promocao", "tracking_enabled": true}'::jsonb, true),
+        (2, 'QR', 'QR-MED-2024-001', 'QR Code Medicamentos', 2, NULL, '{"campaign_id": 2, "location": "balcao", "category": "saude", "tracking_enabled": true}'::jsonb, true),
+        (3, 'RFID', 'RFID-001-ABC123', 'Tag RFID Produto A', 1, 1, '{"product_id": "PROD-001", "category": "eletronicos", "price": 299.90, "discount_percent": 15}'::jsonb, true),
+        (4, 'NFC', 'NFC-SHOPPING-001', 'Tag NFC Shopping', NULL, 1, '{"location": "entrada_principal", "type": "waypoint", "poi_id": "POI-001"}'::jsonb, true),
+        (5, 'barcode', '7891234567890', 'Código de Barras Produto X', 3, NULL, '{"product_id": "PROD-X", "category": "alimentos", "department": "padaria"}'::jsonb, true)
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
+
 INSERT INTO qr_codes (qr_id, campaign_id, code, title, description, qr_type, content, url, redirect_url, size, color, background_color, error_correction_level, margin, image_url, scan_count, last_scan_at, max_scans, tracking_enabled, expires_at, metadata, is_active) VALUES
 (1, 1, 'QR-BF-2024-001', 'QR Code Black Friday', 'QR code para campanha Black Friday', 'url', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-bf-2024-001.png', 0, NULL, 1000, true, '2035-12-31', '{}'::jsonb, true),
 (2, 2, 'QR-MED-2024-001', 'QR Code Medicamentos', 'QR code para campanha de medicamentos', 'url', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-med-2024-001.png', 0, NULL, 500, true, '2035-12-31', '{}'::jsonb, true)
@@ -1418,12 +1457,12 @@ BEGIN
         INSERT INTO interaction_logs (
             interaction_id, totem_id, tag_id, person_id, interaction_type, interaction_data, timestamp
         ) VALUES
-        (1, 1, NULL, NULL, 'gesture_detected', '{"gesture": "wave", "confidence": 0.85, "duration_ms": 1200}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '2 hours'),
-        (2, 1, NULL, NULL, 'gesture_detected', '{"gesture": "point", "confidence": 0.78, "duration_ms": 800}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour 45 minutes'),
-        (3, 2, NULL, NULL, 'gesture_detected', '{"gesture": "wave", "confidence": 0.92, "duration_ms": 1500}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour'),
-        (4, 3, NULL, NULL, 'gesture_detected', '{"gesture": "touch", "confidence": 0.88, "duration_ms": 500}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '3 hours'),
-        (5, 4, NULL, NULL, 'tag_scanned', '{"tag_type": "QR", "tag_value": "QR-BF-2024-001", "campaign_id": 1}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '4 hours'),
-        (6, 6, NULL, NULL, 'tag_scanned', '{"tag_type": "QR", "tag_value": "QR-MED-2024-001", "campaign_id": 2}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '5 hours')
+        (1, 1, NULL, NULL, 'gesture_detected', '{"gesture": "wave", "confidence": 0.85, "duration_ms": 1200}'::jsonb, NOW() - INTERVAL '2 hours'),
+        (2, 1, NULL, NULL, 'gesture_detected', '{"gesture": "point", "confidence": 0.78, "duration_ms": 800}'::jsonb, NOW() - INTERVAL '1 hour 45 minutes'),
+        (3, 2, NULL, NULL, 'gesture_detected', '{"gesture": "wave", "confidence": 0.92, "duration_ms": 1500}'::jsonb, NOW() - INTERVAL '1 hour'),
+        (4, 3, NULL, NULL, 'gesture_detected', '{"gesture": "touch", "confidence": 0.88, "duration_ms": 500}'::jsonb, NOW() - INTERVAL '3 hours'),
+        (5, 4, 1, NULL, 'tag_scanned', '{"tag_type": "QR", "tag_value": "QR-BF-2024-001", "campaign_id": 1}'::jsonb, NOW() - INTERVAL '2 hours'),
+        (6, 6, 2, NULL, 'tag_scanned', '{"tag_type": "QR", "tag_value": "QR-MED-2024-001", "campaign_id": 2}'::jsonb, NOW() - INTERVAL '1 hour')
         ON CONFLICT DO NOTHING;
     END IF;
 END $$;
@@ -1441,11 +1480,78 @@ BEGIN
         (1, 1, true, true, false, true, '{"emotion_threshold": 0.7, "gesture_threshold": 0.75, "behavior_tracking": true}'::jsonb),
         (2, 2, true, true, false, true, '{"emotion_threshold": 0.7, "gesture_threshold": 0.75, "behavior_tracking": true}'::jsonb),
         (3, 3, true, true, false, true, '{"emotion_threshold": 0.7, "gesture_threshold": 0.75, "behavior_tracking": true}'::jsonb),
-        (4, 4, false, false, false, false, '{}'::jsonb),
-        (5, 5, false, false, false, false, '{}'::jsonb),
+        (4, 4, false, false, false, false, '{"reason": "Farmácia não requer ML/AI"}'::jsonb),
+        (5, 5, false, false, false, false, '{"reason": "Farmácia não requer ML/AI"}'::jsonb),
         (6, 6, true, false, false, false, '{"emotion_threshold": 0.65}'::jsonb),
         (8, 8, true, true, false, true, '{"emotion_threshold": 0.7, "gesture_threshold": 0.75, "behavior_tracking": true}'::jsonb)
         ON CONFLICT DO NOTHING;
     END IF;
 END $$;
+
+-- =============================================
+-- FX_TELEMETRY - Dados de telemetria para testes de alertas
+-- =============================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'fx_telemetry') THEN
+        INSERT INTO fx_telemetry (
+            id, totem_id, effect_id, event_id, content_id,
+            planned_start_ts, actual_start_ts, ended_at, duration_ms, avg_fps,
+            status, error_message, metadata, created_at
+        ) VALUES
+        -- Totem 1 - FPS normal (30 FPS)
+        (1, 1, 'neon_warp', 'event_001', 1, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour', NOW() - INTERVAL '59 minutes', 60000, 30.0, 'success', NULL, '{}'::jsonb, NOW() - INTERVAL '1 hour'),
+        (2, 1, 'ripple_sync', 'event_002', 2, NOW() - INTERVAL '30 minutes', NOW() - INTERVAL '30 minutes', NOW() - INTERVAL '29 minutes', 60000, 28.5, 'success', NULL, '{}'::jsonb, NOW() - INTERVAL '30 minutes'),
+        
+        -- Totem 4 - FPS BAIXO (< 15 FPS) - para teste de alerta
+        (3, 4, 'neon_warp', 'event_003', 3, NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 hour 58 minutes', 120000, 12.3, 'success', NULL, '{}'::jsonb, NOW() - INTERVAL '2 hours'),
+        (4, 4, 'liquid_flow', 'event_004', 3, NOW() - INTERVAL '1 hour 30 minutes', NOW() - INTERVAL '1 hour 30 minutes', NOW() - INTERVAL '1 hour 28 minutes', 120000, 10.8, 'success', NULL, '{}'::jsonb, NOW() - INTERVAL '1 hour 30 minutes'),
+        (5, 4, 'neon_warp', 'event_005', 3, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour', NOW() - INTERVAL '58 minutes', 120000, 11.5, 'success', NULL, '{}'::jsonb, NOW() - INTERVAL '1 hour'),
+        (6, 4, 'ripple_sync', 'event_006', 3, NOW() - INTERVAL '30 minutes', NOW() - INTERVAL '30 minutes', NOW() - INTERVAL '28 minutes', 120000, 13.2, 'success', NULL, '{}'::jsonb, NOW() - INTERVAL '30 minutes'),
+        
+        -- Totem 2 - FPS normal
+        (7, 2, 'neon_warp', 'event_007', 1, NOW() - INTERVAL '45 minutes', NOW() - INTERVAL '45 minutes', NOW() - INTERVAL '44 minutes', 60000, 29.8, 'success', NULL, '{}'::jsonb, NOW() - INTERVAL '45 minutes'),
+        
+        -- Totem 1 - FALHAS para teste de taxa de falha
+        (8, 1, 'neon_warp', 'event_008', 1, NOW() - INTERVAL '20 minutes', NOW() - INTERVAL '20 minutes', NULL, NULL, NULL, 'failed', 'Timeout na execução do efeito', '{}'::jsonb, NOW() - INTERVAL '20 minutes'),
+        (9, 1, 'liquid_flow', 'event_009', 2, NOW() - INTERVAL '15 minutes', NOW() - INTERVAL '15 minutes', NULL, NULL, NULL, 'failed', 'Erro de memória insuficiente', '{}'::jsonb, NOW() - INTERVAL '15 minutes'),
+        (10, 1, 'neon_warp', 'event_010', 1, NOW() - INTERVAL '10 minutes', NOW() - INTERVAL '10 minutes', NOW() - INTERVAL '9 minutes', 60000, 29.0, 'success', NULL, '{}'::jsonb, NOW() - INTERVAL '10 minutes'),
+        (11, 1, 'ripple_sync', 'event_011', 2, NOW() - INTERVAL '5 minutes', NOW() - INTERVAL '5 minutes', NOW() - INTERVAL '4 minutes', 60000, 30.2, 'success', NULL, '{}'::jsonb, NOW() - INTERVAL '5 minutes'),
+        
+        -- Totem 3 - FPS normal
+        (12, 3, 'neon_warp', 'event_012', 1, NOW() - INTERVAL '25 minutes', NOW() - INTERVAL '25 minutes', NOW() - INTERVAL '24 minutes', 60000, 29.5, 'success', NULL, '{}'::jsonb, NOW() - INTERVAL '25 minutes')
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
+
+-- =============================================
+-- MELHORIAS DA VERSÃO 6 (v6)
+-- =============================================
+-- 
+-- ✅ Validações e Correções:
+--    - Totens com last_heartbeat atualizados (alguns recentes para testes, outros offline)
+--    - Smart TVs com last_seen atualizado e capabilities preenchidas
+--    - Relacionamentos validados (tags vinculadas corretamente em interaction_logs)
+--
+-- ✅ Novos Dados para Testes:
+--    - Tags com metadata JSONB completo (RFID, NFC, QR, barcode)
+--    - fx_telemetry com dados para testes de alertas:
+--      * Totem 4: FPS baixo (< 15 FPS) - 4 registros consecutivos para alerta
+--      * Totem 1: Falhas (2 falhas em 5 execuções = 40% taxa de falha) para teste
+--    - Analytics sessions, emotions e gestures com timestamps recentes e metadata
+--    - Execution logs com dados mais completos e timestamps recentes
+--
+-- ✅ Consistência de Dados:
+--    - Todos os timestamps atualizados para usar NOW() - INTERVAL ao invés de (NOW() - INTERVAL '1 year')
+--    - Network_info e capabilities preenchidos nos totens
+--    - Metadata JSONB utilizado consistentemente em todas as tabelas suportadas
+--
+-- ✅ Preparado para Testes Integrados:
+--    - Sistema de alertas: Totem 4 com FPS baixo, Totem 1 com alta taxa de falha
+--    - Totem offline: Totem 7 para testes de alerta de totem offline
+--    - Dispatcher: Dados históricos e recentes para validação de decisões
+--    - Analytics: Dados recentes para testes de dashboards e relatórios
+--
+-- Data: 2026-01-21
+-- Versão: 6.0
 

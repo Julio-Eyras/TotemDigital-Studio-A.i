@@ -969,9 +969,9 @@ export class ReportsService {
   }
 
   /**
-   * Converte dados para CSV
+   * Converte dados para CSV (público para uso em rotas)
    */
-  private convertToCSV(data: any): string {
+  convertToCSV(data: any): string {
     try {
       if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
         return 'Nenhum dado encontrado';

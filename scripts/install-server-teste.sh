@@ -67,9 +67,12 @@ if [[ ! -f "database/smartchannel-db-v2-refactored-apply-all.sql" ]]; then
     MISSING_FILES=1
 fi
 
-if [[ ! -f "database/carga-inicial-v5.sql" ]]; then
-    echo -e "${RED}❌ database/carga-inicial-v5.sql não encontrado${NC}"
+# Verificar carga inicial v6
+if [[ ! -f "database/carga-inicial-v6.sql" ]]; then
+    echo -e "${RED}❌ database/carga-inicial-v6.sql não encontrado${NC}"
     MISSING_FILES=1
+else
+    echo -e "${GREEN}✅ database/carga-inicial-v6.sql encontrado (versão validada)${NC}"
 fi
 
 if [[ $MISSING_FILES -eq 1 ]]; then

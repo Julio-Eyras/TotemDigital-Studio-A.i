@@ -137,7 +137,13 @@ check_file "nginx/simple.conf" "Configuração simples"
 info "🔍 Verificando Banco de Dados..."
 
 check_file "database/smartchannel-db-v2-refactored-apply-all.sql" "Schema SQL (refatorado v2)"
-check_file "database/carga-inicial-v5.sql" "Carga inicial (seeds v5)"
+# Verificar carga inicial v6
+if [[ -f "database/carga-inicial-v6.sql" ]]; then
+    check_file "database/carga-inicial-v6.sql" "Carga inicial (seeds v6 - validada)"
+else
+    echo -e "${RED}❌ Arquivo de carga inicial não encontrado (carga-inicial-v6.sql)${NC}"
+    MISSING_FILES=1
+fi
 
 # =============================================
 # VERIFICAÇÃO DO MONITORAMENTO

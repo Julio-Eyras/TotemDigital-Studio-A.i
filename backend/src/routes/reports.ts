@@ -705,4 +705,57 @@ router.post('/export/pdf', async (req: any, res) => {
   }
 });
 
+/**
+ * @route POST /api/reports/export/csv
+ * @desc Exporta dados diretamente para CSV (sem salvar relatório)
+ * @access Private (Admin, Manager, Client)
+ */
+router.post('/export/csv', async (req: any, res) => {
+  try {
+    const { type, filters, title, description } = req.body;
+
+    // Verificar permissão para clientes
+    if (req.user.role === 'client' && filters?.clientId !== req.user.clientId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado: Você só pode exportar dados do seu próprio cliente'
+      });
+    }
+
+    const reportRequest = {
+      type: type || 'analytics',
+      title: title || 'Export CSV',
+      description: description || '',
+      filters: { ...filters, format: 'csv' },
+      template: undefined,
+      customFields: undefined,
+      aiAnalysis: false
+    };
+
+    // Gerar dados do relatório
+    const reportData = await getReportsService().generateReportData(reportRequest);
+
+    // Converter para CSV
+    const csvContent = getReportsService().convertToCSV(reportData);
+
+    const fileName = `export_${Date.now()}.csv`;
+
+    // Enviar arquivo
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Encoding', 'utf-8');
+
+    res.send(csvContent);
+    return;
+
+  } catch (error: any) {
+    await logError('Erro ao exportar para CSV', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao exportar para CSV',
+      error: error.message
+    });
+  }
+});
+
 export default router;

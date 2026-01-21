@@ -120,18 +120,20 @@ router.post('/',
   body('name').optional().isString(),
   body('description').optional().isString(),
   body('contentId').optional().isInt({ min: 1 }),
+  body('metadata').optional().isObject().withMessage('metadata deve ser um objeto'),
   validateRequest,
   authorizeRole(['admin', 'gerente_marketing', 'editoracao']),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { tagId, tagType, name, description, contentId } = req.body;
+      const { tagId, tagType, name, description, contentId, metadata } = req.body;
       const tagService = getTagService();
       const tag = await tagService.createOrUpdateTag({
         tagId,
         tagType,
         name,
         description,
-        contentId
+        contentId,
+        metadata
       });
 
       return res.json({

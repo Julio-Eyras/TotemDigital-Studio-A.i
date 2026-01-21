@@ -17,6 +17,7 @@ import {
   PictureAsPdf,
   TableChart,
   Description,
+  InsertDriveFile,
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
@@ -59,12 +60,16 @@ const ExportButton: React.FC<ExportButtonProps> = ({
     setAnchorEl(null);
   };
 
-  const handleExport = async (format: 'excel' | 'pdf') => {
+  const handleExport = async (format: 'excel' | 'pdf' | 'csv') => {
     try {
       setExporting(format);
       handleClose();
 
-      const endpoint = format === 'excel' ? '/reports/export/excel' : '/reports/export/pdf';
+      const endpoint = format === 'excel' 
+        ? '/reports/export/excel' 
+        : format === 'pdf' 
+        ? '/reports/export/pdf' 
+        : '/reports/export/csv';
       
       const response = await api.post(
         endpoint,
@@ -75,18 +80,31 @@ const ExportButton: React.FC<ExportButtonProps> = ({
           description: description || '',
         },
         {
-          responseType: 'blob', // Importante para download de arquivo
+          responseType: format === 'csv' ? 'text' : 'blob', // CSV é texto, outros são binários
         }
       );
 
       // Criar link de download
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      let blob: Blob;
+      if (format === 'csv') {
+        // CSV vem como texto, converter para blob
+        blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      } else {
+        blob = new Blob([response.data]);
+      }
+      
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       
       // Obter nome do arquivo do header ou usar padrão
       const contentDisposition = response.headers['content-disposition'];
-      let fileName = `export_${type}_${Date.now()}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+      const extensions: Record<string, string> = {
+        excel: 'xlsx',
+        pdf: 'pdf',
+        csv: 'csv'
+      };
+      let fileName = `export_${type}_${Date.now()}.${extensions[format]}`;
       
       if (contentDisposition) {
         const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/i);
@@ -158,6 +176,17 @@ const ExportButton: React.FC<ExportButtonProps> = ({
             )}
           </ListItemIcon>
           <ListItemText>Exportar para PDF</ListItemText>
+        </MenuItem>
+
+        <MenuItem onClick={() => handleExport('csv')} disabled={exporting === 'csv'}>
+          <ListItemIcon>
+            {exporting === 'csv' ? (
+              <CircularProgress size={16} />
+            ) : (
+              <InsertDriveFile fontSize="small" />
+            )}
+          </ListItemIcon>
+          <ListItemText>Exportar para CSV</ListItemText>
         </MenuItem>
       </Menu>
     </>

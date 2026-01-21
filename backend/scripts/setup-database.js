@@ -117,17 +117,11 @@ async function applySchema() {
   ];
 
   if (loadDemoSeeds) {
-    // Preferir seed v5 (demo-assets) como padrão.
-    // Fallback para seeds antigos por compatibilidade.
-    const v5Seed = path.join(dbDir, 'carga-inicial-v5.sql');
-    const demoAssetsSeed = path.join(dbDir, 'carga-inicial-2025-demo-assets.sql');
+    // Usar carga-inicial-v6.sql (validada e consistente) como padrão.
+    const v6Seed = path.join(dbDir, 'carga-inicial-v6.sql');
 
-    if (fs.existsSync(v5Seed)) {
-      sqlFiles.push('carga-inicial-v5.sql');
-    } else if (fs.existsSync(demoAssetsSeed)) {
-      sqlFiles.push('carga-inicial-2025-demo-assets.sql');
-    } else {
-      sqlFiles.push('carga-inicial-2025.sql');
+    if (fs.existsSync(v6Seed)) {
+      sqlFiles.push('carga-inicial-v6.sql');
     }
   }
   // Fix sequences after seeds (SERIAL columns with explicit IDs)

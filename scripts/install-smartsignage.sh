@@ -668,7 +668,7 @@ parse_arguments() {
                 echo "  --backend-only       Faz apenas build do backend (deps + TypeScript), sem tocar no banco"
                 echo "  --frontend-only      Faz apenas build do frontend (deps + build React), sem tocar no banco"
                 echo "  --backfront-build    Faz build do backend e do frontend (deps + TypeScript + React), sem tocar no banco"
-                echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt). Usa database/carga-inicial-v5.sql"
+                echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt). Usa database/carga-inicial-v6.sql"
                 echo "  --no-seeds           Não carrega dados de demonstração"
                 echo "  --help               Mostra esta ajuda"
                 exit 0
@@ -7960,16 +7960,8 @@ setup_first_boot() {
         # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
         log "Executando seed completo do banco de dados com dados correlacionados..."
 
-        # Preferir seed v5 (demo-assets) como padrão.
-        # Mantém fallback para seeds antigos por compatibilidade.
-        INITIAL_LOAD_SQL_FILE="$INSTALL_DIR/database/carga-inicial-v5.sql"
-        if [[ ! -f "$INITIAL_LOAD_SQL_FILE" ]]; then
-            # Compatibilidade (legacy)
-            INITIAL_LOAD_SQL_FILE="$INSTALL_DIR/database/carga-inicial-2025-demo-assets.sql"
-            if [[ ! -f "$INITIAL_LOAD_SQL_FILE" ]]; then
-                INITIAL_LOAD_SQL_FILE="$INSTALL_DIR/database/carga-inicial-2025.sql"
-            fi
-        fi
+        # Usar carga-inicial-v6.sql (validada e consistente) como padrão.
+        INITIAL_LOAD_SQL_FILE="$INSTALL_DIR/database/carga-inicial-v6.sql"
 
         if [[ -f "$INITIAL_LOAD_SQL_FILE" ]]; then
             log "✅ Arquivo de seeds encontrado: $(basename "$INITIAL_LOAD_SQL_FILE")"

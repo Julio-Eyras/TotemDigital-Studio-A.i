@@ -20,6 +20,8 @@ import { exportScheduleService } from './services/exportScheduleService';
 import { InvoiceWorker } from './workers/invoiceWorker';
 import { SubscriberAccessNotificationWorker } from './workers/subscriberAccessNotificationWorker';
 import { getPlaylistEngineWorkerInstance } from './workers/playlistEngineWorker';
+import cron from 'node-cron';
+import { getAlertService } from './services/alertService';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
 import { authMiddleware } from './middleware/auth.middleware';
@@ -640,6 +642,29 @@ async function startServer() {
     // NotificationService será inicializado lazy quando necessário
     
     // AuditService será inicializado lazy quando necessário
+    
+    // Inicializar verificação automática de alertas (a cada 5 minutos)
+    await logInfo('Inicializando verificação automática de alertas...');
+    cron.schedule('*/5 * * * *', async () => {
+      try {
+        const alertService = getAlertService();
+        const alerts = await alertService.checkAllAlerts();
+        
+        // Enviar alertas pelos canais configurados
+        for (const alert of alerts) {
+          const rule = (alertService as any).alertRules?.find((r: any) => r.id === alert.ruleId);
+          if (rule && rule.enabled && rule.channels.length > 0) {
+            await alertService.sendAlert(alert, rule.channels);
+          }
+        }
+        
+        if (alerts.length > 0) {
+          await logInfo(`Verificação de alertas: ${alerts.length} alerta(s) encontrado(s)`, { count: alerts.length });
+        }
+      } catch (error: any) {
+        await logError('Erro na verificação automática de alertas', error, {});
+      }
+    });
     
     // Criar servidor HTTP para WebSocket
     const server = http.createServer(app);

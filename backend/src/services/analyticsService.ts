@@ -339,9 +339,40 @@ export class AnalyticsService {
   }
 
   /**
-   * Busca análise detalhada com filtros
+   * Busca análise detalhada com filtros (com cache de 5 minutos)
    */
   async getAnalytics(filters: AnalyticsFilters): Promise<AnalyticsResponse> {
+    // Gerar chave de cache baseada nos filtros
+    const cacheKey = this.generateAnalyticsCacheKey(filters);
+    
+    // Usar cache-aside pattern: tentar obter do cache, se não existir, buscar e armazenar
+    return this.analyticsCache.getOrSet(
+      cacheKey,
+      async () => {
+        return this.fetchAnalytics(filters);
+      },
+      300 // Cache por 5 minutos (300 segundos)
+    );
+  }
+
+  /**
+   * Gera chave de cache para analytics baseada nos filtros
+   */
+  private generateAnalyticsCacheKey(filters: AnalyticsFilters): string {
+    const parts = ['analytics', 'detailed'];
+    if (filters.subscriberId) parts.push(`subscriber:${filters.subscriberId}`);
+    if (filters.totemId) parts.push(`totem:${filters.totemId}`);
+    if (filters.campaignId) parts.push(`campaign:${filters.campaignId}`);
+    if (filters.startDate) parts.push(`start:${filters.startDate}`);
+    if (filters.endDate) parts.push(`end:${filters.endDate}`);
+    if (filters.groupBy) parts.push(`groupBy:${filters.groupBy}`);
+    return parts.join(':');
+  }
+
+  /**
+   * Busca análise detalhada com filtros (sem cache - método interno)
+   */
+  private async fetchAnalytics(filters: AnalyticsFilters): Promise<AnalyticsResponse> {
     try {
       const {
         // clientId removido - usar subscriberId
