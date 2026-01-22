@@ -59,7 +59,7 @@ import { filterMenuItemsByRole, UserRole } from '../../utils/rolePermissions';
 import { getMenuHierarchyByRole, HierarchicalMenuItem } from '../../utils/menuHierarchy';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setTheme } from '../../store/slices/uiSlice';
-import { useSystemAlerts } from '../../services/api/queries';
+// Removido useSystemAlerts - usando NotificationCenter agora
 import { useFlags } from '../../hooks/useFlags';
 import NotificationCenter from '../Notification/NotificationCenter';
 
@@ -249,13 +249,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   };
 
-  const handleAlertsOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAlertsAnchorEl(event.currentTarget);
-  };
-
-  const handleAlertsClose = () => {
-    setAlertsAnchorEl(null);
-  };
+  // Removido - usando NotificationCenter agora
 
   const handleToggleTheme = () => {
     const next = themeMode === 'light' ? 'dark' : 'light';
@@ -345,12 +339,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {menuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
           </Typography>
 
-          {/* Notifications */}
-          <IconButton color="inherit" sx={{ mr: 1 }} onClick={handleAlertsOpen}>
-            <Badge badgeContent={alerts.length} color="error">
-              <Notifications />
-            </Badge>
-          </IconButton>
+          {/* Notification Center */}
+          <NotificationCenter />
 
           {/* Theme Toggle */}
           <IconButton
@@ -421,38 +411,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </Toolbar>
       </AppBar>
 
-      {/* Alerts Menu */}
-      <Menu
-        anchorEl={alertsAnchorEl}
-        open={Boolean(alertsAnchorEl)}
-        onClose={handleAlertsClose}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        PaperProps={{
-          sx: { minWidth: 320, maxWidth: 400, maxHeight: 400 },
-        }}
-      >
-        {alerts.length === 0 ? (
-          <MenuItem disabled>
-            <ListItemText primary="Nenhum alerta ativo" />
-          </MenuItem>
-        ) : (
-          alerts.map((alert) => (
-            <MenuItem key={alert.id}>
-              <ListItemText
-                primary={alert.message}
-                secondary={new Date(alert.timestamp).toLocaleString()}
-              />
-            </MenuItem>
-          ))
-        )}
-      </Menu>
+      {/* Alerts Menu removido - usando NotificationCenter agora */}
 
       {/* Drawer */}
       <Box
