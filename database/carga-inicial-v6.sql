@@ -105,7 +105,8 @@ INSERT INTO users (id, username, email, password_hash, first_name, last_name, na
 (7, 'joao.santos', 'joao.santos@farmavida.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'João', 'Santos', 'Dr. João Santos', '+55 11 2345-6789', 'manager', 'subscriber_user', false, NULL, 2, true, true),
 (8, 'ana.costa', 'ana.costa@economico.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Ana', 'Costa', 'Ana Costa', '+55 11 1234-5678', 'manager', 'subscriber_user', false, NULL, 3, true, true),
 (9, 'carlos.oliveira', 'carlos.oliveira@saborearte.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Carlos', 'Oliveira', 'Carlos Oliveira', '+55 11 4567-8901', 'manager', 'subscriber_user', false, NULL, 4, true, true),
-(10, 'roberto.lima', 'roberto.lima@saudetotal.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Roberto', 'Lima', 'Dr. Roberto Lima', '+55 11 5678-9012', 'manager', 'subscriber_user', false, NULL, 5, true, true)
+(10, 'roberto.lima', 'roberto.lima@saudetotal.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Roberto', 'Lima', 'Dr. Roberto Lima', '+55 11 5678-9012', 'manager', 'subscriber_user', false, NULL, 5, true, true),
+(11, 'ana.costa.pub', 'ana.costa.pub@economico.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Ana', 'Costa', 'Ana Costa (Publisher)', '+55 11 1234-5679', 'manager', 'publisher_user', false, 5, NULL, true, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_flags (user_id, flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4, flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9) VALUES
@@ -142,7 +143,8 @@ INSERT INTO user_roles (user_id, role_id, assigned_by) VALUES
 (7, 5, 1),
 (8, 5, 1),
 (9, 5, 1),
-(10, 5, 1)
+(10, 5, 1),
+(11, 4, 1)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_id) VALUES
