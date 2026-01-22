@@ -42,7 +42,7 @@ import {
   AttachMoney,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { Publisher, publisherApi } from '../../../services/api';
+import { Publisher, publisherApi, publisherContractApi } from '../../../services/api';
 
 export interface PublisherDetailsProps {
   open: boolean;
@@ -121,14 +121,14 @@ const PublisherDetails: React.FC<PublisherDetailsProps> = ({
           publisherApi.getTotems(publisher.publisher_id),
           publisherApi.getSmartTvs(publisher.publisher_id),
           publisherApi.getStats(publisher.publisher_id).catch(() => ({})),
-          publisherApi.getContracts(publisher.publisher_id).catch(() => []),
+          publisherContractApi.getAll({ publisherId: publisher.publisher_id }).catch(() => ({ data: [] })),
         ]);
 
       setStats({
         locals: Array.isArray(localsResponse) ? localsResponse : [],
         totems: Array.isArray(totemsResponse) ? totemsResponse : [],
         smartTvs: Array.isArray(smartTvsResponse) ? smartTvsResponse : [],
-        contracts: Array.isArray(contractsResponse) ? contractsResponse : [],
+        contracts: Array.isArray(contractsResponse?.data) ? contractsResponse.data : [],
         stats: statsResponse || {},
       });
     } catch (error) {

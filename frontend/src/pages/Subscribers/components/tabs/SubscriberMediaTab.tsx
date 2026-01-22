@@ -77,7 +77,7 @@ const SubscriberMediaTab: React.FC<SubscriberMediaTabProps> = ({
                 mb: 1,
               }}
             >
-              <ListItemIcon>{getMediaIcon(media.file_type)}</ListItemIcon>
+              <ListItemIcon>{getMediaIcon(media.media_type)}</ListItemIcon>
               <ListItemText
                 primary={media.name || 'Sem nome'}
                 secondary={
@@ -87,16 +87,16 @@ const SubscriberMediaTab: React.FC<SubscriberMediaTabProps> = ({
                         {media.description}
                       </Box>
                     )}
-                    {media.file_type && (
+                    {media.media_type && (
                       <Chip
-                        label={media.file_type}
+                        label={media.media_type}
                         size="small"
                         sx={{ mr: 1 }}
                       />
                     )}
-                    {media.file_size && (
+                    {(media.fileSizeBytes || media.size_bytes) && (
                       <Chip
-                        label={`${(media.file_size / 1024 / 1024).toFixed(2)} MB`}
+                        label={`${((media.fileSizeBytes || media.size_bytes || 0) / 1024 / 1024).toFixed(2)} MB`}
                         size="small"
                         variant="outlined"
                       />

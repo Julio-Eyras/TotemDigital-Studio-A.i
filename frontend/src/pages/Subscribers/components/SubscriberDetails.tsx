@@ -377,7 +377,17 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
         )}
 
         {/* Aba Estatísticas */}
-        {activeTab === 5 && stats && <SubscriberStats stats={stats.stats} />}
+        {activeTab === 5 && stats && (
+          <SubscriberStats
+            data={{
+              locals: stats.locals,
+              totems: stats.totems,
+              smartTvs: stats.smartTvs,
+              stats: stats.stats,
+            }}
+            subscriberId={subscriber?.subscriber_id}
+          />
+        )}
       </DialogContent>
       <DialogActions>
         {onEdit && (

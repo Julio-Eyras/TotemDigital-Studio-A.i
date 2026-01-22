@@ -72,7 +72,7 @@ export function useSubscribers(): UseSubscribersReturn {
       const response = await subscriberApi.create(data);
       await loadSubscribers();
       showSuccess('Subscriber criado com sucesso');
-      return response.data || null;
+      return response || null;
     } catch (err: any) {
       setError(err.message || 'Erro ao criar subscriber');
       showError('Erro ao criar subscriber: ' + (err.message || 'Erro desconhecido'));

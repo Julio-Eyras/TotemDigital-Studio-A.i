@@ -13,13 +13,16 @@
 - ✅ Componentes reutilizáveis (PageHeader, DataTable, FormDialog)
 - ✅ Hooks customizados (usePaginatedData, useForm, useDialog)
 
-### Fase 2: Refatoração 🔄 80%
+### Fase 2: Refatoração 🔄 90%
 - ✅ Componentes Subscribers criados (Card, List, Stats, Tabs, Form, Details)
 - ✅ Hook useSubscribers criado
 - ✅ SubscriberForm component criado
 - ✅ SubscriberDetails component criado
 - ✅ Subscribers.tsx principal refatorado (usa componentes modulares)
-- ⏳ Falta aplicar para Publishers e Contracts
+- ✅ Componentes Publishers criados (Card, Form, Details)
+- ✅ Publishers.tsx principal refatorado (usa componentes modulares)
+- ✅ ContractCard component criado
+- ⏳ Falta completar Contracts.tsx (Form e Details)
 
 ### Fase 3: Melhorias de UX ✅ 100%
 - ✅ Command Palette (busca global)
@@ -63,8 +66,8 @@
 - [x] Refatorar Subscribers.tsx principal ✅
 
 ### 3. Aplicar Padrão para Outras Páginas
-- [ ] Publishers.tsx
-- [ ] Contracts.tsx
+- [x] Publishers.tsx ✅
+- [ ] Contracts.tsx (em progresso - ContractCard criado)
 
 ---
 

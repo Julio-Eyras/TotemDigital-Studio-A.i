@@ -66,6 +66,7 @@ import {
   CreatePublisherContractRequest,
   UpdatePublisherContractRequest,
 } from '../../services/api';
+import { ContractCard } from './components';
 
 type ContractsInitialType = 'subscriber' | 'publisher';
 
@@ -840,123 +841,12 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         <Grid container spacing={3}>
           {contracts.map((contract) => (
             <Grid item xs={12} sm={6} md={4} lg={3} key={contract.contract_id}>
-            <Card sx={{
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: theme.shadows[8],
-              }
-            }}>
-              <Box sx={{ position: 'relative', height: 120, backgroundColor: theme.palette.grey[100] }}>
-                <Avatar
-                  sx={{
-                    position: 'absolute',
-                    top: 16,
-                    left: 16,
-                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                    color: theme.palette.primary.main,
-                  }}
-                >
-                  <Description />
-                </Avatar>
-
-                <Chip
-                  label={getStatusLabel(contract.status)}
-                  size="small"
-                  color={getStatusColor(contract.status) as any}
-                  sx={{
-                    position: 'absolute',
-                    top: 16,
-                    right: 16,
-                    fontWeight: 'bold',
-                  }}
-                />
-
-                <Box sx={{
-                  position: 'absolute',
-                  bottom: 16,
-                  left: 16,
-                  right: 16,
-                }}>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    {formatDate(contract.created_at)}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
-                  {contract.title}
-                </Typography>
-
-                <Chip
-                  label={getContractTypeLabel(contract.contract_type)}
-                  size="small"
-                  color="primary"
-                  sx={{ mb: 1 }}
-                />
-
-                {contract.subscriber_name && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                    <People fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
-                      {contract.subscriber_name}
-                    </Typography>
-                  </Box>
-                )}
-
-                {contract.contract_number && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                    <Assignment fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
-                      {contract.contract_number}
-                    </Typography>
-                  </Box>
-                )}
-
-                {contract.start_date && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                    <CalendarToday fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                      {formatDate(contract.start_date)} {contract.end_date && `- ${formatDate(contract.end_date)}`}
-                    </Typography>
-                  </Box>
-                )}
-
-                {contract.total_amount && canViewSensitiveValues && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-                    <AttachMoney fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                      {contract.currency} {contract.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </Typography>
-                  </Box>
-                )}
-                {contract.total_amount && !canViewSensitiveValues && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-                    <AttachMoney fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontStyle: 'italic' }}>
-                      Valor confidencial
-                    </Typography>
-                  </Box>
-                )}
-
-                <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Tooltip title="Editar">
-                    <IconButton size="small" onClick={() => handleStartEdit(contract)}>
-                      <Edit />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Excluir">
-                    <IconButton size="small" onClick={() => handleDeleteContract(contract.contract_id)}>
-                      <Delete />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </CardContent>
-            </Card>
+              <ContractCard
+                contract={contract}
+                canViewSensitiveValues={canViewSensitiveValues}
+                onEdit={() => handleStartEdit(contract)}
+                onDelete={() => handleDeleteContract(contract.contract_id)}
+              />
             </Grid>
           ))}
         </Grid>

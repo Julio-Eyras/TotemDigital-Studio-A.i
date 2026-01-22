@@ -160,6 +160,7 @@ export function useForm<T extends Record<string, any>>(
 
   const getFieldProps = useCallback(
     (name: keyof T) => {
+      const nameStr = String(name);
       return {
         value: values[name] || '',
         onChange: (e: React.ChangeEvent<any>) => {
@@ -167,13 +168,13 @@ export function useForm<T extends Record<string, any>>(
           setValue(name, value);
         },
         onBlur: () => {
-          setTouched((prev) => ({ ...prev, [name]: true }));
+          setTouched((prev) => ({ ...prev, [nameStr]: true }));
           if (validateOnBlur) {
             validateField(name);
           }
         },
-        error: Boolean(touched[name] && errors[name]),
-        helperText: touched[name] ? errors[name] : undefined,
+        error: Boolean(touched[nameStr] && errors[nameStr]),
+        helperText: touched[nameStr] ? errors[nameStr] : undefined,
       };
     },
     [values, errors, touched, setValue, validateOnBlur, validateField]

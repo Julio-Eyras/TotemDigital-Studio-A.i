@@ -653,6 +653,7 @@ import { createAppTheme } from './theme';
 
 const ThemedApp: React.FC = () => {
   const themeMode = useAppSelector((state) => state.ui.theme);
+  const commandPalette = useCommandPalette();
 
   const theme = useMemo(
     () => createAppTheme(themeMode),

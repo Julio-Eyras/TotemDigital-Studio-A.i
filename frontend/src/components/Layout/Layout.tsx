@@ -59,7 +59,7 @@ import { filterMenuItemsByRole, UserRole } from '../../utils/rolePermissions';
 import { getMenuHierarchyByRole, HierarchicalMenuItem } from '../../utils/menuHierarchy';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setTheme } from '../../store/slices/uiSlice';
-// Removido useSystemAlerts - usando NotificationCenter agora
+import { useSystemAlerts } from '../../services/api/queries';
 import { useFlags } from '../../hooks/useFlags';
 import NotificationCenter from '../Notification/NotificationCenter';
 

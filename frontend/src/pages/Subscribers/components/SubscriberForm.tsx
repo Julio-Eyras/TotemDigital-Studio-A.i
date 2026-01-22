@@ -292,7 +292,7 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
                 onChange={(e) =>
                   onChange({
                     ...data,
-                    is_active: e.target.value === 'active',
+                    isActive: e.target.value === 'active',
                   } as UpdateSubscriberRequest)
                 }
                 error={hasError('is_active')}
