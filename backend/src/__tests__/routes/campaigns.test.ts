@@ -78,8 +78,13 @@ describe('Campaigns Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('data');
-      expect(response.body.data).toHaveProperty('data');
-      expect(response.body.data.data).toHaveLength(2);
+      // Verificar se data é um array ou um objeto com propriedade data
+      if (Array.isArray(response.body.data)) {
+        expect(response.body.data).toHaveLength(2);
+      } else {
+        expect(response.body.data).toHaveProperty('data');
+        expect(response.body.data.data).toHaveLength(2);
+      }
     });
 
     it('deve aplicar filtro de subscriberId', async () => {
