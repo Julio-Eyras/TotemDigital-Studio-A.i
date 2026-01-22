@@ -218,30 +218,152 @@ INSERT INTO playlist_items (item_id, playlist_id, media_id, display_seconds, ord
 ON CONFLICT DO NOTHING;
 
 -- =============================================
--- CONTRATOS (Subscriber/Publisher) + CAMPANHAS vinculadas ao contrato
+-- SUBSCRIBER_CONTRACTS - Contratos com Anunciantes
 -- =============================================
+-- Contratos isolados e consistentes com o schema novo
+-- Cada subscriber tem um contrato de publicidade vinculado a um plano
 
-INSERT INTO subscriber_contracts (contract_id, subscriber_id, plan_id, contract_number, contract_type, title, description, start_date, end_date, total_amount, currency, payment_terms, status, signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata) VALUES
-(1, 1, 2, 'SUB-CONT-001', 'advertising', 'Contrato Publicitário Shopping Center Norte', 'Contrato de publicidade para Black Friday', '2025-11-01', '2035-11-30', 50000.00, 'BRL', 'Pagamento em 30 dias', 'active', (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), 1, '{}'::jsonb),
-(2, 2, 1, 'SUB-CONT-002', 'advertising', 'Contrato Publicitário Farmácias Saúde+', 'Contrato de publicidade para campanha de medicamentos', '2025-10-01', '2035-12-31', 15000.00, 'BRL', 'Pagamento mensal', 'active', (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), 1, '{}'::jsonb),
-(3, 3, 1, 'SUB-CONT-003', 'advertising', 'Contrato Publicitário Supermercado Econômico', 'Contrato de publicidade para ofertas do dia', '2025-01-01', '2035-12-31', 20000.00, 'BRL', 'Pagamento mensal', 'active', (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), 1, '{}'::jsonb),
-(4, 4, 1, 'SUB-CONT-004', 'advertising', 'Contrato Publicitário Restaurante Sabor & Arte', 'Contrato de publicidade para menu executivo', '2025-01-01', '2035-12-31', 8000.00, 'BRL', 'Pagamento mensal', 'active', (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), 1, '{}'::jsonb),
-(5, 5, 1, 'SUB-CONT-005', 'advertising', 'Contrato Publicitário Clínica Vida Saudável', 'Contrato de publicidade para check-up preventivo', '2025-01-01', '2035-12-31', 10000.00, 'BRL', 'Pagamento mensal', 'active', (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), 1, '{}'::jsonb)
+INSERT INTO subscriber_contracts (
+    contract_id, subscriber_id, plan_id, contract_number, contract_type, 
+    title, description, start_date, end_date, total_amount, currency, 
+    payment_terms, status, signed_by_subscriber_at, signed_by_tenant_at, 
+    created_by, metadata, document_path, document_filename, document_mime_type, document_size_bytes
+) VALUES
+-- Contrato 1: Marca Fashion Brasil (subscriber_id=1) - Plano Profissional
+(1, 1, 2, 'SUB-CONT-2025-001', 'advertising', 
+    'Contrato Publicitário - Marca Fashion Brasil', 
+    'Contrato de publicidade para campanhas de moda em shopping centers e totens urbanos',
+    '2025-01-15', '2027-01-14', 50000.00, 'BRL', 
+    'Pagamento em 30 dias após faturamento', 'active', 
+    NOW() - INTERVAL '11 months', NOW() - INTERVAL '11 months', 
+    1, 
+    '{"campaigns_allowed": 20, "storage_gb": 50, "priority_support": true}'::jsonb,
+    '/contracts/subscribers/SUB-CONT-2025-001.pdf', 'SUB-CONT-2025-001.pdf', 'application/pdf', 245760),
+
+-- Contrato 2: Laboratório FarmaVida (subscriber_id=2) - Plano Básico
+(2, 2, 1, 'SUB-CONT-2025-002', 'advertising',
+    'Contrato Publicitário - Laboratório FarmaVida',
+    'Contrato de publicidade para campanhas de medicamentos em farmácias',
+    '2025-02-01', '2027-01-31', 15000.00, 'BRL',
+    'Pagamento mensal antecipado', 'active',
+    NOW() - INTERVAL '10 months', NOW() - INTERVAL '10 months',
+    1,
+    '{"campaigns_allowed": 5, "storage_gb": 10, "target_segment": "farmacia"}'::jsonb,
+    '/contracts/subscribers/SUB-CONT-2025-002.pdf', 'SUB-CONT-2025-002.pdf', 'application/pdf', 198656),
+
+-- Contrato 3: Supermercado Econômico (subscriber_id=3) - Plano Básico
+(3, 3, 1, 'SUB-CONT-2025-003', 'advertising',
+    'Contrato Publicitário - Supermercado Econômico',
+    'Contrato de publicidade para ofertas e promoções em supermercados',
+    '2025-01-01', '2026-12-31', 20000.00, 'BRL',
+    'Pagamento mensal', 'active',
+    NOW() - INTERVAL '12 months', NOW() - INTERVAL '12 months',
+    1,
+    '{"campaigns_allowed": 5, "storage_gb": 10, "target_segment": "varejo"}'::jsonb,
+    '/contracts/subscribers/SUB-CONT-2025-003.pdf', 'SUB-CONT-2025-003.pdf', 'application/pdf', 212992),
+
+-- Contrato 4: Rede de Restaurantes Sabor & Arte (subscriber_id=4) - Plano Básico
+(4, 4, 1, 'SUB-CONT-2025-004', 'advertising',
+    'Contrato Publicitário - Rede de Restaurantes Sabor & Arte',
+    'Contrato de publicidade para cardápios e eventos em restaurantes',
+    '2025-03-01', '2027-02-28', 8000.00, 'BRL',
+    'Pagamento mensal', 'active',
+    NOW() - INTERVAL '9 months', NOW() - INTERVAL '9 months',
+    1,
+    '{"campaigns_allowed": 5, "storage_gb": 10, "target_segment": "alimentacao"}'::jsonb,
+    '/contracts/subscribers/SUB-CONT-2025-004.pdf', 'SUB-CONT-2025-004.pdf', 'application/pdf', 180224),
+
+-- Contrato 5: Clínica Saúde Total (subscriber_id=5) - Plano Básico
+(5, 5, 1, 'SUB-CONT-2025-005', 'advertising',
+    'Contrato Publicitário - Clínica Saúde Total',
+    'Contrato de publicidade para serviços de saúde e prevenção',
+    '2025-04-01', '2027-03-31', 10000.00, 'BRL',
+    'Pagamento mensal', 'active',
+    NOW() - INTERVAL '8 months', NOW() - INTERVAL '8 months',
+    1,
+    '{"campaigns_allowed": 5, "storage_gb": 10, "target_segment": "saude"}'::jsonb,
+    '/contracts/subscribers/SUB-CONT-2025-005.pdf', 'SUB-CONT-2025-005.pdf', 'application/pdf', 196608)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO publisher_contracts (contract_id, publisher_id, contract_number, contract_type, title, description, start_date, end_date, revenue_share_percentage, revenue_share_rules, minimum_payout_amount, subscription_amount, subscription_interval, currency, payment_terms, status, signed_by_publisher_at, signed_by_tenant_at, created_by, metadata) VALUES
-(1, 1, 'PUB-CONT-001', 'revenue_share', 'Contrato Revenue Share Shopping Center Norte', 'Contrato de revenue share com 70% para o publisher', '2025-01-01', NULL, 70.00, '{}'::jsonb, 1000.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), 1, '{}'::jsonb),
-(2, 2, 'PUB-CONT-002', 'revenue_share', 'Contrato Revenue Share Farmácia Central', 'Contrato de revenue share com 65% para o publisher', '2025-01-01', NULL, 65.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), 1, '{}'::jsonb),
-(3, 3, 'PUB-CONT-003', 'revenue_share', 'Contrato Revenue Share Supermercado Econômico', 'Contrato de revenue share com 60% para o publisher', '2025-01-01', NULL, 60.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Pagamento mensal', 'active', (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), 1, '{}'::jsonb),
-(4, 4, 'PUB-CONT-004', 'hybrid', 'Contrato Híbrido Rede de Totens Urbanos', 'Contrato híbrido: revenue share + subscription', '2025-01-01', NULL, 75.00, '{}'::jsonb, 2000.00, 299.00, 'month', 'BRL', 'Pagamento mensal', 'active', (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), 1, '{}'::jsonb)
+-- =============================================
+-- PUBLISHER_CONTRACTS - Contratos com Publicadores
+-- =============================================
+-- Contratos isolados e consistentes com o schema novo
+-- Publishers podem ter revenue_share, subscription ou hybrid
+
+INSERT INTO publisher_contracts (
+    contract_id, publisher_id, contract_number, contract_type,
+    title, description, start_date, end_date,
+    revenue_share_percentage, revenue_share_rules, minimum_payout_amount,
+    subscription_amount, subscription_interval,
+    currency, payment_terms, status,
+    signed_by_publisher_at, signed_by_tenant_at, created_by, metadata,
+    document_path, document_filename, document_mime_type, document_size_bytes
+) VALUES
+-- Contrato 1: Shopping Center Norte (publisher_id=1) - Revenue Share
+(1, 1, 'PUB-CONT-2025-001', 'revenue_share',
+    'Contrato Revenue Share - Shopping Center Norte',
+    'Contrato de revenue share: publisher recebe 70% da receita gerada em seus totens',
+    '2025-01-01', NULL,
+    70.00, '{"tier_1": 70, "tier_2": 65, "tier_3": 60}'::jsonb, 1000.00,
+    NULL, NULL,
+    'BRL', 'Pagamento mensal até dia 10', 'active',
+    NOW() - INTERVAL '12 months', NOW() - INTERVAL '12 months', 1,
+    '{"totems_count": 3, "locations": ["entrada", "praça_alimentacao", "cinema"]}'::jsonb,
+    '/contracts/publishers/PUB-CONT-2025-001.pdf', 'PUB-CONT-2025-001.pdf', 'application/pdf', 278528),
+
+-- Contrato 2: Farmácia Saúde Mais (publisher_id=2) - Revenue Share
+(2, 2, 'PUB-CONT-2025-002', 'revenue_share',
+    'Contrato Revenue Share - Farmácia Saúde Mais',
+    'Contrato de revenue share: publisher recebe 65% da receita gerada em suas farmácias',
+    '2025-02-01', NULL,
+    65.00, '{"standard": 65}'::jsonb, 500.00,
+    NULL, NULL,
+    'BRL', 'Pagamento mensal até dia 10', 'active',
+    NOW() - INTERVAL '11 months', NOW() - INTERVAL '11 months', 1,
+    '{"totems_count": 2, "locations": ["matriz_centro", "filial_zona_sul"]}'::jsonb,
+    '/contracts/publishers/PUB-CONT-2025-002.pdf', 'PUB-CONT-2025-002.pdf', 'application/pdf', 245760),
+
+-- Contrato 3: Aeroporto Internacional de São Paulo (publisher_id=3) - Revenue Share
+(3, 3, 'PUB-CONT-2025-003', 'revenue_share',
+    'Contrato Revenue Share - Aeroporto Internacional de São Paulo',
+    'Contrato de revenue share: publisher recebe 60% da receita gerada nos totens do aeroporto',
+    '2025-01-15', NULL,
+    60.00, '{"standard": 60}'::jsonb, 2000.00,
+    NULL, NULL,
+    'BRL', 'Pagamento mensal até dia 15', 'active',
+    NOW() - INTERVAL '11 months 15 days', NOW() - INTERVAL '11 months 15 days', 1,
+    '{"totems_count": 0, "locations": ["embarque", "desembarque", "checkin"]}'::jsonb,
+    '/contracts/publishers/PUB-CONT-2025-003.pdf', 'PUB-CONT-2025-003.pdf', 'application/pdf', 301056),
+
+-- Contrato 4: Rede de Totens Urbanos SP (publisher_id=4) - Hybrid (Revenue Share + Subscription)
+(4, 4, 'PUB-CONT-2025-004', 'hybrid',
+    'Contrato Híbrido - Rede de Totens Urbanos SP',
+    'Contrato híbrido: publisher recebe 75% de revenue share e paga subscription mensal de R$ 299,00',
+    '2025-03-01', NULL,
+    75.00, '{"premium_locations": 75, "standard_locations": 70}'::jsonb, 2000.00,
+    299.00, 'month',
+    'BRL', 'Subscription: débito automático. Revenue share: pagamento mensal até dia 10', 'active',
+    NOW() - INTERVAL '9 months', NOW() - INTERVAL '9 months', 1,
+    '{"totems_count": 1, "subscription_active": true, "revenue_share_active": true}'::jsonb,
+    '/contracts/publishers/PUB-CONT-2025-004.pdf', 'PUB-CONT-2025-004.pdf', 'application/pdf', 327680)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaigns (campaign_id, subscriber_id, contract_id, title, category_segment, description, campaign_type, priority, commercial_tier, default_time_share_percent, max_consecutive_slots, start_date, end_date, start_time, end_time, days_of_week, timezone, status, is_active, target_audience, metadata) VALUES
-(1, 1, 1, 'Promoção Black Friday', 'Black Friday', 'Campanha especial para Black Friday com ofertas imperdíveis', 'scheduled', 10, 'premium', 50.00, 2, '2025-11-20 00:00:00', '2035-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(2, 2, 2, 'Campanha Medicamentos', 'Saúde', 'Promoção de medicamentos genéricos', 'general', 8, 'standard', 30.00, 2, '2025-10-01 00:00:00', '2035-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(3, 3, 3, 'Ofertas do Dia', 'Promoções', 'Ofertas especiais diárias do supermercado', 'general', 7, 'standard', 40.00, 3, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(4, 4, 4, 'Menu Executivo', 'Restaurante', 'Promoção do menu executivo', 'scheduled', 6, 'standard', 20.00, 1, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '11:30', '14:30', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
-(5, 5, 5, 'Check-up Preventivo', 'Saúde', 'Campanha de conscientização sobre check-up', 'general', 5, 'standard', 15.00, 1, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '08:00', '18:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb)
+-- Campanha 1: Marca Fashion Brasil (subscriber_id=1, contract_id=1)
+(1, 1, 1, 'Coleção Verão 2025 - Marca Fashion Brasil', 'Moda', 'Campanha promocional da coleção verão 2025 em shopping centers', 'scheduled', 10, 'premium', 50.00, 2, '2025-01-15 00:00:00', '2027-01-14 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{"age_range": "18-45", "gender": "all", "interests": ["moda", "shopping"]}'::jsonb, '{"season": "verao", "year": 2025}'::jsonb),
+
+-- Campanha 2: Laboratório FarmaVida (subscriber_id=2, contract_id=2)
+(2, 2, 2, 'Medicamentos Genéricos - Laboratório FarmaVida', 'Farmacêutico', 'Campanha promocional de medicamentos genéricos em farmácias', 'general', 8, 'standard', 30.00, 2, '2025-02-01 00:00:00', '2027-01-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 'America/Sao_Paulo', 'active', true, '{"age_range": "all", "health_interest": true}'::jsonb, '{"product_type": "genericos", "regulatory": "anvisa_approved"}'::jsonb),
+
+-- Campanha 3: Supermercado Econômico (subscriber_id=3, contract_id=3)
+(3, 3, 3, 'Ofertas Diárias - Supermercado Econômico', 'Varejo', 'Campanha de ofertas e promoções diárias do supermercado', 'general', 7, 'standard', 40.00, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{"age_range": "all", "shopping_habit": "frequent"}'::jsonb, '{"promotion_type": "daily_offers", "update_frequency": "daily"}'::jsonb),
+
+-- Campanha 4: Rede de Restaurantes Sabor & Arte (subscriber_id=4, contract_id=4)
+(4, 4, 4, 'Menu Executivo - Rede Sabor & Arte', 'Alimentação', 'Campanha promocional do menu executivo em horário de almoço', 'scheduled', 6, 'standard', 20.00, 1, '2025-03-01 00:00:00', '2027-02-28 23:59:59', '11:30', '14:30', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{"age_range": "25-55", "meal_time": "lunch", "location": "business_district"}'::jsonb, '{"menu_type": "executivo", "price_range": "medio"}'::jsonb),
+
+-- Campanha 5: Clínica Saúde Total (subscriber_id=5, contract_id=5)
+(5, 5, 5, 'Check-up Preventivo - Clínica Saúde Total', 'Saúde', 'Campanha de conscientização sobre importância do check-up preventivo', 'general', 5, 'standard', 15.00, 1, '2025-04-01 00:00:00', '2027-03-31 23:59:59', '08:00', '18:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 'America/Sao_Paulo', 'active', true, '{"age_range": "30-65", "health_conscious": true}'::jsonb, '{"service_type": "preventivo", "specialty": "geral"}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaign_playlists (campaign_id, playlist_id, priority, is_active, metadata) VALUES
@@ -263,16 +385,20 @@ INSERT INTO campaign_medias (campaign_id, media_id, display_seconds, order_index
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaign_totems (campaign_id, totem_id, start_date, end_date, start_time, end_time, days_of_week, priority, is_active) VALUES
-(1, 1, '2025-11-20 00:00:00', '2035-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
-(1, 2, '2025-11-20 00:00:00', '2035-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
-(1, 3, '2025-11-20 00:00:00', '2035-11-30 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
-(2, 4, '2025-10-01 00:00:00', '2035-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 8, true),
-(2, 5, '2025-10-01 00:00:00', '2035-12-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 8, true),
-(3, 6, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 7, true),
+-- Campanha 1 (Marca Fashion) - Totens do Shopping Center Norte
+(1, 1, '2025-01-15 00:00:00', '2027-01-14 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(1, 2, '2025-01-15 00:00:00', '2027-01-14 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(1, 3, '2025-01-15 00:00:00', '2027-01-14 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+-- Campanha 2 (FarmaVida) - Totens das Farmácias
+(2, 4, '2025-02-01 00:00:00', '2027-01-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 8, true),
+(2, 5, '2025-02-01 00:00:00', '2027-01-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 8, true),
+-- Campanha 3 (Supermercado) - Totem do Supermercado
+(3, 6, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 7, true),
 -- Conflitos intencionais (mesmo totem, campanhas sobrepostas) para testes de fallback "single winner"
-(4, 1, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '12:00', '13:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 9, true),
-(5, 1, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '12:30', '12:45', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 8, true),
-(4, 2, '2025-01-01 00:00:00', '2035-12-31 23:59:59', '12:00', '13:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 9, true)
+-- Campanha 4 (Restaurante) e 5 (Clínica) no mesmo totem 1 em horários sobrepostos
+(4, 1, '2025-03-01 00:00:00', '2027-02-28 23:59:59', '12:00', '13:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 9, true),
+(5, 1, '2025-04-01 00:00:00', '2027-03-31 23:59:59', '12:30', '12:45', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 8, true),
+(4, 2, '2025-03-01 00:00:00', '2027-02-28 23:59:59', '12:00', '13:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 9, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaign_publishers (campaign_id, publisher_id, revenue_share_percentage, time_share_percent, daypart_config, min_impressions_per_hour, max_impressions_per_hour, is_active, metadata) VALUES
@@ -310,7 +436,7 @@ INSERT INTO publisher_billing (billing_id, publisher_id, campaign_id, totem_id, 
 ON CONFLICT DO NOTHING;
 
 INSERT INTO subscriptions (subscription_id, publisher_id, plan_id, stripe_subscription_id, stripe_customer_id, status, current_period_start, current_period_end, cancel_at_period_end, trial_start, trial_end, metadata) VALUES
-(1, 4, 2, 'sub_test_001', 'cus_test_001', 'active', (NOW() - INTERVAL '1 year') - INTERVAL '10 days', '2035-12-31 23:59:59', false, NULL, NULL, '{}'::jsonb)
+(1, 4, 2, 'sub_test_001', 'cus_test_001', 'active', (NOW() - INTERVAL '1 year') - INTERVAL '10 days', '2027-12-31 23:59:59', false, NULL, NULL, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictions, notes) VALUES
@@ -324,11 +450,11 @@ INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictio
 ON CONFLICT DO NOTHING;
 
 INSERT INTO subscriber_publisher_access (access_id, subscriber_id, publisher_id, contract_id, plan_id, access_type, granted_at, expires_at, is_active, granted_by, notes, metadata) VALUES
-(1, 1, 1, 1, 2, 'contract', (NOW() - INTERVAL '1 year'), '2035-12-31 23:59:59', true, 1, 'Acesso via contrato Black Friday', '{}'::jsonb),
-(2, 2, 2, 2, 1, 'contract', (NOW() - INTERVAL '1 year'), '2035-12-31 23:59:59', true, 1, 'Acesso via contrato Medicamentos', '{}'::jsonb),
-(3, 3, 3, 3, 1, 'contract', (NOW() - INTERVAL '1 year'), '2035-12-31 23:59:59', true, 1, 'Acesso via contrato Ofertas do Dia', '{}'::jsonb),
-(4, 4, 1, 4, 1, 'contract', (NOW() - INTERVAL '1 year'), '2035-12-31 23:59:59', true, 1, 'Acesso via contrato Menu Executivo', '{}'::jsonb),
-(5, 5, 1, 5, 1, 'contract', (NOW() - INTERVAL '1 year'), '2035-12-31 23:59:59', true, 1, 'Acesso via contrato Check-up', '{}'::jsonb)
+(1, 1, 1, 1, 2, 'contract', (NOW() - INTERVAL '1 year'), '2027-01-14 23:59:59', true, 1, 'Acesso via contrato Marca Fashion Brasil', '{}'::jsonb),
+(2, 2, 2, 2, 1, 'contract', (NOW() - INTERVAL '1 year'), '2027-01-31 23:59:59', true, 1, 'Acesso via contrato Laboratório FarmaVida', '{}'::jsonb),
+(3, 3, 3, 3, 1, 'contract', (NOW() - INTERVAL '1 year'), '2026-12-31 23:59:59', true, 1, 'Acesso via contrato Supermercado Econômico', '{}'::jsonb),
+(4, 4, 1, 4, 1, 'contract', (NOW() - INTERVAL '1 year'), '2027-02-28 23:59:59', true, 1, 'Acesso via contrato Rede Sabor & Arte', '{}'::jsonb),
+(5, 5, 1, 5, 1, 'contract', (NOW() - INTERVAL '1 year'), '2027-03-31 23:59:59', true, 1, 'Acesso via contrato Clínica Saúde Total', '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO totem_playlists (totem_playlist_id, totem_id, smart_tv_id, publisher_id, playlist_hash, version, total_items, total_duration_seconds, status, is_active, generated_at, last_updated_at, expires_at, metadata, generation_log) VALUES
@@ -1230,14 +1356,14 @@ BEGIN
 END $$;
 
 INSERT INTO qr_codes (qr_id, campaign_id, code, title, description, qr_type, content, url, redirect_url, size, color, background_color, error_correction_level, margin, image_url, scan_count, last_scan_at, max_scans, tracking_enabled, expires_at, metadata, is_active) VALUES
-(1, 1, 'QR-BF-2024-001', 'QR Code Black Friday', 'QR code para campanha Black Friday', 'url', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday', 'https://shoppingnorte.com.br/black-friday?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-bf-2024-001.png', 0, NULL, 1000, true, '2035-12-31', '{}'::jsonb, true),
-(2, 2, 'QR-MED-2024-001', 'QR Code Medicamentos', 'QR code para campanha de medicamentos', 'url', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos', 'https://saudemais.com.br/promocao-medicamentos?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-med-2024-001.png', 0, NULL, 500, true, '2035-12-31', '{}'::jsonb, true)
+(1, 1, 'QR-FASHION-2025-001', 'QR Code Coleção Verão', 'QR code para campanha de moda', 'url', 'https://marcafashion.com.br/colecao-verao-2025', 'https://marcafashion.com.br/colecao-verao-2025', 'https://marcafashion.com.br/colecao-verao-2025?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-fashion-2025-001.png', 0, NULL, 1000, true, '2027-01-14', '{}'::jsonb, true),
+(2, 2, 'QR-FARMA-2025-001', 'QR Code Medicamentos', 'QR code para campanha de medicamentos genéricos', 'url', 'https://farmavida.com.br/promocao-genericos', 'https://farmavida.com.br/promocao-genericos', 'https://farmavida.com.br/promocao-genericos?utm_source=totem&utm_medium=qr', 200, '#000000', '#FFFFFF', 'M', 4, '/qr-codes/qr-farma-2025-001.png', 0, NULL, 500, true, '2027-01-31', '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO short_links (link_id, campaign_id, short_code, original_url, click_count, last_click_at, metadata, expires_at, is_active) VALUES
-(1, 1, 'BF2024', 'https://shoppingnorte.com.br/black-friday', 0, NULL, '{}'::jsonb, '2035-12-31', true),
-(2, 2, 'MED2024', 'https://saudemais.com.br/promocao-medicamentos', 0, NULL, '{}'::jsonb, '2035-12-31', true),
-(3, 3, 'OFERTAS', 'https://economico.com.br/ofertas-dia', 0, NULL, '{}'::jsonb, '2035-12-31', true)
+(1, 1, 'FASHION2025', 'https://marcafashion.com.br/colecao-verao-2025', 0, NULL, '{}'::jsonb, '2027-01-14', true),
+(2, 2, 'FARMA2025', 'https://farmavida.com.br/promocao-genericos', 0, NULL, '{}'::jsonb, '2027-01-31', true),
+(3, 3, 'OFERTAS2025', 'https://economico.com.br/ofertas-dia', 0, NULL, '{}'::jsonb, '2026-12-31', true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO remote_commands (command_id, totem_id, user_id, command_type, status, parameters, response, sent_at, executed_at, completed_at, error_message, retry_count) VALUES
