@@ -7,7 +7,9 @@ import { Provider } from 'react-redux';
 import { queryClient } from './config/queryClient';
 import { store } from './store/store';
 import Notification from './components/Notification';
+import { CommandPalette } from './components/Navigation/CommandPalette';
 import { useRateLimit } from './hooks/useRateLimit';
+import { useCommandPalette } from './hooks/useCommandPalette';
 import { useAppSelector } from './store/hooks';
 
 // Pages
@@ -662,6 +664,10 @@ const ThemedApp: React.FC = () => {
       <CssBaseline />
       <Notification />
       <AppContent />
+      <CommandPalette
+        open={commandPalette.open}
+        onClose={commandPalette.closeDialog}
+      />
     </ThemeProvider>
   );
 };
