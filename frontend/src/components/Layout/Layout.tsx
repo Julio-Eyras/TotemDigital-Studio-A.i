@@ -61,6 +61,7 @@ import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setTheme } from '../../store/slices/uiSlice';
 import { useSystemAlerts } from '../../services/api/queries';
 import { useFlags } from '../../hooks/useFlags';
+import NotificationCenter from '../Notification/NotificationCenter';
 
 const drawerWidth = 280;
 
