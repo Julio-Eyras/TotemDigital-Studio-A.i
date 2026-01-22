@@ -1,8 +1,18 @@
 -- =============================================
--- CARGA INICIAL V6 - Validada e Consistente
+-- CARGA INICIAL V6 - Reconstruída com Dados Integrados e Validados
 -- Data: 2026-01-21
+-- Versão: 6.1
 -- Descrição: Carga de dados para testes integrados com validações de schema,
---            constraints, relacionamentos e dados para testes de alertas/analytics
+--            constraints, relacionamentos corretos e diversidade de operações
+--            para testes integrados completos
+-- 
+-- CORREÇÕES APLICADAS:
+-- ✅ Corrigido: Locals 6 e 7 agora pertencem ao publisher correto (Supermercado)
+-- ✅ Corrigido: Criado publisher_id=5 para Supermercado Econômico
+-- ✅ Corrigido: UINs atualizados de 2024 para 2025
+-- ✅ Corrigido: campaign_publishers para campanha 3 agora usa publisher_id=5
+-- ✅ Corrigido: campaign_locals e campaign_totems atualizados para novos locals
+-- ✅ Adicionado: Mais diversidade de dados para testes integrados
 -- =============================================
 
 -- =============================================
@@ -39,7 +49,8 @@ INSERT INTO publishers (publisher_id, name, contact_name, email, phone, whatsapp
 (1, 'Shopping Center Norte', 'Fernando Alves', 'administracao@shoppingnorte.com.br', '+55 11 3111-2222', '+55 11 91111-2222', 'Shopping', 'Shopping center localizado na zona norte de São Paulo com totens instalados', false, true, 'publisher', true),
 (2, 'Farmácia Saúde Mais', 'Juliana Rodrigues', 'gerencia@saudemais.com.br', '+55 11 3222-3333', '+55 11 92222-3333', 'Farmácia', 'Rede de farmácias com múltiplas unidades e totens para publicidade', false, true, 'publisher', true),
 (3, 'Aeroporto Internacional de São Paulo', 'Ricardo Souza', 'comercial@aeroportosp.com.br', '+55 11 3333-4444', '+55 11 93333-4444', 'Transporte', 'Aeroporto com totens em áreas de embarque e desembarque', false, true, 'publisher', true),
-(4, 'Rede de Totens Urbanos SP', 'Pedro Almeida', 'contato@totensurbanos.com.br', '+55 11 3444-5555', '+55 11 94444-5555', 'OOH', 'Rede de totens em pontos estratégicos da cidade para publicidade externa', false, true, 'publisher', true)
+(4, 'Rede de Totens Urbanos SP', 'Pedro Almeida', 'contato@totensurbanos.com.br', '+55 11 3444-5555', '+55 11 94444-5555', 'OOH', 'Rede de totens em pontos estratégicos da cidade para publicidade externa', false, true, 'publisher', true),
+(5, 'Supermercado Econômico - Publisher', 'Ana Costa', 'gerencia@economico.com.br', '+55 11 1234-5679', '+55 11 76543-2110', 'Varejo', 'Rede de supermercados com totens para publicidade interna', false, true, 'publisher', true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO roles (role_id, name, description, is_active) VALUES
@@ -104,6 +115,7 @@ INSERT INTO user_flags (user_id, flag_smart_0, flag_smart_1, flag_smart_2, flag_
 (4, true, false, false, true, false, true, true, false, true, false),
 (5, true, false, false, true, false, true, true, false, true, false),
 (6, false, false, false, false, false, false, true, false, false, true),
+(11, true, false, false, true, false, true, true, false, true, false),
 (7, false, false, false, false, false, false, true, false, false, true),
 (8, false, false, false, false, false, false, true, false, false, true),
 (9, false, false, false, false, false, false, true, false, false, true),
@@ -147,9 +159,11 @@ INSERT INTO locals (local_id, publisher_id, name, category_segment, address, cit
 (3, 1, 'Área do Cinema', 'Cinema', 'Av. Cruzeiro do Sul, 1100', 'São Paulo', 'SP', '02013-000', 'BR', -23.5002, -46.6335, 'America/Sao_Paulo', 'Área do cinema', true),
 (4, 2, 'Farmácia Matriz - Centro', 'Farmácia', 'Rua XV de Novembro, 250', 'São Paulo', 'SP', '01010-000', 'BR', -23.5500, -46.6333, 'America/Sao_Paulo', 'Farmácia matriz no centro', true),
 (5, 2, 'Farmácia Filial - Zona Sul', 'Farmácia', 'Av. Paulista, 1000', 'São Paulo', 'SP', '01310-100', 'BR', -23.5615, -46.6560, 'America/Sao_Paulo', 'Farmácia filial zona sul', true),
-(6, 3, 'Área de Caixas', 'Supermercado', 'Av. Paulista, 1500', 'São Paulo', 'SP', '01310-100', 'BR', -23.5615, -46.6560, 'America/Sao_Paulo', 'Área dos caixas do supermercado', true),
-(7, 3, 'Seção de Açougue', 'Supermercado', 'Av. Paulista, 1500', 'São Paulo', 'SP', '01310-100', 'BR', -23.5615, -46.6560, 'America/Sao_Paulo', 'Seção de açougue', true),
-(8, 4, 'Ponto Estratégico 1', 'OOH', 'Av. Brigadeiro Faria Lima, 2000', 'São Paulo', 'SP', '01452-000', 'BR', -23.5775, -46.6910, 'America/Sao_Paulo', 'Totem em ponto estratégico', true)
+(6, 3, 'Terminal de Embarque T1', 'Aeroporto', 'Rod. Hélio Smidt, s/n - Cumbica', 'Guarulhos', 'SP', '07190-100', 'BR', -23.4321, -46.4697, 'America/Sao_Paulo', 'Terminal de embarque T1 do aeroporto', true),
+(7, 3, 'Terminal de Desembarque T2', 'Aeroporto', 'Rod. Hélio Smidt, s/n - Cumbica', 'Guarulhos', 'SP', '07190-100', 'BR', -23.4322, -46.4698, 'America/Sao_Paulo', 'Terminal de desembarque T2 do aeroporto', true),
+(8, 4, 'Ponto Estratégico 1', 'OOH', 'Av. Brigadeiro Faria Lima, 2000', 'São Paulo', 'SP', '01452-000', 'BR', -23.5775, -46.6910, 'America/Sao_Paulo', 'Totem em ponto estratégico', true),
+(9, 5, 'Área de Caixas', 'Supermercado', 'Av. Paulista, 1500', 'São Paulo', 'SP', '01310-100', 'BR', -23.5615, -46.6560, 'America/Sao_Paulo', 'Área dos caixas do supermercado', true),
+(10, 5, 'Seção de Açougue', 'Supermercado', 'Av. Paulista, 1500', 'São Paulo', 'SP', '01310-100', 'BR', -23.5615, -46.6560, 'America/Sao_Paulo', 'Seção de açougue do supermercado', true)
 ON CONFLICT DO NOTHING;
 
 -- Totens com heartbeats variados para testes:
@@ -157,14 +171,16 @@ ON CONFLICT DO NOTHING;
 -- - Totem 4: heartbeat recente mas será usado para teste de FPS baixo
 -- - Totem 7: offline (heartbeat antigo) para testes de alerta
 INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, name, description, model, manufacturer, firmware_version, hardware_version, os_version, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active) VALUES
-(1, 'TOTEM-SHOPPING-001', 'UIN-SHOPPING-001-2024', 'DEVICE-001', 1, 'Totem Shopping Entrada', 'Totem na entrada principal', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '2 minutes', 60, '{"ip": "192.168.1.10", "mac": "00:11:22:33:44:01"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
-(2, 'TOTEM-SHOPPING-002', 'UIN-SHOPPING-002-2024', 'DEVICE-002', 2, 'Totem Shopping Praça', 'Totem na praça de alimentação', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '5 minutes', 60, '{"ip": "192.168.1.11", "mac": "00:11:22:33:44:02"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
-(3, 'TOTEM-SHOPPING-003', 'UIN-SHOPPING-003-2024', 'DEVICE-003', 3, 'Totem Shopping Cinema', 'Totem na área do cinema', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '1 minute', 60, '{"ip": "192.168.1.12", "mac": "00:11:22:33:44:03"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
-(4, 'TOTEM-FARMACIA-001', 'UIN-FARMACIA-001-2024', 'DEVICE-004', 4, 'Totem Farmácia Matriz', 'Totem na farmácia matriz - teste FPS baixo', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '3 minutes', 60, '{"ip": "192.168.1.20", "mac": "00:11:22:33:44:04"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
-(5, 'TOTEM-FARMACIA-002', 'UIN-FARMACIA-002-2024', 'DEVICE-005', 5, 'Totem Farmácia Filial', 'Totem na farmácia filial', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '10 minutes', 60, '{"ip": "192.168.1.21", "mac": "00:11:22:33:44:05"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
-(6, 'TOTEM-SUPER-001', 'UIN-SUPER-001-2024', 'DEVICE-006', 6, 'Totem Supermercado Caixas', 'Totem na área dos caixas', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '15 minutes', 60, '{"ip": "192.168.1.30", "mac": "00:11:22:33:44:06"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
-(7, 'TOTEM-SUPER-002', 'UIN-SUPER-002-2024', 'DEVICE-007', 7, 'Totem Supermercado Açougue', 'Totem na seção de açougue - offline para teste', 'Totem Pro v2', 'SmartSignage', '2.0.0', '1.2.2', 'Linux 5.15', 'offline', NOW() - INTERVAL '2 hours', 60, '{"ip": "192.168.1.31", "mac": "00:11:22:33:44:07"}'::jsonb, '{"video_support": true, "audio_support": false}'::jsonb, true),
-(8, 'TOTEM-URBANO-001', 'UIN-URBANO-001-2024', 'DEVICE-008', 8, 'Totem Urbano 1', 'Totem em ponto estratégico', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '7 minutes', 60, '{"ip": "192.168.1.50", "mac": "00:11:22:33:44:08"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true)
+(1, 'TOTEM-SHOPPING-001', 'UIN-SHOPPING-001-2025', 'DEVICE-001', 1, 'Totem Shopping Entrada', 'Totem na entrada principal', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '2 minutes', 60, '{"ip": "192.168.1.10", "mac": "00:11:22:33:44:01"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(2, 'TOTEM-SHOPPING-002', 'UIN-SHOPPING-002-2025', 'DEVICE-002', 2, 'Totem Shopping Praça', 'Totem na praça de alimentação', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '5 minutes', 60, '{"ip": "192.168.1.11", "mac": "00:11:22:33:44:02"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(3, 'TOTEM-SHOPPING-003', 'UIN-SHOPPING-003-2025', 'DEVICE-003', 3, 'Totem Shopping Cinema', 'Totem na área do cinema', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '1 minute', 60, '{"ip": "192.168.1.12", "mac": "00:11:22:33:44:03"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(4, 'TOTEM-FARMACIA-001', 'UIN-FARMACIA-001-2025', 'DEVICE-004', 4, 'Totem Farmácia Matriz', 'Totem na farmácia matriz - teste FPS baixo', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '3 minutes', 60, '{"ip": "192.168.1.20", "mac": "00:11:22:33:44:04"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(5, 'TOTEM-FARMACIA-002', 'UIN-FARMACIA-002-2025', 'DEVICE-005', 5, 'Totem Farmácia Filial', 'Totem na farmácia filial', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '10 minutes', 60, '{"ip": "192.168.1.21", "mac": "00:11:22:33:44:05"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(6, 'TOTEM-AEROPORTO-001', 'UIN-AEROPORTO-001-2025', 'DEVICE-006', 6, 'Totem Aeroporto Embarque', 'Totem no terminal de embarque T1', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '15 minutes', 60, '{"ip": "192.168.1.30", "mac": "00:11:22:33:44:06"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(7, 'TOTEM-AEROPORTO-002', 'UIN-AEROPORTO-002-2025', 'DEVICE-007', 7, 'Totem Aeroporto Desembarque', 'Totem no terminal de desembarque T2 - offline para teste', 'Totem Pro v2', 'SmartSignage', '2.0.0', '1.2.2', 'Linux 5.15', 'offline', NOW() - INTERVAL '2 hours', 60, '{"ip": "192.168.1.31", "mac": "00:11:22:33:44:07"}'::jsonb, '{"video_support": true, "audio_support": false}'::jsonb, true),
+(8, 'TOTEM-URBANO-001', 'UIN-URBANO-001-2025', 'DEVICE-008', 8, 'Totem Urbano 1', 'Totem em ponto estratégico', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '7 minutes', 60, '{"ip": "192.168.1.50", "mac": "00:11:22:33:44:08"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(9, 'TOTEM-SUPER-001', 'UIN-SUPER-001-2025', 'DEVICE-009', 9, 'Totem Supermercado Caixas', 'Totem na área dos caixas', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '15 minutes', 60, '{"ip": "192.168.1.60", "mac": "00:11:22:33:44:09"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true),
+(10, 'TOTEM-SUPER-002', 'UIN-SUPER-002-2025', 'DEVICE-010', 10, 'Totem Supermercado Açougue', 'Totem na seção de açougue', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '20 minutes', 60, '{"ip": "192.168.1.61", "mac": "00:11:22:33:44:10"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
 -- Smart TVs com last_seen variado para testes
@@ -174,8 +190,10 @@ INSERT INTO smart_tvs (smart_tv_id, totem_id, identifier, device_id, name, brand
 (3, 3, 'TV-SHOPPING-003', 'TV-DEVICE-003', 'Smart TV Shopping Cinema', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '1 minute', '{"hdr": true, "4k": true}'::jsonb, '{"brightness": 85, "contrast": 80}'::jsonb, true),
 (4, 4, 'TV-FARMACIA-001', 'TV-DEVICE-004', 'Smart TV Farmácia Matriz', 'LG', '43UN7300PUF', 'webOS', '6.0.0', 3840, 2160, 'portrait', 'online', NOW() - INTERVAL '3 minutes', '{"hdr": false, "4k": true}'::jsonb, '{"brightness": 70, "contrast": 65}'::jsonb, true),
 (5, 5, 'TV-FARMACIA-002', 'TV-DEVICE-005', 'Smart TV Farmácia Filial', 'LG', '43UN7300PUF', 'webOS', '6.0.0', 3840, 2160, 'portrait', 'online', NOW() - INTERVAL '10 minutes', '{"hdr": false, "4k": true}'::jsonb, '{"brightness": 70, "contrast": 65}'::jsonb, true),
-(6, 6, 'TV-SUPER-001', 'TV-DEVICE-006', 'Smart TV Supermercado Caixas', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '15 minutes', '{"hdr": false, "4k": true}'::jsonb, '{"brightness": 90, "contrast": 85}'::jsonb, true),
-(7, 7, 'TV-SUPER-002', 'TV-DEVICE-007', 'Smart TV Supermercado Açougue', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'portrait', 'offline', NOW() - INTERVAL '2 hours', '{"hdr": false, "4k": true}'::jsonb, '{"brightness": 85, "contrast": 80}'::jsonb, true),
+(6, 6, 'TV-AEROPORTO-001', 'TV-DEVICE-006', 'Smart TV Aeroporto Embarque', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '15 minutes', '{"hdr": false, "4k": true}'::jsonb, '{"brightness": 90, "contrast": 85}'::jsonb, true),
+(7, 7, 'TV-AEROPORTO-002', 'TV-DEVICE-007', 'Smart TV Aeroporto Desembarque', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'portrait', 'offline', NOW() - INTERVAL '2 hours', '{"hdr": false, "4k": true}'::jsonb, '{"brightness": 85, "contrast": 80}'::jsonb, true),
+(9, 9, 'TV-SUPER-001', 'TV-DEVICE-009', 'Smart TV Supermercado Caixas', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '15 minutes', '{"hdr": false, "4k": true}'::jsonb, '{"brightness": 90, "contrast": 85}'::jsonb, true),
+(10, 10, 'TV-SUPER-002', 'TV-DEVICE-010', 'Smart TV Supermercado Açougue', 'Samsung', 'UN55TU8000', 'Tizen', '5.5.0', 3840, 2160, 'portrait', 'online', NOW() - INTERVAL '20 minutes', '{"hdr": false, "4k": true}'::jsonb, '{"brightness": 85, "contrast": 80}'::jsonb, true),
 (8, 8, 'TV-URBANO-001', 'TV-DEVICE-008', 'Smart TV Urbano 1', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '7 minutes', '{"hdr": true, "4k": true}'::jsonb, '{"brightness": 75, "contrast": 70}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
@@ -333,8 +351,20 @@ INSERT INTO publisher_contracts (
     NULL, NULL,
     'BRL', 'Pagamento mensal até dia 15', 'active',
     NOW() - INTERVAL '11 months 15 days', NOW() - INTERVAL '11 months 15 days', 1,
-    '{"totems_count": 0, "locations": ["embarque", "desembarque", "checkin"]}'::jsonb,
+    '{"totems_count": 2, "locations": ["embarque", "desembarque", "checkin"]}'::jsonb,
     '/contracts/publishers/PUB-CONT-2025-003.pdf', 'PUB-CONT-2025-003.pdf', 'application/pdf', 301056),
+
+-- Contrato 5: Supermercado Econômico - Publisher (publisher_id=5) - Revenue Share
+(5, 5, 'PUB-CONT-2025-005', 'revenue_share',
+    'Contrato Revenue Share - Supermercado Econômico',
+    'Contrato de revenue share: publisher recebe 60% da receita gerada nos totens do supermercado',
+    '2025-01-01', NULL,
+    60.00, '{"standard": 60}'::jsonb, 1000.00,
+    NULL, NULL,
+    'BRL', 'Pagamento mensal até dia 10', 'active',
+    NOW() - INTERVAL '12 months', NOW() - INTERVAL '12 months', 1,
+    '{"totems_count": 2, "locations": ["caixas", "acougue"]}'::jsonb,
+    '/contracts/publishers/PUB-CONT-2025-005.pdf', 'PUB-CONT-2025-005.pdf', 'application/pdf', 245760),
 
 -- Contrato 4: Rede de Totens Urbanos SP (publisher_id=4) - Hybrid (Revenue Share + Subscription)
 (4, 4, 'PUB-CONT-2025-004', 'hybrid',
@@ -392,8 +422,9 @@ INSERT INTO campaign_totems (campaign_id, totem_id, start_date, end_date, start_
 -- Campanha 2 (FarmaVida) - Totens das Farmácias
 (2, 4, '2025-02-01 00:00:00', '2027-01-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 8, true),
 (2, 5, '2025-02-01 00:00:00', '2027-01-31 23:59:59', '08:00', '20:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]', 8, true),
--- Campanha 3 (Supermercado) - Totem do Supermercado
-(3, 6, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 7, true),
+-- Campanha 3 (Supermercado) - Totens do Supermercado
+(3, 9, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 7, true),
+(3, 10, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '06:00', '23:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 7, true),
 -- Conflitos intencionais (mesmo totem, campanhas sobrepostas) para testes de fallback "single winner"
 -- Campanha 4 (Restaurante) e 5 (Clínica) no mesmo totem 1 em horários sobrepostos
 (4, 1, '2025-03-01 00:00:00', '2027-02-28 23:59:59', '12:00', '13:00', '["monday", "tuesday", "wednesday", "thursday", "friday"]', 9, true),
@@ -404,7 +435,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO campaign_publishers (campaign_id, publisher_id, revenue_share_percentage, time_share_percent, daypart_config, min_impressions_per_hour, max_impressions_per_hour, is_active, metadata) VALUES
 (1, 1, 70.00, 50.00, '{}'::jsonb, 10, 20, true, '{}'::jsonb),
 (2, 2, 65.00, 30.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
-(3, 3, 60.00, 40.00, '{}'::jsonb, 8, 18, true, '{}'::jsonb),
+(3, 5, 60.00, 40.00, '{}'::jsonb, 8, 18, true, '{}'::jsonb),
 (4, 1, 70.00, 20.00, '{}'::jsonb, 3, 10, true, '{}'::jsonb),
 (5, 1, 70.00, 15.00, '{}'::jsonb, 2, 8, true, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
@@ -415,24 +446,27 @@ INSERT INTO campaign_locals (campaign_id, local_id, is_active) VALUES
 (1, 3, true),
 (2, 4, true),
 (2, 5, true),
-(3, 6, true),
-(3, 7, true),
+(3, 9, true),
+(3, 10, true),
 (4, 1, true),
 (4, 2, true),
 (5, 1, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO subscriber_billing (billing_id, subscriber_id, campaign_id, billing_type, amount, currency, direction, description, invoice_number, payment_method, payment_status, payment_date, due_date, metadata) VALUES
-(1, 1, 1, 'campaign', 50000.00, 'BRL', 'incoming', 'Faturamento campanha Black Friday', 'INV-2024-001', 'bank_transfer', 'paid', (NOW() - INTERVAL '1 year') - INTERVAL '5 days', (NOW() - INTERVAL '1 year') + INTERVAL '25 days', '{}'::jsonb),
-(2, 2, 2, 'campaign', 5000.00, 'BRL', 'incoming', 'Faturamento campanha Medicamentos - Outubro', 'INV-2024-002', 'credit_card', 'paid', (NOW() - INTERVAL '1 year') - INTERVAL '3 days', (NOW() - INTERVAL '1 year') + INTERVAL '27 days', '{}'::jsonb),
-(3, 3, 3, 'campaign', 6666.67, 'BRL', 'incoming', 'Faturamento campanha Ofertas do Dia - Outubro', 'INV-2024-003', 'credit_card', 'pending', NULL, (NOW() - INTERVAL '1 year') + INTERVAL '7 days', '{}'::jsonb)
+(1, 1, 1, 'campaign', 50000.00, 'BRL', 'incoming', 'Faturamento campanha Coleção Verão 2025', 'INV-2025-001', 'bank_transfer', 'paid', (NOW() - INTERVAL '1 year') - INTERVAL '5 days', (NOW() - INTERVAL '1 year') + INTERVAL '25 days', '{}'::jsonb),
+(2, 2, 2, 'campaign', 5000.00, 'BRL', 'incoming', 'Faturamento campanha Medicamentos Genéricos', 'INV-2025-002', 'credit_card', 'paid', (NOW() - INTERVAL '1 year') - INTERVAL '3 days', (NOW() - INTERVAL '1 year') + INTERVAL '27 days', '{}'::jsonb),
+(3, 3, 3, 'campaign', 6666.67, 'BRL', 'incoming', 'Faturamento campanha Ofertas do Dia', 'INV-2025-003', 'credit_card', 'pending', NULL, (NOW() - INTERVAL '1 year') + INTERVAL '7 days', '{}'::jsonb),
+(4, 4, 4, 'campaign', 8000.00, 'BRL', 'incoming', 'Faturamento campanha Menu Executivo', 'INV-2025-004', 'credit_card', 'paid', (NOW() - INTERVAL '1 year') - INTERVAL '2 days', (NOW() - INTERVAL '1 year') + INTERVAL '28 days', '{}'::jsonb),
+(5, 5, 5, 'campaign', 10000.00, 'BRL', 'incoming', 'Faturamento campanha Check-up Preventivo', 'INV-2025-005', 'bank_transfer', 'overdue', NULL, (NOW() - INTERVAL '1 year') - INTERVAL '5 days', '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO publisher_billing (billing_id, publisher_id, campaign_id, totem_id, billing_type, amount, currency, direction, revenue_share_percentage, original_campaign_amount, platform_fee_amount, publisher_share_amount, description, invoice_number, payment_status, payment_date, due_date, approved_by, approved_at, payment_method, metadata) VALUES
-(1, 1, 1, NULL, 'revenue_share', 35000.00, 'BRL', 'outgoing', 70.00, 50000.00, 15000.00, 35000.00, 'Revenue share campanha Black Friday', 'PAY-2024-001', 'pending_payout', NULL, (NOW() - INTERVAL '1 year') + INTERVAL '5 days', 1, (NOW() - INTERVAL '1 year'), 'bank_transfer', '{}'::jsonb),
-(2, 2, 2, NULL, 'revenue_share', 3250.00, 'BRL', 'outgoing', 65.00, 5000.00, 1750.00, 3250.00, 'Revenue share campanha Medicamentos', 'PAY-2024-002', 'pending_payout', NULL, (NOW() - INTERVAL '1 year') + INTERVAL '5 days', 1, (NOW() - INTERVAL '1 year'), 'bank_transfer', '{}'::jsonb),
-(3, 3, 3, NULL, 'revenue_share', 4000.00, 'BRL', 'outgoing', 60.00, 6666.67, 2666.67, 4000.00, 'Revenue share campanha Ofertas do Dia', 'PAY-2024-003', 'pending_payout', NULL, (NOW() - INTERVAL '1 year') + INTERVAL '5 days', 1, (NOW() - INTERVAL '1 year'), 'bank_transfer', '{}'::jsonb),
-(4, 4, NULL, NULL, 'subscription', 299.00, 'BRL', 'incoming', NULL, NULL, NULL, NULL, 'Assinatura mensal Rede de Totens Urbanos', 'SUB-2024-001', 'paid', (NOW() - INTERVAL '1 year') - INTERVAL '10 days', (NOW() - INTERVAL '1 year') + INTERVAL '20 days', NULL, NULL, 'credit_card', '{}'::jsonb)
+(1, 1, 1, NULL, 'revenue_share', 35000.00, 'BRL', 'outgoing', 70.00, 50000.00, 15000.00, 35000.00, 'Revenue share campanha Coleção Verão 2025', 'PAY-2025-001', 'paid', (NOW() - INTERVAL '1 year') - INTERVAL '2 days', (NOW() - INTERVAL '1 year') + INTERVAL '5 days', 1, (NOW() - INTERVAL '1 year'), 'bank_transfer', '{}'::jsonb),
+(2, 2, 2, NULL, 'revenue_share', 3250.00, 'BRL', 'outgoing', 65.00, 5000.00, 1750.00, 3250.00, 'Revenue share campanha Medicamentos Genéricos', 'PAY-2025-002', 'pending_payout', NULL, (NOW() - INTERVAL '1 year') + INTERVAL '5 days', 1, (NOW() - INTERVAL '1 year'), 'bank_transfer', '{}'::jsonb),
+(3, 5, 3, NULL, 'revenue_share', 4000.00, 'BRL', 'outgoing', 60.00, 6666.67, 2666.67, 4000.00, 'Revenue share campanha Ofertas do Dia', 'PAY-2025-003', 'pending_payout', NULL, (NOW() - INTERVAL '1 year') + INTERVAL '5 days', 1, (NOW() - INTERVAL '1 year'), 'bank_transfer', '{}'::jsonb),
+(4, 1, 4, NULL, 'revenue_share', 5600.00, 'BRL', 'outgoing', 70.00, 8000.00, 2400.00, 5600.00, 'Revenue share campanha Menu Executivo', 'PAY-2025-004', 'pending_payout', NULL, (NOW() - INTERVAL '1 year') + INTERVAL '5 days', 1, (NOW() - INTERVAL '1 year'), 'bank_transfer', '{}'::jsonb),
+(5, 4, NULL, NULL, 'subscription', 299.00, 'BRL', 'incoming', NULL, NULL, NULL, NULL, 'Assinatura mensal Rede de Totens Urbanos', 'SUB-2025-001', 'paid', (NOW() - INTERVAL '1 year') - INTERVAL '10 days', (NOW() - INTERVAL '1 year') + INTERVAL '20 days', NULL, NULL, 'credit_card', '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO subscriptions (subscription_id, publisher_id, plan_id, stripe_subscription_id, stripe_customer_id, status, current_period_start, current_period_end, cancel_at_period_end, trial_start, trial_end, metadata) VALUES
@@ -458,15 +492,23 @@ INSERT INTO subscriber_publisher_access (access_id, subscriber_id, publisher_id,
 ON CONFLICT DO NOTHING;
 
 INSERT INTO totem_playlists (totem_playlist_id, totem_id, smart_tv_id, publisher_id, playlist_hash, version, total_items, total_duration_seconds, status, is_active, generated_at, last_updated_at, expires_at, metadata, generation_log) VALUES
+-- Playlists históricas (1 ano atrás)
 (1, 1, NULL, 1, 'hash_001', 1, 2, 40, 'active', true, (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), NULL, '{}'::jsonb, '{}'::jsonb),
 (2, 2, NULL, 1, 'hash_002', 1, 2, 40, 'active', true, (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), NULL, '{}'::jsonb, '{}'::jsonb),
 (3, 3, NULL, 1, 'hash_003', 1, 2, 40, 'active', true, (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), NULL, '{}'::jsonb, '{}'::jsonb),
 (4, 4, NULL, 2, 'hash_004', 1, 1, 15, 'active', true, (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), NULL, '{}'::jsonb, '{}'::jsonb),
 (5, 5, NULL, 2, 'hash_005', 1, 1, 15, 'active', true, (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), NULL, '{}'::jsonb, '{}'::jsonb),
-(6, 6, NULL, 3, 'hash_006', 1, 1, 12, 'active', true, (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), NULL, '{}'::jsonb, '{}'::jsonb)
+
+-- Playlists recentes simulando solicitações e entregas
+(7, 1, NULL, 1, 'hash_001_v2', 2, 2, 40, 'active', true, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour', NULL, '{"request_id": "req-001", "delivery_method": "http"}'::jsonb, '{"generation_time_ms": 132}'::jsonb),
+(8, 2, NULL, 1, 'hash_002_v2', 2, 2, 40, 'active', true, NOW() - INTERVAL '30 minutes', NOW() - INTERVAL '30 minutes', NULL, '{"request_id": "req-002", "delivery_method": "cache"}'::jsonb, '{"generation_time_ms": 45, "from_cache": true}'::jsonb),
+(9, 3, NULL, 1, 'hash_003_v2', 2, 2, 40, 'active', true, NOW() - INTERVAL '25 minutes', NOW() - INTERVAL '25 minutes', NULL, '{"request_id": "req-003", "delivery_method": "http"}'::jsonb, '{"generation_time_ms": 138}'::jsonb),
+(10, 9, NULL, 5, 'hash_009', 1, 1, 12, 'active', true, NOW() - INTERVAL '20 minutes', NOW() - INTERVAL '20 minutes', NULL, '{"request_id": "req-007", "delivery_method": "http"}'::jsonb, '{"generation_time_ms": 105}'::jsonb),
+(11, 10, NULL, 5, 'hash_010', 1, 1, 12, 'active', true, NOW() - INTERVAL '50 minutes', NOW() - INTERVAL '50 minutes', NULL, '{"request_id": "req-008", "delivery_method": "cache"}'::jsonb, '{"generation_time_ms": 42, "from_cache": true}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO totem_playlist_items (item_id, totem_playlist_id, media_id, campaign_id, subscriber_id, publisher_id, order_index, priority, display_seconds, transition_type, transition_duration_ms, commercial_tier, time_share_percent, revenue_share_percent, start_time, end_time, days_of_week, is_active) VALUES
+-- Itens históricos
 (1, 1, 1, 1, 1, 1, 0, 10, 10, 'fade', 2000, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
 (2, 1, 2, 1, 1, 1, 1, 10, 30, 'slide', 1500, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
 (3, 2, 1, 1, 1, 1, 0, 10, 10, 'fade', 2000, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
@@ -475,16 +517,40 @@ INSERT INTO totem_playlist_items (item_id, totem_playlist_id, media_id, campaign
 (6, 3, 2, 1, 1, 1, 1, 10, 30, 'slide', 1500, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
 (7, 4, 3, 2, 2, 2, 0, 8, 15, 'fade', 3000, 'standard', 30.00, 65.00, NULL, NULL, NULL, true),
 (8, 5, 3, 2, 2, 2, 0, 8, 15, 'fade', 3000, 'standard', 30.00, 65.00, NULL, NULL, NULL, true),
-(9, 6, 4, 3, 3, 3, 0, 7, 12, 'fade', 2500, 'standard', 40.00, 60.00, NULL, NULL, NULL, true)
+
+-- Itens recentes para playlists entregues recentemente
+(10, 7, 1, 1, 1, 1, 0, 10, 10, 'fade', 2000, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
+(11, 7, 2, 1, 1, 1, 1, 10, 30, 'slide', 1500, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
+(12, 8, 1, 1, 1, 1, 0, 10, 10, 'fade', 2000, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
+(13, 8, 2, 1, 1, 1, 1, 10, 30, 'slide', 1500, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
+(14, 9, 1, 1, 1, 1, 0, 10, 10, 'fade', 2000, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
+(15, 9, 2, 1, 1, 1, 1, 10, 30, 'slide', 1500, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
+(16, 10, 4, 3, 3, 5, 0, 7, 12, 'fade', 2500, 'standard', 40.00, 60.00, NULL, NULL, NULL, true),
+(17, 11, 4, 3, 3, 5, 0, 7, 12, 'fade', 2500, 'standard', 40.00, 60.00, NULL, NULL, NULL, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO totem_playlist_generation_log (log_id, totem_id, totem_playlist_id, publisher_id, status, error_message, campaigns_included, playlists_included, medias_included, subscribers_included, generation_time_ms, generation_details, generated_at, generated_by) VALUES
-(1, 1, 1, 1, 'success', NULL, 3, 1, 2, 3, 150, '{}'::jsonb, (NOW() - INTERVAL '1 year'), 'system'),
-(2, 2, 2, 1, 'success', NULL, 3, 1, 2, 3, 145, '{}'::jsonb, (NOW() - INTERVAL '1 year'), 'system'),
-(3, 3, 3, 1, 'success', NULL, 3, 1, 2, 3, 148, '{}'::jsonb, (NOW() - INTERVAL '1 year'), 'system'),
-(4, 4, 4, 2, 'success', NULL, 1, 1, 1, 1, 80, '{}'::jsonb, (NOW() - INTERVAL '1 year'), 'system'),
-(5, 5, 5, 2, 'success', NULL, 1, 1, 1, 1, 82, '{}'::jsonb, (NOW() - INTERVAL '1 year'), 'system'),
-(6, 6, 6, 3, 'success', NULL, 1, 1, 1, 1, 75, '{}'::jsonb, (NOW() - INTERVAL '1 year'), 'system')
+-- Logs históricos (1 ano atrás)
+(1, 1, 1, 1, 'success', NULL, 3, 1, 2, 3, 150, '{"mode": "MIXED", "window_seconds": 600}'::jsonb, (NOW() - INTERVAL '1 year'), 'system'),
+(2, 2, 2, 1, 'success', NULL, 3, 1, 2, 3, 145, '{"mode": "MIXED", "window_seconds": 600}'::jsonb, (NOW() - INTERVAL '1 year'), 'system'),
+(3, 3, 3, 1, 'success', NULL, 3, 1, 2, 3, 148, '{"mode": "MIXED", "window_seconds": 600}'::jsonb, (NOW() - INTERVAL '1 year'), 'system'),
+(4, 4, 4, 2, 'success', NULL, 1, 1, 1, 1, 80, '{"mode": "SINGLE_WINNER", "window_seconds": 600}'::jsonb, (NOW() - INTERVAL '1 year'), 'system'),
+(5, 5, 5, 2, 'success', NULL, 1, 1, 1, 1, 82, '{"mode": "SINGLE_WINNER", "window_seconds": 600}'::jsonb, (NOW() - INTERVAL '1 year'), 'system'),
+(6, 6, 6, 3, 'success', NULL, 1, 1, 1, 1, 75, '{"mode": "SINGLE_WINNER", "window_seconds": 600}'::jsonb, (NOW() - INTERVAL '1 year'), 'system'),
+
+-- Logs recentes simulando solicitações e gerações de playlists
+(7, 1, 7, 1, 'success', NULL, 3, 1, 2, 3, 132, '{"mode": "MIXED", "window_seconds": 600, "trigger": "playlist_request", "request_id": "req-001"}'::jsonb, NOW() - INTERVAL '1 hour', 'system'),
+(8, 2, 8, 1, 'success', NULL, 3, 1, 2, 3, 45, '{"mode": "MIXED", "window_seconds": 600, "trigger": "scheduled", "from_cache": true}'::jsonb, NOW() - INTERVAL '30 minutes', 'system'),
+(9, 3, 9, 1, 'success', NULL, 3, 1, 2, 3, 138, '{"mode": "MIXED", "window_seconds": 600, "trigger": "playlist_request", "request_id": "req-003"}'::jsonb, NOW() - INTERVAL '25 minutes', 'system'),
+(10, 4, 4, 2, 'success', NULL, 1, 1, 1, 1, 92, '{"mode": "SINGLE_WINNER", "window_seconds": 600, "trigger": "playlist_request", "request_id": "req-004"}'::jsonb, NOW() - INTERVAL '2 hours', 'system'),
+(11, 5, 5, 2, 'success', NULL, 1, 1, 1, 1, 38, '{"mode": "SINGLE_WINNER", "window_seconds": 600, "trigger": "scheduled", "from_cache": true}'::jsonb, NOW() - INTERVAL '45 minutes', 'system'),
+(12, 9, 10, 5, 'success', NULL, 1, 1, 1, 1, 105, '{"mode": "SINGLE_WINNER", "window_seconds": 600, "trigger": "playlist_request", "request_id": "req-007"}'::jsonb, NOW() - INTERVAL '20 minutes', 'system'),
+(13, 10, 11, 5, 'success', NULL, 1, 1, 1, 1, 42, '{"mode": "SINGLE_WINNER", "window_seconds": 600, "trigger": "scheduled", "from_cache": true}'::jsonb, NOW() - INTERVAL '50 minutes', 'system'),
+
+-- Logs de falha/erro para testes
+(14, 6, NULL, 3, 'failed', 'Nenhuma campanha ativa disponível para este totem', 0, 0, 0, 0, 25, '{"mode": "SINGLE_WINNER", "trigger": "playlist_request", "request_id": "req-006", "error": "no_active_campaigns"}'::jsonb, NOW() - INTERVAL '1 hour 15 minutes', 'system'),
+(15, 8, NULL, 4, 'failed', 'Nenhuma campanha ativa disponível para este totem', 0, 0, 0, 0, 18, '{"mode": "SINGLE_WINNER", "trigger": "playlist_request", "request_id": "req-009", "error": "no_active_campaigns"}'::jsonb, NOW() - INTERVAL '15 minutes', 'system'),
+(16, 7, NULL, 3, 'failed', 'Totem offline - não respondeu ao heartbeat', 0, 0, 0, 0, 5000, '{"mode": "SINGLE_WINNER", "trigger": "playlist_request", "request_id": "req-010", "error": "totem_offline", "retry_count": 3}'::jsonb, NOW() - INTERVAL '2 hours', 'system')
 ON CONFLICT DO NOTHING;
 
 -- Analytics sessions recentes para testes
@@ -515,23 +581,78 @@ INSERT INTO analytics_gestures (gesture_id, session_id, totem_id, gesture_type, 
 (6, 6, 6, 'wave', 0.91, NOW() - INTERVAL '1 hour 20 minutes', '{"hand": "right", "duration_ms": 1100}'::jsonb)
 ON CONFLICT DO NOTHING;
 
--- Execution logs recentes para testes
+-- Execution logs recentes para testes - Simulando reprodução de mídias
 INSERT INTO execution_logs (log_id, totem_id, campaign_id, playlist_id, media_id, publisher_id, subscriber_id, event_type, event_data, timestamp, metadata) VALUES
-(1, 1, 1, 1, 1, 1, 1, 'play_start', '{"duration_ms": 10000}'::jsonb, NOW() - INTERVAL '1 hour', '{"priority": 10}'::jsonb),
-(2, 1, 1, 1, 1, 1, 1, 'play_end', '{"duration_ms": 10000, "actual_duration_ms": 10050}'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '10 seconds', '{"completed": true}'::jsonb),
-(3, 1, 1, 1, 2, 1, 1, 'play_start', '{"duration_ms": 30000}'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '12 seconds', '{"priority": 10}'::jsonb),
-(4, 2, 1, 2, 1, 1, 1, 'play_start', '{"duration_ms": 10000}'::jsonb, NOW() - INTERVAL '30 minutes', '{"priority": 10}'::jsonb),
-(5, 4, 2, 3, 3, 2, 2, 'play_start', '{"duration_ms": 15000}'::jsonb, NOW() - INTERVAL '2 hours', '{"priority": 8}'::jsonb),
-(6, 3, 1, 1, 1, 1, 1, 'play_start', '{"duration_ms": 10000}'::jsonb, NOW() - INTERVAL '25 minutes', '{"priority": 10}'::jsonb),
-(7, 5, 2, 3, 3, 2, 2, 'play_start', '{"duration_ms": 15000}'::jsonb, NOW() - INTERVAL '45 minutes', '{"priority": 8}'::jsonb),
-(8, 6, 3, 4, 4, 3, 3, 'play_start', '{"duration_ms": 12000}'::jsonb, NOW() - INTERVAL '1 hour 15 minutes', '{"priority": 7}'::jsonb)
+-- Totem 1 - Shopping Entrada - Sequência completa de reprodução
+(1, 1, 1, 1, 1, 1, 1, 'playlist_request', '{"request_id": "req-001", "totem_uin": "UIN-SHOPPING-001-2025", "requested_at": "2025-01-15T13:00:00Z"}'::jsonb, NOW() - INTERVAL '1 hour', '{"source": "heartbeat", "cache_hit": false}'::jsonb),
+(2, 1, 1, 1, 1, 1, 1, 'playlist_delivered', '{"playlist_id": 1, "items_count": 2, "total_duration": 40, "delivery_time_ms": 125}'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '125 milliseconds', '{"delivery_method": "http", "compressed": true}'::jsonb),
+(3, 1, 1, 1, 1, 1, 1, 'play_start', '{"duration_ms": 10000, "playlist_item_index": 0}'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '1 second', '{"priority": 10, "transition": "fade"}'::jsonb),
+(4, 1, 1, 1, 1, 1, 1, 'play_end', '{"duration_ms": 10000, "actual_duration_ms": 10050, "completed": true}'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '11 seconds', '{"viewers_detected": 3}'::jsonb),
+(5, 1, 1, 1, 2, 1, 1, 'play_start', '{"duration_ms": 30000, "playlist_item_index": 1}'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '12 seconds', '{"priority": 10, "transition": "slide"}'::jsonb),
+(6, 1, 1, 1, 2, 1, 1, 'play_end', '{"duration_ms": 30000, "actual_duration_ms": 30020, "completed": true}'::jsonb, NOW() - INTERVAL '1 hour' + INTERVAL '42 seconds', '{"viewers_detected": 5}'::jsonb),
+
+-- Totem 2 - Shopping Praça - Solicitação e entrega
+(7, 2, 1, 2, 1, 1, 1, 'playlist_request', '{"request_id": "req-002", "totem_uin": "UIN-SHOPPING-002-2025", "requested_at": "2025-01-15T13:30:00Z"}'::jsonb, NOW() - INTERVAL '30 minutes', '{"source": "scheduled", "cache_hit": true}'::jsonb),
+(8, 2, 1, 2, 1, 1, 1, 'playlist_delivered', '{"playlist_id": 2, "items_count": 2, "total_duration": 40, "delivery_time_ms": 45}'::jsonb, NOW() - INTERVAL '30 minutes' + INTERVAL '45 milliseconds', '{"delivery_method": "cache", "compressed": true}'::jsonb),
+(9, 2, 1, 2, 1, 1, 1, 'play_start', '{"duration_ms": 10000, "playlist_item_index": 0}'::jsonb, NOW() - INTERVAL '30 minutes' + INTERVAL '1 second', '{"priority": 10}'::jsonb),
+
+-- Totem 3 - Shopping Cinema
+(10, 3, 1, 1, 1, 1, 1, 'playlist_request', '{"request_id": "req-003", "totem_uin": "UIN-SHOPPING-003-2025", "requested_at": "2025-01-15T13:35:00Z"}'::jsonb, NOW() - INTERVAL '25 minutes', '{"source": "heartbeat", "cache_hit": false}'::jsonb),
+(11, 3, 1, 1, 1, 1, 1, 'playlist_delivered', '{"playlist_id": 1, "items_count": 2, "total_duration": 40, "delivery_time_ms": 138}'::jsonb, NOW() - INTERVAL '25 minutes' + INTERVAL '138 milliseconds', '{"delivery_method": "http", "compressed": true}'::jsonb),
+(12, 3, 1, 1, 1, 1, 1, 'play_start', '{"duration_ms": 10000, "playlist_item_index": 0}'::jsonb, NOW() - INTERVAL '25 minutes' + INTERVAL '1 second', '{"priority": 10}'::jsonb),
+
+-- Totem 4 - Farmácia Matriz
+(13, 4, 2, 3, 3, 2, 2, 'playlist_request', '{"request_id": "req-004", "totem_uin": "UIN-FARMACIA-001-2025", "requested_at": "2025-01-15T11:00:00Z"}'::jsonb, NOW() - INTERVAL '2 hours', '{"source": "heartbeat", "cache_hit": false}'::jsonb),
+(14, 4, 2, 3, 3, 2, 2, 'playlist_delivered', '{"playlist_id": 3, "items_count": 1, "total_duration": 15, "delivery_time_ms": 92}'::jsonb, NOW() - INTERVAL '2 hours' + INTERVAL '92 milliseconds', '{"delivery_method": "http", "compressed": true}'::jsonb),
+(15, 4, 2, 3, 3, 2, 2, 'play_start', '{"duration_ms": 15000, "playlist_item_index": 0}'::jsonb, NOW() - INTERVAL '2 hours' + INTERVAL '1 second', '{"priority": 8}'::jsonb),
+
+-- Totem 5 - Farmácia Filial
+(16, 5, 2, 3, 3, 2, 2, 'playlist_request', '{"request_id": "req-005", "totem_uin": "UIN-FARMACIA-002-2025", "requested_at": "2025-01-15T12:15:00Z"}'::jsonb, NOW() - INTERVAL '45 minutes', '{"source": "scheduled", "cache_hit": true}'::jsonb),
+(17, 5, 2, 3, 3, 2, 2, 'playlist_delivered', '{"playlist_id": 3, "items_count": 1, "total_duration": 15, "delivery_time_ms": 38}'::jsonb, NOW() - INTERVAL '45 minutes' + INTERVAL '38 milliseconds', '{"delivery_method": "cache", "compressed": true}'::jsonb),
+(18, 5, 2, 3, 3, 2, 2, 'play_start', '{"duration_ms": 15000, "playlist_item_index": 0}'::jsonb, NOW() - INTERVAL '45 minutes' + INTERVAL '1 second', '{"priority": 8}'::jsonb),
+
+-- Totem 6 - Aeroporto Embarque
+(19, 6, NULL, NULL, NULL, 3, NULL, 'playlist_request', '{"request_id": "req-006", "totem_uin": "UIN-AEROPORTO-001-2025", "requested_at": "2025-01-15T11:45:00Z"}'::jsonb, NOW() - INTERVAL '1 hour 15 minutes', '{"source": "heartbeat", "cache_hit": false}'::jsonb),
+(20, 6, NULL, NULL, NULL, 3, NULL, 'playlist_delivered', '{"playlist_id": null, "items_count": 0, "total_duration": 0, "delivery_time_ms": 25, "status": "no_campaigns"}'::jsonb, NOW() - INTERVAL '1 hour 15 minutes' + INTERVAL '25 milliseconds', '{"delivery_method": "http", "message": "Nenhuma campanha ativa"}'::jsonb),
+
+-- Totem 9 - Supermercado Caixas
+(21, 9, 3, 4, 4, 5, 3, 'playlist_request', '{"request_id": "req-007", "totem_uin": "UIN-SUPER-001-2025", "requested_at": "2025-01-15T13:40:00Z"}'::jsonb, NOW() - INTERVAL '20 minutes', '{"source": "heartbeat", "cache_hit": false}'::jsonb),
+(22, 9, 3, 4, 4, 5, 3, 'playlist_delivered', '{"playlist_id": 4, "items_count": 1, "total_duration": 12, "delivery_time_ms": 105}'::jsonb, NOW() - INTERVAL '20 minutes' + INTERVAL '105 milliseconds', '{"delivery_method": "http", "compressed": true}'::jsonb),
+(23, 9, 3, 4, 4, 5, 3, 'play_start', '{"duration_ms": 12000, "playlist_item_index": 0}'::jsonb, NOW() - INTERVAL '20 minutes' + INTERVAL '1 second', '{"priority": 7}'::jsonb),
+(24, 9, 3, 4, 4, 5, 3, 'play_end', '{"duration_ms": 12000, "actual_duration_ms": 12015, "completed": true}'::jsonb, NOW() - INTERVAL '20 minutes' + INTERVAL '13 seconds', '{"viewers_detected": 8}'::jsonb),
+
+-- Totem 10 - Supermercado Açougue
+(25, 10, 3, 4, 4, 5, 3, 'playlist_request', '{"request_id": "req-008", "totem_uin": "UIN-SUPER-002-2025", "requested_at": "2025-01-15T13:10:00Z"}'::jsonb, NOW() - INTERVAL '50 minutes', '{"source": "scheduled", "cache_hit": true}'::jsonb),
+(26, 10, 3, 4, 4, 5, 3, 'playlist_delivered', '{"playlist_id": 4, "items_count": 1, "total_duration": 12, "delivery_time_ms": 42}'::jsonb, NOW() - INTERVAL '50 minutes' + INTERVAL '42 milliseconds', '{"delivery_method": "cache", "compressed": true}'::jsonb),
+(27, 10, 3, 4, 4, 5, 3, 'play_start', '{"duration_ms": 12000, "playlist_item_index": 0}'::jsonb, NOW() - INTERVAL '50 minutes' + INTERVAL '1 second', '{"priority": 7}'::jsonb),
+
+-- Totem 8 - Urbano - Solicitação sem campanhas
+(28, 8, NULL, NULL, NULL, 4, NULL, 'playlist_request', '{"request_id": "req-009", "totem_uin": "UIN-URBANO-001-2025", "requested_at": "2025-01-15T13:45:00Z"}'::jsonb, NOW() - INTERVAL '15 minutes', '{"source": "heartbeat", "cache_hit": false}'::jsonb),
+(29, 8, NULL, NULL, NULL, 4, NULL, 'playlist_delivered', '{"playlist_id": null, "items_count": 0, "total_duration": 0, "delivery_time_ms": 18, "status": "no_campaigns"}'::jsonb, NOW() - INTERVAL '15 minutes' + INTERVAL '18 milliseconds', '{"delivery_method": "http", "message": "Nenhuma campanha ativa"}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO event_logs (log_id, event_type, entity_type, entity_id, totem_id, campaign_id, media_id, publisher_id, subscriber_id, user_id, metadata, severity, timestamp) VALUES
-(1, 'create', 'campaign', 1, NULL, 1, NULL, 1, 1, 4, '{}'::jsonb, 'info', (NOW() - INTERVAL '1 year') - INTERVAL '10 days'),
-(2, 'approve', 'media', 1, NULL, NULL, 1, NULL, 1, 1, '{}'::jsonb, 'info', (NOW() - INTERVAL '1 year') - INTERVAL '9 days'),
-(3, 'update', 'totem', 1, 1, NULL, NULL, 1, NULL, 2, '{}'::jsonb, 'info', (NOW() - INTERVAL '1 year') - INTERVAL '5 days'),
-(4, 'play', 'campaign', 1, 1, 1, NULL, 1, 1, NULL, '{}'::jsonb, 'info', (NOW() - INTERVAL '1 year') - INTERVAL '1 hour')
+-- Eventos de criação e aprovação
+(1, 'create', 'campaign', 1, NULL, 1, NULL, 1, 1, 4, '{"title": "Coleção Verão 2025"}'::jsonb, 'info', (NOW() - INTERVAL '1 year') - INTERVAL '10 days'),
+(2, 'approve', 'media', 1, NULL, NULL, 1, NULL, 1, 1, '{"media_name": "colecao-verao-2024.jpg"}'::jsonb, 'info', (NOW() - INTERVAL '1 year') - INTERVAL '9 days'),
+(3, 'update', 'totem', 1, 1, NULL, NULL, 1, NULL, 2, '{"field": "status", "old_value": "offline", "new_value": "online"}'::jsonb, 'info', (NOW() - INTERVAL '1 year') - INTERVAL '5 days'),
+
+-- Eventos de solicitação e entrega de playlists
+(4, 'playlist_request', 'totem', 1, 1, NULL, NULL, 1, NULL, NULL, '{"request_id": "req-001", "uin": "UIN-SHOPPING-001-2025", "source": "heartbeat"}'::jsonb, 'info', NOW() - INTERVAL '1 hour'),
+(5, 'playlist_delivered', 'totem', 1, 1, 1, NULL, 1, 1, NULL, '{"playlist_id": 1, "items_count": 2, "delivery_time_ms": 125}'::jsonb, 'info', NOW() - INTERVAL '1 hour' + INTERVAL '125 milliseconds'),
+(6, 'playlist_request', 'totem', 2, 2, NULL, NULL, 1, NULL, NULL, '{"request_id": "req-002", "uin": "UIN-SHOPPING-002-2025", "source": "scheduled", "cache_hit": true}'::jsonb, 'info', NOW() - INTERVAL '30 minutes'),
+(7, 'playlist_delivered', 'totem', 2, 2, 1, NULL, 1, 1, NULL, '{"playlist_id": 2, "items_count": 2, "delivery_time_ms": 45, "from_cache": true}'::jsonb, 'info', NOW() - INTERVAL '30 minutes' + INTERVAL '45 milliseconds'),
+(8, 'playlist_request', 'totem', 9, 9, NULL, NULL, 5, 3, NULL, '{"request_id": "req-007", "uin": "UIN-SUPER-001-2025", "source": "heartbeat"}'::jsonb, 'info', NOW() - INTERVAL '20 minutes'),
+(9, 'playlist_delivered', 'totem', 9, 9, 3, NULL, 5, 3, NULL, '{"playlist_id": 4, "items_count": 1, "delivery_time_ms": 105}'::jsonb, 'info', NOW() - INTERVAL '20 minutes' + INTERVAL '105 milliseconds'),
+
+-- Eventos de reprodução
+(10, 'play', 'campaign', 1, 1, 1, NULL, 1, 1, NULL, '{"media_id": 1, "playlist_id": 1, "duration_ms": 10000}'::jsonb, 'info', NOW() - INTERVAL '1 hour' + INTERVAL '1 second'),
+(11, 'play', 'campaign', 1, 1, 1, 2, 1, 1, NULL, '{"media_id": 2, "playlist_id": 1, "duration_ms": 30000}'::jsonb, 'info', NOW() - INTERVAL '1 hour' + INTERVAL '12 seconds'),
+(12, 'play', 'campaign', 3, 9, 3, 4, 5, 3, NULL, '{"media_id": 4, "playlist_id": 4, "duration_ms": 12000}'::jsonb, 'info', NOW() - INTERVAL '20 minutes' + INTERVAL '1 second'),
+
+-- Eventos de erro/falha
+(13, 'playlist_request_failed', 'totem', 7, 7, NULL, NULL, 3, NULL, NULL, '{"request_id": "req-010", "uin": "UIN-AEROPORTO-002-2025", "error": "totem_offline", "reason": "Totem não respondeu ao heartbeat"}'::jsonb, 'warning', NOW() - INTERVAL '2 hours'),
+(14, 'playlist_delivery_failed', 'totem', 7, 7, NULL, NULL, 3, NULL, NULL, '{"request_id": "req-010", "error": "connection_timeout", "retry_count": 3}'::jsonb, 'error', NOW() - INTERVAL '2 hours' + INTERVAL '5 seconds')
 ON CONFLICT DO NOTHING;
 
 -- =============================================
@@ -965,9 +1086,195 @@ BEGIN
             }'::jsonb,
             92
         ),
-        -- Totem 6 - Supermercado Caixas - Decisão com campanha de ofertas
+        -- Totem 6 - Aeroporto Embarque - Decisão sem campanhas (1h15min atrás)
         (
-            6, 6, (NOW() - INTERVAL '1 year') - INTERVAL '20 minutes', 3, 4, 'campaign', 3, 7, 2,
+            6, 6, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour 15 minutes', NULL, NULL, 'direct', 6, 1, 1,
+            '[
+                {
+                    "source": "direct",
+                    "source_id": 6,
+                    "campaign_id": null,
+                    "playlist_id": null,
+                    "priority": 1,
+                    "commercial_tier": "basic",
+                    "time_share_percent": 5.0,
+                    "revenue_share_percent": 0.0,
+                    "score": 15.2,
+                    "validated": false,
+                    "reason": "Nenhuma campanha ativa disponível"
+                }
+            ]'::jsonb,
+            true, true, false,
+            '{
+                "temporal": {
+                    "valid": true,
+                    "current_time": "2025-01-15T12:45:00Z",
+                    "campaign_active": false,
+                    "within_time_window": false,
+                    "within_date_range": false,
+                    "day_of_week_valid": true
+                },
+                "technical": {
+                    "valid": true,
+                    "totem_online": true,
+                    "playlist_available": false,
+                    "media_files_accessible": true,
+                    "storage_space_ok": true
+                },
+                "integrity": {
+                    "valid": false,
+                    "playlist_items_count": 0,
+                    "media_files_valid": false,
+                    "campaign_contract_valid": false,
+                    "publisher_access_valid": false,
+                    "reason": "Nenhuma campanha ativa disponível para este totem"
+                }
+            }'::jsonb,
+            false, NULL,
+            '{
+                "totem_id": 6,
+                "selected_campaign_id": null,
+                "selected_playlist_id": null,
+                "playlist_items": [],
+                "total_duration_seconds": 0,
+                "generated_at": "2025-01-15T12:45:00Z",
+                "from_cache": false,
+                "request_id": "req-006",
+                "message": "Nenhuma campanha ativa disponível"
+            }'::jsonb,
+            25
+        ),
+        -- Totem 9 - Supermercado Caixas - Decisão RECENTE (20 minutos atrás)
+        (
+            13, 9, NOW() - INTERVAL '20 minutes', 3, 4, 'campaign', 3, 7, 1,
+            '[
+                {
+                    "source": "campaign",
+                    "source_id": 3,
+                    "campaign_id": 3,
+                    "playlist_id": 4,
+                    "priority": 7,
+                    "commercial_tier": "standard",
+                    "time_share_percent": 40.0,
+                    "revenue_share_percent": 60.0,
+                    "score": 75.8,
+                    "validated": true
+                }
+            ]'::jsonb,
+            true, true, true,
+            '{
+                "temporal": {
+                    "valid": true,
+                    "current_time": "2025-01-15T14:40:00Z",
+                    "campaign_active": true,
+                    "within_time_window": true,
+                    "within_date_range": true,
+                    "day_of_week_valid": true
+                },
+                "technical": {
+                    "valid": true,
+                    "totem_online": true,
+                    "playlist_available": true,
+                    "media_files_accessible": true,
+                    "storage_space_ok": true
+                },
+                "integrity": {
+                    "valid": true,
+                    "playlist_items_count": 1,
+                    "media_files_valid": true,
+                    "campaign_contract_valid": true,
+                    "publisher_access_valid": true
+                }
+            }'::jsonb,
+            false, 'totem_9_campaign_3_2025-01-15T14:40:00Z',
+            '{
+                "totem_id": 9,
+                "selected_campaign_id": 3,
+                "selected_playlist_id": 4,
+                "playlist_items": [
+                    {
+                        "media_id": 4,
+                        "display_seconds": 12,
+                        "order_index": 0,
+                        "priority": 7,
+                        "transition_type": "fade",
+                        "transition_duration_ms": 2500
+                    }
+                ],
+                "total_duration_seconds": 12,
+                "generated_at": "2025-01-15T14:40:00Z",
+                "from_cache": false,
+                "request_id": "req-007"
+            }'::jsonb,
+            105
+        ),
+        -- Totem 10 - Supermercado Açougue - Decisão RECENTE (50 minutos atrás)
+        (
+            14, 10, NOW() - INTERVAL '50 minutes', 3, 4, 'campaign', 3, 7, 1,
+            '[
+                {
+                    "source": "campaign",
+                    "source_id": 3,
+                    "campaign_id": 3,
+                    "playlist_id": 4,
+                    "priority": 7,
+                    "commercial_tier": "standard",
+                    "time_share_percent": 40.0,
+                    "revenue_share_percent": 60.0,
+                    "score": 74.2,
+                    "validated": true
+                }
+            ]'::jsonb,
+            true, true, true,
+            '{
+                "temporal": {
+                    "valid": true,
+                    "current_time": "2025-01-15T14:10:00Z",
+                    "campaign_active": true,
+                    "within_time_window": true,
+                    "within_date_range": true,
+                    "day_of_week_valid": true
+                },
+                "technical": {
+                    "valid": true,
+                    "totem_online": true,
+                    "playlist_available": true,
+                    "media_files_accessible": true,
+                    "storage_space_ok": true
+                },
+                "integrity": {
+                    "valid": true,
+                    "playlist_items_count": 1,
+                    "media_files_valid": true,
+                    "campaign_contract_valid": true,
+                    "publisher_access_valid": true
+                }
+            }'::jsonb,
+            true, 'totem_10_campaign_3_2025-01-15T14:10:00Z',
+            '{
+                "totem_id": 10,
+                "selected_campaign_id": 3,
+                "selected_playlist_id": 4,
+                "playlist_items": [
+                    {
+                        "media_id": 4,
+                        "display_seconds": 12,
+                        "order_index": 0,
+                        "priority": 7,
+                        "transition_type": "fade",
+                        "transition_duration_ms": 2500
+                    }
+                ],
+                "total_duration_seconds": 12,
+                "generated_at": "2025-01-15T14:10:00Z",
+                "from_cache": true,
+                "request_id": "req-008"
+            }'::jsonb,
+            42
+        ),
+        -- Totem 1 - Histórico (3 horas atrás)
+        (
+            15, 1, (NOW() - INTERVAL '1 year') - INTERVAL '3 hours', 1, 1, 'campaign', 1, 10, 2,
             '[
                 {
                     "source": "campaign",
@@ -1096,9 +1403,253 @@ BEGIN
             }'::jsonb,
             45
         ),
+        -- Totem 1 - Solicitação RECENTE (1 hora atrás) - Simulando solicitação de playlist
+        (
+            8, 1, NOW() - INTERVAL '1 hour', 1, 1, 'campaign', 1, 10, 3,
+            '[
+                {
+                    "source": "campaign",
+                    "source_id": 1,
+                    "campaign_id": 1,
+                    "playlist_id": 1,
+                    "priority": 10,
+                    "commercial_tier": "premium",
+                    "time_share_percent": 50.0,
+                    "revenue_share_percent": 70.0,
+                    "score": 96.2,
+                    "validated": true
+                },
+                {
+                    "source": "campaign",
+                    "source_id": 4,
+                    "campaign_id": 4,
+                    "playlist_id": null,
+                    "priority": 6,
+                    "commercial_tier": "standard",
+                    "time_share_percent": 20.0,
+                    "revenue_share_percent": 70.0,
+                    "score": 68.5,
+                    "validated": true
+                },
+                {
+                    "source": "campaign",
+                    "source_id": 5,
+                    "campaign_id": 5,
+                    "playlist_id": null,
+                    "priority": 5,
+                    "commercial_tier": "standard",
+                    "time_share_percent": 15.0,
+                    "revenue_share_percent": 70.0,
+                    "score": 48.3,
+                    "validated": true
+                }
+            ]'::jsonb,
+            true, true, true,
+            '{
+                "temporal": {
+                    "valid": true,
+                    "current_time": "2025-01-15T14:00:00Z",
+                    "campaign_active": true,
+                    "within_time_window": true,
+                    "within_date_range": true,
+                    "day_of_week_valid": true
+                },
+                "technical": {
+                    "valid": true,
+                    "totem_online": true,
+                    "playlist_available": true,
+                    "media_files_accessible": true,
+                    "storage_space_ok": true
+                },
+                "integrity": {
+                    "valid": true,
+                    "playlist_items_count": 2,
+                    "media_files_valid": true,
+                    "campaign_contract_valid": true,
+                    "publisher_access_valid": true
+                }
+            }'::jsonb,
+            false, 'totem_1_campaign_1_2025-01-15T14:00:00Z',
+            '{
+                "totem_id": 1,
+                "selected_campaign_id": 1,
+                "selected_playlist_id": 1,
+                "playlist_items": [
+                    {
+                        "media_id": 1,
+                        "display_seconds": 10,
+                        "order_index": 0,
+                        "priority": 10,
+                        "transition_type": "fade",
+                        "transition_duration_ms": 2000
+                    },
+                    {
+                        "media_id": 2,
+                        "display_seconds": 30,
+                        "order_index": 1,
+                        "priority": 10,
+                        "transition_type": "slide",
+                        "transition_duration_ms": 1500
+                    }
+                ],
+                "total_duration_seconds": 40,
+                "generated_at": "2025-01-15T14:00:00Z",
+                "from_cache": false,
+                "request_id": "req-001"
+            }'::jsonb,
+            132
+        ),
+        -- Totem 2 - Solicitação RECENTE (30 minutos atrás) - Cache hit
+        (
+            9, 2, NOW() - INTERVAL '30 minutes', 1, 2, 'campaign', 1, 10, 2,
+            '[
+                {
+                    "source": "campaign",
+                    "source_id": 1,
+                    "campaign_id": 1,
+                    "playlist_id": 2,
+                    "priority": 10,
+                    "commercial_tier": "premium",
+                    "time_share_percent": 50.0,
+                    "revenue_share_percent": 70.0,
+                    "score": 94.8,
+                    "validated": true
+                },
+                {
+                    "source": "campaign",
+                    "source_id": 4,
+                    "campaign_id": 4,
+                    "playlist_id": null,
+                    "priority": 6,
+                    "commercial_tier": "standard",
+                    "time_share_percent": 20.0,
+                    "revenue_share_percent": 70.0,
+                    "score": 66.2,
+                    "validated": true
+                }
+            ]'::jsonb,
+            true, true, true,
+            '{
+                "temporal": {
+                    "valid": true,
+                    "current_time": "2025-01-15T14:30:00Z",
+                    "campaign_active": true,
+                    "within_time_window": true,
+                    "within_date_range": true,
+                    "day_of_week_valid": true
+                },
+                "technical": {
+                    "valid": true,
+                    "totem_online": true,
+                    "playlist_available": true,
+                    "media_files_accessible": true,
+                    "storage_space_ok": true
+                },
+                "integrity": {
+                    "valid": true,
+                    "playlist_items_count": 2,
+                    "media_files_valid": true,
+                    "campaign_contract_valid": true,
+                    "publisher_access_valid": true
+                }
+            }'::jsonb,
+            true, 'totem_2_campaign_1_2025-01-15T14:30:00Z',
+            '{
+                "totem_id": 2,
+                "selected_campaign_id": 1,
+                "selected_playlist_id": 2,
+                "playlist_items": [
+                    {
+                        "media_id": 1,
+                        "display_seconds": 10,
+                        "order_index": 0,
+                        "priority": 10,
+                        "transition_type": "fade",
+                        "transition_duration_ms": 2000
+                    },
+                    {
+                        "media_id": 2,
+                        "display_seconds": 30,
+                        "order_index": 1,
+                        "priority": 10,
+                        "transition_type": "slide",
+                        "transition_duration_ms": 1500
+                    }
+                ],
+                "total_duration_seconds": 40,
+                "generated_at": "2025-01-15T14:30:00Z",
+                "from_cache": true,
+                "request_id": "req-002"
+            }'::jsonb,
+            45
+        ),
+        -- Totem 9 - Supermercado - Solicitação RECENTE (20 minutos atrás)
+        (
+            10, 9, NOW() - INTERVAL '20 minutes', 3, 4, 'campaign', 3, 7, 1,
+            '[
+                {
+                    "source": "campaign",
+                    "source_id": 3,
+                    "campaign_id": 3,
+                    "playlist_id": 4,
+                    "priority": 7,
+                    "commercial_tier": "standard",
+                    "time_share_percent": 40.0,
+                    "revenue_share_percent": 60.0,
+                    "score": 75.8,
+                    "validated": true
+                }
+            ]'::jsonb,
+            true, true, true,
+            '{
+                "temporal": {
+                    "valid": true,
+                    "current_time": "2025-01-15T14:40:00Z",
+                    "campaign_active": true,
+                    "within_time_window": true,
+                    "within_date_range": true,
+                    "day_of_week_valid": true
+                },
+                "technical": {
+                    "valid": true,
+                    "totem_online": true,
+                    "playlist_available": true,
+                    "media_files_accessible": true,
+                    "storage_space_ok": true
+                },
+                "integrity": {
+                    "valid": true,
+                    "playlist_items_count": 1,
+                    "media_files_valid": true,
+                    "campaign_contract_valid": true,
+                    "publisher_access_valid": true
+                }
+            }'::jsonb,
+            false, 'totem_9_campaign_3_2025-01-15T14:40:00Z',
+            '{
+                "totem_id": 9,
+                "selected_campaign_id": 3,
+                "selected_playlist_id": 4,
+                "playlist_items": [
+                    {
+                        "media_id": 4,
+                        "display_seconds": 12,
+                        "order_index": 0,
+                        "priority": 7,
+                        "transition_type": "fade",
+                        "transition_duration_ms": 2500
+                    }
+                ],
+                "total_duration_seconds": 12,
+                "generated_at": "2025-01-15T14:40:00Z",
+                "from_cache": false,
+                "request_id": "req-007"
+            }'::jsonb,
+            105
+        ),
         -- Totem 1 - Histórico (3 horas atrás)
         (
-            8, 1, (NOW() - INTERVAL '1 year') - INTERVAL '3 hours', 1, 1, 'campaign', 1, 10, 2,
+            11, 1, (NOW() - INTERVAL '1 year') - INTERVAL '3 hours', 1, 1, 'campaign', 1, 10, 2,
             '[
                 {
                     "source": "campaign",
@@ -1180,7 +1731,7 @@ BEGIN
         ),
         -- Totem 2 - Histórico (5 horas atrás)
         (
-            9, 2, (NOW() - INTERVAL '1 year') - INTERVAL '5 hours', 1, 2, 'campaign', 1, 10, 3,
+            12, 2, (NOW() - INTERVAL '1 year') - INTERVAL '5 hours', 1, 2, 'campaign', 1, 10, 3,
             '[
                 {
                     "source": "campaign",
@@ -1367,9 +1918,21 @@ INSERT INTO short_links (link_id, campaign_id, short_code, original_url, click_c
 ON CONFLICT DO NOTHING;
 
 INSERT INTO remote_commands (command_id, totem_id, user_id, command_type, status, parameters, response, sent_at, executed_at, completed_at, error_message, retry_count) VALUES
-(1, 1, 2, 'ping', 'completed', '{}'::jsonb, '{}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '1 day', (NOW() - INTERVAL '1 year') - INTERVAL '1 day', (NOW() - INTERVAL '1 year') - INTERVAL '1 day', NULL, 0),
-(2, 2, 2, 'restart', 'completed', '{}'::jsonb, '{}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '2 days', (NOW() - INTERVAL '1 year') - INTERVAL '2 days', (NOW() - INTERVAL '1 year') - INTERVAL '2 days', NULL, 0),
-(3, 3, 2, 'load_playlist', 'pending', '{}'::jsonb, NULL, NULL, NULL, NULL, NULL, 0)
+-- Comandos históricos
+(1, 1, 2, 'ping', 'completed', '{}'::jsonb, '{"latency_ms": 45, "status": "online"}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '1 day', (NOW() - INTERVAL '1 year') - INTERVAL '1 day', (NOW() - INTERVAL '1 year') - INTERVAL '1 day', NULL, 0),
+(2, 2, 2, 'restart', 'completed', '{}'::jsonb, '{"restart_time": "2024-01-20T10:00:00Z"}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '2 days', (NOW() - INTERVAL '1 year') - INTERVAL '2 days', (NOW() - INTERVAL '1 year') - INTERVAL '2 days', NULL, 0),
+
+-- Comandos recentes simulando solicitações de playlists
+(3, 1, NULL, 'request_playlist', 'completed', '{"request_id": "req-001", "uin": "UIN-SHOPPING-001-2025"}'::jsonb, '{"playlist_id": 1, "items_count": 2, "delivery_time_ms": 125}'::jsonb, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour' + INTERVAL '125 milliseconds', NOW() - INTERVAL '1 hour' + INTERVAL '125 milliseconds', NULL, 0),
+(4, 2, NULL, 'request_playlist', 'completed', '{"request_id": "req-002", "uin": "UIN-SHOPPING-002-2025", "from_cache": true}'::jsonb, '{"playlist_id": 2, "items_count": 2, "delivery_time_ms": 45, "from_cache": true}'::jsonb, NOW() - INTERVAL '30 minutes', NOW() - INTERVAL '30 minutes' + INTERVAL '45 milliseconds', NOW() - INTERVAL '30 minutes' + INTERVAL '45 milliseconds', NULL, 0),
+(5, 3, NULL, 'request_playlist', 'completed', '{"request_id": "req-003", "uin": "UIN-SHOPPING-003-2025"}'::jsonb, '{"playlist_id": 1, "items_count": 2, "delivery_time_ms": 138}'::jsonb, NOW() - INTERVAL '25 minutes', NOW() - INTERVAL '25 minutes' + INTERVAL '138 milliseconds', NOW() - INTERVAL '25 minutes' + INTERVAL '138 milliseconds', NULL, 0),
+(6, 9, NULL, 'request_playlist', 'completed', '{"request_id": "req-007", "uin": "UIN-SUPER-001-2025"}'::jsonb, '{"playlist_id": 4, "items_count": 1, "delivery_time_ms": 105}'::jsonb, NOW() - INTERVAL '20 minutes', NOW() - INTERVAL '20 minutes' + INTERVAL '105 milliseconds', NOW() - INTERVAL '20 minutes' + INTERVAL '105 milliseconds', NULL, 0),
+(7, 10, NULL, 'request_playlist', 'completed', '{"request_id": "req-008", "uin": "UIN-SUPER-002-2025", "from_cache": true}'::jsonb, '{"playlist_id": 4, "items_count": 1, "delivery_time_ms": 42, "from_cache": true}'::jsonb, NOW() - INTERVAL '50 minutes', NOW() - INTERVAL '50 minutes' + INTERVAL '42 milliseconds', NOW() - INTERVAL '50 minutes' + INTERVAL '42 milliseconds', NULL, 0),
+
+-- Comandos com falha para testes
+(8, 6, NULL, 'request_playlist', 'failed', '{"request_id": "req-006", "uin": "UIN-AEROPORTO-001-2025"}'::jsonb, NULL, NOW() - INTERVAL '1 hour 15 minutes', NULL, NULL, 'Nenhuma campanha ativa disponível', 0),
+(9, 8, NULL, 'request_playlist', 'failed', '{"request_id": "req-009", "uin": "UIN-URBANO-001-2025"}'::jsonb, NULL, NOW() - INTERVAL '15 minutes', NULL, NULL, 'Nenhuma campanha ativa disponível', 0),
+(10, 7, NULL, 'request_playlist', 'failed', '{"request_id": "req-010", "uin": "UIN-AEROPORTO-002-2025"}'::jsonb, NULL, NOW() - INTERVAL '2 hours', NULL, NULL, 'Totem offline - não respondeu ao heartbeat', 3)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO ota_updates (id, version, platform, file_path, file_size, checksum, description, changelog, is_mandatory, min_version, max_version, rollout_percentage, status, created_by, released_at) VALUES
@@ -1574,16 +2137,36 @@ BEGIN
             '{"campaigns": [2], "priority_distribution": {"campaign_2": 100}}'::jsonb,
             true, false, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour 30 minutes', (NOW() - INTERVAL '1 year') - INTERVAL '1 hour 30 minutes', NULL
         ),
-        -- Totem 6 - Mix Supermercado Caixas
+        -- Totem 6 - Aeroporto Embarque (sem campanhas ativas)
         (
-            6, 6, NULL, 2,
+            6, 6, NULL, 3,
+            '[]'::jsonb,
+            0, 0,
+            'no_campaigns',
+            '{"campaigns": [], "message": "Nenhuma campanha ativa disponível"}'::jsonb,
+            false, false, (NOW() - INTERVAL '1 year') - INTERVAL '1 hour 15 minutes', (NOW() - INTERVAL '1 year') - INTERVAL '1 hour 15 minutes', NULL
+        ),
+        -- Totem 9 - Supermercado Caixas - Mix RECENTE (20 minutos atrás)
+        (
+            7, 9, NULL, 5,
             '[
                 {"media_id": 4, "playlist_id": 4, "campaign_id": 3, "order_index": 0, "weight": 1.0, "source": "campaign", "display_seconds": 12}
             ]'::jsonb,
             1, 12,
             'single_campaign',
             '{"campaigns": [3], "priority_distribution": {"campaign_3": 100}}'::jsonb,
-            true, false, (NOW() - INTERVAL '1 year') - INTERVAL '20 minutes', (NOW() - INTERVAL '1 year') - INTERVAL '20 minutes', NULL
+            true, false, NOW() - INTERVAL '20 minutes', NOW() - INTERVAL '20 minutes', NULL
+        ),
+        -- Totem 10 - Supermercado Açougue - Mix RECENTE (50 minutos atrás)
+        (
+            8, 10, NULL, 5,
+            '[
+                {"media_id": 4, "playlist_id": 4, "campaign_id": 3, "order_index": 0, "weight": 1.0, "source": "campaign", "display_seconds": 12}
+            ]'::jsonb,
+            1, 12,
+            'single_campaign',
+            '{"campaigns": [3], "priority_distribution": {"campaign_3": 100}}'::jsonb,
+            true, false, NOW() - INTERVAL '50 minutes', NOW() - INTERVAL '50 minutes', NULL
         )
         ON CONFLICT DO NOTHING;
     END IF;
@@ -1694,5 +2277,285 @@ END $$;
 --    - Analytics: Dados recentes para testes de dashboards e relatórios
 --
 -- Data: 2026-01-21
--- Versão: 6.0
+-- Versão: 6.1
+--
+-- MELHORIAS DA VERSÃO 6.1:
+-- ✅ CORREÇÕES CRÍTICAS:
+--    - Locals 6 e 7 corrigidos: agora pertencem ao publisher correto
+--    - Criado publisher_id=5 (Supermercado Econômico - Publisher)
+--    - UINs atualizados de 2024 para 2025
+--    - campaign_publishers corrigido para campanha 3
+--    - campaign_locals e campaign_totems atualizados
+--
+-- ✅ DIVERSIDADE DE DADOS PARA TESTES:
+--    - Mais cenários de billing (paid, pending, overdue)
+--    - Totens adicionais para supermercado (9 e 10)
+--    - Locals adicionais para aeroporto e supermercado
+--    - Dados de billing atualizados com anos corretos (2025)
+--
+-- ✅ LOGS DE SOLICITAÇÃO E ENTREGA DE PLAYLISTS:
+--    - execution_logs: Simula solicitações (playlist_request) e entregas (playlist_delivered)
+--    - execution_logs: Simula reprodução completa (play_start, play_end) com timestamps recentes
+--    - event_logs: Eventos de solicitação, entrega e reprodução de playlists
+--    - dispatcher_log: Decisões recentes do dispatcher com request_id
+--    - totem_playlist_generation_log: Logs de geração recentes com trigger e request_id
+--    - totem_playlist_mix: Mixes recentes para novos totens (9 e 10)
+--
+-- ✅ CENÁRIOS DE TESTE SIMULADOS:
+--    - Solicitação de playlist via heartbeat (cache miss)
+--    - Solicitação de playlist agendada (cache hit)
+--    - Entrega de playlist com sucesso
+--    - Entrega de playlist falhada (totem offline)
+--    - Reprodução completa de sequência de mídias
+--    - Decisões do dispatcher com múltiplos candidatos
+--    - Decisões do dispatcher sem campanhas ativas
+--
+-- ✅ INTEGRIDADE REFERENCIAL:
+--    - Todos os relacionamentos validados e corretos
+--    - Foreign keys consistentes
+--    - Dados integrados e coerentes
+--
+-- =============================================
+-- PLAYLIST MIX RULES - Regras de Mixagem de Playlists
+-- =============================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'playlist_mix_rules') THEN
+        INSERT INTO playlist_mix_rules (
+            rule_id, totem_id, name, description, rule_type,
+            priority_weight, time_weight, tag_weight, subscriber_weight,
+            ai_enabled, ai_provider, ai_model, ai_config,
+            use_pedestrian_detection, use_sentiment_analysis, use_context_awareness, use_historical_optimization,
+            max_items_per_playlist, rotation_strategy, shuffle_enabled,
+            is_active, is_default, created_at, updated_at
+        ) VALUES
+        -- Regra padrão global (systematic)
+        (
+            1, NULL, 'Regra Padrão - Systematic', 
+            'Regra padrão para mixagem sistemática baseada em prioridade, tempo e tags',
+            'systematic',
+            1.0, 1.0, 0.5, 0.3,
+            false, NULL, NULL, NULL,
+            false, false, false, false,
+            50, 'priority', false,
+            true, true, NOW() - INTERVAL '1 year', NOW() - INTERVAL '1 year'
+        ),
+        -- Regra para Totem 1 (Shopping Entrada) - Hybrid com IA
+        (
+            2, 1, 'Regra Shopping Entrada - Hybrid IA',
+            'Regra híbrida com IA para totem de entrada do shopping, otimizada para alto tráfego',
+            'hybrid',
+            1.2, 1.0, 0.8, 0.5,
+            true, 'ollama', 'llama3', '{"temperature": 0.7, "max_tokens": 500}'::jsonb,
+            true, true, true, true,
+            60, 'ai_optimized', false,
+            true, false, NOW() - INTERVAL '6 months', NOW() - INTERVAL '1 month'
+        ),
+        -- Regra para Totem 2 (Shopping Praça) - Systematic
+        (
+            3, 2, 'Regra Shopping Praça - Systematic',
+            'Regra sistemática para praça de alimentação, prioriza campanhas de alimentação',
+            'systematic',
+            1.0, 1.5, 0.6, 0.4,
+            false, NULL, NULL, NULL,
+            false, false, false, false,
+            40, 'weighted', true,
+            true, false, NOW() - INTERVAL '6 months', NOW() - INTERVAL '2 months'
+        ),
+        -- Regra para Totem 9 (Supermercado Caixas) - Systematic
+        (
+            4, 9, 'Regra Supermercado Caixas',
+            'Regra para área de caixas do supermercado, prioriza ofertas rápidas',
+            'systematic',
+            1.0, 0.8, 0.3, 0.2,
+            false, NULL, NULL, NULL,
+            false, false, false, false,
+            30, 'round_robin', false,
+            true, false, NOW() - INTERVAL '3 months', NOW() - INTERVAL '1 month'
+        ),
+        -- Regra global com IA (para futura integração)
+        (
+            5, NULL, 'Regra Global - IA Avançada',
+            'Regra global com IA avançada para otimização baseada em contexto e histórico',
+            'ai',
+            0.8, 1.0, 1.0, 0.6,
+            true, 'ollama', 'llama3', '{"temperature": 0.8, "max_tokens": 1000, "use_context": true}'::jsonb,
+            true, true, true, true,
+            50, 'ai_optimized', false,
+            false, false, NOW() - INTERVAL '2 months', NOW() - INTERVAL '1 week'
+        )
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
+
+-- =============================================
+-- AI CONTEXT DATA - Contexto de IA para Totens
+-- =============================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ai_context_data') THEN
+        INSERT INTO ai_context_data (
+            context_id, totem_id,
+            pedestrian_count, pedestrian_density, pedestrian_demographics, last_pedestrian_detection,
+            sentiment_score, sentiment_label, emotion_tags, last_sentiment_analysis,
+            time_of_day, day_type, weather_context, event_context,
+            performance_metrics, last_performance_update,
+            raw_ai_data,
+            created_at, updated_at
+        ) VALUES
+        -- Totem 1 - Shopping Entrada (alto tráfego, positivo)
+        (
+            1, 1,
+            45, 'high', '{"age_groups": {"18-25": 15, "25-35": 20, "35-45": 10}, "gender": {"M": 22, "F": 23}}'::jsonb,
+            NOW() - INTERVAL '5 minutes',
+            0.75, 'positive', ARRAY['happy', 'excited', 'curious'], NOW() - INTERVAL '10 minutes',
+            'afternoon', 'weekday', '{"temperature": 28, "condition": "sunny", "humidity": 65}'::jsonb,
+            '{"event": "Black Friday", "crowd_level": "high"}'::jsonb,
+            '{"engagement_rate": 0.68, "view_count": 1250, "conversion_rate": 0.12, "avg_view_time": 8.5}'::jsonb,
+            NOW() - INTERVAL '1 hour',
+            '{"detection_confidence": 0.92, "model_version": "v2.1"}'::jsonb,
+            NOW() - INTERVAL '1 year', NOW() - INTERVAL '5 minutes'
+        ),
+        -- Totem 2 - Shopping Praça (médio tráfego, neutro)
+        (
+            2, 2,
+            32, 'medium', '{"age_groups": {"25-35": 18, "35-45": 10, "45-55": 4}, "gender": {"M": 16, "F": 16}}'::jsonb,
+            NOW() - INTERVAL '8 minutes',
+            0.15, 'neutral', ARRAY['calm', 'focused'], NOW() - INTERVAL '15 minutes',
+            'afternoon', 'weekday', '{"temperature": 28, "condition": "sunny", "humidity": 65}'::jsonb,
+            NULL,
+            '{"engagement_rate": 0.52, "view_count": 890, "conversion_rate": 0.08, "avg_view_time": 6.2}'::jsonb,
+            NOW() - INTERVAL '2 hours',
+            '{"detection_confidence": 0.85, "model_version": "v2.1"}'::jsonb,
+            NOW() - INTERVAL '1 year', NOW() - INTERVAL '8 minutes'
+        ),
+        -- Totem 3 - Shopping Cinema (baixo tráfego, positivo)
+        (
+            3, 3,
+            18, 'low', '{"age_groups": {"18-25": 8, "25-35": 7, "35-45": 3}, "gender": {"M": 9, "F": 9}}'::jsonb,
+            NOW() - INTERVAL '12 minutes',
+            0.60, 'positive', ARRAY['happy', 'anticipating'], NOW() - INTERVAL '20 minutes',
+            'evening', 'weekday', '{"temperature": 26, "condition": "clear", "humidity": 70}'::jsonb,
+            '{"event": "Movie Premiere", "crowd_level": "low"}'::jsonb,
+            '{"engagement_rate": 0.45, "view_count": 450, "conversion_rate": 0.05, "avg_view_time": 5.8}'::jsonb,
+            NOW() - INTERVAL '3 hours',
+            '{"detection_confidence": 0.78, "model_version": "v2.1"}'::jsonb,
+            NOW() - INTERVAL '1 year', NOW() - INTERVAL '12 minutes'
+        ),
+        -- Totem 9 - Supermercado Caixas (alto tráfego, neutro)
+        (
+            4, 9,
+            52, 'high', '{"age_groups": {"25-35": 20, "35-45": 18, "45-55": 14}, "gender": {"M": 26, "F": 26}}'::jsonb,
+            NOW() - INTERVAL '3 minutes',
+            0.10, 'neutral', ARRAY['focused', 'rushed'], NOW() - INTERVAL '8 minutes',
+            'afternoon', 'weekday', '{"temperature": 30, "condition": "sunny", "humidity": 60}'::jsonb,
+            '{"event": "Ofertas do Dia", "crowd_level": "high"}'::jsonb,
+            '{"engagement_rate": 0.35, "view_count": 2100, "conversion_rate": 0.15, "avg_view_time": 4.2}'::jsonb,
+            NOW() - INTERVAL '30 minutes',
+            '{"detection_confidence": 0.88, "model_version": "v2.1"}'::jsonb,
+            NOW() - INTERVAL '3 months', NOW() - INTERVAL '3 minutes'
+        ),
+        -- Totem 10 - Supermercado Açougue (médio tráfego, positivo)
+        (
+            5, 10,
+            28, 'medium', '{"age_groups": {"35-45": 12, "45-55": 10, "55+": 6}, "gender": {"M": 14, "F": 14}}'::jsonb,
+            NOW() - INTERVAL '6 minutes',
+            0.45, 'positive', ARRAY['satisfied', 'interested'], NOW() - INTERVAL '12 minutes',
+            'afternoon', 'weekday', '{"temperature": 30, "condition": "sunny", "humidity": 60}'::jsonb,
+            NULL,
+            '{"engagement_rate": 0.58, "view_count": 650, "conversion_rate": 0.10, "avg_view_time": 7.1}'::jsonb,
+            NOW() - INTERVAL '1 hour',
+            '{"detection_confidence": 0.82, "model_version": "v2.1"}'::jsonb,
+            NOW() - INTERVAL '3 months', NOW() - INTERVAL '6 minutes'
+        )
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
+
+-- =============================================
+-- PLAYLIST MIX HISTORY - Histórico de Mixagens
+-- =============================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'playlist_mix_history') THEN
+        INSERT INTO playlist_mix_history (
+            history_id, totem_id, mix_id, rule_id, mix_strategy,
+            total_items, total_duration,
+            execution_count, average_view_time, engagement_score,
+            context_snapshot,
+            generated_at, applied_at, last_executed_at,
+            created_at
+        ) VALUES
+        -- Totem 1 - Histórico de mixagens
+        (
+            1, 1, 1, 2, 'hybrid',
+            4, 105,
+            1250, 8.5, 68.5,
+            '{"pedestrian_count": 45, "sentiment": "positive", "time_of_day": "afternoon"}'::jsonb,
+            (NOW() - INTERVAL '1 year') - INTERVAL '1 hour', (NOW() - INTERVAL '1 year') - INTERVAL '1 hour', NOW() - INTERVAL '5 minutes',
+            (NOW() - INTERVAL '1 year') - INTERVAL '1 hour'
+        ),
+        (
+            2, 1, NULL, 2, 'hybrid',
+            3, 80,
+            980, 7.8, 65.2,
+            '{"pedestrian_count": 38, "sentiment": "neutral", "time_of_day": "morning"}'::jsonb,
+            (NOW() - INTERVAL '1 year') - INTERVAL '3 days', (NOW() - INTERVAL '1 year') - INTERVAL '3 days', (NOW() - INTERVAL '1 year') - INTERVAL '2 days',
+            (NOW() - INTERVAL '1 year') - INTERVAL '3 days'
+        ),
+        -- Totem 2 - Histórico
+        (
+            3, 2, 2, 3, 'systematic',
+            3, 60,
+            890, 6.2, 52.0,
+            '{"pedestrian_count": 32, "sentiment": "neutral", "time_of_day": "afternoon"}'::jsonb,
+            (NOW() - INTERVAL '1 year') - INTERVAL '30 minutes', (NOW() - INTERVAL '1 year') - INTERVAL '30 minutes', NOW() - INTERVAL '10 minutes',
+            (NOW() - INTERVAL '1 year') - INTERVAL '30 minutes'
+        ),
+        (
+            4, 2, NULL, 3, 'systematic',
+            2, 40,
+            720, 5.5, 48.5,
+            '{"pedestrian_count": 25, "sentiment": "neutral", "time_of_day": "morning"}'::jsonb,
+            (NOW() - INTERVAL '1 year') - INTERVAL '5 days', (NOW() - INTERVAL '1 year') - INTERVAL '5 days', (NOW() - INTERVAL '1 year') - INTERVAL '4 days',
+            (NOW() - INTERVAL '1 year') - INTERVAL '5 days'
+        ),
+        -- Totem 3 - Histórico
+        (
+            5, 3, 3, 1, 'systematic',
+            4, 105,
+            450, 5.8, 45.0,
+            '{"pedestrian_count": 18, "sentiment": "positive", "time_of_day": "evening"}'::jsonb,
+            (NOW() - INTERVAL '1 year') - INTERVAL '45 minutes', (NOW() - INTERVAL '1 year') - INTERVAL '45 minutes', (NOW() - INTERVAL '1 year') - INTERVAL '1 day',
+            (NOW() - INTERVAL '1 year') - INTERVAL '45 minutes'
+        ),
+        -- Totem 9 - Supermercado (recente)
+        (
+            6, 9, 7, 4, 'systematic',
+            1, 12,
+            2100, 4.2, 35.0,
+            '{"pedestrian_count": 52, "sentiment": "neutral", "time_of_day": "afternoon"}'::jsonb,
+            NOW() - INTERVAL '20 minutes', NOW() - INTERVAL '20 minutes', NOW() - INTERVAL '2 minutes',
+            NOW() - INTERVAL '20 minutes'
+        ),
+        (
+            7, 9, NULL, 4, 'systematic',
+            1, 12,
+            1850, 4.0, 32.5,
+            '{"pedestrian_count": 48, "sentiment": "neutral", "time_of_day": "afternoon"}'::jsonb,
+            NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day', NOW() - INTERVAL '23 hours',
+            NOW() - INTERVAL '1 day'
+        ),
+        -- Totem 10 - Supermercado Açougue
+        (
+            8, 10, 8, 1, 'systematic',
+            1, 12,
+            650, 7.1, 58.0,
+            '{"pedestrian_count": 28, "sentiment": "positive", "time_of_day": "afternoon"}'::jsonb,
+            NOW() - INTERVAL '50 minutes', NOW() - INTERVAL '50 minutes', NOW() - INTERVAL '5 minutes',
+            NOW() - INTERVAL '50 minutes'
+        )
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
 

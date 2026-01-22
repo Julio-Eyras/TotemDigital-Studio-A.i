@@ -129,7 +129,8 @@ const PlaylistMix: React.FC = () => {
   const loadTotems = async () => {
     try {
       setLoadingTotems(true);
-      const resp = await totemApi.getAll();
+      // Aumentar limit para garantir que todos os totens sejam carregados
+      const resp = await totemApi.getAll({ limit: 100 });
       setTotems(resp.data || []);
     } catch (e: any) {
       setError('Erro ao carregar totems: ' + (e.message || 'Erro desconhecido'));
