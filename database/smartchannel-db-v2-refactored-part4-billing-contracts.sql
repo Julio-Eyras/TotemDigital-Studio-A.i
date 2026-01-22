@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS subscriber_billing (
     description TEXT,
     invoice_number TEXT UNIQUE,
     payment_method TEXT, -- credit_card, bank_transfer, pix, etc.
-    payment_status TEXT DEFAULT 'pending', -- pending, paid, failed, refunded
+    payment_status TEXT DEFAULT 'pending', -- pending, paid, failed, refunded, cancelled, overdue
     
     payment_date TIMESTAMP,
     due_date TIMESTAMP,
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS subscriber_billing (
     CONSTRAINT chk_subscriber_billing_amount 
         CHECK (amount > 0),
     CONSTRAINT chk_subscriber_billing_payment_status 
-        CHECK (payment_status IN ('pending', 'paid', 'failed', 'refunded', 'cancelled'))
+        CHECK (payment_status IN ('pending', 'paid', 'failed', 'refunded', 'cancelled', 'overdue'))
 );
 
 COMMENT ON TABLE subscriber_billing IS 'Cobranças de subscribers (anunciantes que pagam por publicidade)';

@@ -13,10 +13,12 @@
 - ✅ Componentes reutilizáveis (PageHeader, DataTable, FormDialog)
 - ✅ Hooks customizados (usePaginatedData, useForm, useDialog)
 
-### Fase 2: Refatoração 🔄 40%
+### Fase 2: Refatoração 🔄 60%
 - ✅ Componentes Subscribers criados (Card, List, Stats, Tabs)
 - ✅ Hook useSubscribers criado
-- ⏳ Falta refatorar arquivo principal Subscribers.tsx
+- ✅ SubscriberForm component criado
+- ✅ SubscriberDetails component criado
+- ⏳ Refatorando arquivo principal Subscribers.tsx (em progresso)
 - ⏳ Falta aplicar para Publishers e Contracts
 
 ### Fase 3: Melhorias de UX ✅ 100%
@@ -33,7 +35,7 @@
 - **Design System**: 3 arquivos
 - **Componentes Reutilizáveis**: 6 arquivos
 - **Hooks**: 5 arquivos
-- **Subscribers Components**: 8 arquivos
+- **Subscribers Components**: 10 arquivos (Card, List, Stats, Form, Details, Tabs)
 - **Navigation**: 2 arquivos
 - **Notification**: 2 arquivos
 - **Total**: ~26 arquivos novos
@@ -56,9 +58,9 @@
 - ⏳ Aplicar em outras páginas principais
 
 ### 2. Completar Refatoração Subscribers
-- [ ] Criar SubscriberForm component
-- [ ] Criar SubscriberDetails component
-- [ ] Refatorar Subscribers.tsx principal
+- [x] Criar SubscriberForm component ✅
+- [x] Criar SubscriberDetails component ✅
+- [ ] Refatorar Subscribers.tsx principal (em progresso)
 
 ### 3. Aplicar Padrão para Outras Páginas
 - [ ] Publishers.tsx

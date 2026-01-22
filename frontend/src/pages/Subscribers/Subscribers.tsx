@@ -101,6 +101,7 @@ import {
 } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import { SortableList } from '../../components/SortableList/SortableList';
+import { SubscriberCard, SubscriberDetails } from './components';
 
 const Subscribers: React.FC = () => {
   const theme = useTheme();
@@ -1717,132 +1718,16 @@ const Subscribers: React.FC = () => {
       <Grid container spacing={3}>
         {Subscribers.map((Subscriber) => (
           <Grid item xs={12} sm={6} md={4} lg={3} key={Subscriber.subscriber_id}>
-            <Card sx={{ 
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: theme.shadows[8],
-              }
-            }}>
-              <Box sx={{ position: 'relative', height: 120, backgroundColor: theme.palette.grey[100] }}>
-                <Avatar
-                  sx={{
-                    position: 'absolute',
-                    top: 16,
-                    left: 16,
-                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                    color: theme.palette.primary.main,
-                  }}
-                >
-                  <Business />
-                </Avatar>
-                
-                <Chip
-                  label={Subscriber.is_active ? 'Ativo' : 'Inativo'}
-                  size="small"
-                  sx={{
-                    position: 'absolute',
-                    top: 16,
-                    right: 16,
-                    backgroundColor: alpha(Subscriber.is_active ? theme.palette.success.main : theme.palette.error.main, 0.1),
-                    color: Subscriber.is_active ? theme.palette.success.main : theme.palette.error.main,
-                    fontWeight: 'bold',
-                  }}
-                />
-
-                <Box sx={{ 
-                  position: 'absolute', 
-                  bottom: 16, 
-                  left: 16, 
-                  right: 16,
-                }}>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Criado em {Subscriber.created_at ? formatDate(Subscriber.created_at) : 'N/A'}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
-                  {Subscriber.name}
-                </Typography>
-                
-                <Chip
-                  label={'Assinante'}
-                  size="small"
-                  color={'primary' as any}
-                  sx={{ mb: 1 }}
-                />
-                
-                {Subscriber.contact_name && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                    <People fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
-                      Contato: {Subscriber.contact_name}
-                    </Typography>
-                  </Box>
-                )}
-
-                {Subscriber.email && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                    <Email fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
-                      {Subscriber.email}
-                    </Typography>
-                  </Box>
-                )}
-
-                {Subscriber.phone && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                    <Phone fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
-                      {Subscriber.phone}
-                    </Typography>
-                  </Box>
-                )}
-
-                {Subscriber.whatsapp && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-                    <Phone fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
-                      WhatsApp: {Subscriber.whatsapp}
-                    </Typography>
-                  </Box>
-                )}
-
-                <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => handleViewDetails(Subscriber)}
-                    sx={{ fontSize: '0.75rem' }}
-                  >
-                    Detalhes
-                  </Button>
-                  
-                  <Box>
-                    <Tooltip title="Editar">
-                      <IconButton size="small" onClick={async () => {
-                        setSelectedSubscriber(Subscriber);
-                        setEditDialogOpen(true);
-                        // Carregar dados ao abrir o dialog
-                        await loadSubscriberDataForEdit(Subscriber.subscriber_id);
-                      }}>
-                        <Edit />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Excluir">
-                      <IconButton size="small" onClick={() => handleDeleteSubscriber(Subscriber.subscriber_id)}>
-                        <Delete />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
+            <SubscriberCard
+              subscriber={Subscriber}
+              onView={() => handleViewDetails(Subscriber)}
+              onEdit={async () => {
+                setSelectedSubscriber(Subscriber);
+                setEditDialogOpen(true);
+                await loadSubscriberDataForEdit(Subscriber.subscriber_id);
+              }}
+              onDelete={() => handleDeleteSubscriber(Subscriber.subscriber_id)}
+            />
           </Grid>
         ))}
       </Grid>
@@ -3584,21 +3469,19 @@ const Subscribers: React.FC = () => {
       </Dialog>
 
       {/* Details Dialog */}
-      <Dialog open={detailsDialogOpen} onClose={() => setDetailsDialogOpen(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>
-          Detalhes do Assinante - {selectedSubscriber?.name}
-        </DialogTitle>
-        <DialogContent>
-          <Tabs value={detailsTab} onChange={(_, newValue) => setDetailsTab(newValue)} sx={{ mb: 2 }}>
-            <Tab label="Informações" />
-            <Tab label="Locais" />
-            <Tab label="Totens" />
-            <Tab label="Smart TVs" />
-            <Tab label="Contratos" icon={activeContracts.length > 0 ? <Chip label={activeContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Estatísticas" />
-          </Tabs>
-
-          {detailsTab === 0 && selectedSubscriber && (
+      <SubscriberDetails
+        open={detailsDialogOpen}
+        subscriber={selectedSubscriber}
+        onClose={() => {
+          setDetailsDialogOpen(false);
+          setDetailsTab(0);
+        }}
+        onEdit={async (subscriber) => {
+          setSelectedSubscriber(subscriber);
+          setEditDialogOpen(true);
+          await loadSubscriberDataForEdit(subscriber.subscriber_id);
+        }}
+      />
             <TableContainer>
               <Table size="small">
                 <TableBody>
