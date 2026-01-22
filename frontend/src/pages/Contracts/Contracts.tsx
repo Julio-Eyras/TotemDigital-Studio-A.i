@@ -66,7 +66,7 @@ import {
   CreatePublisherContractRequest,
   UpdatePublisherContractRequest,
 } from '../../services/api';
-import { ContractCard } from './components';
+import { ContractCard, ContractForm, ContractDetails } from './components';
 
 type ContractsInitialType = 'subscriber' | 'publisher';
 
@@ -109,6 +109,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [createPublisherContractDialogOpen, setCreatePublisherContractDialogOpen] = useState(false);
   const [editPublisherContractDialogOpen, setEditPublisherContractDialogOpen] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
@@ -844,6 +845,10 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
               <ContractCard
                 contract={contract}
                 canViewSensitiveValues={canViewSensitiveValues}
+                onView={(contract) => {
+                  setSelectedContract(contract);
+                  setDetailsDialogOpen(true);
+                }}
                 onEdit={() => handleStartEdit(contract)}
                 onDelete={() => handleDeleteContract(contract.contract_id)}
               />
@@ -994,7 +999,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         </Grid>
       )}
 
-      {/* Create Dialog com Abas */}
+      {/* Create Dialog */}
       <Dialog
         open={createDialogOpen}
         onClose={() => {
@@ -1006,290 +1011,20 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       >
         <DialogTitle>Adicionar Contrato</DialogTitle>
         <DialogContent>
-          <Tabs value={createTab} onChange={(_, newValue) => setCreateTab(newValue)} sx={{ mb: 3 }}>
-            <Tab label="Informações" />
-            <Tab
-              label="Publicadores"
-              disabled={!contractForm.subscriber_id}
-              icon={selectedPublisherIds.length > 0 ? <Chip label={selectedPublisherIds.length} size="small" color="primary" /> : undefined}
-              iconPosition="end"
-            />
-          </Tabs>
-
-          {/* Aba Informações */}
-          {createTab === 0 && (
-            <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>Dados do Contrato</Typography>
-
-              <FormControlLabel
-                sx={{ mt: 1 }}
-                control={
-                  <Checkbox
-                    checked={!!contractForm.created_before_subscriber}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setContractForm((prev) => ({
-                        ...prev,
-                        created_before_subscriber: checked,
-                        subscriber_id: checked ? undefined : prev.subscriber_id,
-                      }));
-                      if (checked) {
-                        // Pré-contrato não pode conceder acessos a publishers sem subscriber_id
-                        setSelectedPublisherIds([]);
-                      }
-                    }}
-                  />
-                }
-                label="Criar contrato antes do anunciante (pré-contrato)"
-              />
-
-              {contractForm.created_before_subscriber && (
-                <Alert severity="info" sx={{ mt: 1 }}>
-                  Este contrato será criado sem Assinante. Você poderá vinculá-lo depois (quando o Anunciante existir).
-                  Enquanto isso, a seleção de Publicadores ficará desabilitada.
-                </Alert>
-              )}
-
-              <FormControl fullWidth margin="normal" required={!contractForm.created_before_subscriber}>
-                <InputLabel>{contractForm.created_before_subscriber ? 'Assinante (opcional)' : 'Assinante *'}</InputLabel>
-                <Select
-                  value={contractForm.subscriber_id || ''}
-                  label={contractForm.created_before_subscriber ? 'Assinante (opcional)' : 'Assinante *'}
-                  onChange={(e) => {
-                    const nextId = e.target.value ? Number(e.target.value) : undefined;
-                    setContractForm({ ...contractForm, subscriber_id: nextId, created_before_subscriber: !nextId });
-                    if (!nextId) setSelectedPublisherIds([]);
-                  }}
-                  disabled={!!contractForm.created_before_subscriber || !!effectiveSubscriberId}
-                >
-                    <MenuItem value="">{contractForm.created_before_subscriber ? 'Nenhum (pré-contrato)' : 'Selecione...'}</MenuItem>
-                    {subscribers.map((subscriber) => {
-                      const subscriberId = subscriber.subscriber_id || (subscriber as any).subscriberId;
-                      return (
-                        <MenuItem key={subscriberId} value={subscriberId}>
-                          {subscriber.name}
-                        </MenuItem>
-                      );
-                    })}
-                </Select>
-              </FormControl>
-
-              <TextField
-                fullWidth
-                label="Número do Contrato *"
-                value={contractForm.contract_number}
-                onChange={(e) => setContractForm({ ...contractForm, contract_number: e.target.value })}
-                margin="normal"
-                required
-                helperText="Número único identificador do contrato"
-              />
-
-              <TextField
-                fullWidth
-                label="Título *"
-                value={contractForm.title}
-                onChange={(e) => setContractForm({ ...contractForm, title: e.target.value })}
-                margin="normal"
-                required
-              />
-
-              <FormControl fullWidth margin="normal" required>
-                <InputLabel>Tipo de Contrato *</InputLabel>
-                <Select
-                  value={contractForm.contract_type}
-                  label="Tipo de Contrato *"
-                  onChange={(e) => setContractForm({ ...contractForm, contract_type: e.target.value as any })}
-                >
-                  <MenuItem value="advertising">Publicidade</MenuItem>
-                  <MenuItem value="subscription">Assinatura</MenuItem>
-                  <MenuItem value="partnership">Parceria</MenuItem>
-                  <MenuItem value="revenue_share">Revenue Share</MenuItem>
-                  <MenuItem value="hybrid">Híbrido</MenuItem>
-                </Select>
-              </FormControl>
-
-              <TextField
-                fullWidth
-                label="Descrição"
-                value={contractForm.description}
-                onChange={(e) => setContractForm({ ...contractForm, description: e.target.value })}
-                margin="normal"
-                multiline
-                rows={3}
-              />
-
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth margin="normal">
-                    <InputLabel>Plano</InputLabel>
-                    <Select
-                      value={contractForm.plan_id || ''}
-                      label="Plano"
-                      onChange={(e) => setContractForm({ ...contractForm, plan_id: e.target.value ? Number(e.target.value) : undefined })}
-                    >
-                      <MenuItem value="">Nenhum</MenuItem>
-                      {plans.map((plan) => {
-                        const planId = plan.planId || plan.plan_id || 0;
-                        return (
-                          <MenuItem key={planId} value={planId}>
-                            {plan.name}
-                          </MenuItem>
-                        );
-                      })}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Data de Início *"
-                    type="date"
-                    value={contractForm.start_date}
-                    onChange={(e) => setContractForm({ ...contractForm, start_date: e.target.value })}
-                    margin="normal"
-                    required
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Data de Término"
-                    type="date"
-                    value={contractForm.end_date}
-                    onChange={(e) => setContractForm({ ...contractForm, end_date: e.target.value || undefined })}
-                    margin="normal"
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  {canViewSensitiveValues && (
-                    <TextField
-                      fullWidth
-                      label="Valor Total"
-                      type="number"
-                      value={contractForm.total_amount || ''}
-                      onChange={(e) => setContractForm({ ...contractForm, total_amount: e.target.value ? Number(e.target.value) : undefined })}
-                      margin="normal"
-                      InputProps={{
-                        startAdornment: <Typography sx={{ mr: 1 }}>{contractForm.currency}</Typography>,
-                      }}
-                    />
-                  )}
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth margin="normal">
-                    <InputLabel>Status</InputLabel>
-                    <Select
-                      value={contractForm.status}
-                      label="Status"
-                      onChange={(e) => setContractForm({ ...contractForm, status: e.target.value as any })}
-                    >
-                      <MenuItem value="draft">Rascunho</MenuItem>
-                      <MenuItem value="active">Ativo</MenuItem>
-                      <MenuItem value="expired">Expirado</MenuItem>
-                      <MenuItem value="terminated">Terminado</MenuItem>
-                      <MenuItem value="cancelled">Cancelado</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth margin="normal">
-                    <InputLabel>Moeda</InputLabel>
-                    <Select
-                      value={contractForm.currency}
-                      label="Moeda"
-                      onChange={(e) => setContractForm({ ...contractForm, currency: e.target.value })}
-                    >
-                      <MenuItem value="BRL">BRL (Real)</MenuItem>
-                      <MenuItem value="USD">USD (Dólar)</MenuItem>
-                      <MenuItem value="EUR">EUR (Euro)</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12}>
-                  {canViewSensitiveValues && (
-                    <TextField
-                      fullWidth
-                      label="Condições de Pagamento"
-                      value={contractForm.payment_terms}
-                      onChange={(e) => setContractForm({ ...contractForm, payment_terms: e.target.value })}
-                      margin="normal"
-                      multiline
-                      rows={2}
-                    />
-                  )}
-                </Grid>
-              </Grid>
-            </Box>
-          )}
-
-          {/* Aba Publicadores */}
-          {createTab === 1 && (
-            <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Publicadores Associados {selectedPublisherIds.length > 0 && `(${selectedPublisherIds.length})`}
-              </Typography>
-
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Selecione os publicadores que este contrato dará acesso ao assinante. Os publicadores selecionados serão associados ao contrato através de acessos.
-              </Alert>
-
-              {publishers.length === 0 ? (
-                <Alert severity="warning">
-                  Nenhum publicador encontrado. Cadastre publicadores primeiro.
-                </Alert>
-              ) : (
-                <List>
-                  {publishers.map((publisher) => (
-                    <ListItem
-                      key={publisher.publisher_id}
-                      sx={{
-                        border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
-                        mb: 1,
-                        backgroundColor: selectedPublisherIds.includes(publisher.publisher_id)
-                          ? alpha(theme.palette.primary.main, 0.1)
-                          : 'transparent',
-                      }}
-                    >
-                      <Checkbox
-                        checked={selectedPublisherIds.includes(publisher.publisher_id)}
-                        onChange={() => handleTogglePublisher(publisher.publisher_id)}
-                      />
-                      <ListItemIcon>
-                        <Business />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={publisher.name}
-                        secondary={
-                          <>
-                            {publisher.email && (
-                              <Box component="span" sx={{ display: 'block' }}>
-                                {publisher.email}
-                              </Box>
-                            )}
-                            <Chip
-                              label={publisher.active ? 'Ativo' : 'Inativo'}
-                              size="small"
-                              color={publisher.active ? 'success' : 'default'}
-                              sx={{ mt: 0.5 }}
-                            />
-                          </>
-                        }
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              )}
-            </Box>
-          )}
+          <ContractForm
+            mode="create"
+            data={contractForm}
+            onChange={(data) => setContractForm(data as CreateContractRequest)}
+            subscribers={subscribers}
+            plans={plans}
+            publishers={publishers}
+            selectedPublisherIds={selectedPublisherIds}
+            onTogglePublisher={handleTogglePublisher}
+            canViewSensitiveValues={canViewSensitiveValues}
+            effectiveSubscriberId={effectiveSubscriberId}
+            activeTab={createTab}
+            onTabChange={setCreateTab}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => {
@@ -1313,7 +1048,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         </DialogActions>
       </Dialog>
 
-      {/* Edit Dialog com Abas */}
+      {/* Edit Dialog */}
       <Dialog
         open={editDialogOpen}
         onClose={() => {
@@ -1325,241 +1060,21 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       >
         <DialogTitle>Editar Contrato - {selectedContract?.title || ''}</DialogTitle>
         <DialogContent>
-          <Tabs value={editTab} onChange={(_, newValue) => setEditTab(newValue)} sx={{ mb: 3 }}>
-            <Tab label="Informações" />
-            <Tab label="Publicadores" icon={selectedPublisherIds.length > 0 ? <Chip label={selectedPublisherIds.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-          </Tabs>
-
-          {/* Aba Informações */}
-          {editTab === 0 && selectedContract && (
-            <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>Dados do Contrato</Typography>
-
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Assinante: {selectedContract.subscriber_name || 'N/A'}
-              </Alert>
-
-              <TextField
-                fullWidth
-                label="Número do Contrato *"
-                value={contractForm.contract_number}
-                onChange={(e) => setContractForm({ ...contractForm, contract_number: e.target.value })}
-                margin="normal"
-                required
-              />
-
-              <TextField
-                fullWidth
-                label="Título *"
-                value={contractForm.title}
-                onChange={(e) => setContractForm({ ...contractForm, title: e.target.value })}
-                margin="normal"
-                required
-              />
-
-              <FormControl fullWidth margin="normal" required>
-                <InputLabel>Tipo de Contrato *</InputLabel>
-                <Select
-                  value={contractForm.contract_type}
-                  label="Tipo de Contrato *"
-                  onChange={(e) => setContractForm({ ...contractForm, contract_type: e.target.value as any })}
-                >
-                  <MenuItem value="advertising">Publicidade</MenuItem>
-                  <MenuItem value="subscription">Assinatura</MenuItem>
-                  <MenuItem value="partnership">Parceria</MenuItem>
-                  <MenuItem value="revenue_share">Revenue Share</MenuItem>
-                  <MenuItem value="hybrid">Híbrido</MenuItem>
-                </Select>
-              </FormControl>
-
-              <TextField
-                fullWidth
-                label="Descrição"
-                value={contractForm.description}
-                onChange={(e) => setContractForm({ ...contractForm, description: e.target.value })}
-                margin="normal"
-                multiline
-                rows={3}
-              />
-
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth margin="normal">
-                    <InputLabel>Plano</InputLabel>
-                    <Select
-                      value={contractForm.plan_id || ''}
-                      label="Plano"
-                      onChange={(e) => setContractForm({ ...contractForm, plan_id: e.target.value ? Number(e.target.value) : undefined })}
-                    >
-                      <MenuItem value="">Nenhum</MenuItem>
-                      {plans.map((plan) => {
-                        const planId = plan.planId || plan.plan_id || 0;
-                        return (
-                          <MenuItem key={planId} value={planId}>
-                            {plan.name}
-                          </MenuItem>
-                        );
-                      })}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Data de Início *"
-                    type="date"
-                    value={contractForm.start_date}
-                    onChange={(e) => setContractForm({ ...contractForm, start_date: e.target.value })}
-                    margin="normal"
-                    required
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Data de Término"
-                    type="date"
-                    value={contractForm.end_date}
-                    onChange={(e) => setContractForm({ ...contractForm, end_date: e.target.value || undefined })}
-                    margin="normal"
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  {canViewSensitiveValues && (
-                    <TextField
-                      fullWidth
-                      label="Valor Total"
-                      type="number"
-                      value={contractForm.total_amount || ''}
-                      onChange={(e) => setContractForm({ ...contractForm, total_amount: e.target.value ? Number(e.target.value) : undefined })}
-                      margin="normal"
-                      InputProps={{
-                        startAdornment: <Typography sx={{ mr: 1 }}>{contractForm.currency}</Typography>,
-                      }}
-                    />
-                  )}
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth margin="normal">
-                    <InputLabel>Status</InputLabel>
-                    <Select
-                      value={contractForm.status}
-                      label="Status"
-                      onChange={(e) => setContractForm({ ...contractForm, status: e.target.value as any })}
-                    >
-                      <MenuItem value="draft">Rascunho</MenuItem>
-                      <MenuItem value="active">Ativo</MenuItem>
-                      <MenuItem value="expired">Expirado</MenuItem>
-                      <MenuItem value="terminated">Terminado</MenuItem>
-                      <MenuItem value="cancelled">Cancelado</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth margin="normal">
-                    <InputLabel>Moeda</InputLabel>
-                    <Select
-                      value={contractForm.currency}
-                      label="Moeda"
-                      onChange={(e) => setContractForm({ ...contractForm, currency: e.target.value })}
-                    >
-                      <MenuItem value="BRL">BRL (Real)</MenuItem>
-                      <MenuItem value="USD">USD (Dólar)</MenuItem>
-                      <MenuItem value="EUR">EUR (Euro)</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12}>
-                  {canViewSensitiveValues && (
-                    <TextField
-                      fullWidth
-                      label="Condições de Pagamento"
-                      value={contractForm.payment_terms}
-                      onChange={(e) => setContractForm({ ...contractForm, payment_terms: e.target.value })}
-                      margin="normal"
-                      multiline
-                      rows={2}
-                    />
-                  )}
-                </Grid>
-              </Grid>
-            </Box>
-          )}
-
-          {/* Aba Publicadores */}
-          {editTab === 1 && (
-            <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Publicadores Associados {selectedPublisherIds.length > 0 && `(${selectedPublisherIds.length})`}
-              </Typography>
-
-              {loadingPublishers ? (
-                <LinearProgress />
-              ) : (
-                <>
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    Selecione os publicadores que este contrato dará acesso ao assinante. Os publicadores selecionados serão associados ao contrato através de acessos.
-                  </Alert>
-
-                  {publishers.length === 0 ? (
-                    <Alert severity="warning">
-                      Nenhum publicador encontrado. Cadastre publicadores primeiro.
-                    </Alert>
-                  ) : (
-                    <List>
-                      {publishers.map((publisher) => (
-                        <ListItem
-                          key={publisher.publisher_id}
-                          sx={{
-                            border: `1px solid ${theme.palette.divider}`,
-                            borderRadius: 1,
-                            mb: 1,
-                            backgroundColor: selectedPublisherIds.includes(publisher.publisher_id)
-                              ? alpha(theme.palette.primary.main, 0.1)
-                              : 'transparent',
-                          }}
-                        >
-                          <Checkbox
-                            checked={selectedPublisherIds.includes(publisher.publisher_id)}
-                            onChange={() => handleTogglePublisher(publisher.publisher_id)}
-                          />
-                          <ListItemIcon>
-                            <Business />
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={publisher.name}
-                            secondary={
-                              <>
-                                {publisher.email && (
-                                  <Box component="span" sx={{ display: 'block' }}>
-                                    {publisher.email}
-                                  </Box>
-                                )}
-                                <Chip
-                                  label={publisher.active ? 'Ativo' : 'Inativo'}
-                                  size="small"
-                                  color={publisher.active ? 'success' : 'default'}
-                                  sx={{ mt: 0.5 }}
-                                />
-                              </>
-                            }
-                          />
-                        </ListItem>
-                      ))}
-                    </List>
-                  )}
-                </>
-              )}
-            </Box>
-          )}
+          <ContractForm
+            mode="edit"
+            contract={selectedContract || undefined}
+            data={contractForm}
+            onChange={(data) => setContractForm(data as CreateContractRequest)}
+            subscribers={subscribers}
+            plans={plans}
+            publishers={publishers}
+            selectedPublisherIds={selectedPublisherIds}
+            onTogglePublisher={handleTogglePublisher}
+            canViewSensitiveValues={canViewSensitiveValues}
+            effectiveSubscriberId={effectiveSubscriberId}
+            activeTab={editTab}
+            onTabChange={setEditTab}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => {
@@ -1577,6 +1092,21 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Details Dialog */}
+      <ContractDetails
+        open={detailsDialogOpen}
+        contract={selectedContract}
+        onClose={() => {
+          setDetailsDialogOpen(false);
+          setSelectedContract(null);
+        }}
+        onEdit={(contract) => {
+          setDetailsDialogOpen(false);
+          handleStartEdit(contract);
+        }}
+        canViewSensitiveValues={canViewSensitiveValues}
+      />
 
       {/* Create Publisher Contract Dialog */}
       <Dialog
