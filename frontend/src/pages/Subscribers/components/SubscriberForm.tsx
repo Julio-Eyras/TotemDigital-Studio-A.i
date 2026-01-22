@@ -281,6 +281,28 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
             helperText={getHelperText('description')}
           />
         </Grid>
+
+        {mode === 'edit' && subscriber && (
+          <Grid item xs={12} md={6}>
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={subscriber.is_active ? 'active' : 'inactive'}
+                label="Status"
+                onChange={(e) =>
+                  onChange({
+                    ...data,
+                    is_active: e.target.value === 'active',
+                  } as UpdateSubscriberRequest)
+                }
+                error={hasError('is_active')}
+              >
+                <MenuItem value="active">Ativo</MenuItem>
+                <MenuItem value="inactive">Inativo</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        )}
       </Grid>
 
       {mode === 'create' && (
