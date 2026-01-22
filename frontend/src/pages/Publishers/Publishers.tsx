@@ -83,6 +83,7 @@ import {
   CreatePublisherContractRequest,
   UpdatePublisherContractRequest,
 } from '../../services/api';
+import { PublisherCard, PublisherForm, PublisherDetails } from './components';
 
 const Publishers: React.FC = () => {
   const theme = useTheme();
@@ -103,7 +104,6 @@ const Publishers: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeOnlyFilter, setActiveOnlyFilter] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [detailsTab, setDetailsTab] = useState(0);
   const [createTab, setCreateTab] = useState(0); // NOVO: Aba do dialog de criação
   const [editTab, setEditTab] = useState(0); // NOVO: Aba do dialog de edição
   const [newPublisher, setNewPublisher] = useState<CreatePublisherRequest>({
@@ -1246,11 +1246,9 @@ const Publishers: React.FC = () => {
     }
   };
 
-  const handleViewDetails = async (publisher: Publisher) => {
+  const handleViewDetails = (publisher: Publisher) => {
     setSelectedPublisher(publisher);
-    await loadPublisherStats(publisher.publisher_id);
     setDetailsDialogOpen(true);
-    setDetailsTab(0);
   };
 
   const formatDate = (dateString: string) => {
@@ -1370,130 +1368,15 @@ const Publishers: React.FC = () => {
       <Grid container spacing={3}>
         {publishers.map((publisher) => (
           <Grid item xs={12} sm={6} md={4} lg={3} key={publisher.publisher_id}>
-            <Card sx={{ 
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: theme.shadows[8],
-              }
-            }}>
-              <Box sx={{ position: 'relative', height: 120, backgroundColor: theme.palette.grey[100] }}>
-                <Avatar
-                  sx={{
-                    position: 'absolute',
-                    top: 16,
-                    left: 16,
-                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                    color: theme.palette.primary.main,
-                  }}
-                >
-                  <Business />
-                </Avatar>
-                
-                <Chip
-                  label={publisher.active ? 'Ativo' : 'Inativo'}
-                  size="small"
-                  sx={{
-                    position: 'absolute',
-                    top: 16,
-                    right: 16,
-                    backgroundColor: alpha(publisher.active ? theme.palette.success.main : theme.palette.error.main, 0.1),
-                    color: publisher.active ? theme.palette.success.main : theme.palette.error.main,
-                    fontWeight: 'bold',
-                  }}
-                />
-
-                <Box sx={{ 
-                  position: 'absolute', 
-                  bottom: 16, 
-                  left: 16, 
-                  right: 16,
-                }}>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Criado em {publisher.created_at ? formatDate(publisher.created_at) : 'N/A'}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
-                  {publisher.name}
-                </Typography>
-                
-                <Chip
-                  label={getClientTypeLabel(publisher.client_type)}
-                  size="small"
-                  color={getClientTypeColor(publisher.client_type) as any}
-                  sx={{ mb: 1 }}
-                />
-                
-                {publisher.contact_name && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                    <People fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
-                      Contato: {publisher.contact_name}
-                    </Typography>
-                  </Box>
-                )}
-
-                {publisher.email && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                    <Email fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
-                      {publisher.email}
-                    </Typography>
-                  </Box>
-                )}
-
-                {publisher.phone && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                    <Phone fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
-                      {publisher.phone}
-                    </Typography>
-                  </Box>
-                )}
-
-                {publisher.whatsapp && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-                    <Phone fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
-                      WhatsApp: {publisher.whatsapp}
-                    </Typography>
-                  </Box>
-                )}
-
-                <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => handleViewDetails(publisher)}
-                    sx={{ fontSize: '0.75rem' }}
-                  >
-                    Detalhes
-                  </Button>
-                  
-                  <Box>
-                    <Tooltip title="Editar">
-                      <IconButton size="small" onClick={() => {
-                        setSelectedPublisher(publisher);
-                        setEditDialogOpen(true);
-                      }}>
-                        <Edit />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Excluir">
-                      <IconButton size="small" onClick={() => handleDeletePublisher(publisher.publisher_id)}>
-                        <Delete />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
+            <PublisherCard
+              publisher={publisher}
+              onView={() => handleViewDetails(publisher)}
+              onEdit={() => {
+                setSelectedPublisher(publisher);
+                setEditDialogOpen(true);
+              }}
+              onDelete={() => handleDeletePublisher(publisher.publisher_id)}
+            />
           </Grid>
         ))}
       </Grid>
@@ -1545,72 +1428,11 @@ const Publishers: React.FC = () => {
 
           {/* Aba Informações */}
           {createTab === 0 && (
-            <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>Dados do Publicador</Typography>
-              
-              <TextField
-                fullWidth
-                label="Nome da Empresa / Razão Social"
-                value={newPublisher.name}
-                onChange={(e) => setNewPublisher({ ...newPublisher, name: e.target.value })}
-                margin="normal"
-                required
-                helperText="Nome completo da empresa ou razão social"
-              />
-              <TextField
-                fullWidth
-                label="Nome do Contato"
-                value={newPublisher.contact_name}
-                onChange={(e) => setNewPublisher({ ...newPublisher, contact_name: e.target.value })}
-                margin="normal"
-                helperText="Nome da pessoa responsável pelo contato"
-              />
-              <TextField
-                fullWidth
-                id="publisher-create-category-segment"
-                name="category_segment"
-                label="Categoria/Segmento"
-                value={newPublisher.category_segment || ''}
-                onChange={(e) => setNewPublisher({ ...newPublisher, category_segment: e.target.value })}
-                margin="normal"
-                helperText="Ex.: Farmácia, Cinema, Shopping, OOH..."
-              />
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={newPublisher.email}
-                onChange={(e) => setNewPublisher({ ...newPublisher, email: e.target.value })}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Telefone"
-                value={newPublisher.phone}
-                onChange={(e) => setNewPublisher({ ...newPublisher, phone: e.target.value })}
-                margin="normal"
-                helperText="Telefone comercial (formato: +55 11 1234-5678)"
-              />
-              <TextField
-                fullWidth
-                label="WhatsApp"
-                value={newPublisher.whatsapp}
-                onChange={(e) => setNewPublisher({ ...newPublisher, whatsapp: e.target.value })}
-                margin="normal"
-                helperText="Número do WhatsApp (formato: +55 11 98765-4321)"
-              />
-              <TextField
-                fullWidth
-                label="Descrição"
-                value={newPublisher.description}
-                onChange={(e) => setNewPublisher({ ...newPublisher, description: e.target.value })}
-                margin="normal"
-                multiline
-                rows={3}
-              />
-              {/* (Regra do sistema) Publisher é sempre Publicador. Não permitir marcar como subscriber/ambos. */}
-
-            </Box>
+            <PublisherForm
+              mode="create"
+              data={newPublisher}
+              onChange={(data) => setNewPublisher(data as CreatePublisherRequest)}
+            />
           )}
 
           {/* Aba Locais */}
@@ -2402,81 +2224,17 @@ const Publishers: React.FC = () => {
 
           {/* Aba Informações */}
           {editTab === 0 && selectedPublisher && (
-            <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>Dados do Publicador</Typography>
-              <TextField
-                fullWidth
-                label="Nome da Empresa / Razão Social"
-                value={selectedPublisher.name || ''}
-                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, name: e.target.value })}
-                margin="normal"
-                required
-                helperText="Nome completo da empresa ou razão social"
-              />
-              <TextField
-                fullWidth
-                label="Nome do Contato"
-                value={selectedPublisher.contact_name || ''}
-                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, contact_name: e.target.value })}
-                margin="normal"
-                helperText="Nome da pessoa responsável pelo contato"
-              />
-              <TextField
-                fullWidth
-                id="publisher-edit-category-segment"
-                name="category_segment"
-                label="Categoria/Segmento"
-                value={selectedPublisher.category_segment || ''}
-                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, category_segment: e.target.value })}
-                margin="normal"
-                helperText="Ex.: Farmácia, Cinema, Shopping, OOH..."
-              />
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={selectedPublisher.email || ''}
-                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, email: e.target.value })}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Telefone"
-                value={selectedPublisher.phone || ''}
-                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, phone: e.target.value })}
-                margin="normal"
-                helperText="Telefone comercial (formato: +55 11 1234-5678)"
-              />
-              <TextField
-                fullWidth
-                label="WhatsApp"
-                value={selectedPublisher.whatsapp || ''}
-                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, whatsapp: e.target.value })}
-                margin="normal"
-                helperText="Número do WhatsApp (formato: +55 11 98765-4321)"
-              />
-              <TextField
-                fullWidth
-                label="Descrição"
-                value={selectedPublisher.description || ''}
-                onChange={(e) => setSelectedPublisher({ ...selectedPublisher, description: e.target.value })}
-                margin="normal"
-                multiline
-                rows={3}
-              />
-              {/* (Regra do sistema) Publisher é sempre Publicador. Não permitir marcar como subscriber/ambos. */}
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={selectedPublisher.active ? 'active' : 'inactive'}
-                  label="Status"
-                  onChange={(e) => setSelectedPublisher({ ...selectedPublisher, active: e.target.value === 'active' })}
-                >
-                  <MenuItem value="active">Ativo</MenuItem>
-                  <MenuItem value="inactive">Inativo</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
+            <PublisherForm
+              mode="edit"
+              publisher={selectedPublisher}
+              data={selectedPublisher}
+              onChange={(data) => {
+                setSelectedPublisher({
+                  ...selectedPublisher,
+                  ...(data as UpdatePublisherRequest),
+                });
+              }}
+            />
           )}
 
           {/* Aba Locais */}
@@ -3297,26 +3055,22 @@ const Publishers: React.FC = () => {
       </Dialog>
 
       {/* Details Dialog */}
-      <Dialog open={detailsDialogOpen} onClose={() => setDetailsDialogOpen(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>
-          Detalhes do Publicador - {selectedPublisher?.name}
-        </DialogTitle>
-        <DialogContent>
-          <Tabs value={detailsTab} onChange={(_, newValue) => setDetailsTab(newValue)} sx={{ mb: 2 }}>
-            <Tab label="Informações" />
-            <Tab label="Locais" icon={publisherStats && publisherStats.locals.length > 0 ? <Chip label={publisherStats.locals.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Totens" icon={publisherStats && publisherStats.totems.length > 0 ? <Chip label={publisherStats.totems.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Smart TVs" icon={publisherStats && publisherStats.smartTvs.length > 0 ? <Chip label={publisherStats.smartTvs.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Contratos" icon={publisherStats && publisherStats.contracts && publisherStats.contracts.length > 0 ? <Chip label={publisherStats.contracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Estatísticas" />
-          </Tabs>
+      <PublisherDetails
+        open={detailsDialogOpen}
+        publisher={selectedPublisher}
+        onClose={() => {
+          setDetailsDialogOpen(false);
+        }}
+        onEdit={(publisher) => {
+          setSelectedPublisher(publisher);
+          setEditDialogOpen(true);
+        }}
+      />
+    </Box>
+  );
+};
 
-          {detailsTab === 0 && selectedPublisher && (
-            <TableContainer>
-              <Table size="small">
-                <TableBody>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold', width: '30%' }}>Nome da Empresa</TableCell>
+export default Publishers;
                     <TableCell>{selectedPublisher.name}</TableCell>
                   </TableRow>
                   {selectedPublisher.contact_name && (
