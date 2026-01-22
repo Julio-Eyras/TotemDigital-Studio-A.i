@@ -1,3 +1,9 @@
+/**
+ * Dashboard Page - Smart Signage v2.1
+ * Página principal com visão geral do sistema
+ * Refatorado para usar PageHeader e componentes do Design System
+ */
+
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -34,6 +40,8 @@ import {
   Error,
 } from '@mui/icons-material';
 import { dashboardApi } from '../../services/api';
+import { PageHeader } from '../../components/DataDisplay';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 
 interface DashboardStats {
   totalMedia: number;
@@ -54,6 +62,7 @@ interface RecentActivity {
 
 const Dashboard: React.FC = () => {
   const theme = useTheme();
+  const breadcrumbs = useBreadcrumbs();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,67 +109,46 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const formatTimeAgo = (timestamp: string) => {
-    const now = new Date();
-    const time = new Date(timestamp);
-    const diffInMinutes = Math.floor((now.getTime() - time.getTime()) / (1000 * 60));
-    
-    if (diffInMinutes < 1) return 'Agora mesmo';
-    if (diffInMinutes < 60) return `${diffInMinutes}m atrás`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h atrás`;
-    return `${Math.floor(diffInMinutes / 1440)}d atrás`;
-  };
-
-  if (loading) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <LinearProgress />
-        <Typography variant="h6" sx={{ mt: 2, textAlign: 'center' }}>
-          Carregando dashboard...
-        </Typography>
-      </Box>
-    );
-  }
-
   return (
-    <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
-      {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            Dashboard
-          </Typography>
-          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Visão geral do sistema Smart Signage Pro
-          </Typography>
-        </Box>
-        <Tooltip title="Atualizar dados">
-          <IconButton onClick={loadDashboardData} sx={{ backgroundColor: theme.palette.primary.main, color: 'white' }}>
-            <Refresh />
-          </IconButton>
-        </Tooltip>
-      </Box>
+    <Box sx={{ p: 3 }}>
+      <PageHeader
+        title="Dashboard"
+        subtitle="Visão geral do sistema"
+        breadcrumbs={breadcrumbs}
+        onRefresh={loadDashboardData}
+        loading={loading}
+        actions={[
+          {
+            label: 'Atualizar',
+            icon: <Refresh />,
+            onClick: loadDashboardData,
+            variant: 'outlined',
+          },
+        ]}
+      />
+
+      {loading && <LinearProgress sx={{ mb: 3 }} />}
 
       {/* Stats Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ 
-            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-            color: 'white',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
+          <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  <Typography color="text.secondary" gutterBottom variant="body2">
+                    Total de Mídias
+                  </Typography>
+                  <Typography variant="h4">
                     {stats?.totalMedia || 0}
                   </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Total de Mídia
-                  </Typography>
                 </Box>
-                <Avatar sx={{ backgroundColor: alpha('#fff', 0.2) }}>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                    color: theme.palette.primary.main,
+                  }}
+                >
                   <VideoLibrary />
                 </Avatar>
               </Box>
@@ -169,23 +157,23 @@ const Dashboard: React.FC = () => {
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ 
-            background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
-            color: 'white',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
+          <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  <Typography color="text.secondary" gutterBottom variant="body2">
+                    Total de Playlists
+                  </Typography>
+                  <Typography variant="h4">
                     {stats?.totalPlaylists || 0}
                   </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Playlists
-                  </Typography>
                 </Box>
-                <Avatar sx={{ backgroundColor: alpha('#fff', 0.2) }}>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.secondary.main, 0.1),
+                    color: theme.palette.secondary.main,
+                  }}
+                >
                   <QueueMusic />
                 </Avatar>
               </Box>
@@ -194,23 +182,26 @@ const Dashboard: React.FC = () => {
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ 
-            background: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
-            color: 'white',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
+          <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  <Typography color="text.secondary" gutterBottom variant="body2">
+                    Players Ativos
+                  </Typography>
+                  <Typography variant="h4">
                     {stats?.activePlayers || 0}
                   </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Players Online
+                  <Typography variant="caption" color="text.secondary">
+                    de {stats?.totalPlayers || 0} total
                   </Typography>
                 </Box>
-                <Avatar sx={{ backgroundColor: alpha('#fff', 0.2) }}>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.success.main, 0.1),
+                    color: theme.palette.success.main,
+                  }}
+                >
                   <Computer />
                 </Avatar>
               </Box>
@@ -219,24 +210,24 @@ const Dashboard: React.FC = () => {
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ 
-            background: `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`,
-            color: 'white',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
+          <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                    {stats?.offlinePlayers || 0}
+                  <Typography color="text.secondary" gutterBottom variant="body2">
+                    Total de Usuários
                   </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Players Offline
+                  <Typography variant="h4">
+                    {stats?.totalUsers || 0}
                   </Typography>
                 </Box>
-                <Avatar sx={{ backgroundColor: alpha('#fff', 0.2) }}>
-                  <Warning />
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.info.main, 0.1),
+                    color: theme.palette.info.main,
+                  }}
+                >
+                  <People />
                 </Avatar>
               </Box>
             </CardContent>
@@ -244,123 +235,95 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
 
-      {/* Main Content */}
+      {/* Recent Activities */}
       <Grid container spacing={3}>
-        {/* Recent Activities */}
-        <Grid item xs={12} md={8}>
-          <Card sx={{ height: '100%' }}>
+        <Grid item xs={12} md={6}>
+          <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                  Atividades Recentes
+              <Typography variant="h6" gutterBottom>
+                Atividades Recentes
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              {activities.length === 0 ? (
+                <Typography color="text.secondary" variant="body2">
+                  Nenhuma atividade recente
                 </Typography>
-                <Chip 
-                  label={`${activities.length} atividades`} 
-                  size="small" 
-                  color="primary" 
-                  variant="outlined"
-                />
-              </Box>
-              
-              <List sx={{ maxHeight: 400, overflow: 'auto' }}>
-                {activities.map((activity, index) => (
-                  <React.Fragment key={`${activity.type}-${String((activity as any).id ?? index)}-${String((activity as any).timestamp ?? '')}`}>
-                    <ListItem sx={{ px: 0 }}>
-                      <ListItemAvatar>
-                        <Avatar sx={{ 
-                          backgroundColor: alpha(getActivityColor(activity.status), 0.1),
-                          color: getActivityColor(activity.status)
-                        }}>
-                          {getActivityIcon(activity.type)}
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primaryTypographyProps={{ component: 'div' }}
-                        secondaryTypographyProps={{ component: 'div' }}
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                              {activity.message}
-                            </Typography>
-                            <Chip 
-                              label={formatTimeAgo(activity.timestamp)} 
-                              size="small" 
-                              variant="outlined"
-                              sx={{ fontSize: '0.75rem' }}
-                            />
-                          </Box>
-                        }
-                        secondary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                            <Chip 
-                              label={activity.type} 
-                              size="small" 
-                              color={activity.status === 'success' ? 'success' : activity.status === 'warning' ? 'warning' : 'error'}
-                              sx={{ fontSize: '0.7rem', height: 20 }}
-                            />
-                            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                              {new Date(activity.timestamp).toLocaleString()}
-                            </Typography>
-                          </Box>
-                        }
-                      />
-                    </ListItem>
-                    {index < activities.length - 1 && <Divider />}
-                  </React.Fragment>
-                ))}
-              </List>
+              ) : (
+                <List>
+                  {activities.slice(0, 5).map((activity, index) => (
+                    <React.Fragment key={activity.id}>
+                      <ListItem>
+                        <ListItemAvatar>
+                          <Avatar
+                            sx={{
+                              bgcolor: alpha(getActivityColor(activity.status), 0.1),
+                              color: getActivityColor(activity.status),
+                            }}
+                          >
+                            {getActivityIcon(activity.type)}
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={activity.message}
+                          secondary={new Date(activity.timestamp).toLocaleString('pt-BR')}
+                        />
+                        <Chip
+                          label={activity.status}
+                          size="small"
+                          color={
+                            activity.status === 'success'
+                              ? 'success'
+                              : activity.status === 'error'
+                              ? 'error'
+                              : 'warning'
+                          }
+                        />
+                      </ListItem>
+                      {index < activities.length - 1 && <Divider variant="inset" component="li" />}
+                    </React.Fragment>
+                  ))}
+                </List>
+              )}
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Quick Stats */}
-        <Grid item xs={12} md={4}>
-          <Card sx={{ height: '100%' }}>
+        <Grid item xs={12} md={6}>
+          <Card>
             <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3 }}>
-                Estatísticas Rápidas
+              <Typography variant="h6" gutterBottom>
+                Status do Sistema
               </Typography>
-              
-              <Box sx={{ mb: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Players Online</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                    {stats?.activePlayers || 0}/{stats?.totalPlayers || 0}
-                  </Typography>
-                </Box>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={stats?.totalPlayers ? (stats.activePlayers / stats.totalPlayers) * 100 : 0}
-                  sx={{ height: 8, borderRadius: 4 }}
-                />
-              </Box>
-
-              <Box sx={{ mb: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Taxa de Uso</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                    {stats?.totalPlayers ? Math.round((stats.activePlayers / stats.totalPlayers) * 100) : 0}%
-                  </Typography>
-                </Box>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={stats?.totalPlayers ? (stats.activePlayers / stats.totalPlayers) * 100 : 0}
-                  color="success"
-                  sx={{ height: 8, borderRadius: 4 }}
-                />
-              </Box>
-
-              <Paper sx={{ p: 2, backgroundColor: theme.palette.grey[50] }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                  Sistema Status
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CheckCircle color="success" fontSize="small" />
-                  <Typography variant="body2">
-                    Todos os serviços operacionais
-                  </Typography>
-                </Box>
-              </Paper>
+              <Divider sx={{ mb: 2 }} />
+              <List>
+                <ListItem>
+                  <ListItemAvatar>
+                    <Avatar sx={{ bgcolor: theme.palette.success.main }}>
+                      <CheckCircle />
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary="Sistema Operacional"
+                    secondary="Todos os serviços funcionando normalmente"
+                  />
+                </ListItem>
+                <Divider variant="inset" component="li" />
+                <ListItem>
+                  <ListItemAvatar>
+                    <Avatar sx={{ bgcolor: stats?.offlinePlayers && stats.offlinePlayers > 0 ? theme.palette.warning.main : theme.palette.success.main }}>
+                      {stats?.offlinePlayers && stats.offlinePlayers > 0 ? <Warning /> : <CheckCircle />}
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary="Players"
+                    secondary={
+                      stats?.offlinePlayers && stats.offlinePlayers > 0
+                        ? `${stats.offlinePlayers} player(s) offline`
+                        : 'Todos os players online'
+                    }
+                  />
+                </ListItem>
+              </List>
             </CardContent>
           </Card>
         </Grid>
