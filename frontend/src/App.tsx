@@ -86,6 +86,9 @@ const AppContent: React.FC = () => {
   
   // Hook para lidar com rate limiting
   useRateLimit();
+  
+  // Hook para Command Palette (deve estar dentro do Router)
+  const commandPalette = useCommandPalette();
 
   useEffect(() => {
     // Detectar subdomínio
@@ -222,6 +225,10 @@ const AppContent: React.FC = () => {
         v7_relativeSplatPath: true,
       }}
     >
+      <CommandPalette
+        open={commandPalette.open}
+        onClose={commandPalette.closeDialog}
+      />
       <Suspense
         fallback={
           <Box
@@ -653,7 +660,6 @@ import { createAppTheme } from './theme';
 
 const ThemedApp: React.FC = () => {
   const themeMode = useAppSelector((state) => state.ui.theme);
-  const commandPalette = useCommandPalette();
 
   const theme = useMemo(
     () => createAppTheme(themeMode),
@@ -665,10 +671,6 @@ const ThemedApp: React.FC = () => {
       <CssBaseline />
       <Notification />
       <AppContent />
-      <CommandPalette
-        open={commandPalette.open}
-        onClose={commandPalette.closeDialog}
-      />
     </ThemeProvider>
   );
 };

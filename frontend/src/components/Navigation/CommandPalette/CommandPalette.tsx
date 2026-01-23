@@ -31,7 +31,7 @@ import {
   Settings,
   ArrowForward,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export interface CommandItem {
   id: string;
