@@ -1670,7 +1670,8 @@ setup_project() {
                 rsync -av --delete "$SOURCE_DIR/frontend/" "$INSTALL_DIR/frontend/"
                 
                 # Copiar outros diretórios importantes
-                [[ -d "$SOURCE_DIR/player-web" ]] && rsync -av --delete "$SOURCE_DIR/player-web/" "$INSTALL_DIR/player-web/"
+                # player-web-cache substitui player-web obsoleto (versão com cache completo)
+                [[ -d "$SOURCE_DIR/player-web-cache" ]] && rsync -av --delete "$SOURCE_DIR/player-web-cache/" "$INSTALL_DIR/player-web/"
                 [[ -d "$SOURCE_DIR/scripts" ]] && rsync -av --delete "$SOURCE_DIR/scripts/" "$INSTALL_DIR/scripts/"
                 [[ -d "$SOURCE_DIR/database" ]] && rsync -av --delete "$SOURCE_DIR/database/" "$INSTALL_DIR/database/"
                 [[ -d "$SOURCE_DIR/docker" ]] && rsync -av --delete "$SOURCE_DIR/docker/" "$INSTALL_DIR/docker/"
@@ -1697,7 +1698,8 @@ setup_project() {
                 cp -a "$SOURCE_DIR/frontend" "$INSTALL_DIR/"
                 
                 # Copiar outros diretórios
-                [[ -d "$SOURCE_DIR/player-web" ]] && cp -a "$SOURCE_DIR/player-web" "$INSTALL_DIR/"
+                # player-web-cache substitui player-web obsoleto (versão com cache completo)
+                [[ -d "$SOURCE_DIR/player-web-cache" ]] && cp -a "$SOURCE_DIR/player-web-cache" "$INSTALL_DIR/player-web"
                 [[ -d "$SOURCE_DIR/scripts" ]] && cp -a "$SOURCE_DIR/scripts" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/database" ]] && rm -rf "$INSTALL_DIR/database" && cp -a "$SOURCE_DIR/database" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/docker" ]] && cp -a "$SOURCE_DIR/docker" "$INSTALL_DIR/"
@@ -4563,7 +4565,7 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Player
+    # Player (versão com cache completo - substitui player-web obsoleto)
     location = /player {
         return 301 /player/;
     }
@@ -4823,12 +4825,20 @@ server {
         proxy_read_timeout 300s;
     }
 
-    # Player
+    # Player (streaming)
     location = /player { return 301 /player/; }
     location /player/ {
         alias /opt/smart-signage/player-web/;
         index index.html;
         try_files \$uri \$uri/ /player-web/index.html;
+    }
+
+    # Player com Cache (laboratório)
+    location = /player-cache { return 301 /player-cache/; }
+    location /player-cache/ {
+        alias /opt/smart-signage/player-web-cache/;
+        index index.html;
+        try_files \$uri \$uri/ /player-web-cache/index.html;
     }
 
     # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
@@ -4912,7 +4922,7 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Player - redirect raiz e arquivos
+    # Player (versão com cache completo - substitui player-web obsoleto) - redirect raiz e arquivos
     location = /player { return 301 /player/; }
     location /player/ {
         alias /opt/smart-signage/player-web/;
@@ -7396,10 +7406,10 @@ log "✅ Backend configurado"
 # CONFIGURAÇÃO DO PLAYER
 # =============================================
 
-log "Configurando player HTML5..."
+log "Configurando player HTML5 (versão com cache completo)..."
 
 if [ -f "/app/player-web/index.html" ]; then
-    log "✅ Player HTML5 encontrado"
+    log "✅ Player HTML5 encontrado (versão com cache completo)"
 else
     warning "Player HTML5 não encontrado"
 fi

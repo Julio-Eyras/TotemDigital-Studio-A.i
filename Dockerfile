@@ -27,7 +27,7 @@ WORKDIR /app
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
 COPY scripts/ ./scripts/
-COPY player-web/ ./player-web/
+COPY player-web-cache/ ./player-web/
 COPY docker/ ./docker/
 
 # Compilar Backend TypeScript

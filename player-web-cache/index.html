@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Signage Player - Cache</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000; color: #fff; overflow: hidden;
+            width: 100vw; height: 100vh; position: fixed; top: 0; left: 0;
+        }
+        #loading {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; background: #000;
+        }
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #fff;
+            border-radius: 50%; width: 50px; height: 50px;
+            animation: spin 1s linear infinite; margin-bottom: 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #error {
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; background: #000; color: #ff4444; text-align: center; padding: 20px;
+        }
+        #player-container {
+            display: none; width: 100vw; height: 100vh; position: relative;
+        }
+        #player-container video, #player-container img, #player-container iframe {
+            width: 100%; height: 100%; object-fit: contain;
+        }
+        .cache-info {
+            position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7);
+            padding: 8px 12px; border-radius: 4px; font-size: 12px; z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading"><div class="spinner"></div><p>Carregando player com cache...</p></div>
+    <div id="error">
+        <h2>Erro ao Carregar Player</h2>
+        <p id="error-message"></p>
+        <p style="margin-top:20px;font-size:14px;color:#888;">Use ?uin=SEU_UIN na URL ou configure o totem.</p>
+    </div>
+    <div id="player-container">
+        <div class="cache-info" id="cache-info" style="display:none;">Cache: <span id="cache-size">0 MB</span></div>
+    </div>
+
+    <!-- Carregar scripts na ordem correta -->
+    <script src="js/cache/MediaCacheManager.js"></script>
+    <script src="js/cache/PlaylistChangeDetector.js"></script>
+    <script src="js/api/client.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        (function () {
+            const API_BASE = window.location.origin;
+
+            function getUin() {
+                const q = new URLSearchParams(window.location.search);
+                return q.get('uin') || q.get('UIN') || (typeof localStorage !== 'undefined' && localStorage.getItem('totemUIN')) || '';
+            }
+
+            function showError(msg) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('player-container').style.display = 'none';
+                const el = document.getElementById('error');
+                el.style.display = 'flex';
+                const m = document.getElementById('error-message');
+                if (m) m.textContent = msg || 'Erro desconhecido';
+            }
+
+            function hideLoadingShowPlayer() {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'none';
+                document.getElementById('player-container').style.display = 'block';
+            }
+
+            function showPending(message) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('player-container').style.display = 'none';
+                const el = document.getElementById('error');
+                el.style.display = 'flex';
+                el.style.color = '#2196f3';
+                el.innerHTML = '<h2>Aguardando Aprovação</h2><p style="margin-top:20px;">' + (message || 'Totem aguardando aprovação do administrador.') + '</p>';
+            }
+
+            function showBlocked(reason) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('player-container').style.display = 'none';
+                const el = document.getElementById('error');
+                el.style.display = 'flex';
+                el.style.color = '#ffcc00';
+                el.innerHTML = '<h2>Totem Bloqueado</h2><p style="margin-top:20px;">' + (reason || 'Acesso bloqueado.') + '</p>';
+            }
+
+            async function loadUinFromConfig() {
+                try {
+                    const r = await fetch('/player/config.json.enc');
+                    if (!r.ok) return null;
+                    const cfg = await r.json();
+                    if (!cfg.encrypted || !cfg.data) return null;
+                    const dec = await fetch(API_BASE + '/api/player/decrypt-config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ encryptedConfig: cfg, currentMac: null })
+                    });
+                    if (!dec.ok) return null;
+                    const d = await dec.json();
+                    return (d.valid && d.uin) ? d.uin : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            async function collectHardware() {
+                try {
+                    const r = await fetch(API_BASE + '/api/player/hardware-info');
+                    let h = r.ok ? await r.json() : {};
+                    if (!h.userAgent) h = { userAgent: navigator.userAgent, platform: navigator.platform, timestamp: Date.now() };
+                    const str = JSON.stringify(h);
+                    const buf = new TextEncoder().encode(str);
+                    const hash = await crypto.subtle.digest('SHA-256', buf);
+                    const hex = Array.from(new Uint8Array(hash)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+                    return { ...h, hardwareHash: hex };
+                } catch (e) {
+                    return { userAgent: navigator.userAgent, platform: navigator.platform, timestamp: Date.now() };
+                }
+            }
+
+            async function generateUIN(hw) {
+                const s = JSON.stringify({
+                    mac: hw.macAddress || hw.mac || 'unknown',
+                    hostname: hw.hostname || 'unknown',
+                    platform: hw.platform || 'unknown',
+                    hash: hw.hardwareHash || 'unknown'
+                });
+                const buf = new TextEncoder().encode(s);
+                const hash = await crypto.subtle.digest('SHA-256', buf);
+                const hex = Array.from(new Uint8Array(hash)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+                return 'SSP-' + hex.substring(0, 16);
+            }
+
+            async function autoRegister(uin) {
+                try {
+                    const hw = await collectHardware();
+                    const u = uin || await generateUIN(hw);
+                    const r = await fetch(API_BASE + '/api/player/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            uin: u,
+                            hardware: {
+                                macAddress: hw.macAddress || null,
+                                hostname: hw.hostname || null,
+                                platform: hw.platform || null,
+                                hardwareHash: hw.hardwareHash || null,
+                                userAgent: hw.userAgent || navigator.userAgent
+                            }
+                        })
+                    });
+                    if (!r.ok) {
+                        const err = await r.json().catch(function () { return {}; });
+                        if (r.status === 409) return { success: true, uin: u, status: 'already_registered' };
+                        return { success: false, error: err.error || 'Erro ao registrar' };
+                    }
+                    const data = await r.json();
+                    if (data.uin && typeof localStorage !== 'undefined') localStorage.setItem('totemUIN', data.uin);
+                    return { success: true, uin: data.uin || u, status: data.status || 'pending_approval' };
+                } catch (e) {
+                    return { success: false, error: (e && e.message) || 'Erro ao registrar' };
+                }
+            }
+
+            async function validateTotem(uin) {
+                try {
+                    const tr = await fetch(API_BASE + '/api/player/token?uin=' + encodeURIComponent(uin));
+                    if (!tr.ok) return { valid: false, pendingApproval: false, blocked: false, error: 'Token falhou' };
+                    const td = await tr.json();
+                    const token = td.token;
+                    if (!token) return { valid: false, pendingApproval: false, blocked: false, error: 'Token vazio' };
+
+                    const vr = await fetch(API_BASE + '/api/player/validate?uin=' + encodeURIComponent(uin) + '&token=' + encodeURIComponent(token));
+                    if (!vr.ok) {
+                        const vd = await vr.json().catch(function () { return {}; });
+                        return {
+                            valid: false,
+                            pendingApproval: !!vd.pendingApproval,
+                            blocked: !!vd.blocked,
+                            reason: vd.reason || vd.error,
+                            message: vd.message
+                        };
+                    }
+                    const vd = await vr.json();
+                    if (vd.pending_approval || vd.pendingApproval) {
+                        return { valid: false, pendingApproval: true, blocked: false, message: vd.message || 'Aguardando aprovação' };
+                    }
+                    if (vd.blocked) {
+                        return { valid: false, pendingApproval: false, blocked: true, reason: vd.reason || vd.error };
+                    }
+                    return { valid: true, pendingApproval: false, blocked: false };
+                } catch (e) {
+                    return { valid: false, pendingApproval: false, blocked: false, error: (e && e.message) || 'Erro ao validar' };
+                }
+            }
+
+            function demoVinhet() {
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('viewBox', '0 0 1920 1080');
+                svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%';
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                const lg = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+                lg.setAttribute('id', 'g1'); lg.setAttribute('x1', '0%'); lg.setAttribute('y1', '0%'); lg.setAttribute('x2', '100%'); lg.setAttribute('y2', '100%');
+                ['0%', '100%'].forEach(function (o, i) {
+                    var s = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                    s.setAttribute('offset', o); s.setAttribute('stop-color', i ? '#283593' : '#1a237e');
+                    lg.appendChild(s);
+                });
+                g.appendChild(lg); svg.appendChild(g);
+                var r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                r.setAttribute('width', '100%'); r.setAttribute('height', '100%'); r.setAttribute('fill', 'url(#g1)');
+                svg.appendChild(r);
+                var t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                t.setAttribute('x', '50%'); t.setAttribute('y', '45%'); t.setAttribute('text-anchor', 'middle');
+                t.setAttribute('font-size', '120'); t.setAttribute('fill', '#fff');
+                t.textContent = 'Smart Signage Pro';
+                svg.appendChild(t);
+                var st = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                st.setAttribute('x', '50%'); st.setAttribute('y', '55%'); st.setAttribute('text-anchor', 'middle');
+                st.setAttribute('font-size', '48'); st.setAttribute('fill', '#90caf9');
+                st.textContent = 'Modo Demonstração — ?uin=SEU_UIN';
+                svg.appendChild(st);
+                return svg;
+            }
+
+            function startDemo() {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'none';
+                var c = document.getElementById('player-container');
+                c.style.display = 'block';
+                c.innerHTML = '';
+                var el = demoVinhet();
+                c.appendChild(el);
+                setInterval(function () {
+                    c.innerHTML = '';
+                    c.appendChild(demoVinhet());
+                }, 10000);
+            }
+
+            function exitKiosk() {
+                fetch(API_BASE + '/api/player/exit-kiosk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uin: getUin(), token: null })
+                }).catch(function () {});
+                setTimeout(function () {
+                    try { if (window.close) window.close(); } catch (e) {}
+                }, 500);
+            }
+
+            async function updateCacheInfo(player) {
+                if (!player || !player.mediaCacheManager) return;
+                try {
+                    const size = await player.mediaCacheManager.getCacheSize();
+                    const sizeMB = (size / (1024 * 1024)).toFixed(2);
+                    const infoEl = document.getElementById('cache-info');
+                    const sizeEl = document.getElementById('cache-size');
+                    if (infoEl && sizeEl) {
+                        sizeEl.textContent = sizeMB + ' MB';
+                        infoEl.style.display = 'block';
+                    }
+                } catch (e) {
+                    console.warn('[Bootstrap] Erro ao atualizar info de cache:', e);
+                }
+            }
+
+            async function main() {
+                var uin = getUin();
+                if (!uin) uin = await loadUinFromConfig();
+                if (!uin) {
+                    var reg = await autoRegister();
+                    if (reg.success && reg.uin) uin = reg.uin;
+                }
+                if (!uin || !uin.trim()) {
+                    startDemo();
+                    return;
+                }
+                if (typeof localStorage !== 'undefined') localStorage.setItem('totemUIN', uin);
+
+                var v = await validateTotem(uin);
+                if (v.pendingApproval) {
+                    showPending(v.message || 'Aguardando aprovação do administrador.');
+                    return;
+                }
+                if (v.blocked) {
+                    showBlocked(v.reason || 'Totem bloqueado.');
+                    return;
+                }
+                if (!v.valid && !v.blocked && !v.pendingApproval) {
+                    var reg = await autoRegister(uin);
+                    if (reg.success && reg.uin) {
+                        uin = reg.uin;
+                        if (typeof localStorage !== 'undefined') localStorage.setItem('totemUIN', uin);
+                        v = await validateTotem(uin);
+                        if (v.pendingApproval) {
+                            showPending(v.message || 'Totem registrado. Aguardando aprovação.');
+                            return;
+                        }
+                        if (v.blocked) {
+                            showBlocked(v.reason || 'Totem bloqueado.');
+                            return;
+                        }
+                    }
+                }
+                if (!v.valid) {
+                    startDemo();
+                    return;
+                }
+
+                hideLoadingShowPlayer();
+                window.API_BASE_URL = API_BASE;
+                window.TOTEM_UIN = uin;
+                window.TOTEM_SECRET = '';
+
+                var player = new window.SmartSignagePlayer({
+                    apiBaseURL: API_BASE,
+                    totemUIN: uin,
+                    totemSecret: '',
+                    maxCacheSize: 500 * 1024 * 1024 // 500MB
+                });
+                
+                try {
+                    await player.init();
+                    
+                    // Atualizar info de cache periodicamente
+                    setInterval(() => updateCacheInfo(player), 10000);
+                    updateCacheInfo(player);
+                    
+                    await player.playNext();
+                } catch (err) {
+                    console.error('[Player] Erro:', err);
+                    showError('Erro ao iniciar player: ' + (err && err.message));
+                }
+            }
+
+            window.addEventListener('contextmenu', function (e) {
+                e.preventDefault();
+                window._rcCount = (window._rcCount || 0) + 1;
+                clearTimeout(window._rcTimer);
+                window._rcTimer = setTimeout(function () { window._rcCount = 0; }, 2000);
+                if (window._rcCount >= 5) {
+                    window._rcCount = 0;
+                    var pin = prompt('Digite o PIN (4 dígitos):');
+                    if (pin === '1950') {
+                        alert('PIN correto. Saindo do player...');
+                        exitKiosk();
+                    } else if (pin !== null) alert('PIN incorreto.');
+                }
+            });
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', main);
+            } else {
+                main();
+            }
+        })();
+    </script>
+</body>
+</html>

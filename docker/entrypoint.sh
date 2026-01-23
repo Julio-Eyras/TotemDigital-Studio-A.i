@@ -126,10 +126,10 @@ log "✅ Backend configurado"
 # CONFIGURAÇÃO DO PLAYER
 # =============================================
 
-log "Configurando player HTML5..."
+log "Configurando player HTML5 (com cache completo)..."
 
 if [ -f "/app/player-web/index.html" ]; then
-    log "✅ Player HTML5 encontrado"
+    log "✅ Player HTML5 encontrado (versão com cache completo)"
 else
     warning "Player HTML5 não encontrado"
 fi
