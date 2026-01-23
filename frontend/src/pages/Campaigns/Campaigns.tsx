@@ -97,6 +97,7 @@ const Campaigns: React.FC = () => {
   };
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [editTab, setEditTab] = useState(0);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [orderedMediaIds, setOrderedMediaIds] = useState<number[]>([]);
@@ -668,6 +669,10 @@ const Campaigns: React.FC = () => {
                   setEditDialogOpen(true);
                 }}
                 onDelete={(campaign) => handleDeleteCampaign(campaign.campaign_id)}
+                onView={(campaign) => {
+                  setSelectedCampaign(campaign);
+                  setDetailsDialogOpen(true);
+                }}
               />
             </Grid>
           );
@@ -1464,6 +1469,21 @@ const Campaigns: React.FC = () => {
           <Button variant="contained" onClick={handleEditCampaign}>Salvar</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Details Dialog */}
+      <CampaignDetails
+        open={detailsDialogOpen}
+        campaign={selectedCampaign}
+        onClose={() => {
+          setDetailsDialogOpen(false);
+          setSelectedCampaign(null);
+        }}
+        onEdit={(campaign) => {
+          setDetailsDialogOpen(false);
+          setSelectedCampaign(campaign);
+          setEditDialogOpen(true);
+        }}
+      />
     </Box>
   );
 };

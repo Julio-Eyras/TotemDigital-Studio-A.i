@@ -55,7 +55,7 @@ import { useAppSelector } from '../../store/hooks';
 import { useLocation } from 'react-router-dom';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { PlaylistCard } from './components';
+import { PlaylistCard, PlaylistDetails } from './components';
 
 type EditorMode = 'create' | 'edit';
 
@@ -92,6 +92,7 @@ const Playlists: React.FC = () => {
   const [editorMode, setEditorMode] = useState<EditorMode>('create');
   const [editorTab, setEditorTab] = useState(0);
   const [exposureTab, setExposureTab] = useState(0);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
 
   const [selectedPlaylist, setSelectedPlaylist] = useState<PlaylistItem | null>(null);
   const [draft, setDraft] = useState<CreatePlaylistRequest>({
@@ -494,6 +495,10 @@ const Playlists: React.FC = () => {
                 highlighted={isHighlighted}
                 onEdit={(playlist) => openEdit(playlist)}
                 onDelete={(playlist) => handleDeletePlaylist(playlist.playlist_id)}
+                onView={(playlist) => {
+                  setSelectedPlaylist(playlist);
+                  setDetailsDialogOpen(true);
+                }}
               />
             </Grid>
           );
@@ -898,6 +903,20 @@ const Playlists: React.FC = () => {
           )}
         </DialogActions>
       </Dialog>
+
+      {/* Details Dialog */}
+      <PlaylistDetails
+        open={detailsDialogOpen}
+        playlist={selectedPlaylist}
+        onClose={() => {
+          setDetailsDialogOpen(false);
+          setSelectedPlaylist(null);
+        }}
+        onEdit={(playlist) => {
+          setDetailsDialogOpen(false);
+          openEdit(playlist);
+        }}
+      />
     </Box>
   );
 };
