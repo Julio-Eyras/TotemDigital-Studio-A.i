@@ -8790,6 +8790,35 @@ show_final_info() {
     fi
     echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80/player?uin=TOTEM_UIN${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (Player público para totems - sem login)${NC}"
+    
+    # Se --starttotem foi usado, mostrar UINs específicos dos totens de laboratório
+    if [[ "${START_TOTEM:-false}" == "true" ]] && [[ -n "${START_TOTEM_UIN1:-}" ]]; then
+        echo
+        echo -e "${CYAN}📺 PLAYERS DE LABORATÓRIO (Totens Demo - --starttotem):${NC}"
+        if [[ "${START_TOTEM_SOURCE:-}" == "DB" ]]; then
+            echo -e "   ${GREEN}✅ UINs obtidos do banco de dados${NC}"
+        else
+            echo -e "   ${YELLOW}⚠️  Usando UINs padrão (banco não disponível ou sem totens)${NC}"
+        fi
+        if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+            echo -e "   ${GREEN}✅ Totem 1:${NC} ${YELLOW}${START_TOTEM_UIN1}${NC}"
+            echo -e "      ${BLUE}→ IP Externo: http://$EXTERNAL_IP/player/?uin=${START_TOTEM_UIN1}${NC} ${GREEN}(Acesso remoto)${NC}"
+            echo -e "      ${BLUE}→ IP Local:   http://$LOCAL_IP/player/?uin=${START_TOTEM_UIN1}${NC} ${BLUE}(Rede interna)${NC}"
+            if [[ -n "${START_TOTEM_UIN2:-}" ]] && [[ "${START_TOTEM_UIN2}" != "${START_TOTEM_UIN1}" ]]; then
+                echo -e "   ${GREEN}✅ Totem 2:${NC} ${YELLOW}${START_TOTEM_UIN2}${NC}"
+                echo -e "      ${BLUE}→ IP Externo: http://$EXTERNAL_IP/player/?uin=${START_TOTEM_UIN2}${NC} ${GREEN}(Acesso remoto)${NC}"
+                echo -e "      ${BLUE}→ IP Local:   http://$LOCAL_IP/player/?uin=${START_TOTEM_UIN2}${NC} ${BLUE}(Rede interna)${NC}"
+            fi
+        else
+            echo -e "   ${GREEN}✅ Totem 1:${NC} ${YELLOW}${START_TOTEM_UIN1}${NC}"
+            echo -e "      ${BLUE}→ http://$LOCAL_IP/player/?uin=${START_TOTEM_UIN1}${NC}"
+            if [[ -n "${START_TOTEM_UIN2:-}" ]] && [[ "${START_TOTEM_UIN2}" != "${START_TOTEM_UIN1}" ]]; then
+                echo -e "   ${GREEN}✅ Totem 2:${NC} ${YELLOW}${START_TOTEM_UIN2}${NC}"
+                echo -e "      ${BLUE}→ http://$LOCAL_IP/player/?uin=${START_TOTEM_UIN2}${NC}"
+            fi
+        fi
+        echo -e "   ${BLUE}   (Players abertos automaticamente em browsers de laboratório)${NC}"
+    fi
     echo
     echo -e "${CYAN}🔧 API BACKEND:${NC}"
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
@@ -9107,8 +9136,15 @@ rebuild_and_restart() {
         local UIN1=$(echo "$TOTEM_UINS" | cut -d'|' -f2)
         local UIN2=$(echo "$TOTEM_UINS" | cut -d'|' -f3)
         
-        local URL1="${BASE_URL_IP}/player/?uin=${UIN1}"
-        local URL2="${BASE_URL_IP}/player/?uin=${UIN2}"
+        # Obter IP local para construir URLs (BASE_URL_IP ainda não está definido aqui)
+        local CURRENT_LOCAL_IP=$(hostname -I | awk '{print $1}' || echo "localhost")
+        local URL1="http://${CURRENT_LOCAL_IP}/player/?uin=${UIN1}"
+        local URL2="http://${CURRENT_LOCAL_IP}/player/?uin=${UIN2}"
+        
+        # Salvar UINs em variáveis globais para usar em show_final_info()
+        export START_TOTEM_UIN1="$UIN1"
+        export START_TOTEM_UIN2="$UIN2"
+        export START_TOTEM_SOURCE="$SOURCE"
 
         echo
         echo -e "${CYAN}📺 PLAYERS DE LABORATÓRIO (Totens Demo):${NC}"
