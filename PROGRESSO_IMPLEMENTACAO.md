@@ -25,12 +25,17 @@
 - ✅ ContractForm component criado
 - ✅ ContractDetails component criado
 - ✅ Contracts.tsx principal refatorado (usa componentes modulares)
+- ✅ CampaignCard component criado
+- ✅ Campaigns.tsx refatorado para usar CampaignCard
+- ✅ PlaylistCard component criado
+- ✅ Playlists.tsx refatorado para usar PlaylistCard
 
 ### Fase 3: Melhorias de UX ✅ 100%
 - ✅ Command Palette (busca global)
 - ✅ Sistema de notificações centralizado
 - ✅ Breadcrumbs implementados (useBreadcrumbs + PageHeader)
 - ✅ Dashboard refatorado com PageHeader
+- ✅ Breadcrumbs e PageHeader aplicados em Campaigns, Playlists, Media, Totems e Users
 
 ---
 
@@ -70,6 +75,8 @@
 ### 3. Aplicar Padrão para Outras Páginas
 - [x] Publishers.tsx ✅
 - [x] Contracts.tsx ✅ (ContractCard, ContractForm, ContractDetails criados e integrados)
+- [x] Campaigns.tsx ✅ (CampaignCard criado e integrado)
+- [x] Playlists.tsx ✅ (PlaylistCard criado e integrado)
 
 ---
 
