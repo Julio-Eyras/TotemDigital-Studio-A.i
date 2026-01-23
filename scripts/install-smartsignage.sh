@@ -9042,11 +9042,19 @@ rebuild_and_restart() {
     fi
 
     # Opcional: iniciar 2 totens de laboratório em browsers locais
-    if [[ "$START_TOTEM" == "true" ]]; then
-        log "Iniciando 2 players web de laboratório (totens demo)..."
-        
-        # Função para buscar UINs dos 2 primeiros totens ativos do banco
-        get_active_totem_uins() {
+    start_totem_laboratory
+}
+
+# Função para iniciar totens de laboratório (extraída para reutilização)
+start_totem_laboratory() {
+    if [[ "$START_TOTEM" != "true" ]]; then
+        return 0  # Não fazer nada se --starttotem não foi usado
+    fi
+    
+    log "Iniciando 2 players web de laboratório (totens demo)..."
+    
+    # Função para buscar UINs dos 2 primeiros totens ativos do banco
+    get_active_totem_uins() {
             local uin1=""
             local uin2=""
             local found_from_db=false
@@ -9145,6 +9153,7 @@ rebuild_and_restart() {
         export START_TOTEM_UIN1="$UIN1"
         export START_TOTEM_UIN2="$UIN2"
         export START_TOTEM_SOURCE="$SOURCE"
+        export START_TOTEM="true"  # Garantir que está exportado
 
         echo
         echo -e "${CYAN}📺 PLAYERS DE LABORATÓRIO (Totens Demo):${NC}"
@@ -9186,7 +9195,7 @@ rebuild_and_restart() {
             log "   ${GREEN}Totem 1:${NC} ${YELLOW}$URL1${NC}"
             log "   ${GREEN}Totem 2:${NC} ${YELLOW}$URL2${NC}"
         fi
-    fi
+}
     
     log "Diretório de instalação: $INSTALL_DIR"
     
@@ -10505,6 +10514,9 @@ main() {
     if [[ "$INSTALL_MODE" == "docker" ]]; then
         log "Para Docker, primeiro boot será configurado dentro do container"
     fi
+    
+    # Executar --starttotem se solicitado (após validação, antes do resumo final)
+    start_totem_laboratory
     
     create_management_script
     setup_management_scripts
