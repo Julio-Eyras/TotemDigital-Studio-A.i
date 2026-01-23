@@ -77,6 +77,7 @@ INSTALL_PLAYER_WINDOWS_ELECTRON=false
 INSTALL_PLAYER_TIZEN=false
 INSTALL_PLAYER_SMARTDISPLAYFX=false
 INSTALL_PLAYER_FX_INTERFACE=false
+INSTALL_PLAYER_WEB_CACHE=false
 INSTALL_ALL_PLAYERS=false
 
 # Cores para output
@@ -1676,8 +1677,7 @@ setup_project() {
                 rsync -av --delete "$SOURCE_DIR/frontend/" "$INSTALL_DIR/frontend/"
                 
                 # Copiar outros diretórios importantes
-                # player-web-cache substitui player-web obsoleto (versão com cache completo)
-                [[ -d "$SOURCE_DIR/player-web-cache" ]] && rsync -av --delete "$SOURCE_DIR/player-web-cache/" "$INSTALL_DIR/player-web/"
+                # Nota: player-web-cache agora é copiado apenas quando selecionado no menu de players
                 [[ -d "$SOURCE_DIR/scripts" ]] && rsync -av --delete "$SOURCE_DIR/scripts/" "$INSTALL_DIR/scripts/"
                 [[ -d "$SOURCE_DIR/database" ]] && rsync -av --delete "$SOURCE_DIR/database/" "$INSTALL_DIR/database/"
                 [[ -d "$SOURCE_DIR/docker" ]] && rsync -av --delete "$SOURCE_DIR/docker/" "$INSTALL_DIR/docker/"
@@ -1704,8 +1704,7 @@ setup_project() {
                 cp -a "$SOURCE_DIR/frontend" "$INSTALL_DIR/"
                 
                 # Copiar outros diretórios
-                # player-web-cache substitui player-web obsoleto (versão com cache completo)
-                [[ -d "$SOURCE_DIR/player-web-cache" ]] && cp -a "$SOURCE_DIR/player-web-cache" "$INSTALL_DIR/player-web"
+                # Nota: player-web-cache agora é copiado apenas quando selecionado no menu de players
                 [[ -d "$SOURCE_DIR/scripts" ]] && cp -a "$SOURCE_DIR/scripts" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/database" ]] && rm -rf "$INSTALL_DIR/database" && cp -a "$SOURCE_DIR/database" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/docker" ]] && cp -a "$SOURCE_DIR/docker" "$INSTALL_DIR/"
@@ -1716,7 +1715,7 @@ setup_project() {
                    [[ "$INSTALL_PLAYER_ANDROID" == "true" ]] || [[ "$INSTALL_PLAYER_LINUX_ELECTRON" == "true" ]] || \
                    [[ "$INSTALL_PLAYER_LINUX_CPP" == "true" ]] || [[ "$INSTALL_PLAYER_WINDOWS_ELECTRON" == "true" ]] || \
                    [[ "$INSTALL_PLAYER_TIZEN" == "true" ]] || [[ "$INSTALL_PLAYER_SMARTDISPLAYFX" == "true" ]] || \
-                   [[ "$INSTALL_PLAYER_FX_INTERFACE" == "true" ]]; then
+                   [[ "$INSTALL_PLAYER_FX_INTERFACE" == "true" ]] || [[ "$INSTALL_PLAYER_WEB_CACHE" == "true" ]]; then
                     copy_selected_players
                 fi
                 
@@ -9468,6 +9467,7 @@ show_players_menu() {
         INSTALL_PLAYER_TIZEN=true
         INSTALL_PLAYER_SMARTDISPLAYFX=true
         INSTALL_PLAYER_FX_INTERFACE=true
+        INSTALL_PLAYER_WEB_CACHE=true
         log "✅ Players selecionados automaticamente (skip-menu padrão: 9 - todos)"
         copy_selected_players
         return 0
@@ -9487,6 +9487,7 @@ show_players_menu() {
     echo -e "${GREEN}[ ]${NC} 6) Tizen (Samsung) - Player para TVs Samsung Tizen"
     echo -e "${GREEN}[ ]${NC} 7) SmartDisplayFX Client - Cliente para efeitos visuais"
     echo -e "${GREEN}[ ]${NC} 8) Smart FX Interface - Interface e protótipos"
+    echo -e "${GREEN}[ ]${NC} 10) Player Web Cache - Player HTML5 com cache completo (substitui player-web obsoleto)"
     echo
     echo -e "${GREEN}[ ]${NC} 9) Instalar TODOS os players (recomendado para desenvolvimento)"
     echo -e "${GREEN}[ ]${NC} 0) Não instalar players (apenas servidor)"
@@ -9503,6 +9504,7 @@ show_players_menu() {
     INSTALL_PLAYER_TIZEN=false
     INSTALL_PLAYER_SMARTDISPLAYFX=false
     INSTALL_PLAYER_FX_INTERFACE=false
+    INSTALL_PLAYER_WEB_CACHE=false
     INSTALL_ALL_PLAYERS=false
     
     # Processar escolha
@@ -9516,6 +9518,7 @@ show_players_menu() {
         INSTALL_PLAYER_TIZEN=true
         INSTALL_PLAYER_SMARTDISPLAYFX=true
         INSTALL_PLAYER_FX_INTERFACE=true
+        INSTALL_PLAYER_WEB_CACHE=true
         log "✅ Todos os players serão instalados"
     elif [[ "$players_choice" == "0" ]]; then
         log "ℹ️  Nenhum player será instalado (apenas servidor)"
@@ -9557,6 +9560,10 @@ show_players_menu() {
                     INSTALL_PLAYER_FX_INTERFACE=true
                     log "✅ Smart FX Interface selecionado"
                     ;;
+                10)
+                    INSTALL_PLAYER_WEB_CACHE=true
+                    log "✅ Player Web Cache selecionado"
+                    ;;
                 *)
                     warn "⚠️  Opção '$choice' ignorada (inválida)"
                     ;;
@@ -9592,6 +9599,14 @@ copy_selected_players() {
             cp -r "$SOURCE_DIR/Player-Smart-FX-Interface" "$INSTALL_DIR/" 2>/dev/null || {
                 warn "Falha ao copiar Player-Smart-FX-Interface, continuando..."
             }
+        fi
+        if [[ -d "$SOURCE_DIR/player-web-cache" ]]; then
+            log "Copiando Player Web Cache (versão com cache completo)..."
+            mkdir -p "$INSTALL_DIR/player-web"
+            cp -r "$SOURCE_DIR/player-web-cache/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
+                warn "Falha ao copiar Player Web Cache, continuando..."
+            }
+            log "✅ Player Web Cache copiado para player-web/"
         fi
         log "✅ Todos os players copiados"
         return
@@ -9683,6 +9698,16 @@ copy_selected_players() {
         cp -r "$SOURCE_DIR/Player-Smart-FX-Interface" "$INSTALL_DIR/" 2>/dev/null || {
             warn "Falha ao copiar Smart FX Interface"
         }
+    fi
+    
+    # Copiar Player Web Cache (substitui player-web obsoleto)
+    if [[ "$INSTALL_PLAYER_WEB_CACHE" == "true" ]] && [[ -d "$SOURCE_DIR/player-web-cache" ]]; then
+        log "Copiando Player Web Cache (versão com cache completo)..."
+        mkdir -p "$INSTALL_DIR/player-web"
+        cp -r "$SOURCE_DIR/player-web-cache/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
+            warn "Falha ao copiar Player Web Cache"
+        }
+        log "✅ Player Web Cache copiado para player-web/"
     fi
     
     log "✅ Players selecionados copiados"
