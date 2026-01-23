@@ -500,6 +500,7 @@ INSERT INTO totem_playlists (totem_playlist_id, totem_id, smart_tv_id, publisher
 (3, 3, NULL, 1, 'hash_003', 1, 2, 40, 'active', true, (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), NULL, '{}'::jsonb, '{}'::jsonb),
 (4, 4, NULL, 2, 'hash_004', 1, 1, 15, 'active', true, (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), NULL, '{}'::jsonb, '{}'::jsonb),
 (5, 5, NULL, 2, 'hash_005', 1, 1, 15, 'active', true, (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), NULL, '{}'::jsonb, '{}'::jsonb),
+(6, 6, NULL, 3, 'hash_006', 1, 1, 12, 'active', true, (NOW() - INTERVAL '1 year'), (NOW() - INTERVAL '1 year'), NULL, '{}'::jsonb, '{}'::jsonb),
 
 -- Playlists recentes simulando solicitações e entregas
 (7, 1, NULL, 1, 'hash_001_v2', 2, 2, 40, 'active', true, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour', NULL, '{"request_id": "req-001", "delivery_method": "http"}'::jsonb, '{"generation_time_ms": 132}'::jsonb),
