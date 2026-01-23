@@ -9456,7 +9456,7 @@ show_menu() {
 
 # Menu de seleção de players
 show_players_menu() {
-    # Em modo não interativo, aplicar default do menu de players (9 = todos)
+    # Em modo não interativo, aplicar default do menu de players (10 = todos)
     if [[ "$SKIP_MENU" == "true" ]]; then
         INSTALL_ALL_PLAYERS=true
         INSTALL_PLAYER_WEBOS=true
@@ -9468,7 +9468,7 @@ show_players_menu() {
         INSTALL_PLAYER_SMARTDISPLAYFX=true
         INSTALL_PLAYER_FX_INTERFACE=true
         INSTALL_PLAYER_WEB_CACHE=true
-        log "✅ Players selecionados automaticamente (skip-menu padrão: 9 - todos)"
+        log "✅ Players selecionados automaticamente (skip-menu padrão: 10 - todos)"
         copy_selected_players
         return 0
     fi
@@ -9487,13 +9487,13 @@ show_players_menu() {
     echo -e "${GREEN}[ ]${NC} 6) Tizen (Samsung) - Player para TVs Samsung Tizen"
     echo -e "${GREEN}[ ]${NC} 7) SmartDisplayFX Client - Cliente para efeitos visuais"
     echo -e "${GREEN}[ ]${NC} 8) Smart FX Interface - Interface e protótipos"
-    echo -e "${GREEN}[ ]${NC} 10) Player Web Cache - Player HTML5 com cache completo (substitui player-web obsoleto)"
+    echo -e "${GREEN}[ ]${NC} 9) Player Web Cache - Player HTML5 com cache completo (substitui player-web obsoleto)"
     echo
-    echo -e "${GREEN}[ ]${NC} 9) Instalar TODOS os players (recomendado para desenvolvimento)"
+    echo -e "${GREEN}[ ]${NC} 10) Instalar TODOS os players (recomendado para desenvolvimento)"
     echo -e "${GREEN}[ ]${NC} 0) Não instalar players (apenas servidor)"
     echo
-    read -p "Digite os números separados por vírgula (ex: 1,3,5) ou 9 para todos [padrão: 9]: " players_choice
-    players_choice=${players_choice:-9}
+    read -p "Digite os números separados por vírgula (ex: 1,3,5) ou 10 para todos [padrão: 10]: " players_choice
+    players_choice=${players_choice:-10}
     
     # Limpar seleções anteriores
     INSTALL_PLAYER_WEBOS=false
@@ -9508,7 +9508,7 @@ show_players_menu() {
     INSTALL_ALL_PLAYERS=false
     
     # Processar escolha
-    if [[ "$players_choice" == "9" ]]; then
+    if [[ "$players_choice" == "10" ]]; then
         INSTALL_ALL_PLAYERS=true
         INSTALL_PLAYER_WEBOS=true
         INSTALL_PLAYER_ANDROID=true
@@ -9560,7 +9560,7 @@ show_players_menu() {
                     INSTALL_PLAYER_FX_INTERFACE=true
                     log "✅ Smart FX Interface selecionado"
                     ;;
-                10)
+                9)
                     INSTALL_PLAYER_WEB_CACHE=true
                     log "✅ Player Web Cache selecionado"
                     ;;
