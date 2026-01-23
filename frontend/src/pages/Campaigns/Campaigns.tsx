@@ -50,7 +50,7 @@ import { useLocation } from 'react-router-dom';
 import { SortableList } from '../../components/SortableList/SortableList';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { CampaignCard } from './components';
+import { CampaignCard, CampaignForm, CampaignDetails } from './components';
 
 interface PublisherOption {
   publisher_id: number;
