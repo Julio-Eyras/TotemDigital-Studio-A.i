@@ -638,6 +638,124 @@ INSERT INTO execution_logs (log_id, totem_id, campaign_id, playlist_id, media_id
 (29, 8, NULL, NULL, NULL, 4, NULL, 'playlist_delivered', '{"playlist_id": null, "items_count": 0, "total_duration": 0, "delivery_time_ms": 18, "status": "no_campaigns"}'::jsonb, NOW() - INTERVAL '15 minutes' + INTERVAL '18 milliseconds', '{"delivery_method": "http", "message": "Nenhuma campanha ativa"}'::jsonb)
 ON CONFLICT DO NOTHING;
 
+-- Bloco extra para testes unitários: histórico longo 2025 → 2030
+-- Permite testar filtros por período e rastreabilidade em relatórios
+INSERT INTO execution_logs (log_id, totem_id, campaign_id, playlist_id, media_id, publisher_id, subscriber_id, event_type, event_data, timestamp, metadata) VALUES
+-- 2025: primeira execução registrada (início do período)
+(30, 1, 1, 1, 1, 1, 1, 'play_start',
+ '{"duration_ms": 10000, "playlist_item_index": 0}'::jsonb,
+ '2025-01-15T10:00:00Z',
+ '{"test_case": "traceability_range", "period": "start_2025"}'::jsonb),
+(31, 1, 1, 1, 1, 1, 1, 'play_end',
+ '{"duration_ms": 10000, "actual_duration_ms": 10050, "completed": true}'::jsonb,
+ '2025-01-15T10:00:11Z',
+ '{"test_case": "traceability_range", "period": "start_2025"}'::jsonb),
+-- 2026: meio do período
+(32, 2, 2, 3, 3, 2, 2, 'play_start',
+ '{"duration_ms": 15000, "playlist_item_index": 0}'::jsonb,
+ '2026-06-10T14:30:00Z',
+ '{"test_case": "traceability_range", "period": "middle_2026"}'::jsonb),
+(33, 2, 2, 3, 3, 2, 2, 'play_end',
+ '{"duration_ms": 15000, "actual_duration_ms": 14980, "completed": true}'::jsonb,
+ '2026-06-10T14:30:17Z',
+ '{"test_case": "traceability_range", "period": "middle_2026"}'::jsonb),
+-- 2028: quase fim do contrato padrão das campanhas
+(34, 3, 3, 4, 4, 5, 3, 'play_start',
+ '{"duration_ms": 12000, "playlist_item_index": 0}'::jsonb,
+ '2028-09-20T09:15:00Z',
+ '{"test_case": "traceability_range", "period": "near_end_2028"}'::jsonb),
+(35, 3, 3, 4, 4, 5, 3, 'play_end',
+ '{"duration_ms": 12000, "actual_duration_ms": 12020, "completed": true}'::jsonb,
+ '2028-09-20T09:15:14Z',
+ '{"test_case": "traceability_range", "period": "near_end_2028"}'::jsonb),
+-- 2030: fim simbólico de período estendido (para telas que filtram até 2030)
+(36, 4, 4, 5, 5, 1, 4, 'play_start',
+ '{"duration_ms": 20000, "playlist_item_index": 0}'::jsonb,
+ '2030-12-31T20:00:00Z',
+ '{"test_case": "traceability_range", "period": "end_2030"}'::jsonb),
+(37, 4, 4, 5, 5, 1, 4, 'play_end',
+ '{"duration_ms": 20000, "actual_duration_ms": 19950, "completed": true}'::jsonb,
+ '2030-12-31T20:00:22Z',
+ '{"test_case": "traceability_range", "period": "end_2030"}'::jsonb),
+
+-- =============================================
+-- BLOCO EXTRA: Edge Cases e Cenários de Erro
+-- =============================================
+-- Timeout de conexão
+(38, 1, 1, 1, 1, 1, 1, 'playlist_request',
+ '{"request_id": "req-timeout-001", "totem_uin": "UIN-SHOPPING-001-2025"}'::jsonb,
+ '2026-03-15T14:30:00Z',
+ '{"source": "heartbeat", "test_case": "edge_case", "scenario": "connection_timeout"}'::jsonb),
+(39, 1, NULL, NULL, NULL, 1, 1, 'playlist_delivery_failed',
+ '{"request_id": "req-timeout-001", "error": "connection_timeout", "retry_count": 3, "timeout_ms": 5000}'::jsonb,
+ '2026-03-15T14:30:05Z',
+ '{"test_case": "edge_case", "scenario": "connection_timeout"}'::jsonb),
+
+-- Validação temporal falhada (campanha expirada)
+(40, 2, 1, 1, 1, 1, 1, 'playlist_request',
+ '{"request_id": "req-validation-001", "totem_uin": "UIN-SHOPPING-002-2025"}'::jsonb,
+ '2027-02-01T10:00:00Z',
+ '{"source": "heartbeat", "test_case": "edge_case", "scenario": "temporal_validation_failed"}'::jsonb),
+(41, 2, NULL, NULL, NULL, 1, 1, 'playlist_delivery_failed',
+ '{"request_id": "req-validation-001", "error": "campaign_expired", "campaign_id": 1, "expired_at": "2027-01-14T23:59:59Z"}'::jsonb,
+ '2027-02-01T10:00:01Z',
+ '{"test_case": "edge_case", "scenario": "temporal_validation_failed"}'::jsonb),
+
+-- Mídia corrompida durante reprodução
+(42, 3, 1, 1, 2, 1, 1, 'play_start',
+ '{"duration_ms": 30000, "playlist_item_index": 1}'::jsonb,
+ '2026-08-20T16:45:00Z',
+ '{"test_case": "edge_case", "scenario": "corrupted_media"}'::jsonb),
+(43, 3, 1, 1, 2, 1, 1, 'play_error',
+ '{"duration_ms": 30000, "actual_duration_ms": 8500, "error": "media_corrupted", "error_code": "MEDIA_CRC_FAIL", "completed": false}'::jsonb,
+ '2026-08-20T16:45:09Z',
+ '{"test_case": "edge_case", "scenario": "corrupted_media", "checksum_expected": "abc123", "checksum_received": "def456"}'::jsonb),
+
+-- Totem offline por longo período
+(44, 7, NULL, NULL, NULL, 3, NULL, 'playlist_request',
+ '{"request_id": "req-offline-001", "totem_uin": "UIN-AEROPORTO-002-2025"}'::jsonb,
+ '2026-11-10T08:00:00Z',
+ '{"source": "heartbeat", "test_case": "edge_case", "scenario": "totem_offline_long"}'::jsonb),
+(45, 7, NULL, NULL, NULL, 3, NULL, 'playlist_delivery_failed',
+ '{"request_id": "req-offline-001", "error": "totem_offline", "last_heartbeat": "2026-11-09T22:15:00Z", "offline_duration_hours": 9.75}'::jsonb,
+ '2026-11-10T08:00:02Z',
+ '{"test_case": "edge_case", "scenario": "totem_offline_long"}'::jsonb),
+
+-- Campanha expirada no meio da execução
+(46, 1, 1, 1, 1, 1, 1, 'play_start',
+ '{"duration_ms": 10000, "playlist_item_index": 0}'::jsonb,
+ '2027-01-14T23:58:00Z',
+ '{"test_case": "edge_case", "scenario": "campaign_expired_during_playback"}'::jsonb),
+(47, 1, 1, 1, 1, 1, 1, 'play_interrupted',
+ '{"duration_ms": 10000, "actual_duration_ms": 4500, "reason": "campaign_expired", "expired_at": "2027-01-14T23:59:59Z", "completed": false}'::jsonb,
+ '2027-01-14T23:58:05Z',
+ '{"test_case": "edge_case", "scenario": "campaign_expired_during_playback"}'::jsonb),
+
+-- Conflito de prioridade (múltiplas campanhas competindo)
+(48, 1, 1, 1, 1, 1, 1, 'playlist_request',
+ '{"request_id": "req-conflict-001", "totem_uin": "UIN-SHOPPING-001-2025", "conflicting_campaigns": [1, 4, 5]}'::jsonb,
+ '2026-12-15T12:00:00Z',
+ '{"source": "heartbeat", "test_case": "edge_case", "scenario": "priority_conflict"}'::jsonb),
+(49, 1, 1, 1, 1, 1, 1, 'playlist_delivered',
+ '{"playlist_id": 1, "items_count": 2, "selected_campaign_id": 1, "conflict_resolution": "highest_priority", "rejected_campaigns": [4, 5]}'::jsonb,
+ '2026-12-15T12:00:00Z' + INTERVAL '150 milliseconds',
+ '{"test_case": "edge_case", "scenario": "priority_conflict", "resolution_method": "priority_weighted"}'::jsonb),
+
+-- Falha de cache (cache corrompido)
+(50, 2, 1, 2, 1, 1, 1, 'playlist_request',
+ '{"request_id": "req-cache-fail-001", "totem_uin": "UIN-SHOPPING-002-2025", "cache_hit": true}'::jsonb,
+ '2026-09-05T11:20:00Z',
+ '{"source": "scheduled", "test_case": "edge_case", "scenario": "cache_corruption"}'::jsonb),
+(51, 2, 1, 2, 1, 1, 1, 'playlist_delivery_failed',
+ '{"request_id": "req-cache-fail-001", "error": "cache_corrupted", "cache_key": "totem_2_playlist_2", "fallback_to_http": true}'::jsonb,
+ '2026-09-05T11:20:00Z' + INTERVAL '50 milliseconds',
+ '{"test_case": "edge_case", "scenario": "cache_corruption"}'::jsonb),
+(52, 2, 1, 2, 1, 1, 1, 'playlist_delivered',
+ '{"playlist_id": 2, "items_count": 2, "delivery_time_ms": 180, "delivery_method": "http", "cache_rebuilt": true}'::jsonb,
+ '2026-09-05T11:20:00Z' + INTERVAL '230 milliseconds',
+ '{"test_case": "edge_case", "scenario": "cache_corruption", "recovery": "successful"}'::jsonb)
+ON CONFLICT DO NOTHING;
+
 INSERT INTO event_logs (log_id, event_type, entity_type, entity_id, totem_id, campaign_id, media_id, publisher_id, subscriber_id, user_id, metadata, severity, timestamp) VALUES
 -- Eventos de criação e aprovação
 (1, 'create', 'campaign', 1, NULL, 1, NULL, 1, 1, 4, '{"title": "Coleção Verão 2025"}'::jsonb, 'info', (NOW() - INTERVAL '1 year') - INTERVAL '10 days'),
@@ -660,6 +778,29 @@ INSERT INTO event_logs (log_id, event_type, entity_type, entity_id, totem_id, ca
 -- Eventos de erro/falha
 (13, 'playlist_request_failed', 'totem', 7, 7, NULL, NULL, 3, NULL, NULL, '{"request_id": "req-010", "uin": "UIN-AEROPORTO-002-2025", "error": "totem_offline", "reason": "Totem não respondeu ao heartbeat"}'::jsonb, 'warning', NOW() - INTERVAL '2 hours'),
 (14, 'playlist_delivery_failed', 'totem', 7, 7, NULL, NULL, 3, NULL, NULL, '{"request_id": "req-010", "error": "connection_timeout", "retry_count": 3}'::jsonb, 'error', NOW() - INTERVAL '2 hours' + INTERVAL '5 seconds')
+ON CONFLICT DO NOTHING;
+
+-- Bloco extra para testes unitários em telas de rastreabilidade (event_logs)
+INSERT INTO event_logs (log_id, event_type, entity_type, entity_id, totem_id, campaign_id, media_id, publisher_id, subscriber_id, user_id, metadata, severity, timestamp) VALUES
+-- 2025: criação e primeira reprodução
+(15, 'play', 'campaign', 1, 1, 1, 1, 1, 1, NULL,
+ '{"scenario": "traceability_range", "period": "start_2025"}'::jsonb,
+ 'info', '2025-01-15T10:00:05Z'),
+-- 2026: atualização de status de campanha
+(16, 'update', 'campaign', 2, NULL, 2, NULL, NULL, 2, 4,
+ '{"field": "status", "old_value": "active", "new_value": "paused"}'::jsonb,
+ 'warning', '2026-06-10T14:35:00Z'),
+-- 2028: reativação e reprodução em supermercado
+(17, 'update', 'campaign', 3, 9, 3, NULL, 5, 3, 4,
+ '{"field": "status", "old_value": "paused", "new_value": "active"}'::jsonb,
+ 'info', '2028-09-20T09:10:00Z'),
+(18, 'play', 'campaign', 3, 9, 3, 4, 5, 3, NULL,
+ '{"media_id": 4, "playlist_id": 4, "duration_ms": 12000, "scenario": "traceability_range", "period": "near_end_2028"}'::jsonb,
+ 'info', '2028-09-20T09:15:05Z'),
+-- 2030: encerramento de campanha de longo prazo
+(19, 'update', 'campaign', 1, NULL, 1, NULL, 1, 1, 4,
+ '{"field": "status", "old_value": "active", "new_value": "archived", "reason": "end_of_long_term_period"}'::jsonb,
+ 'info', '2030-12-31T23:59:00Z')
 ON CONFLICT DO NOTHING;
 
 -- =============================================
