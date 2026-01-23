@@ -148,8 +148,8 @@ Criar componentes modulares reutilizáveis (Card, Form, Details) para as princip
 
 | Componente | Card | Form | Details |
 |------------|------|------|---------|
-| **Campaigns** | ✅ Integrado | ⏳ Pronto | ⏳ Pronto |
-| **Playlists** | ✅ Integrado | ⏳ Pronto | ⏳ Pronto |
+| **Campaigns** | ✅ Integrado | ⏳ Pronto | ✅ Integrado |
+| **Playlists** | ✅ Integrado | ⏳ Pronto | ✅ Integrado |
 | **Subscribers** | ✅ Integrado | ✅ Integrado | ✅ Integrado |
 | **Publishers** | ✅ Integrado | ✅ Integrado | ✅ Integrado |
 | **Contracts** | ✅ Integrado | ✅ Integrado | ✅ Integrado |
