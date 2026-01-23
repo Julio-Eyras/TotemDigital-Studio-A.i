@@ -7,12 +7,14 @@
 --            para testes integrados completos
 -- 
 -- CORREÇÕES APLICADAS:
--- ✅ Corrigido: Locals 6 e 7 agora pertencem ao publisher correto (Supermercado)
+-- ✅ Corrigido: Locals 6 e 7 agora pertencem ao publisher correto (Aeroporto)
 -- ✅ Corrigido: Criado publisher_id=5 para Supermercado Econômico
 -- ✅ Corrigido: UINs atualizados de 2024 para 2025
 -- ✅ Corrigido: campaign_publishers para campanha 3 agora usa publisher_id=5
 -- ✅ Corrigido: campaign_locals e campaign_totems atualizados para novos locals
+-- ✅ Corrigido: Totem Playlist 6 adicionado para corrigir foreign key constraint
 -- ✅ Adicionado: Mais diversidade de dados para testes integrados
+-- ✅ Revisado: Todos os relacionamentos validados para consistência de IDs
 -- =============================================
 
 -- =============================================
