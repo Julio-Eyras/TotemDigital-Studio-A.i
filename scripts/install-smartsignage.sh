@@ -4815,7 +4815,19 @@ setup_nginx() {
         
         # Copiar player para /opt/smart-signage/player-web
         sudo mkdir -p /opt/smart-signage/player-web
-        if [[ -d "$INSTALL_DIR/player-web" ]]; then
+        
+        # Se player-web não existe em INSTALL_DIR, copiar de player-web-cache
+        if [[ ! -d "$INSTALL_DIR/player-web" ]] || [[ -z "$(ls -A "$INSTALL_DIR/player-web" 2>/dev/null)" ]]; then
+            if [[ -d "$SOURCE_DIR/player-web-cache" ]]; then
+                log "Player-web não encontrado, copiando de player-web-cache..."
+                mkdir -p "$INSTALL_DIR/player-web"
+                cp -r "$SOURCE_DIR/player-web-cache/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
+                    warn "Falha ao copiar Player Web Cache"
+                }
+            fi
+        fi
+        
+        if [[ -d "$INSTALL_DIR/player-web" ]] && [[ -n "$(ls -A "$INSTALL_DIR/player-web" 2>/dev/null)" ]]; then
             sudo rm -rf /opt/smart-signage/player-web/* 2>/dev/null || true
             sudo cp -a "$INSTALL_DIR/player-web"/* /opt/smart-signage/player-web/ || true
             if id www-data &>/dev/null; then
@@ -10450,6 +10462,17 @@ main() {
     
     # Perguntar sobre players (após definir INSTALL_DIR)
     show_players_menu
+    
+    # SEMPRE copiar player-web-cache (substitui player-web obsoleto)
+    # Mesmo que não seja selecionado no menu, é necessário para o player funcionar
+    if [[ -d "$SOURCE_DIR/player-web-cache" ]] && [[ ! -d "$INSTALL_DIR/player-web" ]] || [[ -z "$(ls -A "$INSTALL_DIR/player-web" 2>/dev/null)" ]]; then
+        log "Copiando Player Web Cache (necessário para /player funcionar)..."
+        mkdir -p "$INSTALL_DIR/player-web"
+        cp -r "$SOURCE_DIR/player-web-cache/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
+            warn "Falha ao copiar Player Web Cache"
+        }
+        log "✅ Player Web Cache copiado para player-web/"
+    fi
     
     # Perguntar sobre HTTPS (após menu, antes da instalação)
     ask_https_configuration
