@@ -3765,7 +3765,10 @@ setup_database() {
                     
                     # Compilar React
                     log "Compilando frontend (React)..."
-                    if npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-build.log"; then
+                    npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-build.log"
+                    
+                    # Verificar se o build foi bem-sucedido (verificando se o diretório build existe)
+                    if [[ -d "build" && -f "build/index.html" ]]; then
                         log "✅ Frontend compilado com sucesso"
                     else
                         warn "⚠️  Erro ao compilar frontend. Verifique os logs em $INSTALL_DIR/logs/frontend-build.log"
@@ -9040,10 +9043,14 @@ rebuild_and_restart() {
         
         # Compilar React
         log "Compilando frontend (React)..."
-        npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-build.log" || {
+        npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-build.log"
+        
+        # Verificar se o build foi bem-sucedido (verificando se o diretório build existe)
+        if [[ -d "build" && -f "build/index.html" ]]; then
+            log "✅ Frontend compilado com sucesso"
+        else
             error "❌ Erro ao compilar frontend. Verifique os logs em $INSTALL_DIR/logs/frontend-build.log"
-        }
-        log "✅ Frontend compilado com sucesso"
+        fi
     fi
     
     # 4. Reiniciar serviços
