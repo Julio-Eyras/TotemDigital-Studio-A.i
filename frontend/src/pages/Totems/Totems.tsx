@@ -32,6 +32,8 @@ import { Tv, Add, Refresh, LocationOn, CheckCircle, Pending, Warning, Settings }
 import { totemApi, Player, CreatePlayerRequest, localApi, Local } from '../../services/api';
 import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteControl';
 import { useAppSelector } from '../../store';
+import { PageHeader } from '../../components/DataDisplay';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -51,6 +53,7 @@ function TabPanel(props: TabPanelProps) {
 const Totems: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
   const theme = useTheme();
+  const breadcrumbs = useBreadcrumbs();
   const canAdministerTotems = ['admin', 'admin_sql', 'owner_system'].includes(user?.role || '');
   const userPublisherId = user?.publisherId;
 
@@ -254,28 +257,21 @@ const Totems: React.FC = () => {
 
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
-      {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-        <Box>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            🖥️ Totens
-          </Typography>
-          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie totens, aprovações e controle remoto
-          </Typography>
-        </Box>
-
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {canAdministerTotems && (
-            <Button startIcon={<Add />} variant="contained" onClick={() => setCreateOpen(true)}>
-              Adicionar Totem
-            </Button>
-          )}
-          <Button startIcon={<Refresh />} variant="outlined" onClick={loadAll} disabled={loading}>
-            Atualizar
-          </Button>
-        </Box>
-      </Box>
+      <PageHeader
+        title="Totens"
+        subtitle="Gerencie totens, aprovações e controle remoto"
+        breadcrumbs={breadcrumbs}
+        actions={[
+          ...(canAdministerTotems ? [{
+            label: 'Adicionar Totem',
+            icon: <Add />,
+            onClick: () => setCreateOpen(true),
+            variant: 'contained' as const,
+          }] : []),
+        ]}
+        onRefresh={loadAll}
+        loading={loading}
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>

@@ -53,11 +53,14 @@ import {
 } from '../../services/api';
 import { useAppSelector } from '../../store/hooks';
 import { useLocation } from 'react-router-dom';
+import { PageHeader } from '../../components/DataDisplay';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 
 type EditorMode = 'create' | 'edit';
 
 const Playlists: React.FC = () => {
   const theme = useTheme();
+  const breadcrumbs = useBreadcrumbs();
   const user = useAppSelector((state) => state.auth.user);
   const location = useLocation() as { state?: { highlightId?: number } };
   const [highlightId, setHighlightId] = useState<number | null>(null);
@@ -410,24 +413,21 @@ const Playlists: React.FC = () => {
 
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            Playlists
-          </Typography>
-          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Playlists pertencem a um subscriber e contêm mídias; campanhas apontam para playlists.
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={openCreate}
-          sx={{ backgroundColor: theme.palette.primary.main, '&:hover': { backgroundColor: theme.palette.primary.dark } }}
-        >
-          Criar Playlist
-        </Button>
-      </Box>
+      <PageHeader
+        title="Playlists"
+        subtitle="Playlists pertencem a um subscriber e contêm mídias; campanhas apontam para playlists."
+        breadcrumbs={breadcrumbs}
+        actions={[
+          {
+            label: 'Criar Playlist',
+            icon: <Add />,
+            onClick: openCreate,
+            variant: 'contained',
+          },
+        ]}
+        onRefresh={loadPlaylists}
+        loading={loading}
+      />
 
       <Card sx={{ mb: 3 }}>
         <CardContent>

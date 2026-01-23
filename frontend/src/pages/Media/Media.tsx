@@ -47,9 +47,12 @@ import {
 } from '@mui/icons-material';
 import { mediaApi, MediaItem, CreateMediaRequest, clientApi, Client, subscriberApi, Subscriber } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
+import { PageHeader } from '../../components/DataDisplay';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 
 const Media: React.FC = () => {
   const theme = useTheme();
+  const breadcrumbs = useBreadcrumbs();
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -311,28 +314,21 @@ const Media: React.FC = () => {
 
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
-      {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-    <Box>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            Biblioteca de Mídia
-          </Typography>
-          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie seus arquivos de mídia
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setUploadDialogOpen(true)}
-          sx={{ 
-            backgroundColor: theme.palette.primary.main,
-            '&:hover': { backgroundColor: theme.palette.primary.dark }
-          }}
-        >
-          Adicionar Mídia
-        </Button>
-      </Box>
+      <PageHeader
+        title="Biblioteca de Mídia"
+        subtitle="Gerencie seus arquivos de mídia"
+        breadcrumbs={breadcrumbs}
+        actions={[
+          {
+            label: 'Adicionar Mídia',
+            icon: <Add />,
+            onClick: () => setUploadDialogOpen(true),
+            variant: 'contained',
+          },
+        ]}
+        onRefresh={loadMediaItems}
+        loading={loading}
+      />
 
       {/* Filters */}
       <Card sx={{ mb: 3 }}>

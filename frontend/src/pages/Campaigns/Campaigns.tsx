@@ -48,6 +48,8 @@ import { campaignApi, Campaign, CreateCampaignRequest, UpdateCampaignRequest, cl
 import { useAppSelector } from '../../store/hooks';
 import { useLocation } from 'react-router-dom';
 import { SortableList } from '../../components/SortableList/SortableList';
+import { PageHeader } from '../../components/DataDisplay';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 
 interface PublisherOption {
   publisher_id: number;
@@ -57,6 +59,7 @@ interface PublisherOption {
 
 const Campaigns: React.FC = () => {
   const theme = useTheme();
+  const breadcrumbs = useBreadcrumbs();
   const location = useLocation() as { state?: { highlightId?: number } };
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const highlightRef = useRef<HTMLDivElement | null>(null);
@@ -569,28 +572,21 @@ const Campaigns: React.FC = () => {
 
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
-      {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            Campanhas
-          </Typography>
-          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie campanhas, playlists, agendamentos e prioridades comerciais (tier, share de tempo).
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setCreateDialogOpen(true)}
-          sx={{ 
-            backgroundColor: theme.palette.primary.main,
-            '&:hover': { backgroundColor: theme.palette.primary.dark }
-          }}
-        >
-          Criar Campanha
-        </Button>
-      </Box>
+      <PageHeader
+        title="Campanhas"
+        subtitle="Gerencie campanhas, playlists, agendamentos e prioridades comerciais (tier, share de tempo)."
+        breadcrumbs={breadcrumbs}
+        actions={[
+          {
+            label: 'Criar Campanha',
+            icon: <Add />,
+            onClick: () => setCreateDialogOpen(true),
+            variant: 'contained',
+          },
+        ]}
+        onRefresh={loadCampaigns}
+        loading={loading}
+      />
 
       {/* Filters */}
       <Card sx={{ mb: 3 }}>

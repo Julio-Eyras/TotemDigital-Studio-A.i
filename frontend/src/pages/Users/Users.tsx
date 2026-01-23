@@ -48,9 +48,12 @@ import {
   Error,
 } from '@mui/icons-material';
 import { userApi, User, CreateUserRequest, UserFlags, publisherApi, Publisher, subscriberApi, Subscriber } from '../../services/api';
+import { PageHeader } from '../../components/DataDisplay';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 
 const Users: React.FC = () => {
   const theme = useTheme();
+  const breadcrumbs = useBreadcrumbs();
   const [users, setUsers] = useState<User[]>([]);
   const [publishers, setPublishers] = useState<Publisher[]>([]);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
@@ -247,28 +250,21 @@ const Users: React.FC = () => {
 
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
-      {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            Usuários
-          </Typography>
-          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie os usuários do sistema
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setCreateDialogOpen(true)}
-          sx={{ 
-            backgroundColor: theme.palette.primary.main,
-            '&:hover': { backgroundColor: theme.palette.primary.dark }
-          }}
-        >
-          Adicionar Usuário
-        </Button>
-      </Box>
+      <PageHeader
+        title="Usuários"
+        subtitle="Gerencie os usuários do sistema"
+        breadcrumbs={breadcrumbs}
+        actions={[
+          {
+            label: 'Adicionar Usuário',
+            icon: <Add />,
+            onClick: () => setCreateDialogOpen(true),
+            variant: 'contained',
+          },
+        ]}
+        onRefresh={loadUsers}
+        loading={loading}
+      />
 
       {/* Filters */}
       <Card sx={{ mb: 3 }}>
