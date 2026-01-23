@@ -404,21 +404,94 @@ change_postgres_password() {
     fi
 }
 
-# Estrutura para criptografia de senhas (implementação futura)
-# Por enquanto, senhas ficam em texto plano no arquivo de configuração
+# Criptografia de senhas usando OpenSSL AES-256-CBC
+# As senhas são criptografadas antes de serem armazenadas no arquivo de configuração
+# A chave de criptografia é armazenada em .encryption_key (permissões 600)
 encrypt_password() {
     local password="$1"
-    # TODO: Implementar criptografia usando openssl ou gpg
-    # Por enquanto, retorna a senha em texto plano
-    echo "$password"
+    local install_dir="${INSTALL_DIR:-/opt/smart-signage}"
+    local key_file="$install_dir/.encryption_key"
+    
+    # Verificar se openssl está disponível
+    if ! command -v openssl >/dev/null 2>&1; then
+        warn "⚠️  openssl não encontrado. Retornando senha em texto plano (não seguro!)"
+        echo "$password"
+        return 1
+    fi
+    
+    # Gerar chave de criptografia se não existir
+    if [[ ! -f "$key_file" ]]; then
+        log "Gerando chave de criptografia em: $key_file"
+        if ! openssl rand -base64 32 > "$key_file" 2>/dev/null; then
+            error "❌ Falha ao gerar chave de criptografia"
+            echo "$password"
+            return 1
+        fi
+        # Proteger arquivo de chave (apenas leitura para o dono)
+        chmod 600 "$key_file" 2>/dev/null || true
+        # Tentar definir ownership correto
+        if [[ -n "${CURRENT_USER:-}" ]]; then
+            chown "$CURRENT_USER:$CURRENT_GROUP" "$key_file" 2>/dev/null || true
+        fi
+    fi
+    
+    # Verificar se a chave existe e é válida
+    if [[ ! -f "$key_file" ]] || [[ ! -r "$key_file" ]]; then
+        warn "⚠️  Arquivo de chave não acessível. Retornando senha em texto plano"
+        echo "$password"
+        return 1
+    fi
+    
+    # Criptografar senha usando AES-256-CBC com salt
+    local encrypted
+    if encrypted=$(echo -n "$password" | openssl enc -aes-256-cbc -salt -base64 -pass file:"$key_file" 2>/dev/null); then
+        echo "$encrypted"
+        return 0
+    else
+        warn "⚠️  Falha ao criptografar senha. Retornando em texto plano"
+        echo "$password"
+        return 1
+    fi
 }
 
-# Descriptografar senha (implementação futura)
+# Descriptografar senha
 decrypt_password() {
     local encrypted_password="$1"
-    # TODO: Implementar descriptografia
-    # Por enquanto, retorna como está (assumindo texto plano)
-    echo "$encrypted_password"
+    local install_dir="${INSTALL_DIR:-/opt/smart-signage}"
+    local key_file="$install_dir/.encryption_key"
+    
+    # Se não parece ser uma string criptografada (base64), retornar como está
+    if [[ ! "$encrypted_password" =~ ^[A-Za-z0-9+/=]+$ ]] || [[ ${#encrypted_password} -lt 20 ]]; then
+        # Provavelmente já está em texto plano (compatibilidade com instalações antigas)
+        echo "$encrypted_password"
+        return 0
+    fi
+    
+    # Verificar se openssl está disponível
+    if ! command -v openssl >/dev/null 2>&1; then
+        warn "⚠️  openssl não encontrado. Retornando como está (pode estar criptografado)"
+        echo "$encrypted_password"
+        return 1
+    fi
+    
+    # Verificar se a chave existe
+    if [[ ! -f "$key_file" ]] || [[ ! -r "$key_file" ]]; then
+        warn "⚠️  Arquivo de chave não encontrado. Retornando como está (pode estar criptografado)"
+        echo "$encrypted_password"
+        return 1
+    fi
+    
+    # Descriptografar senha
+    local decrypted
+    if decrypted=$(echo "$encrypted_password" | openssl enc -d -aes-256-cbc -base64 -pass file:"$key_file" 2>/dev/null); then
+        echo "$decrypted"
+        return 0
+    else
+        # Se falhar, pode ser que já esteja em texto plano (compatibilidade)
+        warn "⚠️  Falha ao descriptografar. Retornando como está (pode estar em texto plano)"
+        echo "$encrypted_password"
+        return 1
+    fi
 }
 
 # Função para log de container
