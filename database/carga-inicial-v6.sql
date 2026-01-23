@@ -738,7 +738,7 @@ INSERT INTO execution_logs (log_id, totem_id, campaign_id, playlist_id, media_id
  '{"source": "heartbeat", "test_case": "edge_case", "scenario": "priority_conflict"}'::jsonb),
 (49, 1, 1, 1, 1, 1, 1, 'playlist_delivered',
  '{"playlist_id": 1, "items_count": 2, "selected_campaign_id": 1, "conflict_resolution": "highest_priority", "rejected_campaigns": [4, 5]}'::jsonb,
- '2026-12-15T12:00:00Z' + INTERVAL '150 milliseconds',
+ TIMESTAMP '2026-12-15T12:00:00Z' + INTERVAL '150 milliseconds',
  '{"test_case": "edge_case", "scenario": "priority_conflict", "resolution_method": "priority_weighted"}'::jsonb),
 
 -- Falha de cache (cache corrompido)
@@ -748,11 +748,11 @@ INSERT INTO execution_logs (log_id, totem_id, campaign_id, playlist_id, media_id
  '{"source": "scheduled", "test_case": "edge_case", "scenario": "cache_corruption"}'::jsonb),
 (51, 2, 1, 2, 1, 1, 1, 'playlist_delivery_failed',
  '{"request_id": "req-cache-fail-001", "error": "cache_corrupted", "cache_key": "totem_2_playlist_2", "fallback_to_http": true}'::jsonb,
- '2026-09-05T11:20:00Z' + INTERVAL '50 milliseconds',
+ TIMESTAMP '2026-09-05T11:20:00Z' + INTERVAL '50 milliseconds',
  '{"test_case": "edge_case", "scenario": "cache_corruption"}'::jsonb),
 (52, 2, 1, 2, 1, 1, 1, 'playlist_delivered',
  '{"playlist_id": 2, "items_count": 2, "delivery_time_ms": 180, "delivery_method": "http", "cache_rebuilt": true}'::jsonb,
- '2026-09-05T11:20:00Z' + INTERVAL '230 milliseconds',
+ TIMESTAMP '2026-09-05T11:20:00Z' + INTERVAL '230 milliseconds',
  '{"test_case": "edge_case", "scenario": "cache_corruption", "recovery": "successful"}'::jsonb)
 ON CONFLICT DO NOTHING;
 
