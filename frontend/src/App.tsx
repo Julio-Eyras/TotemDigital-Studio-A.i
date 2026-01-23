@@ -7,7 +7,7 @@ import { Provider } from 'react-redux';
 import { queryClient } from './config/queryClient';
 import { store } from './store/store';
 import { Notification } from './components/Notification';
-import { CommandPalette } from './components/Navigation/CommandPalette';
+import CommandPaletteWrapper from './components/Navigation/CommandPalette/CommandPaletteWrapper';
 import { useRateLimit } from './hooks/useRateLimit';
 import { useCommandPalette } from './hooks/useCommandPalette';
 import { useAppSelector } from './store/hooks';
@@ -647,7 +647,7 @@ const AppContent: React.FC = () => {
           />
         </Routes>
       </Suspense>
-      <CommandPalette
+      <CommandPaletteWrapper
         open={commandPalette.open}
         onClose={commandPalette.closeDialog}
       />
