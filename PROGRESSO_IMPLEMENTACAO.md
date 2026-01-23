@@ -28,11 +28,11 @@
 - ✅ CampaignCard component criado
 - ✅ CampaignForm component criado
 - ✅ CampaignDetails component criado
-- ✅ Campaigns.tsx refatorado para usar CampaignCard
+- ✅ Campaigns.tsx refatorado para usar CampaignCard e CampaignDetails
 - ✅ PlaylistCard component criado
 - ✅ PlaylistForm component criado
 - ✅ PlaylistDetails component criado
-- ✅ Playlists.tsx refatorado para usar PlaylistCard
+- ✅ Playlists.tsx refatorado para usar PlaylistCard e PlaylistDetails
 
 ### Fase 3: Melhorias de UX ✅ 100%
 - ✅ Command Palette (busca global)
@@ -81,8 +81,8 @@
 ### 3. Aplicar Padrão para Outras Páginas
 - [x] Publishers.tsx ✅
 - [x] Contracts.tsx ✅ (ContractCard, ContractForm, ContractDetails criados e integrados)
-- [x] Campaigns.tsx ✅ (CampaignCard criado e integrado)
-- [x] Playlists.tsx ✅ (PlaylistCard criado e integrado)
+- [x] Campaigns.tsx ✅ (CampaignCard, CampaignDetails criados e integrados)
+- [x] Playlists.tsx ✅ (PlaylistCard, PlaylistDetails criados e integrados)
 
 ---
 
