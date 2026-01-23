@@ -54,6 +54,7 @@ RESET_DATABASE=false
 PRESERVE_DB=false
 LOAD_SEEDS=false
 SEEDS_OPTION_FORCED=false
+START_TOTEM=false
 CONFIGURE_DNS_LOCAL=false
 DB_WAS_CREATED_OR_RESET=false
 
@@ -647,6 +648,10 @@ parse_arguments() {
                 SEEDS_OPTION_FORCED=true
                 shift
                 ;;
+            --starttotem)
+                START_TOTEM=true
+                shift
+                ;;
             --help|-h)
                 echo "Smart Signage Pro v2.0 - Script de Instalação"
                 echo ""
@@ -670,6 +675,7 @@ parse_arguments() {
                 echo "  --backfront-build    Faz build do backend e do frontend (deps + TypeScript + React), sem tocar no banco"
                 echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt). Usa database/carga-inicial-v6.sql"
                 echo "  --no-seeds           Não carrega dados de demonstração"
+                echo "  --starttotem         Após instalar, abre 2 players web (/player) com UINs de totens demo para laboratório"
                 echo "  --help               Mostra esta ajuda"
                 exit 0
                 ;;
@@ -8931,6 +8937,146 @@ rebuild_and_restart() {
             INSTALL_DIR="$(pwd)"
         else
             error "Não foi possível detectar o diretório de instalação. Execute o script na raiz do projeto."
+        fi
+    fi
+
+    # Opcional: iniciar 2 totens de laboratório em browsers locais
+    if [[ "$START_TOTEM" == "true" ]]; then
+        log "Iniciando 2 players web de laboratório (totens demo)..."
+        
+        # Função para buscar UINs dos 2 primeiros totens ativos do banco
+        get_active_totem_uins() {
+            local uin1=""
+            local uin2=""
+            local found_from_db=false
+            
+            # Tentar ler configurações do banco do .env
+            local ENV_FILE="$INSTALL_DIR/.env"
+            [ ! -f "$ENV_FILE" ] && ENV_FILE="$INSTALL_DIR/backend/.env"
+            
+            if [[ -f "$ENV_FILE" ]]; then
+                local DB_NAME=$(grep "^DB_NAME=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "smartsignage")
+                local DB_USER=$(grep "^DB_USER=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "smartsignage")
+                local DB_HOST=$(grep "^DB_HOST=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "localhost")
+                local DB_PORT=$(grep "^DB_PORT=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "5432")
+                local DB_PASS=$(grep "^DB_PASSWORD=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "${POSTGRES_PASSWORD:-smartsignage123}")
+                
+                # Tentar usar DATABASE_URL se disponível
+                if [[ -n "$DATABASE_URL" ]]; then
+                    # Verificar se tabela existe primeiro
+                    local TABLE_EXISTS=$(timeout 3 psql "$DATABASE_URL" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='totems');" 2>/dev/null | tr -d ' ' || echo "f")
+                    
+                    if [[ "$TABLE_EXISTS" == "t" ]]; then
+                        local QUERY="SELECT uin FROM totems WHERE (is_active = true OR is_active IS NULL) AND uin IS NOT NULL AND uin != '' ORDER BY totem_id ASC LIMIT 2;"
+                        local RESULT=$(timeout 5 psql "$DATABASE_URL" -tAc "$QUERY" 2>/dev/null | grep -v '^$' | head -2 || echo "")
+                        
+                        if [[ -n "$RESULT" ]]; then
+                            uin1=$(echo "$RESULT" | head -n 1 | xargs | tr -d ' ')
+                            uin2=$(echo "$RESULT" | tail -n 1 | xargs | tr -d ' ')
+                            
+                            # Validar que são UINs válidos (não vazios)
+                            if [[ -n "$uin1" ]]; then
+                                found_from_db=true
+                                if [[ -z "$uin2" ]] || [[ "$uin2" == "$uin1" ]]; then 
+                                    uin2=""
+                                fi
+                            fi
+                        fi
+                    fi
+                elif command -v psql >/dev/null 2>&1; then
+                    # Tentar conexão direta com psql
+                    export PGPASSWORD="$DB_PASS"
+                    
+                    # Verificar se tabela existe primeiro
+                    local TABLE_EXISTS=$(timeout 3 PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='totems');" 2>/dev/null | tr -d ' ' || echo "f")
+                    
+                    if [[ "$TABLE_EXISTS" == "t" ]]; then
+                        local QUERY="SELECT uin FROM totems WHERE (is_active = true OR is_active IS NULL) AND uin IS NOT NULL AND uin != '' ORDER BY totem_id ASC LIMIT 2;"
+                        local RESULT=$(timeout 5 PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "$QUERY" 2>/dev/null | grep -v '^$' | head -2 || echo "")
+                        
+                        if [[ -n "$RESULT" ]]; then
+                            uin1=$(echo "$RESULT" | head -n 1 | xargs | tr -d ' ')
+                            uin2=$(echo "$RESULT" | tail -n 1 | xargs | tr -d ' ')
+                            
+                            # Validar que são UINs válidos (não vazios)
+                            if [[ -n "$uin1" ]]; then
+                                found_from_db=true
+                                if [[ -z "$uin2" ]] || [[ "$uin2" == "$uin1" ]]; then 
+                                    uin2=""
+                                fi
+                            fi
+                        fi
+                    fi
+                    unset PGPASSWORD
+                fi
+            fi
+            
+            # Se não conseguiu buscar do banco ou só encontrou 1 totem, usar UINs padrão de demo
+            if [[ -z "$uin1" ]]; then
+                uin1="UIN-SHOPPING-001-2025"
+            fi
+            
+            if [[ -z "$uin2" ]] || [[ "$uin2" == "$uin1" ]]; then
+                # Se só encontrou 1 totem ou o segundo é igual ao primeiro, usar segundo padrão
+                uin2="UIN-SHOPPING-002-2025"
+            fi
+            
+            # Retornar flag indicando se veio do banco (para log externo)
+            if [[ "$found_from_db" == "true" ]]; then
+                echo "DB|$uin1|$uin2"
+            else
+                echo "DEFAULT|$uin1|$uin2"
+            fi
+        }
+        
+        # Buscar UINs dinamicamente
+        local TOTEM_UINS=$(get_active_totem_uins)
+        local SOURCE=$(echo "$TOTEM_UINS" | cut -d'|' -f1)
+        local UIN1=$(echo "$TOTEM_UINS" | cut -d'|' -f2)
+        local UIN2=$(echo "$TOTEM_UINS" | cut -d'|' -f3)
+        
+        local URL1="${BASE_URL_IP}/player/?uin=${UIN1}"
+        local URL2="${BASE_URL_IP}/player/?uin=${UIN2}"
+
+        echo
+        echo -e "${CYAN}📺 PLAYERS DE LABORATÓRIO (Totens Demo):${NC}"
+        if [[ "$SOURCE" == "DB" ]]; then
+            echo -e "   ${GREEN}✅ UINs obtidos do banco de dados${NC}"
+        else
+            echo -e "   ${YELLOW}⚠️  Usando UINs padrão (banco não disponível ou sem totens)${NC}"
+        fi
+        echo -e "   ${GREEN}✅ Totem 1:${NC} ${YELLOW}$UIN1${NC}"
+        echo -e "      ${BLUE}→ $URL1${NC}"
+        echo -e "   ${GREEN}✅ Totem 2:${NC} ${YELLOW}$UIN2${NC}"
+        echo -e "      ${BLUE}→ $URL2${NC}"
+        echo
+
+        # Tentar abrir em browser gráfico (se ambiente suportar)
+        if command -v xdg-open >/dev/null 2>&1; then
+            xdg-open "$URL1" >/dev/null 2>&1 &
+            sleep 1
+            xdg-open "$URL2" >/dev/null 2>&1 &
+            log "✅ 2 janelas de browser abertas com players de laboratório"
+        elif command -v sensible-browser >/dev/null 2>&1; then
+            sensible-browser "$URL1" >/dev/null 2>&1 &
+            sleep 1
+            sensible-browser "$URL2" >/dev/null 2>&1 &
+            log "✅ 2 janelas de browser abertas com players de laboratório"
+        elif [[ -n "$DISPLAY" ]] && command -v firefox >/dev/null 2>&1; then
+            firefox "$URL1" >/dev/null 2>&1 &
+            sleep 1
+            firefox "$URL2" >/dev/null 2>&1 &
+            log "✅ 2 janelas de Firefox abertas com players de laboratório"
+        elif [[ -n "$DISPLAY" ]] && command -v google-chrome >/dev/null 2>&1; then
+            google-chrome "$URL1" >/dev/null 2>&1 &
+            sleep 1
+            google-chrome "$URL2" >/dev/null 2>&1 &
+            log "✅ 2 janelas de Chrome abertas com players de laboratório"
+        else
+            log "⚠️ Não foi possível detectar um comando de browser (xdg-open/sensible-browser/firefox/chrome)."
+            log "   Abra manualmente em qualquer máquina da rede:"
+            log "   ${GREEN}Totem 1:${NC} ${YELLOW}$URL1${NC}"
+            log "   ${GREEN}Totem 2:${NC} ${YELLOW}$URL2${NC}"
         fi
     fi
     
