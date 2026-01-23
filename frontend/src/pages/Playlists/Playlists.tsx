@@ -55,6 +55,7 @@ import { useAppSelector } from '../../store/hooks';
 import { useLocation } from 'react-router-dom';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { PlaylistCard } from './components';
 
 type EditorMode = 'create' | 'edit';
 
@@ -479,109 +480,24 @@ const Playlists: React.FC = () => {
         {playlists.map((playlist) => {
           const isHighlighted = highlightId === playlist.playlist_id;
           return (
-          <Grid
-            item
-            xs={12}
-            sm={6}
-            md={4}
-            lg={3}
-            key={playlist.playlist_id}
-            ref={isHighlighted ? highlightRef : null}
-          >
-            <Card
-              sx={{
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-                border: isHighlighted ? `2px solid ${theme.palette.primary.main}` : 'none',
-                boxShadow: isHighlighted ? theme.shadows[8] : theme.shadows[1],
-                '&:hover': { transform: 'translateY(-4px)', boxShadow: theme.shadows[8] },
-              }}
+            <Grid
+              item
+              xs={12}
+              sm={6}
+              md={4}
+              lg={3}
+              key={playlist.playlist_id}
+              ref={isHighlighted ? highlightRef : null}
             >
-              <Box sx={{ position: 'relative', height: 120, backgroundColor: theme.palette.grey[100] }}>
-                <Avatar
-                  sx={{
-                    position: 'absolute',
-                    top: 16,
-                    left: 16,
-                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                    color: theme.palette.primary.main,
-                  }}
-                >
-                  <QueueMusic />
-                </Avatar>
-                <Chip
-                  label={`${playlist.media_count || 0} itens`}
-                  size="small"
-                  sx={{
-                    position: 'absolute',
-                    top: 16,
-                    right: 16,
-                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                    color: theme.palette.primary.main,
-                    fontWeight: 'bold',
-                  }}
-                />
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    bottom: 16,
-                    left: 16,
-                    right: 16,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <AccessTime fontSize="small" color="action" />
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                      {formatTotalDuration(playlist.total_duration)}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
-
-              <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
-                  {playlist.name}
-                </Typography>
-                {playlist.description && (
-                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1 }} noWrap>
-                    {playlist.description}
-                  </Typography>
-                )}
-                {playlist.subscriber_name && (
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
-                    Subscriber: {playlist.subscriber_name}
-                  </Typography>
-                )}
-
-                <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Chip label={playlist.is_active ? 'Ativa' : 'Inativa'} size="small" color={playlist.is_active ? 'success' : 'default'} variant="outlined" />
-                  <Box>
-                    <Tooltip title="Abrir editor">
-                      <IconButton size="small" onClick={() => openEdit(playlist)}>
-                        <PlayArrow />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Editar">
-                      <IconButton size="small" onClick={() => openEdit(playlist)}>
-                        <Edit />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Excluir">
-                      <IconButton size="small" onClick={() => handleDeletePlaylist(playlist.playlist_id)}>
-                        <Delete />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        )})}
+              <PlaylistCard
+                playlist={playlist}
+                highlighted={isHighlighted}
+                onEdit={(playlist) => openEdit(playlist)}
+                onDelete={(playlist) => handleDeletePlaylist(playlist.playlist_id)}
+              />
+            </Grid>
+          );
+        })}
       </Grid>
 
       {playlists.length === 0 && !loading && (

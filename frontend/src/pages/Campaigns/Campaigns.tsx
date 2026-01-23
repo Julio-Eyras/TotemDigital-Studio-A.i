@@ -50,6 +50,7 @@ import { useLocation } from 'react-router-dom';
 import { SortableList } from '../../components/SortableList/SortableList';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { CampaignCard } from './components';
 
 interface PublisherOption {
   publisher_id: number;
@@ -645,157 +646,32 @@ const Campaigns: React.FC = () => {
         {campaigns.map((campaign) => {
           const isHighlighted = highlightId === campaign.campaign_id;
           return (
-          <Grid
-            item
-            xs={12}
-            sm={6}
-            md={4}
-            lg={3}
-            key={campaign.campaign_id}
-            ref={isHighlighted ? highlightRef : null}
-          >
-            <Card sx={{ 
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-              border: isHighlighted ? `2px solid ${theme.palette.primary.main}` : 'none',
-              boxShadow: isHighlighted ? theme.shadows[8] : theme.shadows[1],
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: theme.shadows[8],
-              }
-            }}>
-              <Box sx={{ position: 'relative', height: 120, backgroundColor: theme.palette.grey[100] }}>
-                <Avatar
-                  sx={{
-                    position: 'absolute',
-                    top: 16,
-                    left: 16,
-                    backgroundColor: alpha(getStatusColor(campaign.status || 'draft'), 0.1),
-                    color: getStatusColor(campaign.status || 'draft'),
-                  }}
-                >
-                  {getStatusIcon(campaign.status || 'draft')}
-                </Avatar>
-                
-                <Chip
-                  label={(campaign.status || 'draft').toUpperCase()}
-                  size="small"
-                  sx={{
-                    position: 'absolute',
-                    top: 16,
-                    right: 16,
-                    backgroundColor: alpha(getStatusColor(campaign.status || 'draft'), 0.1),
-                    color: getStatusColor(campaign.status || 'draft'),
-                    fontWeight: 'bold',
-                  }}
-                />
-
-                <Box sx={{ 
-                  position: 'absolute', 
-                  bottom: 16, 
-                  left: 16, 
-                  right: 16,
-                }}>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    {(campaign.campaign_type || (campaign as any).campaignType || 'standard').toUpperCase()}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
-                  {campaign.title}
-                </Typography>
-                
-                {campaign.description && (
-                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1 }} noWrap>
-                    {campaign.description}
-                  </Typography>
-                )}
-
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <CalendarToday fontSize="small" color="action" />
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                      Início: {formatDate(campaign.start_date || (campaign as any).startDate)}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <CalendarToday fontSize="small" color="action" />
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                      Fim: {formatDate(campaign.end_date || (campaign as any).endDate)}
-                    </Typography>
-                  </Box>
-                  {/* Publishers associados */}
-                  {((campaign as any).publisherIds && (campaign as any).publisherIds.length > 0) || 
-                   ((campaign as any).publisherNames && (campaign as any).publisherNames.length > 0) ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
-                      <People fontSize="small" color="action" />
-                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                        Publishers: {((campaign as any).publisherNames || []).join(', ') || 
-                        ((campaign as any).publisherIds || []).map((id: number) => `Publisher ${id}`).join(', ')}
-                      </Typography>
-                    </Box>
-                  ) : null}
-                  {/* Playlists associadas */}
-                  {(campaign.playlistIds && campaign.playlistIds.length > 0) || 
-                   (campaign.playlistNames && campaign.playlistNames.length > 0) ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
-                      <CampaignIcon fontSize="small" color="action" />
-                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                        Playlists: {(campaign.playlistNames || []).join(', ') || 
-                        (campaign.playlistIds || []).map((id: number) => `Playlist ${id}`).join(', ')}
-                      </Typography>
-                    </Box>
-                  ) : null}
-                  {/* Mídias diretamente associadas */}
-                  {(campaign.mediaIds && campaign.mediaIds.length > 0) || 
-                   (campaign.mediaNames && campaign.mediaNames.length > 0) ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
-                      <VideoLibrary fontSize="small" color="action" />
-                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                        Mídias Diretas: {(campaign.mediaNames || []).join(', ') || 
-                        (campaign.mediaIds || []).map((id: number) => `Mídia ${id}`).join(', ')}
-                      </Typography>
-                    </Box>
-                  ) : null}
-                </Box>
-
-                <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Chip
-                    label={(campaign.is_active !== undefined ? campaign.is_active : ((campaign as any).isActive !== undefined ? (campaign as any).isActive : true)) ? 'Ativa' : 'Inativa'}
-                    size="small"
-                    color={(campaign.is_active !== undefined ? campaign.is_active : ((campaign as any).isActive !== undefined ? (campaign as any).isActive : true)) ? 'success' : 'default'}
-                    variant="outlined"
-                  />
-                  
-                  <Box>
-                    <Tooltip title="Editar">
-                      <IconButton size="small" onClick={async () => {
-                        setSelectedCampaign(normalizeCampaign(campaign));
-                        // Carregar publishers acessíveis se houver subscriberId
-                        const subscriberId = campaign.subscriber_id || (campaign as any).subscriberId;
-                        if (subscriberId && !isAdmin) {
-                          await loadAccessiblePublishers(subscriberId);
-                        }
-                        setEditDialogOpen(true);
-                      }}>
-                        <Edit />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Excluir">
-                      <IconButton size="small" onClick={() => handleDeleteCampaign(campaign.campaign_id)}>
-                        <Delete />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        )})}
+            <Grid
+              item
+              xs={12}
+              sm={6}
+              md={4}
+              lg={3}
+              key={campaign.campaign_id}
+              ref={isHighlighted ? highlightRef : null}
+            >
+              <CampaignCard
+                campaign={campaign}
+                highlighted={isHighlighted}
+                onEdit={async (campaign) => {
+                  setSelectedCampaign(normalizeCampaign(campaign));
+                  // Carregar publishers acessíveis se houver subscriberId
+                  const subscriberId = campaign.subscriber_id || (campaign as any).subscriberId;
+                  if (subscriberId && !isAdmin) {
+                    await loadAccessiblePublishers(subscriberId);
+                  }
+                  setEditDialogOpen(true);
+                }}
+                onDelete={(campaign) => handleDeleteCampaign(campaign.campaign_id)}
+              />
+            </Grid>
+          );
+        })}
       </Grid>
 
       {/* Empty State */}
