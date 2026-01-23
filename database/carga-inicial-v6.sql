@@ -13,6 +13,7 @@
 -- ✅ Corrigido: campaign_publishers para campanha 3 agora usa publisher_id=5
 -- ✅ Corrigido: campaign_locals e campaign_totems atualizados para novos locals
 -- ✅ Corrigido: Totem Playlist 6 adicionado para corrigir foreign key constraint
+-- ✅ Corrigido: remote_commands.user_id NULL substituído por user_id=1 (admin) para comandos automáticos
 -- ✅ Adicionado: Mais diversidade de dados para testes integrados
 -- ✅ Revisado: Todos os relacionamentos validados para consistência de IDs
 -- =============================================
@@ -1927,17 +1928,17 @@ INSERT INTO remote_commands (command_id, totem_id, user_id, command_type, status
 (1, 1, 2, 'ping', 'completed', '{}'::jsonb, '{"latency_ms": 45, "status": "online"}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '1 day', (NOW() - INTERVAL '1 year') - INTERVAL '1 day', (NOW() - INTERVAL '1 year') - INTERVAL '1 day', NULL, 0),
 (2, 2, 2, 'restart', 'completed', '{}'::jsonb, '{"restart_time": "2024-01-20T10:00:00Z"}'::jsonb, (NOW() - INTERVAL '1 year') - INTERVAL '2 days', (NOW() - INTERVAL '1 year') - INTERVAL '2 days', (NOW() - INTERVAL '1 year') - INTERVAL '2 days', NULL, 0),
 
--- Comandos recentes simulando solicitações de playlists
-(3, 1, NULL, 'request_playlist', 'completed', '{"request_id": "req-001", "uin": "UIN-SHOPPING-001-2025"}'::jsonb, '{"playlist_id": 1, "items_count": 2, "delivery_time_ms": 125}'::jsonb, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour' + INTERVAL '125 milliseconds', NOW() - INTERVAL '1 hour' + INTERVAL '125 milliseconds', NULL, 0),
-(4, 2, NULL, 'request_playlist', 'completed', '{"request_id": "req-002", "uin": "UIN-SHOPPING-002-2025", "from_cache": true}'::jsonb, '{"playlist_id": 2, "items_count": 2, "delivery_time_ms": 45, "from_cache": true}'::jsonb, NOW() - INTERVAL '30 minutes', NOW() - INTERVAL '30 minutes' + INTERVAL '45 milliseconds', NOW() - INTERVAL '30 minutes' + INTERVAL '45 milliseconds', NULL, 0),
-(5, 3, NULL, 'request_playlist', 'completed', '{"request_id": "req-003", "uin": "UIN-SHOPPING-003-2025"}'::jsonb, '{"playlist_id": 1, "items_count": 2, "delivery_time_ms": 138}'::jsonb, NOW() - INTERVAL '25 minutes', NOW() - INTERVAL '25 minutes' + INTERVAL '138 milliseconds', NOW() - INTERVAL '25 minutes' + INTERVAL '138 milliseconds', NULL, 0),
-(6, 9, NULL, 'request_playlist', 'completed', '{"request_id": "req-007", "uin": "UIN-SUPER-001-2025"}'::jsonb, '{"playlist_id": 4, "items_count": 1, "delivery_time_ms": 105}'::jsonb, NOW() - INTERVAL '20 minutes', NOW() - INTERVAL '20 minutes' + INTERVAL '105 milliseconds', NOW() - INTERVAL '20 minutes' + INTERVAL '105 milliseconds', NULL, 0),
-(7, 10, NULL, 'request_playlist', 'completed', '{"request_id": "req-008", "uin": "UIN-SUPER-002-2025", "from_cache": true}'::jsonb, '{"playlist_id": 4, "items_count": 1, "delivery_time_ms": 42, "from_cache": true}'::jsonb, NOW() - INTERVAL '50 minutes', NOW() - INTERVAL '50 minutes' + INTERVAL '42 milliseconds', NOW() - INTERVAL '50 minutes' + INTERVAL '42 milliseconds', NULL, 0),
+-- Comandos recentes simulando solicitações de playlists (sistema automático - user_id=1 = admin)
+(3, 1, 1, 'request_playlist', 'completed', '{"request_id": "req-001", "uin": "UIN-SHOPPING-001-2025"}'::jsonb, '{"playlist_id": 1, "items_count": 2, "delivery_time_ms": 125}'::jsonb, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour' + INTERVAL '125 milliseconds', NOW() - INTERVAL '1 hour' + INTERVAL '125 milliseconds', NULL, 0),
+(4, 2, 1, 'request_playlist', 'completed', '{"request_id": "req-002", "uin": "UIN-SHOPPING-002-2025", "from_cache": true}'::jsonb, '{"playlist_id": 2, "items_count": 2, "delivery_time_ms": 45, "from_cache": true}'::jsonb, NOW() - INTERVAL '30 minutes', NOW() - INTERVAL '30 minutes' + INTERVAL '45 milliseconds', NOW() - INTERVAL '30 minutes' + INTERVAL '45 milliseconds', NULL, 0),
+(5, 3, 1, 'request_playlist', 'completed', '{"request_id": "req-003", "uin": "UIN-SHOPPING-003-2025"}'::jsonb, '{"playlist_id": 1, "items_count": 2, "delivery_time_ms": 138}'::jsonb, NOW() - INTERVAL '25 minutes', NOW() - INTERVAL '25 minutes' + INTERVAL '138 milliseconds', NOW() - INTERVAL '25 minutes' + INTERVAL '138 milliseconds', NULL, 0),
+(6, 9, 1, 'request_playlist', 'completed', '{"request_id": "req-007", "uin": "UIN-SUPER-001-2025"}'::jsonb, '{"playlist_id": 4, "items_count": 1, "delivery_time_ms": 105}'::jsonb, NOW() - INTERVAL '20 minutes', NOW() - INTERVAL '20 minutes' + INTERVAL '105 milliseconds', NOW() - INTERVAL '20 minutes' + INTERVAL '105 milliseconds', NULL, 0),
+(7, 10, 1, 'request_playlist', 'completed', '{"request_id": "req-008", "uin": "UIN-SUPER-002-2025", "from_cache": true}'::jsonb, '{"playlist_id": 4, "items_count": 1, "delivery_time_ms": 42, "from_cache": true}'::jsonb, NOW() - INTERVAL '50 minutes', NOW() - INTERVAL '50 minutes' + INTERVAL '42 milliseconds', NOW() - INTERVAL '50 minutes' + INTERVAL '42 milliseconds', NULL, 0),
 
--- Comandos com falha para testes
-(8, 6, NULL, 'request_playlist', 'failed', '{"request_id": "req-006", "uin": "UIN-AEROPORTO-001-2025"}'::jsonb, NULL, NOW() - INTERVAL '1 hour 15 minutes', NULL, NULL, 'Nenhuma campanha ativa disponível', 0),
-(9, 8, NULL, 'request_playlist', 'failed', '{"request_id": "req-009", "uin": "UIN-URBANO-001-2025"}'::jsonb, NULL, NOW() - INTERVAL '15 minutes', NULL, NULL, 'Nenhuma campanha ativa disponível', 0),
-(10, 7, NULL, 'request_playlist', 'failed', '{"request_id": "req-010", "uin": "UIN-AEROPORTO-002-2025"}'::jsonb, NULL, NOW() - INTERVAL '2 hours', NULL, NULL, 'Totem offline - não respondeu ao heartbeat', 3)
+-- Comandos com falha para testes (sistema automático - user_id=1 = admin)
+(8, 6, 1, 'request_playlist', 'failed', '{"request_id": "req-006", "uin": "UIN-AEROPORTO-001-2025"}'::jsonb, NULL, NOW() - INTERVAL '1 hour 15 minutes', NULL, NULL, 'Nenhuma campanha ativa disponível', 0),
+(9, 8, 1, 'request_playlist', 'failed', '{"request_id": "req-009", "uin": "UIN-URBANO-001-2025"}'::jsonb, NULL, NOW() - INTERVAL '15 minutes', NULL, NULL, 'Nenhuma campanha ativa disponível', 0),
+(10, 7, 1, 'request_playlist', 'failed', '{"request_id": "req-010", "uin": "UIN-AEROPORTO-002-2025"}'::jsonb, NULL, NOW() - INTERVAL '2 hours', NULL, NULL, 'Totem offline - não respondeu ao heartbeat', 3)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO ota_updates (id, version, platform, file_path, file_size, checksum, description, changelog, is_mandatory, min_version, max_version, rollout_percentage, status, created_by, released_at) VALUES
