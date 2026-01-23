@@ -179,7 +179,12 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   const handleSelectItem = (item: CommandItem) => {
     if (item.path) {
-      navigate(item.path);
+      try {
+        navigate(item.path);
+      } catch (error) {
+        // Fallback se navigate falhar
+        window.location.href = item.path;
+      }
     } else if (item.action) {
       item.action();
     }

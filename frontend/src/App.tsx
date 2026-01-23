@@ -225,10 +225,6 @@ const AppContent: React.FC = () => {
         v7_relativeSplatPath: true,
       }}
     >
-      <CommandPalette
-        open={commandPalette.open}
-        onClose={commandPalette.closeDialog}
-      />
       <Suspense
         fallback={
           <Box
@@ -651,6 +647,10 @@ const AppContent: React.FC = () => {
           />
         </Routes>
       </Suspense>
+      <CommandPalette
+        open={commandPalette.open}
+        onClose={commandPalette.closeDialog}
+      />
     </Router>
   );
 };
