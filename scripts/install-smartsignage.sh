@@ -3717,6 +3717,9 @@ setup_database() {
                 fi
                 log "✅ Cache do Nginx limpo"
                 
+                # Criar diretório de logs se não existir
+                mkdir -p "$INSTALL_DIR/logs" 2>/dev/null || true
+                
                 # 2. Compilar backend
                 if [[ -d "$INSTALL_DIR/backend" ]]; then
                     log "2️⃣  Compilando backend (TypeScript)..."
@@ -8997,6 +9000,9 @@ rebuild_and_restart() {
     log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     log "3️⃣  RECONSTRUINDO BUILDS..."
     log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # Criar diretório de logs se não existir
+    mkdir -p "$INSTALL_DIR/logs" 2>/dev/null || true
     
     # Rebuild backend
     if [[ -d "$INSTALL_DIR/backend" ]]; then
