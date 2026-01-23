@@ -6,6 +6,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from './auth.middleware';
 import { hasFlag, FlagName } from '../utils/flagChecker';
+import { logError } from '../utils/loggerHelper';
 
 /**
  * Middleware para verificar flag específica
@@ -36,7 +37,7 @@ export const requireFlag = (flag: FlagName) => {
       
       next();
     } catch (error: any) {
-      console.error('Erro ao verificar flag:', error);
+      logError('Erro ao verificar flag', error).catch(() => {});
       res.status(500).json({
         error: 'Erro interno ao verificar permissões',
         code: 'FLAG_CHECK_ERROR'
@@ -74,7 +75,7 @@ export const requireAnyFlag = (flags: FlagName[]) => {
         user_role: req.user.role
       });
     } catch (error: any) {
-      console.error('Erro ao verificar flags:', error);
+      logError('Erro ao verificar flags', error).catch(() => {});
       res.status(500).json({
         error: 'Erro interno ao verificar permissões',
         code: 'FLAG_CHECK_ERROR'
@@ -113,7 +114,7 @@ export const requireAllFlags = (flags: FlagName[]) => {
       
       next();
     } catch (error: any) {
-      console.error('Erro ao verificar flags:', error);
+      logError('Erro ao verificar flags', error).catch(() => {});
       res.status(500).json({
         error: 'Erro interno ao verificar permissões',
         code: 'FLAG_CHECK_ERROR'

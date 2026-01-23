@@ -189,7 +189,10 @@ export const authMiddleware = async (
       }
     } catch (error) {
       // Se tabela não existir ainda, continuar sem flags
-      console.warn('Sistema de flags não disponível, continuando sem flags');
+      // Usar logWarn de forma não-bloqueante (não esperar)
+      import('../utils/loggerHelper').then(({ logWarn }) => {
+        logWarn('Sistema de flags não disponível, continuando sem flags', { error: error instanceof Error ? error.message : String(error) }).catch(() => {});
+      }).catch(() => {});
     }
 
     // Adicionar dados do usuário à requisição
