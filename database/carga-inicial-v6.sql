@@ -14,6 +14,7 @@
 -- ✅ Corrigido: campaign_locals e campaign_totems atualizados para novos locals
 -- ✅ Corrigido: Totem Playlist 6 adicionado para corrigir foreign key constraint
 -- ✅ Corrigido: remote_commands.user_id NULL substituído por user_id=1 (admin) para comandos automáticos
+-- ✅ Corrigido: Adicionado 'request_playlist' ao CHECK constraint de command_type em remote_commands
 -- ✅ Adicionado: Mais diversidade de dados para testes integrados
 -- ✅ Revisado: Todos os relacionamentos validados para consistência de IDs
 -- =============================================

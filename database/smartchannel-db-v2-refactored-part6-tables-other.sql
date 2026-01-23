@@ -396,7 +396,7 @@ CREATE TABLE IF NOT EXISTS remote_commands (
     
     CONSTRAINT chk_remote_command_type 
         CHECK (command_type IN ('restart', 'reboot', 'update', 'play', 'pause', 
-                                'load_playlist', 'clear_cache', 'ping', 'custom')),
+                                'load_playlist', 'request_playlist', 'clear_cache', 'ping', 'custom')),
     CONSTRAINT chk_remote_command_status 
         CHECK (status IN ('pending', 'sent', 'executing', 'completed', 'failed', 'timeout'))
 );
