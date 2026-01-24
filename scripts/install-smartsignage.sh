@@ -8812,21 +8812,25 @@ show_final_info() {
         else
             echo -e "   ${YELLOW}⚠️  Usando UINs padrão (banco não disponível ou sem totens)${NC}"
         fi
+        
+        # Usar IP detectado pela função start_totem_laboratory se disponível, senão usar LOCAL_IP
+        local TOTEM_IP="${START_TOTEM_LOCAL_IP:-$LOCAL_IP}"
+        
         if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
             echo -e "   ${GREEN}✅ Totem 1:${NC} ${YELLOW}${START_TOTEM_UIN1}${NC}"
             echo -e "      ${BLUE}→ IP Externo: http://$EXTERNAL_IP/player/?uin=${START_TOTEM_UIN1}${NC} ${GREEN}(Acesso remoto)${NC}"
-            echo -e "      ${BLUE}→ IP Local:   http://$LOCAL_IP/player/?uin=${START_TOTEM_UIN1}${NC} ${BLUE}(Rede interna)${NC}"
+            echo -e "      ${BLUE}→ IP Local:   http://${TOTEM_IP}/player/?uin=${START_TOTEM_UIN1}${NC} ${BLUE}(Rede interna)${NC}"
             if [[ -n "${START_TOTEM_UIN2:-}" ]] && [[ "${START_TOTEM_UIN2}" != "${START_TOTEM_UIN1}" ]]; then
                 echo -e "   ${GREEN}✅ Totem 2:${NC} ${YELLOW}${START_TOTEM_UIN2}${NC}"
                 echo -e "      ${BLUE}→ IP Externo: http://$EXTERNAL_IP/player/?uin=${START_TOTEM_UIN2}${NC} ${GREEN}(Acesso remoto)${NC}"
-                echo -e "      ${BLUE}→ IP Local:   http://$LOCAL_IP/player/?uin=${START_TOTEM_UIN2}${NC} ${BLUE}(Rede interna)${NC}"
+                echo -e "      ${BLUE}→ IP Local:   http://${TOTEM_IP}/player/?uin=${START_TOTEM_UIN2}${NC} ${BLUE}(Rede interna)${NC}"
             fi
         else
             echo -e "   ${GREEN}✅ Totem 1:${NC} ${YELLOW}${START_TOTEM_UIN1}${NC}"
-            echo -e "      ${BLUE}→ http://$LOCAL_IP/player/?uin=${START_TOTEM_UIN1}${NC}"
+            echo -e "      ${BLUE}→ http://${TOTEM_IP}/player/?uin=${START_TOTEM_UIN1}${NC}"
             if [[ -n "${START_TOTEM_UIN2:-}" ]] && [[ "${START_TOTEM_UIN2}" != "${START_TOTEM_UIN1}" ]]; then
                 echo -e "   ${GREEN}✅ Totem 2:${NC} ${YELLOW}${START_TOTEM_UIN2}${NC}"
-                echo -e "      ${BLUE}→ http://$LOCAL_IP/player/?uin=${START_TOTEM_UIN2}${NC}"
+                echo -e "      ${BLUE}→ http://${TOTEM_IP}/player/?uin=${START_TOTEM_UIN2}${NC}"
             fi
         fi
         echo -e "   ${BLUE}   (Players abertos automaticamente em browsers de laboratório)${NC}"
@@ -9355,16 +9359,38 @@ start_totem_laboratory() {
         local UIN1=$(echo "$TOTEM_UINS" | cut -d'|' -f2)
         local UIN2=$(echo "$TOTEM_UINS" | cut -d'|' -f3)
         
-        # Obter IP local para construir URLs (BASE_URL_IP ainda não está definido aqui)
-        local CURRENT_LOCAL_IP=$(hostname -I | awk '{print $1}' || echo "localhost")
+        # Obter IP local para construir URLs (usar mesmo método que show_final_info)
+        # Tentar múltiplos métodos para detectar o IP correto
+        local CURRENT_LOCAL_IP=""
+        if command -v ip >/dev/null 2>&1; then
+            # Tentar obter IP da interface de rede principal (não loopback)
+            CURRENT_LOCAL_IP=$(ip route get 8.8.8.8 2>/dev/null | grep -oP 'src \K\S+' | head -1 || echo "")
+        fi
+        if [[ -z "$CURRENT_LOCAL_IP" ]]; then
+            # Fallback: usar hostname -I (mesmo método de show_final_info)
+            CURRENT_LOCAL_IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "")
+        fi
+        if [[ -z "$CURRENT_LOCAL_IP" ]] || [[ "$CURRENT_LOCAL_IP" == "127.0.0.1" ]]; then
+            # Último fallback: tentar obter de ifconfig
+            CURRENT_LOCAL_IP=$(ifconfig 2>/dev/null | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' | head -1 || echo "localhost")
+        fi
+        if [[ -z "$CURRENT_LOCAL_IP" ]]; then
+            CURRENT_LOCAL_IP="localhost"
+        fi
+        
         local URL1="http://${CURRENT_LOCAL_IP}/player/?uin=${UIN1}"
         local URL2="http://${CURRENT_LOCAL_IP}/player/?uin=${UIN2}"
         
-        # Salvar UINs em variáveis globais para usar em show_final_info()
+        # Salvar UINs e IP em variáveis globais para usar em show_final_info()
         export START_TOTEM_UIN1="$UIN1"
         export START_TOTEM_UIN2="$UIN2"
         export START_TOTEM_SOURCE="$SOURCE"
+        export START_TOTEM_LOCAL_IP="$CURRENT_LOCAL_IP"
         export START_TOTEM="true"  # Garantir que está exportado
+        
+        log "IP detectado para players: $CURRENT_LOCAL_IP"
+        log "UIN1: $UIN1"
+        log "UIN2: $UIN2"
 
         echo
         echo -e "${CYAN}📺 PLAYERS DE LABORATÓRIO (Totens Demo):${NC}"
@@ -9378,29 +9404,45 @@ start_totem_laboratory() {
         echo -e "   ${GREEN}✅ Totem 2:${NC} ${YELLOW}$UIN2${NC}"
         echo -e "      ${BLUE}→ $URL2${NC}"
         echo
+        log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log "🔗 Links dos Players de Laboratório:"
+        log "   Totem 1 (UIN: $UIN1): $URL1"
+        log "   Totem 2 (UIN: $UIN2): $URL2"
+        log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
         # Tentar abrir em browser gráfico (se ambiente suportar)
+        local BROWSER_OPENED=false
         if command -v xdg-open >/dev/null 2>&1; then
+            log "Abrindo browsers com xdg-open..."
             xdg-open "$URL1" >/dev/null 2>&1 &
             sleep 1
             xdg-open "$URL2" >/dev/null 2>&1 &
+            BROWSER_OPENED=true
             log "✅ 2 janelas de browser abertas com players de laboratório"
         elif command -v sensible-browser >/dev/null 2>&1; then
+            log "Abrindo browsers com sensible-browser..."
             sensible-browser "$URL1" >/dev/null 2>&1 &
             sleep 1
             sensible-browser "$URL2" >/dev/null 2>&1 &
+            BROWSER_OPENED=true
             log "✅ 2 janelas de browser abertas com players de laboratório"
         elif [[ -n "$DISPLAY" ]] && command -v firefox >/dev/null 2>&1; then
+            log "Abrindo browsers com Firefox..."
             firefox "$URL1" >/dev/null 2>&1 &
             sleep 1
             firefox "$URL2" >/dev/null 2>&1 &
+            BROWSER_OPENED=true
             log "✅ 2 janelas de Firefox abertas com players de laboratório"
         elif [[ -n "$DISPLAY" ]] && command -v google-chrome >/dev/null 2>&1; then
+            log "Abrindo browsers com Chrome..."
             google-chrome "$URL1" >/dev/null 2>&1 &
             sleep 1
             google-chrome "$URL2" >/dev/null 2>&1 &
+            BROWSER_OPENED=true
             log "✅ 2 janelas de Chrome abertas com players de laboratório"
-        else
+        fi
+        
+        if [[ "$BROWSER_OPENED" == "false" ]]; then
             log "⚠️ Não foi possível detectar um comando de browser (xdg-open/sensible-browser/firefox/chrome)."
             log "   Abra manualmente em qualquer máquina da rede:"
             log "   ${GREEN}Totem 1:${NC} ${YELLOW}$URL1${NC}"
