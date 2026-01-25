@@ -376,18 +376,23 @@ app.get('/api/docs.json', (_req, res) => {
 // Player routes (sem autenticação)
 import playerValidationRoutes from './routes/player';
 import path from 'path';
+import fs from 'fs';
 
 // Servir arquivos estáticos do player (js/, css/, etc.)
+// IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
 const playerDir = config.player.dir || '/opt/smart-signage/player-web';
-app.use('/player', express.static(playerDir, {
-  index: false, // Não servir index.html automaticamente
-  setHeaders: (res, filePath) => {
-    // Definir Content-Type correto para arquivos JavaScript
-    if (filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript');
+app.use('/player', (req, res, next) => {
+  // Se for um arquivo estático (js, css, etc.), servir do diretório
+  if (req.path.match(/\.(js|css|json|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i)) {
+    const filePath = path.join(playerDir, req.path);
+    // Verificar se arquivo existe
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      return express.static(playerDir)(req, res, next);
     }
   }
-}));
+  // Se não for arquivo estático, continuar para a próxima rota (index.html)
+  next();
+});
 
 // Servir player com suporte a UIN como parâmetro
 app.get('/player', (_req, res) => {
