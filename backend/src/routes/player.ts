@@ -917,40 +917,54 @@ router.post('/register',
       const db = getDatabase();
       const totemService = new TotemService();
       
-      await logDebug(`[${requestId}] Verificando se UIN já existe`, { uin, requestId });
+      await logDebug(`[${requestId}] Verificando se UIN foi pré-cadastrado`, { uin, requestId });
 
-      // Verificar se UIN já existe
+      // VALIDAÇÃO CRÍTICA: UIN deve existir (pré-cadastrado pelo publisher)
       const existingTotem = await totemService.getTotemByUin(uin);
-      if (existingTotem) {
-        await logDebug(`[${requestId}] UIN já registrado`, { uin, requestId });
-        return res.status(409).json({ 
-          error: 'UIN já registrado',
+      if (!existingTotem) {
+        await logDebug(`[${requestId}] UIN não encontrado - totem deve ser pré-cadastrado`, { uin, requestId });
+        return res.status(404).json({ 
+          error: 'UIN não cadastrado',
           uin: uin,
-          message: 'Este UIN já está cadastrado no sistema',
+          message: 'Este UIN não está cadastrado no sistema. O totem deve ser cadastrado pelo publisher antes de se conectar.',
+          suggestion: 'Entre em contato com o administrador para cadastrar este totem.',
           requestId: requestId
         });
       }
-      await logDebug(`[${requestId}] UIN não existe, pode prosseguir`, { uin, requestId });
+      await logDebug(`[${requestId}] UIN encontrado - totem pré-cadastrado`, { 
+        totemId: (existingTotem as any).id || (existingTotem as any).totem_id,
+        identifier: (existingTotem as any).identifier,
+        currentStatus: (existingTotem as any).status,
+        requestId 
+      });
 
-      // Verificar se hardware já está registrado (prevenção de clonagem)
+      // Verificar se hardware já está vinculado a OUTRO totem (prevenção de clonagem)
       const hardwareHash = hardware.hardwareHash || (hardware.macAddress || '').toLowerCase();
-      await logDebug(`[${requestId}] Verificando hardware duplicado`, { hardwareHash: hardwareHash ? 'PRESENTE' : 'AUSENTE', requestId });
+      const currentTotemId = (existingTotem as any).id || (existingTotem as any).totem_id;
       
-      if (hardwareHash && hardwareHash !== 'unknown') {
+      await logDebug(`[${requestId}] Verificando se hardware está vinculado a outro totem`, { 
+        hardwareHash: hardwareHash ? 'PRESENTE' : 'AUSENTE',
+        currentTotemId,
+        requestId 
+      });
+      
+      if (hardwareHash && hardwareHash !== 'unknown' && hardware.macAddress) {
         try {
+          // Buscar totem que já tem este hardware vinculado (exceto o atual)
           const existingHardware = await db.findFirst(`
             SELECT totem_id, uin, identifier 
             FROM totems 
-            WHERE config::text ILIKE '%"${hardwareHash}"%' 
-               OR config::text ILIKE '%"${hardware.macAddress || ''}"%'
+            WHERE (config->'hardware'->>'mac' = ? 
+               OR config->'hardware'->>'hardwareHash' = ?)
+              AND totem_id != ?
             LIMIT 1
-          `);
+          `, [hardware.macAddress, hardwareHash, currentTotemId]);
           
           if (existingHardware) {
-            await logDebug(`[${requestId}] Hardware já registrado`, { existingHardware, requestId });
+            await logDebug(`[${requestId}] Hardware já vinculado a outro totem`, { existingHardware, requestId });
             return res.status(409).json({ 
-              error: 'Hardware já registrado',
-              message: 'Este hardware já está cadastrado com outro totem',
+              error: 'Hardware já vinculado',
+              message: 'Este hardware já está vinculado a outro totem',
               existingTotem: {
                 id: existingHardware.totem_id,
                 uin: existingHardware.uin,
@@ -959,169 +973,138 @@ router.post('/register',
               requestId: requestId
             });
           }
-          await logDebug(`[${requestId}] Hardware não está duplicado`, { requestId });
+          await logDebug(`[${requestId}] Hardware não está vinculado a outro totem`, { requestId });
         } catch (hardwareCheckError: any) {
           await logError(`[${requestId}] Erro ao verificar hardware duplicado`, hardwareCheckError, { requestId });
           // Continuar mesmo se houver erro na verificação de hardware
         }
       } else {
-        await logDebug(`[${requestId}] Hardware hash ausente, pulando verificação de duplicação`, { requestId });
+        await logDebug(`[${requestId}] Hardware hash/MAC ausente, pulando verificação de duplicação`, { requestId });
       }
 
-      // Obter próximo totem_id disponível
-      await logDebug(`[${requestId}] Obtendo próximo totem_id`, { requestId });
-      const nextTotemId = await db.findFirst(`
-        SELECT COALESCE(MAX(totem_id), 0) + 1 as next_id FROM totems
-      `);
-      const totemId = (nextTotemId as any)?.next_id || 1;
-      await logDebug(`[${requestId}] Totem ID obtido`, { totemId, requestId });
-
-      // Criar cliente padrão se não existir
-      await logDebug(`[${requestId}] Verificando cliente padrão`, { requestId });
-      const clientExists = await db.findFirst(`
-        SELECT subscriber_id FROM subscribers WHERE subscriber_id = 1
-      `);
-      if (!clientExists) {
-        await logDebug(`[${requestId}] Criando subscriber padrão`, { requestId });
-        await db.executeRaw(`
-          INSERT INTO subscribers (subscriber_id, name, email, is_active) 
-          VALUES (1, 'Subscriber Padrão', 'default@example.com', true) 
-          ON CONFLICT (subscriber_id) DO NOTHING
-        `);
-        await logDebug(`[${requestId}] Cliente padrão criado`, { requestId });
-      } else {
-        await logDebug(`[${requestId}] Cliente padrão já existe`, { requestId });
-      }
-
-      // Preparar configuração com hardware info
-      const config = {
-        hardware: {
-          mac: hardware.macAddress || null,
-          hostname: hardware.hostname || null,
-          platform: hardware.platform || null,
-          arch: hardware.arch || null,
-          serial: hardware.serial || null,
-          hardwareHash: hardware.hardwareHash || null,
-          registeredAt: new Date().toISOString(),
-          userAgent: hardware.userAgent || null
-        },
-        resolution: '1920x1080',
-        orientation: 'portrait',
-        brightness: 80
-      };
-
-      // Criar totem no banco de dados
-      const identifier = hardware.hostname || `TOTEM-${totemId}`;
-      const deviceId = `DEVICE-${totemId.toString().padStart(3, '0')}`;
-      const description = `Totem auto-registrado - ${hardware.hostname || identifier}`;
+      // Obter dados do totem pré-cadastrado
+      const totemId = currentTotemId;
+      const existingConfig = (existingTotem as any).config || {};
+      const existingIdentifier = (existingTotem as any).identifier || hardware.hostname || `TOTEM-${totemId}`;
+      const existingDescription = (existingTotem as any).description || `Totem - ${existingIdentifier}`;
+      const existingStatus = (existingTotem as any).status || 'pending_activation';
       const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
       
-      await logDebug(`[${requestId}] Criando totem no banco de dados`, { requestId });
-      await logDebug(`[${requestId}] Dados do totem`, {
+      await logDebug(`[${requestId}] Preparando para vincular hardware ao totem pré-cadastrado`, {
         totemId,
-        identifier,
-        uin,
-        deviceId,
-        description,
-        ipAddress,
-        configKeys: Object.keys(config)
+        existingIdentifier,
+        existingStatus,
+        requestId
+      });
+
+      // Preparar configuração: preservar dados do publisher e adicionar hardware info
+      const config = {
+        ...existingConfig,  // Preservar dados do publisher (resolution, orientation, etc.)
+        hardware: {
+          ...(existingConfig.hardware || {}),  // Preservar hardware info existente se houver
+          mac: hardware.macAddress || existingConfig.hardware?.mac || null,
+          hostname: hardware.hostname || existingConfig.hardware?.hostname || null,
+          platform: hardware.platform || existingConfig.hardware?.platform || null,
+          arch: hardware.arch || existingConfig.hardware?.arch || null,
+          serial: hardware.serial || existingConfig.hardware?.serial || null,
+          hardwareHash: hardware.hardwareHash || existingConfig.hardware?.hardwareHash || null,
+          registeredAt: existingConfig.hardware?.registeredAt || new Date().toISOString(),
+          linkedAt: new Date().toISOString(),  // Quando hardware foi vinculado
+          userAgent: hardware.userAgent || existingConfig.hardware?.userAgent || null
+        }
+      };
+
+      // Determinar novo status: se estava pending_activation, muda para pending_approval
+      const newStatus = existingStatus === 'pending_activation' ? 'pending_approval' : existingStatus;
+      
+      await logDebug(`[${requestId}] Atualizando totem pré-cadastrado com hardware info`, {
+        totemId,
+        identifier: existingIdentifier,
+        status: `${existingStatus} → ${newStatus}`,
+        requestId
       });
       
       try {
+        // ATUALIZAR totem existente (não criar novo)
         await db.executeRaw(`
-          INSERT INTO totems (
-            totem_id,
-            identifier,
-            uin,
-            device_id,
-            local_id,
-            description,
-            config,
-            status,
-            version,
-            firmware_version,
-            ip_address,
-            last_seen,
-            last_heartbeat,
-            active,
-            blocked,
-            created_at,
-            updated_at
-          ) VALUES (
-            ?,
-            ?,
-            ?,
-            ?,
-            NULL,
-            ?,
-            ?,
-            'pending_approval',
-            '2.1.0',
-            '1.0.0',
-            ?,
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP,
-            true,
-            false,
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP
-          )
+          UPDATE totems SET
+            config = ?::jsonb,
+            ip_address = ?,
+            last_seen = CURRENT_TIMESTAMP,
+            last_heartbeat = CURRENT_TIMESTAMP,
+            status = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE uin = ?
         `, [
-          totemId,
-          identifier,
-          uin,
-          deviceId,
-          description,
           JSON.stringify(config),
-          ipAddress
+          ipAddress,
+          newStatus,
+          uin
         ]);
-        await logDebug(`[${requestId}] Totem inserido no banco de dados`, { totemId, requestId });
-      } catch (insertError: any) {
-        await logError(`[${requestId}] Erro ao inserir totem`, insertError, { totemId, requestId });
-        throw insertError;
+        await logDebug(`[${requestId}] Totem atualizado com hardware vinculado`, { totemId, uin, requestId });
+      } catch (updateError: any) {
+        await logError(`[${requestId}] Erro ao atualizar totem`, updateError, { totemId, uin, requestId });
+        throw updateError;
       }
 
-      // Buscar totem criado
-      await logDebug(`[${requestId}] Buscando totem criado`, { totemId, requestId });
-      const newTotem = await totemService.getTotemByUin(uin);
-      if (!newTotem) {
-        await logError(`[${requestId}] Totem não encontrado após inserção`, new Error('Totem não encontrado'), { totemId, requestId });
+      // Buscar totem atualizado
+      await logDebug(`[${requestId}] Buscando totem atualizado`, { totemId, uin, requestId });
+      const updatedTotem = await totemService.getTotemByUin(uin);
+      if (!updatedTotem) {
+        await logError(`[${requestId}] Totem não encontrado após atualização`, new Error('Totem não encontrado'), { totemId, uin, requestId });
         return res.status(500).json({ 
-          error: 'Erro ao criar totem',
-          message: 'Totem inserido mas não encontrado após criação',
+          error: 'Erro ao vincular hardware',
+          message: 'Totem atualizado mas não encontrado após atualização',
           requestId: requestId
         });
       }
-      await logDebug(`[${requestId}] Totem encontrado após criação`, {
-        id: (newTotem as any).id || totemId,
-        uin: newTotem.uin,
-        identifier: (newTotem as any).identifier
+      await logDebug(`[${requestId}] Totem encontrado após atualização`, {
+        id: (updatedTotem as any).id || totemId,
+        uin: updatedTotem.uin,
+        identifier: (updatedTotem as any).identifier,
+        status: (updatedTotem as any).status
       });
 
       // Gerar token de validação
       const token = generateTotemToken(uin);
       const duration = Date.now() - startTime;
+      const finalStatus = (updatedTotem as any).status || newStatus;
       
-      await logDebug(`[${requestId}] Auto-registro concluído com sucesso`, { duration, requestId });
+      await logDebug(`[${requestId}] Hardware vinculado ao totem pré-cadastrado com sucesso`, { 
+        duration, 
+        totemId,
+        status: finalStatus,
+        requestId 
+      });
       
       const responseData = {
         success: true,
-        message: 'Totem registrado com sucesso. Aguardando aprovação do administrador.',
-        status: 'pending_approval',
+        message: 'Hardware vinculado ao totem pré-cadastrado com sucesso.',
+        status: finalStatus,
         uin: uin,
         token: token,
         totem: {
-          id: (newTotem as any).id || totemId,
+          id: (updatedTotem as any).id || totemId,
           uin: uin,
-          identifier: identifier,
-          status: 'pending_approval',
-          active: true,
-          message: 'Aguardando aprovação do administrador para ativação'
+          identifier: (updatedTotem as any).identifier || existingIdentifier,
+          status: finalStatus,
+          active: (updatedTotem as any).active !== false,
+          message: finalStatus === 'pending_approval' 
+            ? 'Aguardando aprovação do administrador para ativação'
+            : finalStatus === 'online'
+            ? 'Totem ativo e pronto para uso'
+            : 'Hardware vinculado com sucesso'
         },
-        nextSteps: [
+        nextSteps: finalStatus === 'pending_approval' ? [
           'Aguarde aprovação do administrador',
           'O totem ficará inativo até ser aprovado',
           'Após aprovação, o totem será ativado automaticamente'
+        ] : finalStatus === 'online' ? [
+          'Totem está ativo e pronto para uso',
+          'Playlists serão enviadas automaticamente'
+        ] : [
+          'Hardware vinculado com sucesso',
+          'Aguarde configuração adicional se necessário'
         ],
         requestId: requestId,
         duration: `${duration}ms`
@@ -1133,11 +1116,12 @@ router.post('/register',
         await eventLogService.logEvent({
           eventType: EventType.SYSTEM_EVENT,
           entityType: 'totem',
-          entityId: (newTotem as any).id || totemId,
-          totemId: (newTotem as any).id || totemId,
+          entityId: (updatedTotem as any).id || totemId,
+          totemId: (updatedTotem as any).id || totemId,
           metadata: {
-            action: 'auto_register',
-            status: 'pending_approval',
+            action: 'hardware_linked',  // Mudado de 'auto_register' para 'hardware_linked'
+            previousStatus: existingStatus,
+            newStatus: finalStatus,
             ipAddress,
             requestId,
             hardware: {
@@ -1149,7 +1133,7 @@ router.post('/register',
           }
         });
       } catch (eventError: any) {
-        await logError(`[${requestId}] Erro ao registrar evento de auto-registro`, eventError, {
+        await logError(`[${requestId}] Erro ao registrar evento de vinculação de hardware`, eventError, {
           totemId,
           requestId
         });
@@ -1159,7 +1143,7 @@ router.post('/register',
       await playerDebugService.logTransaction({
         transactionId: requestId,
         uin: uin,
-        action: 'auto_register',
+        action: 'hardware_linked',  // Mudado de 'auto_register' para 'hardware_linked'
         status: 'success',
         requestUrl: req.url,
         requestMethod: req.method,
@@ -1171,18 +1155,18 @@ router.post('/register',
             hardwareHash: req.body.hardware?.hardwareHash ? 'HASH_PRESENTE' : 'AUSENTE'
           }
         },
-        responseStatus: 201,
+        responseStatus: 200,  // Mudado de 201 (Created) para 200 (OK) - é UPDATE, não INSERT
         responseBody: responseData,
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
         duration: duration,
-        metadata: { totemId: (newTotem as any).id || totemId }
+        metadata: { totemId: (updatedTotem as any).id || totemId }
       });
       
-      return res.status(201).json(responseData);
+      return res.status(200).json(responseData);  // Mudado de 201 para 200
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      await logError(`[${requestId}] Erro ao registrar totem`, error, { duration, requestId });
+      await logError(`[${requestId}] Erro ao vincular hardware ao totem`, error, { duration, requestId });
       
       // Registrar transação de erro
       await playerDebugService.logTransaction({
