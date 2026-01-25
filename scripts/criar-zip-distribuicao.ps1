@@ -23,7 +23,7 @@ if (-not (Test-Path (Join-Path $PROJECT_ROOT "backend")) -or -not (Test-Path (Jo
 }
 
 # Diretorio de distribuicao continua ao lado do projeto (como ja esta funcionando)
-$DIST_DIR = Join-Path (Split-Path -Parent $PROJECT_ROOT) "SmartSignage-Pro-install"
+$DIST_DIR = Join-Path (Split-Path -Parent $PROJECT_ROOT) "SmartSignage-Pro-install-player-webcache"
 
 # Caminho FIXO para o arquivo ZIP, conforme solicitado
 $ZIP_TARGET_DIR = "C:\devs-jce"
@@ -60,7 +60,7 @@ $MAIN_DIRECTORIES = @(
     "nginx",
     "systemd",
     "docker",
-    "player-web",
+    "player-web-cache",
     "player-client",
     "player-agent",
     "player-fx"
@@ -499,7 +499,7 @@ Esta é uma distribuição limpa do SmartSignage Pro contendo apenas os arquivos
 - **nginx/** - Configurações do Nginx
 - **systemd/** - Arquivos de serviço systemd
 - **docker/** - Arquivos Docker (Dockerfile, docker-compose)
-- **player-web/** - Player web HTML5
+- **player-web-cache/** - Player web HTML5 com cache implementado
 - **player-client/** - Players para Smart TVs (Android, Tizen, webOS)
 - **player-agent/** - Agente de sincronização
 - **player-fx/** - Player de efeitos visuais

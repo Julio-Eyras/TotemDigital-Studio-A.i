@@ -17,7 +17,7 @@ NC='\033[0m'
 
 # Diretórios
 SOURCE_DIR="$(pwd)"
-DIST_DIR="$SOURCE_DIR/SmartSignage-Distribuicao"
+DIST_DIR="$SOURCE_DIR/SmartSignage-Pro-Distribuicao" 
 
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}                    Criando Pacote de Distribuição Completo${NC}"
@@ -114,8 +114,8 @@ copy_dir "$SOURCE_DIR/player-agent" "$DIST_DIR/player-agent" "Player-agent"
 # 7. Player-fx (se existir)
 copy_dir "$SOURCE_DIR/player-fx" "$DIST_DIR/player-fx" "Player-fx"
 
-# 8. Player (diretório genérico, se existir)
-copy_dir "$SOURCE_DIR/player" "$DIST_DIR/player" "Player genérico"
+# 8. player-web-cache (diretório genérico, se existir)
+copy_dir "$SOURCE_DIR/player-web-cache" "$DIST_DIR/player-web-cache" "Player genérico - player-web-cache"
 
 # 9. Database
 copy_dir "$SOURCE_DIR/database" "$DIST_DIR/database" "Database (schema e scripts)"
