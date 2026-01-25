@@ -172,8 +172,11 @@ async function handleApprovalRequest(
     // Se status for 'online' ou se houver flag de auto-aprovação, gerar config
     if (finalStatus === 'online' || req.body?.autoApprove === true) {
       try {
-        const { config: envConfig } = require('../config/env');
-        const playerDir = envConfig.player?.dir || '/opt/smart-signage/player-web';
+        // Importar config de forma dinâmica para evitar dependência circular
+        const envConfig = require('../config/env');
+        const playerDir = (envConfig.config && envConfig.config.player && envConfig.config.player.dir) 
+          || process.env.PLAYER_DIR 
+          || '/opt/smart-signage/player-web';
         const path = require('path');
         const scriptPath = process.env.GENERATE_CONFIG_SCRIPT || 
                          path.join(__dirname, '../../scripts/generate-player-config.sh');
