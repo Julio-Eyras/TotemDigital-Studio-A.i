@@ -681,7 +681,7 @@ router.get(
           success: dispatchResponse.success,
           fromCache: dispatchResponse.fromCache,
           hasPlan: !!dispatchResponse.plan,
-          planItemsCount: dispatchResponse.plan?.items?.length || 0,
+          planItemsCount: dispatchResponse.plan?.mediaItems?.length || 0,
         },
         duration: responseDuration,
         fromCache: dispatchResponse.fromCache,

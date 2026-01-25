@@ -93,7 +93,7 @@ import notificationsRoutes from './routes/notifications';
 import dispatcherTotemRoutes from './routes/dispatcher-totem';
 import dispatcherDebugRoutes from './routes/dispatcher-debug';
 import { dispatcherDebugService } from './services/dispatcherDebugService';
-import { createDatabaseWrapper, DatabaseWrapper } from './config/database-pg';
+import { createDatabaseWrapper } from './config/database-pg';
 import { rateLimitHeavyOperations } from './middleware/rateLimitUser.middleware';
 import { openApiSpec } from './config/swagger';
 import { getExpressLimit } from './config/mediaConfig';

@@ -205,7 +205,7 @@ class DatabaseWrapper {
       const result = await this.pool.query(text, values);
       const duration = Date.now() - startTime;
       if (this.queryLogger) {
-        this.queryLogger(text, values, duration, result.rowCount);
+        this.queryLogger(text, values, duration, result.rowCount ?? undefined);
       }
       return result.rows;
     } catch (error: any) {
@@ -222,8 +222,21 @@ class DatabaseWrapper {
    */
   async findFirst(query: string, params: any[] = []): Promise<any | null> {
     const { text, values } = this.convertQuery(query, params);
-    const result = await this.pool.query(text, values);
-    return result.rows.length > 0 ? result.rows[0] : null;
+    const startTime = Date.now();
+    try {
+      const result = await this.pool.query(text, values);
+      const duration = Date.now() - startTime;
+      if (this.queryLogger) {
+        this.queryLogger(text, values, duration, result.rowCount ?? undefined);
+      }
+      return result.rows.length > 0 ? result.rows[0] : null;
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      if (this.queryLogger) {
+        this.queryLogger(text, values, duration, undefined, error.message);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -236,7 +249,7 @@ class DatabaseWrapper {
       const result = await this.pool.query(text, values);
       const duration = Date.now() - startTime;
       if (this.queryLogger) {
-        this.queryLogger(text, values, duration, result.rowCount);
+        this.queryLogger(text, values, duration, result.rowCount ?? undefined);
       }
       return result;
     } catch (error: any) {

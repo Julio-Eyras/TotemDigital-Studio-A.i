@@ -6,7 +6,6 @@
 import { getRedisClient, testRedisConnection } from '../config/redis';
 import { redisConfig } from '../config/env';
 import { getCacheService } from './cacheService';
-import { logError } from '../utils/loggerHelper';
 
 export interface RedisStatus {
   enabled: boolean;
