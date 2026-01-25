@@ -33,6 +33,8 @@ import { LogRotationService } from './services/logRotationService';
 import { logInfo, logError, logWarn, logInfoSync } from './utils/loggerHelper';
 import { getWebSocketService } from './services/websocketService';
 import { APP_VERSION, APP_NAME, APP_DESCRIPTION } from './config/version';
+import fs from 'fs';
+import path from 'path';
 
 // Routes
 import authRoutes from './routes/auth';
