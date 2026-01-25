@@ -84,7 +84,7 @@ const DispatcherDebug: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
-  const [refreshInterval, setRefreshInterval] = useState(5); // segundos
+  const [refreshInterval, setRefreshInterval] = useState(10); // segundos (aumentado para evitar rate limiting)
 
   // Estado
   const [redisStatus, setRedisStatus] = useState<RedisStatus | null>(null);

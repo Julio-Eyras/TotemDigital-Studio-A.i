@@ -25,12 +25,14 @@ export const apiLimiter = rateLimit({
     // então `req.path` aqui é relativo ao mount (ex.: '/auth/login').
     const fullPath = (req.baseUrl || '') + (req.path || '');
 
-    // Pular rate limit para health checks, estáticos e auth (auth já tem limiter próprio)
+    // Pular rate limit para health checks, estáticos, auth e debug (auth já tem limiter próprio)
     return fullPath === '/api/health' ||
            fullPath.startsWith('/api/health/') ||
            fullPath.startsWith('/api/auth') ||
            fullPath.startsWith('/api/static/') ||
-           fullPath.startsWith('/api/assets/');
+           fullPath.startsWith('/api/assets/') ||
+           fullPath.startsWith('/api/dispatcher-debug/') ||
+           fullPath.startsWith('/api/player/'); // Player endpoints também não devem ter rate limit
   }
 });
 

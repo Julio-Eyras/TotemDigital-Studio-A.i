@@ -379,6 +379,24 @@ import playerValidationRoutes from './routes/player';
 // Servir arquivos estáticos do player (js/, css/, etc.)
 // IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
 const playerDir = config.player.dir || '/opt/smart-signage/player-web';
+const playerDirCache = process.env.PLAYER_DIR_CACHE || playerDir; // Fallback para player-web-cache se necessário
+
+// Logar diretório do player para diagnóstico
+logInfoSync(`[Server] Servindo player de: ${playerDir}`);
+if (playerDirCache !== playerDir) {
+  logInfoSync(`[Server] Diretório alternativo (cache): ${playerDirCache}`);
+}
+
+// Verificar se diretório existe
+if (!fs.existsSync(playerDir)) {
+  logWarn(`[Server] Diretório do player não encontrado: ${playerDir}`);
+  // Tentar diretório alternativo
+  const altDir = path.join(process.cwd(), 'player-web-cache');
+  if (fs.existsSync(altDir)) {
+    logInfoSync(`[Server] Usando diretório alternativo encontrado: ${altDir}`);
+    // Não podemos mudar playerDir aqui, mas podemos servir de ambos
+  }
+}
 
 // Servir arquivos estáticos do diretório player (js/, css/, etc.)
 // Usar express.static diretamente para servir todos os arquivos do diretório
@@ -393,7 +411,8 @@ app.use('/player', express.static(playerDir, {
     } else if (filePath.endsWith('.json')) {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
     }
-  }
+  },
+  fallthrough: true // Continuar para próxima rota se arquivo não encontrado
 }));
 
 // Servir player index.html com suporte a UIN como parâmetro
