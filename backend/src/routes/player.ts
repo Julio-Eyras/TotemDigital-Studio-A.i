@@ -363,7 +363,7 @@ router.get('/validate',
         
         // Logar erro no debug
         dispatcherDebugService.logMessage('outgoing', {
-          totemId: null,
+          totemId: undefined,
           uin: uin as string,
           endpoint: '/api/player/validate',
           method: 'GET',
@@ -632,7 +632,7 @@ router.get('/validate',
       
       // Logar erro no debug
       dispatcherDebugService.logMessage('outgoing', {
-        totemId: null,
+        totemId: undefined,
         uin: (req.query.uin as string) || 'unknown',
         endpoint: '/api/player/validate',
         method: 'GET',
@@ -1172,7 +1172,7 @@ router.post('/register',
   async (req: Request, res: Response) => {
     // Logar mensagem recebida no debug
     dispatcherDebugService.logMessage('incoming', {
-      totemId: null,
+      totemId: undefined,
       uin: req.body?.uin || 'unknown',
       endpoint: '/api/player/register',
       method: 'POST',
@@ -1229,7 +1229,7 @@ router.post('/register',
         
         // Logar erro no debug
         dispatcherDebugService.logMessage('outgoing', {
-          totemId: null,
+          totemId: undefined,
           uin: req.body?.uin || 'unknown',
           endpoint: '/api/player/register',
           method: 'POST',
