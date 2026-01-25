@@ -400,20 +400,26 @@ router.get('/validate',
       }
 
       // Verificar bloqueios adicionais (campo status pode indicar bloqueio)
-      const totemFull = await db.findFirst(`
-        SELECT 
-          t.totem_id,
-          t.identifier,
-          t.status,
-          t.is_active as active,
-          t.config
-        FROM totems t
-        WHERE t.identifier = ? OR t.uin = ?
-        LIMIT 1
-      `, [uin, uin]);
+      let totemFull = null;
+      try {
+        totemFull = await db.findFirst(`
+          SELECT 
+            t.totem_id,
+            t.identifier,
+            t.status,
+            t.is_active as active,
+            t.config
+          FROM totems t
+          WHERE t.identifier = ? OR t.uin = ?
+          LIMIT 1
+        `, [uin, uin]);
+      } catch (queryError: any) {
+        await logError(`[${transactionId}] Erro ao buscar totem completo`, queryError, { uin, transactionId });
+        // Continuar sem totemFull se houver erro na query
+      }
 
       // Verificar se totem está pendente de aprovação
-      if (totemFull && totemFull.status === 'pending_approval') {
+      if (totemFull && (totemFull as any).status === 'pending_approval') {
         return res.status(403).json({ 
           error: 'Totem aguardando aprovação',
           blocked: true,
@@ -430,7 +436,7 @@ router.get('/validate',
       }
 
       // Verificar se totem está ativo
-      if (!totem.active) {
+      if (!totem || !totem.active) {
         return res.status(403).json({ 
           error: 'Totem inativo',
           blocked: true,
@@ -439,7 +445,7 @@ router.get('/validate',
       }
 
       // Determinar o ID numérico do totem para consultas relacionadas
-      const totemId = (totemFull && (totemFull as any).totem_id) || (totem as any).id;
+      const totemId = (totemFull && (totemFull as any)?.totem_id) || (totem as any)?.id || (totem as any)?.totem_id;
 
       // OBS (schema v2): colunas blocked/blocked_until não existem no schema atual.
 
