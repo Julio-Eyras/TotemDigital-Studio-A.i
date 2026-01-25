@@ -381,20 +381,25 @@ import fs from 'fs';
 // Servir arquivos estáticos do player (js/, css/, etc.)
 // IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
 const playerDir = config.player.dir || '/opt/smart-signage/player-web';
-app.use('/player', (req, res, next) => {
-  // Se for um arquivo estático (js, css, etc.), servir do diretório
-  if (req.path.match(/\.(js|css|json|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i)) {
-    const filePath = path.join(playerDir, req.path);
-    // Verificar se arquivo existe
-    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-      return express.static(playerDir)(req, res, next);
+
+// Servir arquivos estáticos do diretório player (js/, css/, etc.)
+// Usar express.static diretamente para servir todos os arquivos do diretório
+app.use('/player', express.static(playerDir, {
+  index: false, // Não servir index.html automaticamente
+  setHeaders: (res, filePath) => {
+    // Definir Content-Type correto para arquivos JavaScript
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    } else if (filePath.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    } else if (filePath.endsWith('.json')) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
     }
   }
-  // Se não for arquivo estático, continuar para a próxima rota (index.html)
-  next();
-});
+}));
 
-// Servir player com suporte a UIN como parâmetro
+// Servir player index.html com suporte a UIN como parâmetro
+// Esta rota só será chamada se nenhum arquivo estático for encontrado
 app.get('/player', (_req, res) => {
   const playerPath = config.player.path;
   res.sendFile(playerPath);

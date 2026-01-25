@@ -406,7 +406,7 @@ router.get('/validate',
           t.identifier,
           t.status,
           t.is_active as active,
-          t.network_info as config
+          t.config
         FROM totems t
         WHERE t.identifier = ? OR t.uin = ?
         LIMIT 1
@@ -1163,12 +1163,13 @@ router.get('/hardware-info', async (_req: Request, res: Response) => {
  */
 router.post('/register',
   body('uin').isString().isLength({ min: 3, max: 100 }),
-  body('hardware').isObject(),
+  body('hardware').isObject().withMessage('hardware deve ser um objeto'),
   body('hardware.macAddress').optional().isString(),
   body('hardware.hostname').optional().isString(),
   body('hardware.platform').optional().isString(),
   body('hardware.arch').optional().isString(),
   body('hardware.hardwareHash').optional().isString(),
+  body('hardware.userAgent').optional().isString(),
   async (req: Request, res: Response) => {
     // Logar mensagem recebida no debug
     dispatcherDebugService.logMessage('incoming', {
