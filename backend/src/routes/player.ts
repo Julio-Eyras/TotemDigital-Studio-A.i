@@ -3,6 +3,7 @@ import { query, body, validationResult } from 'express-validator';
 import { TotemService } from '../services/totemService';
 import { getDatabase } from '../config/database';
 import { playerDebugService, PlayerDebugService } from '../services/playerDebugService';
+import { dispatcherDebugService } from '../services/dispatcherDebugService';
 import { getEventLogService, EventType } from '../services/eventLogService';
 import { getRemoteCommandService } from '../services/remoteCommandService';
 import { validateRequest } from '../middleware/validation.middleware';
@@ -642,6 +643,20 @@ router.get(
       const dispatcher = getDispatcherTotemService();
       const targetTimestamp = timestamp ? new Date(timestamp as string) : new Date();
 
+      // Logar mensagem recebida
+      dispatcherDebugService.logMessage('incoming', {
+        totemId,
+        uin: uin as string,
+        endpoint: '/api/player/dispatch',
+        method: 'GET',
+        request: {
+          uin,
+          timestamp,
+          timezone,
+          deviceId,
+        },
+      });
+
       const dispatchResponse = await dispatcher.dispatch(
         {
           totemId,
@@ -653,6 +668,25 @@ router.get(
           skipCache: false,
         },
       );
+
+      const responseDuration = Date.now() - startTime;
+
+      // Logar mensagem enviada
+      dispatcherDebugService.logMessage('outgoing', {
+        totemId,
+        uin: uin as string,
+        endpoint: '/api/player/dispatch',
+        method: 'GET',
+        response: {
+          success: dispatchResponse.success,
+          fromCache: dispatchResponse.fromCache,
+          hasPlan: !!dispatchResponse.plan,
+          planItemsCount: dispatchResponse.plan?.items?.length || 0,
+        },
+        duration: responseDuration,
+        fromCache: dispatchResponse.fromCache,
+        error: dispatchResponse.error,
+      });
 
       // Registrar transação de debug (apenas metadata, sem plano completo para não inflar logs)
       await playerDebugService.logTransaction({

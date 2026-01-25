@@ -1,7 +1,16 @@
 /**
- * Dispatcher Monitor
- * Página de monitoramento do Dispatcher-Totem
- * Mostra logs, inputs e outputs do dispatcher
+ * Dispatcher Monitor - Monitor
+ * 
+ * Histórico e auditoria de decisões já tomadas:
+ * - Histórico de decisões do dispatcher (logs do banco)
+ * - Campanhas selecionadas em cada momento
+ * - Planos de exibição que foram gerados
+ * - Métricas de cache e performance
+ * 
+ * DIFERENÇA DOS OUTROS:
+ * - Gerenciar: Planejamento (o que será exibido)
+ * - Monitor: Histórico (o que foi exibido) ← VOCÊ ESTÁ AQUI
+ * - Debug Online: Diagnóstico técnico (por que não funciona)
  */
 
 import React, { useState, useEffect } from 'react';

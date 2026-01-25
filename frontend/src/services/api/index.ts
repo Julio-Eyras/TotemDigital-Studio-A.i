@@ -3774,4 +3774,112 @@ export const dispatcherTotemApi = {
   },
 };
 
+// =============================================
+// DISPATCHER DEBUG API
+// =============================================
+
+export interface RedisStatus {
+  enabled: boolean;
+  connected: boolean;
+  error?: string;
+  config: {
+    host: string;
+    port: number;
+    db: number;
+    url?: string;
+  };
+  cacheServiceAvailable: boolean;
+  lastCheck: string;
+}
+
+export interface QueryLog {
+  id: string;
+  timestamp: string;
+  query: string;
+  params?: any[];
+  duration?: number;
+  rowCount?: number;
+  error?: string;
+  source?: string;
+}
+
+export interface DispatcherMessage {
+  id: string;
+  timestamp: string;
+  direction: 'incoming' | 'outgoing';
+  totemId?: number;
+  uin?: string;
+  endpoint?: string;
+  method?: string;
+  request?: any;
+  response?: any;
+  duration?: number;
+  fromCache?: boolean;
+  error?: string;
+}
+
+export interface DebugLog {
+  id: string;
+  timestamp: string;
+  type: 'redis' | 'query' | 'message' | 'cache';
+  data: any;
+}
+
+export interface DebugStats {
+  totalQueries: number;
+  totalMessages: number;
+  totalDebugLogs: number;
+  queriesWithError: number;
+  messagesWithError: number;
+  avgQueryDuration: number;
+  avgMessageDuration: number;
+  redis: RedisStatus;
+}
+
+export const dispatcherDebugApi = {
+  getRedisStatus: async (): Promise<{ success: boolean; data: RedisStatus }> => {
+    const response = await api.get('/dispatcher-debug/redis-status');
+    return response.data;
+  },
+
+  getQueries: async (params?: {
+    limit?: number;
+    since?: string;
+  }): Promise<{ success: boolean; data: QueryLog[]; count: number }> => {
+    const response = await api.get('/dispatcher-debug/queries', { params });
+    return response.data;
+  },
+
+  getMessages: async (params?: {
+    limit?: number;
+    since?: string;
+    totemId?: number;
+    uin?: string;
+  }): Promise<{ success: boolean; data: DispatcherMessage[]; count: number }> => {
+    const response = await api.get('/dispatcher-debug/messages', { params });
+    return response.data;
+  },
+
+  getLogs: async (params?: {
+    limit?: number;
+    since?: string;
+    type?: 'redis' | 'query' | 'message' | 'cache';
+  }): Promise<{ success: boolean; data: DebugLog[]; count: number }> => {
+    const response = await api.get('/dispatcher-debug/logs', { params });
+    return response.data;
+  },
+
+  getStats: async (): Promise<{ success: boolean; data: DebugStats }> => {
+    const response = await api.get('/dispatcher-debug/stats');
+    return response.data;
+  },
+
+  clearLogs: async (olderThan?: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/dispatcher-debug/clear', null, {
+      params: olderThan ? { olderThan } : undefined,
+    });
+    return response.data;
+  },
+};
+
 export default api;

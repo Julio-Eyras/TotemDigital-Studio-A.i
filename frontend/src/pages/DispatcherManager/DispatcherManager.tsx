@@ -1,7 +1,16 @@
 /**
- * Dispatcher Manager
- * Página completa para gerenciar Dispatcher-Totem
- * Visualiza playlists, mídia, campanhas elegíveis e timeline
+ * Dispatcher Manager - Gerenciar
+ * 
+ * Planejamento e visualização do que será exibido:
+ * - Campanhas elegíveis para um totem
+ * - Playlists disponíveis e suas mídias
+ * - Timeline de exibição (o que será exibido em cada horário)
+ * - Simulação de planos de exibição
+ * 
+ * DIFERENÇA DOS OUTROS:
+ * - Gerenciar: Planejamento (o que será exibido) ← VOCÊ ESTÁ AQUI
+ * - Monitor: Histórico (o que foi exibido)
+ * - Debug Online: Diagnóstico técnico (por que não funciona)
  */
 
 import React, { useState, useEffect } from 'react';

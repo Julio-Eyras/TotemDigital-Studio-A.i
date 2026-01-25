@@ -1330,11 +1330,19 @@ export class DispatcherTotemService {
   private async getFromCache(cacheKey: string): Promise<{ plan: DispatchPlan; candidates?: CandidateSchedule[] } | null> {
     try {
       const cacheService = getCacheService();
-      const cached = await cacheService.get(cacheKey);
-      if (!cached || typeof cached !== 'string') {
+      const cached = await cacheService.get<any>(cacheKey);
+      if (!cached) {
         return null;
       }
-      return JSON.parse(cached);
+      // CacheService já faz JSON.parse, então cached já é um objeto
+      if (typeof cached === 'object' && cached.plan) {
+        return cached;
+      }
+      // Se for string (compatibilidade), fazer parse
+      if (typeof cached === 'string') {
+        return JSON.parse(cached);
+      }
+      return null;
     } catch (error) {
       await logError('[DispatcherTotem] Erro ao ler cache', error, { cacheKey });
       return null;

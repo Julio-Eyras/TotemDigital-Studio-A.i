@@ -31,6 +31,8 @@ import {
   Assignment,
   MonitorHeart,
   ViewTimeline,
+  BugReport,
+  Traffic,
 } from '@mui/icons-material';
 import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
@@ -191,8 +193,24 @@ function getSystemAdminMenu(): HierarchicalMenuItem[] {
           icon: <MonitorHeart />,
           path: '/dispatcher-manager',
           children: [
-            { text: 'Gerenciar', icon: <Shuffle />, path: '/dispatcher-manager' },
-            { text: 'Monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
+            { 
+              text: 'Gerenciar', 
+              icon: <Shuffle />, 
+              path: '/dispatcher-manager',
+              // Planejamento: ver campanhas elegíveis, timeline, simular exibição
+            },
+            { 
+              text: 'Monitor', 
+              icon: <MonitorHeart />, 
+              path: '/dispatcher-monitor',
+              // Histórico: ver decisões passadas, auditoria, análise
+            },
+            { 
+              text: 'Debug Online', 
+              icon: <BugReport />, 
+              path: '/dispatcher-debug',
+              // Diagnóstico técnico: Redis, queries SQL, mensagens em tempo real
+            },
             { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
           ],
         },

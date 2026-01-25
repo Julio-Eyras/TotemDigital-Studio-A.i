@@ -91,6 +91,9 @@ import backupsRoutes from './routes/backups';
 import healthRoutes from './routes/health';
 import notificationsRoutes from './routes/notifications';
 import dispatcherTotemRoutes from './routes/dispatcher-totem';
+import dispatcherDebugRoutes from './routes/dispatcher-debug';
+import { dispatcherDebugService } from './services/dispatcherDebugService';
+import { createDatabaseWrapper, DatabaseWrapper } from './config/database-pg';
 import { rateLimitHeavyOperations } from './middleware/rateLimitUser.middleware';
 import { openApiSpec } from './config/swagger';
 import { getExpressLimit } from './config/mediaConfig';
@@ -312,6 +315,7 @@ app.use('/api/subscriber-access', subscriberAccessRoutes); // NOVO: Controle de 
 app.use('/api/contracts', contractRoutes); // NOVO: Contratos de Subscribers
 app.use('/api/totems', totemRoutes);
 app.use('/api/dispatcher-totem', dispatcherTotemRoutes); // NOVO: Dispatcher-Totem (motor de decisão)
+app.use('/api/dispatcher-debug', dispatcherDebugRoutes); // Debug online do dispatcher, Redis, queries e mensagens
 app.use('/api/players', authMiddleware as any, playerRoutes);
 app.use('/api/media', blockClientDataAccess as any, mediaRoutes);
 app.use('/api/playlists', blockClientDataAccess as any, playlistRoutes);
@@ -528,6 +532,17 @@ async function startServer() {
     // Inicializar database PRIMEIRO (necessário para carregar configurações de mídia)
     await logInfo('Conectando ao database...');
     await initializeDatabase();
+    
+    // Conectar query logger para debug online
+    try {
+      const db = createDatabaseWrapper();
+      db.setQueryLogger((query, params, duration, rowCount, error) => {
+        dispatcherDebugService.logQuery(query, params, duration, rowCount, error, 'dispatcher');
+      });
+      await logInfo('Query logger conectado para debug online');
+    } catch (err: any) {
+      await logWarn('Erro ao conectar query logger (debug continuará funcionando)', { error: err.message });
+    }
     
     // Carregar configurações de mídia DEPOIS de inicializar o banco
     await logInfo('Carregando configurações de mídia do banco de dados...');
