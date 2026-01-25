@@ -375,8 +375,6 @@ app.get('/api/docs.json', (_req, res) => {
 
 // Player routes (sem autenticação)
 import playerValidationRoutes from './routes/player';
-import path from 'path';
-import fs from 'fs';
 
 // Servir arquivos estáticos do player (js/, css/, etc.)
 // IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
