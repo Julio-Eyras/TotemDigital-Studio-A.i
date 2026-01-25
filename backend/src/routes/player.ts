@@ -628,7 +628,15 @@ router.get('/validate',
         expiresIn: 3600, // 1 hora
       });
     } catch (error: any) {
-      await logError(`[${transactionId}] Erro ao validar totem`, error, { uin: req.query.uin as string, transactionId });
+      const errorMessage = error?.message || 'Erro desconhecido';
+      const errorStack = error?.stack || '';
+      
+      await logError(`[${transactionId}] Erro ao validar totem`, error, { 
+        uin: req.query.uin as string, 
+        transactionId,
+        errorMessage,
+        errorStack: errorStack.substring(0, 500) // Limitar tamanho do stack
+      });
       
       // Logar erro no debug
       dispatcherDebugService.logMessage('outgoing', {
@@ -640,7 +648,7 @@ router.get('/validate',
           success: false,
           error: 'Erro interno do servidor'
         },
-        error: error.message || 'Erro desconhecido',
+        error: errorMessage,
       });
       
       await playerDebugService.logTransaction({
@@ -652,13 +660,22 @@ router.get('/validate',
         requestMethod: req.method,
         requestHeaders: req.headers,
         responseStatus: 500,
-        errorMessage: error.message,
+        errorMessage: errorMessage,
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
-        duration: Date.now() - startTime
+        duration: Date.now() - startTime,
+        metadata: {
+          errorStack: errorStack.substring(0, 1000) // Limitar tamanho
+        }
       });
       
-      return res.status(500).json({ error: 'Erro interno do servidor', details: error.message });
+      // Em desenvolvimento, retornar mais detalhes do erro
+      const isDevelopment = process.env.NODE_ENV !== 'production';
+      return res.status(500).json({ 
+        error: 'Erro interno do servidor', 
+        details: isDevelopment ? errorMessage : 'Erro ao processar requisição',
+        requestId: transactionId
+      });
     }
   }
 );
