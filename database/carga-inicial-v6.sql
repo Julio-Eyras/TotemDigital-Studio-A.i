@@ -15,6 +15,7 @@
 -- ✅ Corrigido: Totem Playlist 6 adicionado para corrigir foreign key constraint
 -- ✅ Corrigido: remote_commands.user_id NULL substituído por user_id=1 (admin) para comandos automáticos
 -- ✅ Corrigido: Adicionado 'request_playlist' ao CHECK constraint de command_type em remote_commands
+-- ✅ Corrigido: subscriber_billing linha 5: 'overdue' → 'pending' (due_date no passado; compat. chk_subscriber_billing_payment_status)
 -- ✅ Adicionado: Mais diversidade de dados para testes integrados
 -- ✅ Revisado: Todos os relacionamentos validados para consistência de IDs
 -- =============================================
@@ -464,7 +465,7 @@ INSERT INTO subscriber_billing (billing_id, subscriber_id, campaign_id, billing_
 (2, 2, 2, 'campaign', 5000.00, 'BRL', 'incoming', 'Faturamento campanha Medicamentos Genéricos', 'INV-2025-002', 'credit_card', 'paid', (NOW() - INTERVAL '1 year') - INTERVAL '3 days', (NOW() - INTERVAL '1 year') + INTERVAL '27 days', '{}'::jsonb),
 (3, 3, 3, 'campaign', 6666.67, 'BRL', 'incoming', 'Faturamento campanha Ofertas do Dia', 'INV-2025-003', 'credit_card', 'pending', NULL, (NOW() - INTERVAL '1 year') + INTERVAL '7 days', '{}'::jsonb),
 (4, 4, 4, 'campaign', 8000.00, 'BRL', 'incoming', 'Faturamento campanha Menu Executivo', 'INV-2025-004', 'credit_card', 'paid', (NOW() - INTERVAL '1 year') - INTERVAL '2 days', (NOW() - INTERVAL '1 year') + INTERVAL '28 days', '{}'::jsonb),
-(5, 5, 5, 'campaign', 10000.00, 'BRL', 'incoming', 'Faturamento campanha Check-up Preventivo', 'INV-2025-005', 'bank_transfer', 'overdue', NULL, (NOW() - INTERVAL '1 year') - INTERVAL '5 days', '{}'::jsonb)
+(5, 5, 5, 'campaign', 10000.00, 'BRL', 'incoming', 'Faturamento campanha Check-up Preventivo', 'INV-2025-005', 'bank_transfer', 'pending', NULL, (NOW() - INTERVAL '1 year') - INTERVAL '5 days', '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO publisher_billing (billing_id, publisher_id, campaign_id, totem_id, billing_type, amount, currency, direction, revenue_share_percentage, original_campaign_amount, platform_fee_amount, publisher_share_amount, description, invoice_number, payment_status, payment_date, due_date, approved_by, approved_at, payment_method, metadata) VALUES
@@ -536,6 +537,7 @@ INSERT INTO totem_playlist_items (item_id, totem_playlist_id, media_id, campaign
 (17, 11, 4, 3, 3, 5, 0, 7, 12, 'fade', 2500, 'standard', 40.00, 60.00, NULL, NULL, NULL, true)
 ON CONFLICT DO NOTHING;
 
+-- totem_playlist_generation_log: depende de totem_playlists 1-11 (inseridos acima). Referências NULL apenas para logs de falha.
 INSERT INTO totem_playlist_generation_log (log_id, totem_id, totem_playlist_id, publisher_id, status, error_message, campaigns_included, playlists_included, medias_included, subscribers_included, generation_time_ms, generation_details, generated_at, generated_by) VALUES
 -- Logs históricos (1 ano atrás)
 (1, 1, 1, 1, 'success', NULL, 3, 1, 2, 3, 150, '{"mode": "MIXED", "window_seconds": 600}'::jsonb, (NOW() - INTERVAL '1 year'), 'system'),

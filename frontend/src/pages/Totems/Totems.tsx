@@ -147,10 +147,12 @@ const Totems: React.FC = () => {
 
   const handleApprove = async () => {
     if (!selectedTotem) return;
+    const totemId = (selectedTotem as any).totem_id ?? (selectedTotem as any).id;
+    if (!totemId) return;
     
     try {
       setApproving(true);
-      const result = await totemApi.approve(selectedTotem.totem_id, generateConfig);
+      const result = await totemApi.approve(totemId, generateConfig);
       setApproveOpen(false);
       setSelectedTotem(null);
       setSuccess(result.message || 'Totem aprovado com sucesso');
@@ -409,10 +411,13 @@ const Totems: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Totens <strong>pré-cadastrados</strong> pelo publisher que já <strong>vincularam hardware</strong> (conectaram pela primeira vez) e aguardam sua aprovação para ficarem ativos. Após aprovar, o totem poderá receber playlists.
+        </Alert>
         <Grid container spacing={3}>
           {filteredPendingTotems.length === 0 && !loading ? (
             <Grid item xs={12}>
-              <Alert severity="info">Nenhum totem pendente de aprovação</Alert>
+              <Alert severity="info">Nenhum totem pendente de aprovação. Totens aparecem aqui quando são pré-cadastrados e o hardware se conecta pela primeira vez.</Alert>
             </Grid>
           ) : (
             filteredPendingTotems.map((t, idx) => {
@@ -442,9 +447,15 @@ const Totems: React.FC = () => {
                         )}
                         {t.config?.hardware && (
                           <Box sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                              Hardware: {t.config.hardware.mac || t.config.hardware.hostname || 'N/A'}
+                            <Typography variant="caption" color="text.secondary" component="div">
+                              <strong>Hardware vinculado:</strong> {t.config.hardware.mac || t.config.hardware.hostname || 'N/A'}
+                              {t.config.hardware.platform && ` • ${t.config.hardware.platform}`}
                             </Typography>
+                            {t.config.hardware.linkedAt && (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                Vinculado em: {new Date(t.config.hardware.linkedAt).toLocaleString()}
+                              </Typography>
+                            )}
                           </Box>
                         )}
                       </Box>
@@ -581,12 +592,15 @@ const Totems: React.FC = () => {
       </Dialog>
 
       <Dialog open={approveOpen} onClose={() => setApproveOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Aprovar Totem</DialogTitle>
+        <DialogTitle>Aprovar Totem (pré-cadastrado, hardware vinculado)</DialogTitle>
         <DialogContent>
           {selectedTotem && (
             <Box>
-              <Typography variant="body1" gutterBottom>
-                <strong>Nome:</strong> {selectedTotem.name || selectedTotem.identifier || `Totem ${selectedTotem.totem_id}`}
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Totem pré-cadastrado pelo publisher que vinculou hardware. Aprovar para ativar e permitir recebimento de playlists.
+              </Typography>
+              <Typography variant="body1" gutterBottom sx={{ mt: 2 }}>
+                <strong>Nome:</strong> {selectedTotem.name || selectedTotem.identifier || `Totem ${(selectedTotem as any).totem_id ?? (selectedTotem as any).id}`}
               </Typography>
               {selectedTotem.uin && (
                 <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -600,7 +614,7 @@ const Totems: React.FC = () => {
               )}
               {selectedTotem.config?.hardware && (
                 <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
-                  <Typography variant="subtitle2" gutterBottom>Informações de Hardware:</Typography>
+                  <Typography variant="subtitle2" gutterBottom>Informações de Hardware vinculado:</Typography>
                   {selectedTotem.config.hardware.mac && (
                     <Typography variant="body2">MAC: {selectedTotem.config.hardware.mac}</Typography>
                   )}
@@ -609,6 +623,14 @@ const Totems: React.FC = () => {
                   )}
                   {selectedTotem.config.hardware.platform && (
                     <Typography variant="body2">Plataforma: {selectedTotem.config.hardware.platform}</Typography>
+                  )}
+                  {selectedTotem.config.hardware.arch && (
+                    <Typography variant="body2">Arquitetura: {selectedTotem.config.hardware.arch}</Typography>
+                  )}
+                  {selectedTotem.config.hardware.linkedAt && (
+                    <Typography variant="body2" color="text.secondary">
+                      Vinculado em: {new Date(selectedTotem.config.hardware.linkedAt).toLocaleString()}
+                    </Typography>
                   )}
                 </Box>
               )}

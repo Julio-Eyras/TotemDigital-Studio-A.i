@@ -10560,6 +10560,7 @@ main() {
             check_startup_order
             test_endpoints
             validate_system_complete
+            [[ "$START_TOTEM" == "true" ]] && start_totem_laboratory
             show_final_info
             exit 0
         fi

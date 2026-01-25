@@ -133,7 +133,7 @@ router.get('/validate',
           ipAddress: req.ip,
           userAgent: req.get('user-agent'),
           duration: Date.now() - startTime,
-          metadata: { suggestion: 'Tentar auto-registro' }
+          metadata: { suggestion: 'Cadastre o totem pelo publisher antes de conectar' }
         });
         
         return res.status(404).json({ 
@@ -163,7 +163,7 @@ router.get('/validate',
           error: 'Totem aguardando aprovação',
           blocked: true,
           pendingApproval: true,
-          reason: 'Este totem foi auto-registrado e está aguardando aprovação do administrador',
+          reason: 'Este totem vinculou hardware ao pré-cadastro e está aguardando aprovação do administrador',
           message: 'Aguarde aprovação do administrador para ativação',
           totem: {
             id: (totemFull as any).totem_id,
@@ -852,7 +852,7 @@ router.get('/hardware-info', async (_req: Request, res: Response) => {
 
 /**
  * @route POST /api/player/register
- * @desc Auto-registro de totem na primeira instalação
+ * @desc Vincular hardware a totem pré-cadastrado (primeira conexão)
  * @access Public (para players na primeira instalação)
  */
 router.post('/register',
@@ -870,7 +870,7 @@ router.post('/register',
     try {
       // Sanitizar dados antes de logar
       const sanitizedBody = sanitizeForLogging(req.body);
-      await logDebug(`[${requestId}] Iniciando auto-registro de totem`, { requestId, uin: sanitizedBody.uin });
+      await logDebug(`[${requestId}] Iniciando vinculação de hardware a totem pré-cadastrado`, { requestId, uin: sanitizedBody.uin });
       await logDebug(`[${requestId}] Dados recebidos`, {
         uin: sanitizedBody.uin,
         hardware: {
@@ -885,7 +885,7 @@ router.post('/register',
       await playerDebugService.logTransaction({
         transactionId: requestId,
         uin: req.body.uin,
-        action: 'auto_register',
+        action: 'hardware_link',
         status: 'pending',
         requestUrl: req.url,
         requestMethod: req.method,
@@ -986,7 +986,6 @@ router.post('/register',
       const totemId = currentTotemId;
       const existingConfig = (existingTotem as any).config || {};
       const existingIdentifier = (existingTotem as any).identifier || hardware.hostname || `TOTEM-${totemId}`;
-      const existingDescription = (existingTotem as any).description || `Totem - ${existingIdentifier}`;
       const existingStatus = (existingTotem as any).status || 'pending_activation';
       const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
       
@@ -1172,7 +1171,7 @@ router.post('/register',
       await playerDebugService.logTransaction({
         transactionId: requestId,
         uin: req.body.uin,
-        action: 'auto_register',
+        action: 'hardware_link',
         status: 'error',
         requestUrl: req.url,
         requestMethod: req.method,

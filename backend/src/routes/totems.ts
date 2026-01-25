@@ -85,7 +85,7 @@ router.get('/pending',
       const result = await getTotemService().getAllTotems({
         page: parseInt(page as string) || 1,
         limit: parseInt(limit as string) || 10,
-        status: 'offline'
+        status: 'pending_approval'
       });
       // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
       return res.json({
