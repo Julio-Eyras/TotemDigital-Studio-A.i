@@ -361,6 +361,19 @@ router.get('/validate',
       if (!totem) {
         await logDebug(`[${transactionId}] UIN não encontrado`, { uin, transactionId });
         
+        // Logar erro no debug
+        dispatcherDebugService.logMessage('outgoing', {
+          totemId: null,
+          uin: uin as string,
+          endpoint: '/api/player/validate',
+          method: 'GET',
+          response: {
+            success: false,
+            error: 'Totem não encontrado'
+          },
+          error: `Nenhum totem encontrado com UIN: ${uin}`,
+        });
+        
         await playerDebugService.logTransaction({
           transactionId,
           uin: uin as string,
@@ -617,6 +630,19 @@ router.get('/validate',
     } catch (error: any) {
       await logError(`[${transactionId}] Erro ao validar totem`, error, { uin: req.query.uin as string, transactionId });
       
+      // Logar erro no debug
+      dispatcherDebugService.logMessage('outgoing', {
+        totemId: null,
+        uin: (req.query.uin as string) || 'unknown',
+        endpoint: '/api/player/validate',
+        method: 'GET',
+        response: {
+          success: false,
+          error: 'Erro interno do servidor'
+        },
+        error: error.message || 'Erro desconhecido',
+      });
+      
       await playerDebugService.logTransaction({
         transactionId,
         uin: req.query.uin as string,
@@ -632,7 +658,7 @@ router.get('/validate',
         duration: Date.now() - startTime
       });
       
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor', details: error.message });
     }
   }
 );
@@ -1144,6 +1170,22 @@ router.post('/register',
   body('hardware.arch').optional().isString(),
   body('hardware.hardwareHash').optional().isString(),
   async (req: Request, res: Response) => {
+    // Logar mensagem recebida no debug
+    dispatcherDebugService.logMessage('incoming', {
+      totemId: null,
+      uin: req.body?.uin || 'unknown',
+      endpoint: '/api/player/register',
+      method: 'POST',
+      request: {
+        uin: req.body?.uin,
+        hardware: req.body?.hardware ? {
+          macAddress: req.body.hardware.macAddress ? 'PRESENTE' : 'AUSENTE',
+          hostname: req.body.hardware.hostname || null,
+          platform: req.body.hardware.platform || null,
+          hardwareHash: req.body.hardware.hardwareHash ? 'PRESENTE' : 'AUSENTE'
+        } : null
+      },
+    });
     const requestId = `REG-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     const startTime = Date.now();
     
@@ -1184,6 +1226,20 @@ router.post('/register',
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         await logError(`[${requestId}] Erros de validação`, new Error('Validação falhou'), { errors: errors.array(), requestId });
+        
+        // Logar erro no debug
+        dispatcherDebugService.logMessage('outgoing', {
+          totemId: null,
+          uin: req.body?.uin || 'unknown',
+          endpoint: '/api/player/register',
+          method: 'POST',
+          response: {
+            success: false,
+            error: 'Parâmetros inválidos'
+          },
+          error: `Validação falhou: ${JSON.stringify(errors.array())}`,
+        });
+        
         return res.status(400).json({ 
           error: 'Parâmetros inválidos', 
           details: errors.array(),

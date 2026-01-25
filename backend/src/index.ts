@@ -375,6 +375,19 @@ app.get('/api/docs.json', (_req, res) => {
 
 // Player routes (sem autenticação)
 import playerValidationRoutes from './routes/player';
+import path from 'path';
+
+// Servir arquivos estáticos do player (js/, css/, etc.)
+const playerDir = config.player.dir || '/opt/smart-signage/player-web';
+app.use('/player', express.static(playerDir, {
+  index: false, // Não servir index.html automaticamente
+  setHeaders: (res, filePath) => {
+    // Definir Content-Type correto para arquivos JavaScript
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
 
 // Servir player com suporte a UIN como parâmetro
 app.get('/player', (_req, res) => {
