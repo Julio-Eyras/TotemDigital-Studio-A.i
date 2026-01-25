@@ -275,13 +275,86 @@
                 }
             }
 
+            async function requestApprovalViaHeartbeat(uin, hardware) {
+                try {
+                    // Enviar heartbeat solicitando aprovação (sem token válido)
+                    const r = await fetch(API_BASE + '/api/player/heartbeat?uin=' + encodeURIComponent(uin) + '&token=REQUEST_APPROVAL', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            requestApproval: true,
+                            hardware: {
+                                macAddress: hardware.macAddress || null,
+                                hostname: hardware.hostname || null,
+                                platform: hardware.platform || null,
+                                arch: hardware.arch || null,
+                                hardwareHash: hardware.hardwareHash || null,
+                                userAgent: hardware.userAgent || navigator.userAgent
+                            },
+                            status: 'pending_approval'
+                        })
+                    });
+                    if (!r.ok) {
+                        const err = await r.json().catch(() => ({}));
+                        return { success: false, error: err.error || 'Erro ao solicitar aprovação' };
+                    }
+                    const data = await r.json();
+                    return { 
+                        success: true, 
+                        uin: data.uin || uin,
+                        status: data.status || 'pending_approval',
+                        configGenerated: data.configGenerated || false
+                    };
+                } catch (e) {
+                    return { success: false, error: (e && e.message) || 'Erro ao solicitar aprovação' };
+                }
+            }
+
             async function main() {
                 var uin = getUin();
-                if (!uin) uin = await loadUinFromConfig();
+                var configLoaded = false;
+                
+                // 1. Tentar carregar UIN do config.json.enc
                 if (!uin) {
-                    var reg = await autoRegister();
-                    if (reg.success && reg.uin) uin = reg.uin;
+                    uin = await loadUinFromConfig();
+                    if (uin) {
+                        configLoaded = true;
+                        console.log('[Bootstrap] UIN carregado de config.json.enc:', uin);
+                    }
                 }
+                
+                // 2. Se não tem config.json.enc, solicitar aprovação via heartbeat
+                if (!uin || !uin.trim()) {
+                    console.log('[Bootstrap] Config.json.enc não encontrado, solicitando aprovação via heartbeat...');
+                    var hw = await collectHardware();
+                    var generatedUin = await generateUIN(hw);
+                    
+                    // Tentar solicitar aprovação via heartbeat
+                    var approvalRequest = await requestApprovalViaHeartbeat(generatedUin, hw);
+                    if (approvalRequest.success && approvalRequest.uin) {
+                        uin = approvalRequest.uin;
+                        if (typeof localStorage !== 'undefined') localStorage.setItem('totemUIN', uin);
+                        console.log('[Bootstrap] Aprovação solicitada via heartbeat, UIN:', uin);
+                        
+                        // Se config foi gerado, reiniciar para carregar
+                        if (approvalRequest.configGenerated) {
+                            console.log('[Bootstrap] Config.json.enc gerado, reiniciando player...');
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 2000);
+                            showPending('Configuração gerada. Reiniciando player...');
+                            return;
+                        }
+                        
+                        showPending('Aguardando aprovação do administrador.');
+                        return;
+                    } else {
+                        // Fallback para auto-registro tradicional
+                        var reg = await autoRegister();
+                        if (reg.success && reg.uin) uin = reg.uin;
+                    }
+                }
+                
                 if (!uin || !uin.trim()) {
                     startDemo();
                     return;

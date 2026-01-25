@@ -19,6 +19,247 @@ const execAsync = promisify(exec);
 
 const router = express.Router();
 
+/**
+ * Processa solicitação de aprovação via heartbeat
+ * Detecta heartbeat de solicitação de aprovação, coleta informações e vincula hardware
+ */
+async function handleApprovalRequest(
+  req: Request,
+  res: Response,
+  uin: string,
+  hardware: any
+): Promise<Response> {
+  const requestId = `HB-APPROVAL-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const startTime = Date.now();
+
+  try {
+    await logDebug(`[${requestId}] Heartbeat de solicitação de aprovação recebido`, { 
+      uin, 
+      requestId,
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
+
+    const db = getDatabase();
+    const totemService = new TotemService();
+    const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
+
+    // VALIDAÇÃO CRÍTICA: UIN deve existir (pré-cadastrado pelo publisher)
+    const existingTotem = await totemService.getTotemByUin(uin);
+    if (!existingTotem) {
+      await logDebug(`[${requestId}] UIN não encontrado - totem deve ser pré-cadastrado`, { uin, requestId });
+      return res.status(404).json({ 
+        error: 'UIN não cadastrado',
+        uin: uin,
+        message: 'Este UIN não está cadastrado no sistema. O totem deve ser cadastrado pelo publisher antes de se conectar.',
+        suggestion: 'Entre em contato com o administrador para cadastrar este totem.',
+        requestId: requestId
+      });
+    }
+
+    await logDebug(`[${requestId}] UIN encontrado - totem pré-cadastrado`, { 
+      totemId: (existingTotem as any).id || (existingTotem as any).totem_id,
+      identifier: (existingTotem as any).identifier,
+      currentStatus: (existingTotem as any).status,
+      requestId 
+    });
+
+    // Verificar se hardware já está vinculado a OUTRO totem (prevenção de clonagem)
+    const hardwareHash = hardware?.hardwareHash || (hardware?.macAddress || '').toLowerCase();
+    const currentTotemId = (existingTotem as any).id || (existingTotem as any).totem_id;
+    
+    if (hardwareHash && hardwareHash !== 'unknown' && hardware?.macAddress) {
+      try {
+        const existingHardware = await db.findFirst(`
+          SELECT totem_id, uin, identifier 
+          FROM totems 
+          WHERE (config->'hardware'->>'mac' = ? 
+             OR config->'hardware'->>'hardwareHash' = ?)
+            AND totem_id != ?
+          LIMIT 1
+        `, [hardware.macAddress, hardwareHash, currentTotemId]);
+        
+        if (existingHardware) {
+          await logDebug(`[${requestId}] Hardware já vinculado a outro totem`, { existingHardware, requestId });
+          return res.status(409).json({ 
+            error: 'Hardware já vinculado',
+            message: 'Este hardware já está vinculado a outro totem',
+            existingTotem: {
+              id: existingHardware.totem_id,
+              uin: existingHardware.uin,
+              identifier: existingHardware.identifier
+            },
+            requestId: requestId
+          });
+        }
+      } catch (hardwareCheckError: any) {
+        await logError(`[${requestId}] Erro ao verificar hardware duplicado`, hardwareCheckError, { requestId });
+      }
+    }
+
+    // Obter dados do totem pré-cadastrado
+    const totemId = currentTotemId;
+    const existingConfig = (existingTotem as any).config || {};
+    const existingIdentifier = (existingTotem as any).identifier || hardware?.hostname || `TOTEM-${totemId}`;
+    const existingStatus = (existingTotem as any).status || 'pending_activation';
+
+    // Preparar configuração: preservar dados do publisher e adicionar hardware info
+    const config = {
+      ...existingConfig,
+      hardware: {
+        ...(existingConfig.hardware || {}),
+        mac: hardware?.macAddress || existingConfig.hardware?.mac || null,
+        hostname: hardware?.hostname || existingConfig.hardware?.hostname || null,
+        platform: hardware?.platform || existingConfig.hardware?.platform || null,
+        arch: hardware?.arch || existingConfig.hardware?.arch || null,
+        serial: hardware?.serial || existingConfig.hardware?.serial || null,
+        hardwareHash: hardware?.hardwareHash || existingConfig.hardware?.hardwareHash || null,
+        registeredAt: existingConfig.hardware?.registeredAt || new Date().toISOString(),
+        linkedAt: new Date().toISOString(),
+        userAgent: hardware?.userAgent || existingConfig.hardware?.userAgent || req.get('user-agent') || null
+      }
+    };
+
+    // Determinar novo status: se estava pending_activation, muda para pending_approval
+    const newStatus = existingStatus === 'pending_activation' ? 'pending_approval' : existingStatus;
+    
+    await logDebug(`[${requestId}] Atualizando totem pré-cadastrado com hardware info`, {
+      totemId,
+      identifier: existingIdentifier,
+      status: `${existingStatus} → ${newStatus}`,
+      requestId
+    });
+    
+    // ATUALIZAR totem existente (não criar novo)
+    await db.executeRaw(`
+      UPDATE totems SET
+        config = ?::jsonb,
+        ip_address = ?,
+        last_seen = CURRENT_TIMESTAMP,
+        last_heartbeat = CURRENT_TIMESTAMP,
+        status = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE uin = ?
+    `, [
+      JSON.stringify(config),
+      ipAddress,
+      newStatus,
+      uin
+    ]);
+
+    await logDebug(`[${requestId}] Totem atualizado com hardware vinculado`, { totemId, uin, requestId });
+
+    // Buscar totem atualizado
+    const updatedTotem = await totemService.getTotemByUin(uin);
+    if (!updatedTotem) {
+      await logError(`[${requestId}] Totem não encontrado após atualização`, new Error('Totem não encontrado'), { totemId, uin, requestId });
+      return res.status(500).json({ 
+        error: 'Erro ao vincular hardware',
+        message: 'Totem atualizado mas não encontrado após atualização',
+        requestId: requestId
+      });
+    }
+
+    // Gerar token de validação
+    const token = generateTotemToken(uin);
+    const duration = Date.now() - startTime;
+    const finalStatus = (updatedTotem as any).status || newStatus;
+
+    // Tentar gerar config.json.enc se totem estiver aprovado ou se for auto-aprovação
+    let configGenerated = false;
+    let encryptedConfigPath = null;
+
+    // Se status for 'online' ou se houver flag de auto-aprovação, gerar config
+    if (finalStatus === 'online' || req.body?.autoApprove === true) {
+      try {
+        const { config: envConfig } = require('../config/env');
+        const playerDir = envConfig.player?.dir || '/opt/smart-signage/player-web';
+        const path = require('path');
+        const scriptPath = process.env.GENERATE_CONFIG_SCRIPT || 
+                         path.join(__dirname, '../../scripts/generate-player-config.sh');
+        
+        await execAsync(`bash "${scriptPath}" "${uin}" "${playerDir}" "${TOTEM_SECRET_KEY}"`, {
+          timeout: 10000
+        });
+        
+        encryptedConfigPath = `${playerDir}/config.json.enc`;
+        configGenerated = true;
+        await logInfo(`[${requestId}] Config.json.enc gerado automaticamente`, { uin, path: encryptedConfigPath });
+      } catch (configError: any) {
+        await logWarn(`[${requestId}] Erro ao gerar config encriptado (continuando)`, { error: configError.message });
+      }
+    }
+
+    // Registrar evento
+    try {
+      const eventLogService = getEventLogService();
+      await eventLogService.logEvent({
+        eventType: EventType.SYSTEM_EVENT,
+        entityType: 'totem',
+        entityId: (updatedTotem as any).id || totemId,
+        totemId: (updatedTotem as any).id || totemId,
+        metadata: {
+          action: 'hardware_linked_via_heartbeat',
+          previousStatus: existingStatus,
+          newStatus: finalStatus,
+          ipAddress,
+          requestId,
+          hardware: {
+            mac: hardware?.macAddress,
+            hostname: hardware?.hostname,
+            platform: hardware?.platform,
+            arch: hardware?.arch
+          },
+          configGenerated
+        }
+      });
+    } catch (eventError: any) {
+      await logError(`[${requestId}] Erro ao registrar evento`, eventError, { totemId, requestId });
+    }
+
+    const responseData = {
+      success: true,
+      message: 'Hardware vinculado ao totem pré-cadastrado com sucesso via heartbeat.',
+      status: finalStatus,
+      uin: uin,
+      token: token,
+      configGenerated: configGenerated,
+      encryptedConfigPath: encryptedConfigPath || undefined,
+      totem: {
+        id: (updatedTotem as any).id || totemId,
+        uin: uin,
+        identifier: (updatedTotem as any).identifier || existingIdentifier,
+        status: finalStatus,
+        active: (updatedTotem as any).active !== false,
+        message: finalStatus === 'pending_approval' 
+          ? 'Aguardando aprovação do administrador para ativação'
+          : finalStatus === 'online'
+          ? 'Totem ativo e pronto para uso'
+          : 'Hardware vinculado com sucesso'
+      },
+      requestId: requestId,
+      duration: `${duration}ms`
+    };
+
+    await logDebug(`[${requestId}] Hardware vinculado via heartbeat com sucesso`, { 
+      duration, 
+      totemId,
+      status: finalStatus,
+      configGenerated,
+      requestId 
+    });
+
+    return res.json(responseData);
+  } catch (error: any) {
+    await logError(`[${requestId}] Erro ao processar solicitação de aprovação via heartbeat`, error, { uin, requestId });
+    return res.status(500).json({ 
+      error: 'Erro ao processar solicitação de aprovação',
+      message: error.message || 'Erro interno do servidor',
+      requestId: requestId
+    });
+  }
+}
+
 // Chave secreta para validação de totem (deve estar no .env em produção)
 const TOTEM_SECRET_KEY = process.env.TOTEM_SECRET_KEY || 'smart-signage-totem-secret-key-2025-change-in-production';
 
@@ -471,7 +712,12 @@ router.post('/heartbeat',
       }
 
       const { uin, token, deviceId } = req.query;
-      const { executedCommands, metrics, status, version, firmwareVersion, ipAddress: heartbeatIp, config } = req.body || {};
+      const { executedCommands, metrics, status, version, firmwareVersion, ipAddress: heartbeatIp, config, requestApproval, hardware } = req.body || {};
+
+      // Se for solicitação de aprovação, processar de forma especial
+      if (requestApproval === true && token === 'REQUEST_APPROVAL') {
+        return await handleApprovalRequest(req, res, uin as string, hardware);
+      }
 
       // Validar token HMAC (compatibilidade antiga)
       const validHmac = validateTotemToken(uin as string, token as string);
