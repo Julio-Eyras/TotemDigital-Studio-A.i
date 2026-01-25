@@ -378,25 +378,34 @@ import playerValidationRoutes from './routes/player';
 
 // Servir arquivos estáticos do player (js/, css/, etc.)
 // IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
-const playerDir = config.player.dir || '/opt/smart-signage/player-web';
-const playerDirCache = process.env.PLAYER_DIR_CACHE || playerDir; // Fallback para player-web-cache se necessário
+let playerDir = config.player.dir || '/opt/smart-signage/player-web';
 
-// Logar diretório do player para diagnóstico
-logInfoSync(`[Server] Servindo player de: ${playerDir}`);
-if (playerDirCache !== playerDir) {
-  logInfoSync(`[Server] Diretório alternativo (cache): ${playerDirCache}`);
-}
-
-// Verificar se diretório existe
+// Verificar se diretório existe, tentar alternativas
 if (!fs.existsSync(playerDir)) {
   logWarn(`[Server] Diretório do player não encontrado: ${playerDir}`);
-  // Tentar diretório alternativo
-  const altDir = path.join(process.cwd(), 'player-web-cache');
-  if (fs.existsSync(altDir)) {
-    logInfoSync(`[Server] Usando diretório alternativo encontrado: ${altDir}`);
-    // Não podemos mudar playerDir aqui, mas podemos servir de ambos
+  
+  // Tentar diretórios alternativos
+  const alternatives = [
+    '/opt/smart-signage/player-web-cache',
+    path.join(process.cwd(), 'player-web-cache'),
+    path.join(process.cwd(), 'player-web'),
+    process.env.PLAYER_DIR_CACHE || ''
+  ].filter(Boolean);
+  
+  for (const altDir of alternatives) {
+    if (altDir && fs.existsSync(altDir)) {
+      logInfoSync(`[Server] Usando diretório alternativo encontrado: ${altDir}`);
+      playerDir = altDir;
+      break;
+    }
+  }
+  
+  if (!fs.existsSync(playerDir)) {
+    logWarn(`[Server] Nenhum diretório do player encontrado. Arquivos estáticos podem não funcionar.`);
   }
 }
+
+logInfoSync(`[Server] Servindo player de: ${playerDir}`);
 
 // Servir arquivos estáticos do diretório player (js/, css/, etc.)
 // Usar express.static diretamente para servir todos os arquivos do diretório
@@ -412,7 +421,7 @@ app.use('/player', express.static(playerDir, {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
     }
   },
-  fallthrough: true // Continuar para próxima rota se arquivo não encontrado
+  fallthrough: false // Não continuar se arquivo não encontrado (retornar 404)
 }));
 
 // Servir player index.html com suporte a UIN como parâmetro
