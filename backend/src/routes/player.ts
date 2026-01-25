@@ -1249,7 +1249,16 @@ router.post('/register',
 
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        await logError(`[${requestId}] Erros de validação`, new Error('Validação falhou'), { errors: errors.array(), requestId });
+        const errorDetails = errors.array();
+        await logError(`[${requestId}] Erros de validação`, new Error('Validação falhou'), { 
+          errors: errorDetails, 
+          requestId,
+          body: {
+            uin: req.body?.uin,
+            hasHardware: !!req.body?.hardware,
+            hardwareKeys: req.body?.hardware ? Object.keys(req.body.hardware) : []
+          }
+        });
         
         // Logar erro no debug
         dispatcherDebugService.logMessage('outgoing', {
@@ -1261,12 +1270,17 @@ router.post('/register',
             success: false,
             error: 'Parâmetros inválidos'
           },
-          error: `Validação falhou: ${JSON.stringify(errors.array())}`,
+          error: `Validação falhou: ${JSON.stringify(errorDetails)}`,
         });
         
         return res.status(400).json({ 
           error: 'Parâmetros inválidos', 
-          details: errors.array(),
+          details: errorDetails,
+          received: {
+            uin: req.body?.uin,
+            hasHardware: !!req.body?.hardware,
+            hardwareType: typeof req.body?.hardware
+          },
           requestId: requestId
         });
       }
