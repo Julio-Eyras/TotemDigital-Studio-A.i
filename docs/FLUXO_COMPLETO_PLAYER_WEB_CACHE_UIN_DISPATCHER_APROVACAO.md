@@ -101,9 +101,13 @@ async function generateUIN(hw) {
 
 ---
 
-## 2. 📤 Auto-Registro no Servidor
+## 2. 📤 Vinculação de Hardware ao Totem Pré-cadastrado
 
-### **2.1 Envio de Registro**
+### **2.1 ⚠️ IMPORTANTE: Totem Já Deve Estar Cadastrado**
+
+**O totem NÃO é criado neste momento!** Ele já deve estar **pré-cadastrado** pelo publisher no sistema.
+
+### **2.2 Envio de Vinculação**
 
 **Localização:** `player-web-cache/index.html` (linha 145-174)
 
@@ -117,7 +121,7 @@ async function autoRegister(uin) {
         // 2. Gera UIN se não fornecido
         const u = uin || await generateUIN(hw);
         
-        // 3. Envia para servidor
+        // 3. Envia para servidor VINCULAR hardware ao totem
         const r = await fetch(API_BASE + '/api/player/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -136,16 +140,20 @@ async function autoRegister(uin) {
         // 4. Processa resposta
         if (!r.ok) {
             const err = await r.json().catch(() => ({}));
-            if (r.status === 409) {
-                // UIN já existe - OK, totem já registrado
-                return { success: true, uin: u, status: 'already_registered' };
+            if (r.status === 404) {
+                // UIN não cadastrado - totem deve ser pré-cadastrado
+                return { success: false, error: 'UIN não cadastrado. Totem deve ser pré-cadastrado pelo publisher.' };
             }
-            return { success: false, error: err.error || 'Erro ao registrar' };
+            if (r.status === 409) {
+                // Hardware já vinculado a outro totem
+                return { success: false, error: 'Hardware já vinculado a outro totem' };
+            }
+            return { success: false, error: err.error || 'Erro ao vincular hardware' };
         }
         
         const data = await r.json();
         
-        // 5. Armazena UIN localmente
+        // 5. Armazena UIN localmente (temporário, até aprovação)
         if (data.uin && typeof localStorage !== 'undefined') {
             localStorage.setItem('totemUIN', data.uin);
         }
@@ -153,23 +161,78 @@ async function autoRegister(uin) {
         return { 
             success: true, 
             uin: data.uin || u, 
+            token: data.token,  // Token HMAC gerado pelo servidor
             status: data.status || 'pending_approval' 
         };
     } catch (e) {
-        return { success: false, error: (e && e.message) || 'Erro ao registrar' };
+        return { success: false, error: (e && e.message) || 'Erro ao vincular hardware' };
     }
 }
 ```
 
 **Endpoint Backend:** `POST /api/player/register`
 
-**Localização Backend:** `backend/src/routes/player.ts` (linha 892-1150)
+**Localização Backend:** `backend/src/routes/player.ts` (linha 888-1211)
 
 **O que o servidor faz:**
-1. Valida UIN e hardware
-2. Cria totem no banco com `status: 'pending_approval'`
-3. Armazena hardware info no campo `config` (JSONB)
-4. Retorna UIN e status
+
+1. **Valida que UIN Existe (Pré-cadastrado):**
+   ```typescript
+   const existingTotem = await totemService.getTotemByUin(uin);
+   if (!existingTotem) {
+       return res.status(404).json({ 
+           error: 'UIN não cadastrado',
+           message: 'Este UIN não está cadastrado no sistema. O totem deve ser cadastrado pelo publisher antes de se conectar.'
+       });
+   }
+   ```
+   - Se UIN não existe → **Erro 404** (totem deve ser pré-cadastrado)
+   - Se existe → Continua
+
+2. **Verifica Hardware Duplicado:**
+   - Previne clonagem: verifica se hardware já está vinculado a outro totem
+   - Se sim → Erro 409
+
+3. **ATUALIZA Totem Existente (NÃO CRIA):**
+   ```sql
+   UPDATE totems SET
+       config = ?::jsonb,  -- Adiciona hardware info ao config existente
+       ip_address = ?,
+       last_seen = CURRENT_TIMESTAMP,
+       status = ?,  -- Se estava 'pending_activation' → 'pending_approval'
+       updated_at = CURRENT_TIMESTAMP
+   WHERE uin = ?
+   ```
+
+4. **Armazena Hardware Info no Campo `config`:**
+   ```json
+   {
+       "hardware": {
+           "mac": "aa:bb:cc:dd:ee:ff",
+           "hostname": "player-001",
+           "platform": "linux",
+           "arch": "x64",
+           "hardwareHash": "abc123...",
+           "linkedAt": "2025-01-23T18:51:00Z"  // Quando hardware foi vinculado
+       }
+   }
+   ```
+
+5. **Gera Token HMAC:**
+   ```typescript
+   const token = generateTotemToken(uin);
+   ```
+
+6. **Retorna:**
+   ```json
+   {
+       "success": true,
+       "uin": "SSP-3a8f9b2c1d4e5f6",
+       "token": "HMAC_TOKEN...",
+       "status": "pending_approval",
+       "message": "Hardware vinculado ao totem pré-cadastrado com sucesso"
+   }
+   ```
 
 ---
 
@@ -262,8 +325,8 @@ async getDispatchPlan(uin, token, deviceId, timestamp, timezone) {
 
 ### **4.1 Status do Totem**
 
-Após auto-registro, o totem fica com:
-- **Status:** `pending_approval`
+Após vinculação de hardware, o totem fica com:
+- **Status:** `pending_approval` (se estava `pending_activation`)
 - **is_active:** `false`
 - **Player mostra:** "Aguardando aprovação do administrador"
 
@@ -336,7 +399,7 @@ Após auto-registro, o totem fica com:
 
 ---
 
-### **4.4 Após Aprovação**
+### **4.4 Após Aprovação - Geração do Config Encriptado**
 
 **O que acontece:**
 
@@ -344,15 +407,98 @@ Após auto-registro, o totem fica com:
    - `pending_approval` → `online`
    - `is_active: false` → `is_active: true`
 
-2. **Player detecta mudança:**
-   - Na próxima validação (`/api/player/token`), recebe `valid: true`
-   - Player sai da tela "Aguardando aprovação"
-   - Player inicia reprodução normal
+2. **Se `generateEncryptedConfig = true`, servidor gera `config.json.enc`:**
+   - Executa script: `scripts/generate-player-config.sh`
+   - Script obtém MAC address do servidor
+   - Cria payload: `{UIN}:{MAC}:{TIMESTAMP}`
+   - Encripta com AES-256-CBC usando `TOTEM_SECRET_KEY`
+   - Salva em: `{PLAYER_DIR}/config.json.enc`
+   
+   **Arquivo gerado:**
+   ```json
+   {
+       "encrypted": true,
+       "version": "1.0",
+       "data": "U2FsdGVkX1+abc123...",  // UIN:MAC:TIMESTAMP encriptado
+       "mac": "aa:bb:cc:dd:ee:ff",
+       "created": "1737653460"
+   }
+   ```
 
-3. **Player começa a receber DispatchPlans:**
-   - Chama `/api/player/dispatch` periodicamente
-   - Recebe planos de exibição
-   - Reproduz mídias conforme plano
+3. **Player deve ser reiniciado:**
+   - Player reinicia (manual ou automático)
+   - Na próxima inicialização, carrega UIN de `config.json.enc`
+
+### **4.5 Player Reinicia e Carrega Config Encriptado**
+
+**Código (player-web-cache/index.html linha 98-115):**
+```javascript
+async function loadUinFromConfig() {
+    try {
+        // 1. Buscar arquivo config.json.enc (servido pelo Nginx como arquivo estático)
+        const r = await fetch('/player/config.json.enc');
+        if (!r.ok) return null;
+        
+        const cfg = await r.json();
+        if (!cfg.encrypted || !cfg.data) return null;
+        
+        // 2. Enviar para servidor desencriptar e validar
+        const dec = await fetch(API_BASE + '/api/player/decrypt-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                encryptedConfig: cfg, 
+                currentMac: null 
+            })
+        });
+        
+        if (!dec.ok) return null;
+        const d = await dec.json();
+        
+        // 3. Retorna UIN se válido
+        return (d.valid && d.uin) ? d.uin : null;
+    } catch (e) {
+        return null;
+    }
+}
+```
+
+**Endpoint Backend:** `POST /api/player/decrypt-config`
+
+**O que o servidor faz:**
+1. Desencripta payload usando `TOTEM_SECRET_KEY`
+2. Extrai: `{UIN}:{MAC}:{TIMESTAMP}`
+3. Valida MAC address (deve corresponder ao hardware atual)
+4. Verifica se totem existe e está ativo
+5. Retorna UIN se válido
+
+**Localização Backend:** `backend/src/routes/player.ts` (linha 738-850)
+
+### **4.6 Player Inicia Loop Normal**
+
+Após carregar UIN do `config.json.enc`:
+
+1. **Valida totem:**
+   - `GET /api/player/token?uin=...`
+   - Recebe token HMAC
+
+2. **Obtém DispatchPlan:**
+   - `GET /api/player/dispatch?uin=...&token=...`
+   - Recebe plano de exibição
+   - A cada 15 minutos
+
+3. **Envia Heartbeat:**
+   - `POST /api/player/heartbeat`
+   - A cada 30 segundos
+
+4. **Envia Eventos:**
+   - `POST /api/player/event`
+   - Eventos de playback, exibição, etc.
+
+5. **Reproduz mídias:**
+   - Conforme plano recebido
+   - Usa cache quando possível
+   - Fallback para streaming
 
 ---
 
@@ -446,7 +592,8 @@ Após auto-registro, o totem fica com:
 | Endpoint | Método | Descrição |
 |----------|--------|-----------|
 | `/api/player/hardware-info` | GET | Obtém MAC, hostname, platform, arch |
-| `/api/player/register` | POST | Auto-registro do totem |
+| `/api/player/register` | POST | Vincular hardware ao totem pré-cadastrado |
+| `/api/player/decrypt-config` | POST | Desencriptar e validar config.json.enc |
 | `/api/player/token` | GET | Valida totem e obtém token |
 | `/api/player/dispatch` | GET | Obtém plano de exibição do dispatcher |
 | `/api/player/heartbeat` | POST | Envia heartbeat e métricas |
@@ -470,7 +617,23 @@ Após auto-registro, o totem fica com:
 
 ## 7. ⚠️ Observações Importantes
 
-### **7.1 Não Existe Link Direto de Aprovação**
+### **7.1 Totem Deve Estar Pré-cadastrado**
+
+**⚠️ CRÍTICO:** O endpoint `/api/player/register` **NÃO cria** totem. Ele apenas **vincula hardware** a um totem que **já deve estar cadastrado** pelo publisher.
+
+**Fluxo correto:**
+1. Publisher cadastra totem no sistema (via interface admin)
+2. Totem recebe UIN atribuído
+3. Player gera UIN baseado em hardware
+4. Player chama `/api/player/register` com UIN e hardware
+5. Servidor **valida** que UIN existe e **atualiza** totem vinculando hardware
+
+**Se UIN não existe:**
+- Servidor retorna erro 404: "UIN não cadastrado"
+- Player mostra erro
+- Totem deve ser cadastrado primeiro pelo publisher
+
+### **7.2 Não Existe Link Direto de Aprovação**
 
 **Por que?**
 - Segurança: Aprovação requer autenticação de administrador
@@ -487,7 +650,7 @@ Mas **não está implementado** atualmente.
 
 ---
 
-### **7.2 Hardware Info no Browser**
+### **7.3 Hardware Info no Browser**
 
 **Limitações:**
 - Browser não pode acessar MAC address diretamente (segurança)
@@ -499,12 +662,26 @@ Mas **não está implementado** atualmente.
 - Retorna MAC, hostname, platform, arch
 - Player usa esses dados para gerar UIN
 
+### **7.4 Config.json.enc - Quando é Gerado**
+
+**Geração:**
+- **Quando:** Durante a aprovação, se `generateEncryptedConfig = true`
+- **Onde:** Servidor executa `scripts/generate-player-config.sh`
+- **Localização:** `{PLAYER_DIR}/config.json.enc` (ex: `/opt/smart-signage/player-web/config.json.enc`)
+- **Conteúdo:** UIN + MAC + TIMESTAMP encriptado com AES-256-CBC
+
+**Uso:**
+- Player busca `/player/config.json.enc` (arquivo estático servido pelo Nginx)
+- Player envia para `/api/player/decrypt-config` para desencriptar
+- Servidor valida MAC e retorna UIN
+- Player usa UIN para todas as requisições subsequentes
+
 ---
 
-### **7.3 Dispatcher e Cache**
+### **7.5 Dispatcher e Cache**
 
 **Como funciona:**
-1. Player chama `/api/player/dispatch` periodicamente
+1. Player chama `/api/player/dispatch` periodicamente (a cada 15 minutos)
 2. Dispatcher gera plano baseado em:
    - Campanhas ativas
    - Agendamentos
@@ -514,6 +691,17 @@ Mas **não está implementado** atualmente.
    - Baixa mídias para cache (IndexedDB)
    - Reproduz mídias do cache quando possível
    - Fallback para streaming se não estiver em cache
+
+### **7.6 Loop Normal do Player (Após Aprovação e Reinício)**
+
+**Sequência:**
+1. Player carrega UIN de `config.json.enc`
+2. Player valida: `GET /api/player/token?uin=...`
+3. Player obtém plano: `GET /api/player/dispatch?uin=...&token=...`
+4. Player reproduz mídias
+5. Player envia heartbeat: `POST /api/player/heartbeat` (a cada 30s)
+6. Player envia eventos: `POST /api/player/event` (playback, etc.)
+7. Repete passos 3-6 continuamente
 
 ---
 
@@ -566,11 +754,22 @@ Mas **não está implementado** atualmente.
 
 O fluxo completo funciona assim:
 
-1. **Player gera UIN** baseado em hardware
-2. **Player registra** no servidor (status: `pending_approval`)
-3. **Admin aprova** via interface (`/totems` → Aba "Pendentes")
-4. **Player detecta aprovação** e inicia reprodução
-5. **Player obtém DispatchPlan** periodicamente do dispatcher
-6. **Player reproduz** mídias conforme plano
+1. **Totem é pré-cadastrado** pelo publisher (já tem UIN atribuído)
+2. **Player gera UIN** baseado em hardware (deve corresponder ao UIN pré-cadastrado)
+3. **Player vincula hardware** ao totem pré-cadastrado via `/api/player/register` (status: `pending_approval`)
+4. **Admin aprova** via interface (`/totems` → Aba "Pendentes")
+5. **Servidor gera `config.json.enc`** (se solicitado) com UIN encriptado
+6. **Player reinicia** e carrega UIN de `config.json.enc`
+7. **Player inicia loop normal:**
+   - Valida totem → Obtém token
+   - Obtém DispatchPlan → Recebe plano de exibição
+   - Envia heartbeat → Mantém conexão
+   - Envia eventos → Registra playback
+   - Reproduz mídias → Conforme plano
 
-**Não existe link direto de aprovação** - tudo é feito via interface administrativa autenticada.
+**Pontos importantes:**
+- ⚠️ Totem **deve estar pré-cadastrado** antes do player se conectar
+- ⚠️ Servidor **valida e criptografa** UIN, não cria totem
+- ⚠️ `config.json.enc` é gerado **após aprovação** pelo servidor
+- ⚠️ Player **reinicia** para carregar `config.json.enc`
+- ⚠️ **Não existe link direto de aprovação** - tudo é feito via interface administrativa autenticada
