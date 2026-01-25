@@ -10,9 +10,49 @@ Este documento explica **todo o processo** do player-web-cache:
 
 ---
 
-## 1. 🆔 Geração do UIN (Unique Identifier Number)
+## 1. 🆔 Fluxo Inicial do Player
 
-### **1.1 Coleta de Hardware**
+### **1.1 Player Procura Config.json.enc**
+
+**Localização:** `player-web-cache/index.html` (linha 98-115)
+
+**Código:**
+```javascript
+async function loadUinFromConfig() {
+    try {
+        // 1. Buscar arquivo config.json.enc (servido pelo Nginx como arquivo estático)
+        const r = await fetch('/player/config.json.enc');
+        if (!r.ok) return null;
+        
+        const cfg = await r.json();
+        if (!cfg.encrypted || !cfg.data) return null;
+        
+        // 2. Enviar para servidor desencriptar e validar
+        const dec = await fetch(API_BASE + '/api/player/decrypt-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                encryptedConfig: cfg, 
+                currentMac: null 
+            })
+        });
+        
+        if (!dec.ok) return null;
+        const d = await dec.json();
+        
+        // 3. Retorna UIN se válido
+        return (d.valid && d.uin) ? d.uin : null;
+    } catch (e) {
+        return null;
+    }
+}
+```
+
+**Se config.json.enc não existir:**
+- Player não encontra arquivo
+- Player precisa solicitar aprovação via heartbeat
+
+### **1.2 Coleta de Hardware**
 
 **Localização:** `player-web-cache/index.html` (linha 117-130)
 
@@ -101,15 +141,66 @@ async function generateUIN(hw) {
 
 ---
 
-## 2. 📤 Vinculação de Hardware ao Totem Pré-cadastrado
+## 2. 📤 Solicitação de Aprovação via Heartbeat
 
-### **2.1 ⚠️ IMPORTANTE: Totem Já Deve Estar Cadastrado**
+### **2.1 Player Envia Heartbeat Solicitando Aprovação**
+
+**Quando:** Player não encontra `config.json.enc` e precisa solicitar aprovação
+
+**Fluxo:**
+1. Player tenta carregar `config.json.enc` → Não encontra
+2. Player coleta hardware (MAC, hostname, platform, etc.)
+3. Player gera UIN baseado em hardware
+4. Player envia **heartbeat solicitando aprovação** com todas as informações coletadas
+
+**Endpoint:** `POST /api/player/heartbeat`
+
+**Payload:**
+```json
+{
+  "uin": "SSP-3a8f9b2c1d4e5f6",
+  "token": "TEMPORARY_TOKEN_OU_VAZIO",
+  "requestApproval": true,
+  "hardware": {
+    "macAddress": "aa:bb:cc:dd:ee:ff",
+    "hostname": "player-001",
+    "platform": "linux",
+    "arch": "x64",
+    "hardwareHash": "abc123...",
+    "userAgent": "Mozilla/5.0..."
+  },
+  "status": "pending_approval"
+}
+```
+
+### **2.2 Dispatcher Detecta Heartbeat de Solicitação de Aprovação**
+
+**O que o dispatcher faz:**
+1. **Detecta** que é um heartbeat de solicitação de aprovação (`requestApproval: true`)
+2. **Coleta todas as informações** do heartbeat:
+   - Hardware info (MAC, hostname, platform, etc.)
+   - UIN gerado pelo player
+   - IP address
+   - User agent
+   - Métricas (se disponíveis)
+3. **Toma decisão necessária:**
+   - Valida se totem está pré-cadastrado
+   - Confere informações recebidas com o cadastro
+   - Se válido, vincula hardware ao totem
+   - Gera `config.json.enc` se necessário
+   - Atualiza status do totem
+
+## 3. 📤 Vinculação de Hardware ao Totem Pré-cadastrado
+
+### **3.1 ⚠️ IMPORTANTE: Totem Já Deve Estar Cadastrado**
 
 **O totem NÃO é criado neste momento!** Ele já deve estar **pré-cadastrado** pelo publisher no sistema.
 
-### **2.2 Envio de Vinculação**
+### **3.2 Envio de Vinculação (Alternativa ao Heartbeat)**
 
 **Localização:** `player-web-cache/index.html` (linha 145-174)
+
+**Nota:** Este é um método alternativo. O método principal é via heartbeat solicitando aprovação.
 
 **Código:**
 ```javascript
@@ -170,9 +261,13 @@ async function autoRegister(uin) {
 }
 ```
 
-**Endpoint Backend:** `POST /api/player/register`
+**Endpoint Backend:** `POST /api/player/register` (alternativo)
 
-**Localização Backend:** `backend/src/routes/player.ts` (linha 888-1211)
+**Endpoint Principal:** `POST /api/player/heartbeat` com `requestApproval: true`
+
+**Localização Backend:** 
+- Heartbeat: `backend/src/routes/player.ts` (linha 462-577)
+- Register: `backend/src/routes/player.ts` (linha 888-1211)
 
 **O que o servidor faz:**
 
@@ -236,7 +331,7 @@ async function autoRegister(uin) {
 
 ---
 
-## 3. 🔄 Comunicação com Dispatcher
+## 4. 🔄 Comunicação com Dispatcher
 
 ### **3.1 Obtenção do DispatchPlan**
 
@@ -502,7 +597,7 @@ Após carregar UIN do `config.json.enc`:
 
 ---
 
-## 5. 🔍 Fluxo Completo Visual
+## 6. 🔍 Fluxo Completo Visual
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -585,7 +680,7 @@ Após carregar UIN do `config.json.enc`:
 
 ---
 
-## 6. 📝 Resumo das URLs e Endpoints
+## 7. 📝 Resumo das URLs e Endpoints
 
 ### **Player → Servidor:**
 
@@ -755,21 +850,30 @@ Mas **não está implementado** atualmente.
 O fluxo completo funciona assim:
 
 1. **Totem é pré-cadastrado** pelo publisher (já tem UIN atribuído)
-2. **Player gera UIN** baseado em hardware (deve corresponder ao UIN pré-cadastrado)
-3. **Player vincula hardware** ao totem pré-cadastrado via `/api/player/register` (status: `pending_approval`)
-4. **Admin aprova** via interface (`/totems` → Aba "Pendentes")
-5. **Servidor gera `config.json.enc`** (se solicitado) com UIN encriptado
-6. **Player reinicia** e carrega UIN de `config.json.enc`
-7. **Player inicia loop normal:**
-   - Valida totem → Obtém token
-   - Obtém DispatchPlan → Recebe plano de exibição
-   - Envia heartbeat → Mantém conexão
-   - Envia eventos → Registra playback
-   - Reproduz mídias → Conforme plano
+2. **Player procura config.json.enc** → Se não encontrar, envia heartbeat solicitando aprovação
+3. **Player coleta hardware** (MAC, hostname, platform, etc.) e gera UIN baseado em hardware
+4. **Player envia heartbeat** com `requestApproval: true` e todas as informações coletadas
+5. **Dispatcher detecta heartbeat** de solicitação de aprovação e coleta todas as informações
+6. **Servidor valida e vincula hardware** ao totem pré-cadastrado:
+   - Confere informações recebidas com o cadastro
+   - Se válido, vincula hardware ao totem
+   - Gera `config.json.enc` (se necessário)
+   - Status: `pending_approval`
+7. **Admin aprova** via interface (`/totems` → Aba "Pendentes")
+8. **Servidor gera `config.json.enc`** (se solicitado) com UIN encriptado
+9. **Player recebe e reinicia** para carregar `config.json.enc`
+10. **Player inicia loop normal:**
+    - Carrega UIN de `config.json.enc`
+    - Valida totem → Obtém token
+    - Obtém DispatchPlan → Recebe plano de exibição
+    - Envia heartbeat → Mantém conexão
+    - Envia eventos → Registra playback
+    - Reproduz mídias → Conforme plano
 
 **Pontos importantes:**
-- ⚠️ Totem **deve estar pré-cadastrado** antes do player se conectar
-- ⚠️ Servidor **valida e criptografa** UIN, não cria totem
-- ⚠️ `config.json.enc` é gerado **após aprovação** pelo servidor
-- ⚠️ Player **reinicia** para carregar `config.json.enc`
-- ⚠️ **Não existe link direto de aprovação** - tudo é feito via interface administrativa autenticada
+- ⚠️ **Player procura config.json.enc** conforme definido. Se não tiver, envia heartbeat solicitando aprovação
+- ⚠️ **Dispatcher detecta heartbeat** e toma decisão necessária. Se for heartbeat de solicitação de aprovação, coleta todas as informações antes
+- ⚠️ **Totem estará pré-cadastrado** antes do player se conectar
+- ⚠️ **Servidor valida e vincula hardware** (não cria totem), confere as informações recebidas com o cadastro e, caso válido, gera `config.json.enc`
+- ⚠️ **Player recebe e reinicia** para carregar `config.json.enc`
+- ⚠️ **Não existe link direto de aprovação** - apenas via interface admin
