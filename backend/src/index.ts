@@ -858,7 +858,7 @@ async function startServer() {
         if (error.code === 'EADDRINUSE') {
           logWarn(`[Player Server] Porta ${config.player.port} já está em uso. Player será servido na porta do backend.`);
         } else {
-          await logError('[Player Server] Erro ao iniciar servidor do player', error);
+          logError('[Player Server] Erro ao iniciar servidor do player', error).catch(() => {});
         }
       });
 
