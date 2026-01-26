@@ -134,9 +134,45 @@
     <script src="js/app.js"></script>
     <script>
         (function() {
-            const API_BASE = window.location.origin;
             const debugPanel = document.getElementById('debug-panel');
             let debugEnabled = false;
+
+            // Configuração do servidor (Opção 2: URL Parameters)
+            function getServerConfig() {
+                const params = new URLSearchParams(window.location.search);
+                const serverFromUrl = params.get('server') || params.get('api') || params.get('apiBase');
+                
+                // Prioridade 1: Parâmetro na URL
+                if (serverFromUrl) {
+                    const serverUrl = serverFromUrl.replace(/\/$/, ''); // Remove trailing slash
+                    // Salvar em localStorage para próximas vezes
+                    try {
+                        localStorage.setItem('smartsignage_server_url', serverUrl);
+                        console.log('[Config] Servidor configurado via URL:', serverUrl);
+                    } catch (e) {
+                        console.warn('[Config] Erro ao salvar config:', e);
+                    }
+                    return serverUrl;
+                }
+                
+                // Prioridade 2: Configuração salva (localStorage)
+                try {
+                    const savedServer = localStorage.getItem('smartsignage_server_url');
+                    if (savedServer) {
+                        console.log('[Config] Usando servidor salvo:', savedServer);
+                        return savedServer;
+                    }
+                } catch (e) {
+                    console.warn('[Config] Erro ao ler config salva:', e);
+                }
+                
+                // Prioridade 3: Fallback (window.location.origin)
+                const fallback = window.location.origin;
+                console.log('[Config] Usando fallback (window.location.origin):', fallback);
+                return fallback;
+            }
+
+            const API_BASE = getServerConfig();
 
             function toggleDebug() {
                 debugEnabled = !debugEnabled;

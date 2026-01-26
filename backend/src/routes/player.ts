@@ -456,50 +456,70 @@ router.get('/validate',
       }
 
       // Determinar o ID numérico do totem para consultas relacionadas
-      const totemId = (totemFull && (totemFull as any)?.totem_id) || (totem as any)?.id || (totem as any)?.totem_id || (totem as any)?.totem_id;
+      const totemId = (totemFull && (totemFull as any)?.totem_id) || (totem as any)?.id || (totem as any)?.totem_id;
+      
+      if (!totemId) {
+        await logError(`[${transactionId}] Não foi possível determinar totem_id`, new Error('totem_id não encontrado'), { uin, transactionId, totem: !!totem, totemFull: !!totemFull });
+        return res.status(500).json({ 
+          error: 'Erro interno do servidor',
+          details: 'Não foi possível determinar ID do totem'
+        });
+      }
 
       // OBS (schema v2): colunas blocked/blocked_until não existem no schema atual.
 
       // Buscar comandos remotos pendentes
-      const pendingCommands = await db.findMany(`
-        SELECT 
-          rc.request_id,
-          rc.command_type,
-          rc.command_data,
-          rc.priority,
-          rc.created_at,
-          rc.status
-        FROM remote_commands rc
-        WHERE rc.totem_id = ? 
-          AND rc.status = 'pending'
-        ORDER BY rc.priority DESC, rc.created_at ASC
-        LIMIT 10
-      `, [totemFull?.totem_id || (totem as any).id]);
+      let pendingCommands = [];
+      try {
+        pendingCommands = await db.findMany(`
+          SELECT 
+            rc.request_id,
+            rc.command_type,
+            rc.command_data,
+            rc.priority,
+            rc.created_at,
+            rc.status
+          FROM remote_commands rc
+          WHERE rc.totem_id = ? 
+            AND rc.status = 'pending'
+          ORDER BY rc.priority DESC, rc.created_at ASC
+          LIMIT 10
+        `, [totemId]);
+      } catch (cmdError: any) {
+        await logError(`[${transactionId}] Erro ao buscar comandos remotos`, cmdError, { totemId, transactionId });
+        // Continuar mesmo se houver erro ao buscar comandos
+      }
 
       // Buscar playlist ativa do totem através de campanha
-      const activePlaylist = await db.findFirst(`
-        SELECT 
-          p.playlist_id,
-          p.name,
-          p.description,
-          p.config,
-          ct.campaign_id,
-          c.title as campaign_title,
-          ct.start_date as schedule_start,
-          ct.end_date as schedule_end
-        FROM playlists p
-        INNER JOIN campaign_playlists cp ON p.playlist_id = cp.playlist_id
-        INNER JOIN campaign_totems ct ON cp.campaign_id = ct.campaign_id
-        INNER JOIN campaigns c ON ct.campaign_id = c.campaign_id
-        WHERE ct.totem_id = ?
-          AND c.is_active = true
-          AND c.status = 'active'
-          AND p.is_active = true
-          AND (ct.start_date IS NULL OR ct.start_date <= CURRENT_TIMESTAMP)
-          AND (ct.end_date IS NULL OR ct.end_date >= CURRENT_TIMESTAMP)
-        ORDER BY c.priority DESC, ct.start_date DESC
-        LIMIT 1
-      `, [totemId]);
+      let activePlaylist = null;
+      try {
+        activePlaylist = await db.findFirst(`
+          SELECT 
+            p.playlist_id,
+            p.name,
+            p.description,
+            p.config,
+            ct.campaign_id,
+            c.title as campaign_title,
+            ct.start_date as schedule_start,
+            ct.end_date as schedule_end
+          FROM playlists p
+          INNER JOIN campaign_playlists cp ON p.playlist_id = cp.playlist_id
+          INNER JOIN campaign_totems ct ON cp.campaign_id = ct.campaign_id
+          INNER JOIN campaigns c ON ct.campaign_id = c.campaign_id
+          WHERE ct.totem_id = ?
+            AND c.is_active = true
+            AND c.status = 'active'
+            AND p.is_active = true
+            AND (ct.start_date IS NULL OR ct.start_date <= CURRENT_TIMESTAMP)
+            AND (ct.end_date IS NULL OR ct.end_date >= CURRENT_TIMESTAMP)
+          ORDER BY c.priority DESC, ct.start_date DESC
+          LIMIT 1
+        `, [totemId]);
+      } catch (playlistError: any) {
+        await logError(`[${transactionId}] Erro ao buscar playlist ativa`, playlistError, { totemId, transactionId });
+        // Continuar mesmo se houver erro ao buscar playlist
+      }
 
       // Se não tiver playlist via campanha, buscar playlist direta do totem
       let playlist = activePlaylist;
