@@ -1304,7 +1304,7 @@ router.post('/register',
       }
 
       const { uin, hardware } = req.body;
-      await logDebug(`[${requestId}] Validação passou`, { uin, requestId });
+      await logDebug(`[${requestId}] Validação passou`, { uin, hasHardware: !!hardware, requestId });
       
       const db = getDatabase();
       const totemService = new TotemService();
@@ -1331,7 +1331,8 @@ router.post('/register',
       });
 
       // Verificar se hardware já está vinculado a OUTRO totem (prevenção de clonagem)
-      const hardwareHash = hardware.hardwareHash || (hardware.macAddress || '').toLowerCase();
+      // hardware pode ser undefined, então precisamos verificar antes de acessar propriedades
+      const hardwareHash = hardware?.hardwareHash || (hardware?.macAddress || '').toLowerCase();
       const currentTotemId = (existingTotem as any).id || (existingTotem as any).totem_id;
       
       await logDebug(`[${requestId}] Verificando se hardware está vinculado a outro totem`, { 
@@ -1340,7 +1341,7 @@ router.post('/register',
         requestId 
       });
       
-      if (hardwareHash && hardwareHash !== 'unknown' && hardware.macAddress) {
+      if (hardwareHash && hardwareHash !== 'unknown' && hardware?.macAddress) {
         try {
           // Buscar totem que já tem este hardware vinculado (exceto o atual)
           const existingHardware = await db.findFirst(`
@@ -1350,7 +1351,7 @@ router.post('/register',
                OR config->'hardware'->>'hardwareHash' = ?)
               AND totem_id != ?
             LIMIT 1
-          `, [hardware.macAddress, hardwareHash, currentTotemId]);
+          `, [hardware?.macAddress || '', hardwareHash, currentTotemId]);
           
           if (existingHardware) {
             await logDebug(`[${requestId}] Hardware já vinculado a outro totem`, { existingHardware, requestId });
@@ -1377,7 +1378,7 @@ router.post('/register',
       // Obter dados do totem pré-cadastrado
       const totemId = currentTotemId;
       const existingConfig = (existingTotem as any).config || {};
-      const existingIdentifier = (existingTotem as any).identifier || hardware.hostname || `TOTEM-${totemId}`;
+      const existingIdentifier = (existingTotem as any).identifier || hardware?.hostname || `TOTEM-${totemId}`;
       const existingStatus = (existingTotem as any).status || 'pending_activation';
       const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
       
