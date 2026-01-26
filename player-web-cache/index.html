@@ -3,439 +3,250 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Signage Player - Cache</title>
+    <title>Smart Signage Player - Debug/Desenvolvimento</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #000; color: #fff; overflow: hidden;
-            width: 100vw; height: 100vh; position: fixed; top: 0; left: 0;
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #0f0;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
         }
-        #loading {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh; background: #000;
+        #debug-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #1a1a1a;
+            color: #0f0;
+            padding: 20px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.6;
         }
-        .spinner {
-            border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #fff;
-            border-radius: 50%; width: 50px; height: 50px;
-            animation: spin 1s linear infinite; margin-bottom: 20px;
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #0f0;
+            padding-left: 10px;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        #error {
-            display: none; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh; background: #000; color: #ff4444; text-align: center; padding: 20px;
+        .log-request { border-color: #00f; color: #00f; }
+        .log-response { border-color: #0f0; color: #0f0; }
+        .log-error { border-color: #f00; color: #f00; }
+        .log-info { border-color: #ff0; color: #ff0; }
+        .timestamp { color: #666; font-size: 10px; }
+        pre { margin: 5px 0; white-space: pre-wrap; word-wrap: break-word; }
+        #status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border: 1px solid #0f0;
+            border-radius: 4px;
+            min-width: 200px;
         }
-        #player-container {
-            display: none; width: 100vw; height: 100vh; position: relative;
-        }
-        #player-container video, #player-container img, #player-container iframe {
-            width: 100%; height: 100%; object-fit: contain;
-        }
-        .cache-info {
-            position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7);
-            padding: 8px 12px; border-radius: 4px; font-size: 12px; z-index: 1000;
-        }
+        #status.error { border-color: #f00; }
+        #status.warning { border-color: #ff0; }
     </style>
 </head>
 <body>
-    <div id="loading"><div class="spinner"></div><p>Carregando player com cache...</p></div>
-    <div id="error">
-        <h2>Erro ao Carregar Player</h2>
-        <p id="error-message"></p>
-        <p style="margin-top:20px;font-size:14px;color:#888;">Use ?uin=SEU_UIN na URL ou configure o totem.</p>
-    </div>
-    <div id="player-container">
-        <div class="cache-info" id="cache-info" style="display:none;">Cache: <span id="cache-size">0 MB</span></div>
-    </div>
+    <div id="status">Status: Inicializando...</div>
+    <div id="debug-panel"></div>
 
-    <!-- Carregar scripts na ordem correta -->
-    <script src="js/cache/MediaCacheManager.js"></script>
-    <script src="js/cache/PlaylistChangeDetector.js"></script>
-    <script src="js/api/client.js"></script>
-    <script src="js/app.js"></script>
     <script>
-        (function () {
+        (function() {
             const API_BASE = window.location.origin;
+            const debugPanel = document.getElementById('debug-panel');
+            const statusEl = document.getElementById('status');
+            
+            let uin = null;
+            let token = null;
+            let heartbeatInterval = null;
+            let dispatchInterval = null;
+
+            function log(type, message, data = null) {
+                const timestamp = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = `log-entry log-${type}`;
+                
+                let content = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+                if (data) {
+                    content += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                }
+                
+                entry.innerHTML = content;
+                debugPanel.appendChild(entry);
+                debugPanel.scrollTop = debugPanel.scrollHeight;
+                
+                // Também logar no console
+                console.log(`[${type.toUpperCase()}]`, message, data || '');
+            }
+
+            function updateStatus(message, type = 'info') {
+                statusEl.textContent = `Status: ${message}`;
+                statusEl.className = type;
+            }
 
             function getUin() {
-                const q = new URLSearchParams(window.location.search);
-                return q.get('uin') || q.get('UIN') || (typeof localStorage !== 'undefined' && localStorage.getItem('totemUIN')) || '';
+                const params = new URLSearchParams(window.location.search);
+                return params.get('uin') || params.get('UIN') || '';
             }
 
-            function showError(msg) {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('player-container').style.display = 'none';
-                const el = document.getElementById('error');
-                el.style.display = 'flex';
-                const m = document.getElementById('error-message');
-                if (m) m.textContent = msg || 'Erro desconhecido';
-            }
-
-            function hideLoadingShowPlayer() {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'none';
-                document.getElementById('player-container').style.display = 'block';
-            }
-
-            function showPending(message) {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('player-container').style.display = 'none';
-                const el = document.getElementById('error');
-                el.style.display = 'flex';
-                el.style.color = '#2196f3';
-                el.innerHTML = '<h2>Aguardando Aprovação</h2><p style="margin-top:20px;">' + (message || 'Totem aguardando aprovação do administrador.') + '</p>';
-            }
-
-            function showBlocked(reason) {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('player-container').style.display = 'none';
-                const el = document.getElementById('error');
-                el.style.display = 'flex';
-                el.style.color = '#ffcc00';
-                el.innerHTML = '<h2>Totem Bloqueado</h2><p style="margin-top:20px;">' + (reason || 'Acesso bloqueado.') + '</p>';
-            }
-
-            async function loadUinFromConfig() {
+            async function request(url, options = {}) {
+                const startTime = Date.now();
+                log('request', `→ ${options.method || 'GET'} ${url}`, options.body ? JSON.parse(options.body) : null);
+                
                 try {
-                    const r = await fetch('/player/config.json.enc');
-                    if (!r.ok) return null;
-                    const cfg = await r.json();
-                    if (!cfg.encrypted || !cfg.data) return null;
-                    const dec = await fetch(API_BASE + '/api/player/decrypt-config', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ encryptedConfig: cfg, currentMac: null })
+                    const response = await fetch(url, {
+                        ...options,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...options.headers
+                        }
                     });
-                    if (!dec.ok) return null;
-                    const d = await dec.json();
-                    return (d.valid && d.uin) ? d.uin : null;
-                } catch (e) {
+                    
+                    const duration = Date.now() - startTime;
+                    const data = await response.json().catch(() => ({}));
+                    
+                    log('response', `← ${response.status} ${response.statusText} (${duration}ms)`, data);
+                    
+                    return { ok: response.ok, status: response.status, data };
+                } catch (error) {
+                    log('error', `✗ Erro na requisição: ${error.message}`, error);
+                    return { ok: false, error: error.message };
+                }
+            }
+
+            async function getToken() {
+                log('info', 'Obtendo token...');
+                const result = await request(`${API_BASE}/api/player/token?uin=${encodeURIComponent(uin)}`);
+                
+                if (result.ok && result.data.token) {
+                    token = result.data.token;
+                    log('info', `Token obtido: ${token.substring(0, 20)}...`);
+                    return true;
+                }
+                return false;
+            }
+
+            async function validateTotem() {
+                log('info', 'Validando totem...');
+                const result = await request(
+                    `${API_BASE}/api/player/validate?uin=${encodeURIComponent(uin)}&token=${encodeURIComponent(token)}`
+                );
+                
+                if (result.ok && result.data.valid) {
+                    log('info', 'Totem válido e ativo');
+                    return true;
+                } else {
+                    log('error', `Totem inválido: ${result.data.error || result.data.reason || 'Erro desconhecido'}`);
+                    if (result.data.pendingApproval) {
+                        updateStatus('Aguardando aprovação', 'warning');
+                    } else if (result.data.blocked) {
+                        updateStatus('Totem bloqueado', 'error');
+                    }
+                    return false;
+                }
+            }
+
+            async function getDispatchPlan() {
+                log('info', 'Solicitando dispatch plan...');
+                const result = await request(
+                    `${API_BASE}/api/player/dispatch?uin=${encodeURIComponent(uin)}&token=${encodeURIComponent(token)}`
+                );
+                
+                if (result.ok && result.data.plan) {
+                    const plan = result.data.plan;
+                    log('info', `Dispatch plan recebido: ${plan.mediaItems?.length || 0} itens`);
+                    log('info', `Playlist ID: ${plan.playlistId}, Campaign ID: ${plan.campaignId || 'N/A'}`);
+                    return plan;
+                } else {
+                    log('error', `Erro ao obter dispatch plan: ${result.data.error || 'Erro desconhecido'}`);
                     return null;
                 }
             }
 
-            async function collectHardware() {
-                try {
-                    const r = await fetch(API_BASE + '/api/player/hardware-info');
-                    let h = r.ok ? await r.json() : {};
-                    if (!h.userAgent) h = { userAgent: navigator.userAgent, platform: navigator.platform, timestamp: Date.now() };
-                    const str = JSON.stringify(h);
-                    const buf = new TextEncoder().encode(str);
-                    const hash = await crypto.subtle.digest('SHA-256', buf);
-                    const hex = Array.from(new Uint8Array(hash)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-                    return { ...h, hardwareHash: hex };
-                } catch (e) {
-                    return { userAgent: navigator.userAgent, platform: navigator.platform, timestamp: Date.now() };
-                }
-            }
-
-            async function generateUIN(hw) {
-                const s = JSON.stringify({
-                    mac: hw.macAddress || hw.mac || 'unknown',
-                    hostname: hw.hostname || 'unknown',
-                    platform: hw.platform || 'unknown',
-                    hash: hw.hardwareHash || 'unknown'
-                });
-                const buf = new TextEncoder().encode(s);
-                const hash = await crypto.subtle.digest('SHA-256', buf);
-                const hex = Array.from(new Uint8Array(hash)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-                return 'SSP-' + hex.substring(0, 16);
-            }
-
-            async function autoRegister(uin) {
-                try {
-                    const hw = await collectHardware();
-                    const u = uin || await generateUIN(hw);
-                    const r = await fetch(API_BASE + '/api/player/register', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            uin: u,
-                            hardware: {
-                                macAddress: hw.macAddress || null,
-                                hostname: hw.hostname || null,
-                                platform: hw.platform || null,
-                                hardwareHash: hw.hardwareHash || null,
-                                userAgent: hw.userAgent || navigator.userAgent
-                            }
-                        })
-                    });
-                    if (!r.ok) {
-                        const err = await r.json().catch(function () { return {}; });
-                        if (r.status === 409) return { success: true, uin: u, status: 'already_registered' };
-                        return { success: false, error: err.error || 'Erro ao registrar' };
-                    }
-                    const data = await r.json();
-                    if (data.uin && typeof localStorage !== 'undefined') localStorage.setItem('totemUIN', data.uin);
-                    return { success: true, uin: data.uin || u, status: data.status || 'pending_approval' };
-                } catch (e) {
-                    return { success: false, error: (e && e.message) || 'Erro ao registrar' };
-                }
-            }
-
-            async function validateTotem(uin) {
-                try {
-                    const tr = await fetch(API_BASE + '/api/player/token?uin=' + encodeURIComponent(uin));
-                    if (!tr.ok) return { valid: false, pendingApproval: false, blocked: false, error: 'Token falhou' };
-                    const td = await tr.json();
-                    const token = td.token;
-                    if (!token) return { valid: false, pendingApproval: false, blocked: false, error: 'Token vazio' };
-
-                    const vr = await fetch(API_BASE + '/api/player/validate?uin=' + encodeURIComponent(uin) + '&token=' + encodeURIComponent(token));
-                    if (!vr.ok) {
-                        const vd = await vr.json().catch(function () { return {}; });
-                        return {
-                            valid: false,
-                            pendingApproval: !!vd.pendingApproval,
-                            blocked: !!vd.blocked,
-                            reason: vd.reason || vd.error,
-                            message: vd.message
-                        };
-                    }
-                    const vd = await vr.json();
-                    if (vd.pending_approval || vd.pendingApproval) {
-                        return { valid: false, pendingApproval: true, blocked: false, message: vd.message || 'Aguardando aprovação' };
-                    }
-                    if (vd.blocked) {
-                        return { valid: false, pendingApproval: false, blocked: true, reason: vd.reason || vd.error };
-                    }
-                    return { valid: true, pendingApproval: false, blocked: false };
-                } catch (e) {
-                    return { valid: false, pendingApproval: false, blocked: false, error: (e && e.message) || 'Erro ao validar' };
-                }
-            }
-
-            function demoVinhet() {
-                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                svg.setAttribute('viewBox', '0 0 1920 1080');
-                svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%';
-                const g = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-                const lg = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-                lg.setAttribute('id', 'g1'); lg.setAttribute('x1', '0%'); lg.setAttribute('y1', '0%'); lg.setAttribute('x2', '100%'); lg.setAttribute('y2', '100%');
-                ['0%', '100%'].forEach(function (o, i) {
-                    var s = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-                    s.setAttribute('offset', o); s.setAttribute('stop-color', i ? '#283593' : '#1a237e');
-                    lg.appendChild(s);
-                });
-                g.appendChild(lg); svg.appendChild(g);
-                var r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                r.setAttribute('width', '100%'); r.setAttribute('height', '100%'); r.setAttribute('fill', 'url(#g1)');
-                svg.appendChild(r);
-                var t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                t.setAttribute('x', '50%'); t.setAttribute('y', '45%'); t.setAttribute('text-anchor', 'middle');
-                t.setAttribute('font-size', '120'); t.setAttribute('fill', '#fff');
-                t.textContent = 'Smart Signage Pro';
-                svg.appendChild(t);
-                var st = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                st.setAttribute('x', '50%'); st.setAttribute('y', '55%'); st.setAttribute('text-anchor', 'middle');
-                st.setAttribute('font-size', '48'); st.setAttribute('fill', '#90caf9');
-                st.textContent = 'Modo Demonstração — ?uin=SEU_UIN';
-                svg.appendChild(st);
-                return svg;
-            }
-
-            function startDemo() {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'none';
-                var c = document.getElementById('player-container');
-                c.style.display = 'block';
-                c.innerHTML = '';
-                var el = demoVinhet();
-                c.appendChild(el);
-                setInterval(function () {
-                    c.innerHTML = '';
-                    c.appendChild(demoVinhet());
-                }, 10000);
-            }
-
-            function exitKiosk() {
-                fetch(API_BASE + '/api/player/exit-kiosk', {
+            async function sendHeartbeat() {
+                log('info', 'Enviando heartbeat...');
+                const result = await request(`${API_BASE}/api/player/heartbeat?uin=${encodeURIComponent(uin)}&token=${encodeURIComponent(token)}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ uin: getUin(), token: null })
-                }).catch(function () {});
-                setTimeout(function () {
-                    try { if (window.close) window.close(); } catch (e) {}
-                }, 500);
-            }
-
-            async function updateCacheInfo(player) {
-                if (!player || !player.mediaCacheManager) return;
-                try {
-                    const size = await player.mediaCacheManager.getCacheSize();
-                    const sizeMB = (size / (1024 * 1024)).toFixed(2);
-                    const infoEl = document.getElementById('cache-info');
-                    const sizeEl = document.getElementById('cache-size');
-                    if (infoEl && sizeEl) {
-                        sizeEl.textContent = sizeMB + ' MB';
-                        infoEl.style.display = 'block';
-                    }
-                } catch (e) {
-                    console.warn('[Bootstrap] Erro ao atualizar info de cache:', e);
-                }
-            }
-
-            async function requestApprovalViaHeartbeat(uin, hardware) {
-                try {
-                    // Enviar heartbeat solicitando aprovação (sem token válido)
-                    const r = await fetch(API_BASE + '/api/player/heartbeat?uin=' + encodeURIComponent(uin) + '&token=REQUEST_APPROVAL', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            requestApproval: true,
-                            hardware: {
-                                macAddress: hardware.macAddress || null,
-                                hostname: hardware.hostname || null,
-                                platform: hardware.platform || null,
-                                arch: hardware.arch || null,
-                                hardwareHash: hardware.hardwareHash || null,
-                                userAgent: hardware.userAgent || navigator.userAgent
-                            },
-                            status: 'pending_approval'
-                        })
-                    });
-                    if (!r.ok) {
-                        const err = await r.json().catch(() => ({}));
-                        return { success: false, error: err.error || 'Erro ao solicitar aprovação' };
-                    }
-                    const data = await r.json();
-                    return { 
-                        success: true, 
-                        uin: data.uin || uin,
-                        status: data.status || 'pending_approval',
-                        configGenerated: data.configGenerated || false
-                    };
-                } catch (e) {
-                    return { success: false, error: (e && e.message) || 'Erro ao solicitar aprovação' };
-                }
-            }
-
-            async function main() {
-                var uin = getUin();
-                var configLoaded = false;
-                
-                // 1. Tentar carregar UIN do config.json.enc
-                if (!uin) {
-                    uin = await loadUinFromConfig();
-                    if (uin) {
-                        configLoaded = true;
-                        console.log('[Bootstrap] UIN carregado de config.json.enc:', uin);
-                    }
-                }
-                
-                // 2. Se não tem config.json.enc, solicitar aprovação via heartbeat
-                if (!uin || !uin.trim()) {
-                    console.log('[Bootstrap] Config.json.enc não encontrado, solicitando aprovação via heartbeat...');
-                    var hw = await collectHardware();
-                    var generatedUin = await generateUIN(hw);
-                    
-                    // Tentar solicitar aprovação via heartbeat
-                    var approvalRequest = await requestApprovalViaHeartbeat(generatedUin, hw);
-                    if (approvalRequest.success && approvalRequest.uin) {
-                        uin = approvalRequest.uin;
-                        if (typeof localStorage !== 'undefined') localStorage.setItem('totemUIN', uin);
-                        console.log('[Bootstrap] Aprovação solicitada via heartbeat, UIN:', uin);
-                        
-                        // Se config foi gerado, reiniciar para carregar
-                        if (approvalRequest.configGenerated) {
-                            console.log('[Bootstrap] Config.json.enc gerado, reiniciando player...');
-                            setTimeout(() => {
-                                window.location.reload();
-                            }, 2000);
-                            showPending('Configuração gerada. Reiniciando player...');
-                            return;
-                        }
-                        
-                        showPending('Aguardando aprovação do administrador.');
-                        return;
-                    } else {
-                        // Fallback para auto-registro tradicional
-                        var reg = await autoRegister();
-                        if (reg.success && reg.uin) uin = reg.uin;
-                    }
-                }
-                
-                if (!uin || !uin.trim()) {
-                    startDemo();
-                    return;
-                }
-                if (typeof localStorage !== 'undefined') localStorage.setItem('totemUIN', uin);
-
-                var v = await validateTotem(uin);
-                if (v.pendingApproval) {
-                    showPending(v.message || 'Aguardando aprovação do administrador.');
-                    return;
-                }
-                if (v.blocked) {
-                    showBlocked(v.reason || 'Totem bloqueado.');
-                    return;
-                }
-                if (!v.valid && !v.blocked && !v.pendingApproval) {
-                    var reg = await autoRegister(uin);
-                    if (reg.success && reg.uin) {
-                        uin = reg.uin;
-                        if (typeof localStorage !== 'undefined') localStorage.setItem('totemUIN', uin);
-                        v = await validateTotem(uin);
-                        if (v.pendingApproval) {
-                            showPending(v.message || 'Totem registrado. Aguardando aprovação.');
-                            return;
-                        }
-                        if (v.blocked) {
-                            showBlocked(v.reason || 'Totem bloqueado.');
-                            return;
-                        }
-                    }
-                }
-                if (!v.valid) {
-                    startDemo();
-                    return;
-                }
-
-                hideLoadingShowPlayer();
-                window.API_BASE_URL = API_BASE;
-                window.TOTEM_UIN = uin;
-                window.TOTEM_SECRET = '';
-
-                var player = new window.SmartSignagePlayer({
-                    apiBaseURL: API_BASE,
-                    totemUIN: uin,
-                    totemSecret: '',
-                    maxCacheSize: 500 * 1024 * 1024 // 500MB
+                    body: JSON.stringify({
+                        status: 'online',
+                        timestamp: Date.now()
+                    })
                 });
                 
-                try {
-                    await player.init();
-                    
-                    // Atualizar info de cache periodicamente
-                    setInterval(() => updateCacheInfo(player), 10000);
-                    updateCacheInfo(player);
-                    
-                    await player.playNext();
-                } catch (err) {
-                    console.error('[Player] Erro:', err);
-                    showError('Erro ao iniciar player: ' + (err && err.message));
+                if (result.ok) {
+                    log('info', 'Heartbeat enviado com sucesso');
+                    if (result.data.commands && result.data.commands.length > 0) {
+                        log('info', `Comandos recebidos: ${result.data.commands.length}`, result.data.commands);
+                    }
+                } else {
+                    log('error', `Erro no heartbeat: ${result.data.error || 'Erro desconhecido'}`);
                 }
             }
 
-            window.addEventListener('contextmenu', function (e) {
-                e.preventDefault();
-                window._rcCount = (window._rcCount || 0) + 1;
-                clearTimeout(window._rcTimer);
-                window._rcTimer = setTimeout(function () { window._rcCount = 0; }, 2000);
-                if (window._rcCount >= 5) {
-                    window._rcCount = 0;
-                    var pin = prompt('Digite o PIN (4 dígitos):');
-                    if (pin === '1950') {
-                        alert('PIN correto. Saindo do player...');
-                        exitKiosk();
-                    } else if (pin !== null) alert('PIN incorreto.');
+            async function init() {
+                log('info', '=== Smart Signage Player - Debug Mode ===');
+                log('info', `API Base: ${API_BASE}`);
+                
+                // 1. Obter UIN do parâmetro
+                uin = getUin();
+                if (!uin) {
+                    updateStatus('UIN não fornecido', 'error');
+                    log('error', 'UIN não fornecido na URL. Use: ?uin=SEU_UIN');
+                    return;
                 }
-            });
+                
+                log('info', `UIN: ${uin}`);
+                updateStatus(`UIN: ${uin}`, 'info');
+                
+                // 2. Obter token
+                if (!await getToken()) {
+                    updateStatus('Erro ao obter token', 'error');
+                    return;
+                }
+                
+                // 3. Validar totem
+                if (!await validateTotem()) {
+                    return;
+                }
+                
+                updateStatus('Totem válido - Iniciando debug...', 'info');
+                
+                // 4. Obter dispatch plan inicial
+                await getDispatchPlan();
+                
+                // 5. Iniciar heartbeat periódico (a cada 30s)
+                heartbeatInterval = setInterval(() => {
+                    sendHeartbeat();
+                }, 30000);
+                
+                // 6. Atualizar dispatch plan periodicamente (a cada 5min)
+                dispatchInterval = setInterval(async () => {
+                    await getDispatchPlan();
+                }, 300000);
+                
+                // Enviar primeiro heartbeat
+                setTimeout(() => sendHeartbeat(), 2000);
+                
+                log('info', '=== Player de debug iniciado ===');
+                log('info', '- Heartbeat a cada 30s');
+                log('info', '- Atualização de dispatch a cada 5min');
+            }
 
+            // Inicializar quando a página carregar
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', main);
+                document.addEventListener('DOMContentLoaded', init);
             } else {
-                main();
+                init();
             }
         })();
     </script>
