@@ -785,9 +785,14 @@ async function startServer() {
         port: PORT,
         environment: config.server.nodeEnv
       });
+      
+      const playerUrl = config.player.port 
+        ? `http://${HOST}:${config.player.port}` 
+        : `http://${HOST}:${PORT}/player`;
+      
       logInfoSync('Servidor rodando', {
         server: `http://${HOST}:${PORT}`,
-        player: `http://${HOST}:${PORT}/player`,
+        player: playerUrl,
         admin: `http://${HOST}:${PORT}/admin`,
         apiDocs: `http://${HOST}:${PORT}/api-docs`,
         health: `http://${HOST}:${PORT}/health`,
@@ -798,9 +803,68 @@ async function startServer() {
         redis: config.redis.enabled ? 'Conectado' : 'Desabilitado',
         bullQueue: config.redis.enabled ? 'Ativo' : 'Desabilitado',
         websocket: 'Ativo',
-        aiProvider: process.env.AI_PROVIDER || 'ollama'
+        aiProvider: process.env.AI_PROVIDER || 'ollama',
+        playerPort: config.player.port ? `Separada (${config.player.port})` : 'Mesma do backend'
       });
     });
+
+    // Se PLAYER_PORT estiver definido, criar servidor Express separado para o player
+    if (config.player.port && config.player.port > 0) {
+      const playerApp = express();
+      
+      // CORS básico para o player
+      playerApp.use(cors({
+        origin: '*', // Player pode ser acessado de qualquer origem
+        credentials: false
+      }));
+
+      // Servir arquivos estáticos do player
+      playerApp.use('/', express.static(playerDir, {
+        index: false,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+          } else if (filePath.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css; charset=utf-8');
+          } else if (filePath.endsWith('.json')) {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          }
+        },
+        fallthrough: false,
+        dotfiles: 'ignore'
+      }));
+
+      // Servir index.html do player
+      playerApp.get('/', (_req, res) => {
+        const playerPath = config.player.path;
+        if (fs.existsSync(playerPath)) {
+          res.sendFile(playerPath);
+        } else {
+          logWarn(`[Player Server] Arquivo index.html não encontrado: ${playerPath}`);
+          res.status(404).json({ error: 'Player não encontrado' });
+        }
+      });
+
+      // Iniciar servidor do player na porta separada
+      const playerServer = playerApp.listen(config.player.port, HOST, () => {
+        logInfoSync(`[Player Server] Servidor do player iniciado na porta ${config.player.port}`, {
+          port: config.player.port,
+          host: HOST,
+          url: `http://${HOST}:${config.player.port}`
+        });
+      });
+
+      playerServer.on('error', (error: any) => {
+        if (error.code === 'EADDRINUSE') {
+          logWarn(`[Player Server] Porta ${config.player.port} já está em uso. Player será servido na porta do backend.`);
+        } else {
+          await logError('[Player Server] Erro ao iniciar servidor do player', error);
+        }
+      });
+
+      // Salvar referência para graceful shutdown
+      (global as any).playerServer = playerServer;
+    }
     
   } catch (error: any) {
     await logError('Erro ao iniciar servidor', error);
