@@ -115,6 +115,7 @@
     <div id="loading">
         <div class="spinner"></div>
         <p>Carregando player (modo debug)...</p>
+        <p style="margin-top:10px;font-size:12px;color:#888;">Use ?uin=SEU_UIN&server=http://IP:PORTA para configurar servidor</p>
     </div>
     <div id="error">
         <h2>Erro ao Carregar Player</h2>
@@ -303,17 +304,30 @@
 
             async function main() {
                 log('info', '=== Smart Signage Player - Debug Mode ===');
-                log('info', `API Base: ${API_BASE}`);
+                log('info', `Servidor configurado: ${API_BASE}`);
+                console.log('[Player] Servidor:', API_BASE);
+                
+                // Mostrar info de configuração na tela
+                const loadingEl = document.getElementById('loading');
+                if (loadingEl) {
+                    const infoP = document.createElement('p');
+                    infoP.style.marginTop = '10px';
+                    infoP.style.fontSize = '12px';
+                    infoP.style.color = '#888';
+                    infoP.textContent = `Servidor: ${API_BASE}`;
+                    loadingEl.appendChild(infoP);
+                }
                 
                 // 1. Obter UIN do parâmetro
                 const uin = getUin();
                 if (!uin) {
-                    showError('UIN não fornecido na URL. Use: ?uin=SEU_UIN');
+                    showError('UIN não fornecido na URL. Use: ?uin=SEU_UIN&server=http://IP:PORTA');
                     log('error', 'UIN não fornecido na URL');
                     return;
                 }
                 
                 log('info', `UIN: ${uin}`);
+                console.log('[Player] UIN:', uin);
                 
                 // 2. Validar totem (simplificado - apenas verificar se existe e está ativo)
                 const validation = await validateTotem(uin);
