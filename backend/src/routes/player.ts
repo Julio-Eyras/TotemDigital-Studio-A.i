@@ -728,13 +728,38 @@ router.get('/token',
   query('platform').optional().isString().isLength({ min: 1, max: 100 }),
   query('appVersion').optional().isString().isLength({ min: 1, max: 100 }),
   async (req: Request, res: Response) => {
+    const startTime = Date.now();
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        dispatcherDebugService.logMessage('outgoing', {
+          totemId: undefined,
+          uin: (req.query.uin as string) || 'unknown',
+          endpoint: '/api/player/token',
+          method: 'GET',
+          response: { success: false, error: 'UIN inválido' },
+          error: 'Validação falhou',
+          duration: Date.now() - startTime
+        });
         return res.status(400).json({ error: 'UIN inválido', details: errors.array() });
       }
 
       const { uin, deviceId, platform, appVersion } = req.query;
+      
+      // Logar requisição de token
+      dispatcherDebugService.logMessage('incoming', {
+        totemId: undefined,
+        uin: uin as string,
+        endpoint: '/api/player/token',
+        method: 'GET',
+        request: {
+          uin,
+          deviceId,
+          platform,
+          appVersion
+        },
+      });
+      
       const hmacToken = generateTotemToken(uin as string);
 
       // Registrar também em device_tokens para telemetria e controle fino
@@ -764,12 +789,36 @@ router.get('/token',
         });
       }
 
-      return res.json({
+      const response = {
         token: hmacToken,
         expiresIn: 3600, // 1 hora
+      };
+
+      // Logar resposta do token
+      dispatcherDebugService.logMessage('outgoing', {
+        totemId: undefined,
+        uin: uin as string,
+        endpoint: '/api/player/token',
+        method: 'GET',
+        response: {
+          success: true,
+          expiresIn: 3600
+        },
+        duration: Date.now() - startTime
       });
+
+      return res.json(response);
     } catch (error: any) {
       await logError('Erro ao gerar token', error);
+      dispatcherDebugService.logMessage('outgoing', {
+        totemId: undefined,
+        uin: (req.query.uin as string) || 'unknown',
+        endpoint: '/api/player/token',
+        method: 'GET',
+        response: { success: false, error: 'Erro interno' },
+        error: error.message || 'Erro interno do servidor',
+        duration: Date.now() - startTime
+      });
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -791,8 +840,26 @@ router.post('/heartbeat',
         return res.status(400).json({ error: 'Parâmetros inválidos', details: errors.array() });
       }
 
+      const startTime = Date.now();
       const { uin, token, deviceId } = req.query;
-      const { executedCommands, metrics, status, version, firmwareVersion, ipAddress: heartbeatIp, config, requestApproval, hardware } = req.body || {};
+      const { executedCommands, metrics, status, version, firmwareVersion, ipAddress: heartbeatIp, config, requestApproval, hardware, platform } = req.body || {};
+
+      // Logar heartbeat recebido
+      dispatcherDebugService.logMessage('incoming', {
+        totemId: undefined, // Será preenchido depois
+        uin: uin as string,
+        endpoint: '/api/player/heartbeat',
+        method: 'POST',
+        request: {
+          uin,
+          deviceId,
+          status,
+          version,
+          platform,
+          metrics: metrics ? Object.keys(metrics) : [],
+          executedCommandsCount: executedCommands?.length || 0
+        },
+      });
 
       // Se for solicitação de aprovação, processar de forma especial
       if (requestApproval === true && token === 'REQUEST_APPROVAL') {
@@ -815,6 +882,15 @@ router.post('/heartbeat',
       );
 
       if (!validHmac && !validDeviceToken) {
+        dispatcherDebugService.logMessage('outgoing', {
+          totemId: undefined,
+          uin: uin as string,
+          endpoint: '/api/player/heartbeat',
+          method: 'POST',
+          response: { success: false, error: 'Token inválido' },
+          error: 'Token inválido ou expirado',
+          duration: Date.now() - startTime
+        });
         return res.status(401).json({ error: 'Token inválido ou expirado' });
       }
 
@@ -822,6 +898,15 @@ router.post('/heartbeat',
       const totem = await totemService.getTotemByUin(uin as string);
 
       if (!totem || !totem.active) {
+        dispatcherDebugService.logMessage('outgoing', {
+          totemId: undefined,
+          uin: uin as string,
+          endpoint: '/api/player/heartbeat',
+          method: 'POST',
+          response: { success: false, error: 'Totem não encontrado' },
+          error: 'Totem não encontrado ou inativo',
+          duration: Date.now() - startTime
+        });
         return res.status(404).json({ error: 'Totem não encontrado ou inativo' });
       }
 
@@ -886,7 +971,7 @@ router.post('/heartbeat',
         });
       }
 
-      return res.json({
+      const response = {
         success: true,
         token: newToken,
         pendingCommands: pendingCommands.map((cmd: any) => ({
@@ -895,9 +980,33 @@ router.post('/heartbeat',
           data: cmd.command_data,
           priority: cmd.priority
         }))
+      };
+
+      // Logar resposta do heartbeat
+      dispatcherDebugService.logMessage('outgoing', {
+        totemId,
+        uin: uin as string,
+        endpoint: '/api/player/heartbeat',
+        method: 'POST',
+        response: {
+          success: true,
+          pendingCommandsCount: pendingCommands.length
+        },
+        duration: Date.now() - startTime
       });
+
+      return res.json(response);
     } catch (error: any) {
       await logError('Erro ao processar heartbeat', error);
+      dispatcherDebugService.logMessage('outgoing', {
+        totemId: undefined,
+        uin: (req.query.uin as string) || 'unknown',
+        endpoint: '/api/player/heartbeat',
+        method: 'POST',
+        response: { success: false, error: 'Erro interno' },
+        error: error.message || 'Erro interno do servidor',
+        duration: Date.now() - (req as any).startTime || 0
+      });
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -1641,18 +1750,53 @@ router.post('/event',
   body('completed').optional().isBoolean(),
   body('metadata').optional().isObject(),
   async (req: Request, res: Response) => {
+    const startTime = Date.now();
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        dispatcherDebugService.logMessage('outgoing', {
+          totemId: undefined,
+          uin: (req.query.uin as string) || 'unknown',
+          endpoint: '/api/player/event',
+          method: 'POST',
+          response: { success: false, error: 'Dados inválidos' },
+          error: 'Validação falhou',
+          duration: Date.now() - startTime
+        });
         return res.status(400).json({ error: 'Dados inválidos', details: errors.array() });
       }
 
       const { uin, token } = req.query;
       const { eventType, mediaId, playlistId, campaignId, duration, completed, metadata } = req.body;
 
+      // Logar evento recebido
+      dispatcherDebugService.logMessage('incoming', {
+        totemId: undefined, // Será preenchido depois
+        uin: uin as string,
+        endpoint: '/api/player/event',
+        method: 'POST',
+        request: {
+          eventType,
+          mediaId,
+          playlistId,
+          campaignId,
+          duration,
+          completed
+        },
+      });
+
       // Validar token se fornecido
       if (token && typeof token === 'string') {
         if (!validateTotemToken(uin as string, token)) {
+          dispatcherDebugService.logMessage('outgoing', {
+            totemId: undefined,
+            uin: uin as string,
+            endpoint: '/api/player/event',
+            method: 'POST',
+            response: { success: false, error: 'Token inválido' },
+            error: 'Token inválido ou expirado',
+            duration: Date.now() - startTime
+          });
           return res.status(401).json({ error: 'Token inválido ou expirado' });
         }
       }
@@ -1664,10 +1808,25 @@ router.post('/event',
       `, [uin]);
 
       if (!totem) {
+        dispatcherDebugService.logMessage('outgoing', {
+          totemId: undefined,
+          uin: uin as string,
+          endpoint: '/api/player/event',
+          method: 'POST',
+          response: { success: false, error: 'Totem não encontrado' },
+          error: 'Totem não encontrado',
+          duration: Date.now() - startTime
+        });
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
 
       const totemId = totem.totem_id;
+      
+      // Atualizar totemId no log de entrada
+      const incomingLog = dispatcherDebugService.getMessages({ limit: 1, uin: uin as string })[0];
+      if (incomingLog && incomingLog.id) {
+        // Não podemos atualizar diretamente, mas o próximo log terá o totemId correto
+      }
 
       // Registrar evento usando EventLogService
       const eventLogService = getEventLogService();
@@ -1797,17 +1956,44 @@ router.post('/event',
         campaignId
       });
 
-      return res.json({
+      const response = {
         success: true,
         eventId,
         message: 'Evento registrado com sucesso'
+      };
+
+      // Logar resposta do evento
+      dispatcherDebugService.logMessage('outgoing', {
+        totemId,
+        uin: uin as string,
+        endpoint: '/api/player/event',
+        method: 'POST',
+        response: {
+          success: true,
+          eventId,
+          eventType
+        },
+        duration: Date.now() - startTime
       });
+
+      return res.json(response);
 
     } catch (error: any) {
       await logError('Erro ao registrar evento do player', error, {
         uin: req.query.uin,
         eventType: req.body.eventType
       });
+      
+      dispatcherDebugService.logMessage('outgoing', {
+        totemId: undefined,
+        uin: (req.query.uin as string) || 'unknown',
+        endpoint: '/api/player/event',
+        method: 'POST',
+        response: { success: false, error: 'Erro interno' },
+        error: error.message || 'Erro interno do servidor',
+        duration: Date.now() - startTime
+      });
+      
       return res.status(500).json({ 
         error: 'Erro interno do servidor',
         message: error.message

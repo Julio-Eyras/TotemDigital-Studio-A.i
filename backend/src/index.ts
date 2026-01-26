@@ -419,6 +419,26 @@ if (foundDir) {
 
 logInfoSync(`[Server] Servindo player de: ${playerDir}`);
 
+// Verificar se arquivos JS existem
+const jsDir = path.join(playerDir, 'js');
+const jsApiDir = path.join(playerDir, 'js', 'api');
+const jsCacheDir = path.join(playerDir, 'js', 'cache');
+if (fs.existsSync(jsDir)) {
+  logInfoSync(`[Server] Diretório js/ encontrado: ${jsDir}`);
+  if (fs.existsSync(jsApiDir)) {
+    logInfoSync(`[Server] Diretório js/api/ encontrado: ${jsApiDir}`);
+  } else {
+    logWarn(`[Server] Diretório js/api/ NÃO encontrado: ${jsApiDir}`);
+  }
+  if (fs.existsSync(jsCacheDir)) {
+    logInfoSync(`[Server] Diretório js/cache/ encontrado: ${jsCacheDir}`);
+  } else {
+    logWarn(`[Server] Diretório js/cache/ NÃO encontrado: ${jsCacheDir}`);
+  }
+} else {
+  logWarn(`[Server] Diretório js/ NÃO encontrado: ${jsDir}`);
+}
+
 // Servir arquivos estáticos do diretório player (js/, css/, etc.)
 // Usar express.static diretamente para servir todos os arquivos do diretório
 app.use('/player', express.static(playerDir, {
@@ -433,7 +453,8 @@ app.use('/player', express.static(playerDir, {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
     }
   },
-  fallthrough: false // Não continuar se arquivo não encontrado (retornar 404)
+  fallthrough: false, // Não continuar se arquivo não encontrado (retornar 404)
+  dotfiles: 'ignore' // Ignorar arquivos ocultos
 }));
 
 // Servir player index.html com suporte a UIN como parâmetro
