@@ -1196,8 +1196,8 @@ router.get('/hardware-info', async (_req: Request, res: Response) => {
  * @access Public (para players na primeira instalação)
  */
 router.post('/register',
-  body('uin').isString().isLength({ min: 3, max: 100 }),
-  body('hardware').isObject().withMessage('hardware deve ser um objeto'),
+  body('uin').isString().isLength({ min: 3, max: 100 }).withMessage('UIN deve ser uma string entre 3 e 100 caracteres'),
+  body('hardware').optional().isObject().withMessage('hardware deve ser um objeto (opcional)'),
   body('hardware.macAddress').optional().isString(),
   body('hardware.hostname').optional().isString(),
   body('hardware.platform').optional().isString(),
@@ -1286,11 +1286,18 @@ router.post('/register',
         
         return res.status(400).json({ 
           error: 'Parâmetros inválidos', 
-          details: errorDetails,
+          details: errorDetails.map((e: any) => ({
+            field: e.path || e.param,
+            message: e.msg,
+            value: e.value
+          })),
           received: {
             uin: req.body?.uin,
+            uinType: typeof req.body?.uin,
             hasHardware: !!req.body?.hardware,
-            hardwareType: typeof req.body?.hardware
+            hardwareType: typeof req.body?.hardware,
+            hardwareKeys: req.body?.hardware ? Object.keys(req.body.hardware) : [],
+            bodyKeys: Object.keys(req.body || {})
           },
           requestId: requestId
         });
