@@ -1821,12 +1821,6 @@ router.post('/event',
       }
 
       const totemId = totem.totem_id;
-      
-      // Atualizar totemId no log de entrada
-      const incomingLog = dispatcherDebugService.getMessages({ limit: 1, uin: uin as string })[0];
-      if (incomingLog && incomingLog.id) {
-        // Não podemos atualizar diretamente, mas o próximo log terá o totemId correto
-      }
 
       // Registrar evento usando EventLogService
       const eventLogService = getEventLogService();
