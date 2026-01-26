@@ -1394,15 +1394,15 @@ router.post('/register',
         ...existingConfig,  // Preservar dados do publisher (resolution, orientation, etc.)
         hardware: {
           ...(existingConfig.hardware || {}),  // Preservar hardware info existente se houver
-          mac: hardware.macAddress || existingConfig.hardware?.mac || null,
-          hostname: hardware.hostname || existingConfig.hardware?.hostname || null,
-          platform: hardware.platform || existingConfig.hardware?.platform || null,
-          arch: hardware.arch || existingConfig.hardware?.arch || null,
-          serial: hardware.serial || existingConfig.hardware?.serial || null,
-          hardwareHash: hardware.hardwareHash || existingConfig.hardware?.hardwareHash || null,
+          mac: hardware?.macAddress || existingConfig.hardware?.mac || null,
+          hostname: hardware?.hostname || existingConfig.hardware?.hostname || null,
+          platform: hardware?.platform || existingConfig.hardware?.platform || null,
+          arch: hardware?.arch || existingConfig.hardware?.arch || null,
+          serial: hardware?.serial || existingConfig.hardware?.serial || null,
+          hardwareHash: hardware?.hardwareHash || existingConfig.hardware?.hardwareHash || null,
           registeredAt: existingConfig.hardware?.registeredAt || new Date().toISOString(),
           linkedAt: new Date().toISOString(),  // Quando hardware foi vinculado
-          userAgent: hardware.userAgent || existingConfig.hardware?.userAgent || null
+          userAgent: hardware?.userAgent || existingConfig.hardware?.userAgent || null
         }
       };
 
