@@ -435,8 +435,19 @@ router.get('/validate',
         });
       }
 
-      // Verificar se totem está ativo
-      if (!totem || !totem.active) {
+      // Verificar se totem está ativo (totem já foi verificado como não-null acima)
+      if (!totem) {
+        // Este caso não deveria acontecer devido à verificação anterior, mas adicionamos por segurança
+        return res.status(404).json({ 
+          error: 'Totem não encontrado',
+          blocked: true,
+          reason: 'Totem não encontrado no sistema'
+        });
+      }
+
+      // Verificar propriedade active (pode não existir em todos os schemas)
+      const isActive = (totem as any)?.active !== false && (totem as any)?.is_active !== false;
+      if (!isActive) {
         return res.status(403).json({ 
           error: 'Totem inativo',
           blocked: true,
@@ -445,7 +456,7 @@ router.get('/validate',
       }
 
       // Determinar o ID numérico do totem para consultas relacionadas
-      const totemId = (totemFull && (totemFull as any)?.totem_id) || (totem as any)?.id || (totem as any)?.totem_id;
+      const totemId = (totemFull && (totemFull as any)?.totem_id) || (totem as any)?.id || (totem as any)?.totem_id || (totem as any)?.totem_id;
 
       // OBS (schema v2): colunas blocked/blocked_until não existem no schema atual.
 

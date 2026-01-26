@@ -382,28 +382,38 @@ import playerValidationRoutes from './routes/player';
 // IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
 let playerDir = config.player.dir || '/opt/smart-signage/player-web';
 
-// Verificar se diretório existe, tentar alternativas
-if (!fs.existsSync(playerDir)) {
-  logWarn(`[Server] Diretório do player não encontrado: ${playerDir}`);
-  
-  // Tentar diretórios alternativos
-  const alternatives = [
-    '/opt/smart-signage/player-web-cache',
-    path.join(process.cwd(), 'player-web-cache'),
-    path.join(process.cwd(), 'player-web'),
-    process.env.PLAYER_DIR_CACHE || ''
-  ].filter(Boolean);
-  
-  for (const altDir of alternatives) {
-    if (altDir && fs.existsSync(altDir)) {
-      logInfoSync(`[Server] Usando diretório alternativo encontrado: ${altDir}`);
-      playerDir = altDir;
+// Lista de diretórios possíveis (prioridade: player-web-cache primeiro, depois player-web)
+const possibleDirs = [
+  process.env.PLAYER_DIR_CACHE, // Variável de ambiente tem prioridade
+  '/opt/smart-signage/player-web-cache', // Diretório preferido (player-web-cache)
+  '/opt/smart-signage/player-web', // Fallback para player-web
+  path.join(process.cwd(), 'player-web-cache'), // Desenvolvimento local
+  path.join(process.cwd(), 'player-web'), // Desenvolvimento local
+  config.player.dir // Config do env.ts
+].filter(Boolean) as string[];
+
+// Procurar primeiro diretório que existe
+let foundDir: string | null = null;
+for (const dir of possibleDirs) {
+  if (fs.existsSync(dir)) {
+    // Verificar se tem index.html (confirma que é o diretório do player)
+    const indexPath = path.join(dir, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      foundDir = dir;
+      logInfoSync(`[Server] Diretório do player encontrado: ${dir}`);
       break;
     }
   }
-  
+}
+
+if (foundDir) {
+  playerDir = foundDir;
+} else {
+  // Se nenhum diretório válido foi encontrado, usar o padrão e logar aviso
+  logWarn(`[Server] Nenhum diretório válido do player encontrado. Tentando: ${playerDir}`);
+  logWarn(`[Server] Diretórios testados: ${possibleDirs.join(', ')}`);
   if (!fs.existsSync(playerDir)) {
-    logWarn(`[Server] Nenhum diretório do player encontrado. Arquivos estáticos podem não funcionar.`);
+    logWarn(`[Server] ⚠️ Diretório ${playerDir} não existe. Arquivos estáticos retornarão 404.`);
   }
 }
 
