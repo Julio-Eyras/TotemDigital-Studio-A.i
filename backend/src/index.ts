@@ -440,7 +440,13 @@ app.use('/player', express.static(playerDir, {
 // Esta rota só será chamada se nenhum arquivo estático for encontrado
 app.get('/player', (_req, res) => {
   const playerPath = config.player.path;
-  res.sendFile(playerPath);
+  // Verificar se arquivo existe antes de enviar
+  if (fs.existsSync(playerPath)) {
+    res.sendFile(playerPath);
+  } else {
+    logWarn(`[Server] Arquivo index.html do player não encontrado: ${playerPath}`);
+    res.status(404).json({ error: 'Player não encontrado' });
+  }
 });
 
 // API de validação do player (antes do middleware de autenticação)
