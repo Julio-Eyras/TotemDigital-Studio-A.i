@@ -45,6 +45,9 @@ export interface DispatcherMessage {
   duration?: number;
   fromCache?: boolean;
   error?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  statusCode?: number;
 }
 
 export interface DebugLog {
@@ -144,6 +147,9 @@ class DispatcherDebugService {
       duration?: number;
       fromCache?: boolean;
       error?: string;
+      ipAddress?: string;
+      userAgent?: string;
+      statusCode?: number;
     }
   ): void {
     const message: DispatcherMessage = {
@@ -160,6 +166,27 @@ class DispatcherDebugService {
 
     // Também adicionar ao debugLogs
     this.addDebugLog('message', message);
+
+    // Broadcast via WebSocket para monitoramento em tempo real
+    this.broadcastMessage(message);
+  }
+
+  /**
+   * Broadcast mensagem via WebSocket para clientes conectados
+   */
+  private broadcastMessage(message: DispatcherMessage): void {
+    try {
+      const { getWebSocketService } = require('./websocketService');
+      const wsService = getWebSocketService();
+      if (wsService && typeof wsService.broadcast === 'function') {
+        wsService.broadcast({
+          type: 'dispatcher-message',
+          data: message
+        });
+      }
+    } catch (error) {
+      // Falha silenciosa - WebSocket pode não estar disponível
+    }
   }
 
   /**

@@ -3860,6 +3860,20 @@ export const dispatcherDebugApi = {
     return response.data;
   },
 
+  getMessageLogs: async (
+    limit: number = 100,
+    since?: string,
+    totemId?: number,
+    uin?: string
+  ): Promise<DispatcherMessage[]> => {
+    const params: any = { limit };
+    if (since) params.since = since;
+    if (totemId) params.totemId = totemId;
+    if (uin) params.uin = uin;
+    const response = await api.get('/dispatcher-debug/messages', { params });
+    return response.data?.data || [];
+  },
+
   getLogs: async (params?: {
     limit?: number;
     since?: string;

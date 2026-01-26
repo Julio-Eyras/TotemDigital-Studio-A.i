@@ -10,6 +10,7 @@ import { validateRequest } from '../middleware/validation.middleware';
 import { logError, logDebug, sanitizeForLogging, logWarn, logInfo } from '../utils/loggerHelper';
 import { getDeviceTokenService } from '../services/deviceTokenService';
 import { getDispatcherTotemService } from '../services/dispatcherTotemService';
+import { getDispatcherRouter } from '../services/dispatcherRouter';
 import crypto from 'crypto';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -18,6 +19,7 @@ import os from 'os';
 const execAsync = promisify(exec);
 
 const router = express.Router();
+const dispatcherRouter = getDispatcherRouter();
 
 /**
  * Processa solicitação de aprovação via heartbeat
@@ -266,7 +268,7 @@ const TOTEM_SECRET_KEY = process.env.TOTEM_SECRET_KEY || 'smart-signage-totem-se
 /**
  * Gerar token de validação para totem
  */
-function generateTotemToken(uin: string): string {
+export function generateTotemToken(uin: string): string {
   const timestamp = Date.now();
   const data = `${uin}:${timestamp}`;
   const token = crypto
@@ -279,7 +281,7 @@ function generateTotemToken(uin: string): string {
 /**
  * Validar token de totem
  */
-function validateTotemToken(uin: string, token: string, maxAge: number = 3600000): boolean {
+export function validateTotemToken(uin: string, token: string, maxAge: number = 3600000): boolean {
   try {
     const [timestamp, receivedToken] = token.split(':');
     if (!timestamp || !receivedToken) return false;
@@ -305,39 +307,25 @@ function validateTotemToken(uin: string, token: string, maxAge: number = 3600000
  * @route GET /api/player/validate
  * @desc Validar totem por UIN e token, retornar status, comandos pendentes e playlist
  * @access Public (para totens na porta 80)
+ * @note Todas as requisições passam pelo DispatcherRouter para monitoramento centralizado
  */
 router.get('/validate',
   query('uin').isString().isLength({ min: 1, max: 100 }),
   query('token').optional().isString(),
   async (req: Request, res: Response) => {
-    const transactionId = PlayerDebugService.generateTransactionId('VAL');
-    const startTime = Date.now();
+    // Validação de entrada
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'Parâmetros inválidos', details: errors.array() });
+    }
     
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        await playerDebugService.logTransaction({
-          transactionId,
-          uin: req.query.uin as string,
-          action: 'validate',
-          status: 'error',
-          requestUrl: req.url,
-          requestMethod: req.method,
-          requestHeaders: req.headers,
-          responseStatus: 400,
-          errorMessage: 'Parâmetros inválidos',
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent'),
-          duration: Date.now() - startTime
-        });
-        
-        return res.status(400).json({ error: 'Parâmetros inválidos', details: errors.array() });
-      }
+    // Delegar para DispatcherRouter (ponto central de roteamento)
+    await dispatcherRouter.route(req, res, '/api/player/validate');
+  }
+);
 
-      const { uin, token } = req.query;
-      const db = getDatabase();
-      
-      await logDebug(`[${transactionId}] Validando totem`, { uin, transactionId });
+/**
+ * @route GET /api/player/token
 
       // Validar token se fornecido
       if (token && typeof token === 'string') {
@@ -721,6 +709,7 @@ router.get('/validate',
  * @route GET /api/player/token
  * @desc Gerar token de validação para totem
  * @access Public
+ * @note Todas as requisições passam pelo DispatcherRouter para monitoramento centralizado
  */
 router.get('/token',
   query('uin').isString().isLength({ min: 1, max: 100 }),
@@ -728,99 +717,14 @@ router.get('/token',
   query('platform').optional().isString().isLength({ min: 1, max: 100 }),
   query('appVersion').optional().isString().isLength({ min: 1, max: 100 }),
   async (req: Request, res: Response) => {
-    const startTime = Date.now();
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        dispatcherDebugService.logMessage('outgoing', {
-          totemId: undefined,
-          uin: (req.query.uin as string) || 'unknown',
-          endpoint: '/api/player/token',
-          method: 'GET',
-          response: { success: false, error: 'UIN inválido' },
-          error: 'Validação falhou',
-          duration: Date.now() - startTime
-        });
-        return res.status(400).json({ error: 'UIN inválido', details: errors.array() });
-      }
-
-      const { uin, deviceId, platform, appVersion } = req.query;
-      
-      // Logar requisição de token
-      dispatcherDebugService.logMessage('incoming', {
-        totemId: undefined,
-        uin: uin as string,
-        endpoint: '/api/player/token',
-        method: 'GET',
-        request: {
-          uin,
-          deviceId,
-          platform,
-          appVersion
-        },
-      });
-      
-      const hmacToken = generateTotemToken(uin as string);
-
-      // Registrar também em device_tokens para telemetria e controle fino
-      try {
-        const totemService = new TotemService();
-        const totem = await totemService.getTotemByUin(uin as string);
-        const totemId = (totem as any)?.id ?? null;
-
-        const deviceTokenService = getDeviceTokenService();
-        await deviceTokenService.createOrUpdateToken({
-          totemId,
-          smartTvId: null,
-          uin: uin as string,
-          deviceId: (deviceId as string) || null,
-          platform: (platform as string) || null,
-          appVersion: (appVersion as string) || null,
-          ipAddress: req.ip || req.socket.remoteAddress || null,
-          userAgent: req.get('user-agent') || null,
-          // ttl ~ 1h, alinhado ao HMAC
-          ttlMs: 3600000,
-        });
-      } catch (e) {
-        // Não bloquear geração de token se telemetria falhar
-        await logWarn('Falha ao registrar device_token (seguindo apenas com HMAC)', {
-          error: (e as any)?.message,
-          uin,
-        });
-      }
-
-      const response = {
-        token: hmacToken,
-        expiresIn: 3600, // 1 hora
-      };
-
-      // Logar resposta do token
-      dispatcherDebugService.logMessage('outgoing', {
-        totemId: undefined,
-        uin: uin as string,
-        endpoint: '/api/player/token',
-        method: 'GET',
-        response: {
-          success: true,
-          expiresIn: 3600
-        },
-        duration: Date.now() - startTime
-      });
-
-      return res.json(response);
-    } catch (error: any) {
-      await logError('Erro ao gerar token', error);
-      dispatcherDebugService.logMessage('outgoing', {
-        totemId: undefined,
-        uin: (req.query.uin as string) || 'unknown',
-        endpoint: '/api/player/token',
-        method: 'GET',
-        response: { success: false, error: 'Erro interno' },
-        error: error.message || 'Erro interno do servidor',
-        duration: Date.now() - startTime
-      });
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+    // Validação de entrada
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'UIN inválido', details: errors.array() });
     }
+    
+    // Delegar para DispatcherRouter (ponto central de roteamento)
+    await dispatcherRouter.route(req, res, '/api/player/token');
   }
 );
 
@@ -828,12 +732,29 @@ router.get('/token',
  * @route POST /api/player/heartbeat
  * @desc Registrar heartbeat do totem e marcar comandos como executados
  * @access Public (com token)
+ * @note Todas as requisições passam pelo DispatcherRouter para monitoramento centralizado
  */
 router.post('/heartbeat',
   query('uin').isString().isLength({ min: 1, max: 100 }),
   query('token').isString(),
   query('deviceId').optional().isString().isLength({ min: 1, max: 255 }),
   async (req: Request, res: Response) => {
+    // Validação de entrada
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'Parâmetros inválidos', details: errors.array() });
+    }
+    
+    // Se for solicitação de aprovação, processar de forma especial (não passa pelo router ainda)
+    const { uin, token, requestApproval, hardware } = req.body || {};
+    if (requestApproval === true && token === 'REQUEST_APPROVAL') {
+      return await handleApprovalRequest(req, res, uin as string, hardware);
+    }
+    
+    // Delegar para DispatcherRouter (ponto central de roteamento)
+    await dispatcherRouter.route(req, res, '/api/player/heartbeat');
+  }
+);
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -1750,6 +1671,16 @@ router.post('/event',
   body('completed').optional().isBoolean(),
   body('metadata').optional().isObject(),
   async (req: Request, res: Response) => {
+    // Validação de entrada
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'Dados inválidos', details: errors.array() });
+    }
+    
+    // Delegar para DispatcherRouter (ponto central de roteamento)
+    await dispatcherRouter.route(req, res, '/api/player/event');
+  }
+);
     const startTime = Date.now();
     try {
       const errors = validationResult(req);
