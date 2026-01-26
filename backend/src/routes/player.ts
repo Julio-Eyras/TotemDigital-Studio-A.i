@@ -77,7 +77,7 @@ async function handleApprovalRequest(
              OR config->'hardware'->>'hardwareHash' = ?)
             AND totem_id != ?
           LIMIT 1
-        `, [hardware.macAddress, hardwareHash, currentTotemId]);
+        `, [hardware?.macAddress || '', hardwareHash, currentTotemId]);
         
         if (existingHardware) {
           await logDebug(`[${requestId}] Hardware já vinculado a outro totem`, { existingHardware, requestId });
