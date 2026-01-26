@@ -7,9 +7,9 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: monospace;
-            background: #1a1a1a;
-            color: #0f0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #fff;
             overflow: hidden;
             width: 100vw;
             height: 100vh;
@@ -17,61 +17,137 @@
             top: 0;
             left: 0;
         }
-        #debug-panel {
-            position: fixed;
-            top: 0;
-            left: 0;
+        #loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: #000;
+        }
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.1);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #error {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: #000;
+            color: #ff4444;
+            text-align: center;
+            padding: 20px;
+        }
+        #player-container {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        #player-container video, #player-container img, #player-container iframe {
             width: 100%;
             height: 100%;
-            background: #1a1a1a;
+            object-fit: contain;
+        }
+        #debug-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            max-height: 300px;
+            background: rgba(0,0,0,0.9);
             color: #0f0;
-            padding: 20px;
+            padding: 10px;
             overflow-y: auto;
+            font-size: 11px;
+            font-family: monospace;
+            line-height: 1.4;
+            border-top: 2px solid #0f0;
+            z-index: 10000;
+            display: none;
+        }
+        #debug-toggle {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 10001;
             font-size: 12px;
-            line-height: 1.6;
         }
         .log-entry {
-            margin: 5px 0;
-            padding: 5px;
-            border-left: 3px solid #0f0;
-            padding-left: 10px;
+            margin: 2px 0;
+            padding: 3px;
+            border-left: 2px solid #0f0;
+            padding-left: 8px;
         }
         .log-request { border-color: #00f; color: #00f; }
         .log-response { border-color: #0f0; color: #0f0; }
         .log-error { border-color: #f00; color: #f00; }
         .log-info { border-color: #ff0; color: #ff0; }
-        .timestamp { color: #666; font-size: 10px; }
-        pre { margin: 5px 0; white-space: pre-wrap; word-wrap: break-word; }
-        #status {
-            position: fixed;
+        .timestamp { color: #666; font-size: 9px; }
+        pre { margin: 2px 0; white-space: pre-wrap; word-wrap: break-word; font-size: 10px; }
+        .cache-info {
+            position: absolute;
             top: 10px;
             right: 10px;
-            background: rgba(0,0,0,0.8);
-            padding: 10px;
-            border: 1px solid #0f0;
+            background: rgba(0,0,0,0.7);
+            padding: 8px 12px;
             border-radius: 4px;
-            min-width: 200px;
+            font-size: 12px;
+            z-index: 1000;
         }
-        #status.error { border-color: #f00; }
-        #status.warning { border-color: #ff0; }
     </style>
 </head>
 <body>
-    <div id="status">Status: Inicializando...</div>
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Carregando player (modo debug)...</p>
+    </div>
+    <div id="error">
+        <h2>Erro ao Carregar Player</h2>
+        <p id="error-message"></p>
+        <p style="margin-top:20px;font-size:14px;color:#888;">Use ?uin=SEU_UIN na URL</p>
+    </div>
+    <div id="player-container">
+        <div class="cache-info" id="cache-info" style="display:none;">Cache: <span id="cache-size">0 MB</span></div>
+    </div>
     <div id="debug-panel"></div>
+    <button id="debug-toggle" onclick="toggleDebug()">🔍 Debug</button>
 
+    <!-- Carregar scripts na ordem correta -->
+    <script src="js/cache/MediaCacheManager.js"></script>
+    <script src="js/cache/PlaylistChangeDetector.js"></script>
+    <script src="js/api/client.js"></script>
+    <script src="js/app.js"></script>
     <script>
         (function() {
             const API_BASE = window.location.origin;
             const debugPanel = document.getElementById('debug-panel');
-            const statusEl = document.getElementById('status');
-            
-            let uin = null;
-            let token = null;
-            let heartbeatInterval = null;
-            let dispatchInterval = null;
+            let debugEnabled = false;
+
+            function toggleDebug() {
+                debugEnabled = !debugEnabled;
+                debugPanel.style.display = debugEnabled ? 'block' : 'none';
+                document.getElementById('debug-toggle').textContent = debugEnabled ? '✖ Fechar Debug' : '🔍 Debug';
+            }
+            window.toggleDebug = toggleDebug;
 
             function log(type, message, data = null) {
+                if (!debugEnabled) return;
+                
                 const timestamp = new Date().toLocaleTimeString();
                 const entry = document.createElement('div');
                 entry.className = `log-entry log-${type}`;
@@ -89,9 +165,19 @@
                 console.log(`[${type.toUpperCase()}]`, message, data || '');
             }
 
-            function updateStatus(message, type = 'info') {
-                statusEl.textContent = `Status: ${message}`;
-                statusEl.className = type;
+            function showError(msg) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('player-container').style.display = 'none';
+                const el = document.getElementById('error');
+                el.style.display = 'flex';
+                const m = document.getElementById('error-message');
+                if (m) m.textContent = msg || 'Erro desconhecido';
+            }
+
+            function hideLoadingShowPlayer() {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'none';
+                document.getElementById('player-container').style.display = 'block';
             }
 
             function getUin() {
@@ -99,154 +185,176 @@
                 return params.get('uin') || params.get('UIN') || '';
             }
 
-            async function request(url, options = {}) {
-                const startTime = Date.now();
-                log('request', `→ ${options.method || 'GET'} ${url}`, options.body ? JSON.parse(options.body) : null);
-                
+            // Interceptar requisições do APIClient para logar
+            const originalRequest = window.APIClient?.prototype?.request;
+            if (originalRequest) {
+                window.APIClient.prototype.request = async function(endpoint, method = 'GET', data = null) {
+                    const startTime = Date.now();
+                    log('request', `→ ${method} ${endpoint}`, data);
+                    
+                    try {
+                        const result = await originalRequest.call(this, endpoint, method, data);
+                        const duration = Date.now() - startTime;
+                        log('response', `← ${method} ${endpoint} (${duration}ms)`, result);
+                        return result;
+                    } catch (error) {
+                        const duration = Date.now() - startTime;
+                        log('error', `✗ ${method} ${endpoint} (${duration}ms): ${error.message}`, error);
+                        throw error;
+                    }
+                };
+            }
+
+            async function validateTotem(uin) {
                 try {
-                    const response = await fetch(url, {
-                        ...options,
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...options.headers
-                        }
-                    });
-                    
-                    const duration = Date.now() - startTime;
-                    const data = await response.json().catch(() => ({}));
-                    
-                    log('response', `← ${response.status} ${response.statusText} (${duration}ms)`, data);
-                    
-                    return { ok: response.ok, status: response.status, data };
-                } catch (error) {
-                    log('error', `✗ Erro na requisição: ${error.message}`, error);
-                    return { ok: false, error: error.message };
-                }
-            }
+                    log('info', 'Validando totem...');
+                    const tr = await fetch(API_BASE + '/api/player/token?uin=' + encodeURIComponent(uin));
+                    if (!tr.ok) {
+                        log('error', 'Erro ao obter token');
+                        return { valid: false, error: 'Token falhou' };
+                    }
+                    const td = await tr.json();
+                    const token = td.token;
+                    if (!token) {
+                        log('error', 'Token vazio');
+                        return { valid: false, error: 'Token vazio' };
+                    }
 
-            async function getToken() {
-                log('info', 'Obtendo token...');
-                const result = await request(`${API_BASE}/api/player/token?uin=${encodeURIComponent(uin)}`);
-                
-                if (result.ok && result.data.token) {
-                    token = result.data.token;
-                    log('info', `Token obtido: ${token.substring(0, 20)}...`);
-                    return true;
-                }
-                return false;
-            }
-
-            async function validateTotem() {
-                log('info', 'Validando totem...');
-                const result = await request(
-                    `${API_BASE}/api/player/validate?uin=${encodeURIComponent(uin)}&token=${encodeURIComponent(token)}`
-                );
-                
-                if (result.ok && result.data.valid) {
+                    const vr = await fetch(API_BASE + '/api/player/validate?uin=' + encodeURIComponent(uin) + '&token=' + encodeURIComponent(token));
+                    if (!vr.ok) {
+                        const vd = await vr.json().catch(() => ({}));
+                        log('error', `Validação falhou: ${vd.error || vd.reason || 'Erro desconhecido'}`);
+                        return {
+                            valid: false,
+                            pendingApproval: !!vd.pendingApproval,
+                            blocked: !!vd.blocked,
+                            reason: vd.reason || vd.error,
+                            message: vd.message
+                        };
+                    }
+                    const vd = await vr.json();
+                    if (vd.pending_approval || vd.pendingApproval) {
+                        log('info', 'Totem aguardando aprovação');
+                        return { valid: false, pendingApproval: true, blocked: false, message: vd.message || 'Aguardando aprovação' };
+                    }
+                    if (vd.blocked) {
+                        log('error', `Totem bloqueado: ${vd.reason || vd.error}`);
+                        return { valid: false, pendingApproval: false, blocked: true, reason: vd.reason || vd.error };
+                    }
                     log('info', 'Totem válido e ativo');
-                    return true;
-                } else {
-                    log('error', `Totem inválido: ${result.data.error || result.data.reason || 'Erro desconhecido'}`);
-                    if (result.data.pendingApproval) {
-                        updateStatus('Aguardando aprovação', 'warning');
-                    } else if (result.data.blocked) {
-                        updateStatus('Totem bloqueado', 'error');
+                    return { valid: true, pendingApproval: false, blocked: false };
+                } catch (e) {
+                    log('error', `Erro ao validar: ${e.message}`, e);
+                    return { valid: false, pendingApproval: false, blocked: false, error: e.message };
+                }
+            }
+
+            async function updateCacheInfo(player) {
+                if (!player || !player.mediaCacheManager) return;
+                try {
+                    const size = await player.mediaCacheManager.getCacheSize();
+                    const sizeMB = (size / (1024 * 1024)).toFixed(2);
+                    const infoEl = document.getElementById('cache-info');
+                    const sizeEl = document.getElementById('cache-size');
+                    if (infoEl && sizeEl) {
+                        sizeEl.textContent = sizeMB + ' MB';
+                        infoEl.style.display = 'block';
                     }
-                    return false;
+                } catch (e) {
+                    console.warn('[Bootstrap] Erro ao atualizar info de cache:', e);
                 }
             }
 
-            async function getDispatchPlan() {
-                log('info', 'Solicitando dispatch plan...');
-                const result = await request(
-                    `${API_BASE}/api/player/dispatch?uin=${encodeURIComponent(uin)}&token=${encodeURIComponent(token)}`
-                );
-                
-                if (result.ok && result.data.plan) {
-                    const plan = result.data.plan;
-                    log('info', `Dispatch plan recebido: ${plan.mediaItems?.length || 0} itens`);
-                    log('info', `Playlist ID: ${plan.playlistId}, Campaign ID: ${plan.campaignId || 'N/A'}`);
-                    return plan;
-                } else {
-                    log('error', `Erro ao obter dispatch plan: ${result.data.error || 'Erro desconhecido'}`);
-                    return null;
-                }
-            }
-
-            async function sendHeartbeat() {
-                log('info', 'Enviando heartbeat...');
-                const result = await request(`${API_BASE}/api/player/heartbeat?uin=${encodeURIComponent(uin)}&token=${encodeURIComponent(token)}`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        status: 'online',
-                        timestamp: Date.now()
-                    })
-                });
-                
-                if (result.ok) {
-                    log('info', 'Heartbeat enviado com sucesso');
-                    if (result.data.commands && result.data.commands.length > 0) {
-                        log('info', `Comandos recebidos: ${result.data.commands.length}`, result.data.commands);
-                    }
-                } else {
-                    log('error', `Erro no heartbeat: ${result.data.error || 'Erro desconhecido'}`);
-                }
-            }
-
-            async function init() {
+            async function main() {
                 log('info', '=== Smart Signage Player - Debug Mode ===');
                 log('info', `API Base: ${API_BASE}`);
                 
                 // 1. Obter UIN do parâmetro
-                uin = getUin();
+                const uin = getUin();
                 if (!uin) {
-                    updateStatus('UIN não fornecido', 'error');
-                    log('error', 'UIN não fornecido na URL. Use: ?uin=SEU_UIN');
+                    showError('UIN não fornecido na URL. Use: ?uin=SEU_UIN');
+                    log('error', 'UIN não fornecido na URL');
                     return;
                 }
                 
                 log('info', `UIN: ${uin}`);
-                updateStatus(`UIN: ${uin}`, 'info');
                 
-                // 2. Obter token
-                if (!await getToken()) {
-                    updateStatus('Erro ao obter token', 'error');
+                // 2. Validar totem (simplificado - apenas verificar se existe e está ativo)
+                const validation = await validateTotem(uin);
+                if (!validation.valid) {
+                    if (validation.pendingApproval) {
+                        showError('Totem aguardando aprovação do administrador.');
+                    } else if (validation.blocked) {
+                        showError(`Totem bloqueado: ${validation.reason || 'Acesso bloqueado'}`);
+                    } else {
+                        showError(`Totem inválido: ${validation.error || validation.reason || 'Erro desconhecido'}`);
+                    }
                     return;
                 }
+
+                hideLoadingShowPlayer();
                 
-                // 3. Validar totem
-                if (!await validateTotem()) {
-                    return;
+                // 3. Configurar variáveis globais para o player
+                window.API_BASE_URL = API_BASE;
+                window.TOTEM_UIN = uin;
+                window.TOTEM_SECRET = '';
+
+                log('info', 'Inicializando SmartSignagePlayer...');
+
+                // 4. Criar e inicializar player
+                const player = new window.SmartSignagePlayer({
+                    apiBaseURL: API_BASE,
+                    totemUIN: uin,
+                    totemSecret: '',
+                    maxCacheSize: 500 * 1024 * 1024 // 500MB
+                });
+                
+                // Adicionar logs nos eventos do player
+                player.onInitialized = () => {
+                    log('info', 'Player inicializado');
+                };
+                
+                player.onDispatchPlanLoaded = (plan) => {
+                    log('info', `Dispatch plan carregado: ${plan.mediaItems?.length || 0} itens`, {
+                        playlistId: plan.playlistId,
+                        campaignId: plan.campaignId,
+                        mediaCount: plan.mediaItems?.length
+                    });
+                };
+                
+                player.onPlaying = (mediaItem) => {
+                    log('info', `Reproduzindo: ${mediaItem.mediaId}`, {
+                        type: mediaItem.type,
+                        duration: mediaItem.duration
+                    });
+                };
+                
+                player.onPlaybackError = (err) => {
+                    log('error', `Erro na reprodução: ${err.message}`, err);
+                };
+                
+                try {
+                    await player.init();
+                    
+                    // Atualizar info de cache periodicamente
+                    setInterval(() => updateCacheInfo(player), 10000);
+                    updateCacheInfo(player);
+                    
+                    await player.playNext();
+                    
+                    log('info', '=== Player iniciado com sucesso ===');
+                } catch (err) {
+                    console.error('[Player] Erro:', err);
+                    log('error', `Erro ao iniciar player: ${err.message}`, err);
+                    showError('Erro ao iniciar player: ' + (err && err.message));
                 }
-                
-                updateStatus('Totem válido - Iniciando debug...', 'info');
-                
-                // 4. Obter dispatch plan inicial
-                await getDispatchPlan();
-                
-                // 5. Iniciar heartbeat periódico (a cada 30s)
-                heartbeatInterval = setInterval(() => {
-                    sendHeartbeat();
-                }, 30000);
-                
-                // 6. Atualizar dispatch plan periodicamente (a cada 5min)
-                dispatchInterval = setInterval(async () => {
-                    await getDispatchPlan();
-                }, 300000);
-                
-                // Enviar primeiro heartbeat
-                setTimeout(() => sendHeartbeat(), 2000);
-                
-                log('info', '=== Player de debug iniciado ===');
-                log('info', '- Heartbeat a cada 30s');
-                log('info', '- Atualização de dispatch a cada 5min');
             }
 
             // Inicializar quando a página carregar
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', init);
+                document.addEventListener('DOMContentLoaded', main);
             } else {
-                init();
+                main();
             }
         })();
     </script>
