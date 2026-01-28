@@ -1750,7 +1750,7 @@ setup_project() {
                 rsync -av --delete "$SOURCE_DIR/frontend/" "$INSTALL_DIR/frontend/"
                 
                 # Copiar outros diretórios importantes
-                # Nota: player-web-cache agora é copiado apenas quando selecionado no menu de players
+                # Nota: player-web agora é copiado apenas quando selecionado no menu de players
                 [[ -d "$SOURCE_DIR/scripts" ]] && rsync -av --delete "$SOURCE_DIR/scripts/" "$INSTALL_DIR/scripts/"
                 [[ -d "$SOURCE_DIR/database" ]] && rsync -av --delete "$SOURCE_DIR/database/" "$INSTALL_DIR/database/"
                 [[ -d "$SOURCE_DIR/docker" ]] && rsync -av --delete "$SOURCE_DIR/docker/" "$INSTALL_DIR/docker/"
@@ -1777,7 +1777,7 @@ setup_project() {
                 cp -a "$SOURCE_DIR/frontend" "$INSTALL_DIR/"
                 
                 # Copiar outros diretórios
-                # Nota: player-web-cache agora é copiado apenas quando selecionado no menu de players
+                # Nota: player-web agora é copiado apenas quando selecionado no menu de players
                 [[ -d "$SOURCE_DIR/scripts" ]] && cp -a "$SOURCE_DIR/scripts" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/database" ]] && rm -rf "$INSTALL_DIR/database" && cp -a "$SOURCE_DIR/database" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/docker" ]] && cp -a "$SOURCE_DIR/docker" "$INSTALL_DIR/"
@@ -4816,13 +4816,13 @@ setup_nginx() {
         # Copiar player para /opt/smart-signage/player-web
         sudo mkdir -p /opt/smart-signage/player-web
         
-        # Se player-web não existe em INSTALL_DIR, copiar de player-web-cache
+        # Se player-web não existe em INSTALL_DIR, copiar do diretório player-web
         if [[ ! -d "$INSTALL_DIR/player-web" ]] || [[ -z "$(ls -A "$INSTALL_DIR/player-web" 2>/dev/null)" ]]; then
-            if [[ -d "$SOURCE_DIR/player-web-cache" ]]; then
-                log "Player-web não encontrado, copiando de player-web-cache..."
+            if [[ -d "$SOURCE_DIR/player-web" ]]; then
+                log "Player-web não encontrado, copiando de player-web..."
                 mkdir -p "$INSTALL_DIR/player-web"
-                cp -r "$SOURCE_DIR/player-web-cache/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
-                    warn "Falha ao copiar Player Web Cache"
+                cp -r "$SOURCE_DIR/player-web/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
+                    warn "Falha ao copiar Player Web"
                 }
             fi
         fi
@@ -4926,9 +4926,9 @@ server {
     # Player com Cache (laboratório)
     location = /player-cache { return 301 /player-cache/; }
     location /player-cache/ {
-        alias /opt/smart-signage/player-web-cache/;
+        alias /opt/smart-signage/player-web/;
         index index.html;
-        try_files \$uri \$uri/ /player-web-cache/index.html;
+        try_files \$uri \$uri/ /player-web/index.html;
     }
 
     # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
@@ -9771,13 +9771,13 @@ copy_selected_players() {
                 warn "Falha ao copiar Player-Smart-FX-Interface, continuando..."
             }
         fi
-        if [[ -d "$SOURCE_DIR/player-web-cache" ]]; then
-            log "Copiando Player Web Cache (versão com cache completo)..."
+        if [[ -d "$SOURCE_DIR/player-web" ]]; then
+            log "Copiando Player Web (versão com cache completo)..."
             mkdir -p "$INSTALL_DIR/player-web"
-            cp -r "$SOURCE_DIR/player-web-cache/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
-                warn "Falha ao copiar Player Web Cache, continuando..."
+            cp -r "$SOURCE_DIR/player-web/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
+                warn "Falha ao copiar Player Web, continuando..."
             }
-            log "✅ Player Web Cache copiado para player-web/"
+            log "✅ Player Web copiado para player-web/"
         fi
         log "✅ Todos os players copiados"
         return
@@ -9871,14 +9871,14 @@ copy_selected_players() {
         }
     fi
     
-    # Copiar Player Web Cache (substitui player-web obsoleto)
-    if [[ "$INSTALL_PLAYER_WEB_CACHE" == "true" ]] && [[ -d "$SOURCE_DIR/player-web-cache" ]]; then
-        log "Copiando Player Web Cache (versão com cache completo)..."
+    # Copiar Player Web
+    if [[ "$INSTALL_PLAYER_WEB_CACHE" == "true" ]] && [[ -d "$SOURCE_DIR/player-web" ]]; then
+        log "Copiando Player Web (versão com cache completo)..."
         mkdir -p "$INSTALL_DIR/player-web"
-        cp -r "$SOURCE_DIR/player-web-cache/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
-            warn "Falha ao copiar Player Web Cache"
+        cp -r "$SOURCE_DIR/player-web/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
+            warn "Falha ao copiar Player Web"
         }
-        log "✅ Player Web Cache copiado para player-web/"
+        log "✅ Player Web copiado para player-web/"
     fi
     
     log "✅ Players selecionados copiados"
@@ -10504,15 +10504,15 @@ main() {
     # Perguntar sobre players (após definir INSTALL_DIR)
     show_players_menu
     
-    # SEMPRE copiar player-web-cache (substitui player-web obsoleto)
+    # SEMPRE copiar player-web
     # Mesmo que não seja selecionado no menu, é necessário para o player funcionar
-    if [[ -d "$SOURCE_DIR/player-web-cache" ]] && [[ ! -d "$INSTALL_DIR/player-web" ]] || [[ -z "$(ls -A "$INSTALL_DIR/player-web" 2>/dev/null)" ]]; then
-        log "Copiando Player Web Cache (necessário para /player funcionar)..."
+    if [[ -d "$SOURCE_DIR/player-web" ]] && [[ ! -d "$INSTALL_DIR/player-web" ]] || [[ -z "$(ls -A "$INSTALL_DIR/player-web" 2>/dev/null)" ]]; then
+        log "Copiando Player Web (necessário para /player funcionar)..."
         mkdir -p "$INSTALL_DIR/player-web"
-        cp -r "$SOURCE_DIR/player-web-cache/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
-            warn "Falha ao copiar Player Web Cache"
+        cp -r "$SOURCE_DIR/player-web/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
+            warn "Falha ao copiar Player Web"
         }
-        log "✅ Player Web Cache copiado para player-web/"
+        log "✅ Player Web copiado para player-web/"
     fi
     
     # Perguntar sobre HTTPS (após menu, antes da instalação)

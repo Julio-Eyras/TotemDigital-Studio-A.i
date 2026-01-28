@@ -60,7 +60,7 @@ $MAIN_DIRECTORIES = @(
     "nginx",
     "systemd",
     "docker",
-    "player-web-cache",
+    "player-web",
     "player-client",
     "player-agent",
     "player-fx"
@@ -499,7 +499,7 @@ Esta é uma distribuição limpa do SmartSignage Pro contendo apenas os arquivos
 - **nginx/** - Configurações do Nginx
 - **systemd/** - Arquivos de serviço systemd
 - **docker/** - Arquivos Docker (Dockerfile, docker-compose)
-- **player-web-cache/** - Player web HTML5 com cache implementado
+- **player-web/** - Player web HTML5 com cache implementado
 - **player-client/** - Players para Smart TVs (Android, Tizen, webOS)
 - **player-agent/** - Agente de sincronização
 - **player-fx/** - Player de efeitos visuais

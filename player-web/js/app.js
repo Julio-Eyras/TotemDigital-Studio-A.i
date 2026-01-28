@@ -1,5 +1,5 @@
 /**
- * Smart Signage Player - Browser (player-web-cache)
+ * Smart Signage Player - Browser (player-web)
  * Player HTML5 com cache local completo usando IndexedDB.
  * Integrado à estrutura Dispatcher-Totem e envio de informações transacionais.
  * Similar ao comportamento das plataformas WebOS, Tizen e Android.

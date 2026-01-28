@@ -114,8 +114,8 @@ copy_dir "$SOURCE_DIR/player-agent" "$DIST_DIR/player-agent" "Player-agent"
 # 7. Player-fx (se existir)
 copy_dir "$SOURCE_DIR/player-fx" "$DIST_DIR/player-fx" "Player-fx"
 
-# 8. player-web-cache (diretório genérico, se existir)
-copy_dir "$SOURCE_DIR/player-web-cache" "$DIST_DIR/player-web-cache" "Player genérico - player-web-cache"
+# 8. player-web (diretório do player web)
+copy_dir "$SOURCE_DIR/player-web" "$DIST_DIR/player-web" "Player Web"
 
 # 9. Database
 copy_dir "$SOURCE_DIR/database" "$DIST_DIR/database" "Database (schema e scripts)"

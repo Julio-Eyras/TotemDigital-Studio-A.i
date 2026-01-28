@@ -382,12 +382,10 @@ import playerValidationRoutes from './routes/player';
 // IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
 let playerDir = config.player.dir || '/opt/smart-signage/player-web';
 
-// Lista de diretórios possíveis (prioridade: player-web-cache primeiro, depois player-web)
+// Lista de diretórios possíveis
 const possibleDirs = [
-  process.env.PLAYER_DIR_CACHE, // Variável de ambiente tem prioridade
-  '/opt/smart-signage/player-web-cache', // Diretório preferido (player-web-cache)
-  '/opt/smart-signage/player-web', // Fallback para player-web
-  path.join(process.cwd(), 'player-web-cache'), // Desenvolvimento local
+  process.env.PLAYER_DIR, // Variável de ambiente tem prioridade
+  '/opt/smart-signage/player-web', // Diretório de produção
   path.join(process.cwd(), 'player-web'), // Desenvolvimento local
   config.player.dir // Config do env.ts
 ].filter(Boolean) as string[];
