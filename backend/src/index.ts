@@ -440,7 +440,7 @@ if (fs.existsSync(jsDir)) {
 // Servir arquivos estáticos do diretório player (js/, css/, etc.)
 // IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
 // Usar express.static diretamente para servir todos os arquivos do diretório
-app.use('/player', (req, res, next) => {
+app.use('/player', (req, _res, next) => {
   // Log de debug para verificar requisições
   if (req.path.endsWith('.js') || req.path.endsWith('.css')) {
     const filePath = path.join(playerDir, req.path.replace('/player', ''));
@@ -466,9 +466,9 @@ app.use('/player', (req, res, next) => {
 // Servir player index.html com suporte a UIN como parâmetro
 // Esta rota só será chamada se nenhum arquivo estático for encontrado
 // IMPORTANTE: Esta rota deve vir DEPOIS do express.static para não interceptar arquivos estáticos
-app.get('/player', (req, res, next) => {
-  // Se a requisição é para um arquivo estático (js/, css/, etc.), passar para o próximo middleware
-  // express.static já tentou servir, se chegou aqui é porque não encontrou
+app.get('/player', (req, res) => {
+  // Se a requisição é para um arquivo estático (js/, css/, etc.), express.static já tentou servir
+  // Se chegou aqui e não é exatamente /player, retornar 404
   if (req.path !== '/player' && req.path.startsWith('/player/')) {
     // Arquivo estático não encontrado, retornar 404
     return res.status(404).json({ error: 'Arquivo não encontrado', path: req.path });
@@ -477,10 +477,10 @@ app.get('/player', (req, res, next) => {
   const playerPath = config.player.path;
   // Verificar se arquivo existe antes de enviar
   if (fs.existsSync(playerPath)) {
-    res.sendFile(playerPath);
+    return res.sendFile(playerPath);
   } else {
     logWarn(`[Server] Arquivo index.html do player não encontrado: ${playerPath}`);
-    res.status(404).json({ error: 'Player não encontrado' });
+    return res.status(404).json({ error: 'Player não encontrado' });
   }
 });
 
