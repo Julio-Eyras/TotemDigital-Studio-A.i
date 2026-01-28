@@ -371,15 +371,24 @@ class DispatcherRouter {
         }
       );
 
+      if (!dispatchResponse.success || !dispatchResponse.plan) {
+        return {
+          success: false,
+          error: dispatchResponse.error || 'Não foi possível gerar plano de exibição',
+          statusCode: 200, // Mantém 200 para compatibilidade com player
+          duration: Date.now() - startTime,
+          fromCache: dispatchResponse.fromCache,
+        };
+      }
+
+      // Retornar plano em formato consumível pelo player
       return {
-        success: dispatchResponse.success,
-        data: dispatchResponse.plan ? {
+        success: true,
+        data: {
           success: true,
           plan: dispatchResponse.plan,
           fromCache: dispatchResponse.fromCache,
-        } : {
-          success: true,
-          plan: null,
+          executionTimeMs: dispatchResponse.executionTimeMs,
         },
         statusCode: 200,
         duration: Date.now() - startTime,

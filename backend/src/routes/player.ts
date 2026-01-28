@@ -760,6 +760,7 @@ router.post('/heartbeat',
  * @route GET /api/player/dispatch
  * @desc Obter plano de exibição do Dispatcher-Totem para um totem (player)
  * @access Public (com token)
+ * @note Todas as requisições passam pelo DispatcherRouter para monitoramento centralizado
  */
 router.get(
   '/dispatch',
@@ -769,148 +770,15 @@ router.get(
   query('timezone').optional().isString(),
   query('deviceId').optional().isString().isLength({ min: 1, max: 255 }),
   async (req: Request, res: Response) => {
-    const transactionId = PlayerDebugService.generateTransactionId('DSP');
-    const startTime = Date.now();
-
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ error: 'Parâmetros inválidos', details: errors.array() });
-      }
-
-      const { uin, token, timestamp, timezone, deviceId } = req.query;
-      const db = getDatabase();
-      const totemService = new TotemService();
-
-      // Validar token HMAC (compatibilidade)
-      const validHmac = validateTotemToken(uin as string, token as string);
-
-      // Validar também contra device_tokens (telemetria e segurança adicional)
-      const deviceTokenService = getDeviceTokenService();
-      const validDeviceToken = await deviceTokenService.validateToken(uin as string, token as string, {
-        deviceId: (deviceId as string) || null,
-        ipAddress: req.ip || req.socket.remoteAddress || undefined,
-        userAgent: req.get('user-agent') || undefined,
-      });
-
-      if (!validHmac && !validDeviceToken) {
-        return res.status(401).json({ error: 'Token inválido ou expirado' });
-      }
-
-      const totem = await totemService.getTotemByUin(uin as string);
-      if (!totem || !totem.active) {
-        return res.status(404).json({ error: 'Totem não encontrado ou inativo' });
-      }
-
-      // Obter totem_id completo para integração com dispatcher
-      const totemFull = await db.findFirst(
-        `
-        SELECT 
-          t.totem_id,
-          t.identifier,
-          t.status,
-          t.is_active as active
-        FROM totems t
-        WHERE t.uin = ? OR t.identifier = ?
-        LIMIT 1
-      `,
-        [uin, uin],
-      );
-
-      const totemId = (totemFull && (totemFull as any).totem_id) || (totem as any).id;
-
-      const dispatcher = getDispatcherTotemService();
-      const targetTimestamp = timestamp ? new Date(timestamp as string) : new Date();
-
-      // Logar mensagem recebida
-      dispatcherDebugService.logMessage('incoming', {
-        totemId,
-        uin: uin as string,
-        endpoint: '/api/player/dispatch',
-        method: 'GET',
-        request: {
-          uin,
-          timestamp,
-          timezone,
-          deviceId,
-        },
-      });
-
-      const dispatchResponse = await dispatcher.dispatch(
-        {
-          totemId,
-          timestamp: targetTimestamp,
-          timezone: (timezone as string) || undefined,
-        },
-        {
-          includeCandidates: false,
-          skipCache: false,
-        },
-      );
-
-      const responseDuration = Date.now() - startTime;
-
-      // Logar mensagem enviada
-      dispatcherDebugService.logMessage('outgoing', {
-        totemId,
-        uin: uin as string,
-        endpoint: '/api/player/dispatch',
-        method: 'GET',
-        response: {
-          success: dispatchResponse.success,
-          fromCache: dispatchResponse.fromCache,
-          hasPlan: !!dispatchResponse.plan,
-          planItemsCount: dispatchResponse.plan?.mediaItems?.length || 0,
-        },
-        duration: responseDuration,
-        fromCache: dispatchResponse.fromCache,
-        error: dispatchResponse.error,
-      });
-
-      // Registrar transação de debug (apenas metadata, sem plano completo para não inflar logs)
-      await playerDebugService.logTransaction({
-        transactionId,
-        uin: uin as string,
-        action: 'dispatch',
-        status: dispatchResponse.success ? 'success' : 'error',
-        requestUrl: req.url,
-        requestMethod: req.method,
-        requestHeaders: req.headers,
-        responseStatus: dispatchResponse.success ? 200 : 500,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent'),
-        duration: Date.now() - startTime,
-        metadata: {
-          totemId,
-          fromCache: dispatchResponse.fromCache,
-          hasPlan: !!dispatchResponse.plan,
-          executionTimeMs: dispatchResponse.executionTimeMs,
-        },
-      });
-
-      if (!dispatchResponse.success || !dispatchResponse.plan) {
-        return res.status(200).json({
-          success: false,
-          error: dispatchResponse.error || 'Não foi possível gerar plano de exibição',
-          fromCache: dispatchResponse.fromCache,
-          executionTimeMs: dispatchResponse.executionTimeMs,
-        });
-      }
-
-      // Retornar plano em formato consumível pelo player
-      return res.json({
-        success: true,
-        fromCache: dispatchResponse.fromCache,
-        executionTimeMs: dispatchResponse.executionTimeMs,
-        plan: dispatchResponse.plan,
-      });
-    } catch (error: any) {
-      await logError('Erro ao executar dispatch para player', error, {
-        uin: req.query.uin as string,
-      });
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+    // Validação de entrada
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'Parâmetros inválidos', details: errors.array() });
     }
-  },
+    
+    // Delegar para DispatcherRouter (ponto central de roteamento)
+    return await dispatcherRouter.route(req, res, '/api/player/dispatch');
+  }
 );
 
 /**
