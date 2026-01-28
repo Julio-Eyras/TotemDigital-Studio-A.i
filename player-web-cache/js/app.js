@@ -104,7 +104,7 @@ class SmartSignagePlayer {
         const APIClient = (typeof window !== 'undefined' && window.APIClient);
         if (!APIClient) {
             try {
-                await import('./api/client.js');
+                await import('/player/js/api/client.js');
             } catch (e) {
                 throw new Error('APIClient não disponível. Carregue js/api/client.js antes do app.js.');
             }
@@ -123,8 +123,8 @@ class SmartSignagePlayer {
         
         if (!MediaCacheManager || !PlaylistChangeDetector) {
             try {
-                await import('./cache/MediaCacheManager.js');
-                await import('./cache/PlaylistChangeDetector.js');
+                await import('/player/js/cache/MediaCacheManager.js');
+                await import('/player/js/cache/PlaylistChangeDetector.js');
             } catch (e) {
                 throw new Error('MediaCacheManager ou PlaylistChangeDetector não disponíveis.');
             }

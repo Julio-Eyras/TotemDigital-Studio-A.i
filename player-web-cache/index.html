@@ -129,10 +129,10 @@
     <button id="debug-toggle" onclick="toggleDebug()">🔍 Debug</button>
 
     <!-- Carregar scripts na ordem correta -->
-    <script src="js/cache/MediaCacheManager.js"></script>
-    <script src="js/cache/PlaylistChangeDetector.js"></script>
-    <script src="js/api/client.js"></script>
-    <script src="js/app.js"></script>
+    <script src="/player/js/cache/MediaCacheManager.js"></script>
+    <script src="/player/js/cache/PlaylistChangeDetector.js"></script>
+    <script src="/player/js/api/client.js"></script>
+    <script src="/player/js/app.js"></script>
     <script>
         (function() {
             const debugPanel = document.getElementById('debug-panel');
@@ -350,6 +350,12 @@
                 window.TOTEM_SECRET = '';
 
                 log('info', 'Inicializando SmartSignagePlayer...');
+
+                // Verificar se SmartSignagePlayer está disponível
+                if (typeof window.SmartSignagePlayer === 'undefined') {
+                    showError('Erro: SmartSignagePlayer não foi carregado. Verifique se todos os scripts foram carregados corretamente.');
+                    return;
+                }
 
                 // 4. Criar e inicializar player
                 const player = new window.SmartSignagePlayer({
