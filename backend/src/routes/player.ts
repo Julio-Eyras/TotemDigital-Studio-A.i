@@ -320,7 +320,7 @@ router.get('/validate',
     }
     
     // Delegar para DispatcherRouter (ponto central de roteamento)
-    await dispatcherRouter.route(req, res, '/api/player/validate');
+    return await dispatcherRouter.route(req, res, '/api/player/validate');
   }
 );
 
@@ -724,7 +724,7 @@ router.get('/token',
     }
     
     // Delegar para DispatcherRouter (ponto central de roteamento)
-    await dispatcherRouter.route(req, res, '/api/player/token');
+    return await dispatcherRouter.route(req, res, '/api/player/token');
   }
 );
 
@@ -1501,7 +1501,7 @@ router.post('/event',
     }
     
     // Delegar para DispatcherRouter (ponto central de roteamento)
-    await dispatcherRouter.route(req, res, '/api/player/event');
+    return await dispatcherRouter.route(req, res, '/api/player/event');
   }
 );
 

@@ -593,7 +593,7 @@ class DispatcherRouter {
       request.totemId = totemId;
 
       // Registrar evento
-      const { eventType, mediaId, playlistId, campaignId, duration, completed, metadata } = request.body || {};
+      const { eventType, mediaId, playlistId, campaignId, metadata } = request.body || {};
       const eventLogService = getEventLogService();
 
       // TODO: Implementar registro de eventos completo
