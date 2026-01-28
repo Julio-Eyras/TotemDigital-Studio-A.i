@@ -442,7 +442,7 @@ if (fs.existsSync(jsDir)) {
 // Usar express.static diretamente para servir todos os arquivos do diretório
 // Servir arquivos estáticos do diretório player (js/, css/, etc.)
 // IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
-app.use('/player', (req, res, next) => {
+app.use('/player', (req, _res, next) => {
   // Log de debug para verificar requisições de arquivos estáticos
   if (req.path.endsWith('.js') || req.path.endsWith('.css') || req.path.endsWith('.json')) {
     // Remover /player do início do path para obter o caminho relativo
