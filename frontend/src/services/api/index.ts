@@ -3816,6 +3816,8 @@ export interface DispatcherMessage {
   duration?: number;
   fromCache?: boolean;
   error?: string;
+  ipAddress?: string;
+  userAgent?: string;
 }
 
 export interface DebugLog {
