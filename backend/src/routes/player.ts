@@ -752,7 +752,7 @@ router.post('/heartbeat',
     }
     
     // Delegar para DispatcherRouter (ponto central de roteamento)
-    await dispatcherRouter.route(req, res, '/api/player/heartbeat');
+    return await dispatcherRouter.route(req, res, '/api/player/heartbeat');
   }
 );
 
