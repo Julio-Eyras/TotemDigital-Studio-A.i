@@ -440,8 +440,16 @@ if (fs.existsSync(jsDir)) {
 }
 
 // Servir arquivos estáticos do diretório player (js/, css/, etc.)
+// IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
 // Usar express.static diretamente para servir todos os arquivos do diretório
-app.use('/player', express.static(playerDir, {
+app.use('/player', (req, res, next) => {
+  // Log de debug para verificar requisições
+  if (req.path.endsWith('.js') || req.path.endsWith('.css')) {
+    const filePath = path.join(playerDir, req.path.replace('/player', ''));
+    logInfoSync(`[Static] Tentando servir: ${req.path} -> ${filePath} (existe: ${fs.existsSync(filePath)})`);
+  }
+  next();
+}, express.static(playerDir, {
   index: false, // Não servir index.html automaticamente
   setHeaders: (res, filePath) => {
     // Definir Content-Type correto para arquivos JavaScript
@@ -453,13 +461,21 @@ app.use('/player', express.static(playerDir, {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
     }
   },
-  fallthrough: false, // Não continuar se arquivo não encontrado (retornar 404)
+  fallthrough: true, // Continuar para próxima rota se arquivo não encontrado
   dotfiles: 'ignore' // Ignorar arquivos ocultos
 }));
 
 // Servir player index.html com suporte a UIN como parâmetro
 // Esta rota só será chamada se nenhum arquivo estático for encontrado
-app.get('/player', (_req, res) => {
+// IMPORTANTE: Esta rota deve vir DEPOIS do express.static para não interceptar arquivos estáticos
+app.get('/player', (req, res, next) => {
+  // Se a requisição é para um arquivo estático (js/, css/, etc.), passar para o próximo middleware
+  // express.static já tentou servir, se chegou aqui é porque não encontrou
+  if (req.path !== '/player' && req.path.startsWith('/player/')) {
+    // Arquivo estático não encontrado, retornar 404
+    return res.status(404).json({ error: 'Arquivo não encontrado', path: req.path });
+  }
+  
   const playerPath = config.player.path;
   // Verificar se arquivo existe antes de enviar
   if (fs.existsSync(playerPath)) {
