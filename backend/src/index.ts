@@ -440,11 +440,25 @@ if (fs.existsSync(jsDir)) {
 // Servir arquivos estáticos do diretório player (js/, css/, etc.)
 // IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
 // Usar express.static diretamente para servir todos os arquivos do diretório
-app.use('/player', (req, _res, next) => {
-  // Log de debug para verificar requisições
-  if (req.path.endsWith('.js') || req.path.endsWith('.css')) {
-    const filePath = path.join(playerDir, req.path.replace('/player', ''));
-    logInfoSync(`[Static] Tentando servir: ${req.path} -> ${filePath} (existe: ${fs.existsSync(filePath)})`);
+// Servir arquivos estáticos do diretório player (js/, css/, etc.)
+// IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
+app.use('/player', (req, res, next) => {
+  // Log de debug para verificar requisições de arquivos estáticos
+  if (req.path.endsWith('.js') || req.path.endsWith('.css') || req.path.endsWith('.json')) {
+    // Remover /player do início do path para obter o caminho relativo
+    const relativePath = req.path.startsWith('/player/') 
+      ? req.path.substring('/player'.length) 
+      : req.path;
+    const filePath = path.join(playerDir, relativePath);
+    const exists = fs.existsSync(filePath);
+    
+    if (!exists) {
+      logWarn(`[Static] Arquivo não encontrado: ${req.path} -> ${filePath}`);
+      logWarn(`[Static] Diretório player: ${playerDir}`);
+      logWarn(`[Static] Caminho relativo: ${relativePath}`);
+    } else {
+      logInfoSync(`[Static] Servindo: ${req.path} -> ${filePath}`);
+    }
   }
   next();
 }, express.static(playerDir, {
@@ -459,7 +473,7 @@ app.use('/player', (req, _res, next) => {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
     }
   },
-  fallthrough: true, // Continuar para próxima rota se arquivo não encontrado
+  fallthrough: false, // Não continuar se arquivo não encontrado (retornar 404)
   dotfiles: 'ignore' // Ignorar arquivos ocultos
 }));
 
