@@ -550,6 +550,26 @@ app.use('/api/player', playerValidationRoutes);
 app.use('/api/player/debug', authMiddleware as any, playerDebugRoutes); // Debug de transações do player (requer autenticação)
 app.use('/api/debug', debugRoutes); // Debug endpoints (logs, diagnóstico)
 
+// Diagnóstico do player (público, para descobrir por que /player/js/* retorna 404)
+app.get('/api/debug/player-static', (_req, res) => {
+  const files = {
+    'js/app.js': fs.existsSync(path.join(playerDir, 'js', 'app.js')),
+    'js/api/client.js': fs.existsSync(path.join(playerDir, 'js', 'api', 'client.js')),
+    'js/cache/MediaCacheManager.js': fs.existsSync(path.join(playerDir, 'js', 'cache', 'MediaCacheManager.js')),
+    'js/cache/PlaylistChangeDetector.js': fs.existsSync(path.join(playerDir, 'js', 'cache', 'PlaylistChangeDetector.js')),
+    'index.html': fs.existsSync(path.join(playerDir, 'index.html'))
+  };
+  const allExist = Object.values(files).every(Boolean);
+  res.json({
+    playerDir,
+    filesExist: files,
+    allJsPresent: allExist,
+    message: allExist
+      ? 'Backend tem os arquivos. Se ainda 404, o Nginx NÃO está fazendo proxy de /player para o backend.'
+      : 'Backend NÃO encontra os arquivos. Copie player-web para ' + playerDir + ' e reinicie o backend.'
+  });
+});
+
 app.get('/player/config', async (_req, res) => {
   try {
     const systemService = new SystemService();
