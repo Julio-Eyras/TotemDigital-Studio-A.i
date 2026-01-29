@@ -4649,7 +4649,8 @@ server {
     }
     location /player/ {
         alias /opt/smart-signage/player-web/;
-        try_files \$uri \$uri/ /player-web/index.html;
+        index index.html;
+        try_files \$uri \$uri/ /index.html;
     }
     
     # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
@@ -4743,7 +4744,8 @@ server {
     }
     location /player/ {
         alias $INSTALL_DIR/player-web/;
-        try_files \$uri \$uri/ /player-web/index.html;
+        index index.html;
+        try_files \$uri \$uri/ /index.html;
     }
     
     # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
