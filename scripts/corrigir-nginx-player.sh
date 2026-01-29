@@ -5,7 +5,6 @@
 set -e
 
 NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
-NGINX_ENABLED="/etc/nginx/sites-enabled/smart-signage"
 
 echo "🔧 Corrigindo configuração do Nginx para o player..."
 
@@ -26,37 +25,35 @@ sed -i 's|try_files \$uri \$uri/ /player-web/index.html;|try_files $uri $uri/ /i
 
 # 2. Garantir que todos os blocos /player/ tenham index index.html;
 #    Adicionar após a linha com alias se não existir
-python3 << 'PYTHON_SCRIPT'
-import re
-import sys
-
-config_file = sys.argv[1]
-
-with open(config_file, 'r') as f:
-    content = f.read()
-
-# Padrão para encontrar blocos location /player/
-pattern = r'(location\s+/player/\s+\{[^}]*?)(alias\s+[^;]+;)([^}]*?)(try_files[^;]+;)'
-
-def fix_block(match):
-    block_start = match.group(1)
-    alias_line = match.group(2)
-    middle = match.group(3)
-    try_files = match.group(4)
-    
-    # Verificar se já tem index
-    if 'index index.html' not in middle and 'index index.html' not in block_start:
-        # Adicionar index após alias
-        return f"{block_start}{alias_line}\n            index index.html;{middle}{try_files}"
-    return match.group(0)
-
-# Aplicar correção
-fixed_content = re.sub(pattern, fix_block, content, flags=re.DOTALL)
-
-with open(config_file, 'w') as f:
-    f.write(fixed_content)
-PYTHON_SCRIPT
-"$NGINX_CONFIG"
+#    Usar awk para processar linha por linha
+awk '
+    /location \/player\/ \{/ {
+        in_player_block = 1
+        has_index = 0
+        print
+        next
+    }
+    in_player_block {
+        if (/index index\.html/) {
+            has_index = 1
+        }
+        if (/alias.*player-web\/;/) {
+            print
+            if (!has_index) {
+                print "            index index.html;"
+                has_index = 1
+            }
+            next
+        }
+        if (/\}/) {
+            in_player_block = 0
+            has_index = 0
+        }
+        print
+        next
+    }
+    { print }
+' "$NGINX_CONFIG" > "${NGINX_CONFIG}.tmp" && mv "${NGINX_CONFIG}.tmp" "$NGINX_CONFIG"
 
 echo "✅ Configuração corrigida"
 
