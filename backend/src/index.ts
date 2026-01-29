@@ -456,34 +456,23 @@ app.use('/player', express.static(playerDir, {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
     }
   },
-  fallthrough: false, // Não continuar se arquivo não encontrado (retornar 404)
+  fallthrough: true, // IMPORTANTE: Continuar para próximas rotas se arquivo não encontrado
   dotfiles: 'ignore' // Ignorar arquivos ocultos
 }));
 
-// Middleware de log APÓS express.static para capturar o que foi servido
-app.use('/player', (req, res, next) => {
-  // Log apenas para arquivos estáticos que não foram encontrados
-  if ((req.path.endsWith('.js') || req.path.endsWith('.css') || req.path.endsWith('.json')) && res.statusCode === 404) {
-    // Calcular o caminho esperado para debug
-    const relativePath = req.path.startsWith('/') ? req.path.substring(1) : req.path;
-    const filePath = path.join(playerDir, relativePath);
-    logWarn(`[Static] Arquivo não encontrado: ${req.path} -> ${filePath}`);
-    logWarn(`[Static] Diretório player: ${playerDir}`);
-    logWarn(`[Static] URL completa: ${req.url}`);
-  }
-  next();
-});
-
 // Servir player index.html com suporte a UIN como parâmetro
-// Esta rota só será chamada se nenhum arquivo estático for encontrado
-// IMPORTANTE: Esta rota deve vir DEPOIS do express.static para não interceptar arquivos estáticos
+// Esta rota será chamada quando express.static não encontrar arquivo estático
+// IMPORTANTE: Esta rota deve vir DEPOIS do express.static
 app.get('/player', (req, res) => {
-  // Se a requisição é para um arquivo estático (js/, css/, etc.), express.static já tentou servir
-  // Se chegou aqui e não é exatamente /player ou /player/, retornar 404
-  if (req.path !== '/player' && req.path !== '/player/' && req.path.startsWith('/player/')) {
-    // Arquivo estático não encontrado, retornar 404
-    logWarn(`[Player] Arquivo estático não encontrado: ${req.path}`);
-    return res.status(404).json({ error: 'Arquivo não encontrado', path: req.path });
+  // Se é um arquivo estático (js/, css/, etc.) que não foi encontrado, retornar 404
+  if (req.path !== '/player' && req.path.startsWith('/player/')) {
+    const pathWithoutPrefix = req.path.substring('/player'.length);
+    // Se não termina com / e não tem extensão conhecida, pode ser arquivo estático não encontrado
+    if (!pathWithoutPrefix.endsWith('/') && 
+        !pathWithoutPrefix.match(/\.(js|css|json|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i)) {
+      logWarn(`[Player] Arquivo estático não encontrado: ${req.path}`);
+      return res.status(404).json({ error: 'Arquivo não encontrado', path: req.path });
+    }
   }
   
   const playerPath = config.player.path;
@@ -496,7 +485,7 @@ app.get('/player', (req, res) => {
   }
 });
 
-// Também servir /player/ (com barra final)
+// Também servir /player/ (com barra final) - necessário para URLs com query string
 app.get('/player/', (_req, res) => {
   const playerPath = config.player.path;
   if (fs.existsSync(playerPath)) {
