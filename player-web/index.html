@@ -164,10 +164,38 @@
     <button id="debug-toggle" onclick="toggleDebug()">🔍 Debug</button>
 
     <!-- Carregar scripts na ordem correta -->
-    <script src="/player/js/cache/MediaCacheManager.js"></script>
-    <script src="/player/js/cache/PlaylistChangeDetector.js"></script>
-    <script src="/player/js/api/client.js"></script>
-    <script src="/player/js/app.js"></script>
+    <!-- Usar caminhos relativos que funcionam independente do protocolo -->
+    <script>
+        // Garantir que scripts sejam carregados com o mesmo protocolo da página
+        (function() {
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            const baseUrl = protocol + '//' + host;
+            
+            const scripts = [
+                baseUrl + '/player/js/cache/MediaCacheManager.js',
+                baseUrl + '/player/js/cache/PlaylistChangeDetector.js',
+                baseUrl + '/player/js/api/client.js',
+                baseUrl + '/player/js/app.js'
+            ];
+            
+            let loaded = 0;
+            scripts.forEach((src, index) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => {
+                    loaded++;
+                    if (loaded === scripts.length) {
+                        console.log('[Player] Todos os scripts carregados');
+                    }
+                };
+                script.onerror = () => {
+                    console.error('[Player] Erro ao carregar script:', src);
+                };
+                document.head.appendChild(script);
+            });
+        })();
+    </script>
     <script>
         (function() {
             const debugPanel = document.getElementById('debug-panel');
