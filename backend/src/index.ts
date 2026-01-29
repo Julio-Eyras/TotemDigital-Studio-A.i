@@ -441,6 +441,7 @@ if (fs.existsSync(jsDir)) {
 }
 
 // Servir arquivos estáticos do player (js/, css/, etc.)
+// IMPORTANTE: Este middleware DEVE vir ANTES das rotas app.get('/player') e app.get('/player/')
 // Middleware global que intercepta /player/* antes das rotas específicas
 app.use((req, res, next) => {
   // Só processar requisições para /player/* que não sejam exatamente /player ou /player/
@@ -469,7 +470,17 @@ app.use((req, res, next) => {
   
   // Verificar se arquivo existe
   if (!fs.existsSync(filePath)) {
-    logWarn(`[Player] Arquivo não encontrado: ${req.path} -> ${filePath} (playerDir: ${playerDir}, subpath: ${subpath})`);
+    logWarn(`[Player] Arquivo não encontrado: ${req.path} -> ${filePath}`);
+    logWarn(`[Player] playerDir: ${playerDir}, subpath: ${subpath}`);
+    logWarn(`[Player] Diretório existe? ${fs.existsSync(playerDir)}`);
+    if (fs.existsSync(playerDir)) {
+      const jsPath = path.join(playerDir, 'js');
+      logWarn(`[Player] js/ existe? ${fs.existsSync(jsPath)}`);
+      if (fs.existsSync(jsPath)) {
+        const files = fs.readdirSync(jsPath);
+        logWarn(`[Player] Arquivos em js/: ${files.join(', ')}`);
+      }
+    }
     return next();
   }
   
@@ -479,7 +490,7 @@ app.use((req, res, next) => {
   }
   
   // Servir arquivo
-  logInfoSync(`[Player] Servindo: ${req.path} -> ${filePath}`);
+  logInfoSync(`[Player] ✅ Servindo: ${req.path} -> ${filePath}`);
   res.removeHeader('Strict-Transport-Security');
   res.removeHeader('Upgrade-Insecure-Requests');
   if (filePath.endsWith('.js')) {
