@@ -455,6 +455,9 @@ app.use('/player', express.static(playerDir, {
     } else if (filePath.endsWith('.json')) {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
     }
+    // Garantir que não há headers que forcem HTTPS
+    res.removeHeader('Strict-Transport-Security');
+    res.removeHeader('Upgrade-Insecure-Requests');
   },
   fallthrough: true, // IMPORTANTE: Continuar para próximas rotas se arquivo não encontrado
   dotfiles: 'ignore' // Ignorar arquivos ocultos
@@ -478,6 +481,9 @@ app.get('/player', (req, res) => {
   const playerPath = config.player.path;
   // Verificar se arquivo existe antes de enviar
   if (fs.existsSync(playerPath)) {
+    // Remover headers que podem forçar HTTPS
+    res.removeHeader('Strict-Transport-Security');
+    res.removeHeader('Upgrade-Insecure-Requests');
     return res.sendFile(playerPath);
   } else {
     logWarn(`[Server] Arquivo index.html do player não encontrado: ${playerPath}`);
@@ -489,6 +495,9 @@ app.get('/player', (req, res) => {
 app.get('/player/', (_req, res) => {
   const playerPath = config.player.path;
   if (fs.existsSync(playerPath)) {
+    // Remover headers que podem forçar HTTPS
+    res.removeHeader('Strict-Transport-Security');
+    res.removeHeader('Upgrade-Insecure-Requests');
     return res.sendFile(playerPath);
   } else {
     logWarn(`[Server] Arquivo index.html do player não encontrado: ${playerPath}`);
