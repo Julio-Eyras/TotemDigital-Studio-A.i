@@ -4864,6 +4864,17 @@ setup_nginx() {
             sudo chmod -R 755 /opt/smart-signage/player-web 2>/dev/null || true
             sudo find /opt/smart-signage/player-web -type f -exec chmod 644 {} \; 2>/dev/null || true
             log "✅ Player copiado para /opt/smart-signage/player-web"
+            
+            # Verificar se arquivos JS foram copiados
+            if [[ -f "/opt/smart-signage/player-web/js/app.js" ]] && \
+               [[ -f "/opt/smart-signage/player-web/js/api/client.js" ]] && \
+               [[ -f "/opt/smart-signage/player-web/js/cache/MediaCacheManager.js" ]] && \
+               [[ -f "/opt/smart-signage/player-web/js/cache/PlaylistChangeDetector.js" ]]; then
+                log "✅ Arquivos JS do player verificados e presentes"
+            else
+                warn "⚠️ Alguns arquivos JS do player não foram encontrados em /opt/smart-signage/player-web/js/"
+                warn "   Verifique se player-web/js/ existe no diretório de origem"
+            fi
             log "   (Nginx e backend já configurados para /player — nenhum passo manual necessário)"
             
             # Gerar arquivo de configuração encriptado do player (se não existir)
