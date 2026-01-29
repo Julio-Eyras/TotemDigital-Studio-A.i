@@ -441,20 +441,57 @@ if (fs.existsSync(jsDir)) {
 }
 
 // Servir arquivos estáticos do player (js/, css/, etc.)
-// Resolução explícita do path: /player/js/app.js -> playerDir/js/app.js (evita bug do express.static com mount)
+// Resolução explícita do path: /player/js/app.js -> playerDir/js/app.js
 app.use('/player', (req, res, next) => {
-  const rawPath = req.path.startsWith('/player') ? req.path.slice('/player'.length) : req.path;
-  const subpath = (rawPath.startsWith('/') ? rawPath.slice(1) : rawPath).split('?')[0];
-  if (!subpath || subpath === '') return next(); // /player ou /player/ -> deixar para rotas abaixo
+  // req.path já vem sem query string, mas pode ter /player no início
+  let subpath = req.path;
+  
+  // Remover prefixo /player se presente
+  if (subpath.startsWith('/player')) {
+    subpath = subpath.slice('/player'.length);
+  }
+  
+  // Remover barra inicial e query string
+  subpath = subpath.startsWith('/') ? subpath.slice(1) : subpath;
+  subpath = subpath.split('?')[0];
+  
+  // Se vazio, é /player ou /player/ -> deixar para rotas abaixo
+  if (!subpath || subpath === '') {
+    return next();
+  }
+  
+  // Construir caminho completo do arquivo
   const filePath = path.join(playerDir, subpath);
+  
+  // Verificar path traversal
   const rel = path.relative(playerDir, filePath);
-  if (rel.startsWith('..') || path.isAbsolute(rel)) return res.status(403).end(); // path traversal
-  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return next();
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    logWarn(`[Player] Path traversal bloqueado: ${req.path} -> ${filePath}`);
+    return res.status(403).end();
+  }
+  
+  // Verificar se arquivo existe
+  if (!fs.existsSync(filePath)) {
+    logWarn(`[Player] Arquivo não encontrado: ${req.path} -> ${filePath} (playerDir: ${playerDir})`);
+    return next();
+  }
+  
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile()) {
+    return next();
+  }
+  
+  // Servir arquivo
+  logInfoSync(`[Player] Servindo: ${req.path} -> ${filePath}`);
   res.removeHeader('Strict-Transport-Security');
   res.removeHeader('Upgrade-Insecure-Requests');
-  if (filePath.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  else if (filePath.endsWith('.css')) res.setHeader('Content-Type', 'text/css; charset=utf-8');
-  else if (filePath.endsWith('.json')) res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  if (filePath.endsWith('.js')) {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  } else if (filePath.endsWith('.css')) {
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+  } else if (filePath.endsWith('.json')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
   res.sendFile(filePath);
 });
 
