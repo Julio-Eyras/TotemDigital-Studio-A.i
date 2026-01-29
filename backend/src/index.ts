@@ -439,16 +439,14 @@ if (fs.existsSync(jsDir)) {
 
 // Servir arquivos estáticos do diretório player (js/, css/, etc.)
 // IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
-// Usar express.static diretamente para servir todos os arquivos do diretório
-// Servir arquivos estáticos do diretório player (js/, css/, etc.)
-// IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
-app.use('/player', (req, _res, next) => {
+// express.static com prefixo '/player' automaticamente remove o prefixo antes de procurar no diretório
+// Então /player/js/app.js -> procura por js/app.js no playerDir
+app.use('/player', (req, res, next) => {
   // Log de debug para verificar requisições de arquivos estáticos
-  if (req.path.endsWith('.js') || req.path.endsWith('.css') || req.path.endsWith('.json')) {
-    // Remover /player do início do path para obter o caminho relativo
-    const relativePath = req.path.startsWith('/player/') 
-      ? req.path.substring('/player'.length) 
-      : req.path;
+  if (req.path.endsWith('.js') || req.path.endsWith('.css') || req.path.endsWith('.json') || req.path.endsWith('.html')) {
+    // req.path já vem sem o prefixo '/player' quando usado com express.static
+    // Mas vamos garantir que estamos usando o path correto
+    const relativePath = req.path.startsWith('/') ? req.path.substring(1) : req.path;
     const filePath = path.join(playerDir, relativePath);
     const exists = fs.existsSync(filePath);
     
@@ -456,6 +454,7 @@ app.use('/player', (req, _res, next) => {
       logWarn(`[Static] Arquivo não encontrado: ${req.path} -> ${filePath}`);
       logWarn(`[Static] Diretório player: ${playerDir}`);
       logWarn(`[Static] Caminho relativo: ${relativePath}`);
+      logWarn(`[Static] URL completa: ${req.url}`);
     } else {
       logInfoSync(`[Static] Servindo: ${req.path} -> ${filePath}`);
     }
@@ -482,14 +481,26 @@ app.use('/player', (req, _res, next) => {
 // IMPORTANTE: Esta rota deve vir DEPOIS do express.static para não interceptar arquivos estáticos
 app.get('/player', (req, res) => {
   // Se a requisição é para um arquivo estático (js/, css/, etc.), express.static já tentou servir
-  // Se chegou aqui e não é exatamente /player, retornar 404
-  if (req.path !== '/player' && req.path.startsWith('/player/')) {
+  // Se chegou aqui e não é exatamente /player ou /player/, retornar 404
+  if (req.path !== '/player' && req.path !== '/player/' && req.path.startsWith('/player/')) {
     // Arquivo estático não encontrado, retornar 404
+    logWarn(`[Player] Arquivo estático não encontrado: ${req.path}`);
     return res.status(404).json({ error: 'Arquivo não encontrado', path: req.path });
   }
   
   const playerPath = config.player.path;
   // Verificar se arquivo existe antes de enviar
+  if (fs.existsSync(playerPath)) {
+    return res.sendFile(playerPath);
+  } else {
+    logWarn(`[Server] Arquivo index.html do player não encontrado: ${playerPath}`);
+    return res.status(404).json({ error: 'Player não encontrado' });
+  }
+});
+
+// Também servir /player/ (com barra final)
+app.get('/player/', (req, res) => {
+  const playerPath = config.player.path;
   if (fs.existsSync(playerPath)) {
     return res.sendFile(playerPath);
   } else {
