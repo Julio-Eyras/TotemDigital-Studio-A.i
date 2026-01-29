@@ -4864,6 +4864,7 @@ setup_nginx() {
             sudo chmod -R 755 /opt/smart-signage/player-web 2>/dev/null || true
             sudo find /opt/smart-signage/player-web -type f -exec chmod 644 {} \; 2>/dev/null || true
             log "✅ Player copiado para /opt/smart-signage/player-web"
+            log "   (Nginx e backend já configurados para /player — nenhum passo manual necessário)"
             
             # Gerar arquivo de configuração encriptado do player (se não existir)
             if [[ ! -f "/opt/smart-signage/player-web/config.json.enc" ]]; then
@@ -8871,6 +8872,7 @@ show_final_info() {
     fi
     echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80/player?uin=TOTEM_UIN${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (Player público para totems - sem login)${NC}"
+    echo -e "   ${GREEN}   ✓ Instalado do zero: nenhum passo manual necessário.${NC}"
     
     # Se --starttotem foi usado, mostrar UINs específicos dos totens de laboratório
     if [[ "${START_TOTEM:-false}" == "true" ]] && [[ -n "${START_TOTEM_UIN1:-}" ]]; then

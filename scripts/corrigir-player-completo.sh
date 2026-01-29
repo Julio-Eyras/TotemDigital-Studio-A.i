@@ -1,6 +1,9 @@
 #!/bin/bash
 # Script COMPLETO para corrigir TODOS os problemas do player
 # Uso: sudo bash scripts/corrigir-player-completo.sh
+#
+# ⚠️ Use este script APENAS se você NÃO reinstalou do zero.
+#    Se reinstalou tudo com install-smartsignage.sh, o player já está correto e não precisa deste script.
 
 set -e
 
