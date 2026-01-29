@@ -441,26 +441,10 @@ if (fs.existsSync(jsDir)) {
 // IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
 // express.static com prefixo '/player' automaticamente remove o prefixo antes de procurar no diretório
 // Então /player/js/app.js -> procura por js/app.js no playerDir
-app.use('/player', (req, res, next) => {
-  // Log de debug para verificar requisições de arquivos estáticos
-  if (req.path.endsWith('.js') || req.path.endsWith('.css') || req.path.endsWith('.json') || req.path.endsWith('.html')) {
-    // req.path já vem sem o prefixo '/player' quando usado com express.static
-    // Mas vamos garantir que estamos usando o path correto
-    const relativePath = req.path.startsWith('/') ? req.path.substring(1) : req.path;
-    const filePath = path.join(playerDir, relativePath);
-    const exists = fs.existsSync(filePath);
-    
-    if (!exists) {
-      logWarn(`[Static] Arquivo não encontrado: ${req.path} -> ${filePath}`);
-      logWarn(`[Static] Diretório player: ${playerDir}`);
-      logWarn(`[Static] Caminho relativo: ${relativePath}`);
-      logWarn(`[Static] URL completa: ${req.url}`);
-    } else {
-      logInfoSync(`[Static] Servindo: ${req.path} -> ${filePath}`);
-    }
-  }
-  next();
-}, express.static(playerDir, {
+// Servir arquivos estáticos do player
+// express.static com prefixo '/player' remove automaticamente o prefixo antes de procurar
+// Então /player/js/app.js -> procura js/app.js no playerDir
+app.use('/player', express.static(playerDir, {
   index: false, // Não servir index.html automaticamente
   setHeaders: (res, filePath) => {
     // Definir Content-Type correto para arquivos JavaScript
@@ -475,6 +459,20 @@ app.use('/player', (req, res, next) => {
   fallthrough: false, // Não continuar se arquivo não encontrado (retornar 404)
   dotfiles: 'ignore' // Ignorar arquivos ocultos
 }));
+
+// Middleware de log APÓS express.static para capturar o que foi servido
+app.use('/player', (req, res, next) => {
+  // Log apenas para arquivos estáticos que não foram encontrados
+  if ((req.path.endsWith('.js') || req.path.endsWith('.css') || req.path.endsWith('.json')) && res.statusCode === 404) {
+    // Calcular o caminho esperado para debug
+    const relativePath = req.path.startsWith('/') ? req.path.substring(1) : req.path;
+    const filePath = path.join(playerDir, relativePath);
+    logWarn(`[Static] Arquivo não encontrado: ${req.path} -> ${filePath}`);
+    logWarn(`[Static] Diretório player: ${playerDir}`);
+    logWarn(`[Static] URL completa: ${req.url}`);
+  }
+  next();
+});
 
 // Servir player index.html com suporte a UIN como parâmetro
 // Esta rota só será chamada se nenhum arquivo estático for encontrado
