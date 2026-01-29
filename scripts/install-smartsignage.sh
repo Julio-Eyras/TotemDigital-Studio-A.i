@@ -4643,14 +4643,24 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Player (versão com cache completo - substitui player-web obsoleto)
-    location = /player {
-        return 301 /player/;
-    }
-    location /player/ {
-        alias /opt/smart-signage/player-web/;
-        index index.html;
-        try_files \$uri \$uri/ /player/index.html;
+    # Player - Proxy para backend Express (serve arquivos estáticos corretamente)
+    location /player {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+        # Buffers maiores para player (arquivos JS podem ser grandes)
+        proxy_buffer_size 256k;
+        proxy_buffers 8 512k;
+        proxy_busy_buffers_size 512k;
+        proxy_temp_file_write_size 512k;
     }
     
     # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
@@ -4738,14 +4748,24 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Player
-    location = /player {
-        return 301 /player/;
-    }
-    location /player/ {
-        alias $INSTALL_DIR/player-web/;
-        index index.html;
-        try_files \$uri \$uri/ /player/index.html;
+    # Player - Proxy para backend Express (serve arquivos estáticos corretamente)
+    location /player {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+        # Buffers maiores para player (arquivos JS podem ser grandes)
+        proxy_buffer_size 256k;
+        proxy_buffers 8 512k;
+        proxy_busy_buffers_size 512k;
+        proxy_temp_file_write_size 512k;
     }
     
     # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
@@ -4917,20 +4937,43 @@ server {
         proxy_read_timeout 300s;
     }
 
-    # Player (streaming)
-    location = /player { return 301 /player/; }
-    location /player/ {
-        alias /opt/smart-signage/player-web/;
-        index index.html;
-        try_files \$uri \$uri/ /player/index.html;
+    # Player - Proxy para backend Express (serve arquivos estáticos corretamente)
+    location /player {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+        # Buffers maiores para player (arquivos JS podem ser grandes)
+        proxy_buffer_size 256k;
+        proxy_buffers 8 512k;
+        proxy_busy_buffers_size 512k;
+        proxy_temp_file_write_size 512k;
     }
 
-    # Player com Cache (laboratório)
-    location = /player-cache { return 301 /player-cache/; }
-    location /player-cache/ {
-        alias /opt/smart-signage/player-web/;
-        index index.html;
-        try_files \$uri \$uri/ /index.html;
+    # Player com Cache (laboratório) - também usa proxy
+    location /player-cache {
+        proxy_pass http://localhost:3000/player;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+        proxy_buffer_size 256k;
+        proxy_buffers 8 512k;
+        proxy_busy_buffers_size 512k;
+        proxy_temp_file_write_size 512k;
     }
 
     # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
@@ -5014,12 +5057,24 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Player (versão com cache completo - substitui player-web obsoleto) - redirect raiz e arquivos
-    location = /player { return 301 /player/; }
-    location /player/ {
-        alias /opt/smart-signage/player-web/;
-        index index.html;
-        try_files \$uri \$uri/ /player/index.html;
+    # Player - Proxy para backend Express (serve arquivos estáticos corretamente)
+    location /player {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+        # Buffers maiores para player (arquivos JS podem ser grandes)
+        proxy_buffer_size 256k;
+        proxy_buffers 8 512k;
+        proxy_busy_buffers_size 512k;
+        proxy_temp_file_write_size 512k;
     }
     
     # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
