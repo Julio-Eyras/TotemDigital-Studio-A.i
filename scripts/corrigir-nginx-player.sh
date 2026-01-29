@@ -21,37 +21,42 @@ cp "$NGINX_CONFIG" "$BACKUP_FILE"
 echo "✅ Backup criado: $BACKUP_FILE"
 
 # Corrigir todos os blocos location /player/
-# Substituir try_files que usa /player-web/index.html por /index.html
+# 1. Substituir try_files que usa /player-web/index.html por /index.html
 sed -i 's|try_files \$uri \$uri/ /player-web/index.html;|try_files $uri $uri/ /index.html;|g' "$NGINX_CONFIG"
 
-# Garantir que todos os blocos /player/ tenham index index.html;
-# Se não tiver, adicionar após o alias
-sed -i '/location \/player\/ {/,/}/ {
-    /alias.*player-web/ {
-        N
-        /index index.html/! {
-            a\
-            index index.html;
-        }
-    }
-}' "$NGINX_CONFIG"
+# 2. Garantir que todos os blocos /player/ tenham index index.html;
+#    Adicionar após a linha com alias se não existir
+python3 << 'PYTHON_SCRIPT'
+import re
+import sys
 
-# Método mais simples: usar perl para garantir que index está presente
-perl -i -pe '
-    if (/location \/player\/ \{/) {
-        $in_block = 1;
-        $has_index = 0;
-        $has_alias = 0;
-    }
-    if ($in_block) {
-        $has_index = 1 if /index index\.html/;
-        $has_alias = 1 if /alias.*player-web/;
-        if (/\}/ && $has_alias && !$has_index) {
-            s/(alias.*player-web\/;)/$1\n            index index.html;/;
-        }
-        $in_block = 0 if /\}/;
-    }
-' "$NGINX_CONFIG"
+config_file = sys.argv[1]
+
+with open(config_file, 'r') as f:
+    content = f.read()
+
+# Padrão para encontrar blocos location /player/
+pattern = r'(location\s+/player/\s+\{[^}]*?)(alias\s+[^;]+;)([^}]*?)(try_files[^;]+;)'
+
+def fix_block(match):
+    block_start = match.group(1)
+    alias_line = match.group(2)
+    middle = match.group(3)
+    try_files = match.group(4)
+    
+    # Verificar se já tem index
+    if 'index index.html' not in middle and 'index index.html' not in block_start:
+        # Adicionar index após alias
+        return f"{block_start}{alias_line}\n            index index.html;{middle}{try_files}"
+    return match.group(0)
+
+# Aplicar correção
+fixed_content = re.sub(pattern, fix_block, content, flags=re.DOTALL)
+
+with open(config_file, 'w') as f:
+    f.write(fixed_content)
+PYTHON_SCRIPT
+"$NGINX_CONFIG"
 
 echo "✅ Configuração corrigida"
 
