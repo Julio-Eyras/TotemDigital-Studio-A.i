@@ -497,7 +497,7 @@ app.get('/player', (req, res) => {
 });
 
 // Também servir /player/ (com barra final)
-app.get('/player/', (req, res) => {
+app.get('/player/', (_req, res) => {
   const playerPath = config.player.path;
   if (fs.existsSync(playerPath)) {
     return res.sendFile(playerPath);
