@@ -388,7 +388,7 @@ let playerDir = config.player.dir || '/opt/smart-signage/player-web';
 // Lista de diretórios possíveis
 const possibleDirs = [
   process.env.PLAYER_DIR, // Variável de ambiente tem prioridade
-  '/opt/smart-signage/player-web', // Diretório de produção
+  '/opt/smart-signage/player-web', // Diretório de produção (install copia aqui)
   path.join(process.cwd(), 'player-web'), // Desenvolvimento local
   config.player.dir // Config do env.ts
 ].filter(Boolean) as string[];
@@ -440,31 +440,23 @@ if (fs.existsSync(jsDir)) {
   logWarn(`[Server] Diretório js/ NÃO encontrado: ${jsDir}`);
 }
 
-// Servir arquivos estáticos do diretório player (js/, css/, etc.)
-// IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
-// express.static com prefixo '/player' automaticamente remove o prefixo antes de procurar no diretório
-// Então /player/js/app.js -> procura por js/app.js no playerDir
-// Servir arquivos estáticos do player
-// express.static com prefixo '/player' remove automaticamente o prefixo antes de procurar
-// Então /player/js/app.js -> procura js/app.js no playerDir
-app.use('/player', express.static(playerDir, {
-  index: false, // Não servir index.html automaticamente
-  setHeaders: (res, filePath) => {
-    // Definir Content-Type correto para arquivos JavaScript
-    if (filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-    } else if (filePath.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css; charset=utf-8');
-    } else if (filePath.endsWith('.json')) {
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    }
-    // Garantir que não há headers que forcem HTTPS
-    res.removeHeader('Strict-Transport-Security');
-    res.removeHeader('Upgrade-Insecure-Requests');
-  },
-  fallthrough: true, // IMPORTANTE: Continuar para próximas rotas se arquivo não encontrado
-  dotfiles: 'ignore' // Ignorar arquivos ocultos
-}));
+// Servir arquivos estáticos do player (js/, css/, etc.)
+// Resolução explícita do path: /player/js/app.js -> playerDir/js/app.js (evita bug do express.static com mount)
+app.use('/player', (req, res, next) => {
+  const rawPath = req.path.startsWith('/player') ? req.path.slice('/player'.length) : req.path;
+  const subpath = (rawPath.startsWith('/') ? rawPath.slice(1) : rawPath).split('?')[0];
+  if (!subpath || subpath === '') return next(); // /player ou /player/ -> deixar para rotas abaixo
+  const filePath = path.join(playerDir, subpath);
+  const rel = path.relative(playerDir, filePath);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) return res.status(403).end(); // path traversal
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return next();
+  res.removeHeader('Strict-Transport-Security');
+  res.removeHeader('Upgrade-Insecure-Requests');
+  if (filePath.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  else if (filePath.endsWith('.css')) res.setHeader('Content-Type', 'text/css; charset=utf-8');
+  else if (filePath.endsWith('.json')) res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.sendFile(filePath);
+});
 
 // Servir player index.html com suporte a UIN como parâmetro
 // Esta rota será chamada quando express.static não encontrar arquivo estático
