@@ -4661,6 +4661,10 @@ server {
         proxy_buffers 8 512k;
         proxy_busy_buffers_size 512k;
         proxy_temp_file_write_size 512k;
+        # Remover headers que quebram player em HTTP (CSP/COOP bloqueiam inline scripts)
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Cross-Origin-Opener-Policy;
+        proxy_hide_header Origin-Agent-Cluster;
     }
     
     # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
@@ -4955,6 +4959,10 @@ server {
         proxy_buffers 8 512k;
         proxy_busy_buffers_size 512k;
         proxy_temp_file_write_size 512k;
+        # Remover headers que quebram player em HTTP (CSP/COOP bloqueiam inline scripts)
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Cross-Origin-Opener-Policy;
+        proxy_hide_header Origin-Agent-Cluster;
     }
 
     # Player com Cache (laboratório) - também usa proxy
@@ -5075,6 +5083,10 @@ server {
         proxy_buffers 8 512k;
         proxy_busy_buffers_size 512k;
         proxy_temp_file_write_size 512k;
+        # Remover headers que quebram player em HTTP (CSP/COOP bloqueiam inline scripts)
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Cross-Origin-Opener-Policy;
+        proxy_hide_header Origin-Agent-Cluster;
     }
     
     # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR

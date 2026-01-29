@@ -118,28 +118,31 @@ app.get('/favicon.ico', (_req, res) => res.status(204).end());
 // Confiar apenas em proxies locais (ex.: Nginx na mesma máquina)
 app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 
-// Security
-// Configurar Helmet com headers compatíveis com HTTP (desenvolvimento)
-// Em produção com HTTPS, esses headers funcionam normalmente
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "ws:", "wss:"],
-      fontSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
+// Security: Helmet NÃO deve ser aplicado às rotas /player (player usa inline scripts e não deve ter CSP/COOP)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/player')) {
+    // Player: apenas headers básicos, sem CSP/COOP para evitar bloqueio de inline scripts
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    return next();
+  }
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "ws:", "wss:"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"],
+      },
     },
-  },
-  // Desabilitar headers que causam avisos em HTTP
-  // Em HTTPS (produção), esses headers funcionam normalmente
-  crossOriginOpenerPolicy: config.server.isProduction ? { policy: 'same-origin' } : false,
-  crossOriginEmbedderPolicy: false
-}));
+    crossOriginOpenerPolicy: config.server.isProduction ? { policy: 'same-origin' } : false,
+    crossOriginEmbedderPolicy: false
+  })(req, res, next);
+});
 
 // CORS
 const corsOptions = {
