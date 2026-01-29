@@ -20,8 +20,12 @@ cp "$NGINX_CONFIG" "$BACKUP_FILE"
 echo "✅ Backup criado: $BACKUP_FILE"
 
 # Corrigir todos os blocos location /player/
-# 1. Substituir try_files que usa /player-web/index.html por /index.html
-sed -i 's|try_files \$uri \$uri/ /player-web/index.html;|try_files $uri $uri/ /index.html;|g' "$NGINX_CONFIG"
+# 1. Substituir try_files que usa /player-web/index.html por /player/index.html
+sed -i 's|try_files \$uri \$uri/ /player-web/index.html;|try_files $uri $uri/ /player/index.html;|g' "$NGINX_CONFIG"
+# 2. Corrigir try_files que usa /index.html (sem /player/) para /player/index.html quando dentro de location /player/
+sed -i '/location \/player\/ {/,/try_files.*\/index\.html/ {
+    s|try_files \$uri \$uri/ /index.html;|try_files $uri $uri/ /player/index.html;|
+}' "$NGINX_CONFIG"
 
 # 2. Garantir que todos os blocos /player/ tenham index index.html;
 #    Adicionar após a linha com alias se não existir
