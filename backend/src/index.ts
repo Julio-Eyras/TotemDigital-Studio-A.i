@@ -441,39 +441,35 @@ if (fs.existsSync(jsDir)) {
 }
 
 // Servir arquivos estáticos do player (js/, css/, etc.)
-// Resolução explícita do path: /player/js/app.js -> playerDir/js/app.js
-app.use('/player', (req, res, next) => {
-  // Quando montado em /player, req.path já vem relativo ao mount point
-  // Mas para garantir, vamos usar req.url que tem o path completo
-  let requestPath = req.url.split('?')[0]; // Remove query string
-  
-  // Remover prefixo /player se presente (pode vir completo ou relativo)
-  if (requestPath.startsWith('/player')) {
-    requestPath = requestPath.slice('/player'.length);
-  }
-  
-  // Normalizar: remover barra inicial
-  requestPath = requestPath.startsWith('/') ? requestPath.slice(1) : requestPath;
-  
-  // Se vazio ou só barra, é /player ou /player/ -> deixar para rotas abaixo
-  if (!requestPath || requestPath === '' || requestPath === '/') {
+// Middleware global que intercepta /player/* antes das rotas específicas
+app.use((req, res, next) => {
+  // Só processar requisições para /player/* que não sejam exatamente /player ou /player/
+  if (!req.path.startsWith('/player/')) {
     return next();
   }
   
+  // Se é exatamente /player ou /player/, deixar para rotas abaixo
+  if (req.path === '/player' || req.path === '/player/') {
+    return next();
+  }
+  
+  // Extrair subpath: /player/js/app.js -> js/app.js
+  const subpath = req.path.slice('/player/'.length);
+  
   // Construir caminho completo do arquivo
-  const filePath = path.join(playerDir, requestPath);
+  const filePath = path.join(playerDir, subpath);
   
   // Verificar path traversal (garantir que não sai do playerDir)
   const resolvedPlayerDir = path.resolve(playerDir);
   const resolvedFilePath = path.resolve(filePath);
   if (!resolvedFilePath.startsWith(resolvedPlayerDir)) {
-    logWarn(`[Player] Path traversal bloqueado: ${req.url} -> ${filePath}`);
+    logWarn(`[Player] Path traversal bloqueado: ${req.path} -> ${filePath}`);
     return res.status(403).end();
   }
   
   // Verificar se arquivo existe
   if (!fs.existsSync(filePath)) {
-    logWarn(`[Player] Arquivo não encontrado: ${req.url} -> ${filePath} (playerDir: ${playerDir}, requestPath: ${requestPath})`);
+    logWarn(`[Player] Arquivo não encontrado: ${req.path} -> ${filePath} (playerDir: ${playerDir}, subpath: ${subpath})`);
     return next();
   }
   
@@ -483,7 +479,7 @@ app.use('/player', (req, res, next) => {
   }
   
   // Servir arquivo
-  logInfoSync(`[Player] Servindo: ${req.url} -> ${filePath}`);
+  logInfoSync(`[Player] Servindo: ${req.path} -> ${filePath}`);
   res.removeHeader('Strict-Transport-Security');
   res.removeHeader('Upgrade-Insecure-Requests');
   if (filePath.endsWith('.js')) {
