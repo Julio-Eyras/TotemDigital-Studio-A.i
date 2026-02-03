@@ -521,7 +521,7 @@ CREATE TABLE IF NOT EXISTS device_tokens (
     -- Telemetria básica
     ip_address TEXT,
     user_agent TEXT,
-    last_seen_at TIMESTAMP,
+    last_heartbeat TIMESTAMP,
     expires_at TIMESTAMP,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -541,7 +541,7 @@ COMMENT ON COLUMN device_tokens.app_version IS 'Versão do aplicativo/player ins
 COMMENT ON COLUMN device_tokens.token IS 'Token de acesso emitido para o dispositivo (curto prazo)';
 COMMENT ON COLUMN device_tokens.refresh_token IS 'Token de renovação (longo prazo), opcional';
 COMMENT ON COLUMN device_tokens.status IS 'Status do token: active, revoked ou expired';
-COMMENT ON COLUMN device_tokens.last_seen_at IS 'Última vez que o dispositivo foi visto/validado usando este token';
+COMMENT ON COLUMN device_tokens.last_heartbeat IS 'Último heartbeat/contato do dispositivo usando este token';
 COMMENT ON COLUMN device_tokens.expires_at IS 'Data/hora de expiração deste token de dispositivo';
 
 CREATE TABLE IF NOT EXISTS user_two_factor (

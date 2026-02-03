@@ -106,7 +106,7 @@ O usuário identificou um **problema crítico** no fluxo atual:
    UPDATE totems SET
        config = {...hardware info...},
        ip_address = '...',
-       last_seen = NOW(),
+       last_heartbeat = NOW(),
        status = 'pending_approval'  // ou 'online' se já aprovado
    WHERE uin = 'TOTEM-ENTRADA-001'
 
@@ -205,7 +205,7 @@ router.post('/register', async (req, res) => {
         UPDATE totems SET
             config = ?::jsonb,
             ip_address = ?,
-            last_seen = CURRENT_TIMESTAMP,
+            last_heartbeat = CURRENT_TIMESTAMP,
             status = CASE 
                 WHEN status = 'pending_activation' THEN 'pending_approval'
                 ELSE status

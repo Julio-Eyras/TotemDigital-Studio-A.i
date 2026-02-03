@@ -277,7 +277,7 @@ Body: {
 UPDATE totems 
 SET 
   last_heartbeat = CURRENT_TIMESTAMP,
-  last_seen = CURRENT_TIMESTAMP,
+  last_heartbeat = CURRENT_TIMESTAMP,
   status = 'online',
   ip_address = ?,
   version = ?,

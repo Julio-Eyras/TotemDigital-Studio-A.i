@@ -347,7 +347,7 @@ export class DispatcherTotemService {
       // FASE 1.2: Incluir campos comerciais
       const campaigns = await this.db.findMany(`
         WITH totem_campaigns AS (
-          -- Campanhas diretas (via campaign_totems)
+          -- Campanhas diretas (via campaign_totems). CAST explícito para timestamp em ambas as pernas da UNION.
           SELECT DISTINCT
             c.campaign_id,
             c.subscriber_id,
@@ -357,20 +357,20 @@ export class DispatcherTotemService {
             c.commercial_tier,
             c.default_time_share_percent,
             c.max_consecutive_slots,
-            c.start_date,
-            c.end_date,
-            c.start_time,
-            c.end_time,
-            c.days_of_week,
+            CAST(c.start_date AS timestamp without time zone) as start_date,
+            CAST(c.end_date AS timestamp without time zone) as end_date,
+            c.start_time::text,
+            c.end_time::text,
+            c.days_of_week::text,
             c.timezone,
             c.status,
             c.is_active,
             ct.totem_id,
-            ct.start_date as ct_start_date,
-            ct.end_date as ct_end_date,
-            ct.start_time as ct_start_time,
-            ct.end_time as ct_end_time,
-            ct.days_of_week as ct_days_of_week,
+            CAST(ct.start_date AS timestamp without time zone) as ct_start_date,
+            CAST(ct.end_date AS timestamp without time zone) as ct_end_date,
+            ct.start_time::text as ct_start_time,
+            ct.end_time::text as ct_end_time,
+            ct.days_of_week::text as ct_days_of_week,
             ct.priority as ct_priority,
             'direct' as source_type,
             ct.campaign_id as source_id,
@@ -390,7 +390,7 @@ export class DispatcherTotemService {
           
           UNION
           
-          -- Campanhas via publishers (grupo)
+          -- Campanhas via publishers (grupo). Mesmos tipos (timestamp/text) que a primeira perna.
           SELECT DISTINCT
             c.campaign_id,
             c.subscriber_id,
@@ -400,21 +400,21 @@ export class DispatcherTotemService {
             c.commercial_tier,
             c.default_time_share_percent,
             c.max_consecutive_slots,
-            c.start_date,
-            c.end_date,
-            c.start_time,
-            c.end_time,
-            c.days_of_week,
+            CAST(c.start_date AS timestamp without time zone) as start_date,
+            CAST(c.end_date AS timestamp without time zone) as end_date,
+            c.start_time::text,
+            c.end_time::text,
+            c.days_of_week::text,
             c.timezone,
             c.status,
             c.is_active,
             t.totem_id,
-            NULL as ct_start_date,
-            NULL as ct_end_date,
-            NULL as ct_start_time,
-            NULL as ct_end_time,
-            NULL as ct_days_of_week,
-            NULL as ct_priority,
+            NULL::timestamp without time zone as ct_start_date,
+            NULL::timestamp without time zone as ct_end_date,
+            NULL::text as ct_start_time,
+            NULL::text as ct_end_time,
+            NULL::text as ct_days_of_week,
+            NULL::integer as ct_priority,
             'publisher' as source_type,
             cp.publisher_id as source_id,
             cp.time_share_percent as cp_time_share_percent,

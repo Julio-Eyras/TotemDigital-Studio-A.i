@@ -14,7 +14,7 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.6"
+SCRIPT_VERSION="2.1.8"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (apaga TUDO, incluindo volumes)
@@ -4643,8 +4643,8 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Player - Proxy para backend Express (serve arquivos estáticos corretamente)
-    location /player {
+    # Player - Proxy para backend Express (^~ evita que /player/js/* seja capturado por regex .js)
+    location ^~ /player {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -4752,8 +4752,8 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Player - Proxy para backend Express (serve arquivos estáticos corretamente)
-    location /player {
+    # Player - Proxy para backend Express (^~ evita que /player/js/* seja capturado por regex .js)
+    location ^~ /player {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -4839,13 +4839,10 @@ setup_nginx() {
         sudo chmod -R 755 "$DEPLOY_DIR" 2>/dev/null || true
         sudo find "$DEPLOY_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
         
-        # Copiar player para /opt/smart-signage/player-web
-        sudo mkdir -p /opt/smart-signage/player-web
-        
-        # Se player-web não existe em INSTALL_DIR, copiar do diretório player-web
+        # Garantir player-web em INSTALL_DIR e depois em /opt/smart-signage/player-web (instalação funcional)
         if [[ ! -d "$INSTALL_DIR/player-web" ]] || [[ -z "$(ls -A "$INSTALL_DIR/player-web" 2>/dev/null)" ]]; then
-            if [[ -d "$SOURCE_DIR/player-web" ]]; then
-                log "Player-web não encontrado, copiando de player-web..."
+            if [[ -d "$SOURCE_DIR/player-web" ]] && [[ -f "$SOURCE_DIR/player-web/index.html" ]]; then
+                log "Player-web não encontrado em INSTALL_DIR, copiando do repositório..."
                 mkdir -p "$INSTALL_DIR/player-web"
                 cp -r "$SOURCE_DIR/player-web/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
                     warn "Falha ao copiar Player Web"
@@ -4853,6 +4850,7 @@ setup_nginx() {
             fi
         fi
         
+        sudo mkdir -p /opt/smart-signage/player-web
         if [[ -d "$INSTALL_DIR/player-web" ]] && [[ -n "$(ls -A "$INSTALL_DIR/player-web" 2>/dev/null)" ]]; then
             sudo rm -rf /opt/smart-signage/player-web/* 2>/dev/null || true
             sudo cp -a "$INSTALL_DIR/player-web"/* /opt/smart-signage/player-web/ || true
@@ -4899,6 +4897,40 @@ setup_nginx() {
     else
         # Usar diretório original se não estiver em home ou se não for single-server
         FRONTEND_BUILD_DIR="$INSTALL_DIR/frontend/build"
+    fi
+    
+    # SINGLE-SERVER: SEMPRE fazer deploy de player-web em /opt/smart-signage/player-web (instalação funcional, sem scripts de correção)
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        PLAYER_DEST="/opt/smart-signage/player-web"
+        SRC_PLAYER=""
+        [[ -d "$INSTALL_DIR/player-web" ]] && [[ -f "$INSTALL_DIR/player-web/js/app.js" ]] && SRC_PLAYER="$INSTALL_DIR/player-web"
+        [[ -z "$SRC_PLAYER" ]] && [[ -d "$SOURCE_DIR/player-web" ]] && [[ -f "$SOURCE_DIR/player-web/js/app.js" ]] && SRC_PLAYER="$SOURCE_DIR/player-web"
+        if [[ -n "$SRC_PLAYER" ]]; then
+            log "Fazendo deploy de player-web em $PLAYER_DEST..."
+            sudo mkdir -p "$PLAYER_DEST"
+            sudo rm -rf "$PLAYER_DEST"/* 2>/dev/null || true
+            sudo cp -a "$SRC_PLAYER"/* "$PLAYER_DEST/" || true
+            if id www-data &>/dev/null; then
+                sudo chown -R www-data:www-data "$PLAYER_DEST" 2>/dev/null || true
+            else
+                sudo chown -R nginx:nginx "$PLAYER_DEST" 2>/dev/null || true
+            fi
+            sudo chmod -R 755 "$PLAYER_DEST" 2>/dev/null || true
+            log "✅ Player-web em $PLAYER_DEST (Nginx com location ^~ /player)"
+            # Verificação: arquivos obrigatórios para o player (scripts carregam via /api/player-static/)
+            PLAYER_FILES=( "index.html" "js/app.js" "js/api/client.js" "js/cache/MediaCacheManager.js" "js/cache/PlaylistChangeDetector.js" )
+            MISSING=()
+            for f in "${PLAYER_FILES[@]}"; do
+                [[ -f "$PLAYER_DEST/$f" ]] || MISSING+=("$f")
+            done
+            if [[ ${#MISSING[@]} -eq 0 ]]; then
+                log "✅ Arquivos do player verificados em $PLAYER_DEST"
+            else
+                warn "⚠️ Arquivos do player faltando em $PLAYER_DEST: ${MISSING[*]}"
+            fi
+        else
+            warn "⚠️ player-web não encontrado em $INSTALL_DIR/player-web nem em $SOURCE_DIR/player-web. /player não funcionará até existir player-web no repositório."
+        fi
     fi
     
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
@@ -4953,8 +4985,8 @@ server {
         proxy_read_timeout 300s;
     }
 
-    # Player - Proxy para backend Express (serve arquivos estáticos corretamente)
-    location /player {
+    # Player - Proxy para backend Express (^~ evita que /player/js/* seja capturado por regex .js)
+    location ^~ /player {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -5077,8 +5109,8 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Player - Proxy para backend Express (serve arquivos estáticos corretamente)
-    location /player {
+    # Player - Proxy para backend Express (^~ evita que /player/js/* seja capturado por regex .js)
+    location ^~ /player {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -5437,6 +5469,7 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 Environment=NODE_ENV=production
+Environment=PLAYER_DIR=/opt/smart-signage/player-web
 # Usar EnvironmentFile com fallback: se não existir, não falhar
 EnvironmentFile=-$INSTALL_DIR/.env
 
@@ -5836,11 +5869,12 @@ test_endpoints() {
         )
         
     elif [[ "$INSTALL_MODE" == "single-server" ]]; then
-        # Endpoints para Single-Server
+        # Endpoints para Single-Server (player usa /api/player-static/ para JS; /player/ serve o HTML)
         ENDPOINTS=(
             ["Backend Health"]="http://$SERVER_IP:3000/health"
             ["Backend API"]="http://$SERVER_IP:3000/api/health"
-            ["Player (Porta 80)"]="http://$SERVER_IP:80/player"
+            ["Player HTML (porta 80)"]="http://$SERVER_IP:80/player/"
+            ["Player estáticos (backend)"]="http://127.0.0.1:3000/api/player-static/js/app.js"
             ["Painel Admin (Porta 8080)"]="http://$SERVER_IP:8080"
         )
         
@@ -5885,6 +5919,16 @@ test_endpoints() {
             fi
         fi
     done
+    
+    # Single-server: verificar que o backend serve os estáticos do player (necessário para /player carregar)
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        PLAYER_STATIC_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://127.0.0.1:3000/api/player-static/js/app.js" 2>/dev/null || echo "000")
+        if [[ "$PLAYER_STATIC_CODE" == "200" ]]; then
+            log "✅ Player estáticos: backend servindo /api/player-static/ (HTTP 200)"
+        else
+            warning "⚠️ Player estáticos: backend retornou HTTP $PLAYER_STATIC_CODE para /api/player-static/js/app.js (verifique PLAYER_DIR e /opt/smart-signage/player-web)"
+        fi
+    fi
     
     # Verificações adicionais integradas do post-install-check
     echo
@@ -6183,6 +6227,27 @@ validate_system_complete() {
         test_result "API Docs acessivel" true
     else
         test_result "API Docs acessivel" false "Nao foi possivel acessar"
+    fi
+    
+    # Single-server: Player (arquivos em /opt e endpoint /api/player-static/)
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        PLAYER_DIR="/opt/smart-signage/player-web"
+        PLAYER_FILES=( "index.html" "js/app.js" "js/api/client.js" "js/cache/MediaCacheManager.js" "js/cache/PlaylistChangeDetector.js" )
+        PLAYER_MISSING=()
+        for f in "${PLAYER_FILES[@]}"; do
+            [[ -f "$PLAYER_DIR/$f" ]] || PLAYER_MISSING+=("$f")
+        done
+        if [[ ${#PLAYER_MISSING[@]} -eq 0 ]]; then
+            test_result "Player: arquivos em $PLAYER_DIR" true
+        else
+            test_result "Player: arquivos em $PLAYER_DIR" false "Faltando: ${PLAYER_MISSING[*]}"
+        fi
+        PLAYER_STATIC_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://127.0.0.1:3000/api/player-static/js/app.js" 2>/dev/null || echo "000")
+        if [[ "$PLAYER_STATIC_CODE" == "200" ]]; then
+            test_result "Player: backend servindo /api/player-static/" true "HTTP 200"
+        else
+            test_result "Player: backend servindo /api/player-static/" false "HTTP $PLAYER_STATIC_CODE (backend deve usar PLAYER_DIR=$PLAYER_DIR)"
+        fi
     fi
     
     echo ""
@@ -10586,15 +10651,14 @@ main() {
     # Perguntar sobre players (após definir INSTALL_DIR)
     show_players_menu
     
-    # SEMPRE copiar player-web
-    # Mesmo que não seja selecionado no menu, é necessário para o player funcionar
-    if [[ -d "$SOURCE_DIR/player-web" ]] && [[ ! -d "$INSTALL_DIR/player-web" ]] || [[ -z "$(ls -A "$INSTALL_DIR/player-web" 2>/dev/null)" ]]; then
+    # SEMPRE copiar/sincronizar player-web do repositório para INSTALL_DIR (necessário para /player funcionar)
+    if [[ -d "$SOURCE_DIR/player-web" ]] && [[ -f "$SOURCE_DIR/player-web/index.html" ]]; then
         log "Copiando Player Web (necessário para /player funcionar)..."
         mkdir -p "$INSTALL_DIR/player-web"
         cp -r "$SOURCE_DIR/player-web/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
             warn "Falha ao copiar Player Web"
         }
-        log "✅ Player Web copiado para player-web/"
+        log "✅ Player Web copiado para $INSTALL_DIR/player-web/"
     fi
     
     # Perguntar sobre HTTPS (após menu, antes da instalação)

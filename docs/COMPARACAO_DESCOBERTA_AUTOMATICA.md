@@ -126,7 +126,7 @@ CREATE TABLE publishers (
   hostname TEXT,
   ip_address INET,
   status TEXT,
-  last_seen TIMESTAMP
+  last_heartbeat TIMESTAMP
 );
 
 CREATE TABLE publisher_capabilities (

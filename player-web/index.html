@@ -172,11 +172,12 @@
             const host = window.location.host;
             const baseUrl = protocol + '//' + host;
             
+            // Usar /api/player-static/ para que Nginx sempre faça proxy ao backend (evita 404 quando location ^~ /player não existe)
             const scripts = [
-                baseUrl + '/player/js/cache/MediaCacheManager.js',
-                baseUrl + '/player/js/cache/PlaylistChangeDetector.js',
-                baseUrl + '/player/js/api/client.js',
-                baseUrl + '/player/js/app.js'
+                baseUrl + '/api/player-static/js/cache/MediaCacheManager.js',
+                baseUrl + '/api/player-static/js/cache/PlaylistChangeDetector.js',
+                baseUrl + '/api/player-static/js/api/client.js',
+                baseUrl + '/api/player-static/js/app.js'
             ];
             
             let loaded = 0;

@@ -53,7 +53,7 @@ GET /api/player/token?uin={UIN}&deviceId={DEVICE_ID}&platform={PLATFORM}&appVers
    - Cria/atualiza registro em `device_tokens` com:
      - `totem_id` (se conseguir resolver pelo UIN),
      - `uin`, `device_id`, `platform`, `app_version`,
-     - `token`, `expires_at`, `last_seen_at`, `ip_address`, `user_agent`.
+     - `token`, `expires_at`, `last_heartbeat`, `ip_address`, `user_agent`.
 
 4. Resposta:
 

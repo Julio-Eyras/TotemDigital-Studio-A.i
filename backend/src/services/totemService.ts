@@ -898,7 +898,6 @@ export class TotemService {
       let paramIndex = 1;
 
       updates.push('last_heartbeat = CURRENT_TIMESTAMP');
-      updates.push('last_seen = CURRENT_TIMESTAMP');
 
       if (status) {
         updates.push(`status = $${paramIndex++}`);

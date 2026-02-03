@@ -21,7 +21,7 @@ export interface SmartTv {
   resolution_height?: number;
   orientation?: 'landscape' | 'portrait';
   status?: string;
-  last_seen?: string;
+  last_heartbeat?: string;
   capabilities?: any; // JSONB
   settings?: any; // JSONB
   is_active: boolean;
@@ -158,7 +158,7 @@ export class SmartTvService {
           st.resolution_height,
           st.orientation,
           st.status,
-          st.last_seen,
+          st.last_heartbeat,
           st.capabilities,
           st.settings,
           st.is_active,
@@ -223,7 +223,7 @@ export class SmartTvService {
           st.resolution_height,
           st.orientation,
           st.status,
-          st.last_seen,
+          st.last_heartbeat,
           st.capabilities,
           st.settings,
           st.is_active,
@@ -648,7 +648,7 @@ export class SmartTvService {
           st.resolution_height,
           st.orientation,
           st.status,
-          st.last_seen,
+          st.last_heartbeat,
           st.capabilities,
           st.settings,
           st.is_active,

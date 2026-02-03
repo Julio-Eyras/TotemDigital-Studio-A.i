@@ -293,7 +293,7 @@ async function autoRegister(uin) {
    UPDATE totems SET
        config = ?::jsonb,  -- Adiciona hardware info ao config existente
        ip_address = ?,
-       last_seen = CURRENT_TIMESTAMP,
+       last_heartbeat = CURRENT_TIMESTAMP,
        status = ?,  -- Se estava 'pending_activation' → 'pending_approval'
        updated_at = CURRENT_TIMESTAMP
    WHERE uin = ?

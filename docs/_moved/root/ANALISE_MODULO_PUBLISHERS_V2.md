@@ -171,7 +171,7 @@ CREATE TABLE IF NOT EXISTS smart_tvs (
     orientation TEXT DEFAULT 'landscape',
     
     status TEXT DEFAULT 'offline',
-    last_seen TIMESTAMP,
+    last_heartbeat TIMESTAMP,
     
     capabilities JSONB,
     settings JSONB,

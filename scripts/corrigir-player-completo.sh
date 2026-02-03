@@ -1,24 +1,56 @@
 #!/bin/bash
-# Script COMPLETO para corrigir TODOS os problemas do player
+# Script de correção do player (404 em /player/js/*, etc.).
+# NOTA: Com uma instalação feita por install-smartsignage.sh o player já deve funcionar;
+#       use este script apenas para instalações antigas ou quando o Nginx/player foram alterados à mão.
 # Uso: sudo bash scripts/corrigir-player-completo.sh
-#
-# ⚠️ Use este script APENAS se você NÃO reinstalou do zero.
-#    Se reinstalou tudo com install-smartsignage.sh, o player já está correto e não precisa deste script.
 
 set -e
+
+# Exige root (Nginx e /opt/smart-signage exigem permissão de administrador)
+if [ "$(id -u)" -ne 0 ]; then
+    echo "❌ Este script precisa ser executado como root."
+    echo "   Use: sudo bash $0"
+    echo "   Ou:  sudo ./corrigir-player-completo.sh"
+    exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PLAYER_DIR="/opt/smart-signage/player-web"
+SOURCE_PLAYER="$REPO_DIR/player-web"
 
 echo "🔧 CORREÇÃO COMPLETA DO PLAYER"
 echo "=============================="
 echo ""
 
-# 1. Verificar se arquivos existem
-echo "1️⃣ Verificando arquivos do player..."
-PLAYER_DIR="/opt/smart-signage/player-web"
+# 0. Copiar player-web do repositório se faltar em /opt
+echo "0️⃣ Verificando arquivos do player em $PLAYER_DIR..."
 if [ ! -d "$PLAYER_DIR" ]; then
-    echo "   ❌ Diretório não existe: $PLAYER_DIR"
-    exit 1
+    sudo mkdir -p "$PLAYER_DIR"
+fi
+if [ -d "$SOURCE_PLAYER" ] && [ -f "$SOURCE_PLAYER/index.html" ] && [ -f "$SOURCE_PLAYER/js/app.js" ]; then
+    NEED_COPY=false
+    for f in index.html js/app.js js/api/client.js js/cache/MediaCacheManager.js js/cache/PlaylistChangeDetector.js; do
+        if [ ! -f "$PLAYER_DIR/$f" ]; then
+            NEED_COPY=true
+            break
+        fi
+    done
+    if [ "$NEED_COPY" = true ]; then
+        echo "   🔄 Copiando player-web do repositório ($SOURCE_PLAYER) para $PLAYER_DIR..."
+        sudo cp -a "$SOURCE_PLAYER"/* "$PLAYER_DIR/" 2>/dev/null || sudo cp -r "$SOURCE_PLAYER"/* "$PLAYER_DIR/"
+        if id www-data &>/dev/null; then
+            sudo chown -R www-data:www-data "$PLAYER_DIR" 2>/dev/null || true
+        fi
+        echo "   ✅ Cópia concluída"
+    fi
+else
+    echo "   ⚠️ Repositório sem player-web em $SOURCE_PLAYER (execute o script a partir do repo)"
 fi
 
+# 1. Verificar se arquivos existem
+echo ""
+echo "1️⃣ Verificando arquivos do player..."
 FILES=(
     "$PLAYER_DIR/index.html"
     "$PLAYER_DIR/js/app.js"
@@ -38,7 +70,8 @@ for file in "${FILES[@]}"; do
 done
 
 if [ ${#MISSING_FILES[@]} -gt 0 ]; then
-    echo "   ⚠️ Alguns arquivos estão faltando!"
+    echo "   ❌ Arquivos obrigatórios faltando. Copie player-web para $PLAYER_DIR e execute o install ou este script de novo."
+    exit 1
 fi
 
 # 2. Corrigir Nginx
@@ -55,6 +88,19 @@ fi
 BACKUP_FILE="${NGINX_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)"
 cp "$NGINX_CONFIG" "$BACKUP_FILE"
 echo "   ✅ Backup criado: $BACKUP_FILE"
+
+# Garantir location ^~ /player (evita que /player/js/* caia em regex .js e dê 404)
+if ! grep -q "location ^~ /player " "$NGINX_CONFIG" 2>/dev/null; then
+    if grep -q "location /player {" "$NGINX_CONFIG"; then
+        echo "   🔄 Adicionando ^~ em location /player (evita 404 em /player/js/*)..."
+        sed -i 's/location \/player {/location ^~ \/player {/g' "$NGINX_CONFIG"
+        echo "   ✅ location ^~ /player aplicado"
+    else
+        echo "   ⚠️ Bloco 'location /player' não encontrado no Nginx. Verifique o config."
+    fi
+else
+    echo "   ✅ Nginx já tem location ^~ /player"
+fi
 
 # Verificar se já está usando proxy_pass
 if grep -q "location /player" "$NGINX_CONFIG" && grep -A 2 "location /player" "$NGINX_CONFIG" | grep -q "proxy_pass"; then
@@ -88,21 +134,20 @@ echo "4️⃣ Recarregando Nginx..."
 sudo systemctl reload nginx
 echo "   ✅ Nginx recarregado"
 
-# 5. Verificar se backend está rodando
+# 5. Verificar se backend está rodando e reiniciar (para servir player-web)
 echo ""
 echo "5️⃣ Verificando backend..."
-if systemctl is-active --quiet smart-signage-backend || pgrep -f "node.*backend" > /dev/null; then
-    echo "   ✅ Backend está rodando"
-    echo "   🔄 Reiniciando backend para aplicar mudanças..."
-    if systemctl is-active --quiet smart-signage-backend; then
-        sudo systemctl restart smart-signage-backend
-    else
-        # Se não está como serviço, tentar reiniciar manualmente
-        echo "   ⚠️ Backend não está como serviço. Reinicie manualmente:"
-        echo "      cd ~/SmartSignage-Pro/backend && npm run build && npm start"
-    fi
+if systemctl is-active --quiet smart-signage 2>/dev/null; then
+    echo "   ✅ Backend (smart-signage) está rodando. Reiniciando..."
+    sudo systemctl restart smart-signage
+elif systemctl is-active --quiet smart-signage-backend 2>/dev/null; then
+    echo "   ✅ Backend (smart-signage-backend) está rodando. Reiniciando..."
+    sudo systemctl restart smart-signage-backend
+elif pgrep -f "node.*backend" > /dev/null; then
+    echo "   ⚠️ Backend rodando em processo. Reinicie manualmente para garantir:"
+    echo "      sudo systemctl restart smart-signage"
 else
-    echo "   ⚠️ Backend não está rodando. Inicie o backend primeiro!"
+    echo "   ⚠️ Backend não está rodando. Inicie: sudo systemctl start smart-signage"
 fi
 
 # 6. Testar acesso
@@ -132,9 +177,10 @@ echo "✅ CORREÇÃO COMPLETA FINALIZADA"
 echo ""
 echo "Próximos passos:"
 echo "1. Acesse: http://$SERVER_IP/player/?uin=UIN-SHOPPING-001-2025"
-echo "2. Verifique o console do navegador (F12)"
-echo "3. Os arquivos JS devem carregar sem erros 404"
+echo "2. Os arquivos JS devem carregar sem 404 (F12 > Console)"
 echo ""
-echo "Se ainda houver problemas, verifique os logs:"
-echo "  - Backend: tail -f /var/log/smart-signage/backend.log"
-echo "  - Nginx: tail -f /var/log/nginx/error.log"
+echo "Se ainda der 404 em /player/js/*:"
+echo "  bash $SCRIPT_DIR/diagnosticar-404-player.sh"
+echo "  (e confira se Nginx tem 'location ^~ /player' e player-web em $PLAYER_DIR)"
+echo ""
+echo "Logs: tail -f /var/log/nginx/error.log  ou  journalctl -u smart-signage -f"

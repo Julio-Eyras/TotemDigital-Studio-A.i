@@ -504,45 +504,51 @@ app.use((req, res, next) => {
 });
 
 // Servir player index.html com suporte a UIN como parâmetro
-// Esta rota será chamada quando express.static não encontrar arquivo estático
-// IMPORTANTE: Esta rota deve vir DEPOIS do express.static
+// Usar playerDir (já resolvido na inicialização) em vez de config.player.path para evitar "Player não encontrado"
+const playerIndexPath = path.join(playerDir, 'index.html');
+
 app.get('/player', (req, res) => {
   // Se é um arquivo estático (js/, css/, etc.) que não foi encontrado, retornar 404
   if (req.path !== '/player' && req.path.startsWith('/player/')) {
     const pathWithoutPrefix = req.path.substring('/player'.length);
-    // Se não termina com / e não tem extensão conhecida, pode ser arquivo estático não encontrado
     if (!pathWithoutPrefix.endsWith('/') && 
         !pathWithoutPrefix.match(/\.(js|css|json|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i)) {
       logWarn(`[Player] Arquivo estático não encontrado: ${req.path}`);
       return res.status(404).json({ error: 'Arquivo não encontrado', path: req.path });
     }
   }
-  
-  const playerPath = config.player.path;
-  // Verificar se arquivo existe antes de enviar
-  if (fs.existsSync(playerPath)) {
-    // Remover headers que podem forçar HTTPS
+  if (fs.existsSync(playerIndexPath)) {
     res.removeHeader('Strict-Transport-Security');
     res.removeHeader('Upgrade-Insecure-Requests');
-    return res.sendFile(playerPath);
-  } else {
-    logWarn(`[Server] Arquivo index.html do player não encontrado: ${playerPath}`);
-    return res.status(404).json({ error: 'Player não encontrado' });
+    return res.sendFile(playerIndexPath);
   }
+  logWarn(`[Server] Arquivo index.html do player não encontrado: ${playerIndexPath} (playerDir: ${playerDir})`);
+  return res.status(404).json({ error: 'Player não encontrado' });
 });
 
 // Também servir /player/ (com barra final) - necessário para URLs com query string
 app.get('/player/', (_req, res) => {
-  const playerPath = config.player.path;
-  if (fs.existsSync(playerPath)) {
-    // Remover headers que podem forçar HTTPS
+  if (fs.existsSync(playerIndexPath)) {
     res.removeHeader('Strict-Transport-Security');
     res.removeHeader('Upgrade-Insecure-Requests');
-    return res.sendFile(playerPath);
-  } else {
-    logWarn(`[Server] Arquivo index.html do player não encontrado: ${playerPath}`);
-    return res.status(404).json({ error: 'Player não encontrado' });
+    return res.sendFile(playerIndexPath);
   }
+  logWarn(`[Server] Arquivo index.html do player não encontrado: ${playerIndexPath} (playerDir: ${playerDir})`);
+  return res.status(404).json({ error: 'Player não encontrado' });
+});
+
+// Servir JS/CSS do player via /api/player-static/* (Nginx sempre faz proxy de /api/ para o backend)
+app.get('/api/player-static/*', (req, res) => {
+  const subpath = (req.params[0] || req.path.replace(/^\/api\/player-static\/?/, '')).replace(/^\//, '');
+  if (!subpath) return res.status(404).end();
+  const filePath = path.join(playerDir, subpath);
+  const resolvedPlayer = path.resolve(playerDir);
+  const resolvedFile = path.resolve(filePath);
+  if (!resolvedFile.startsWith(resolvedPlayer)) return res.status(403).end();
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return res.status(404).end();
+  if (filePath.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  else if (filePath.endsWith('.css')) res.setHeader('Content-Type', 'text/css; charset=utf-8');
+  res.sendFile(filePath);
 });
 
 // API de validação do player (antes do middleware de autenticação)
@@ -929,13 +935,12 @@ async function startServer() {
         dotfiles: 'ignore'
       }));
 
-      // Servir index.html do player
+      // Servir index.html do player (mesmo playerDir da app principal)
       playerApp.get('/', (_req, res) => {
-        const playerPath = config.player.path;
-        if (fs.existsSync(playerPath)) {
-          res.sendFile(playerPath);
+        if (fs.existsSync(playerIndexPath)) {
+          res.sendFile(playerIndexPath);
         } else {
-          logWarn(`[Player Server] Arquivo index.html não encontrado: ${playerPath}`);
+          logWarn(`[Player Server] Arquivo index.html não encontrado: ${playerIndexPath}`);
           res.status(404).json({ error: 'Player não encontrado' });
         }
       });

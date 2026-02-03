@@ -3259,7 +3259,7 @@ export interface SmartTv {
   resolution_height?: number;
   orientation?: 'landscape' | 'portrait';
   status?: string;
-  last_seen?: string;
+  last_heartbeat?: string;
   capabilities?: any;
   settings?: any;
   is_active: boolean;

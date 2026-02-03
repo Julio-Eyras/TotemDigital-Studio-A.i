@@ -593,7 +593,7 @@ export class SubscriberService {
           st.resolution_height,
           st.orientation,
           st.status,
-          st.last_seen,
+          st.last_heartbeat,
           st.capabilities,
           st.settings,
           st.is_active,

@@ -135,7 +135,6 @@ async function handleApprovalRequest(
       UPDATE totems SET
         config = ?::jsonb,
         ip_address = ?,
-        last_seen = CURRENT_TIMESTAMP,
         last_heartbeat = CURRENT_TIMESTAMP,
         status = ?,
         updated_at = CURRENT_TIMESTAMP
@@ -589,7 +588,7 @@ router.get('/validate',
       if (totemId) {
         await db.executeRaw(`
           UPDATE totems 
-          SET last_heartbeat = CURRENT_TIMESTAMP, last_seen = CURRENT_TIMESTAMP, status = 'online'
+          SET last_heartbeat = CURRENT_TIMESTAMP, status = 'online'
           WHERE totem_id = ?
         `, [totemId]);
       }
@@ -1161,7 +1160,6 @@ router.post('/register',
           UPDATE totems SET
             config = ?::jsonb,
             ip_address = ?,
-            last_seen = CURRENT_TIMESTAMP,
             last_heartbeat = CURRENT_TIMESTAMP,
             status = ?,
             updated_at = CURRENT_TIMESTAMP

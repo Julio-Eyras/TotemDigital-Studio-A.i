@@ -65,7 +65,7 @@
 │  │ resolution_width, resolution_height    │                   │   │
 │  │ orientation (landscape, portrait)      │                   │   │
 │  │ status (offline, online, playing, ...) │                   │   │
-│  │ last_seen                               │                   │   │
+│  │ last_heartbeat                           │                   │   │
 │  │ capabilities (JSONB)                    │                   │   │
 │  │ settings (JSONB)                        │                   │   │
 │  │ is_active                               │                   │   │

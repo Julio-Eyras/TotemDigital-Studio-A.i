@@ -87,7 +87,7 @@ export class DeviceTokenService {
           status,
           ip_address,
           user_agent,
-          last_seen_at,
+          last_heartbeat,
           expires_at,
           created_at,
           updated_at
@@ -119,7 +119,7 @@ export class DeviceTokenService {
 
   /**
    * Valida token de dispositivo por UIN (e opcionalmente deviceId)
-   * Atualiza last_seen_at e telemetria se for válido.
+   * Atualiza last_heartbeat e telemetria se for válido.
    */
   async validateToken(
     uin: string,
@@ -173,7 +173,7 @@ export class DeviceTokenService {
         `
         UPDATE device_tokens
         SET 
-          last_seen_at = CURRENT_TIMESTAMP,
+          last_heartbeat = CURRENT_TIMESTAMP,
           ip_address = COALESCE($2, ip_address),
           user_agent = COALESCE($3, user_agent),
           updated_at = CURRENT_TIMESTAMP

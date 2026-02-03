@@ -370,7 +370,7 @@ CREATE TABLE totems (
     status VARCHAR(50),                -- 'pending_approval', 'active', 'blocked'
     is_active BOOLEAN,                 -- Ativo/inativo
     ip_address INET,                   -- Último IP conhecido
-    last_seen TIMESTAMP,               -- Última vez visto
+    last_heartbeat TIMESTAMP,           -- Último heartbeat
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 );
@@ -399,7 +399,7 @@ CREATE TABLE totems (
         "orientation": "portrait"
     },
     "ip_address": "192.168.1.110",
-    "last_seen": "2025-01-23T18:51:00Z"
+    "last_heartbeat": "2025-01-23T18:51:00Z"
 }
 ```
 

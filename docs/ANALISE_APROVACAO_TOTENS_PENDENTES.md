@@ -115,7 +115,7 @@ status: 'pending_approval'  // ✅ CORRETO
 - ❌ Device ID (`device_id`)
 - ❌ Descrição do totem (`description`)
 - ❌ Versão do firmware (`firmware_version`)
-- ❌ Última vez visto (`last_seen`)
+- ❌ Última vez visto (`last_heartbeat`)
 - ❌ Informações de rede (se disponíveis)
 
 ### 4. **Frontend - Visualização Limitada**
@@ -150,7 +150,7 @@ router.get('/pending', async (req, res) => {
 - Garantir que endpoint retorne todos os campos do totem:
   - `config.hardware.*` (todos os campos)
   - `ip_address`
-  - `last_seen`
+  - `last_heartbeat`
   - `created_at`
   - `description`
   - `firmware_version`
@@ -285,7 +285,7 @@ router.get('/pending', async (req, res) => {
   version: string;
   firmware_version: string;
   ip_address: string;
-  last_seen: string;  // ISO timestamp
+  last_heartbeat: string;  // ISO timestamp
   last_heartbeat: string;  // ISO timestamp
   is_active: boolean;
   created_at: string;  // ISO timestamp

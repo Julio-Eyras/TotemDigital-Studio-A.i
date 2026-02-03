@@ -100,8 +100,8 @@ CREATE TABLE IF NOT EXISTS smart_tvs (
     orientation TEXT DEFAULT 'landscape', -- landscape, portrait
     
     status TEXT DEFAULT 'offline', -- offline, online, playing, error
-    last_seen TIMESTAMP,
-    
+    last_heartbeat TIMESTAMP, -- Último heartbeat/contato do dispositivo
+
     capabilities JSONB, -- Recursos da TV
     settings JSONB, -- Configurações específicas
     

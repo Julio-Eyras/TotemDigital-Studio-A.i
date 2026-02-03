@@ -190,8 +190,8 @@ INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, name, descri
 (10, 'TOTEM-SUPER-002', 'UIN-SUPER-002-2025', 'DEVICE-010', 10, 'Totem Supermercado Açougue', 'Totem na seção de açougue', 'Totem Pro v2', 'SmartSignage', '2.0.1', '1.2.3', 'Linux 5.15', 'online', NOW() - INTERVAL '20 minutes', 60, '{"ip": "192.168.1.61", "mac": "00:11:22:33:44:10"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
--- Smart TVs com last_seen variado para testes
-INSERT INTO smart_tvs (smart_tv_id, totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, last_seen, capabilities, settings, is_active) VALUES
+-- Smart TVs com last_heartbeat variado para testes
+INSERT INTO smart_tvs (smart_tv_id, totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, last_heartbeat, capabilities, settings, is_active) VALUES
 (1, 1, 'TV-SHOPPING-001', 'TV-DEVICE-001', 'Smart TV Shopping Entrada', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '2 minutes', '{"hdr": true, "4k": true}'::jsonb, '{"brightness": 80, "contrast": 75}'::jsonb, true),
 (2, 2, 'TV-SHOPPING-002', 'TV-DEVICE-002', 'Smart TV Shopping Praça', 'LG', '55NANO75SQA', 'webOS', '7.0.0', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '5 minutes', '{"hdr": true, "4k": true}'::jsonb, '{"brightness": 75, "contrast": 70}'::jsonb, true),
 (3, 3, 'TV-SHOPPING-003', 'TV-DEVICE-003', 'Smart TV Shopping Cinema', 'Samsung', 'QN55Q80A', 'Tizen', '6.0.1', 3840, 2160, 'landscape', 'online', NOW() - INTERVAL '1 minute', '{"hdr": true, "4k": true}'::jsonb, '{"brightness": 85, "contrast": 80}'::jsonb, true),
@@ -2118,7 +2118,7 @@ BEGIN
     IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'device_tokens') THEN
         INSERT INTO device_tokens (
             device_token_id, totem_id, smart_tv_id, uin, device_id, platform, app_version,
-            token, refresh_token, status, ip_address, user_agent, last_seen_at, expires_at
+            token, refresh_token, status, ip_address, user_agent, last_heartbeat, expires_at
         ) VALUES
         -- Totem 1 - Shopping Entrada (Linux)
         (
@@ -2404,7 +2404,7 @@ END $$;
 -- 
 -- ✅ Validações e Correções:
 --    - Totens com last_heartbeat atualizados (alguns recentes para testes, outros offline)
---    - Smart TVs com last_seen atualizado e capabilities preenchidas
+--    - Smart TVs com last_heartbeat atualizado e capabilities preenchidas
 --    - Relacionamentos validados (tags vinculadas corretamente em interaction_logs)
 --
 -- ✅ Novos Dados para Testes:

@@ -146,7 +146,6 @@ const TotemDetails: React.FC = () => {
                   <Box sx={{ mt: 2 }}>
                     <InfoRow label="Criado em" value={totemInfo.created_at ? formatDate(totemInfo.created_at) : 'N/A'} />
                     <InfoRow label="Atualizado em" value={totemInfo.updated_at ? formatDate(totemInfo.updated_at) : 'N/A'} />
-                    <InfoRow label="Último visto" value={totemInfo.last_seen ? formatDate(totemInfo.last_seen) : 'N/A'} />
                     <InfoRow label="Último heartbeat" value={totemInfo.last_heartbeat ? formatDate(totemInfo.last_heartbeat) : 'N/A'} />
                     <InfoRow label="Ativo" value={totemInfo.active ? 'Sim' : 'Não'} />
                     <InfoRow label="Bloqueado" value={totemInfo.blocked ? 'Sim' : 'Não'} />

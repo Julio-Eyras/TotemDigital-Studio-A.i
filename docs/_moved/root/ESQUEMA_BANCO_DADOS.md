@@ -293,7 +293,7 @@ Subscriber → Media
 | resolution_height | INTEGER | Altura da resolução |
 | orientation | TEXT DEFAULT 'landscape' | Orientação (landscape, portrait) |
 | status | TEXT DEFAULT 'offline' | Status (offline, online, playing, error) |
-| last_seen | TIMESTAMP | Última vez visto |
+| last_heartbeat | TIMESTAMP | Último heartbeat |
 | capabilities | JSONB | Recursos da TV |
 | settings | JSONB | Configurações específicas |
 | is_active | BOOLEAN DEFAULT true | Status ativo/inativo |
