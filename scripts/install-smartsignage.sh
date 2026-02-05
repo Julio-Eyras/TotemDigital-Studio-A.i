@@ -4627,7 +4627,8 @@ server {
     client_max_body_size 500M;
     client_body_buffer_size 512k;
     
-    location /api/ {
+    # ^~ garante precedência sobre regex de arquivos estáticos (.js, .css, etc.)
+    location ^~ /api/ {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -4736,7 +4737,8 @@ server {
     client_max_body_size 500M;
     client_body_buffer_size 512k;
     
-    location /api/ {
+    # ^~ garante precedência sobre regex de arquivos estáticos (.js, .css, etc.)
+    location ^~ /api/ {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -4969,7 +4971,8 @@ server {
     client_max_body_size 500M;
     client_body_buffer_size 512k;
     
-    location /api/ {
+    # ^~ garante precedência sobre regex de arquivos estáticos (.js, .css, etc.)
+    location ^~ /api/ {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -4983,6 +4986,22 @@ server {
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;
         proxy_read_timeout 300s;
+    }
+    
+    # Arquivos estáticos do React (JS, CSS, etc.) - DEPOIS de /api/ para não interceptar
+    location /static/ {
+        alias $FRONTEND_BUILD_DIR/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    
+    # Outros arquivos estáticos (manifest, favicon, etc.) - DEPOIS de /api/ para não interceptar
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
+        root $FRONTEND_BUILD_DIR;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
     }
 
     # Player - Proxy para backend Express (^~ evita que /player/js/* seja capturado por regex .js)
@@ -5071,28 +5090,13 @@ server {
     keepalive_timeout 65;
     types_hash_max_size 2048;
     
-    # Arquivos estáticos do React (JS, CSS, etc.)
-    location /static/ {
-        alias $FRONTEND_BUILD_DIR/static/;
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-    
-    # Outros arquivos estáticos (manifest, favicon, etc.)
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
-        root $FRONTEND_BUILD_DIR;
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-    
-    # Configurações de upload (antes do location /api/)
+    # Configurações de upload
     client_max_body_size 500M;
     client_body_buffer_size 512k;
     
-    # Backend API (DEVE vir antes de / para não interceptar)
-    location /api/ {
+    # Backend API - DEVE vir ANTES das regex de arquivos estáticos para ter precedência
+    # ^~ garante precedência sobre regex de arquivos estáticos (.js, .css, etc.)
+    location ^~ /api/ {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -5177,27 +5181,13 @@ server {
     keepalive_timeout 65;
     types_hash_max_size 2048;
     
-    # Arquivos estáticos
-    location /static/ {
-        alias $FRONTEND_BUILD_DIR/static/;
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-    
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
-        root $FRONTEND_BUILD_DIR;
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-    
     # Configurações de upload
     client_max_body_size 500M;
     client_body_buffer_size 512k;
     
-    # Backend API com header de subdomínio
-    location /api/ {
+    # Backend API com header de subdomínio - DEVE vir ANTES das regex de arquivos estáticos
+    # ^~ garante precedência sobre regex de arquivos estáticos (.js, .css, etc.)
+    location ^~ /api/ {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -5213,18 +5203,33 @@ server {
         proxy_read_timeout 300s;
     }
     
+    # Arquivos estáticos - DEPOIS de /api/ para não interceptar
+    location /static/ {
+        alias $FRONTEND_BUILD_DIR/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
+        root $FRONTEND_BUILD_DIR;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    
     # Assets
     location /assets/ {
         alias /opt/smart-signage/public/assets/;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
-    
+
     # Frontend SPA
     location / {
         try_files \$uri \$uri/ /index.html;
     }
-    
+
     # Compressão Gzip
     gzip on;
     gzip_vary on;
@@ -5251,27 +5256,13 @@ server {
     keepalive_timeout 65;
     types_hash_max_size 2048;
     
-    # Arquivos estáticos
-    location /static/ {
-        alias $FRONTEND_BUILD_DIR/static/;
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-    
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
-        root $FRONTEND_BUILD_DIR;
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-    
     # Configurações de upload
     client_max_body_size 500M;
     client_body_buffer_size 512k;
     
-    # Backend API com header de subdomínio
-    location /api/ {
+    # Backend API com header de subdomínio - DEVE vir ANTES das regex de arquivos estáticos
+    # ^~ garante precedência sobre regex de arquivos estáticos (.js, .css, etc.)
+    location ^~ /api/ {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -5285,6 +5276,21 @@ server {
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;
         proxy_read_timeout 300s;
+    }
+    
+    # Arquivos estáticos - DEPOIS de /api/ para não interceptar
+    location /static/ {
+        alias $FRONTEND_BUILD_DIR/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
+        root $FRONTEND_BUILD_DIR;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
     }
     
     # Assets
