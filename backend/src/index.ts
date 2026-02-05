@@ -539,16 +539,32 @@ app.get('/player/', (_req, res) => {
 
 // Servir JS/CSS do player via /api/player-static/* (Nginx sempre faz proxy de /api/ para o backend)
 app.get('/api/player-static/*', (req, res) => {
-  const subpath = (req.params[0] || req.path.replace(/^\/api\/player-static\/?/, '')).replace(/^\//, '');
-  if (!subpath) return res.status(404).end();
-  const filePath = path.join(playerDir, subpath);
+  // Extrair subpath da URL: /api/player-static/js/app.js -> js/app.js
+  const subpathRaw = req.path.replace(/^\/api\/player-static\/?/, '').replace(/^\//, '');
+  if (!subpathRaw) {
+    return res.status(404).end();
+  }
+
+  const filePath = path.join(playerDir, subpathRaw);
   const resolvedPlayer = path.resolve(playerDir);
   const resolvedFile = path.resolve(filePath);
-  if (!resolvedFile.startsWith(resolvedPlayer)) return res.status(403).end();
-  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return res.status(404).end();
-  if (filePath.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  else if (filePath.endsWith('.css')) res.setHeader('Content-Type', 'text/css; charset=utf-8');
-  res.sendFile(filePath);
+
+  // Garantir que o arquivo está dentro de playerDir (evita path traversal)
+  if (!resolvedFile.startsWith(resolvedPlayer)) {
+    return res.status(403).end();
+  }
+
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    return res.status(404).end();
+  }
+
+  if (filePath.endsWith('.js')) {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  } else if (filePath.endsWith('.css')) {
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+  }
+
+  return res.sendFile(filePath);
 });
 
 // API de validação do player (antes do middleware de autenticação)
