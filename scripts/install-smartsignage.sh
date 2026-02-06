@@ -5137,6 +5137,20 @@ server {
         proxy_hide_header Origin-Agent-Cluster;
     }
     
+    # Arquivos estáticos do React - DEPOIS de /api/ e /player para não interceptar
+    location /static/ {
+        alias $FRONTEND_BUILD_DIR/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
+        root $FRONTEND_BUILD_DIR;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    
     # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
     location /assets/ {
         alias /opt/smart-signage/public/assets/;
