@@ -371,7 +371,7 @@ class DispatcherRouter {
         }
       );
 
-      if (!dispatchResponse.success || !dispatchResponse.plan) {
+      if (!dispatchResponse.success) {
         return {
           success: false,
           error: dispatchResponse.error || 'Não foi possível gerar plano de exibição',
@@ -381,12 +381,28 @@ class DispatcherRouter {
         };
       }
 
+      // Se não há plano (sem candidatos ou todos rejeitados), retornar plano vazio para o player tratar (onPlaybackEnded / "sem itens")
+      const plan = dispatchResponse.plan ?? {
+        totemId,
+        timestamp: new Date(),
+        playlistId: 0,
+        playlistName: '',
+        mediaItems: [],
+        totalDuration: 0,
+        priority: 0,
+        source: 'campaign' as const,
+        sourceId: 0,
+        validityStart: new Date(),
+        validityEnd: new Date(),
+        metadata: {},
+      };
+
       // Retornar plano em formato consumível pelo player
       return {
         success: true,
         data: {
           success: true,
-          plan: dispatchResponse.plan,
+          plan,
           fromCache: dispatchResponse.fromCache,
           executionTimeMs: dispatchResponse.executionTimeMs,
         },
@@ -480,30 +496,30 @@ class DispatcherRouter {
         metrics,
       });
 
-      // Marcar comandos como executados
+      // Marcar comandos como executados (schema: remote_commands usa command_id como PK)
       if (executedCommands && Array.isArray(executedCommands) && executedCommands.length > 0) {
         const db = (await import('../config/database')).getDatabase();
         for (const cmdId of executedCommands) {
           await db.executeRaw(`
             UPDATE remote_commands 
             SET status = 'executed', executed_at = CURRENT_TIMESTAMP
-            WHERE id = ? AND totem_id = ?
+            WHERE command_id = ? AND totem_id = ?
           `, [cmdId, totemId]);
         }
       }
 
-      // Buscar comandos pendentes
+      // Buscar comandos pendentes (schema: command_id como PK; parameters como command_data)
       const db = (await import('../config/database')).getDatabase();
       const pendingCommands = await db.findMany(`
         SELECT 
-          rc.id as request_id,
+          rc.command_id as request_id,
           rc.command_type,
-          rc.command_data,
-          rc.priority
+          rc.parameters as command_data,
+          COALESCE(1, 1) as priority
         FROM remote_commands rc
         WHERE rc.totem_id = ? 
           AND rc.status = 'pending'
-        ORDER BY rc.priority DESC, rc.created_at ASC
+        ORDER BY rc.created_at ASC
         LIMIT 10
       `, [totemId]);
 

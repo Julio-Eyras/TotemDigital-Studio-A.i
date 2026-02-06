@@ -142,7 +142,7 @@ export class RemoteCommandService {
       await this.db.executeRaw(`
         UPDATE remote_commands
         SET status = 'executing', sent_at = CURRENT_TIMESTAMP, executed_at = CURRENT_TIMESTAMP
-        WHERE id = $1
+        WHERE command_id = $1
       `, [commandId]);
 
       await logDebug('Comando marcado como enviado', { commandId });
@@ -160,7 +160,7 @@ export class RemoteCommandService {
       await this.db.executeRaw(`
         UPDATE remote_commands
         SET status = 'executing', executed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1
+        WHERE command_id = $1
       `, [commandId]);
 
       await logDebug('Comando marcado como executando', { commandId });
@@ -179,8 +179,8 @@ export class RemoteCommandService {
         UPDATE remote_commands
         SET status = 'completed',
             completed_at = CURRENT_TIMESTAMP,
-            result = $1
-        WHERE id = $2
+            response = $1
+        WHERE command_id = $2
       `, [result ? JSON.stringify(result) : null, commandId]);
 
       await logInfo('Comando marcado como completado', { commandId });
@@ -199,9 +199,8 @@ export class RemoteCommandService {
         UPDATE remote_commands
         SET status = 'failed',
             error_message = $1,
-            completed_at = CURRENT_TIMESTAMP,
-            result = $1
-        WHERE id = $2
+            completed_at = CURRENT_TIMESTAMP
+        WHERE command_id = $2
       `, [errorMessage, commandId]);
 
       await logWarn('Comando marcado como falhado', { commandId, errorMessage });

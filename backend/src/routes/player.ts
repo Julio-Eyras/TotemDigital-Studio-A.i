@@ -453,21 +453,20 @@ router.get('/validate',
 
       // OBS (schema v2): colunas blocked/blocked_until não existem no schema atual.
 
-      // Buscar comandos remotos pendentes
+      // Buscar comandos remotos pendentes (schema: command_id como PK; parameters como command_data)
       let pendingCommands = [];
       try {
         pendingCommands = await db.findMany(`
           SELECT 
-            rc.request_id,
+            rc.command_id as request_id,
             rc.command_type,
-            rc.command_data,
-            rc.priority,
+            rc.parameters as command_data,
             rc.created_at,
             rc.status
           FROM remote_commands rc
           WHERE rc.totem_id = ? 
             AND rc.status = 'pending'
-          ORDER BY rc.priority DESC, rc.created_at ASC
+          ORDER BY rc.created_at ASC
           LIMIT 10
         `, [totemId]);
       } catch (cmdError: any) {
@@ -1470,11 +1469,11 @@ router.post('/command-result',
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
 
-      // Buscar comando pelo request_id
+      // Buscar comando pelo ID (schema: command_id como PK; cliente envia o id retornado no heartbeat)
       const command = await db.findFirst(`
-        SELECT id, totem_id, command_type, status
+        SELECT command_id as id, totem_id, command_type, status
         FROM remote_commands
-        WHERE request_id = $1 AND totem_id = $2
+        WHERE command_id = $1 AND totem_id = $2
       `, [requestId, totem.totem_id]);
 
       if (!command) {

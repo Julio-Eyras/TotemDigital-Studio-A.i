@@ -35,6 +35,44 @@ class SmartSignagePlayer {
         this.playlistChangeDetector = null;
     }
 
+    /** URL da vinheta padrão (logotipo SmartSignage) quando não há plano de exibição */
+    getDefaultVinhetaURL() {
+        const base = (this.config.apiBaseURL || '').replace(/\/$/, '');
+        return base + '/api/player-static/vinhetas_demo/Smartsignage-interface-111.mp4';
+    }
+
+    /** Plano sintético com um único item: vinheta padrão (loop até chegar plano real) */
+    getDefaultVinhetaPlan() {
+        const url = this.getDefaultVinhetaURL();
+        return {
+            totemId: 0,
+            timestamp: new Date(),
+            playlistId: 0,
+            playlistName: 'Vinheta SmartSignage',
+            mediaItems: [
+                { mediaId: 0, order: 0, duration: 30, url, mediaType: 'video', metadata: {} }
+            ],
+            totalDuration: 30,
+            priority: 0,
+            source: 'direct',
+            sourceId: 0,
+            validityStart: new Date(),
+            validityEnd: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            metadata: {}
+        };
+    }
+
+    /** Exibe a vinheta padrão quando não há conteúdo no plano (loop até sync trazer plano) */
+    startDefaultVinheta() {
+        this.currentDispatchPlan = this.getDefaultVinhetaPlan();
+        this.currentPlaylistId = 0;
+        this.currentCampaignId = null;
+        this.currentIndex = 0;
+        this.playlistChangeDetector.setLastPlan(this.currentDispatchPlan);
+        console.log('[Player] Exibindo vinheta padrão SmartSignage (sem plano de exibição).');
+        this.playNext();
+    }
+
     generateDeviceId() {
         let deviceId = null;
         try {
@@ -198,11 +236,16 @@ class SmartSignagePlayer {
                 this.playlistChangeDetector.setLastPlan(lastPlan);
                 return;
             }
-            throw error;
+            // Sem cache: exibir vinheta padrão para não bloquear o player (ex.: backend antigo ou sem campanhas)
+            console.warn('[Player] Sem plano nem cache. Exibindo vinheta padrão SmartSignage.');
+            this.startDefaultVinheta();
+            return;
         }
 
         if (!response || !response.success) {
-            throw new Error(response?.error || 'Falha ao obter DispatchPlan');
+            console.warn('[Player] API retornou sem plano:', response?.error || 'Falha ao obter DispatchPlan. Exibindo vinheta padrão.');
+            this.startDefaultVinheta();
+            return;
         }
 
         const plan = response.plan;
@@ -260,7 +303,7 @@ class SmartSignagePlayer {
 
     async playNext() {
         if (!this.currentDispatchPlan || !this.currentDispatchPlan.mediaItems.length) {
-            this.onPlaybackEnded();
+            this.startDefaultVinheta();
             return;
         }
 
