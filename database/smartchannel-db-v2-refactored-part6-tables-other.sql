@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS event_logs (
     
     totem_id INTEGER,
     campaign_id INTEGER,
+    playlist_id INTEGER,
     media_id INTEGER,
     publisher_id INTEGER,
     subscriber_id INTEGER,
