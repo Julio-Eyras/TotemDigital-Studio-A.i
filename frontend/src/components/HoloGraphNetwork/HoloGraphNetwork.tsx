@@ -222,22 +222,24 @@ export const HoloGraphNetwork: React.FC<HoloGraphNetworkProps> = ({
       .attr('cursor', 'pointer')
       .style('pointer-events', 'all')
       .call(
-        d3
-          .drag<SVGGElement, GraphNode>()
-          .on('start', (ev, d) => {
-            if (!ev.active) simulation.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
-          })
-          .on('drag', (ev, d) => {
-            d.fx = ev.x;
-            d.fy = ev.y;
-          })
-          .on('end', (ev, d) => {
-            if (!ev.active) simulation.alphaTarget(0);
-            d.fx = undefined;
-            d.fy = undefined;
-          })
+        (
+          d3
+            .drag<SVGGElement, GraphNode>()
+            .on('start', (ev, d) => {
+              if (!ev.active) simulation.alphaTarget(0.3).restart();
+              d.fx = d.x;
+              d.fy = d.y;
+            })
+            .on('drag', (ev, d) => {
+              d.fx = ev.x;
+              d.fy = ev.y;
+            })
+            .on('end', (ev, d) => {
+              if (!ev.active) simulation.alphaTarget(0);
+              d.fx = undefined;
+              d.fy = undefined;
+            })
+        ) as (selection: d3.Selection<SVGGElement | d3.BaseType, GraphNode, SVGGElement, unknown>) => void
       )
       .on('click', (_, n) => onNodeClick?.(n, getPathToNode(n.id)))
       .on('dblclick', (ev, d) => {

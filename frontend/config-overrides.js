@@ -1,8 +1,7 @@
 const path = require('path');
-const ModuleScopePlugin = require('react-dev-utils/ModuleScopePlugin');
-const paths = require('react-scripts/config/paths');
 
-const sharedAdapterPath = path.resolve(__dirname, '../shared/holograph-adapter');
+// Adapter dentro de src/ para CRA não bloquear (ModuleScopePlugin só permite src/)
+const holographAdapterPath = path.resolve(__dirname, 'src', 'lib', 'holograph-adapter');
 
 module.exports = function override(config, env) {
   // Desabilitar ESLint completamente
@@ -10,20 +9,10 @@ module.exports = function override(config, env) {
     plugin => plugin.constructor.name !== 'ESLintWebpackPlugin'
   );
 
-  // Alias para módulo compartilhado holograph-adapter
+  // Alias: @shared/holograph-adapter -> src/lib/holograph-adapter (dentro de src/)
   config.resolve = config.resolve || {};
   config.resolve.alias = config.resolve.alias || {};
-  config.resolve.alias['@shared/holograph-adapter'] = sharedAdapterPath;
-
-  // Permitir imports de shared/holograph-adapter (fora de src/): ModuleScopePlugin aceita array como appSrc
-  config.resolve.plugins = config.resolve.plugins || [];
-  const idx = config.resolve.plugins.findIndex((p) => p && p.constructor && p.constructor.name === 'ModuleScopePlugin');
-  if (idx !== -1) {
-    config.resolve.plugins[idx] = new ModuleScopePlugin(
-      [paths.appSrc, sharedAdapterPath],
-      [paths.appPackageJson]
-    );
-  }
+  config.resolve.alias['@shared/holograph-adapter'] = holographAdapterPath;
 
   return config;
 };
