@@ -463,7 +463,7 @@ router.get('/graph',
           .map((r: { totem_id: number; start_time?: string; end_time?: string; days_of_week?: string | string[] }) => ({
             targetId: String(r.totem_id),
             targetType: 'totem' as const,
-            dayOfWeek: daysOfWeekToNumbers(r.days_of_week),
+            dayOfWeek: daysOfWeekToNumbers(r.days_of_week == null ? null : typeof r.days_of_week === 'string' ? r.days_of_week : JSON.stringify(r.days_of_week)),
             startTime: r.start_time || undefined,
             endTime: r.end_time || undefined
           }));

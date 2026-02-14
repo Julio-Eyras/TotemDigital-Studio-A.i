@@ -10,7 +10,7 @@ import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middlewa
 import { validateRequest as validateRequestMiddleware } from '../middleware/validation.middleware';
 import { param, query, body, validationResult } from 'express-validator';
 import { logError, logDebug } from '../utils/loggerHelper';
-import { successResponse, errorResponse } from '../utils/apiResponse';
+import { errorResponse } from '../utils/apiResponse';
 import { 
   paginationValidators, 
   searchValidators, 
