@@ -13,7 +13,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Suporte a `mediaId=0` e `playlistId=0` em eventos (vinheta padrão)
 - Coluna `playlist_id` em `event_logs` para rastreamento completo
 - Documentação completa do sistema (workflows, recursos, regras)
-- Script de instalação melhorado com suporte a `vinhetas_demo`
+- Script de instalação melhorado com suporte a `vinhetas` e `propagandas`
 
 ### Corrigido
 - Erro "column rc.id does not exist" no heartbeat (usar `command_id`)
@@ -25,7 +25,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ### Alterado
 - Dispatcher retorna plano vazio (vinheta) em vez de erro quando sem candidatos
 - Player usa vinheta padrão quando API retorna erro ou plano vazio
-- Install script copia `vinhetas_demo` automaticamente com player-web
+- Install script copia `vinhetas` e `propagandas` automaticamente com player-web
 
 ### Removido
 - Dependência de migrations para instalações novas (schema corrigido)

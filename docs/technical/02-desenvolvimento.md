@@ -19,7 +19,8 @@ SmartSignage-Pro/
 │   └── build/        # Build de produção
 ├── player-web/       # Player HTML5
 │   ├── js/           # JavaScript do player
-│   └── vinhetas_demo/ # Mídias demo
+│   ├── vinhetas/ # Vinhetas (fallback)
+│   └── propagandas/ # Propagandas (fallback)
 ├── database/         # Scripts SQL
 │   ├── migrations/   # Migrations
 │   └── smartchannel-db-v2-refactored-*.sql

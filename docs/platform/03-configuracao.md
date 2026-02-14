@@ -156,7 +156,7 @@ Edite arquivos de tradução em `frontend/src/locales/`:
 
 #### Vinheta Padrão
 
-Substitua arquivo em `player-web/vinhetas_demo/Smartsignage-interface-111.mp4`
+Substitua arquivo em `player-web/vinhetas/Smartsignage-interface-111.mp4`
 
 #### Configuração do Player
 

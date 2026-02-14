@@ -10678,7 +10678,7 @@ main() {
         cp -r "$SOURCE_DIR/player-web/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
             warn "Falha ao copiar Player Web"
         }
-        log "✅ Player Web copiado para $INSTALL_DIR/player-web/ (inclui vinhetas_demo se existir)"
+        log "✅ Player Web copiado para $INSTALL_DIR/player-web/ (inclui vinhetas e propagandas)"
     fi
     
     # Perguntar sobre HTTPS (após menu, antes da instalação)

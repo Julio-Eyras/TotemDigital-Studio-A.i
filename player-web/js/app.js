@@ -16,8 +16,13 @@ class SmartSignagePlayer {
             appVersion: '2.1.0',
             heartbeatInterval: config.heartbeatInterval || 30000,
             dispatchSyncInterval: config.dispatchSyncInterval || 900000,
-            maxCacheSize: config.maxCacheSize || 500 * 1024 * 1024 // 500MB padrão
+            maxCacheSize: config.maxCacheSize || 500 * 1024 * 1024, // 500MB padrão
+            fallbackImageDuration: 20,
+            fallbackPropagandasPerVinheta: 5
         };
+
+        /** IDs de mídia que falharam (404) na playlist atual - para entrar em fallback só quando TODOS falharem */
+        this.failedMediaIds = new Set();
 
         this.deviceToken = null;
         this.currentDispatchPlan = null;
@@ -35,26 +40,79 @@ class SmartSignagePlayer {
         this.playlistChangeDetector = null;
     }
 
-    /** URL da vinheta padrão (logotipo SmartSignage) quando não há plano de exibição */
-    getDefaultVinhetaURL() {
-        const base = (this.config.apiBaseURL || '').replace(/\/$/, '');
-        return base + '/api/player-static/vinhetas_demo/Smartsignage-interface-111.mp4';
+    /** Carrega player-config.json (fallbackImageDuration, fallbackPropagandasPerVinheta) */
+    async loadPlayerConfig() {
+        try {
+            const base = (this.config.apiBaseURL || '').replace(/\/$/, '');
+            const res = await fetch(base + '/api/player-static/player-config.json');
+            if (res.ok) {
+                const cfg = await res.json();
+                if (cfg.fallbackImageDuration != null) this.config.fallbackImageDuration = cfg.fallbackImageDuration;
+                if (cfg.fallbackPropagandasPerVinheta != null) this.config.fallbackPropagandasPerVinheta = cfg.fallbackPropagandasPerVinheta;
+            }
+        } catch (e) {
+            console.warn('[Player] Não foi possível carregar player-config.json, usando padrões:', e);
+        }
     }
 
-    /** Plano sintético com um único item: vinheta padrão (loop até chegar plano real) */
-    getDefaultVinhetaPlan() {
-        const url = this.getDefaultVinhetaURL();
+    /** Busca manifest de fallback (propagandas + vinhetas) do backend */
+    async fetchFallbackManifest() {
+        const base = (this.config.apiBaseURL || '').replace(/\/$/, '');
+        const res = await fetch(base + '/api/player/fallback-manifest');
+        if (!res.ok) throw new Error('Fallback manifest não disponível');
+        return await res.json();
+    }
+
+    /** Cria plano de fallback intercalando propagandas e vinhetas (a cada N propagandas, 1 vinheta) */
+    buildFallbackPlan(propagandas, vinhetas) {
+        const base = (this.config.apiBaseURL || '').replace(/\/$/, '');
+        const imgExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+        const imgDur = this.config.fallbackImageDuration || 20;
+        const n = Math.max(1, this.config.fallbackPropagandasPerVinheta || 5);
+
+        const toItem = (file, folder, idx, isImage) => ({
+            mediaId: 'fb-' + folder + '-' + idx,
+            order: idx,
+            duration: isImage ? imgDur : undefined,
+            url: base + '/api/player-static/' + folder + '/' + encodeURIComponent(file),
+            mediaType: isImage ? 'image' : 'video',
+            metadata: { source: 'fallback' }
+        });
+
+        const mediaItems = [];
+        let pi = 0, vi = 0, order = 0;
+        while (pi < propagandas.length || vi < vinhetas.length) {
+            for (let k = 0; k < n && pi < propagandas.length; k++) {
+                const f = propagandas[pi++];
+                const ext = f.slice(f.lastIndexOf('.')).toLowerCase();
+                mediaItems.push(toItem(f, 'propagandas', order++, imgExt.includes(ext)));
+            }
+            if (vi < vinhetas.length) {
+                const f = vinhetas[vi++];
+                const ext = f.slice(f.lastIndexOf('.')).toLowerCase();
+                mediaItems.push(toItem(f, 'vinhetas', order++, imgExt.includes(ext)));
+            }
+        }
+        if (mediaItems.length === 0) {
+            // Fallback mínimo: vinheta antiga se não houver arquivos
+            mediaItems.push({
+                mediaId: 'fb-default',
+                order: 0,
+                duration: 30,
+                url: base + '/api/player-static/vinhetas/Smartsignage-interface-111.mp4',
+                mediaType: 'video',
+                metadata: { source: 'fallback' }
+            });
+        }
         return {
             totemId: 0,
             timestamp: new Date(),
             playlistId: 0,
-            playlistName: 'Vinheta SmartSignage',
-            mediaItems: [
-                { mediaId: 0, order: 0, duration: 30, url, mediaType: 'video', metadata: {} }
-            ],
-            totalDuration: 30,
+            playlistName: 'Fallback (Propagandas + Vinhetas)',
+            mediaItems,
+            totalDuration: mediaItems.reduce((s, m) => s + (m.duration || 30), 0),
             priority: 0,
-            source: 'direct',
+            source: 'fallback',
             sourceId: 0,
             validityStart: new Date(),
             validityEnd: new Date(Date.now() + 24 * 60 * 60 * 1000),
@@ -62,15 +120,28 @@ class SmartSignagePlayer {
         };
     }
 
-    /** Exibe a vinheta padrão quando não há conteúdo no plano (loop até sync trazer plano) */
-    startDefaultVinheta() {
-        this.currentDispatchPlan = this.getDefaultVinhetaPlan();
-        this.currentPlaylistId = 0;
-        this.currentCampaignId = null;
-        this.currentIndex = 0;
-        this.playlistChangeDetector.setLastPlan(this.currentDispatchPlan);
-        console.log('[Player] Exibindo vinheta padrão SmartSignage (sem plano de exibição).');
-        this.playNext();
+    /** Entra em modo fallback: carrega manifest, monta plano intercalado. O chamador deve chamar playNext(). */
+    async startFallbackMode() {
+        try {
+            const { propagandas = [], vinhetas = [] } = await this.fetchFallbackManifest();
+            const plan = this.buildFallbackPlan(propagandas, vinhetas);
+            this.currentDispatchPlan = plan;
+            this.currentPlaylistId = 0;
+            this.currentCampaignId = null;
+            this.currentIndex = 0;
+            this.failedMediaIds.clear();
+            this.playlistChangeDetector.setLastPlan(plan);
+            console.log('[Player] Modo fallback: propagandas + vinhetas (' + plan.mediaItems.length + ' itens).');
+        } catch (e) {
+            console.warn('[Player] Fallback manifest falhou, usando vinheta padrão:', e);
+            const plan = this.buildFallbackPlan([], []);
+            this.currentDispatchPlan = plan;
+            this.currentPlaylistId = 0;
+            this.currentCampaignId = null;
+            this.currentIndex = 0;
+            this.failedMediaIds.clear();
+            this.playlistChangeDetector.setLastPlan(plan);
+        }
     }
 
     generateDeviceId() {
@@ -111,6 +182,7 @@ class SmartSignagePlayer {
             console.log('[Player] Inicializando Smart Signage Player (Cache Completo)...');
             console.log('[Player] Device ID:', this.config.deviceId);
 
+            await this.loadPlayerConfig();
             await this.initAPIClient();
             await this.initCache();
             await this.getDeviceToken();
@@ -236,22 +308,22 @@ class SmartSignagePlayer {
                 this.playlistChangeDetector.setLastPlan(lastPlan);
                 return;
             }
-            // Sem cache: exibir vinheta padrão para não bloquear o player (ex.: backend antigo ou sem campanhas)
-            console.warn('[Player] Sem plano nem cache. Exibindo vinheta padrão SmartSignage.');
-            this.startDefaultVinheta();
+            // Sem cache: exibir modo fallback (propagandas + vinhetas)
+            console.warn('[Player] Sem plano nem cache. Entrando em modo fallback.');
+            await this.startFallbackMode();
             return;
         }
 
         if (!response || !response.success) {
-            console.warn('[Player] API retornou sem plano:', response?.error || 'Falha ao obter DispatchPlan. Exibindo vinheta padrão.');
-            this.startDefaultVinheta();
+            console.warn('[Player] API retornou sem plano:', response?.error || 'Falha ao obter DispatchPlan. Entrando em modo fallback.');
+            await this.startFallbackMode();
             return;
         }
 
         const plan = response.plan;
         if (!plan || !plan.mediaItems || !plan.mediaItems.length) {
-            console.warn('[Player] DispatchPlan sem itens.');
-            this.onPlaybackEnded();
+            console.warn('[Player] DispatchPlan sem itens. Entrando em modo fallback.');
+            await this.startFallbackMode();
             return;
         }
 
@@ -285,6 +357,7 @@ class SmartSignagePlayer {
         this.currentPlaylistId = plan.playlistId;
         this.currentCampaignId = (plan.metadata && plan.metadata.campaignId) || null;
         this.currentIndex = 0;
+        this.failedMediaIds.clear();
         this.lastDispatchUpdate = Date.now();
         this.playlistChangeDetector.setLastPlan(plan);
 
@@ -303,7 +376,8 @@ class SmartSignagePlayer {
 
     async playNext() {
         if (!this.currentDispatchPlan || !this.currentDispatchPlan.mediaItems.length) {
-            this.startDefaultVinheta();
+            await this.startFallbackMode();
+            this.playNext();
             return;
         }
 
@@ -390,8 +464,30 @@ class SmartSignagePlayer {
                 playlistId: this.currentPlaylistId,
                 campaignId: this.currentCampaignId,
                 metadata: { error: String(err && err.message) }
-            });
+            }).catch(() => {});
             this.onPlaybackError(err);
+            this._onItemPlayFailed(mediaItem);
+        }
+    }
+
+    /** Quando um item falha (404): pula ou entra em fallback se TODOS falharem */
+    _onItemPlayFailed(mediaItem) {
+        if (!this.currentDispatchPlan) return;
+        if (!mediaItem) {
+            setTimeout(() => this.playNext(), 2000);
+            return;
+        }
+        const plan = this.currentDispatchPlan;
+        if (plan.source === 'fallback') {
+            setTimeout(() => this.playNext(), 2000);
+            return;
+        }
+        this.failedMediaIds.add(mediaItem.mediaId);
+        const total = plan.mediaItems.length;
+        if (this.failedMediaIds.size >= total) {
+            console.warn('[Player] Todos os itens da playlist falharam (404). Entrando em modo fallback.');
+            this.startFallbackMode().then(() => this.playNext());
+        } else {
             setTimeout(() => this.playNext(), 2000);
         }
     }
@@ -428,7 +524,7 @@ class SmartSignagePlayer {
             }).catch(() => {});
         }
         this.onPlaybackError(err);
-        this.playNext();
+        this._onItemPlayFailed(item);
     }
 
     async _sendEvent(payload) {

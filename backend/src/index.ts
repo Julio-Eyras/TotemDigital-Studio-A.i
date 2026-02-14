@@ -468,6 +468,8 @@ app.get('/api/player-static/*', (req, res) => {
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
   } else if (filePath.endsWith('.css')) {
     res.setHeader('Content-Type', 'text/css; charset=utf-8');
+  } else if (filePath.endsWith('.json')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
 
   logInfoSync(`[Player Static] ✅ Servindo: ${req.path} -> ${filePath}`);

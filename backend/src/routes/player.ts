@@ -13,8 +13,23 @@ import crypto from 'crypto';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import os from 'os';
+import fs from 'fs';
+import path from 'path';
+import { config } from '../config/env';
 
 const execAsync = promisify(exec);
+
+const VIDEO_EXT = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v', '.ogv'];
+const IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+
+function listMediaFiles(dir: string): string[] {
+  if (!fs.existsSync(dir)) return [];
+  const files = fs.readdirSync(dir, { withFileTypes: true });
+  return files
+    .filter((f) => f.isFile() && (VIDEO_EXT.includes(path.extname(f.name).toLowerCase()) || IMAGE_EXT.includes(path.extname(f.name).toLowerCase())))
+    .map((f) => f.name)
+    .sort((a, b) => path.basename(a, path.extname(a)).localeCompare(path.basename(b, path.extname(b)), undefined, { numeric: true }));
+}
 
 const router = express.Router();
 const dispatcherRouter = getDispatcherRouter();
@@ -299,6 +314,26 @@ export function validateTotemToken(uin: string, token: string, maxAge: number = 
     return false;
   }
 }
+
+/**
+ * @route GET /api/player/fallback-manifest
+ * @desc Lista arquivos de propagandas e vinhetas para modo fallback (sem autenticação)
+ */
+router.get('/fallback-manifest', async (_req: Request, res: Response) => {
+  try {
+    const playerDir = process.env.PLAYER_DIR || config.player.dir || '/opt/smart-signage/player-web';
+    const propagandasDir = path.join(playerDir, 'propagandas');
+    const vinhetasDir = path.join(playerDir, 'vinhetas');
+
+    const propagandas = listMediaFiles(propagandasDir);
+    const vinhetas = listMediaFiles(vinhetasDir);
+
+    return res.json({ propagandas, vinhetas });
+  } catch (err: any) {
+    await logError('Erro ao listar manifest de fallback', err);
+    return res.status(500).json({ error: err.message || 'Erro ao listar fallback' });
+  }
+});
 
 /**
  * @route GET /api/player/validate
