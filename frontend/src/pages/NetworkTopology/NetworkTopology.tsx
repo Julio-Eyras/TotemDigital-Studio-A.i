@@ -45,8 +45,8 @@ import {
 import { networkTopologyApi, NetworkTopologyPublisher } from '../../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import HoloGraphNetwork from '../../components/HoloGraphNetwork/HoloGraphNetwork';
-import { NODE_TYPE_LABELS } from '../../lib/holograph/types';
-import type { GraphNode } from '../../lib/holograph/types';
+import { NODE_TYPE_LABELS } from '@shared/holograph-adapter';
+import type { GraphNode } from '@shared/holograph-adapter';
 
 const formatLastHeartbeat = (ts: string | undefined) => {
   if (!ts) return '-';

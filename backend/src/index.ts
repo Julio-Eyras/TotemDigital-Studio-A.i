@@ -24,6 +24,7 @@ import cron from 'node-cron';
 import { getAlertService } from './services/alertService';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
+import { responseFormatMiddleware } from './middleware/responseFormat.middleware';
 import { authMiddleware } from './middleware/auth.middleware';
 import { blockClientDataAccess } from './middleware/operatorProtection.middleware';
 import { auditSystemUsers } from './middleware/auditSystemUsers.middleware';
@@ -187,6 +188,9 @@ app.use((req, res, next) => {
 // Logging
 app.use(morgan('combined'));
 app.use(requestLogger);
+
+// Resposta padronizada (successJson, errorJson) - PLANO_MELHORIAS item 4
+app.use(responseFormatMiddleware);
 
 // Detecção de subdomínio (deve vir antes das rotas)
 app.use(detectSubdomain);

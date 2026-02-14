@@ -47,7 +47,9 @@ npm run build         # lib em dist/
 
 ## Integração com SmartSignage (dashboard)
 
-No dashboard, use o adapter para transformar a rede em grafo e o componente Vue para exibir:
+O **dashboard SmartSignage (frontend React)** não importa este pacote: usa implementação própria em `frontend/src/lib/holograph/` (adapter `smartSignageToGraph` + componente `HoloGraphNetwork`) como **fonte única de verdade**. Este repositório (`holograph-engine`) serve como referência de contrato e playground Vue.
+
+No dashboard React, use o adapter para transformar a rede em grafo e o componente React para exibir:
 
 - **Publishers** e seus nós: locais → totens, smart TVs
 - **Subscribers** e seus nós: mídias, playlists, campanhas

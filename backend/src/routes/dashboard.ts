@@ -4,6 +4,7 @@ import { validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { getDashboardService } from '../services/dashboardService';
 import { logError } from '../utils/loggerHelper';
+import { errorResponse } from '../utils/apiResponse';
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ router.get('/stats', async (_req: any, res: any) => {
     res.json(stats);
   } catch (error) {
     await logError('Erro ao obter estatísticas do dashboard', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    res.status(500).json(errorResponse('Erro interno do servidor'));
   }
 });
 
@@ -49,7 +50,7 @@ router.get('/activities',
       res.json(activities);
     } catch (error) {
       await logError('Erro ao obter atividades recentes do dashboard', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
 );
@@ -64,7 +65,7 @@ router.get('/charts', async (_req: any, res: any) => {
     res.json(charts);
   } catch (error) {
     await logError('Erro ao obter dados dos gráficos do dashboard', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    res.status(500).json(errorResponse('Erro interno do servidor'));
   }
 });
 
@@ -80,7 +81,7 @@ router.get('/client/:clientId/stats',
       res.json(stats);
     } catch (error) {
       await logError('Erro ao obter estatísticas do cliente no dashboard', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
 );

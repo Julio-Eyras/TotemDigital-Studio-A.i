@@ -5,13 +5,12 @@ import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
 import { Box, CircularProgress, Alert, Typography, Button } from '@mui/material';
 import { networkTopologyApi } from '../../services/api';
-import { smartSignageToGraph } from '../../lib/holograph/smartSignageToGraph';
-import type { GraphData, GraphNode, GraphEdge } from '../../lib/holograph/types';
-import { NODE_TYPE_COLORS, NODE_TYPE_LABELS } from '../../lib/holograph/types';
+import { smartSignageToGraph, NODE_TYPE_COLORS, NODE_TYPE_LABELS } from '@shared/holograph-adapter';
+import type { GraphData, GraphNode, GraphEdge, SmartSignageNetwork } from '@shared/holograph-adapter';
 
 export interface HoloGraphNetworkProps {
   /** Se não informado, busca da API /network/graph */
-  network?: any;
+  network?: SmartSignageNetwork | null;
   dayOfWeek?: number;
   time?: string;
   width?: number | string;
@@ -34,7 +33,7 @@ export const HoloGraphNetwork: React.FC<HoloGraphNetworkProps> = ({
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const [loading, setLoading] = useState(!networkProp);
   const [error, setError] = useState<string | null>(null);
-  const [network, setNetwork] = useState<any>(networkProp);
+  const [network, setNetwork] = useState<SmartSignageNetwork | null>(networkProp ?? null);
   const [emptyGraph, setEmptyGraph] = useState(false);
   const [refetching, setRefetching] = useState(false);
   const [stats, setStats] = useState<{ nodes: number; edges: number; scheduled: number } | null>(null);
@@ -111,7 +110,7 @@ export const HoloGraphNetwork: React.FC<HoloGraphNetworkProps> = ({
     networkTopologyApi
       .getGraph({ dayOfWeek, time })
       .then((res) => {
-        if (!cancelled) {
+        if (!cancelled && res?.data) {
           setNetwork(res.data);
           setError(null);
         }

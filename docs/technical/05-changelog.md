@@ -7,9 +7,14 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [2.1.0] - 2026-01-26
 
+> **Nota:** v2.1 usa PostgreSQL diretamente (sem Prisma). Migração completa de v2.0.
+
 ### Adicionado
 - Player Web com cache completo (IndexedDB)
 - Vinheta padrão SmartSignage quando não há plano de exibição
+- Dashboard Rede Visual (/network-topology): Publishers → Locals → Totens → Smart TVs com mídias atreladas
+- Sistema de alertas (totem offline, FPS baixo, taxa de falha, disco) com cron e integração email/Slack/webhook
+- Validação de integridade em seeds (validate-seeds.sql)
 - Suporte a `mediaId=0` e `playlistId=0` em eventos (vinheta padrão)
 - Coluna `playlist_id` em `event_logs` para rastreamento completo
 - Documentação completa do sistema (workflows, recursos, regras)
@@ -29,6 +34,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ### Removido
 - Dependência de migrations para instalações novas (schema corrigido)
+- Prisma (PostgreSQL direto via `pg`)
 
 ## [2.0.0] - 2025-12-01
 

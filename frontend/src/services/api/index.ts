@@ -3842,6 +3842,8 @@ export interface DebugStats {
 // NETWORK TOPOLOGY API
 // =============================================
 
+import type { SmartSignageNetwork } from '@shared/holograph-adapter';
+
 export interface NetworkTopologyPublisher {
   id: number;
   name: string;
@@ -3884,9 +3886,10 @@ export const networkTopologyApi = {
   },
 
   /** Rede no formato SmartSignageNetwork para HoloGraph (publishers, subscribers, scheduleAssignments). */
-  getGraph: async (params?: { dayOfWeek?: number; time?: string }): Promise<{ success: boolean; data: any }> => {
+  getGraph: async (params?: { dayOfWeek?: number; time?: string }): Promise<{ success: boolean; data: SmartSignageNetwork }> => {
     const response = await api.get('/network/graph', { params });
-    return response.data;
+    const body = response.data as { success?: boolean; data?: SmartSignageNetwork };
+    return body?.data != null ? { success: true, data: body.data } : { success: true, data: body as unknown as SmartSignageNetwork };
   },
 };
 

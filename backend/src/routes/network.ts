@@ -174,7 +174,7 @@ router.post('/interactions',
 router.get('/topology',
   authMiddleware as any,
   authorizeRole(['admin', 'admin_sql', 'operador_tecnico', 'operator']),
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const db = getDatabase();
 
@@ -430,30 +430,66 @@ router.get('/graph',
         });
       }
 
-      // 3) Schedule assignments (campaign_totems → campaign → totem; opcionalmente campaign_publishers → location)
+      // 3) Schedule assignments: campaign_totems, campaign_publishers, campaign_locals
+      const scheduleAssignments: Array<{ id: string; sourceId: string; sourceType: 'campaign'; slots: Array<{ targetId: string; targetType: 'publisher' | 'location' | 'totem' | 'smarttv'; dayOfWeek?: number[]; startTime?: string; endTime?: string }> }> = [];
+
       const ctRows = await db.findMany(`
         SELECT ct.campaign_id, ct.totem_id, ct.start_time, ct.end_time, ct.days_of_week
         FROM campaign_totems ct
         JOIN campaigns c ON c.campaign_id = ct.campaign_id AND COALESCE(c.is_active, true) = true
         WHERE COALESCE(ct.is_active, true) = true
       `);
-      const scheduleAssignments: any[] = [];
-      const seenCampaign = new Set<number>();
-      for (const ct of ctRows) {
-        if (!seenCampaign.has(ct.campaign_id)) {
-          seenCampaign.add(ct.campaign_id);
-          const slots = ctRows
-            .filter((r: any) => r.campaign_id === ct.campaign_id)
-            .map((r: any) => ({
-              targetId: String(r.totem_id),
-              targetType: 'totem' as const,
-              dayOfWeek: daysOfWeekToNumbers(r.days_of_week),
-              startTime: r.start_time || undefined,
-              endTime: r.end_time || undefined
-            }));
+      let cpRows: Array<{ campaign_id: number; publisher_id: number }> = [];
+      let clRows: Array<{ campaign_id: number; local_id: number }> = [];
+      try {
+        cpRows = await db.findMany(`SELECT campaign_id, publisher_id FROM campaign_publishers WHERE COALESCE(is_active, true) = true`);
+      } catch {
+        cpRows = [];
+      }
+      try {
+        clRows = await db.findMany(`SELECT campaign_id, local_id FROM campaign_locals WHERE COALESCE(is_active, true) = true`);
+      } catch {
+        clRows = [];
+      }
+
+      const campaignIds = new Set<number>([
+        ...ctRows.map((r: { campaign_id: number }) => r.campaign_id),
+        ...cpRows.map((r: { campaign_id: number }) => r.campaign_id),
+        ...clRows.map((r: { campaign_id: number }) => r.campaign_id)
+      ]);
+      for (const cid of campaignIds) {
+        const totemSlots = ctRows
+          .filter((r: { campaign_id: number }) => r.campaign_id === cid)
+          .map((r: { totem_id: number; start_time?: string; end_time?: string; days_of_week?: string | string[] }) => ({
+            targetId: String(r.totem_id),
+            targetType: 'totem' as const,
+            dayOfWeek: daysOfWeekToNumbers(r.days_of_week),
+            startTime: r.start_time || undefined,
+            endTime: r.end_time || undefined
+          }));
+        const pubSlots = cpRows
+          .filter((r: { campaign_id: number }) => r.campaign_id === cid)
+          .map((r: { publisher_id: number }) => ({
+            targetId: String(r.publisher_id),
+            targetType: 'publisher' as const,
+            dayOfWeek: undefined as number[] | undefined,
+            startTime: undefined as string | undefined,
+            endTime: undefined as string | undefined
+          }));
+        const locSlots = clRows
+          .filter((r: { campaign_id: number }) => r.campaign_id === cid)
+          .map((r: { local_id: number }) => ({
+            targetId: String(r.local_id),
+            targetType: 'location' as const,
+            dayOfWeek: undefined as number[] | undefined,
+            startTime: undefined as string | undefined,
+            endTime: undefined as string | undefined
+          }));
+        const slots = [...totemSlots, ...pubSlots, ...locSlots];
+        if (slots.length > 0) {
           scheduleAssignments.push({
-            id: `ct-${ct.campaign_id}`,
-            sourceId: String(ct.campaign_id),
+            id: `campaign-${cid}`,
+            sourceId: String(cid),
             sourceType: 'campaign',
             slots
           });
@@ -463,7 +499,8 @@ router.get('/graph',
       const payload = {
         publishers,
         subscribers,
-        scheduleAssignments
+        scheduleAssignments,
+        queryFilters: { dayOfWeek, time }
       };
       return res.json(successResponse(payload));
     } catch (error: any) {

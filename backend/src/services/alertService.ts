@@ -127,6 +127,12 @@ export class AlertService {
    */
   private async checkFpsLow(rule: AlertRule): Promise<Alert | null> {
     try {
+      // fx_telemetry pode não existir no schema base (SmartDisplayFX)
+      const tableExists = await this.db.tableExists('fx_telemetry');
+      if (!tableExists) {
+        return null;
+      }
+
       const durationMinutes = rule.duration || 5;
       const threshold = rule.threshold;
       
@@ -223,6 +229,9 @@ export class AlertService {
    */
   private async checkFailureRate(rule: AlertRule): Promise<Alert | null> {
     try {
+      const tableExists = await this.db.tableExists('fx_telemetry');
+      if (!tableExists) return null;
+
       const durationMinutes = rule.duration || 60;
       const threshold = rule.threshold;
       

@@ -2,7 +2,7 @@
 
 **Data:** 2026-01-26  
 **Versão Atual:** v2.1  
-**Status:** 🔄 Em Execução (auditoria 26/01/2026)
+**Status:** ✅ Principais itens concluídos (auditoria 26/01/2026)
 
 ---
 
@@ -102,7 +102,7 @@ logError('Authentication failed', error, { userId });
 
 ### 3. **Implementar Testes Automatizados Básicos**
 **Localização:** `backend/src/__tests__/`  
-**Status:** ⏳ Em andamento (Jest configurado, testes iniciais criados)  
+**Status:** ✅ Em andamento – Jest configurado, testes para loggerHelper, apiResponse, authService criados  
 **Problema:**
 - Sem garantia de qualidade
 - Dificulta refatoração
@@ -146,15 +146,15 @@ backend/
 
 ### 4. **Padronizar Respostas de API**
 **Localização:** Várias rotas (apiResponse.ts existe)  
-**Status:** ⚠️ Parcial – apiResponse implementado, migração gradual pendente  
+**Status:** ✅ Parcial – responseFormatMiddleware, apiResponse (successResponse, errorResponse)  
 **Problema:**
-- Algumas rotas usam `errorResponse()`/`successResponse()`
+- Algumas rotas usam `errorResponse()`/`successResponse()` ✅ (alerts migrado)
 - Outras criam respostas manualmente
 - Formato inconsistente dificulta frontend
 
 **Solução:**
-- Criar middleware de resposta padronizada
-- Migrar todas as rotas gradualmente
+- ✅ Middleware de resposta padronizada
+- Migrar rotas gradualmente: alerts, network, publishers (erros), locals (erros), smart-tvs (completo), dashboard (erros), notifications (completo)
 - Documentar formato padrão
 
 **Impacto:** 🟡 **MÉDIO** - Manutenibilidade, UX  
@@ -188,18 +188,20 @@ await redis.setex(cacheKey, 300, JSON.stringify(result)); // 5min TTL
 ---
 
 ### 6. **Sistema de Alertas e Notificações**
-**Localização:** Não existe  
-**Status:** ⏳ Não implementado  
+**Localização:** `services/alertService.ts`, `routes/alerts.ts`, cron em `index.ts`  
+**Status:** ✅ **IMPLEMENTADO** (26/01/2026)  
 **Problema:**
-- Sem alertas proativos
-- Problemas só descobertos quando usuário reporta
+- ~~Sem alertas proativos~~ ✅ Resolvido
+- ~~Problemas só descobertos quando usuário reporta~~ ✅ Resolvido
 
-**Solução:**
-- Alertas de FPS baixo (< 15 FPS)
-- Notificações de falhas críticas
-- Totem offline por tempo prolongado
-- Thresholds configuráveis
-- Integração com email (SMTP)
+**Solução implementada:**
+- ✅ Alertas de FPS baixo (< 15 FPS) – usa fx_telemetry com fallback se tabela não existir
+- ✅ Notificações de falhas críticas (taxa de falha)
+- ✅ Totem offline por tempo prolongado
+- ✅ Thresholds configuráveis (alertRules)
+- ✅ Integração com email (SMTP via emailService), Slack, Webhook, SMS
+- ✅ Cron a cada 5 minutos em `index.ts`
+- ✅ Rotas `/api/alerts`, `POST /api/alerts/check`, `POST /api/alerts/:id/acknowledge`
 
 **Impacto:** 🟡 **MÉDIO** - Monitoramento  
 **Esforço:** 1 semana
@@ -225,8 +227,8 @@ await redis.setex(cacheKey, 300, JSON.stringify(result)); // 5min TTL
 ---
 
 ### 8. **Validação de Integridade Referencial em Seeds**
-**Localização:** `database/carga-inicial-v6.sql`  
-**Status:** ⏳ Sem validação prévia  
+**Localização:** `database/validate-seeds.sql`  
+**Status:** ✅ Implementado – validate-seeds.sql executa após carga-inicial no install  
 **Problema:**
 - Dados podem ficar inconsistentes
 - FKs podem falhar silenciosamente
@@ -260,16 +262,16 @@ await redis.setex(cacheKey, 300, JSON.stringify(result)); // 5min TTL
 
 ### 10. **Atualizar Documentação Desatualizada**
 **Localização:** `docs/`  
-**Status:** ⏳ Menciona v2.0, Prisma removido  
+**Status:** ✅ **CONCLUÍDO** (26/01/2026)  
 **Problema:**
-- Documentação confusa
-- Informações incorretas
+- ~~Documentação confusa~~ ✅ Resolvido
+- ~~Informações incorretas~~ ✅ Resolvido
 
-**Solução:**
-- Atualizar referências de v2.0 para v2.1
-- Remover menções ao Prisma
-- Consolidar guias de instalação
-- Atualizar diagramas
+**Solução aplicada:**
+- ✅ Referências v2.0 → v2.1 nos principais docs
+- ✅ Changelog documenta v2.1, remoção Prisma e novas funcionalidades
+- ✅ Auditoria e PLANO_MELHORIAS atualizados
+- docs/_moved permanecem históricos (não alterados)
 
 **Impacto:** 🟡 **MÉDIO** - Onboarding, Manutenção  
 **Esforço:** 2-3 dias
@@ -294,17 +296,19 @@ await redis.setex(cacheKey, 300, JSON.stringify(result)); // 5min TTL
 ---
 
 ### 12. **Dashboard Visual de Rede Estrela**
-**Localização:** Não existe  
-**Status:** ⏳ Mencionado no plano  
+**Localização:** `pages/NetworkTopology/NetworkTopology.tsx`, `GET /api/network/topology`  
+**Status:** ✅ **IMPLEMENTADO** (26/01/2026)  
 **Problema:**
-- Sem visualização gráfica da rede
-- Dificulta compreensão da topologia
+- ~~Sem visualização gráfica da rede~~ ✅ Resolvido
+- ~~Dificulta compreensão da topologia~~ ✅ Resolvido
 
-**Solução:**
-- Usar biblioteca de grafos (vis.js, D3.js)
-- Visualizar totens e conexões
-- Status visual dos totens
-- Mapa interativo
+**Solução implementada:**
+- ✅ Hierarquia visual: Publishers → Locals → Totens → Smart TVs
+- ✅ Status visual (online/offline) dos totens e Smart TVs
+- ✅ Contagem de mídias atreladas por totem (campaign_totems + campaign_medias)
+- ✅ Contagem de mídias atreladas por Smart TV (totem_playlist_items)
+- ✅ Accordions expansíveis com chips informativos
+- ✅ Menu "Rede Visual" em Exibidores
 
 **Impacto:** 🟡 **MÉDIO** - UX  
 **Esforço:** 1 semana
@@ -505,6 +509,18 @@ await redis.setex(cacheKey, 300, JSON.stringify(result)); // 5min TTL
 
 ---
 
+## ⏸ PAUSAS – Retomar depois
+
+| Item | Pausado em | Retomar quando |
+|------|------------|----------------|
+| **Evolução Rede Visual / HoloGraph** (layout alternativo, worker, glow SVG, DOT) | 26/01/2026 | **Depois de testar o player-web.** Ver `docs/ANALISE_INTERFACE_GRAFICA_INTERATIVA_2026.md`. |
+
+**Próximo foco:** Testar o **player-web** (validação e testes) antes de retomar evoluções da interface gráfica.
+
+**✅ Adapter consolidado (26/01):** `shared/holograph-adapter` é a fonte única; `frontend/src/lib/holograph` passou a ser só re-export de `@shared/holograph-adapter`; holograph-engine já usa o shared (re-exports + alias opcional no Vite).
+
+---
+
 ## 📝 NOTAS
 
 - **Priorização baseada em:** Impacto, Esforço, Dependências
@@ -513,5 +529,5 @@ await redis.setex(cacheKey, 300, JSON.stringify(result)); // 5min TTL
 
 ---
 
-**Última Atualização:** 2025-01-XX  
-**Próxima Revisão:** Após Sprint 1
+**Última Atualização:** 2026-01-26  
+**Próxima Revisão:** Após testes do player-web

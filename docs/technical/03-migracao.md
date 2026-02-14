@@ -17,7 +17,7 @@ pg_dump -U usuario -s banco_antigo > schema_backup.sql
 
 ## Migração de Versão
 
-### De v1.x para v2.0
+### De v1.x para v2.0/v2.1
 
 #### 1. Backup Completo
 
@@ -29,7 +29,10 @@ pg_dump -U smartsignage smartsignage > backup_v1.sql
 
 ```bash
 cd database
+# v2.1: usar scripts do schema refatorado (sem Prisma)
 bash apply-schema-v2.sh
+# Ou via install-smartsignage.sh (recomendado)
+./scripts/install-smartsignage.sh
 ```
 
 #### 3. Migrar Dados

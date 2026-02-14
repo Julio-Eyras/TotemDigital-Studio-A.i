@@ -40,53 +40,62 @@ try {
   
   console.log(`📦 Versão atual do ajv-keywords: ${packageJson.version}`);
   
-  // Verificar se já está na versão correta (5.x suporta formatMinimum)
-  if (packageJson.version && (packageJson.version.startsWith('5.') || packageJson.version.startsWith('3.'))) {
-    console.log('✅ ajv-keywords já está na versão compatível');
+  const ajvKeywordsDir = path.dirname(foundPath);
+
+  // ajv-keywords v5: formatMinimum/formatMaximum foram movidos para ajv-formats.
+  // schema-utils@2.7.0 ainda os solicita. Adicionamos stubs em dist/keywords/index.js
+  if (packageJson.version && packageJson.version.startsWith('5.')) {
+    const keywordsIndexPath = path.join(ajvKeywordsDir, 'dist', 'keywords', 'index.js');
+    if (!fs.existsSync(keywordsIndexPath)) {
+      console.log('⚠️  dist/keywords/index.js não encontrado. Pulando correção.');
+      process.exit(0);
+    }
+    let content = fs.readFileSync(keywordsIndexPath, 'utf8');
+    if (content.includes('formatMinimum') && content.includes('formatMaximum')) {
+      console.log('✅ formatMinimum/formatMaximum já estão no ajv-keywords');
+      process.exit(0);
+    }
+    // Adicionar stubs para formatMinimum e formatMaximum (exigidos por schema-utils@2.7)
+    const formatStub = `const formatMinimum_1 = (ajv) => { try { ajv.addKeyword({ keyword: 'formatMinimum', validate: () => true }); } catch (e) {} }; const formatMaximum_1 = (ajv) => { try { ajv.addKeyword({ keyword: 'formatMaximum', validate: () => true }); } catch (e) {} };`;
+    const insertBefore = 'const ajvKeywords = {';
+    if (!content.includes(insertBefore)) {
+      console.log('⚠️  Estrutura de keywords/index.js inesperada');
+      process.exit(0);
+    }
+    content = content.replace(insertBefore, formatStub + '\n' + insertBefore);
+    content = content.replace(
+      'select: select_1.default,\n};',
+      'select: select_1.default,\n    formatMinimum: formatMinimum_1,\n    formatMaximum: formatMaximum_1,\n};'
+    );
+    fs.writeFileSync(keywordsIndexPath, content);
+    console.log('✅ Adicionados stubs formatMinimum e formatMaximum ao ajv-keywords v5');
     process.exit(0);
   }
-  
-  // Tentar corrigir o arquivo index.js que causa o erro
-  const indexJsPath = path.join(path.dirname(foundPath), 'dist', 'index.js');
+
+  // ajv-keywords v3: correção antiga
+  const indexJsPath = path.join(ajvKeywordsDir, 'dist', 'index.js');
   if (fs.existsSync(indexJsPath)) {
     let content = fs.readFileSync(indexJsPath, 'utf8');
-
-    // AJV v8+: a assinatura antiga ajv.addKeyword('kw', def) é DEPRECATED e gera warning.
-    // Se já houver o stub antigo, substituir por uma versão compatível (obj-based signature).
     if (content.includes("ajv.addKeyword('formatMinimum'")) {
       content = content.replace(
         /ajv\.addKeyword\('formatMinimum',\s*\{/g,
-        "ajv.addKeyword({\n      keyword: 'formatMinimum',\n      "
+        "ajv.addKeyword({ keyword: 'formatMinimum', "
       );
-      // Se fecharmos com "});" no final do objeto antigo, manteremos a sintaxe válida.
-      // (o código original fecha com "});" e continua funcionando)
       fs.writeFileSync(indexJsPath, content);
-      console.log('✅ Atualizado stub formatMinimum para assinatura compatível com AJV v8 (sem warnings)');
+      console.log('✅ Atualizado formatMinimum para assinatura AJV v8');
       process.exit(0);
     }
-    
-    // Adicionar suporte para formatMinimum se não existir
     if (!content.includes('formatMinimum')) {
-      // Adicionar uma função stub para formatMinimum
       const formatMinimumStub = `
-// Stub para formatMinimum (compatibilidade)
 if (typeof ajv.addKeyword === 'function') {
-  try {
-    // AJV v8+: use a assinatura baseada em objeto para evitar warnings de depreciação
-    ajv.addKeyword({
-      keyword: 'formatMinimum',
-      type: 'string',
-      compile: function() { return function() { return true; }; }
-    });
-  } catch(e) {}
+  try { ajv.addKeyword({ keyword: 'formatMinimum', validate: () => true }); } catch(e) {}
+  try { ajv.addKeyword({ keyword: 'formatMaximum', validate: () => true }); } catch(e) {}
 }`;
-      
-      // Inserir antes do último }
       const lastBraceIndex = content.lastIndexOf('}');
       if (lastBraceIndex > 0) {
         content = content.slice(0, lastBraceIndex) + formatMinimumStub + '\n' + content.slice(lastBraceIndex);
         fs.writeFileSync(indexJsPath, content);
-        console.log('✅ Adicionado suporte para formatMinimum');
+        console.log('✅ Adicionados stubs formatMinimum e formatMaximum');
       }
     }
   }

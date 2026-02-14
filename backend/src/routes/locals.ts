@@ -8,6 +8,7 @@ import { getLocalService } from '../services/localService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { param, query, body, validationResult } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
+import { errorResponse } from '../utils/apiResponse';
 
 const router = Router();
 
@@ -93,7 +94,7 @@ router.get('/',
       return res.json(result);
     } catch (error: any) {
       await logError('Erro ao listar locals', error);
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(500).json(errorResponse('Erro interno do servidor', error.message));
     }
   }
 );
@@ -116,16 +117,16 @@ router.get('/:id',
       const local = await getLocalService().getLocalById(parseInt(id), requestPublisherId, isAdmin);
       
       if (!local) {
-        return res.status(404).json({ error: 'Local não encontrado' });
+        return res.status(404).json(errorResponse('Local não encontrado'));
       }
 
       return res.json({ success: true, data: local });
     } catch (error: any) {
       await logError('Erro ao obter local', error);
       if (error.message.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
       }
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(500).json(errorResponse('Erro interno do servidor', error.message));
     }
   }
 );
@@ -152,7 +153,7 @@ router.post('/',
       }
       
       if (!req.user?.id) {
-        return res.status(401).json({ error: 'Usuário não autenticado' });
+        return res.status(401).json(errorResponse('Usuário não autenticado'));
       }
 
       const isAdmin = isAdminRole(req.user?.role);
@@ -178,9 +179,9 @@ router.post('/',
     } catch (error: any) {
       await logError('Erro ao criar local', error);
       if (error.message.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
       }
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json(errorResponse('Erro na operação', error.message));
     }
   }
 );
@@ -201,7 +202,7 @@ router.put('/:id',
       const { name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description, is_active } = req.body;
       
       if (!req.user?.id) {
-        return res.status(401).json({ error: 'Usuário não autenticado' });
+        return res.status(401).json(errorResponse('Usuário não autenticado'));
       }
 
       const isAdmin = req.user.role === 'admin';
@@ -232,9 +233,9 @@ router.put('/:id',
     } catch (error: any) {
       await logError('Erro ao atualizar local', error);
       if (error.message.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
       }
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json(errorResponse('Erro na operação', error.message));
     }
   }
 );
@@ -253,7 +254,7 @@ router.delete('/:id',
       const { id } = req.params;
       
       if (!req.user?.id) {
-        return res.status(401).json({ error: 'Usuário não autenticado' });
+        return res.status(401).json(errorResponse('Usuário não autenticado'));
       }
 
       const isAdmin = req.user.role === 'admin';
@@ -265,9 +266,9 @@ router.delete('/:id',
     } catch (error: any) {
       await logError('Erro ao deletar local', error);
       if (error.message.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
       }
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json(errorResponse('Erro na operação', error.message));
     }
   }
 );
@@ -293,9 +294,9 @@ router.get('/:id/totems',
     } catch (error: any) {
       await logError('Erro ao listar totens do local', error);
       if (error.message.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
       }
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(500).json(errorResponse('Erro interno do servidor', error.message));
     }
   }
 );

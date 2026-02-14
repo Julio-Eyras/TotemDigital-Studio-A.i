@@ -8244,6 +8244,13 @@ setup_first_boot() {
             else
                 warn "⚠️ Arquivo de fix de sequências não encontrado: $FIX_SEQ_FILE"
             fi
+
+            # Validação de integridade referencial (PLANO_MELHORIAS item 8)
+            local VALIDATE_SEEDS_FILE="$INSTALL_DIR/database/validate-seeds.sql"
+            if [[ -f "$VALIDATE_SEEDS_FILE" ]]; then
+                log "Validando integridade referencial dos seeds..."
+                execute_psql_file "$TARGET_DB" "$VALIDATE_SEEDS_FILE" "Validação de integridade (validate-seeds.sql)" || true
+            fi
         else
             warn "⚠️ Arquivo de seeds não encontrado: $INITIAL_LOAD_SQL_FILE"
             warn "⚠️ Sem seeds. O sistema será instalado sem dados de exemplo."

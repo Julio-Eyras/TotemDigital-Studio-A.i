@@ -63,8 +63,8 @@ GET /api/network/graph
       sourceType: "playlist" | "campaign",
       slots: [
         {
-          targetId: string,   // id do local, totem ou smart_tv
-          targetType: "location" | "totem" | "smarttv",
+          targetId: string,   // id do publisher, local, totem ou smart_tv
+          targetType: "publisher" | "location" | "totem" | "smarttv",
           dayOfWeek?: number[],
           startTime?: string,
           endTime?: string
@@ -96,4 +96,8 @@ const graph = smartSignageToGraph(network, {
 - **IDs:** usar string (ex: `String(publisher_id)`).
 - **Publishers:** já existente em `GET /api/network/topology`; adaptar para incluir `smartTvs` por local (ou por totem, conforme seu modelo).
 - **Subscribers:** entidades que têm campanhas/playlists (ex: tabela `subscribers` ou `clients`).
-- **scheduleAssignments:** derivar de `campaign_totems`, `totem_playlists`, agendamentos avançados etc., convertendo para `sourceId`, `sourceType`, `slots[]` com `targetId`, `targetType`, `dayOfWeek`, `startTime`, `endTime`.
+- **scheduleAssignments:** derivar de `campaign_totems` (totem), `campaign_publishers` (publisher), `campaign_locals` (location), convertendo para `sourceId`, `sourceType`, `slots[]` com `targetId`, `targetType` (`publisher` | `location` | `totem` | `smarttv`), `dayOfWeek`, `startTime`, `endTime`.
+
+## Adapter de referência
+
+O **dashboard SmartSignage (React)** usa o adapter em `frontend/src/lib/holograph/smartSignageToGraph.ts` como **implementação de referência**. Este pacote (`holograph-engine`) contém uma versão Vue/TypeScript equivalente em `src/smartsignage/SmartSignageAdapter.ts` para uso no playground; manter tipos e contrato alinhados entre ambos.

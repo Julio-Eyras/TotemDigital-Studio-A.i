@@ -115,17 +115,16 @@
 6. **Documentação desatualizada**
    - PLANO_MELHORIAS_CORRECOES.md – vários itens concluídos
    - FALTAS_DESENVOLVER.md – Playlist Mix em grande parte implementado
-   - Referências a v2.0; versão atual é 2.1
-   - **Recomendação:** Atualizar docs conforme estado real do código
+   - Referências v2.0→v2.1 atualizadas nos principais docs
+   - **Status:** Principais docs atualizados (26/01/2026)
 
 7. **Respostas de API**
    - Uso inconsistente de `errorResponse()`/`successResponse()`
-   - **Recomendação:** Middleware de resposta padronizada e migração gradual
+   - **Status:** Rotas de alertas migradas; migração gradual em andamento
 
 8. **Dashboard visual de rede**
-   - Mencionado no plano de melhorias
-   - Não existe visualização gráfica da topologia (totens, publishers)
-   - **Recomendação:** Usar vis.js ou D3.js para gráfico de rede
+   - **Status:** ✅ Implementado (26/01/2026) – Rede Visual em /network-topology
+   - Hierarquia: Publishers → Locals → Totens → Smart TVs com mídias atreladas
 
 9. **Monitoramento e observabilidade**
    - Sem Prometheus, Grafana ou métricas estruturadas

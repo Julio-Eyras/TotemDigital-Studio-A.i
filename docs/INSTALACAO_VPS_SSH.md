@@ -1,5 +1,5 @@
 # 🚀 GUIA DE INSTALAÇÃO VIA SSH - SMARTSIGNAGE-PRO
-**Versão**: 2.0  
+**Versão**: 2.1  
 **Ambiente**: Servidor VPS/Dedicado via SSH  
 **Deploy**: Docker Compose (Produção)
 
@@ -470,7 +470,7 @@ sudo crontab -e
 
 ### 6.1 Nova Arquitetura Separada
 
-O SmartSignage-Pro v2.0 utiliza uma **arquitetura separada** com containers especializados:
+O SmartSignage-Pro v2.1 utiliza uma **arquitetura separada** com containers especializados:
 
 #### **Containers Especializados:**
 - **`postgres`**: Banco de dados PostgreSQL
@@ -1095,7 +1095,7 @@ Seu SmartSignage-Pro está rodando em produção via Docker!
 
 Sistema instalado e funcionando! 🎉
 
-### 🆕 Novidades da Versão 2.0
+### 🆕 Novidades da Versão 2.1
 
 **Arquitetura Separada:**
 - ✅ Containers especializados (backend, frontend, database)
@@ -1128,7 +1128,7 @@ Sistema instalado e funcionando! 🎉
 
 ---
 
-**Data do Documento**: 25 de Outubro de 2025  
-**Versão**: 2.0  
+**Data do Documento**: Janeiro 2026  
+**Versão**: 2.1  
 **Status**: ✅ Completo e Atualizado
 

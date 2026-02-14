@@ -1,8 +1,8 @@
-# 📚 MANUAL DO USUÁRIO - SMART SIGNAGE PRO v2.0
+# 📚 MANUAL DO USUÁRIO - SMART SIGNAGE PRO v2.1
 
 ## 🎯 **VISÃO GERAL**
 
-O Smart Signage Pro v2.0 é um sistema completo de sinalização digital profissional que permite:
+O Smart Signage Pro v2.1 é um sistema completo de sinalização digital profissional que permite:
 - Gestão de clientes e usuários
 - Criação e distribuição de campanhas
 - Upload e gestão de mídia
@@ -379,4 +379,4 @@ tail -f logs/error.log
 
 ---
 
-**🎉 Parabéns! Seu sistema Smart Signage Pro v2.0 está pronto para uso!**
+**🎉 Parabéns! Seu sistema Smart Signage Pro v2.1 está pronto para uso!**

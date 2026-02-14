@@ -34,7 +34,7 @@ SmartSignage Pro é uma arquitetura distribuída baseada em microserviços, com 
 
 ### 3. Banco de Dados (PostgreSQL)
 - **Versão**: PostgreSQL 12+
-- **Schema**: Refatorado v2.0
+- **Schema**: Refatorado v2.1 (PostgreSQL direto, sem ORM)
 - **Views**: Materializadas para analytics
 - **Triggers**: Para auditoria e validação
 

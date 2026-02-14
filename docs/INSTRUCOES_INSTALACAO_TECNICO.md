@@ -1,8 +1,8 @@
-# Smart Signage Pro v2.0 - Instruções Técnicas de Instalação
+# Smart Signage Pro v2.1 - Instruções Técnicas de Instalação
 
 ## 📋 Visão Geral
 
-Este documento contém instruções detalhadas para técnicos instalarem o Smart Signage Pro v2.0 em sistemas Ubuntu. O sistema suporta 3 modos de instalação:
+Este documento contém instruções detalhadas para técnicos instalarem o Smart Signage Pro v2.1 em sistemas Ubuntu. O sistema suporta 3 modos de instalação:
 
 1. **Single-Server** (Appliance dedicado)
 2. **Docker** (Produção)
@@ -662,4 +662,4 @@ Ao solicitar suporte, forneça:
 
 ---
 
-**Smart Signage Pro v2.0** - Sistema de Sinalização Digital Profissional
+**Smart Signage Pro v2.1** - Sistema de Sinalização Digital Profissional

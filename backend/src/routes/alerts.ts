@@ -9,6 +9,7 @@ import { query, param, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getAlertService } from '../services/alertService';
 import { logError } from '../utils/loggerHelper';
+import { successResponse, errorResponse } from '../utils/apiResponse';
 
 const router = Router();
 
@@ -41,17 +42,10 @@ router.get('/',
       
       const alerts = await getAlertService().getActiveAlerts(limit);
 
-      res.json({
-        success: true,
-        data: alerts,
-        count: alerts.length,
-      });
+      res.json(successResponse(alerts, { count: alerts.length }));
     } catch (error: any) {
       await logError('GET /api/alerts error', error, req.query);
-      res.status(500).json({
-        error: 'Erro ao listar alertas',
-        message: error.message
-      });
+      res.status(500).json(errorResponse('Erro ao listar alertas', error.message));
     }
   }
 );
@@ -76,18 +70,10 @@ router.post('/check',
         }
       }
 
-      res.json({
-        success: true,
-        data: alerts,
-        count: alerts.length,
-        checked: new Date().toISOString(),
-      });
+      res.json(successResponse(alerts, { count: alerts.length, checked: new Date().toISOString() }));
     } catch (error: any) {
       await logError('POST /api/alerts/check error', error, {});
-      res.status(500).json({
-        error: 'Erro ao verificar alertas',
-        message: error.message
-      });
+      res.status(500).json(errorResponse('Erro ao verificar alertas', error.message));
     }
   }
 );
@@ -108,16 +94,10 @@ router.post('/:id/acknowledge',
 
       await getAlertService().acknowledgeAlert(alertId, userId);
 
-      res.json({
-        success: true,
-        message: 'Alerta reconhecido com sucesso',
-      });
+      res.json(successResponse({ message: 'Alerta reconhecido com sucesso' }));
     } catch (error: any) {
       await logError('POST /api/alerts/:id/acknowledge error', error, { id: req.params.id });
-      res.status(500).json({
-        error: 'Erro ao reconhecer alerta',
-        message: error.message
-      });
+      res.status(500).json(errorResponse('Erro ao reconhecer alerta', error.message));
     }
   }
 );

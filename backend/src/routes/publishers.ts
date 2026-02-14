@@ -10,6 +10,7 @@ import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middlewa
 import { validateRequest as validateRequestMiddleware } from '../middleware/validation.middleware';
 import { param, query, body, validationResult } from 'express-validator';
 import { logError, logDebug } from '../utils/loggerHelper';
+import { successResponse, errorResponse } from '../utils/apiResponse';
 import { 
   paginationValidators, 
   searchValidators, 
@@ -109,7 +110,7 @@ router.get('/',
       return res.json({ success: true, ...result });
     } catch (error: any) {
       await logError('Erro ao listar publishers', error);
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
 );
@@ -141,7 +142,7 @@ router.post('/',
       return res.status(201).json(newPublisher);
     } catch (error: any) {
       await logError('Erro ao criar publisher', error);
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json(errorResponse('Erro ao criar publisher', error.message));
     }
   }
 );
@@ -167,7 +168,7 @@ router.get('/:id/totems/:totemId/campaigns/mixed',
       const { date, time, dayOfWeek } = req.query;
       
       if (!req.user) {
-        return res.status(401).json({ success: false, error: 'Não autenticado' });
+        return res.status(401).json(errorResponse('Não autenticado'));
       }
       
       // Validar acesso
@@ -227,7 +228,7 @@ router.get('/:id/campaigns/mixed',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       if (!req.user) {
-        return res.status(401).json({ success: false, error: 'Não autenticado' });
+        return res.status(401).json(errorResponse('Não autenticado'));
       }
       
       const publisherId = parseInt(req.params.id);
@@ -290,7 +291,7 @@ router.get('/:id/locals',
       return res.json({ success: true, data: locals });
     } catch (error: any) {
       await logError('Erro ao listar locals do publisher', error);
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
 );
@@ -309,7 +310,7 @@ router.get('/:id/totems',
       return res.json({ success: true, data: totems });
     } catch (error: any) {
       await logError('Erro ao listar totems do publisher', error);
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
 );
@@ -328,7 +329,7 @@ router.get('/:id/smart-tvs',
       return res.json({ success: true, data: smartTvs });
     } catch (error: any) {
       await logError('Erro ao listar smart TVs do publisher', error);
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
 );
@@ -347,7 +348,7 @@ router.get('/:id/stats',
       return res.json({ success: true, data: stats });
     } catch (error: any) {
       await logError('Erro ao obter estatísticas do publisher', error);
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
 );
@@ -368,13 +369,13 @@ router.get('/:id',
       const publisher = await getPublisherService().getPublisherById(parseInt(id));
       
       if (!publisher) {
-        return res.status(404).json({ error: 'Publisher não encontrado' });
+        return res.status(404).json(errorResponse('Publisher não encontrado'));
       }
 
       return res.json({ success: true, data: publisher });
     } catch (error: any) {
       await logError('Erro ao obter publisher', error);
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
 );
@@ -405,7 +406,7 @@ router.put('/:id',
       return res.json(updatedPublisher);
     } catch (error: any) {
       await logError('Erro ao atualizar publisher', error);
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json(errorResponse('Erro ao atualizar publisher', error.message));
     }
   }
 );
@@ -426,7 +427,7 @@ router.delete('/:id',
       return res.json({ success: true, message: 'Publisher deletado com sucesso' });
     } catch (error: any) {
       await logError('Erro ao deletar publisher', error);
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(400).json(errorResponse('Erro ao deletar publisher', error.message));
     }
   }
 );
