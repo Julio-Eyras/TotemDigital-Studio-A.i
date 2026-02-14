@@ -369,23 +369,23 @@ router.get('/graph',
               publisherId: String(r.publisher_id),
               name: r.local_name || '',
               address: r.local_address || undefined,
-              totems: [],
-              smartTvs: []
+              totems: []
             };
             localsMap.set(lk, loc);
             pub.locations.push(loc);
           }
           const loc = localsMap.get(lk);
           if (r.totem_id) {
-            if (!totemsMap.has(r.totem_id)) {
-              const totem = { id: String(r.totem_id), locationId: String(r.local_id), name: r.totem_name || r.totem_identifier || '' };
-              totemsMap.set(r.totem_id, totem);
-              loc.totems.push(totem);
+            let tot = totemsMap.get(r.totem_id);
+            if (!tot) {
+              tot = { id: String(r.totem_id), locationId: String(r.local_id), name: r.totem_name || r.totem_identifier || '', smartTvs: [] };
+              totemsMap.set(r.totem_id, tot);
+              loc.totems.push(tot);
             }
             if (r.smart_tv_id) {
-              loc.smartTvs.push({
+              tot.smartTvs.push({
                 id: String(r.smart_tv_id),
-                locationId: String(r.local_id),
+                totemId: String(r.totem_id),
                 name: r.smart_tv_name || r.smart_tv_identifier || ''
               });
             }

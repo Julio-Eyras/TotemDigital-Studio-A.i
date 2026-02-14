@@ -40,8 +40,9 @@ export interface UpdatePublisherRequest {
   whatsapp?: string;
   category_segment?: string;
   description?: string;
-  // Campos removidos/ignorados: publisher não pode ser subscriber/ambos
+  /** API/frontend pode enviar "active"; BD usa coluna is_active */
   active?: boolean;
+  is_active?: boolean;
 }
 
 export interface PublisherListResponse {
@@ -185,7 +186,7 @@ export class PublisherService {
    */
   async getPublisherById(id: number): Promise<Publisher | null> {
     try {
-      const publisher = await this.db.findFirst(`
+      const row = await this.db.findFirst(`
         SELECT 
           p.publisher_id,
           p.name,
@@ -205,7 +206,9 @@ export class PublisherService {
         WHERE p.publisher_id = $1
       `, [id]);
 
-      return publisher;
+      if (!row) return null;
+      // Contrato da API: retornar "active" (frontend usa); coluna no BD é is_active
+      return { ...row, active: !!row.is_active } as Publisher;
     } catch (error: any) {
       await logError('Erro ao obter publisher', error, { id });
       throw new Error('Erro interno do servidor');
@@ -323,8 +326,10 @@ export class PublisherService {
         whatsapp, 
         category_segment,
         description,
-        active 
+        active,
+        is_active: isActiveReq
       } = data;
+      const activeOrIsActive = active !== undefined ? active : isActiveReq;
 
       // Verificar se publisher existe
       const existingPublisher = await this.getPublisherById(id);
@@ -408,9 +413,9 @@ export class PublisherService {
       updateParams.push(finalClientType);
       paramIndex++;
 
-      if (active !== undefined) {
-        updateFields.push(`active = $${paramIndex}`);
-        updateParams.push(active);
+      if (activeOrIsActive !== undefined) {
+        updateFields.push(`is_active = $${paramIndex}`);
+        updateParams.push(!!activeOrIsActive);
         paramIndex++;
       }
 

@@ -56,10 +56,10 @@ export function smartSignageToGraph(
       for (const t of loc.totems ?? []) {
         addNode({ id: t.id, label: t.name, type: 'totem', meta: { locationId: t.locationId } });
         addEdge({ from: loc.id, to: t.id, type: 'has-totem' });
-      }
-      for (const tv of loc.smartTvs ?? []) {
-        addNode({ id: tv.id, label: tv.name, type: 'smarttv', meta: { locationId: tv.locationId } });
-        addEdge({ from: loc.id, to: tv.id, type: 'has-smarttv' });
+        for (const tv of (t as { smartTvs?: Array<{ id: string; name: string }> }).smartTvs ?? []) {
+          addNode({ id: tv.id, label: tv.name, type: 'smarttv', meta: { totemId: (t as any).id } });
+          addEdge({ from: t.id, to: tv.id, type: 'has-smarttv' });
+        }
       }
     }
   }

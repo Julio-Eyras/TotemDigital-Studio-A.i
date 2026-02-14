@@ -195,15 +195,14 @@ export class PlayerService {
         INSERT INTO totems (
           name,
           identifier,
-          location,
+          description,
           local_id,
           is_active,
-          active,
           status,
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, true, true, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, true, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING totem_id
       `, [name, identifier, location || null, localId]);
 
@@ -293,10 +292,6 @@ export class PlayerService {
         updateFields.push(`is_active = $${paramIndex}`);
         updateParams.push(isActive);
         paramIndex++;
-
-        updateFields.push(`active = $${paramIndex}`);
-        updateParams.push(isActive);
-        paramIndex++;
       }
 
       updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -334,7 +329,7 @@ export class PlayerService {
       // Soft delete - marcar como inativo
       await this.db.executeRaw(`
         UPDATE totems 
-        SET is_active = false, active = false, updated_at = CURRENT_TIMESTAMP
+        SET is_active = false, updated_at = CURRENT_TIMESTAMP
         WHERE totem_id = $1
       `, [id]);
     } catch (error: any) {

@@ -51,9 +51,9 @@ export class RemoteCommandService {
         userId
       });
 
-      // Verificar se totem existe e está ativo
+      // Verificar se totem existe e está ativo (coluna no BD: is_active)
       const totem = await this.db.findFirst(`
-        SELECT totem_id, identifier, status, active
+        SELECT totem_id, identifier, status, is_active
         FROM totems
         WHERE totem_id = $1
       `, [request.totemId]);
@@ -62,7 +62,7 @@ export class RemoteCommandService {
         throw new Error('Totem não encontrado');
       }
 
-      if (!totem.active) {
+      if (!(totem as any).is_active) {
         throw new Error('Totem não está ativo');
       }
 

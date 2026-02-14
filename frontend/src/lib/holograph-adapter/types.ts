@@ -45,8 +45,7 @@ export interface SmartSignageNetwork {
       publisherId: string;
       name: string;
       address?: string;
-      totems?: Array<{ id: string; locationId: string; name: string }>;
-      smartTvs?: Array<{ id: string; locationId: string; name: string }>;
+      totems?: Array<{ id: string; locationId: string; name: string; smartTvs?: Array<{ id: string; totemId?: string; name: string }> }>;
     }>;
   }>;
   subscribers: Array<{

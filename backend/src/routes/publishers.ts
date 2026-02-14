@@ -390,7 +390,9 @@ router.put('/:id',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const { name, contact_name, email, phone, whatsapp, category_segment, description, active } = req.body;
+      const { name, contact_name, email, phone, whatsapp, category_segment, description, active, is_active } = req.body;
+      // Aceitar active ou is_active (frontend pode enviar qualquer um); BD usa coluna is_active
+      const activeValue = active !== undefined ? !!active : (is_active !== undefined ? !!is_active : undefined);
       
       const updatedPublisher = await getPublisherService().updatePublisher(parseInt(id), {
         name,
@@ -400,7 +402,7 @@ router.put('/:id',
         whatsapp,
         category_segment,
         description,
-        active
+        is_active: activeValue
       });
       
       return res.json(updatedPublisher);

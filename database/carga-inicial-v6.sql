@@ -49,7 +49,7 @@ INSERT INTO subscribers (subscriber_id, name, contact_name, email, phone, whatsa
 ON CONFLICT DO NOTHING;
 
 -- =============================================
--- PUBLISHERS (2)
+-- PUBLISHERS (2) - is_active=true para iniciar ativos
 -- =============================================
 INSERT INTO publishers (publisher_id, name, contact_name, email, phone, whatsapp, category_segment, description, is_subscriber, is_publisher, client_type, is_active) VALUES
 (1, 'Cia Zaffari', 'Gerente Zaffari', 'admin@zaffari.com.br', '+55 51 3220-1000', '+55 51 98000-1000', 'Shopping', 'Rede de shoppings Cia Zaffari', false, true, 'publisher', true),
