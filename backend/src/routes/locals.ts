@@ -100,6 +100,29 @@ router.get('/',
 );
 
 /**
+ * @route GET /api/locals/stats
+ * @desc Contagem de totens e Smart TVs por local (query: localIds=1,2,3)
+ */
+router.get('/stats',
+  query('localIds').notEmpty().withMessage('localIds é obrigatório (ex: 1,2,3)'),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const localIdsStr = req.query.localIds as string;
+      const localIds = localIdsStr.split(',').map((id) => parseInt(id.trim(), 10)).filter((n) => !isNaN(n));
+      if (localIds.length === 0) return res.json({});
+      const isAdmin = isAdminRole(req.user?.role);
+      const requestPublisherId = req.user?.publisherId || undefined;
+      const stats = await getLocalService().getLocalStats(localIds);
+      return res.json(stats);
+    } catch (error: any) {
+      logError('Erro ao buscar stats dos locais', error);
+      return res.status(500).json(errorResponse('Erro ao buscar estatísticas', error.message));
+    }
+  }
+);
+
+/**
  * @route GET /api/locals/:id
  * @desc Obter local por ID
  * @access Private (Admin, Publisher)

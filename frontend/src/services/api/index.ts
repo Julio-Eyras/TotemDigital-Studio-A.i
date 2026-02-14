@@ -2665,7 +2665,9 @@ export interface UpdatePublisherRequest {
   is_subscriber?: boolean;
   is_publisher?: boolean;
   client_type?: 'subscriber' | 'publisher' | 'both';
+  /** @deprecated Use is_active - backend usa coluna is_active */
   active?: boolean;
+  is_active?: boolean;
 }
 
 export interface PublisherListResponse {
@@ -2709,7 +2711,7 @@ export const publisherApi = {
 
   update: async (id: number, data: UpdatePublisherRequest): Promise<Publisher> => {
     const response = await api.put(`/publishers/${id}`, data);
-    return response.data.data;
+    return response.data.data || response.data;
   },
 
   delete: async (id: number): Promise<void> => {
@@ -3164,6 +3166,8 @@ export interface Local {
   created_at: string;
   updated_at: string;
   publisher_name?: string;
+  totem_count?: number;
+  smart_tv_count?: number;
 }
 
 export interface CreateLocalRequest {
@@ -3238,6 +3242,12 @@ export const localApi = {
   getTotems: async (localId: number): Promise<any[]> => {
     const response = await api.get(`/locals/${localId}/totems`);
     return response.data.data || response.data || [];
+  },
+
+  getStats: async (localIds: number[]): Promise<Record<number, { totens: number; smartTvs: number }>> => {
+    if (localIds.length === 0) return {};
+    const response = await api.get('/locals/stats', { params: { localIds: localIds.join(',') } });
+    return response.data || {};
   },
 };
 

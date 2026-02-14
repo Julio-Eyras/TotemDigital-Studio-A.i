@@ -25,6 +25,8 @@ export interface Local {
   created_at: string;
   updated_at: string;
   publisher_name?: string; // Derivado
+  totem_count?: number; // Contagem de totens do local
+  smart_tv_count?: number; // Contagem de Smart TVs (via totems) do local
 }
 
 export interface CreateLocalRequest {
@@ -126,7 +128,7 @@ export class LocalService {
         paramIndex++;
       }
 
-      // Buscar locals
+      // Buscar locals com contagem de totens e Smart TVs
       const locals = await this.db.findMany(`
         SELECT 
           l.local_id,
@@ -145,9 +147,24 @@ export class LocalService {
           l.is_active,
           l.created_at,
           l.updated_at,
-          p.name as publisher_name
+          p.name as publisher_name,
+          COALESCE(tot.totem_count, 0)::int as totem_count,
+          COALESCE(stv.smart_tv_count, 0)::int as smart_tv_count
         FROM locals l
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
+        LEFT JOIN (
+          SELECT t.local_id, COUNT(*)::int as totem_count
+          FROM totems t
+          WHERE COALESCE(t.is_active, true) = true
+          GROUP BY t.local_id
+        ) tot ON tot.local_id = l.local_id
+        LEFT JOIN (
+          SELECT t.local_id, COUNT(*)::int as smart_tv_count
+          FROM smart_tvs st
+          JOIN totems t ON st.totem_id = t.totem_id
+          WHERE COALESCE(st.is_active, true) = true AND COALESCE(t.is_active, true) = true
+          GROUP BY t.local_id
+        ) stv ON stv.local_id = l.local_id
         ${whereClause}
         ORDER BY l.created_at DESC
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -169,6 +186,35 @@ export class LocalService {
     } catch (error: any) {
       await logError('Erro ao listar locals', error, { params });
       throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Obter contagem de totens e Smart TVs por local (para cards)
+   */
+  async getLocalStats(localIds: number[]): Promise<Record<number, { totens: number; smartTvs: number }>> {
+    if (localIds.length === 0) return {};
+    try {
+      const totemRows = await this.db.findMany(`
+        SELECT local_id, COUNT(*)::int AS cnt FROM totems
+        WHERE local_id = ANY($1) AND COALESCE(is_active, true) = true
+        GROUP BY local_id
+      `, [localIds]);
+      const tvRows = await this.db.findMany(`
+        SELECT t.local_id, COUNT(*)::int AS cnt
+        FROM smart_tvs st
+        JOIN totems t ON st.totem_id = t.totem_id
+        WHERE t.local_id = ANY($1) AND COALESCE(st.is_active, true) = true
+        GROUP BY t.local_id
+      `, [localIds]);
+      const result: Record<number, { totens: number; smartTvs: number }> = {};
+      for (const id of localIds) result[id] = { totens: 0, smartTvs: 0 };
+      for (const r of totemRows) result[r.local_id].totens = r.cnt;
+      for (const r of tvRows) result[r.local_id].smartTvs = r.cnt;
+      return result;
+    } catch (error: any) {
+      await logError('Erro ao buscar stats dos locais', error, { localIds });
+      return {};
     }
   }
 

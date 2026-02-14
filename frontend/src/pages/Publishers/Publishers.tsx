@@ -1215,7 +1215,7 @@ const Publishers: React.FC = () => {
         is_subscriber: selectedPublisher.is_subscriber,
         is_publisher: selectedPublisher.is_publisher,
         client_type: selectedPublisher.client_type,
-        active: selectedPublisher.active,
+        is_active: selectedPublisher.active ?? (selectedPublisher as any).is_active,
       };
       await publisherApi.update(selectedPublisher.publisher_id, updateData);
       setEditDialogOpen(false);

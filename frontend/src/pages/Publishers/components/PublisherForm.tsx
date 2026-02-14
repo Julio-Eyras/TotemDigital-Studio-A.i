@@ -180,12 +180,12 @@ const PublisherForm: React.FC<PublisherFormProps> = ({
             <FormControl fullWidth margin="normal">
               <InputLabel>Status</InputLabel>
               <Select
-                value={publisher.active ? 'active' : 'inactive'}
+                value={(publisher.active ?? (publisher as any).is_active) ? 'active' : 'inactive'}
                 label="Status"
                 onChange={(e) =>
                   onChange({
                     ...data,
-                    active: e.target.value === 'active',
+                    is_active: e.target.value === 'active',
                   } as UpdatePublisherRequest)
                 }
                 error={hasError('active')}

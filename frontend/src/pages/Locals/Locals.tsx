@@ -159,60 +159,17 @@ const Locals: React.FC = () => {
   };
 
   const loadLocalStats = async (localsList: Local[]) => {
-    const statsRecord: Record<number, { totens: number; smartTvs: number }> = {};
-    
+    if (localsList.length === 0) {
+      setLocalStats({});
+      return;
+    }
     try {
-      // PERFORMANCE: buscar totens e Smart TVs UMA vez e agregar por local_id (evita N chamadas por local)
-      const [totemsResponse, smartTvsResponse] = await Promise.all([
-        totemApi.getAll({ limit: 100 }).catch(() => ({ data: [] })),
-        // Backend de Smart TVs limita limit em 100 (validação). Manter compatível para evitar 400.
-        smartTvApi.getAll({ limit: 100 }).catch(() => ({ data: [] })),
-      ]);
-
-      const totems = Array.isArray(totemsResponse.data) ? totemsResponse.data : [];
-      const smartTvs = Array.isArray(smartTvsResponse.data) ? smartTvsResponse.data : [];
-
-      // Mapear totem_id -> local_id
-      const totemLocalMap = new Map<number, number>();
-      for (const t of totems) {
-        const totemId = Number((t as any).totem_id);
-        const localId = Number((t as any).local_id);
-        if (!Number.isNaN(totemId) && !Number.isNaN(localId)) {
-          totemLocalMap.set(totemId, localId);
-        }
-      }
-
-      // Inicializar stats para todos os locais
-      for (const local of localsList) {
-        statsRecord[local.local_id] = { totens: 0, smartTvs: 0 };
-      }
-
-      // Contar totens por local
-      for (const t of totems) {
-        const localId = Number((t as any).localId ?? (t as any).local_id);
-        if (!Number.isNaN(localId) && statsRecord[localId]) {
-          statsRecord[localId].totens += 1;
-        }
-      }
-
-      // Contar Smart TVs por local (via local_id direto OU via totem_id)
-      for (const tv of smartTvs) {
-        const directLocalId = Number((tv as any).localId ?? (tv as any).local_id);
-        if (!Number.isNaN(directLocalId) && statsRecord[directLocalId]) {
-          statsRecord[directLocalId].smartTvs += 1;
-          continue;
-        }
-
-        const totemId = Number((tv as any).totem_id ?? (tv as any).totemId);
-        const inferredLocalId = totemLocalMap.get(totemId);
-        if (inferredLocalId && statsRecord[inferredLocalId]) {
-          statsRecord[inferredLocalId].smartTvs += 1;
-        }
-      }
-      
-      setLocalStats(statsRecord);
+      const ids = localsList.map((l) => l.local_id);
+      const stats = await localApi.getStats(ids);
+      setLocalStats(stats);
     } catch (error) {
       console.error('Erro ao carregar estatísticas dos locais:', error);
+      setLocalStats({});
     }
   };
 
@@ -476,7 +433,8 @@ const Locals: React.FC = () => {
 
           <Grid container spacing={3}>
             {publisherLocals.map((local) => {
-              const stats = localStats[local.local_id] || { totens: 0, smartTvs: 0 };
+              const totens = local.totem_count ?? localStats[local.local_id]?.totens ?? 0;
+              const smartTvs = local.smart_tv_count ?? localStats[local.local_id]?.smartTvs ?? 0;
               return (
                 <Grid item xs={12} sm={6} md={4} lg={3} key={local.local_id}>
                   <Card
@@ -512,14 +470,14 @@ const Locals: React.FC = () => {
 
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mt: 2 }}>
                         <Chip
-                          label={`${stats.totens} Totens`}
+                          label={`${totens} Totens`}
                           size="small"
                           color="info"
                           variant="outlined"
                           icon={<Computer fontSize="small" />}
                         />
                         <Chip
-                          label={`${stats.smartTvs} Smart TVs`}
+                          label={`${smartTvs} Smart TVs`}
                           size="small"
                           color="secondary"
                           variant="outlined"
