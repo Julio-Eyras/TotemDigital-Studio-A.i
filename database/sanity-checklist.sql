@@ -71,7 +71,7 @@ WHERE u.subscriber_id IS NOT NULL AND s.subscriber_id IS NULL;
 -- =========================================================
 \echo '[2] PUBLISHERS - inconsistências (esperado: 0 linhas)'
 SELECT
-  p.publisher_id, p.name, p.client_type, p.is_publisher, p.is_subscriber, p.active
+  p.publisher_id, p.name, p.client_type, p.is_publisher, p.is_subscriber, p.is_active
 FROM publishers p
 WHERE NOT (
   p.client_type = 'publisher'

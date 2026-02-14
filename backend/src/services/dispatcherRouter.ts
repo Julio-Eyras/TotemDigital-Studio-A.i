@@ -617,12 +617,10 @@ class DispatcherRouter {
       const totemId = totem.totem_id;
       request.totemId = totemId;
 
-      // Registrar evento
+      // Registrar evento no event_logs (totem_id, entityType, entityId, etc.)
       const { eventType, mediaId, playlistId, campaignId, metadata } = request.body || {};
       const eventLogService = getEventLogService();
 
-      // TODO: Implementar registro de eventos completo
-      // Por enquanto, apenas retornar sucesso
       const eventId = await eventLogService.logEvent({
         eventType: eventType as EventType,
         entityType: mediaId ? 'media' : playlistId ? 'playlist' : 'totem',

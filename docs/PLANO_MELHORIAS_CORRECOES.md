@@ -1,8 +1,8 @@
 # 📋 Plano de Melhorias e Correções - Smart Signage Pro
 
-**Data:** 2025-01-XX  
+**Data:** 2026-01-26  
 **Versão Atual:** v2.1  
-**Status:** 🔄 Em Planejamento
+**Status:** 🔄 Em Execução (auditoria 26/01/2026)
 
 ---
 
@@ -23,14 +23,11 @@
 ## 🔴 CRÍTICO (Alta Prioridade - Fazer Imediatamente)
 
 ### 1. **Implementar Criptografia de Senhas no Script de Instalação**
-**Localização:** `scripts/install-smartsignage.sh` (linhas 411, 419)  
-**Status:** ⏳ TODO pendente  
-**Problema:**
-- Funções `encrypt_password()` e `decrypt_password()` não implementadas
-- Senhas armazenadas em texto plano
-- Risco de segurança
+**Localização:** `scripts/install-smartsignage.sh` (linhas 405-485)  
+**Status:** ✅ **IMPLEMENTADO** (26/01/2026)  
+**Problema:** ~~Funções não implementadas~~ ✅ Resolvido
 
-**Solução:**
+**Solução implementada:**
 ```bash
 # Usar openssl para criptografia simétrica
 encrypt_password() {
@@ -104,8 +101,8 @@ logError('Authentication failed', error, { userId });
 ---
 
 ### 3. **Implementar Testes Automatizados Básicos**
-**Localização:** Não existe estrutura de testes  
-**Status:** ⏳ Não implementado  
+**Localização:** `backend/src/__tests__/`  
+**Status:** ⏳ Em andamento (Jest configurado, testes iniciais criados)  
 **Problema:**
 - Sem garantia de qualidade
 - Dificulta refatoração
@@ -148,8 +145,8 @@ backend/
 ## 🟡 IMPORTANTE (Média Prioridade - Fazer em Breve)
 
 ### 4. **Padronizar Respostas de API**
-**Localização:** Várias rotas  
-**Status:** ⏳ Inconsistente  
+**Localização:** Várias rotas (apiResponse.ts existe)  
+**Status:** ⚠️ Parcial – apiResponse implementado, migração gradual pendente  
 **Problema:**
 - Algumas rotas usam `errorResponse()`/`successResponse()`
 - Outras criam respostas manualmente
@@ -166,8 +163,8 @@ backend/
 ---
 
 ### 5. **Implementar Cache Redis para Analytics**
-**Localização:** `services/analyticsService.ts`  
-**Status:** ⏳ Não implementado  
+**Localização:** `services/analyticsCacheService.ts`  
+**Status:** ✅ **IMPLEMENTADO** – analyticsCacheService usa Redis  
 **Problema:**
 - Queries pesadas repetidas
 - Performance degradada com muitos dados
@@ -210,8 +207,8 @@ await redis.setex(cacheKey, 300, JSON.stringify(result)); // 5min TTL
 ---
 
 ### 7. **Exportação de Relatórios (PDF/CSV)**
-**Localização:** Dashboard  
-**Status:** ⏳ Não implementado  
+**Localização:** `routes/reports.ts` – `POST /api/reports/export/pdf` e `/export/csv`  
+**Status:** ✅ **IMPLEMENTADO**  
 **Problema:**
 - Usuários precisam copiar dados manualmente
 - Funcionalidade comercial importante
@@ -281,7 +278,7 @@ await redis.setex(cacheKey, 300, JSON.stringify(result)); // 5min TTL
 
 ### 11. **Implementar ErrorBoundary com Logging em Produção**
 **Localização:** `frontend/src/components/ErrorBoundary/ErrorBoundary.tsx`  
-**Status:** ⏳ TODO pendente (linha 36)  
+**Status:** ✅ **IMPLEMENTADO** – logFrontendError() → POST /api/logs/frontend-error  
 **Problema:**
 - Erros do frontend não são logados em produção
 - Dificulta debugging

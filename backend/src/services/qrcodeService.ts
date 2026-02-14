@@ -3,6 +3,8 @@
  * Serviço de gerenciamento de QR Codes
  */
 
+import fs from 'fs';
+import path from 'path';
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
@@ -448,15 +450,31 @@ export class QRCodeService {
           margin: margin
         });
         
-        // Por enquanto, salvar base64 no metadata
-        // TODO: Salvar imagem em disco/storage e atualizar image_url
+        // Salvar imagem em disco e atualizar image_url
+        let imageUrl: string | null = null;
+        try {
+          const { getStoragePath } = require('../config/mediaConfig');
+          const storagePath = getStoragePath() || '/opt/smart-signage/public/assets/uploads';
+          const qrcodesDir = path.join(storagePath.replace(/\/uploads\/?$/, ''), 'uploads', 'qrcodes');
+          if (!fs.existsSync(qrcodesDir)) {
+            fs.mkdirSync(qrcodesDir, { recursive: true });
+          }
+          const fileName = `qr_${insertedQRCode.qr_id}.png`;
+          const filePath = path.join(qrcodesDir, fileName);
+          const base64Data = qrCodeImage.replace(/^data:image\/png;base64,/, '');
+          const buffer = Buffer.from(base64Data, 'base64');
+          fs.writeFileSync(filePath, buffer, { mode: 0o644 });
+          imageUrl = `/assets/uploads/qrcodes/${fileName}`;
+        } catch (saveError: any) {
+          await logError('Erro ao salvar imagem QR em disco (mantendo base64 em metadata)', saveError);
+        }
         const metadataWithImage = JSON.stringify({ image_base64: qrCodeImage });
         
         await this.db.executeRaw(`
           UPDATE qr_codes 
-          SET metadata = $1, updated_at = CURRENT_TIMESTAMP
-          WHERE qr_id = $2
-        `, [metadataWithImage, insertedQRCode.qr_id]);
+          SET metadata = $1, image_url = COALESCE($2, image_url), updated_at = CURRENT_TIMESTAMP
+          WHERE qr_id = $3
+        `, [metadataWithImage, imageUrl, insertedQRCode.qr_id]);
       } catch (qrError: any) {
         await logError('Erro ao gerar imagem QR code (continuando sem imagem)', qrError);
         // Continuar sem imagem

@@ -545,13 +545,31 @@ router.get('/export', authorizeRole(['admin', 'admin_sql']), async (req, res) =>
     });
 
     if (format === 'csv') {
-      // Implementar exportação CSV
-      res.setHeader('Content-Type', 'text/csv');
+      // Exportação CSV com escape de valores
+      const escapeCsv = (val: any): string => {
+        if (val == null) return '';
+        const s = String(val);
+        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      };
+      const headers = ['ID', 'Cliente', 'Campanha', 'Tipo', 'Valor', 'Moeda', 'Status', 'Vencimento', 'Descrição'];
+      const rows = result.billings.map((b: any) => [
+        b.id,
+        b.clientName || b.clientId || '',
+        b.campaignTitle || b.campaignId || '',
+        b.billingType || '',
+        b.amount ?? '',
+        b.currency || 'BRL',
+        b.status || '',
+        b.dueDate ? new Date(b.dueDate).toISOString().split('T')[0] : '',
+        (b.description || '').replace(/\n/g, ' ')
+      ].map(escapeCsv).join(','));
+      const csvContent = '\uFEFF' + headers.join(',') + '\n' + rows;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="billing-export.csv"');
-      
-      // Converter dados para CSV (implementação simplificada)
-      const csvData = 'ID,Client,Amount,Status,Date\n' + result.billings.map((b: any) => `${b.id},${b.clientId},${b.amount},${b.status},${b.dueDate}`).join('\n');
-      res.send(csvData);
+      res.send(csvContent);
     } else {
       // Exportação JSON
       res.setHeader('Content-Type', 'application/json');

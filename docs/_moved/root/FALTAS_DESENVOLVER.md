@@ -1,18 +1,18 @@
 # O Que Falta Desenvolver - Mix Inteligente de Playlists
 
-**Data:** Dezembro 2025  
-**Status:** Análise de pendências
+**Data:** Dezembro 2025 (atualizado 26/01/2026)  
+**Status:** Maioria implementada – itens restantes listados
 
 ## 📋 Resumo
 
-Este documento lista todas as funcionalidades e melhorias que ainda precisam ser desenvolvidas para completar a implementação do sistema de mixagem inteligente de playlists.
+Este documento lista funcionalidades do sistema de mixagem inteligente. **A maioria foi implementada.** Itens marcados com ✅ estão concluídos. Itens ❌ ainda pendentes.
 
 ---
 
 ## 🔴 Crítico (Alta Prioridade)
 
 ### 1. **Endpoint para Atualizar Contexto de IA**
-**Status:** ❌ Não implementado
+**Status:** ✅ **IMPLEMENTADO** (POST/PUT /api/playlist-mix/context/:totemId)
 
 **Descrição:** Endpoint para receber dados de contexto de IA dos totens (transeuntes, sentimento, ambiente).
 
@@ -45,7 +45,7 @@ Este documento lista todas as funcionalidades e melhorias que ainda precisam ser
 ---
 
 ### 2. **Serviço de Atualização de Contexto de IA**
-**Status:** ❌ Não implementado
+**Status:** ✅ **IMPLEMENTADO** (totemPlaylistMixService.updateAIContext)
 
 **Descrição:** Método no `TotemPlaylistMixService` para atualizar/salvar contexto de IA.
 
@@ -59,7 +59,7 @@ Este documento lista todas as funcionalidades e melhorias que ainda precisam ser
 ---
 
 ### 3. **Integração com Heartbeat do Totem**
-**Status:** ❌ Não implementado
+**Status:** ✅ **IMPLEMENTADO** (totemService.processHeartbeat chama updateAIContext)
 
 **Descrição:** Quando o totem envia heartbeat, atualizar contexto de IA se disponível nos dados do heartbeat.
 
@@ -75,7 +75,7 @@ Este documento lista todas as funcionalidades e melhorias que ainda precisam ser
 ## 🟡 Importante (Média Prioridade)
 
 ### 4. **Frontend - Gerenciamento de Regras de Mixagem**
-**Status:** ❌ Não implementado
+**Status:** ✅ **IMPLEMENTADO** (PlaylistMixRules.tsx)
 
 **Descrição:** Interface para criar, editar, visualizar e deletar regras de mixagem.
 
@@ -97,7 +97,7 @@ Este documento lista todas as funcionalidades e melhorias que ainda precisam ser
 ---
 
 ### 5. **Frontend - Visualização de Playlist Mixada**
-**Status:** ❌ Não implementado
+**Status:** ✅ **IMPLEMENTADO** (PlaylistMix.tsx)
 
 **Descrição:** Interface para visualizar a playlist mixada atual de um totem.
 
@@ -119,7 +119,7 @@ Este documento lista todas as funcionalidades e melhorias que ainda precisam ser
 ---
 
 ### 6. **Frontend - Visualização de Contexto de IA**
-**Status:** ❌ Não implementado
+**Status:** ✅ **IMPLEMENTADO** (AIContextDashboard.tsx)
 
 **Descrição:** Dashboard para visualizar contexto de IA de cada totem.
 
@@ -141,7 +141,7 @@ Este documento lista todas as funcionalidades e melhorias que ainda precisam ser
 ---
 
 ### 7. **Frontend - Histórico de Mixagens**
-**Status:** ❌ Não implementado
+**Status:** ✅ **IMPLEMENTADO** (PlaylistMixAnalytics.tsx)
 
 **Descrição:** Visualização do histórico de mixagens para análise.
 
@@ -163,7 +163,7 @@ Este documento lista todas as funcionalidades e melhorias que ainda precisam ser
 ---
 
 ### 8. **Dados Iniciais (Seeds)**
-**Status:** ❌ Não implementado
+**Status:** ✅ **IMPLEMENTADO** (seeds-playlist-mix.sql)
 
 **Descrição:** Script SQL com regra padrão de mixagem e dados de exemplo.
 
@@ -191,7 +191,7 @@ INSERT INTO playlist_mix_rules (
 ---
 
 ### 9. **API Service no Frontend**
-**Status:** ❌ Não implementado
+**Status:** ✅ **IMPLEMENTADO** (playlistMixApi.ts)
 
 **Descrição:** Serviços/APIs no frontend para consumir endpoints de mixagem.
 
@@ -278,7 +278,7 @@ INSERT INTO playlist_mix_rules (
 ---
 
 ### 14. **Scheduler para Regeneração Automática**
-**Status:** ❌ Não implementado
+**Status:** ✅ **IMPLEMENTADO** (PlaylistMixWorker)
 
 **Descrição:** Agendar regeneração automática de mixagens baseado em tempo ou eventos.
 

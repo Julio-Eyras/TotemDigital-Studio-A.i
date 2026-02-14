@@ -312,7 +312,7 @@ WHERE spa.is_active = true
   AND spa.revoked_at IS NULL
   AND (spa.expires_at IS NULL OR spa.expires_at > CURRENT_TIMESTAMP)
   AND s.is_active = true
-  AND COALESCE(p.active, true) = true;
+  AND COALESCE(p.is_active, true) = true;
 
 COMMENT ON VIEW subscriber_publisher_access_active IS 
     'View que retorna apenas acessos ativos e válidos de subscribers a publishers';
