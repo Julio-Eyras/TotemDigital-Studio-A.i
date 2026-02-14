@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS analytics_sessions (
     duration_seconds INTEGER,
     
     metadata JSONB, -- Dados adicionais da sessão
+    is_active BOOLEAN DEFAULT true,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -29,7 +30,8 @@ CREATE TABLE IF NOT EXISTS analytics_emotions (
     confidence REAL NOT NULL, -- 0.0 a 1.0
     detected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
-    metadata JSONB
+    metadata JSONB,
+    is_active BOOLEAN DEFAULT true
 );
 
 CREATE TABLE IF NOT EXISTS analytics_gestures (
@@ -41,7 +43,8 @@ CREATE TABLE IF NOT EXISTS analytics_gestures (
     confidence REAL NOT NULL,
     detected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
-    metadata JSONB
+    metadata JSONB,
+    is_active BOOLEAN DEFAULT true
 );
 
 CREATE TABLE IF NOT EXISTS execution_logs (
@@ -64,7 +67,8 @@ CREATE TABLE IF NOT EXISTS execution_logs (
     
     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
-    metadata JSONB
+    metadata JSONB,
+    is_active BOOLEAN DEFAULT true
 );
 
 COMMENT ON TABLE execution_logs IS 'Logs de execução de campanhas/mídias nos totens';
@@ -90,6 +94,7 @@ CREATE TABLE IF NOT EXISTS event_logs (
     
     metadata JSONB,
     severity TEXT DEFAULT 'info', -- debug, info, warning, error, critical
+    is_active BOOLEAN DEFAULT true,
     
     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -129,6 +134,7 @@ CREATE TABLE IF NOT EXISTS dispatcher_log (
     execution_time_ms INTEGER, -- Tempo de execução em milissegundos
     
     -- Auditoria
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT fk_dispatcher_log_totem 
@@ -203,6 +209,7 @@ CREATE TABLE IF NOT EXISTS dispatcher_decisions (
     events JSONB,
     candidates JSONB,
 
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -222,6 +229,7 @@ CREATE TABLE IF NOT EXISTS dispatcher_decision_campaigns (
     skips_max_impressions INTEGER DEFAULT 0,
     skips_max_consecutive INTEGER DEFAULT 0,
 
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -241,6 +249,7 @@ CREATE TABLE IF NOT EXISTS dispatcher_decision_items (
     playlist_rr_index INTEGER,
     item_rr_index INTEGER,
 
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -262,6 +271,7 @@ CREATE TABLE IF NOT EXISTS dispatcher_events (
     media_id INTEGER,
 
     data JSONB,
+    is_active BOOLEAN DEFAULT true,
 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -274,6 +284,7 @@ CREATE TABLE IF NOT EXISTS interaction_logs (
     
     interaction_type TEXT NOT NULL, -- tag_scanned, face_recognized, gesture_detected
     interaction_data JSONB,
+    is_active BOOLEAN DEFAULT true,
     
     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -292,6 +303,7 @@ CREATE TABLE IF NOT EXISTS totem_ml_config (
     behavior_analysis_enabled BOOLEAN DEFAULT false,
     
     config JSONB DEFAULT '{}'::jsonb, -- Configurações específicas de ML
+    is_active BOOLEAN DEFAULT true,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -306,7 +318,8 @@ CREATE TABLE IF NOT EXISTS emotion_data (
     confidence REAL NOT NULL,
     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
-    metadata JSONB
+    metadata JSONB,
+    is_active BOOLEAN DEFAULT true
 );
 
 CREATE TABLE IF NOT EXISTS gesture_data (
@@ -318,7 +331,8 @@ CREATE TABLE IF NOT EXISTS gesture_data (
     confidence REAL NOT NULL,
     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
-    metadata JSONB
+    metadata JSONB,
+    is_active BOOLEAN DEFAULT true
 );
 
 CREATE TABLE IF NOT EXISTS behavior_data (
@@ -330,7 +344,8 @@ CREATE TABLE IF NOT EXISTS behavior_data (
     duration_seconds INTEGER,
     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
-    metadata JSONB
+    metadata JSONB,
+    is_active BOOLEAN DEFAULT true
 );
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -361,6 +376,7 @@ CREATE TABLE IF NOT EXISTS recognized_persons (
     confidence REAL,
     
     metadata JSONB,
+    is_active BOOLEAN DEFAULT true,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -391,6 +407,7 @@ CREATE TABLE IF NOT EXISTS remote_commands (
     
     error_message TEXT,
     retry_count INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -421,6 +438,7 @@ CREATE TABLE IF NOT EXISTS ota_updates (
     rollout_percentage INTEGER DEFAULT 100,
     status TEXT NOT NULL DEFAULT 'draft', 
         -- draft, testing, active, paused, completed, cancelled
+    is_active BOOLEAN DEFAULT true,
     
     created_by INTEGER, -- FK para users
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -446,6 +464,7 @@ CREATE TABLE IF NOT EXISTS totem_update_status (
     downloaded_at TIMESTAMP,
     installed_at TIMESTAMP,
     error_message TEXT,
+    is_active BOOLEAN DEFAULT true,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -496,6 +515,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     metadata JSONB, -- Dados adicionais
     ip_address TEXT,
     user_agent TEXT,
+    is_active BOOLEAN DEFAULT true,
     
     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -524,6 +544,7 @@ CREATE TABLE IF NOT EXISTS device_tokens (
     user_agent TEXT,
     last_heartbeat TIMESTAMP,
     expires_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT true,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -552,6 +573,7 @@ CREATE TABLE IF NOT EXISTS user_two_factor (
     enabled BOOLEAN DEFAULT false,
     backup_codes TEXT[], -- Array de backup codes (criptografados)
     last_used_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -563,6 +585,7 @@ CREATE TABLE IF NOT EXISTS two_factor_attempts (
     ip_address TEXT,
     user_agent TEXT,
     success BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -572,6 +595,7 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
     token TEXT NOT NULL UNIQUE,
     expires_at TIMESTAMP NOT NULL,
     used BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -600,6 +624,7 @@ CREATE TABLE IF NOT EXISTS reports (
     custom_fields JSONB,
     ai_analysis BOOLEAN DEFAULT false,
     metadata JSONB,
+    is_active BOOLEAN DEFAULT true,
     
     generated_at TIMESTAMP,
     expires_at TIMESTAMP,
@@ -625,6 +650,7 @@ CREATE TABLE IF NOT EXISTS report_templates (
     template_config JSONB NOT NULL DEFAULT '{}'::jsonb,
     is_default BOOLEAN DEFAULT false,
     is_public BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
     
     created_by INTEGER, -- FK para users
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -652,6 +678,7 @@ CREATE TABLE IF NOT EXISTS advanced_schedules (
     execution_count INTEGER DEFAULT 0,
     success_count INTEGER DEFAULT 0,
     failure_count INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
     
     created_by INTEGER, -- FK para users
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -748,6 +775,7 @@ CREATE TABLE IF NOT EXISTS dashboard_layouts (
     layout_data JSONB NOT NULL DEFAULT '{}'::jsonb,
     is_default BOOLEAN DEFAULT false,
     is_shared BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -764,6 +792,7 @@ CREATE TABLE IF NOT EXISTS backups (
     file_size BIGINT NOT NULL,
     status TEXT NOT NULL DEFAULT 'in_progress', 
         -- in_progress, completed, failed
+    is_active BOOLEAN DEFAULT true,
     
     metadata JSONB DEFAULT '{}'::jsonb,
     created_by INTEGER, -- FK para users
@@ -789,6 +818,7 @@ CREATE TABLE IF NOT EXISTS stripe_customers (
     name TEXT,
     
     metadata JSONB,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     

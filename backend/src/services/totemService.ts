@@ -822,8 +822,6 @@ export class TotemService {
 
       if (data.active !== undefined) {
         const value = data.active ? true : false;
-        updates.push(`active = $${paramIndex++}`);
-        params.push(value);
         updates.push(`is_active = $${paramIndex++}`);
         params.push(value);
       }
@@ -832,10 +830,6 @@ export class TotemService {
         const value = data.isActive ? true : false;
         updates.push(`is_active = $${paramIndex++}`);
         params.push(value);
-        if (data.active === undefined) {
-          updates.push(`active = $${paramIndex++}`);
-          params.push(value);
-        }
       }
 
       if (updates.length === 0) {
@@ -1402,26 +1396,26 @@ export class TotemService {
       const byStatus = await this.db.findMany(`
         SELECT status, COUNT(*) as count
         FROM totems
-        WHERE active = true
+        WHERE is_active = true
         GROUP BY status
         ORDER BY count DESC
       `);
 
       // Contar por status
       const onlineResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM totems WHERE status = 'online' AND active = true
+        SELECT COUNT(*) as count FROM totems WHERE status = 'online' AND is_active = true
       `);
 
       const offlineResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM totems WHERE status = 'offline' AND active = true
+        SELECT COUNT(*) as count FROM totems WHERE status = 'offline' AND is_active = true
       `);
 
       const errorResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM totems WHERE status = 'error' AND active = true
+        SELECT COUNT(*) as count FROM totems WHERE status = 'error' AND is_active = true
       `);
 
       const maintenanceResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM totems WHERE status = 'maintenance' AND active = true
+        SELECT COUNT(*) as count FROM totems WHERE status = 'maintenance' AND is_active = true
       `);
 
       // Atividade recente (últimos 7 dias) - PostgreSQL syntax
@@ -1475,7 +1469,7 @@ export class TotemService {
       // Desativar totem (PostgreSQL placeholders)
       await this.db.executeRaw(`
         UPDATE totems 
-        SET active = false, is_active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP 
+        SET is_active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP 
         WHERE totem_id = $1
       `, [totemId]);
 
@@ -1509,7 +1503,7 @@ export class TotemService {
       // Ativar totem (PostgreSQL placeholders)
       await this.db.executeRaw(`
         UPDATE totems 
-        SET active = true, is_active = true, updated_at = CURRENT_TIMESTAMP
+        SET is_active = true, updated_at = CURRENT_TIMESTAMP
         WHERE totem_id = $1
       `, [totemId]);
 
@@ -1552,7 +1546,7 @@ export class TotemService {
       // Desativar totem (soft delete) - PostgreSQL placeholders
       await this.db.executeRaw(`
         UPDATE totems 
-        SET active = false, is_active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP
+        SET is_active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP
         WHERE totem_id = $1
       `, [totemId]);
 

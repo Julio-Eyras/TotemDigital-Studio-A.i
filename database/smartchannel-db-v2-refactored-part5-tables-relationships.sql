@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     
     status TEXT DEFAULT 'active', 
         -- active, cancelled, past_due, unpaid, trialing, paused
+    is_active BOOLEAN DEFAULT true,
     
     current_period_start TIMESTAMP,
     current_period_end TIMESTAMP,
@@ -237,6 +238,7 @@ CREATE TABLE IF NOT EXISTS plan_publisher_access (
     
     -- Controle de acesso
     is_allowed BOOLEAN DEFAULT true,
+    is_active BOOLEAN DEFAULT true,
     
     -- Restrições específicas do plano para este publisher
     restrictions JSONB DEFAULT '{}'::jsonb,
@@ -473,6 +475,9 @@ CREATE TABLE IF NOT EXISTS totem_playlist_generation_log (
     
     -- Detalhes
     generation_details JSONB, -- Detalhes da geração (quais campanhas, regras aplicadas, etc.)
+    
+    -- Status
+    is_active BOOLEAN DEFAULT true,
     
     -- Timestamps
     generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

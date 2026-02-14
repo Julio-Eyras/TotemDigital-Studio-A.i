@@ -336,7 +336,7 @@ export class SubscriptionService {
       // Validar publisher
       const publisher = await this.db.findFirst(`
         SELECT publisher_id, name, email FROM publishers 
-        WHERE publisher_id = $1 AND COALESCE(active, true) = true
+        WHERE publisher_id = $1 AND COALESCE(is_active, true) = true
       `, [publisherId]);
 
       if (!publisher) {

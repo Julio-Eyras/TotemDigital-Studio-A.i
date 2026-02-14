@@ -323,6 +323,7 @@ BEGIN
             WHERE plan_id = v_plan_id
               AND publisher_id = p_publisher_id
               AND is_allowed = true
+              AND is_active = true
         ) INTO v_has_access;
     END IF;
     
@@ -452,3 +453,206 @@ END;
 $$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION get_user_effective_flags IS 'Retorna flags efetivas de um usuário (personalizadas + padrão da role). Owner system sempre retorna todas true.';
+
+-- =============================================
+-- TRIGGERS: Cascade Lógico (is_active -> false)
+-- =============================================
+-- Quando is_active passa para false em tabela pai, propaga para tabelas filhas.
+
+-- 1. SUBSCRIBERS (is_active) -> campaigns, medias, playlists, subscriber_contracts, subscriber_billing, subscriber_publisher_access
+CREATE OR REPLACE FUNCTION cascade_subscriber_deactivate()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.is_active = true AND NEW.is_active = false THEN
+        UPDATE campaigns SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE subscriber_id = NEW.subscriber_id AND is_active = true;
+        UPDATE medias SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE subscriber_id = NEW.subscriber_id AND is_active = true;
+        UPDATE playlists SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE subscriber_id = NEW.subscriber_id AND is_active = true;
+        UPDATE subscriber_publisher_access SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE subscriber_id = NEW.subscriber_id AND is_active = true;
+        IF to_regclass('public.subscriber_contracts') IS NOT NULL THEN
+            UPDATE subscriber_contracts SET is_active = false, updated_at = CURRENT_TIMESTAMP
+                WHERE subscriber_id = NEW.subscriber_id AND is_active = true;
+        END IF;
+        IF to_regclass('public.subscriber_billing') IS NOT NULL THEN
+            UPDATE subscriber_billing SET is_active = false, updated_at = CURRENT_TIMESTAMP
+                WHERE subscriber_id = NEW.subscriber_id AND is_active = true;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_cascade_subscriber_deactivate ON subscribers;
+CREATE TRIGGER trigger_cascade_subscriber_deactivate
+    AFTER UPDATE OF is_active ON subscribers
+    FOR EACH ROW EXECUTE FUNCTION cascade_subscriber_deactivate();
+
+-- 2. PUBLISHERS (is_active) -> locals, subscriber_publisher_access, publisher_contracts, publisher_billing, subscriptions, plan_publisher_access
+CREATE OR REPLACE FUNCTION cascade_publisher_deactivate()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.is_active = true AND NEW.is_active = false THEN
+        UPDATE locals SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE publisher_id = NEW.publisher_id AND is_active = true;
+        UPDATE subscriber_publisher_access SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE publisher_id = NEW.publisher_id AND is_active = true;
+        IF to_regclass('public.publisher_contracts') IS NOT NULL THEN
+            UPDATE publisher_contracts SET is_active = false, updated_at = CURRENT_TIMESTAMP
+                WHERE publisher_id = NEW.publisher_id AND is_active = true;
+        END IF;
+        IF to_regclass('public.publisher_billing') IS NOT NULL THEN
+            UPDATE publisher_billing SET is_active = false, updated_at = CURRENT_TIMESTAMP
+                WHERE publisher_id = NEW.publisher_id AND is_active = true;
+        END IF;
+        IF to_regclass('public.subscriptions') IS NOT NULL THEN
+            UPDATE subscriptions SET is_active = false, updated_at = CURRENT_TIMESTAMP
+                WHERE publisher_id = NEW.publisher_id AND is_active = true;
+        END IF;
+        IF to_regclass('public.plan_publisher_access') IS NOT NULL THEN
+            UPDATE plan_publisher_access SET is_active = false, updated_at = CURRENT_TIMESTAMP
+                WHERE publisher_id = NEW.publisher_id AND is_active = true;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_cascade_publisher_deactivate ON publishers;
+CREATE TRIGGER trigger_cascade_publisher_deactivate
+    AFTER UPDATE OF is_active ON publishers
+    FOR EACH ROW EXECUTE FUNCTION cascade_publisher_deactivate();
+
+-- 3. LOCALS (is_active) -> totems
+CREATE OR REPLACE FUNCTION cascade_local_deactivate()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.is_active = true AND NEW.is_active = false THEN
+        UPDATE totems SET is_active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP
+            WHERE local_id = NEW.local_id AND is_active = true;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_cascade_local_deactivate ON locals;
+CREATE TRIGGER trigger_cascade_local_deactivate
+    AFTER UPDATE OF is_active ON locals
+    FOR EACH ROW EXECUTE FUNCTION cascade_local_deactivate();
+
+-- 4. TOTEMS (is_active) -> smart_tvs, totem_playlists, campaign_totems, playlist_mix_rules, totem_playlist_mix, ai_context_data
+CREATE OR REPLACE FUNCTION cascade_totem_deactivate()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.is_active = true AND NEW.is_active = false THEN
+        UPDATE smart_tvs SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE totem_id = NEW.totem_id AND is_active = true;
+        UPDATE totem_playlists SET is_active = false, status = 'inactive', updated_at = CURRENT_TIMESTAMP
+            WHERE totem_id = NEW.totem_id AND is_active = true;
+        UPDATE campaign_totems SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE totem_id = NEW.totem_id AND is_active = true;
+        IF to_regclass('public.playlist_mix_rules') IS NOT NULL THEN
+            UPDATE playlist_mix_rules SET is_active = false, updated_at = CURRENT_TIMESTAMP
+                WHERE totem_id = NEW.totem_id AND is_active = true;
+        END IF;
+        IF to_regclass('public.totem_playlist_mix') IS NOT NULL THEN
+            UPDATE totem_playlist_mix SET is_active = false, updated_at = CURRENT_TIMESTAMP
+                WHERE totem_id = NEW.totem_id AND is_active = true;
+        END IF;
+        IF to_regclass('public.ai_context_data') IS NOT NULL THEN
+            UPDATE ai_context_data SET is_active = false, updated_at = CURRENT_TIMESTAMP
+                WHERE totem_id = NEW.totem_id AND is_active = true;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_cascade_totem_deactivate ON totems;
+CREATE TRIGGER trigger_cascade_totem_deactivate
+    AFTER UPDATE OF is_active ON totems
+    FOR EACH ROW EXECUTE FUNCTION cascade_totem_deactivate();
+
+-- 5. CAMPAIGNS (is_active) -> campaign_playlists, campaign_medias, campaign_totems, campaign_publishers, campaign_locals
+CREATE OR REPLACE FUNCTION cascade_campaign_deactivate()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.is_active = true AND NEW.is_active = false THEN
+        UPDATE campaign_playlists SET is_active = false
+            WHERE campaign_id = NEW.campaign_id AND is_active = true;
+        UPDATE campaign_medias SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE campaign_id = NEW.campaign_id AND is_active = true;
+        UPDATE campaign_totems SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE campaign_id = NEW.campaign_id AND is_active = true;
+        UPDATE campaign_publishers SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE campaign_id = NEW.campaign_id AND is_active = true;
+        UPDATE campaign_locals SET is_active = false
+            WHERE campaign_id = NEW.campaign_id AND is_active = true;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_cascade_campaign_deactivate ON campaigns;
+CREATE TRIGGER trigger_cascade_campaign_deactivate
+    AFTER UPDATE OF is_active ON campaigns
+    FOR EACH ROW EXECUTE FUNCTION cascade_campaign_deactivate();
+
+-- 6. PLAYLISTS (is_active) -> playlist_items, campaign_playlists
+CREATE OR REPLACE FUNCTION cascade_playlist_deactivate()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.is_active = true AND NEW.is_active = false THEN
+        UPDATE playlist_items SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE playlist_id = NEW.playlist_id AND is_active = true;
+        UPDATE campaign_playlists SET is_active = false
+            WHERE playlist_id = NEW.playlist_id AND is_active = true;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_cascade_playlist_deactivate ON playlists;
+CREATE TRIGGER trigger_cascade_playlist_deactivate
+    AFTER UPDATE OF is_active ON playlists
+    FOR EACH ROW EXECUTE FUNCTION cascade_playlist_deactivate();
+
+-- 7. MEDIAS (is_active) -> playlist_items, campaign_medias
+CREATE OR REPLACE FUNCTION cascade_media_deactivate()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.is_active = true AND NEW.is_active = false THEN
+        UPDATE playlist_items SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE media_id = NEW.media_id AND is_active = true;
+        UPDATE campaign_medias SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE media_id = NEW.media_id AND is_active = true;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_cascade_media_deactivate ON medias;
+CREATE TRIGGER trigger_cascade_media_deactivate
+    AFTER UPDATE OF is_active ON medias
+    FOR EACH ROW EXECUTE FUNCTION cascade_media_deactivate();
+
+-- 8. PLANS (is_active) -> plan_publisher_access
+CREATE OR REPLACE FUNCTION cascade_plan_deactivate()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.is_active = true AND NEW.is_active = false THEN
+        IF to_regclass('public.plan_publisher_access') IS NOT NULL THEN
+            UPDATE plan_publisher_access SET is_active = false, updated_at = CURRENT_TIMESTAMP
+                WHERE plan_id = NEW.plan_id AND is_active = true;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_cascade_plan_deactivate ON plans;
+CREATE TRIGGER trigger_cascade_plan_deactivate
+    AFTER UPDATE OF is_active ON plans
+    FOR EACH ROW EXECUTE FUNCTION cascade_plan_deactivate();

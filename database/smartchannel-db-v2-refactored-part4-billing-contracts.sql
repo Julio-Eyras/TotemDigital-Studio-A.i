@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS subscriber_billing (
     stripe_charge_id TEXT,
     stripe_invoice_id TEXT,
     
+    is_active BOOLEAN DEFAULT true,
     metadata JSONB, -- Dados adicionais
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -108,6 +109,7 @@ CREATE TABLE IF NOT EXISTS publisher_billing (
     stripe_transfer_id TEXT,
     stripe_invoice_id TEXT,
     
+    is_active BOOLEAN DEFAULT true,
     metadata JSONB,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -168,6 +170,7 @@ CREATE TABLE IF NOT EXISTS subscriber_contracts (
     document_size_bytes BIGINT,
     
     status TEXT DEFAULT 'draft', -- draft, active, expired, terminated, cancelled
+    is_active BOOLEAN DEFAULT true,
     
     signed_by_subscriber_at TIMESTAMP,
     signed_by_tenant_at TIMESTAMP,
@@ -236,6 +239,7 @@ CREATE TABLE IF NOT EXISTS publisher_contracts (
     document_size_bytes BIGINT,
     
     status TEXT DEFAULT 'draft', -- draft, active, expired, terminated, cancelled
+    is_active BOOLEAN DEFAULT true,
     
     signed_by_publisher_at TIMESTAMP,
     signed_by_tenant_at TIMESTAMP,

@@ -12,7 +12,7 @@ CREATE INDEX IF NOT EXISTS idx_subscribers_email ON subscribers(email) WHERE is_
 CREATE INDEX IF NOT EXISTS idx_subscribers_active ON subscribers(is_active) WHERE is_active = true;
 
 -- Publishers
-CREATE INDEX IF NOT EXISTS idx_publishers_active ON publishers(active) WHERE active = true;
+CREATE INDEX IF NOT EXISTS idx_publishers_active ON publishers(is_active) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_publishers_client_type ON publishers(client_type);
 
 -- Users

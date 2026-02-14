@@ -114,74 +114,69 @@ log_status() {
     echo -e "${PURPLE}[STATUS $(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
 }
 
-# Copiar mídias de demonstração do repo (demo-images) para o diretório real de uploads em /opt.
-# Isso permite que os registros seed em `medias.file_path` apontem para arquivos reais.
+# Copiar mídias de demonstração de player-web/propagandas para o diretório de uploads de cada subscriber.
+# Mapeamento seed v6.2: Cestto (client-1), Bourbon (client-2)
+# Origem: player-web/propagandas (ou INSTALL_DIR/player-web/propagandas)
 install_demo_media_files() {
     local install_dir="${INSTALL_DIR:-$(pwd)}"
-    local src_dir="${install_dir}/demo-images"
+    local src_dir=""
+    [[ -d "${install_dir}/player-web/propagandas" ]] && src_dir="${install_dir}/player-web/propagandas"
+    [[ -z "$src_dir" && -n "${SOURCE_DIR:-}" && -d "${SOURCE_DIR}/player-web/propagandas" ]] && src_dir="${SOURCE_DIR}/player-web/propagandas"
     local uploads_base="/opt/smart-signage/public/assets/uploads"
 
-    if [[ ! -d "$src_dir" ]]; then
-        log "ℹ️  demo-images não encontrado em ${src_dir}. Pulando cópia de mídias demo."
+    if [[ -z "$src_dir" || ! -d "$src_dir" ]]; then
+        log "ℹ️  player-web/propagandas não encontrado. Pulando cópia de mídias demo."
         return 0
     fi
 
-    log "Copiando arquivos de mídia demo de ${src_dir} para ${uploads_base}..."
+    log "Copiando mídias demo de ${src_dir} para ${uploads_base}/client-*/medias..."
 
-    # Criar diretórios de destino (por subscriber)
-    for cid in 1 2 3 4 5; do
+    # Criar diretórios de destino (client-1 Cestto, client-2 Bourbon)
+    for cid in 1 2; do
         local target_dir="${uploads_base}/client-${cid}/medias"
         sudo mkdir -p "$target_dir" 2>/dev/null || mkdir -p "$target_dir" 2>/dev/null || true
     done
 
-    # Imagens (mapeadas 1:1)
-    declare -A image_map=(
-        ["black-friday-banner.jpg"]="client-1/medias/black-friday-banner.jpg"
-        ["medicamentos-banner.jpg"]="client-2/medias/medicamentos-banner.jpg"
-        ["ofertas-dia.jpg"]="client-3/medias/ofertas-dia.jpg"
-        ["menu-executivo.jpg"]="client-4/medias/menu-executivo.jpg"
-    )
-
-    for filename in "${!image_map[@]}"; do
-        local src="${src_dir}/${filename}"
-        local rel="${image_map[$filename]}"
-        local dst="${uploads_base}/${rel}"
-        if [[ -f "$src" ]]; then
-            sudo cp -f "$src" "$dst" 2>/dev/null || cp -f "$src" "$dst" 2>/dev/null || true
-            sudo chmod 644 "$dst" 2>/dev/null || chmod 644 "$dst" 2>/dev/null || true
-        else
-            warn "⚠️ Arquivo demo não encontrado: ${src}"
+    # Cestto (client-1): cestto_000001.jpg, cestto_000005.mp4, cestto_000010.mp4
+    for img in black-friday-banner.jpg check-up.jpg ofertas-dia.jpg menu-executivo.jpg supermercado-promocoes.jpg; do
+        if [[ -f "${src_dir}/${img}" ]]; then
+            sudo cp -f "${src_dir}/${img}" "${uploads_base}/client-1/medias/cestto_000001.jpg" 2>/dev/null || cp -f "${src_dir}/${img}" "${uploads_base}/client-1/medias/cestto_000001.jpg" 2>/dev/null || true
+            break
         fi
     done
-
-    # Vídeos: se não houver arquivo específico no demo-images, reaproveitar RabbitCoder.mp4 como placeholder
-    local video_placeholder="${src_dir}/RabbitCoder.mp4"
-    if [[ ! -f "$video_placeholder" ]]; then
-        warn "⚠️ Placeholder de vídeo não encontrado (${video_placeholder}). Thumbnails de vídeo podem ficar como placeholder."
+    if [[ -f "${src_dir}/Cestto_0001.mp4" ]]; then
+        sudo cp -f "${src_dir}/Cestto_0001.mp4" "${uploads_base}/client-1/medias/cestto_000005.mp4" 2>/dev/null || cp -f "${src_dir}/Cestto_0001.mp4" "${uploads_base}/client-1/medias/cestto_000005.mp4" 2>/dev/null || true
+    elif [[ -f "${src_dir}/Smartsignage-interface-333.mp4" ]]; then
+        sudo cp -f "${src_dir}/Smartsignage-interface-333.mp4" "${uploads_base}/client-1/medias/cestto_000005.mp4" 2>/dev/null || cp -f "${src_dir}/Smartsignage-interface-333.mp4" "${uploads_base}/client-1/medias/cestto_000005.mp4" 2>/dev/null || true
+    fi
+    if [[ -f "${src_dir}/crie-um-vdeo-com-minha-foto.mp4" ]]; then
+        sudo cp -f "${src_dir}/crie-um-vdeo-com-minha-foto.mp4" "${uploads_base}/client-1/medias/cestto_000010.mp4" 2>/dev/null || cp -f "${src_dir}/crie-um-vdeo-com-minha-foto.mp4" "${uploads_base}/client-1/medias/cestto_000010.mp4" 2>/dev/null || true
+    elif [[ -f "${src_dir}/video-1770304410183.mp4" ]]; then
+        sudo cp -f "${src_dir}/video-1770304410183.mp4" "${uploads_base}/client-1/medias/cestto_000010.mp4" 2>/dev/null || cp -f "${src_dir}/video-1770304410183.mp4" "${uploads_base}/client-1/medias/cestto_000010.mp4" 2>/dev/null || true
     fi
 
-    local ofertas_src="${src_dir}/ofertas-video.mp4"
-    local ofertas_dst="${uploads_base}/client-1/medias/ofertas-video.mp4"
-    if [[ -f "$ofertas_src" ]]; then
-        sudo cp -f "$ofertas_src" "$ofertas_dst" 2>/dev/null || cp -f "$ofertas_src" "$ofertas_dst" 2>/dev/null || true
-    elif [[ -f "$video_placeholder" ]]; then
-        sudo cp -f "$video_placeholder" "$ofertas_dst" 2>/dev/null || cp -f "$video_placeholder" "$ofertas_dst" 2>/dev/null || true
+    # Bourbon (client-2): bourbon_0001.jpg, bourbon_0002.mp4
+    # Origem: ofertas-dia.jpg (ou outra imagem), WhatsApp Video
+    for img in ofertas-dia.jpg check-up.jpg black-friday-banner.jpg menu-executivo.jpg supermercado-promocoes.jpg; do
+        if [[ -f "${src_dir}/${img}" ]]; then
+            sudo cp -f "${src_dir}/${img}" "${uploads_base}/client-2/medias/bourbon_0001.jpg" 2>/dev/null || cp -f "${src_dir}/${img}" "${uploads_base}/client-2/medias/bourbon_0001.jpg" 2>/dev/null || true
+            break
+        fi
+    done
+    if [[ -f "${src_dir}/WhatsApp Video 2026-01-17 at 22.47.44.mp4" ]]; then
+        sudo cp -f "${src_dir}/WhatsApp Video 2026-01-17 at 22.47.44.mp4" "${uploads_base}/client-2/medias/bourbon_0002.mp4" 2>/dev/null || cp -f "${src_dir}/WhatsApp Video 2026-01-17 at 22.47.44.mp4" "${uploads_base}/client-2/medias/bourbon_0002.mp4" 2>/dev/null || true
+    elif [[ -f "${src_dir}/Smartsignage-interface-444.mp4" ]]; then
+        sudo cp -f "${src_dir}/Smartsignage-interface-444.mp4" "${uploads_base}/client-2/medias/bourbon_0002.mp4" 2>/dev/null || cp -f "${src_dir}/Smartsignage-interface-444.mp4" "${uploads_base}/client-2/medias/bourbon_0002.mp4" 2>/dev/null || true
     fi
-    sudo chmod 644 "$ofertas_dst" 2>/dev/null || chmod 644 "$ofertas_dst" 2>/dev/null || true
 
-    local checkup_src="${src_dir}/check-up-video.mp4"
-    local checkup_dst="${uploads_base}/client-5/medias/check-up-video.mp4"
-    if [[ -f "$checkup_src" ]]; then
-        sudo cp -f "$checkup_src" "$checkup_dst" 2>/dev/null || cp -f "$checkup_src" "$checkup_dst" 2>/dev/null || true
-    elif [[ -f "$video_placeholder" ]]; then
-        sudo cp -f "$video_placeholder" "$checkup_dst" 2>/dev/null || cp -f "$video_placeholder" "$checkup_dst" 2>/dev/null || true
-    fi
-    sudo chmod 644 "$checkup_dst" 2>/dev/null || chmod 644 "$checkup_dst" 2>/dev/null || true
+    # Ajustar permissões (best-effort)
+    for cid in 1 2; do
+        [[ -d "${uploads_base}/client-${cid}" ]] && (sudo chown -R $USER:$USER "${uploads_base}/client-${cid}" 2>/dev/null || chown -R $USER:$USER "${uploads_base}/client-${cid}" 2>/dev/null || true)
+        sudo chmod -R 755 "${uploads_base}/client-${cid}" 2>/dev/null || true
+        sudo find "${uploads_base}/client-${cid}" -type f -exec chmod 644 {} \; 2>/dev/null || true
+    done
 
-    # Ajustar dono/permissões (best-effort)
-    sudo chown -R $USER:$USER "${uploads_base}/client-1" "${uploads_base}/client-2" "${uploads_base}/client-3" "${uploads_base}/client-4" "${uploads_base}/client-5" 2>/dev/null || true
-
-    log "✅ Mídias demo copiadas para ${uploads_base}/client-*/medias"
+    log "✅ Mídias demo copiadas para ${uploads_base}/client-1 e client-2 (origem: player-web/propagandas)"
 }
 
 # =============================================================================

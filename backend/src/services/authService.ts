@@ -402,10 +402,10 @@ export class AuthService {
       // Estratégia: buscar publisher que tem o mesmo email OU que tem is_subscriber = true
       // e verificar se há relação direta (futuro: tabela subscriber_publishers)
       const publisher = await this.db.findFirst(`
-        SELECT publisher_id, name, email, is_subscriber, active
+        SELECT publisher_id, name, email, is_subscriber, is_active
         FROM publishers
         WHERE (email = $1 OR is_subscriber = true)
-        AND COALESCE(active, true) = true
+        AND COALESCE(is_active, true) = true
         ORDER BY CASE WHEN email = $1 THEN 1 ELSE 2 END
         LIMIT 1
       `, [email]);

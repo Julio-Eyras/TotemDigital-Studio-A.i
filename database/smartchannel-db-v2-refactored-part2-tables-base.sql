@@ -50,11 +50,11 @@ CREATE TABLE IF NOT EXISTS publishers (
     is_publisher BOOLEAN DEFAULT true,
     client_type TEXT NOT NULL DEFAULT 'publisher', -- fixo
     
-    active BOOLEAN DEFAULT true,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    CONSTRAINT chk_publisher_client_type 
+    CONSTRAINT chk_publisher_client_type
         CHECK (
           client_type = 'publisher'
           AND is_subscriber = false
@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS permissions (
     resource TEXT NOT NULL, -- media, campaign, totem, analytics, etc.
     action TEXT NOT NULL, -- create, read, update, delete, approve
     description TEXT,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -133,6 +134,7 @@ CREATE TABLE IF NOT EXISTS system_settings (
     description TEXT,
     is_public BOOLEAN DEFAULT false,
     is_editable BOOLEAN DEFAULT true,
+    is_active BOOLEAN DEFAULT true,
     validation TEXT, -- regex ou validação
     options JSONB, -- opções disponíveis (para selects)
     default_value TEXT,
@@ -236,6 +238,7 @@ CREATE TABLE IF NOT EXISTS user_flags (
     flag_smart_9 BOOLEAN DEFAULT false,  -- FLAG_SUBSCRIBER_FULL
     
     -- Metadados
+    is_active BOOLEAN DEFAULT true,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_by INTEGER,  -- FK para users (quem atualizou)
     
@@ -270,6 +273,7 @@ COMMENT ON COLUMN user_flags.flag_smart_9 IS 'Acesso completo de subscriber';
 
 CREATE TABLE IF NOT EXISTS role_flags_default (
     role TEXT NOT NULL PRIMARY KEY,
+    is_active BOOLEAN DEFAULT true,
     
     -- Flags de Permissão (0-9)
     flag_smart_0 BOOLEAN DEFAULT false,
@@ -313,6 +317,7 @@ CREATE TABLE IF NOT EXISTS system_logs (
     log_id SERIAL PRIMARY KEY,
     event_type TEXT NOT NULL,
     description TEXT,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -349,6 +354,7 @@ CREATE TABLE IF NOT EXISTS ml_models (
     file_path TEXT NOT NULL,
     accuracy REAL,
     status TEXT DEFAULT 'active', -- active, inactive, training, testing
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -400,6 +406,7 @@ CREATE TABLE IF NOT EXISTS webhooks (
     channels TEXT[] DEFAULT ARRAY[]::TEXT[],
     events TEXT[] DEFAULT ARRAY[]::TEXT[],
     enabled BOOLEAN DEFAULT true,
+    is_active BOOLEAN DEFAULT true,
     retry_count INTEGER DEFAULT 3,
     timeout_ms INTEGER DEFAULT 5000,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

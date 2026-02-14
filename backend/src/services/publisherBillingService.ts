@@ -328,7 +328,7 @@ export class PublisherBillingService {
       // Validar publisher existe
       const publisher = await this.db.findFirst(`
         SELECT publisher_id FROM publishers 
-        WHERE publisher_id = $1 AND COALESCE(active, true) = true
+        WHERE publisher_id = $1 AND COALESCE(is_active, true) = true
       `, [data.publisherId]);
 
       if (!publisher) {

@@ -100,6 +100,8 @@ CREATE TABLE IF NOT EXISTS ai_context_data (
     -- Dados brutos da IA
     raw_ai_data JSONB, -- Dados brutos retornados pela IA
     
+    is_active BOOLEAN DEFAULT true,
+    
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
@@ -185,6 +187,9 @@ CREATE TABLE IF NOT EXISTS playlist_mix_history (
     generated_at TIMESTAMP,
     applied_at TIMESTAMP,
     last_executed_at TIMESTAMP,
+    
+    -- Status
+    is_active BOOLEAN DEFAULT true,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

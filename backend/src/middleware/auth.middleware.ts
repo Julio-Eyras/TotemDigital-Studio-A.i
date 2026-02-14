@@ -130,7 +130,7 @@ export const authMiddleware = async (
       const publisher = await db.findFirst(`
         SELECT publisher_id, is_subscriber, email
         FROM publishers 
-        WHERE publisher_id = $1 AND COALESCE(active, true) = true
+        WHERE publisher_id = $1 AND COALESCE(is_active, true) = true
       `, [user.publisher_id]);
       
       if (publisher?.is_subscriber) {
@@ -453,7 +453,7 @@ export const optionalAuth = async (
         const publisher = await db.findFirst(`
           SELECT publisher_id, is_subscriber 
           FROM publishers 
-          WHERE publisher_id = $1 AND COALESCE(active, true) = true
+          WHERE publisher_id = $1 AND COALESCE(is_active, true) = true
         `, [user.publisher_id]);
         
         if (publisher?.is_subscriber) {

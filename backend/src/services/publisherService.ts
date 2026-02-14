@@ -96,7 +96,7 @@ export class PublisherService {
 
       // Filtro de status ativo/inativo
       if (active_only === true) {
-        whereClause += ` AND p.active = $${paramIndex}`;
+        whereClause += ` AND COALESCE(p.is_active, true) = $${paramIndex}`;
         queryParams.push(true);
         paramIndex++;
       }
@@ -152,7 +152,7 @@ export class PublisherService {
           p.is_subscriber,
           p.is_publisher,
           p.client_type,
-          p.active,
+          p.is_active,
           p.created_at,
           p.updated_at
         FROM publishers p
@@ -198,7 +198,7 @@ export class PublisherService {
           p.is_subscriber,
           p.is_publisher,
           p.client_type,
-          p.active,
+          p.is_active,
           p.created_at,
           p.updated_at
         FROM publishers p
@@ -276,7 +276,7 @@ export class PublisherService {
       const result = await this.db.executeRaw(`
         INSERT INTO publishers (
           name, contact_name, email, phone, whatsapp, category_segment, description,
-          is_subscriber, is_publisher, client_type, active, created_at, updated_at
+          is_subscriber, is_publisher, client_type, is_active, created_at, updated_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING publisher_id
@@ -449,7 +449,7 @@ export class PublisherService {
       // Soft delete - marcar como inativo
       await this.db.executeRaw(`
         UPDATE publishers 
-        SET active = false, updated_at = CURRENT_TIMESTAMP
+        SET is_active = false, updated_at = CURRENT_TIMESTAMP
         WHERE publisher_id = $1
       `, [id]);
     } catch (error: any) {
