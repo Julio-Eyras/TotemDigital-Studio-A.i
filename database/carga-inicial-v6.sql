@@ -1,17 +1,16 @@
 -- =============================================
 -- CARGA INICIAL V6 - Seed enxuto para testes
 -- Data: 2026-01-26
--- Versão: 6.2
--- Descrição: Carga reduzida com 2 publishers, 2 subscribers, mídias de propagandas
+-- Versão: 6.3
+-- Descrição: 10 subscribers, propagandas por tema, planos Shoppings/Supermercados/Farmácias
 --
 -- Estrutura:
--- Publisher 1 (Cia Zaffari): 1 totem Higienopolis + 2 smart TVs Praça Alimentação
--- Publisher 2 (Grupo Koch): 5 totens + 10 smart TVs (2 por totem)
--- Subscriber 1 (Cestto): 3 mídias (cestto_000001, cestto_000005, cestto_000010)
--- Subscriber 2 (Bourbon): 2 mídias (bourbon_0001, bourbon_0002)
--- Playlist playlist_cesto + Campanha Cesto_Ofertas_Carnaval
+-- Publishers 1-2 (Zaffari, Koch): totens e Smart TVs (mantidos)
+-- Planos: Shoppings (4), Supermercados (5), Farmácias (6)
+-- Subscribers 1-10: cada um em plano diferente, mídias por tema
+-- Playlists e campanhas por subscriber - vinculadas aos publishers conforme plano (campaign_totems, campaign_publishers, campaign_locals, subscriber_publisher_access)
 --
--- Mídias: copiadas de player-web/propagandas pelo instalador
+-- Mídias: copiadas de player-web/propagandas e vinhetas pelo instalador
 -- =============================================
 
 -- =============================================
@@ -34,11 +33,19 @@ BEGIN
 END $$;
 
 -- =============================================
--- SUBSCRIBERS (2)
+-- SUBSCRIBERS (10) - por tema/segmento
 -- =============================================
 INSERT INTO subscribers (subscriber_id, name, contact_name, email, phone, whatsapp, address, category_segment, description, is_active) VALUES
-(1, 'Cestto', 'Contato Cestto', 'contato@cestto.com.br', '+55 51 3333-1111', '+55 51 99999-1111', 'Porto Alegre, RS', 'Varejo', 'Rede de supermercados Cestto', true),
-(2, 'Bourbon', 'Contato Bourbon', 'contato@bourbon.com.br', '+55 51 3333-2222', '+55 51 99999-2222', 'Porto Alegre, RS', 'Shopping', 'Shopping Bourbon', true)
+(1, 'Cestto', 'Contato Cestto', 'contato@cestto.com.br', '+55 51 3333-1111', '+55 51 99999-1111', 'Porto Alegre, RS', 'Supermercado', 'Rede de supermercados Cestto', true),
+(2, 'Bourbon', 'Contato Bourbon', 'contato@bourbon.com.br', '+55 51 3333-2222', '+55 51 99999-2222', 'Porto Alegre, RS', 'Shopping', 'Shopping Bourbon', true),
+(3, 'Panvel', 'Contato Panvel', 'contato@panvel.com.br', '+55 51 3333-3333', '+55 51 99999-3333', 'Porto Alegre, RS', 'Farmácia', 'Rede de farmácias Panvel', true),
+(4, 'Fruteira Geraldo', 'Contato Fruteira', 'contato@fruteirageraldo.com.br', '+55 51 3333-4444', '+55 51 99999-4444', 'Porto Alegre, RS', 'Supermercado', 'Supermercado e frutaria', true),
+(5, 'Fashion Store', 'Contato Fashion', 'contato@fashionstore.com.br', '+55 51 3333-5555', '+55 51 99999-5555', 'Porto Alegre, RS', 'Shopping', 'Loja de moda em shopping', true),
+(6, 'Beleza Produtos', 'Contato Beleza', 'contato@belezaprodutos.com.br', '+55 51 3333-6666', '+55 51 99999-6666', 'Porto Alegre, RS', 'Supermercado', 'Cosméticos e beleza', true),
+(7, 'Check-up Saúde', 'Contato Check-up', 'contato@checkupsaude.com.br', '+55 51 3333-7777', '+55 51 99999-7777', 'Porto Alegre, RS', 'Farmácia', 'Farmácia e saúde', true),
+(8, 'Super Promo', 'Contato Super Promo', 'contato@superpromo.com.br', '+55 51 3333-8888', '+55 51 99999-8888', 'Porto Alegre, RS', 'Supermercado', 'Promoções de supermercado', true),
+(9, 'Smartsignage Demo', 'Contato Smartsignage', 'contato@smartsignage.demo', '+55 51 3333-9999', '+55 51 99999-9999', 'Porto Alegre, RS', 'Shopping', 'Demonstração institucional', true),
+(10, 'Menu Executivo', 'Contato Menu', 'contato@menuexecutivo.com.br', '+55 51 3333-0000', '+55 51 99999-0000', 'Porto Alegre, RS', 'Shopping', 'Alimentação em shopping', true)
 ON CONFLICT DO NOTHING;
 
 -- =============================================
@@ -78,7 +85,10 @@ ON CONFLICT DO NOTHING;
 INSERT INTO plans (plan_id, name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, sort_order) VALUES
 (1, 'Plano Básico', 'plano-basico', 'Plano básico', 99.00, 990.00, 'BRL', 'month', '{"campaigns":5,"storage_gb":10}'::jsonb, '{"totems":3,"campaigns":5,"storage_gb":10}'::jsonb, true, false, 1),
 (2, 'Plano Profissional', 'plano-profissional', 'Plano profissional', 299.00, 2990.00, 'BRL', 'month', '{"campaigns":20,"storage_gb":50}'::jsonb, '{"totems":10,"campaigns":20,"storage_gb":50}'::jsonb, true, true, 2),
-(3, 'Plano Enterprise', 'plano-enterprise', 'Plano enterprise', 999.00, 9990.00, 'BRL', 'month', '{"campaigns":100,"storage_gb":500}'::jsonb, '{"totems":50,"campaigns":100,"storage_gb":500}'::jsonb, true, false, 3)
+(3, 'Plano Enterprise', 'plano-enterprise', 'Plano enterprise', 999.00, 9990.00, 'BRL', 'month', '{"campaigns":100,"storage_gb":500}'::jsonb, '{"totems":50,"campaigns":100,"storage_gb":500}'::jsonb, true, false, 3),
+(4, 'Plano Shoppings', 'plano-shoppings', 'Plano para anunciantes em shoppings', 399.00, 3990.00, 'BRL', 'month', '{"campaigns":30,"storage_gb":80}'::jsonb, '{"totems":15,"campaigns":30,"storage_gb":80}'::jsonb, true, false, 4),
+(5, 'Plano Supermercados', 'plano-supermercados', 'Plano para anunciantes em supermercados', 349.00, 3490.00, 'BRL', 'month', '{"campaigns":25,"storage_gb":60}'::jsonb, '{"totems":12,"campaigns":25,"storage_gb":60}'::jsonb, true, false, 5),
+(6, 'Plano Farmácias', 'plano-farmacias', 'Plano para anunciantes em farmácias', 299.00, 2990.00, 'BRL', 'month', '{"campaigns":20,"storage_gb":50}'::jsonb, '{"totems":10,"campaigns":20,"storage_gb":50}'::jsonb, true, false, 6)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description) VALUES
@@ -90,14 +100,22 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, category,
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- =============================================
--- USERS (admin + publisher + subscriber)
+-- USERS (admin + publishers + 10 subscribers)
 -- =============================================
 INSERT INTO users (id, username, email, password_hash, first_name, last_name, name, phone, role, user_type, is_tenant_user, publisher_id, subscriber_id, is_active, email_verified) VALUES
 (1, 'admin', 'admin@smartsignage.local', '$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2', 'Admin', 'Sistema', 'Admin Sistema', '+55 11 0000-0000', 'admin', 'system_user', true, NULL, NULL, true, true),
 (2, 'zaffari.admin', 'admin@zaffari.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Zaffari', 'Admin Zaffari', '+55 51 3220-1000', 'manager', 'publisher_user', false, 1, NULL, true, true),
 (3, 'koch.admin', 'admin@koch.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Koch', 'Admin Koch', '+55 51 3220-2000', 'manager', 'publisher_user', false, 2, NULL, true, true),
 (4, 'cestto.admin', 'contato@cestto.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Cestto', 'Admin Cestto', '+55 51 3333-1111', 'manager', 'subscriber_user', false, NULL, 1, true, true),
-(5, 'bourbon.admin', 'contato@bourbon.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Bourbon', 'Admin Bourbon', '+55 51 3333-2222', 'manager', 'subscriber_user', false, NULL, 2, true, true)
+(5, 'bourbon.admin', 'contato@bourbon.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Bourbon', 'Admin Bourbon', '+55 51 3333-2222', 'manager', 'subscriber_user', false, NULL, 2, true, true),
+(6, 'panvel.admin', 'contato@panvel.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Panvel', 'Admin Panvel', '+55 51 3333-3333', 'manager', 'subscriber_user', false, NULL, 3, true, true),
+(7, 'fruteira.admin', 'contato@fruteirageraldo.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Fruteira', 'Admin Fruteira', '+55 51 3333-4444', 'manager', 'subscriber_user', false, NULL, 4, true, true),
+(8, 'fashion.admin', 'contato@fashionstore.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Fashion', 'Admin Fashion', '+55 51 3333-5555', 'manager', 'subscriber_user', false, NULL, 5, true, true),
+(9, 'beleza.admin', 'contato@belezaprodutos.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Beleza', 'Admin Beleza', '+55 51 3333-6666', 'manager', 'subscriber_user', false, NULL, 6, true, true),
+(10, 'checkup.admin', 'contato@checkupsaude.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Check-up', 'Admin Check-up', '+55 51 3333-7777', 'manager', 'subscriber_user', false, NULL, 7, true, true),
+(11, 'superpromo.admin', 'contato@superpromo.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Super Promo', 'Admin Super Promo', '+55 51 3333-8888', 'manager', 'subscriber_user', false, NULL, 8, true, true),
+(12, 'smartsignage.admin', 'contato@smartsignage.demo', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Smartsignage', 'Admin Smartsignage', '+55 51 3333-9999', 'manager', 'subscriber_user', false, NULL, 9, true, true),
+(13, 'menu.admin', 'contato@menuexecutivo.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Menu', 'Admin Menu', '+55 51 3333-0000', 'manager', 'subscriber_user', false, NULL, 10, true, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_flags (user_id, flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4, flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9) VALUES
@@ -105,7 +123,15 @@ INSERT INTO user_flags (user_id, flag_smart_0, flag_smart_1, flag_smart_2, flag_
 (2, true, false, false, true, false, true, true, false, true, false),
 (3, true, false, false, true, false, true, true, false, true, false),
 (4, false, false, false, false, false, false, true, false, false, true),
-(5, false, false, false, false, false, false, true, false, false, true)
+(5, false, false, false, false, false, false, true, false, false, true),
+(6, false, false, false, false, false, false, true, false, false, true),
+(7, false, false, false, false, false, false, true, false, false, true),
+(8, false, false, false, false, false, false, true, false, false, true),
+(9, false, false, false, false, false, false, true, false, false, true),
+(10, false, false, false, false, false, false, true, false, false, true),
+(11, false, false, false, false, false, false, true, false, false, true),
+(12, false, false, false, false, false, false, true, false, false, true),
+(13, false, false, false, false, false, false, true, false, false, true)
 ON CONFLICT (user_id) DO NOTHING;
 
 INSERT INTO role_flags_default (role, flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4, flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9) VALUES
@@ -120,7 +146,15 @@ INSERT INTO user_roles (user_id, role_id, assigned_by) VALUES
 (2, 4, 1),
 (3, 4, 1),
 (4, 5, 1),
-(5, 5, 1)
+(5, 5, 1),
+(6, 5, 1),
+(7, 5, 1),
+(8, 5, 1),
+(9, 5, 1),
+(10, 5, 1),
+(11, 5, 1),
+(12, 5, 1),
+(13, 5, 1)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_id) VALUES
@@ -180,9 +214,8 @@ INSERT INTO smart_tvs (smart_tv_id, totem_id, identifier, device_id, name, brand
 ON CONFLICT DO NOTHING;
 
 -- =============================================
--- MEDIAS (arquivos copiados de player-web/propagandas pelo instalador)
--- Cestto: cestto_000001.jpg, cestto_000005.mp4, cestto_000010.mp4
--- Bourbon: bourbon_0001.jpg, bourbon_0002.mp4
+-- MEDIAS - Propagandas por tema/subscriber
+-- Path: uploads/client-{id}/medias/{arquivo} (copiados de player-web/propagandas e vinhetas)
 -- =============================================
 INSERT INTO medias (
   media_id, subscriber_id, name, description, file_path, file_name, file_size_bytes,
@@ -192,15 +225,37 @@ INSERT INTO medias (
   approved_by, approved_at, metadata,
   is_active
 ) VALUES
-(1, 1, 'cestto_000001', 'Propaganda Cestto - imagem', '/opt/smart-signage/public/assets/uploads/client-1/medias/cestto_000001.jpg', 'cestto_000001.jpg', 150000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/1/thumbnail', '/api/media/1/thumbnail', 'approved', 'approved', ARRAY['cestto', 'oferta'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
-(2, 1, 'cestto_000005', 'Propaganda Cestto - vídeo 1', '/opt/smart-signage/public/assets/uploads/client-1/medias/cestto_000005.mp4', 'cestto_000005.mp4', 500000, 'video', 'video/mp4', 30, 1920, 1080, '/api/media/2/thumbnail', '/api/media/2/thumbnail', 'approved', 'approved', ARRAY['cestto', 'video'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
-(3, 1, 'cestto_000010', 'Propaganda Cestto - vídeo 2', '/opt/smart-signage/public/assets/uploads/client-1/medias/cestto_000010.mp4', 'cestto_000010.mp4', 600000, 'video', 'video/mp4', 25, 1920, 1080, '/api/media/3/thumbnail', '/api/media/3/thumbnail', 'approved', 'approved', ARRAY['cestto', 'video'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
-(4, 2, 'bourbon_0001', 'Propaganda Bourbon - imagem', '/opt/smart-signage/public/assets/uploads/client-2/medias/bourbon_0001.jpg', 'bourbon_0001.jpg', 120000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/4/thumbnail', '/api/media/4/thumbnail', 'approved', 'approved', ARRAY['bourbon', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
-(5, 2, 'bourbon_0002', 'Propaganda Bourbon - vídeo', '/opt/smart-signage/public/assets/uploads/client-2/medias/bourbon_0002.mp4', 'bourbon_0002.mp4', 450000, 'video', 'video/mp4', 20, 1920, 1080, '/api/media/5/thumbnail', '/api/media/5/thumbnail', 'approved', 'approved', ARRAY['bourbon', 'video'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true)
+-- Subscriber 1 Cestto (Supermercados) - tema supermercado
+(1, 1, 'Cestto_00005', 'Propaganda Cestto - imagem', '/opt/smart-signage/public/assets/uploads/client-1/medias/Cestto_00005.png', 'Cestto_00005.png', 150000, 'image', 'image/png', NULL, 1920, 1080, '/api/media/1/thumbnail', '/api/media/1/thumbnail', 'approved', 'approved', ARRAY['cestto', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(2, 1, 'Cestto_0001', 'Propaganda Cestto - vídeo', '/opt/smart-signage/public/assets/uploads/client-1/medias/Cestto_0001.mp4', 'Cestto_0001.mp4', 500000, 'video', 'video/mp4', 30, 1920, 1080, '/api/media/2/thumbnail', '/api/media/2/thumbnail', 'approved', 'approved', ARRAY['cestto', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+-- Subscriber 2 Bourbon (Shoppings) - tema shopping
+(3, 2, 'zaffari-bourbon', 'Propaganda Zaffari Bourbon', '/opt/smart-signage/public/assets/uploads/client-2/medias/zaffari-bourbon_8255.jpg', 'zaffari-bourbon_8255.jpg', 120000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/3/thumbnail', '/api/media/3/thumbnail', 'approved', 'approved', ARRAY['bourbon', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+-- Subscriber 3 Panvel (Farmácias) - tema farmácia
+(4, 3, 'Panvel_0001', 'Propaganda Panvel', '/opt/smart-signage/public/assets/uploads/client-3/medias/Panvel_0001.mp4', 'Panvel_0001.mp4', 450000, 'video', 'video/mp4', 20, 1920, 1080, '/api/media/4/thumbnail', '/api/media/4/thumbnail', 'approved', 'approved', ARRAY['panvel', 'farmacia'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(5, 3, 'Panvel_ABC', 'Propaganda Panvel ABC', '/opt/smart-signage/public/assets/uploads/client-3/medias/Panvel_ABC-00010.jpg', 'Panvel_ABC-00010.jpg', 100000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/5/thumbnail', '/api/media/5/thumbnail', 'approved', 'approved', ARRAY['panvel', 'farmacia'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+-- Subscriber 4 Fruteira Geraldo (Supermercados)
+(6, 4, 'Fruteiradogeraldo0001', 'Propaganda Fruteira', '/opt/smart-signage/public/assets/uploads/client-4/medias/Fruteiradogeraldo0001.jpg', 'Fruteiradogeraldo0001.jpg', 180000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/6/thumbnail', '/api/media/6/thumbnail', 'approved', 'approved', ARRAY['fruteira', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(7, 4, 'Fruteiradogeraldo0002', 'Propaganda Fruteira vídeo', '/opt/smart-signage/public/assets/uploads/client-4/medias/Fruteiradogeraldo0002.mp4', 'Fruteiradogeraldo0002.mp4', 520000, 'video', 'video/mp4', 25, 1920, 1080, '/api/media/7/thumbnail', '/api/media/7/thumbnail', 'approved', 'approved', ARRAY['fruteira', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+-- Subscriber 5 Fashion Store (Shoppings) - tema moda
+(8, 5, 'Fashion_Woman', 'Propaganda Fashion', '/opt/smart-signage/public/assets/uploads/client-5/medias/Fashion_Woman-0001.webp', 'Fashion_Woman-0001.webp', 80000, 'image', 'image/webp', NULL, 1920, 1080, '/api/media/8/thumbnail', '/api/media/8/thumbnail', 'approved', 'approved', ARRAY['fashion', 'moda', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(9, 5, 'moda_homem', 'Propaganda Moda Homem', '/opt/smart-signage/public/assets/uploads/client-5/medias/moda_homem.webp', 'moda_homem.webp', 90000, 'image', 'image/webp', NULL, 1920, 1080, '/api/media/9/thumbnail', '/api/media/9/thumbnail', 'approved', 'approved', ARRAY['moda', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+-- Subscriber 6 Beleza Produtos (Supermercados)
+(10, 6, 'beleza-produtos', 'Propaganda Beleza', '/opt/smart-signage/public/assets/uploads/client-6/medias/beleza-produtos-0001.mp4', 'beleza-produtos-0001.mp4', 380000, 'video', 'video/mp4', 15, 1920, 1080, '/api/media/10/thumbnail', '/api/media/10/thumbnail', 'approved', 'approved', ARRAY['beleza', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+-- Subscriber 7 Check-up Saúde (Farmácias)
+(11, 7, 'check-up', 'Propaganda Check-up Saúde', '/opt/smart-signage/public/assets/uploads/client-7/medias/check-up.jpg', 'check-up.jpg', 110000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/11/thumbnail', '/api/media/11/thumbnail', 'approved', 'approved', ARRAY['checkup', 'farmacia', 'saude'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+-- Subscriber 8 Super Promo (Supermercados)
+(12, 8, 'supermercado-promocoes', 'Promoções Supermercado', '/opt/smart-signage/public/assets/uploads/client-8/medias/supermercado-promocoes.jpg', 'supermercado-promocoes.jpg', 140000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/12/thumbnail', '/api/media/12/thumbnail', 'approved', 'approved', ARRAY['supermercado', 'promo'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(13, 8, 'black-friday-banner', 'Black Friday', '/opt/smart-signage/public/assets/uploads/client-8/medias/black-friday-banner.jpg', 'black-friday-banner.jpg', 95000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/13/thumbnail', '/api/media/13/thumbnail', 'approved', 'approved', ARRAY['blackfriday', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+-- Subscriber 9 Smartsignage Demo (Shoppings) - institucional
+(14, 9, 'Smartsignage-interface-333', 'Smartsignage Demo', '/opt/smart-signage/public/assets/uploads/client-9/medias/Smartsignage-interface-333.mp4', 'Smartsignage-interface-333.mp4', 600000, 'video', 'video/mp4', 30, 1920, 1080, '/api/media/14/thumbnail', '/api/media/14/thumbnail', 'approved', 'approved', ARRAY['smartsignage', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(15, 9, 'Resgate Totem', 'Resgate Totem', '/opt/smart-signage/public/assets/uploads/client-9/medias/Resgate Totem-_001.mp4', 'Resgate Totem-_001.mp4', 250000, 'video', 'video/mp4', 10, 1920, 1080, '/api/media/15/thumbnail', '/api/media/15/thumbnail', 'approved', 'approved', ARRAY['smartsignage', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+-- Subscriber 10 Menu Executivo (Shoppings) - alimentação
+(16, 10, 'menu-executivo', 'Menu Executivo', '/opt/smart-signage/public/assets/uploads/client-10/medias/menu-executivo.jpg', 'menu-executivo.jpg', 130000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/16/thumbnail', '/api/media/16/thumbnail', 'approved', 'approved', ARRAY['menu', 'alimentacao', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
 -- =============================================
--- CONTRACTS
+-- SUBSCRIBER_CONTRACTS - Cada subscriber em plano diferente
+-- Planos: 4=Shoppings, 5=Supermercados, 6=Farmácias
 -- =============================================
 INSERT INTO subscriber_contracts (
     contract_id, subscriber_id, plan_id, contract_number, contract_type, title, description,
@@ -208,8 +263,16 @@ INSERT INTO subscriber_contracts (
     signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata,
     document_path, document_filename, document_mime_type, document_size_bytes
 ) VALUES
-(1, 1, 2, 'SUB-CESTTO-2025-001', 'advertising', 'Contrato Cestto', 'Contrato publicitário Cestto', '2025-01-01', '2026-12-31', 25000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
-(2, 2, 2, 'SUB-BOURBON-2025-001', 'advertising', 'Contrato Bourbon', 'Contrato publicitário Bourbon', '2025-01-01', '2026-12-31', 20000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0)
+(1, 1, 5, 'SUB-CESTTO-2025-001', 'advertising', 'Contrato Cestto', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 25000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
+(2, 2, 4, 'SUB-BOURBON-2025-001', 'advertising', 'Contrato Bourbon', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 30000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
+(3, 3, 6, 'SUB-PANVEL-2025-001', 'advertising', 'Contrato Panvel', 'Contrato publicitário - Plano Farmácias', '2025-01-01', '2026-12-31', 20000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
+(4, 4, 5, 'SUB-FRUTEIRA-2025-001', 'advertising', 'Contrato Fruteira Geraldo', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 22000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
+(5, 5, 4, 'SUB-FASHION-2025-001', 'advertising', 'Contrato Fashion Store', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 28000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
+(6, 6, 5, 'SUB-BELEZA-2025-001', 'advertising', 'Contrato Beleza Produtos', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 18000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
+(7, 7, 6, 'SUB-CHECKUP-2025-001', 'advertising', 'Contrato Check-up Saúde', 'Contrato publicitário - Plano Farmácias', '2025-01-01', '2026-12-31', 19000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
+(8, 8, 5, 'SUB-SUPERPROMO-2025-001', 'advertising', 'Contrato Super Promo', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 21000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
+(9, 9, 4, 'SUB-SMARTSIGNAGE-2025-001', 'advertising', 'Contrato Smartsignage Demo', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 15000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
+(10, 10, 4, 'SUB-MENU-2025-001', 'advertising', 'Contrato Menu Executivo', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 24000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO publisher_contracts (
@@ -224,36 +287,97 @@ INSERT INTO publisher_contracts (
 ON CONFLICT DO NOTHING;
 
 -- =============================================
--- PLAYLIST playlist_cesto (todas as mídias Cestto + Bourbon para teste completo)
--- Na verdade: playlist_cesto com as 3 mídias do Cestto (conforme pedido)
+-- PLAYLISTS - Uma playlist por subscriber com suas mídias
 -- =============================================
 INSERT INTO playlists (playlist_id, subscriber_id, name, category_segment, description, is_active, schedule_config, metadata) VALUES
-(1, 1, 'playlist_cesto', 'Varejo', 'Playlist Cestto com todas as mídias para campanha Carnaval', true, '{}'::jsonb, '{}'::jsonb)
+(1, 1, 'playlist_cestto', 'Supermercado', 'Playlist Cestto - propagandas supermercado', true, '{}'::jsonb, '{}'::jsonb),
+(2, 2, 'playlist_bourbon', 'Shopping', 'Playlist Bourbon - propagandas shopping', true, '{}'::jsonb, '{}'::jsonb),
+(3, 3, 'playlist_panvel', 'Farmácia', 'Playlist Panvel - propagandas farmácia', true, '{}'::jsonb, '{}'::jsonb),
+(4, 4, 'playlist_fruteira', 'Supermercado', 'Playlist Fruteira Geraldo', true, '{}'::jsonb, '{}'::jsonb),
+(5, 5, 'playlist_fashion', 'Shopping', 'Playlist Fashion Store - moda', true, '{}'::jsonb, '{}'::jsonb),
+(6, 6, 'playlist_beleza', 'Supermercado', 'Playlist Beleza Produtos', true, '{}'::jsonb, '{}'::jsonb),
+(7, 7, 'playlist_checkup', 'Farmácia', 'Playlist Check-up Saúde', true, '{}'::jsonb, '{}'::jsonb),
+(8, 8, 'playlist_superpromo', 'Supermercado', 'Playlist Super Promo', true, '{}'::jsonb, '{}'::jsonb),
+(9, 9, 'playlist_smartsignage', 'Shopping', 'Playlist Smartsignage Demo', true, '{}'::jsonb, '{}'::jsonb),
+(10, 10, 'playlist_menu', 'Shopping', 'Playlist Menu Executivo', true, '{}'::jsonb, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO playlist_items (item_id, playlist_id, media_id, display_seconds, order_index, start_time, end_time, days_of_week, transitions, is_active) VALUES
 (1, 1, 1, 15, 0, NULL, NULL, NULL, '{}'::jsonb, true),
 (2, 1, 2, 30, 1, NULL, NULL, NULL, '{}'::jsonb, true),
-(3, 1, 3, 25, 2, NULL, NULL, NULL, '{}'::jsonb, true)
+(3, 2, 3, 15, 0, NULL, NULL, NULL, '{}'::jsonb, true),
+(4, 3, 4, 20, 0, NULL, NULL, NULL, '{}'::jsonb, true),
+(5, 3, 5, 15, 1, NULL, NULL, NULL, '{}'::jsonb, true),
+(6, 4, 6, 15, 0, NULL, NULL, NULL, '{}'::jsonb, true),
+(7, 4, 7, 25, 1, NULL, NULL, NULL, '{}'::jsonb, true),
+(8, 5, 8, 15, 0, NULL, NULL, NULL, '{}'::jsonb, true),
+(9, 5, 9, 15, 1, NULL, NULL, NULL, '{}'::jsonb, true),
+(10, 6, 10, 15, 0, NULL, NULL, NULL, '{}'::jsonb, true),
+(11, 7, 11, 15, 0, NULL, NULL, NULL, '{}'::jsonb, true),
+(12, 8, 12, 15, 0, NULL, NULL, NULL, '{}'::jsonb, true),
+(13, 8, 13, 15, 1, NULL, NULL, NULL, '{}'::jsonb, true),
+(14, 9, 14, 30, 0, NULL, NULL, NULL, '{}'::jsonb, true),
+(15, 9, 15, 10, 1, NULL, NULL, NULL, '{}'::jsonb, true),
+(16, 10, 16, 15, 0, NULL, NULL, NULL, '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
 -- =============================================
--- CAMPANHA Cesto_Ofertas_Carnaval
+-- CAMPANHAS - Uma por subscriber, vinculadas aos publishers conforme plano contratado
+-- (plan_publisher_access: planos 4,5,6 têm acesso a publishers 1 e 2)
 -- =============================================
 INSERT INTO campaigns (campaign_id, subscriber_id, contract_id, title, category_segment, description, campaign_type, priority, commercial_tier, default_time_share_percent, max_consecutive_slots, start_date, end_date, start_time, end_time, days_of_week, timezone, status, is_active, target_audience, metadata) VALUES
-(1, 1, 1, 'Cesto_Ofertas_Carnaval', 'Varejo', 'Campanha Cestto Ofertas Carnaval', 'general', 10, 'premium', 50.00, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb)
+(1, 1, 1, 'Cestto Ofertas', 'Supermercado', 'Campanha Cestto - propagandas supermercado', 'general', 10, 'premium', 50.00, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(2, 2, 2, 'Bourbon Shopping', 'Shopping', 'Campanha Bourbon - propagandas shopping', 'general', 10, 'premium', 50.00, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(3, 3, 3, 'Panvel Farmácia', 'Farmácia', 'Campanha Panvel - propagandas farmácia', 'general', 10, 'premium', 50.00, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(4, 4, 4, 'Fruteira Geraldo', 'Supermercado', 'Campanha Fruteira - propagandas supermercado', 'general', 10, 'standard', 40.00, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(5, 5, 5, 'Fashion Store Moda', 'Shopping', 'Campanha Fashion - propagandas moda', 'general', 10, 'premium', 50.00, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(6, 6, 6, 'Beleza Produtos', 'Supermercado', 'Campanha Beleza - cosméticos', 'general', 8, 'standard', 40.00, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(7, 7, 7, 'Check-up Saúde', 'Farmácia', 'Campanha Check-up - farmácia e saúde', 'general', 10, 'premium', 50.00, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(8, 8, 8, 'Super Promo Ofertas', 'Supermercado', 'Campanha Super Promo - promoções', 'general', 9, 'standard', 45.00, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(9, 9, 9, 'Smartsignage Institucional', 'Shopping', 'Campanha Smartsignage - demo institucional', 'general', 8, 'standard', 40.00, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb),
+(10, 10, 10, 'Menu Executivo Alimentação', 'Shopping', 'Campanha Menu Executivo - alimentação', 'general', 10, 'premium', 50.00, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 'America/Sao_Paulo', 'active', true, '{}'::jsonb, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaign_playlists (campaign_id, playlist_id, priority, is_active, metadata) VALUES
-(1, 1, 1, true, '{}'::jsonb)
+(1, 1, 1, true, '{}'::jsonb),
+(2, 2, 1, true, '{}'::jsonb),
+(3, 3, 1, true, '{}'::jsonb),
+(4, 4, 1, true, '{}'::jsonb),
+(5, 5, 1, true, '{}'::jsonb),
+(6, 6, 1, true, '{}'::jsonb),
+(7, 7, 1, true, '{}'::jsonb),
+(8, 8, 1, true, '{}'::jsonb),
+(9, 9, 1, true, '{}'::jsonb),
+(10, 10, 1, true, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO campaign_medias (campaign_id, media_id, display_seconds, order_index, priority, start_time, end_time, days_of_week, transitions, is_active, metadata) VALUES
 (1, 1, 15, 0, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
 (1, 2, 30, 1, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
-(1, 3, 25, 2, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb)
+(2, 3, 15, 0, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(3, 4, 20, 0, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(3, 5, 15, 1, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(4, 6, 15, 0, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(4, 7, 25, 1, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(5, 8, 15, 0, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(5, 9, 15, 1, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(6, 10, 15, 0, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(7, 11, 15, 0, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(8, 12, 15, 0, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(8, 13, 15, 1, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(9, 14, 30, 0, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(9, 15, 10, 1, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb),
+(10, 16, 15, 0, 10, NULL, NULL, NULL, '{}'::jsonb, true, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
+-- =============================================
+-- VÍNCULOS CONFORME PLANO CONTRATADO
+-- Cada subscriber tem plano (4=Shoppings, 5=Supermercados, 6=Farmácias).
+-- plan_publisher_access permite planos 4,5,6 acessarem publishers 1 (Zaffari) e 2 (Koch).
+-- Abaixo: campaign_totems, campaign_publishers, campaign_locals e subscriber_publisher_access.
+-- =============================================
+
+-- campaign_totems: cada campanha nos totens dos publishers permitidos (1-2 Zaffari, 3-7 Koch)
 INSERT INTO campaign_totems (campaign_id, totem_id, start_date, end_date, start_time, end_time, days_of_week, priority, is_active) VALUES
 (1, 1, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
 (1, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
@@ -261,36 +385,138 @@ INSERT INTO campaign_totems (campaign_id, totem_id, start_date, end_date, start_
 (1, 4, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
 (1, 5, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
 (1, 6, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
-(1, 7, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true)
+(1, 7, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(2, 1, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(2, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(2, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(2, 4, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(2, 5, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(2, 6, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(2, 7, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(3, 1, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(3, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(3, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(3, 4, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(3, 5, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(3, 6, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(3, 7, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(4, 1, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(4, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(4, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(4, 4, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(4, 5, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(4, 6, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(4, 7, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(5, 1, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(5, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(5, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(5, 4, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(5, 5, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(5, 6, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(5, 7, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(6, 1, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(6, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(6, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(6, 4, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(6, 5, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(6, 6, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(6, 7, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(7, 1, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(7, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(7, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(7, 4, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(7, 5, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(7, 6, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(7, 7, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(8, 1, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 9, true),
+(8, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 9, true),
+(8, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 9, true),
+(8, 4, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 9, true),
+(8, 5, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 9, true),
+(8, 6, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 9, true),
+(8, 7, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 9, true),
+(9, 1, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(9, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(9, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(9, 4, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(9, 5, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(9, 6, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(9, 7, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 8, true),
+(10, 1, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(10, 2, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(10, 3, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(10, 4, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(10, 5, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(10, 6, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true),
+(10, 7, '2025-01-01 00:00:00', '2026-12-31 23:59:59', '08:00', '22:00', '["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]', 10, true)
 ON CONFLICT DO NOTHING;
 
+-- campaign_publishers: revenue share conforme contrato do publisher (Zaffari 70%, Koch 65%)
+-- time_share conforme campanha (default_time_share_percent)
 INSERT INTO campaign_publishers (campaign_id, publisher_id, revenue_share_percentage, time_share_percent, daypart_config, min_impressions_per_hour, max_impressions_per_hour, is_active, metadata) VALUES
 (1, 1, 70.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
-(1, 2, 65.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb)
+(1, 2, 65.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
+(2, 1, 70.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
+(2, 2, 65.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
+(3, 1, 70.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
+(3, 2, 65.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
+(4, 1, 70.00, 40.00, '{}'::jsonb, 4, 12, true, '{}'::jsonb),
+(4, 2, 65.00, 40.00, '{}'::jsonb, 4, 12, true, '{}'::jsonb),
+(5, 1, 70.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
+(5, 2, 65.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
+(6, 1, 70.00, 40.00, '{}'::jsonb, 4, 12, true, '{}'::jsonb),
+(6, 2, 65.00, 40.00, '{}'::jsonb, 4, 12, true, '{}'::jsonb),
+(7, 1, 70.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
+(7, 2, 65.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
+(8, 1, 70.00, 45.00, '{}'::jsonb, 4, 14, true, '{}'::jsonb),
+(8, 2, 65.00, 45.00, '{}'::jsonb, 4, 14, true, '{}'::jsonb),
+(9, 1, 70.00, 40.00, '{}'::jsonb, 4, 12, true, '{}'::jsonb),
+(9, 2, 65.00, 40.00, '{}'::jsonb, 4, 12, true, '{}'::jsonb),
+(10, 1, 70.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb),
+(10, 2, 65.00, 50.00, '{}'::jsonb, 5, 15, true, '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
+-- campaign_locals: cada campanha nos locais dos publishers (1-2 Zaffari, 3-7 Koch)
 INSERT INTO campaign_locals (campaign_id, local_id, is_active) VALUES
-(1, 1, true),
-(1, 2, true),
-(1, 3, true),
-(1, 4, true),
-(1, 5, true),
-(1, 6, true),
-(1, 7, true)
+(1, 1, true), (1, 2, true), (1, 3, true), (1, 4, true), (1, 5, true), (1, 6, true), (1, 7, true),
+(2, 1, true), (2, 2, true), (2, 3, true), (2, 4, true), (2, 5, true), (2, 6, true), (2, 7, true),
+(3, 1, true), (3, 2, true), (3, 3, true), (3, 4, true), (3, 5, true), (3, 6, true), (3, 7, true),
+(4, 1, true), (4, 2, true), (4, 3, true), (4, 4, true), (4, 5, true), (4, 6, true), (4, 7, true),
+(5, 1, true), (5, 2, true), (5, 3, true), (5, 4, true), (5, 5, true), (5, 6, true), (5, 7, true),
+(6, 1, true), (6, 2, true), (6, 3, true), (6, 4, true), (6, 5, true), (6, 6, true), (6, 7, true),
+(7, 1, true), (7, 2, true), (7, 3, true), (7, 4, true), (7, 5, true), (7, 6, true), (7, 7, true),
+(8, 1, true), (8, 2, true), (8, 3, true), (8, 4, true), (8, 5, true), (8, 6, true), (8, 7, true),
+(9, 1, true), (9, 2, true), (9, 3, true), (9, 4, true), (9, 5, true), (9, 6, true), (9, 7, true),
+(10, 1, true), (10, 2, true), (10, 3, true), (10, 4, true), (10, 5, true), (10, 6, true), (10, 7, true)
 ON CONFLICT DO NOTHING;
 
--- =============================================
--- SUBSCRIBER_PUBLISHER_ACCESS
--- =============================================
+-- subscriber_publisher_access: cada subscriber com acesso aos publishers permitidos pelo plano (1 e 2)
+-- contract_id e plan_id do contrato do subscriber; access_type 'contract'
 INSERT INTO subscriber_publisher_access (access_id, subscriber_id, publisher_id, contract_id, plan_id, access_type, granted_at, expires_at, is_active, granted_by, notes, metadata) VALUES
-(1, 1, 1, 1, 2, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Cestto em Zaffari', '{}'::jsonb),
-(2, 1, 2, 1, 2, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Cestto em Koch', '{}'::jsonb),
-(3, 2, 1, 2, 2, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Bourbon em Zaffari', '{}'::jsonb),
-(4, 2, 2, 2, 2, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Bourbon em Koch', '{}'::jsonb)
+(1, 1, 1, 1, 5, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Cestto em Zaffari (Plano Supermercados)', '{}'::jsonb),
+(2, 1, 2, 1, 5, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Cestto em Koch (Plano Supermercados)', '{}'::jsonb),
+(3, 2, 1, 2, 4, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Bourbon em Zaffari (Plano Shoppings)', '{}'::jsonb),
+(4, 2, 2, 2, 4, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Bourbon em Koch (Plano Shoppings)', '{}'::jsonb),
+(5, 3, 1, 3, 6, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Panvel em Zaffari (Plano Farmácias)', '{}'::jsonb),
+(6, 3, 2, 3, 6, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Panvel em Koch (Plano Farmácias)', '{}'::jsonb),
+(7, 4, 1, 4, 5, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Fruteira em Zaffari (Plano Supermercados)', '{}'::jsonb),
+(8, 4, 2, 4, 5, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Fruteira em Koch (Plano Supermercados)', '{}'::jsonb),
+(9, 5, 1, 5, 4, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Fashion em Zaffari (Plano Shoppings)', '{}'::jsonb),
+(10, 5, 2, 5, 4, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Fashion em Koch (Plano Shoppings)', '{}'::jsonb),
+(11, 6, 1, 6, 5, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Beleza em Zaffari (Plano Supermercados)', '{}'::jsonb),
+(12, 6, 2, 6, 5, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Beleza em Koch (Plano Supermercados)', '{}'::jsonb),
+(13, 7, 1, 7, 6, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Check-up em Zaffari (Plano Farmácias)', '{}'::jsonb),
+(14, 7, 2, 7, 6, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Check-up em Koch (Plano Farmácias)', '{}'::jsonb),
+(15, 8, 1, 8, 5, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Super Promo em Zaffari (Plano Supermercados)', '{}'::jsonb),
+(16, 8, 2, 8, 5, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Super Promo em Koch (Plano Supermercados)', '{}'::jsonb),
+(17, 9, 1, 9, 4, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Smartsignage em Zaffari (Plano Shoppings)', '{}'::jsonb),
+(18, 9, 2, 9, 4, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Smartsignage em Koch (Plano Shoppings)', '{}'::jsonb),
+(19, 10, 1, 10, 4, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Menu Executivo em Zaffari (Plano Shoppings)', '{}'::jsonb),
+(20, 10, 2, 10, 4, 'contract', NOW() - INTERVAL '60 days', '2026-12-31 23:59:59', true, 1, 'Acesso Menu Executivo em Koch (Plano Shoppings)', '{}'::jsonb)
 ON CONFLICT DO NOTHING;
 
 -- =============================================
--- PLAN_PUBLISHER_ACCESS
+-- PLAN_PUBLISHER_ACCESS (planos 1-6 com acesso a publishers 1-2)
 -- =============================================
 INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictions, notes) VALUES
 (1, 1, true, '{}'::jsonb, NULL),
@@ -298,22 +524,11 @@ INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictio
 (2, 1, true, '{}'::jsonb, NULL),
 (2, 2, true, '{}'::jsonb, NULL),
 (3, 1, true, '{}'::jsonb, NULL),
-(3, 2, true, '{}'::jsonb, NULL)
-ON CONFLICT DO NOTHING;
-
--- =============================================
--- TOTEM_PLAYLISTS (mínimo para dispatcher)
--- =============================================
-INSERT INTO totem_playlists (totem_playlist_id, totem_id, smart_tv_id, publisher_id, playlist_hash, version, total_items, total_duration_seconds, status, is_active, generated_at, last_updated_at, expires_at, metadata, generation_log) VALUES
-(1, 1, NULL, 1, 'hash_cesto_001', 1, 3, 70, 'active', true, NOW(), NOW(), NULL, '{}'::jsonb, '{}'::jsonb),
-(2, 2, NULL, 1, 'hash_cesto_002', 1, 3, 70, 'active', true, NOW(), NOW(), NULL, '{}'::jsonb, '{}'::jsonb)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO totem_playlist_items (item_id, totem_playlist_id, media_id, campaign_id, subscriber_id, publisher_id, order_index, priority, display_seconds, transition_type, transition_duration_ms, commercial_tier, time_share_percent, revenue_share_percent, start_time, end_time, days_of_week, is_active) VALUES
-(1, 1, 1, 1, 1, 1, 0, 10, 15, 'fade', 2000, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
-(2, 1, 2, 1, 1, 1, 1, 10, 30, 'fade', 2000, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
-(3, 1, 3, 1, 1, 1, 2, 10, 25, 'fade', 2000, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
-(4, 2, 1, 1, 1, 1, 0, 10, 15, 'fade', 2000, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
-(5, 2, 2, 1, 1, 1, 1, 10, 30, 'fade', 2000, 'premium', 50.00, 70.00, NULL, NULL, NULL, true),
-(6, 2, 3, 1, 1, 1, 2, 10, 25, 'fade', 2000, 'premium', 50.00, 70.00, NULL, NULL, NULL, true)
+(3, 2, true, '{}'::jsonb, NULL),
+(4, 1, true, '{}'::jsonb, NULL),
+(4, 2, true, '{}'::jsonb, NULL),
+(5, 1, true, '{}'::jsonb, NULL),
+(5, 2, true, '{}'::jsonb, NULL),
+(6, 1, true, '{}'::jsonb, NULL),
+(6, 2, true, '{}'::jsonb, NULL)
 ON CONFLICT DO NOTHING;

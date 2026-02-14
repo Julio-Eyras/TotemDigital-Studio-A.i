@@ -115,13 +115,16 @@ log_status() {
 }
 
 # Copiar mídias de demonstração de player-web/propagandas para o diretório de uploads de cada subscriber.
-# Mapeamento seed v6.2: Cestto (client-1), Bourbon (client-2)
-# Origem: player-web/propagandas (ou INSTALL_DIR/player-web/propagandas)
+# Mapeamento seed v6.3: 10 subscribers (client-1 a client-10) - Cestto, Bourbon, Panvel, Fruteira, Fashion, Beleza, Check-up, Super Promo, Smartsignage, Menu Executivo
+# Origem: player-web/propagandas (e player-web/vinhetas se existir)
 install_demo_media_files() {
     local install_dir="${INSTALL_DIR:-$(pwd)}"
     local src_dir=""
+    local vinhetas_dir=""
     [[ -d "${install_dir}/player-web/propagandas" ]] && src_dir="${install_dir}/player-web/propagandas"
     [[ -z "$src_dir" && -n "${SOURCE_DIR:-}" && -d "${SOURCE_DIR}/player-web/propagandas" ]] && src_dir="${SOURCE_DIR}/player-web/propagandas"
+    [[ -d "${install_dir}/player-web/vinhetas" ]] && vinhetas_dir="${install_dir}/player-web/vinhetas"
+    [[ -z "$vinhetas_dir" && -n "${SOURCE_DIR:-}" && -d "${SOURCE_DIR}/player-web/vinhetas" ]] && vinhetas_dir="${SOURCE_DIR}/player-web/vinhetas"
     local uploads_base="/opt/smart-signage/public/assets/uploads"
 
     if [[ -z "$src_dir" || ! -d "$src_dir" ]]; then
@@ -129,54 +132,66 @@ install_demo_media_files() {
         return 0
     fi
 
-    log "Copiando mídias demo de ${src_dir} para ${uploads_base}/client-*/medias..."
+    log "Copiando mídias demo de ${src_dir} para ${uploads_base}/client-1..10/medias..."
 
-    # Criar diretórios de destino (client-1 Cestto, client-2 Bourbon)
-    for cid in 1 2; do
+    # Criar diretórios de destino (client-1 a client-10)
+    for cid in 1 2 3 4 5 6 7 8 9 10; do
         local target_dir="${uploads_base}/client-${cid}/medias"
         sudo mkdir -p "$target_dir" 2>/dev/null || mkdir -p "$target_dir" 2>/dev/null || true
     done
 
-    # Cestto (client-1): cestto_000001.jpg, cestto_000005.mp4, cestto_000010.mp4
-    for img in black-friday-banner.jpg check-up.jpg ofertas-dia.jpg menu-executivo.jpg supermercado-promocoes.jpg; do
-        if [[ -f "${src_dir}/${img}" ]]; then
-            sudo cp -f "${src_dir}/${img}" "${uploads_base}/client-1/medias/cestto_000001.jpg" 2>/dev/null || cp -f "${src_dir}/${img}" "${uploads_base}/client-1/medias/cestto_000001.jpg" 2>/dev/null || true
-            break
+    # Função auxiliar: copiar arquivo se existir (origem -> destino)
+    copy_if() {
+        local from="$1" to="$2"
+        if [[ -f "$from" ]]; then
+            sudo cp -f "$from" "$to" 2>/dev/null || cp -f "$from" "$to" 2>/dev/null || true
         fi
-    done
-    if [[ -f "${src_dir}/Cestto_0001.mp4" ]]; then
-        sudo cp -f "${src_dir}/Cestto_0001.mp4" "${uploads_base}/client-1/medias/cestto_000005.mp4" 2>/dev/null || cp -f "${src_dir}/Cestto_0001.mp4" "${uploads_base}/client-1/medias/cestto_000005.mp4" 2>/dev/null || true
-    elif [[ -f "${src_dir}/Smartsignage-interface-333.mp4" ]]; then
-        sudo cp -f "${src_dir}/Smartsignage-interface-333.mp4" "${uploads_base}/client-1/medias/cestto_000005.mp4" 2>/dev/null || cp -f "${src_dir}/Smartsignage-interface-333.mp4" "${uploads_base}/client-1/medias/cestto_000005.mp4" 2>/dev/null || true
-    fi
-    if [[ -f "${src_dir}/crie-um-vdeo-com-minha-foto.mp4" ]]; then
-        sudo cp -f "${src_dir}/crie-um-vdeo-com-minha-foto.mp4" "${uploads_base}/client-1/medias/cestto_000010.mp4" 2>/dev/null || cp -f "${src_dir}/crie-um-vdeo-com-minha-foto.mp4" "${uploads_base}/client-1/medias/cestto_000010.mp4" 2>/dev/null || true
-    elif [[ -f "${src_dir}/video-1770304410183.mp4" ]]; then
-        sudo cp -f "${src_dir}/video-1770304410183.mp4" "${uploads_base}/client-1/medias/cestto_000010.mp4" 2>/dev/null || cp -f "${src_dir}/video-1770304410183.mp4" "${uploads_base}/client-1/medias/cestto_000010.mp4" 2>/dev/null || true
-    fi
+    }
 
-    # Bourbon (client-2): bourbon_0001.jpg, bourbon_0002.mp4
-    # Origem: ofertas-dia.jpg (ou outra imagem), WhatsApp Video
-    for img in ofertas-dia.jpg check-up.jpg black-friday-banner.jpg menu-executivo.jpg supermercado-promocoes.jpg; do
-        if [[ -f "${src_dir}/${img}" ]]; then
-            sudo cp -f "${src_dir}/${img}" "${uploads_base}/client-2/medias/bourbon_0001.jpg" 2>/dev/null || cp -f "${src_dir}/${img}" "${uploads_base}/client-2/medias/bourbon_0001.jpg" 2>/dev/null || true
-            break
-        fi
-    done
-    if [[ -f "${src_dir}/WhatsApp Video 2026-01-17 at 22.47.44.mp4" ]]; then
-        sudo cp -f "${src_dir}/WhatsApp Video 2026-01-17 at 22.47.44.mp4" "${uploads_base}/client-2/medias/bourbon_0002.mp4" 2>/dev/null || cp -f "${src_dir}/WhatsApp Video 2026-01-17 at 22.47.44.mp4" "${uploads_base}/client-2/medias/bourbon_0002.mp4" 2>/dev/null || true
-    elif [[ -f "${src_dir}/Smartsignage-interface-444.mp4" ]]; then
-        sudo cp -f "${src_dir}/Smartsignage-interface-444.mp4" "${uploads_base}/client-2/medias/bourbon_0002.mp4" 2>/dev/null || cp -f "${src_dir}/Smartsignage-interface-444.mp4" "${uploads_base}/client-2/medias/bourbon_0002.mp4" 2>/dev/null || true
-    fi
+    # client-1 Cestto (Supermercados): Cestto_00005.png, Cestto_0001.mp4
+    copy_if "${src_dir}/Cestto_00005.png" "${uploads_base}/client-1/medias/Cestto_00005.png"
+    copy_if "${src_dir}/Cestto_0001.mp4" "${uploads_base}/client-1/medias/Cestto_0001.mp4"
+
+    # client-2 Bourbon (Shoppings): zaffari-bourbon_8255.jpg
+    copy_if "${src_dir}/zaffari-bourbon_8255.jpg" "${uploads_base}/client-2/medias/zaffari-bourbon_8255.jpg"
+
+    # client-3 Panvel (Farmácias): Panvel_0001.mp4, Panvel_ABC-00010.jpg
+    copy_if "${src_dir}/Panvel_0001.mp4" "${uploads_base}/client-3/medias/Panvel_0001.mp4"
+    copy_if "${src_dir}/Panvel_ABC-00010.jpg" "${uploads_base}/client-3/medias/Panvel_ABC-00010.jpg"
+
+    # client-4 Fruteira Geraldo (Supermercados): Fruteiradogeraldo0001.jpg, Fruteiradogeraldo0002.mp4
+    copy_if "${src_dir}/Fruteiradogeraldo0001.jpg" "${uploads_base}/client-4/medias/Fruteiradogeraldo0001.jpg"
+    copy_if "${src_dir}/Fruteiradogeraldo0002.mp4" "${uploads_base}/client-4/medias/Fruteiradogeraldo0002.mp4"
+
+    # client-5 Fashion Store (Shoppings): Fashion_Woman-0001.webp, moda_homem.webp
+    copy_if "${src_dir}/Fashion_Woman-0001.webp" "${uploads_base}/client-5/medias/Fashion_Woman-0001.webp"
+    copy_if "${src_dir}/moda_homem.webp" "${uploads_base}/client-5/medias/moda_homem.webp"
+
+    # client-6 Beleza Produtos (Supermercados): beleza-produtos-0001.mp4
+    copy_if "${src_dir}/beleza-produtos-0001.mp4" "${uploads_base}/client-6/medias/beleza-produtos-0001.mp4"
+
+    # client-7 Check-up Saúde (Farmácias): check-up.jpg
+    copy_if "${src_dir}/check-up.jpg" "${uploads_base}/client-7/medias/check-up.jpg"
+
+    # client-8 Super Promo (Supermercados): supermercado-promocoes.jpg, black-friday-banner.jpg
+    copy_if "${src_dir}/supermercado-promocoes.jpg" "${uploads_base}/client-8/medias/supermercado-promocoes.jpg"
+    copy_if "${src_dir}/black-friday-banner.jpg" "${uploads_base}/client-8/medias/black-friday-banner.jpg"
+
+    # client-9 Smartsignage Demo (Shoppings): Smartsignage-interface-333.mp4, Resgate Totem-_001.mp4
+    copy_if "${src_dir}/Smartsignage-interface-333.mp4" "${uploads_base}/client-9/medias/Smartsignage-interface-333.mp4"
+    copy_if "${src_dir}/Resgate Totem-_001.mp4" "${uploads_base}/client-9/medias/Resgate Totem-_001.mp4"
+
+    # client-10 Menu Executivo (Shoppings): menu-executivo.jpg
+    copy_if "${src_dir}/menu-executivo.jpg" "${uploads_base}/client-10/medias/menu-executivo.jpg"
 
     # Ajustar permissões (best-effort)
-    for cid in 1 2; do
+    for cid in 1 2 3 4 5 6 7 8 9 10; do
         [[ -d "${uploads_base}/client-${cid}" ]] && (sudo chown -R $USER:$USER "${uploads_base}/client-${cid}" 2>/dev/null || chown -R $USER:$USER "${uploads_base}/client-${cid}" 2>/dev/null || true)
         sudo chmod -R 755 "${uploads_base}/client-${cid}" 2>/dev/null || true
         sudo find "${uploads_base}/client-${cid}" -type f -exec chmod 644 {} \; 2>/dev/null || true
     done
 
-    log "✅ Mídias demo copiadas para ${uploads_base}/client-1 e client-2 (origem: player-web/propagandas)"
+    log "✅ Mídias demo copiadas para ${uploads_base}/client-1..10 (origem: player-web/propagandas)"
 }
 
 # =============================================================================
