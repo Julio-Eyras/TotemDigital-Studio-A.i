@@ -3838,6 +3838,62 @@ export interface DebugStats {
   redis: RedisStatus;
 }
 
+// =============================================
+// NETWORK TOPOLOGY API
+// =============================================
+
+export interface NetworkTopologyPublisher {
+  id: number;
+  name: string;
+  locals: NetworkTopologyLocal[];
+}
+
+export interface NetworkTopologyLocal {
+  id: number;
+  name: string;
+  totems: NetworkTopologyTotem[];
+}
+
+export interface NetworkTopologyTotem {
+  id: number;
+  identifier: string;
+  name: string;
+  status: string;
+  lastHeartbeat?: string;
+  mediaCount: number;
+  smartTvs: NetworkTopologySmartTv[];
+}
+
+export interface NetworkTopologySmartTv {
+  id: number;
+  identifier: string;
+  name: string;
+  status: string;
+  lastHeartbeat?: string;
+  mediaCount?: number;
+}
+
+export const networkTopologyApi = {
+  getTopology: async (): Promise<{
+    success: boolean;
+    data: NetworkTopologyPublisher[];
+    meta?: { totalPublishers?: number };
+  }> => {
+    const response = await api.get('/network/topology');
+    return response.data;
+  },
+
+  /** Rede no formato SmartSignageNetwork para HoloGraph (publishers, subscribers, scheduleAssignments). */
+  getGraph: async (params?: { dayOfWeek?: number; time?: string }): Promise<{ success: boolean; data: any }> => {
+    const response = await api.get('/network/graph', { params });
+    return response.data;
+  },
+};
+
+// =============================================
+// DISPATCHER DEBUG API
+// =============================================
+
 export const dispatcherDebugApi = {
   getRedisStatus: async (): Promise<{ success: boolean; data: RedisStatus }> => {
     const response = await api.get('/dispatcher-debug/redis-status');

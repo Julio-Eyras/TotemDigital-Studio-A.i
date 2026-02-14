@@ -40,6 +40,7 @@ const Billing = React.lazy(() => import('./pages/Billing/Billing'));
 const QRCodes = React.lazy(() => import('./pages/QRCodes/QRCodes'));
 const AdminTools = React.lazy(() => import('./pages/AdminTools/AdminTools'));
 const DispatcherMonitor = React.lazy(() => import('./pages/DispatcherMonitor/DispatcherMonitor'));
+const NetworkTopology = React.lazy(() => import('./pages/NetworkTopology/NetworkTopology'));
 const DispatcherManager = React.lazy(() => import('./pages/DispatcherManager/DispatcherManager'));
 const DispatcherDebug = React.lazy(() => import('./pages/DispatcherDebug/DispatcherDebug'));
 const PlaylistMix = React.lazy(() => import('./pages/PlaylistMix/PlaylistMix'));
@@ -597,6 +598,16 @@ const AppContent: React.FC = () => {
             element={
               <ProtectedRoute>
                 <DispatcherMonitor />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/network-topology"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<CircularProgress />}>
+                  <NetworkTopology />
+                </Suspense>
               </ProtectedRoute>
             }
           />

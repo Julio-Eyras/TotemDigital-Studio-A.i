@@ -176,6 +176,7 @@ function getSystemAdminMenu(): HierarchicalMenuItem[] {
         { text: 'Totens', icon: <Computer />, path: '/totems' },
         { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
         { text: 'Playlists por Totem', icon: <QueueMusic />, path: '/totem-playlists' },
+        { text: 'Rede Visual', icon: <Link />, path: '/network-topology' },
         { text: 'Contratos (Exibidores)', icon: <Description />, path: '/publisher-contracts' },
         {
           text: 'Playlist Mix',
@@ -227,6 +228,7 @@ function getSystemAdminMenu(): HierarchicalMenuItem[] {
         { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
         { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
         { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
+        { text: 'Rede Visual', icon: <Link />, path: '/network-topology?view=graph' },
         { text: 'Contratos (Assinantes)', icon: <Description />, path: '/subscriber-contracts' },
         { text: 'Smart Playlist', icon: <AutoAwesome />, path: '/smart-playlist' },
         { text: 'IA', icon: <SmartToy />, path: '/ai' },
@@ -336,6 +338,7 @@ function getOperadorTecnicoMenu(): HierarchicalMenuItem[] {
         { text: 'Histórico', icon: <Assessment />, path: '/ota-updates/history' },
       ],
     },
+    { text: 'Rede Visual', icon: <Link />, path: '/network-topology?view=graph' },
     { text: 'Admin Tools', icon: <Build />, path: '/admin-tools', requiredFlag: 'flag_smart_2' },
     { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor', requiredFlag: 'flag_smart_2' },
   ];
@@ -473,6 +476,7 @@ function getSubscriberUserMenu(): HierarchicalMenuItem[] {
         { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
         { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
         { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
+        { text: 'Rede Visual', icon: <Link />, path: '/network-topology?view=graph' },
       ],
     },
     { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
