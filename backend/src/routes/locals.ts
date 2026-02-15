@@ -111,8 +111,6 @@ router.get('/stats',
       const localIdsStr = req.query.localIds as string;
       const localIds = localIdsStr.split(',').map((id) => parseInt(id.trim(), 10)).filter((n) => !isNaN(n));
       if (localIds.length === 0) return res.json({});
-      const isAdmin = isAdminRole(req.user?.role);
-      const requestPublisherId = req.user?.publisherId || undefined;
       const stats = await getLocalService().getLocalStats(localIds);
       return res.json(stats);
     } catch (error: any) {
