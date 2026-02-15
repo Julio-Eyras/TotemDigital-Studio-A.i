@@ -26,13 +26,15 @@ export const apiLimiter = rateLimit({
     const fullPath = (req.baseUrl || '') + (req.path || '');
 
     // Pular rate limit para health checks, estáticos, auth e debug (auth já tem limiter próprio)
-    return fullPath === '/api/health' ||
-           fullPath.startsWith('/api/health/') ||
-           fullPath.startsWith('/api/auth') ||
-           fullPath.startsWith('/api/static/') ||
-           fullPath.startsWith('/api/assets/') ||
-           fullPath.startsWith('/api/dispatcher-debug/') ||
-           fullPath.startsWith('/api/player/'); // Player endpoints também não devem ter rate limit
+    const pathCheck = fullPath || req.path || req.originalUrl || '';
+    return pathCheck === '/api/health' ||
+           pathCheck.startsWith('/api/health/') ||
+           pathCheck.startsWith('/api/auth') ||
+           pathCheck.startsWith('/api/static/') ||
+           pathCheck.startsWith('/api/assets/') ||
+           pathCheck.startsWith('/api/dispatcher-debug/') ||
+           pathCheck.startsWith('/api/player') || // /api/player e /api/player-static
+           pathCheck.startsWith('/player-static/');
   }
 });
 
