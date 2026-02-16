@@ -247,7 +247,12 @@ const Playlists: React.FC = () => {
     // Buscar playlist por ID para garantir subscriber_name e dados completos
     try {
       const full = await playlistApi.getById(pl.playlist_id);
-      if (full) setSelectedPlaylist({ ...pl, ...full, subscriber_name: full.subscriber_name ?? (full as any).subscribername ?? pl.subscriber_name ?? (pl as any).subscribername });
+      if (full) {
+        const fullAny = full as { subscriber_name?: string; subscribername?: string };
+        const plAny = pl as { subscriber_name?: string; subscribername?: string };
+        const subscriberName = full.subscriber_name ?? fullAny.subscribername ?? pl.subscriber_name ?? plAny.subscribername;
+        setSelectedPlaylist({ ...pl, ...full, subscriber_name: subscriberName });
+      }
     } catch {
       // Manter pl se a busca falhar
     }
@@ -572,7 +577,7 @@ const Playlists: React.FC = () => {
                   label="Subscriber (Anunciante)"
                   value={
                     (editorMode === 'edit' && (selectedPlaylist?.subscriber_name || (selectedPlaylist as any)?.subscribername))
-                      ? `${(selectedPlaylist as any).subscriber_name || (selectedPlaylist as any).subscribername} (ID: ${selectedPlaylist.subscriber_id || selectedPlaylist.client_id || ''})`
+                      ? `${(selectedPlaylist as any).subscriber_name || (selectedPlaylist as any).subscribername} (ID: ${selectedPlaylist?.subscriber_id ?? selectedPlaylist?.client_id ?? ''})`
                       : userSubscriberId
                         ? `${(user as any)?.subscriberName || subscribers.find(s => s.subscriber_id === userSubscriberId)?.name || 'Subscriber'} (ID: ${userSubscriberId})`
                         : '—'
