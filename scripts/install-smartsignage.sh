@@ -754,9 +754,9 @@ parse_arguments() {
                 echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir (fluxo completo)"
                 echo "  --preserve-db        Preserva o banco de dados existente durante reinstalação"
                 echo "  --db-only            Reinstala APENAS o banco (drop + schema + seeds), sem rebuild de backend/frontend"
-                echo "  --backend-only       Faz apenas build do backend (deps + TypeScript), sem tocar no banco"
-                echo "  --frontend-only      Faz apenas build do frontend (deps + build React), sem tocar no banco"
-                echo "  --backfront-build    Faz build do backend e do frontend (deps + TypeScript + React), sem tocar no banco"
+                echo "  --backend-only       Apenas backend: parar serviço, npm install + tsc, iniciar backend (sem banco/Nginx/frontend)"
+                echo "  --frontend-only      Apenas frontend: parar Nginx, npm install + build React, reiniciar Nginx (sem banco/backend)"
+                echo "  --backfront-build    Build backend + frontend (deps + TypeScript + React), depois iniciar backend e Nginx (sem banco)"
                 echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt). Usa database/carga-inicial-v6.sql"
                 echo "  --no-seeds           Não carrega dados de demonstração"
                 echo "  --starttotem         Após instalar, abre 2 players web (/player) com UINs de totens demo para laboratório"
@@ -1900,6 +1900,44 @@ setup_project() {
     
     cd $INSTALL_DIR
     log "Projeto configurado em $INSTALL_DIR"
+}
+
+# Configuração mínima para --backend-only / --frontend-only: apenas define INSTALL_DIR,
+# carrega config se existir e verifica o diretório necessário. Não executa cópias,
+# correções de permissão em massa nem verificação de outros projetos.
+setup_project_build_only() {
+    log "Configuração mínima para build seletivo (sem banco, sem outros serviços)..."
+    if [[ -z "$SOURCE_DIR" ]]; then
+        detect_project_directory
+    fi
+    INSTALL_MODE="${INSTALL_MODE:-single-server}"
+    INSTALL_DIR="$SOURCE_DIR"
+    CONFIG_FILE="${INSTALL_DIR}/smartsignage-config"
+    if [[ -f "$CONFIG_FILE" ]]; then
+        load_system_config "$CONFIG_FILE" 2>/dev/null || true
+    fi
+    if [[ "$BACKEND_BUILD_ONLY" == "true" ]]; then
+        if [[ ! -d "$INSTALL_DIR/backend" ]]; then
+            error "❌ Diretório backend não encontrado em $INSTALL_DIR/backend"
+            exit 1
+        fi
+        log "✅ Backend em $INSTALL_DIR/backend"
+    fi
+    if [[ "$FRONTEND_BUILD_ONLY" == "true" ]]; then
+        if [[ ! -d "$INSTALL_DIR/frontend" ]]; then
+            error "❌ Diretório frontend não encontrado em $INSTALL_DIR/frontend"
+            exit 1
+        fi
+        log "✅ Frontend em $INSTALL_DIR/frontend"
+    fi
+    if [[ "$BACKFRONT_BUILD_ONLY" == "true" ]]; then
+        if [[ ! -d "$INSTALL_DIR/backend" ]] || [[ ! -d "$INSTALL_DIR/frontend" ]]; then
+            error "❌ Backend ou frontend não encontrado em $INSTALL_DIR"
+            exit 1
+        fi
+        log "✅ Backend e frontend em $INSTALL_DIR"
+    fi
+    cd "$INSTALL_DIR" || { error "❌ Não foi possível entrar em $INSTALL_DIR"; exit 1; }
 }
 
 # Instalar dependências do projeto
@@ -10498,15 +10536,10 @@ main() {
     fi
 
     # 2) Build APENAS do backend e/ou APENAS do frontend ou AMBOS
+    # --backend-only: só compilar (deps + tsc) e iniciar backend. Sem banco, Nginx, frontend.
+    # --frontend-only: só compilar (deps + build React) e reiniciar Nginx. Sem banco, backend.
     if [[ "$BACKEND_BUILD_ONLY" == "true" || "$FRONTEND_BUILD_ONLY" == "true" || "$BACKFRONT_BUILD_ONLY" == "true" ]]; then
         log "Modo especial: build seletivo (backend/frontend) sem tocar no banco..."
-
-        # Detectar diretório e carregar configurações básicas
-        detect_project_directory
-        if [[ -z "$INSTALL_MODE" ]]; then
-            INSTALL_MODE="single-server"
-        fi
-        setup_project
 
         if [[ "$INSTALL_MODE" == "docker" ]]; then
             error "❌ Modos --backend-only / --frontend-only / --backfront-build não são suportados para INSTALL_MODE=docker."
@@ -10514,8 +10547,15 @@ main() {
             exit 1
         fi
 
+        # Configuração mínima: só diretório e verificação do que será compilado (sem setup_project completo)
+        detect_project_directory
+        if [[ -z "$INSTALL_MODE" ]]; then
+            INSTALL_MODE="single-server"
+        fi
+        setup_project_build_only
+
         # =====================================================================
-        # 1. PARAR SERVIÇOS ANTES DO BUILD
+        # 1. PARAR SERVIÇOS ANTES DO BUILD (apenas o que será recompilado)
         # =====================================================================
         log "🛑 Parando serviços antes do build..."
         
