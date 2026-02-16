@@ -31,7 +31,7 @@ import { auditSystemUsers } from './middleware/auditSystemUsers.middleware';
 import { detectSubdomain, validateSubdomainAccess } from './middleware/subdomain.middleware';
 import { getLogger } from './config/logger';
 import { LogRotationService } from './services/logRotationService';
-import { logInfo, logError, logWarn, logInfoSync } from './utils/loggerHelper';
+import { logInfo, logError, logWarn, logInfoSync, logWarnSync } from './utils/loggerHelper';
 import { getWebSocketService } from './services/websocketService';
 import { APP_VERSION, APP_NAME, APP_DESCRIPTION } from './config/version';
 import fs from 'fs';
@@ -656,7 +656,18 @@ if (fs.existsSync(frontendBuildPath) && fs.existsSync(frontendIndexPath)) {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     const p = req.path || '';
     if (apiPathPrefixes.some(prefix => p === prefix || p.startsWith(prefix + '/'))) return next();
-    res.sendFile(frontendIndexPath);
+    // Verificar se arquivo existe antes de tentar servir
+    if (fs.existsSync(frontendIndexPath)) {
+      res.sendFile(frontendIndexPath, (err) => {
+        if (err) {
+          logError(`Erro ao servir index.html: ${err.message}`, err as Error, { path: req.path }).catch(() => {});
+          next();
+        }
+      });
+    } else {
+      logWarnSync(`Frontend index.html não encontrado em: ${frontendIndexPath}`, { path: req.path });
+      next();
+    }
   });
 }
 
