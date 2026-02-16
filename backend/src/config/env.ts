@@ -215,7 +215,9 @@ export const emailConfig = {
     from: getEnv('SMTP_FROM', 'Smart Signage <noreply@smartsignage.com>'),
     tlsRejectUnauthorized: getEnvBoolean('SMTP_TLS_REJECT_UNAUTHORIZED', true)
   },
-  frontendUrl: getEnv('FRONTEND_URL', 'http://localhost:3001')
+  frontendUrl: getEnv('FRONTEND_URL', 'http://localhost:3001'),
+  /** Diretório do build do frontend (para servir /static e SPA quando acessado via backend) */
+  frontendBuildPath: getEnv('FRONTEND_BUILD_PATH', '/opt/smart-signage/frontend/build')
 };
 
 /**

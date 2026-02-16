@@ -631,15 +631,33 @@ app.get('/player/config', async (_req, res) => {
   }
 });
 
-// Admin routes
-app.get('/admin', (_req, res) => {
-  res.sendFile('/opt/smart-signage/frontend/index.html');
-});
-
 // API Documentation
 if (config.server.isDevelopment) {
   const swaggerUi = require('swagger-ui-express');
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
+}
+
+// Servir frontend build quando acessado via backend (evita ChunkLoadError em /static/js/*)
+const defaultFrontendBuild = path.resolve(config.email?.frontendBuildPath || '/opt/smart-signage/frontend/build');
+const devFrontendBuild = path.join(process.cwd(), '..', 'frontend', 'build');
+const frontendBuildPath = fs.existsSync(defaultFrontendBuild)
+  ? defaultFrontendBuild
+  : path.resolve(devFrontendBuild);
+const frontendIndexPath = path.join(frontendBuildPath, 'index.html');
+const frontendStaticPath = path.join(frontendBuildPath, 'static');
+if (fs.existsSync(frontendBuildPath) && fs.existsSync(frontendIndexPath)) {
+  if (fs.existsSync(frontendStaticPath)) {
+    app.use('/static', express.static(frontendStaticPath));
+    logInfoSync(`[Static] Frontend /static servido de: ${frontendStaticPath}`);
+  }
+  app.use(express.static(frontendBuildPath, { index: false }));
+  const apiPathPrefixes = ['/api', '/health', '/player', '/ws', '/uploads', '/assets', '/api-docs', '/api-docs/'];
+  app.get('*', (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    const p = req.path || '';
+    if (apiPathPrefixes.some(prefix => p === prefix || p.startsWith(prefix + '/'))) return next();
+    res.sendFile(frontendIndexPath);
+  });
 }
 
 // 404 handler

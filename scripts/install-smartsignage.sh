@@ -5937,13 +5937,13 @@ test_endpoints() {
         )
         
     elif [[ "$INSTALL_MODE" == "single-server" ]]; then
-        # Endpoints para Single-Server (player usa /api/player-static/ para JS; /player/ serve o HTML)
+        # Endpoints para Single-Server: Nginx serve frontend e player na porta 80 (não 8080)
         ENDPOINTS=(
             ["Backend Health"]="http://$SERVER_IP:3000/health"
             ["Backend API"]="http://$SERVER_IP:3000/api/health"
             ["Player HTML (porta 80)"]="http://$SERVER_IP:80/player/"
             ["Player estáticos (backend)"]="http://127.0.0.1:3000/api/player-static/js/app.js"
-            ["Painel Admin (Porta 8080)"]="http://$SERVER_IP:8080"
+            ["Painel Admin (porta 80)"]="http://$SERVER_IP:80"
         )
         
     elif [[ "$INSTALL_MODE" == "development" ]]; then
@@ -6015,25 +6015,29 @@ test_endpoints() {
         fi
     fi
     
-    # 2) Health e OpenAPI
+    # 2) Health e OpenAPI (tentar SERVER_IP primeiro, depois 127.0.0.1 se firewall bloquear)
     log "===> 2) Health e OpenAPI"
-    if curl -fsS "$API/health" 2>/dev/null | jq . > /dev/null 2>&1; then
+    API_HEALTH="$API"
+    if ! curl -fsS --max-time 5 "$API/health" 2>/dev/null | jq . > /dev/null 2>&1; then
+        API_HEALTH="http://127.0.0.1:3000"
+    fi
+    if curl -fsS --max-time 5 "$API_HEALTH/health" 2>/dev/null | jq . > /dev/null 2>&1; then
         log "✅ Backend Health: OK"
-        curl -fsS "$API/health" 2>/dev/null | jq . || true
+        curl -fsS "$API_HEALTH/health" 2>/dev/null | jq . || true
     else
         warning "⚠️  Backend Health: Não respondeu"
     fi
     
-    if curl -fsS "$API/api/docs.json" 2>/dev/null | jq '.info,.paths | keys | length' > /dev/null 2>&1; then
+    if curl -fsS --max-time 5 "$API_HEALTH/api/docs.json" 2>/dev/null | jq '.info,.paths | keys | length' > /dev/null 2>&1; then
         log "✅ OpenAPI Docs: OK"
-        curl -fsS "$API/api/docs.json" 2>/dev/null | jq '.info,.paths | keys | length' || true
+        curl -fsS "$API_HEALTH/api/docs.json" 2>/dev/null | jq '.info,.paths | keys | length' || true
     else
         warning "⚠️  OpenAPI Docs: Não disponível"
     fi
     
-    # 3) Login admin e token
+    # 3) Login admin e token (usar mesmo base que respondeu no health)
     log "===> 3) Login admin e token"
-    TOKEN=$(curl -fsS -X POST "$API/api/auth/login" \
+    TOKEN=$(curl -fsS --max-time 10 -X POST "$API_HEALTH/api/auth/login" \
       -H "Content-Type: application/json" \
       -d '{"username":"admin","password":"admin123"}' 2>/dev/null | jq -r '.token' 2>/dev/null || echo "")
     if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
@@ -6045,7 +6049,7 @@ test_endpoints() {
     # 4) CRUD rápido - criar cliente e checar lista (apenas se token OK)
     if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
         log "===> 4) CRUD rápido - criar cliente e checar lista"
-        CLIENT_RESULT=$(curl -fsS -X POST "$API/api/clients" \
+        CLIENT_RESULT=$(curl -fsS -X POST "$API_HEALTH/api/clients" \
           -H "Authorization: Bearer $TOKEN" \
           -H "Content-Type: application/json" \
           -d '{"name":"Cliente Teste","email":"cliente@teste.com"}' 2>/dev/null | jq -r '.id,.name' 2>/dev/null || echo "")
@@ -6226,27 +6230,33 @@ validate_system_complete() {
     # Obter IP do servidor
     SERVER_IP=$(hostname -I | awk '{print $1}')
     API="http://$SERVER_IP:3000"
+    # Se backend não responder pelo IP (ex.: firewall), usar localhost para testes locais
+    if ! curl -fsS --max-time 3 "$API/health" > /dev/null 2>&1; then
+        API="http://127.0.0.1:3000"
+    fi
     
     # ============================================
     # 1. VALIDAÇÕES DE CONECTIVIDADE
     # ============================================
     log "===> 1. Validando Conectividade"
     
-    # Backend Health Check
+    # Backend Health Check (tentar SERVER_IP e depois 127.0.0.1)
     log "Testando Backend Health Check..."
     if curl -fsS --max-time 5 "$API/api/health/check" > /dev/null 2>&1 || \
        curl -fsS --max-time 5 "$API/api/health" > /dev/null 2>&1 || \
-       curl -fsS --max-time 5 "$API/health" > /dev/null 2>&1; then
-        test_result "Backend Health Check" true "URL: $API/api/health/check"
+       curl -fsS --max-time 5 "$API/health" > /dev/null 2>&1 || \
+       curl -fsS --max-time 5 "http://127.0.0.1:3000/health" > /dev/null 2>&1 || \
+       curl -fsS --max-time 5 "http://127.0.0.1:3000/api/health" > /dev/null 2>&1; then
+        test_result "Backend Health Check" true "URL: $API/health"
     else
         test_result "Backend Health Check" false "Nao foi possivel conectar a $API"
     fi
     
-    # Frontend
+    # Frontend (single-server: Nginx serve na porta 80, não 8080)
     if [[ "$INSTALL_MODE" == "docker" ]]; then
         FRONTEND_URL="http://$SERVER_IP:80"
     elif [[ "$INSTALL_MODE" == "single-server" ]]; then
-        FRONTEND_URL="http://$SERVER_IP:8080"
+        FRONTEND_URL="http://$SERVER_IP:80"
     else
         FRONTEND_URL="http://$SERVER_IP:3001"
     fi
@@ -6436,11 +6446,11 @@ validate_system_complete() {
         fi
     fi
     
-    # Verificar porta do frontend (depende do modo)
+    # Verificar porta do frontend (single-server: Nginx usa 80, não 8080)
     if [[ "$INSTALL_MODE" == "docker" ]]; then
         FRONTEND_PORT="80"
     elif [[ "$INSTALL_MODE" == "single-server" ]]; then
-        FRONTEND_PORT="8080"
+        FRONTEND_PORT="80"
     else
         FRONTEND_PORT="3001"
     fi
@@ -9068,7 +9078,7 @@ show_final_info() {
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
         echo -e "${GREEN}💡 DICA:${NC} ${YELLOW}Use o IP Externo para acesso remoto${NC}"
         echo -e "${GREEN}💡 DICA:${NC} ${YELLOW}Use o IP Local para acesso na rede interna${NC}"
-        echo -e "${YELLOW}⚠️  IMPORTANTE:${NC} ${RED}Configure firewall para permitir acesso às portas 80, 8080 e 3000${NC}"
+        echo -e "${YELLOW}⚠️  IMPORTANTE:${NC} ${RED}Configure firewall para permitir acesso às portas 80 e 3000${NC}"
     else
         echo -e "${YELLOW}⚠️  AVISO:${NC} ${RED}IP Externo não detectado. Configure firewall para acesso remoto.${NC}"
     fi
