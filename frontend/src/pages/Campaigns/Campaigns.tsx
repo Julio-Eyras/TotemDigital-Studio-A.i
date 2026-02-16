@@ -28,6 +28,7 @@ import {
   Autocomplete,
   Tabs,
   Tab,
+  Snackbar,
 } from '@mui/material';
 import {
   Add,
@@ -44,7 +45,7 @@ import {
   Error,
   VideoLibrary,
 } from '@mui/icons-material';
-import { campaignApi, Campaign, CreateCampaignRequest, UpdateCampaignRequest, clientApi, Client, playlistApi, PlaylistItem, playerApi, Player, publisherApi, Publisher, subscriberAccessApi, AccessiblePublisher, mediaApi, MediaItem } from '../../services/api';
+import { campaignApi, Campaign, CreateCampaignRequest, UpdateCampaignRequest, clientApi, Client, subscriberApi, Subscriber, playlistApi, PlaylistItem, playerApi, Player, publisherApi, Publisher, subscriberAccessApi, AccessiblePublisher, mediaApi, MediaItem } from '../../services/api';
 import { useAppSelector } from '../../store/hooks';
 import { useLocation } from 'react-router-dom';
 import { SortableList } from '../../components/SortableList/SortableList';
@@ -105,6 +106,7 @@ const Campaigns: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [error, setError] = useState<string | null>(null);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'success' });
 
   // Derivados para abas Totens/Smart TVs (impacto da seleção de publishers)
   const [derivedTotems, setDerivedTotems] = useState<any[]>([]);
@@ -289,10 +291,12 @@ const Campaigns: React.FC = () => {
 
   const loadClients = async () => {
     try {
-      const response = await clientApi.getAll();
-      setClients(response.data || []);
+      const response = await clientApi.getAll({ limit: 1000 });
+      const list = Array.isArray(response?.data) ? response.data : [];
+      setClients(list);
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
+      setClients([]);
     }
   };
 
@@ -366,10 +370,9 @@ const Campaigns: React.FC = () => {
       }
       
       const createdCampaign = await campaignApi.create(newCampaign as any);
-      // Evitar logs em produção
-      
       // Fechar diálogo e limpar formulário
       setCreateDialogOpen(false);
+      setSnackbar({ open: true, message: 'Campanha criada com sucesso!', severity: 'success' });
       setNewCampaign({
         title: '',
         categorySegment: '',
@@ -702,9 +705,14 @@ const Campaigns: React.FC = () => {
       )}
 
       {/* Create Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={createDialogOpen} onClose={() => { setCreateDialogOpen(false); setError(null); }} maxWidth="md" fullWidth>
         <DialogTitle>Criar Campanha</DialogTitle>
         <DialogContent>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
           <TextField
             fullWidth
             label="Título"
@@ -855,7 +863,7 @@ const Campaigns: React.FC = () => {
             options={playlists.filter(p => {
               // Filtrar playlists por subscriber da campanha
               const campaignSubscriberId = newCampaign.subscriberId;
-              return !campaignSubscriberId || (p.subscriber_id || p.subscriber_id) === campaignSubscriberId;
+              return !campaignSubscriberId || (p.subscriber_id ?? p.client_id) === campaignSubscriberId;
             })}
             getOptionLabel={(option) => option.name}
             value={playlists.filter(p => newCampaign.playlistIds?.includes(p.playlist_id))}
@@ -1207,7 +1215,7 @@ const Campaigns: React.FC = () => {
                   options={playlists.filter(p => {
                     const campaignSubscriberId = selectedCampaign?.subscriber_id || (selectedCampaign as any)?.subscriberId;
                     const isAlreadyAdded = orderedPlaylistIds.includes(p.playlist_id);
-                    return !isAlreadyAdded && (!campaignSubscriberId || (p.subscriber_id || p.subscriber_id) === campaignSubscriberId);
+                    return !isAlreadyAdded && (!campaignSubscriberId || (p.subscriber_id ?? p.client_id) === campaignSubscriberId);
                   })}
                   getOptionLabel={(option) => option.name}
                   value={[]}
@@ -1229,7 +1237,7 @@ const Campaigns: React.FC = () => {
                 multiple
                 options={playlists.filter(p => {
                   const campaignSubscriberId = selectedCampaign?.subscriber_id || (selectedCampaign as any)?.subscriberId;
-                  return !campaignSubscriberId || (p.subscriber_id || p.subscriber_id) === campaignSubscriberId;
+                  return !campaignSubscriberId || (p.subscriber_id ?? p.client_id) === campaignSubscriberId;
                 })}
                 getOptionLabel={(option) => option.name}
                 value={playlists.filter(p => (selectedCampaign?.playlistIds || []).includes(p.playlist_id))}
@@ -1282,7 +1290,7 @@ const Campaigns: React.FC = () => {
                   options={mediaItems.filter(m => {
                     const campaignSubscriberId = selectedCampaign?.subscriber_id || (selectedCampaign as any)?.subscriberId;
                     const isAlreadyAdded = orderedMediaIds.includes(m.media_id);
-                    return !isAlreadyAdded && (!campaignSubscriberId || (m.subscriberId || m.subscriberId) === campaignSubscriberId);
+                    return !isAlreadyAdded && (!campaignSubscriberId || (m.subscriberId ?? m.clientId) === campaignSubscriberId);
                   })}
                   getOptionLabel={(option) => option.name}
                   value={[]}
@@ -1484,6 +1492,16 @@ const Campaigns: React.FC = () => {
           setEditDialogOpen(true);
         }}
       />
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

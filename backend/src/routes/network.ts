@@ -11,6 +11,7 @@ import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { successResponse, errorResponse } from '../utils/apiResponse';
+import { normalizeDownloadUrl } from '../utils/pathHelper';
 
 const router = Router();
 
@@ -328,27 +329,40 @@ function daysOfWeekToNumbers(daysJson: string | null): number[] | undefined {
  */
 router.get('/graph',
   authMiddleware as any,
-  authorizeRole(['admin', 'admin_sql', 'operador_tecnico', 'operator']),
+  authorizeRole(['admin', 'admin_sql', 'operador_tecnico', 'operator', 'manager']),
   async (req: AuthenticatedRequest, res: Response) => {
+    let db;
     try {
-      const db = getDatabase();
-      const dayOfWeek = req.query.dayOfWeek != null ? parseInt(String(req.query.dayOfWeek), 10) : undefined;
-      const time = typeof req.query.time === 'string' ? req.query.time : undefined;
+      db = getDatabase();
+    } catch (dbErr: any) {
+      await logError('Erro ao obter conexão DB no graph', dbErr);
+      return res.status(500).json(errorResponse('Banco de dados não disponível', dbErr.message));
+    }
+    const dayOfWeek = req.query.dayOfWeek != null ? parseInt(String(req.query.dayOfWeek), 10) : undefined;
+    const time = typeof req.query.time === 'string' ? req.query.time : undefined;
+    const warnings: string[] = [];
 
+    try {
       // 1) Publishers (topologia: publishers → locals → totems → smart_tvs), IDs como string
-      const rows = await db.findMany(`
-        SELECT
-          p.publisher_id, p.name AS publisher_name,
-          l.local_id, l.name AS local_name, l.address AS local_address,
-          t.totem_id, t.identifier AS totem_identifier, t.name AS totem_name,
-          st.smart_tv_id, st.identifier AS smart_tv_identifier, st.name AS smart_tv_name
-        FROM publishers p
-        LEFT JOIN locals l ON l.publisher_id = p.publisher_id AND COALESCE(l.is_active, true) = true
-        LEFT JOIN totems t ON t.local_id = l.local_id AND COALESCE(t.is_active, true) = true
-        LEFT JOIN smart_tvs st ON st.totem_id = t.totem_id AND COALESCE(st.is_active, true) = true
-        WHERE p.is_publisher = true AND p.is_subscriber = false AND COALESCE(p.is_active, true) = true
-        ORDER BY p.name NULLS LAST, l.name NULLS LAST, t.identifier NULLS LAST, st.identifier NULLS LAST
-      `);
+      let rows: any[] = [];
+      try {
+        rows = await db.findMany(`
+          SELECT
+            p.publisher_id, p.name AS publisher_name,
+            l.local_id, l.name AS local_name, l.address AS local_address,
+            t.totem_id, t.identifier AS totem_identifier, t.name AS totem_name,
+            st.smart_tv_id, st.identifier AS smart_tv_identifier, st.name AS smart_tv_name
+          FROM publishers p
+          LEFT JOIN locals l ON l.publisher_id = p.publisher_id AND COALESCE(l.is_active, true) = true
+          LEFT JOIN totems t ON t.local_id = l.local_id AND COALESCE(t.is_active, true) = true
+          LEFT JOIN smart_tvs st ON st.totem_id = t.totem_id AND COALESCE(st.is_active, true) = true
+          WHERE p.is_publisher = true AND p.is_subscriber = false AND COALESCE(p.is_active, true) = true
+          ORDER BY p.name NULLS LAST, l.name NULLS LAST, t.identifier NULLS LAST, st.identifier NULLS LAST
+        `);
+      } catch (pubErr: any) {
+        await logError('Erro ao carregar publishers no graph', pubErr);
+        warnings.push(`publishers: ${pubErr.message}`);
+      }
 
       const publishersMap = new Map<number, any>();
       const localsMap = new Map<string, any>();
@@ -395,117 +409,145 @@ router.get('/graph',
       const publishers = Array.from(publishersMap.values());
 
       // 2) Subscribers com media, playlists, campaigns (IDs como string)
-      const subRows = await db.findMany(`
-        SELECT subscriber_id, name FROM subscribers WHERE COALESCE(is_active, true) = true
-      `);
-      const subscribers: any[] = [];
-      for (const s of subRows) {
-        const subId = s.subscriber_id;
-        const medias = await db.findMany(`
-          SELECT media_id AS id, subscriber_id AS subscriberId, name, media_type AS type, file_url AS url
-          FROM medias WHERE subscriber_id = $1 AND COALESCE(is_active, true) = true
-        `, [subId]);
-        const playlists = await db.findMany(`
-          SELECT p.playlist_id AS id, p.subscriber_id AS subscriberId, p.name
-          FROM playlists p WHERE p.subscriber_id = $1 AND COALESCE(p.is_active, true) = true
-        `, [subId]);
-        for (const pl of playlists) {
-          const items = await db.findMany(`SELECT media_id FROM playlist_items WHERE playlist_id = $1 AND COALESCE(is_active, true) = true`, [pl.id]);
-          (pl as any).mediaIds = items.map((i: any) => String(i.media_id));
+      let subscribers: any[] = [];
+      try {
+        const subRows = await db.findMany(`
+          SELECT subscriber_id, name FROM subscribers WHERE COALESCE(is_active, true) = true
+        `);
+        for (const s of subRows) {
+          try {
+            const subId = s.subscriber_id;
+            const medias = await db.findMany(`
+              SELECT media_id AS id, subscriber_id AS subscriberId, name, media_type AS type, file_path AS url
+              FROM medias WHERE subscriber_id = $1 AND COALESCE(is_active, true) = true
+            `, [subId]);
+            const playlists = await db.findMany(`
+              SELECT p.playlist_id AS id, p.subscriber_id AS subscriberId, p.name
+              FROM playlists p WHERE p.subscriber_id = $1 AND COALESCE(p.is_active, true) = true
+            `, [subId]);
+            for (const pl of playlists) {
+              const items = await db.findMany(`SELECT media_id FROM playlist_items WHERE playlist_id = $1 AND COALESCE(is_active, true) = true`, [pl.id]);
+              (pl as any).mediaIds = items.map((i: any) => String(i.media_id));
+            }
+            const campaigns = await db.findMany(`
+              SELECT c.campaign_id AS id, c.subscriber_id AS subscriberId, c.title AS name
+              FROM campaigns c WHERE c.subscriber_id = $1 AND COALESCE(c.is_active, true) = true
+            `, [subId]);
+            for (const c of campaigns) {
+              const cpl = await db.findMany(`SELECT playlist_id FROM campaign_playlists WHERE campaign_id = $1 AND COALESCE(is_active, true) = true`, [c.id]);
+              (c as any).playlistIds = cpl.map((x: any) => String(x.playlist_id));
+            }
+            subscribers.push({
+              id: String(subId),
+              name: s.name || '',
+              media: medias.map((m: any) => ({ id: String(m.id), subscriberId: String(m.subscriberId), name: m.name, type: m.type, url: normalizeDownloadUrl(m.url) || m.url })),
+              playlists: playlists.map((p: any) => ({ id: String(p.id), subscriberId: String(p.subscriberId), name: p.name, mediaIds: (p as any).mediaIds })),
+              campaigns: campaigns.map((c: any) => ({ id: String(c.id), subscriberId: String(c.subscriberId), name: c.name, playlistIds: (c as any).playlistIds }))
+            });
+          } catch (subErr: any) {
+            await logError('Erro ao processar subscriber no graph', subErr, { subscriberId: s.subscriber_id });
+            warnings.push(`subscriber ${s.subscriber_id}: ${subErr.message}`);
+          }
         }
-        const campaigns = await db.findMany(`
-          SELECT c.campaign_id AS id, c.subscriber_id AS subscriberId, c.title AS name
-          FROM campaigns c WHERE c.subscriber_id = $1 AND COALESCE(c.is_active, true) = true
-        `, [subId]);
-        for (const c of campaigns) {
-          const cpl = await db.findMany(`SELECT playlist_id FROM campaign_playlists WHERE campaign_id = $1 AND COALESCE(is_active, true) = true`, [c.id]);
-          (c as any).playlistIds = cpl.map((x: any) => String(x.playlist_id));
-        }
-        subscribers.push({
-          id: String(subId),
-          name: s.name || '',
-          media: medias.map((m: any) => ({ id: String(m.id), subscriberId: String(m.subscriberId), name: m.name, type: m.type, url: m.url })),
-          playlists: playlists.map((p: any) => ({ id: String(p.id), subscriberId: String(p.subscriberId), name: p.name, mediaIds: (p as any).mediaIds })),
-          campaigns: campaigns.map((c: any) => ({ id: String(c.id), subscriberId: String(c.subscriberId), name: c.name, playlistIds: (c as any).playlistIds }))
-        });
+      } catch (subErr: any) {
+        await logError('Erro ao listar subscribers no graph', subErr);
+        warnings.push(`subscribers: ${subErr.message}`);
       }
 
       // 3) Schedule assignments: campaign_totems, campaign_publishers, campaign_locals
-      const scheduleAssignments: Array<{ id: string; sourceId: string; sourceType: 'campaign'; slots: Array<{ targetId: string; targetType: 'publisher' | 'location' | 'totem' | 'smarttv'; dayOfWeek?: number[]; startTime?: string; endTime?: string }> }> = [];
-
-      const ctRows = await db.findMany(`
-        SELECT ct.campaign_id, ct.totem_id, ct.start_time, ct.end_time, ct.days_of_week
-        FROM campaign_totems ct
-        JOIN campaigns c ON c.campaign_id = ct.campaign_id AND COALESCE(c.is_active, true) = true
-        WHERE COALESCE(ct.is_active, true) = true
-      `);
-      let cpRows: Array<{ campaign_id: number; publisher_id: number }> = [];
-      let clRows: Array<{ campaign_id: number; local_id: number }> = [];
+      let scheduleAssignments: Array<{ id: string; sourceId: string; sourceType: 'campaign'; slots: Array<{ targetId: string; targetType: 'publisher' | 'location' | 'totem' | 'smarttv'; dayOfWeek?: number[]; startTime?: string; endTime?: string }> }> = [];
       try {
-        cpRows = await db.findMany(`SELECT campaign_id, publisher_id FROM campaign_publishers WHERE COALESCE(is_active, true) = true`);
-      } catch {
-        cpRows = [];
-      }
-      try {
-        clRows = await db.findMany(`SELECT campaign_id, local_id FROM campaign_locals WHERE COALESCE(is_active, true) = true`);
-      } catch {
-        clRows = [];
-      }
-
-      const campaignIds = new Set<number>([
-        ...ctRows.map((r: { campaign_id: number }) => r.campaign_id),
-        ...cpRows.map((r: { campaign_id: number }) => r.campaign_id),
-        ...clRows.map((r: { campaign_id: number }) => r.campaign_id)
-      ]);
-      for (const cid of campaignIds) {
-        const totemSlots = ctRows
-          .filter((r: { campaign_id: number }) => r.campaign_id === cid)
-          .map((r: { totem_id: number; start_time?: string; end_time?: string; days_of_week?: string | string[] }) => ({
-            targetId: String(r.totem_id),
-            targetType: 'totem' as const,
-            dayOfWeek: daysOfWeekToNumbers(r.days_of_week == null ? null : typeof r.days_of_week === 'string' ? r.days_of_week : JSON.stringify(r.days_of_week)),
-            startTime: r.start_time || undefined,
-            endTime: r.end_time || undefined
-          }));
-        const pubSlots = cpRows
-          .filter((r: { campaign_id: number }) => r.campaign_id === cid)
-          .map((r: { publisher_id: number }) => ({
-            targetId: String(r.publisher_id),
-            targetType: 'publisher' as const,
-            dayOfWeek: undefined as number[] | undefined,
-            startTime: undefined as string | undefined,
-            endTime: undefined as string | undefined
-          }));
-        const locSlots = clRows
-          .filter((r: { campaign_id: number }) => r.campaign_id === cid)
-          .map((r: { local_id: number }) => ({
-            targetId: String(r.local_id),
-            targetType: 'location' as const,
-            dayOfWeek: undefined as number[] | undefined,
-            startTime: undefined as string | undefined,
-            endTime: undefined as string | undefined
-          }));
-        const slots = [...totemSlots, ...pubSlots, ...locSlots];
-        if (slots.length > 0) {
-          scheduleAssignments.push({
-            id: `campaign-${cid}`,
-            sourceId: String(cid),
-            sourceType: 'campaign',
-            slots
-          });
+        let ctRows: Array<{ campaign_id: number; totem_id: number; start_time?: string; end_time?: string; days_of_week?: string | string[] }> = [];
+        try {
+          ctRows = await db.findMany(`
+            SELECT ct.campaign_id, ct.totem_id, ct.start_time, ct.end_time, ct.days_of_week
+            FROM campaign_totems ct
+            JOIN campaigns c ON c.campaign_id = ct.campaign_id AND COALESCE(c.is_active, true) = true
+            WHERE COALESCE(ct.is_active, true) = true
+          `);
+        } catch {
+          ctRows = [];
         }
+        let cpRows: Array<{ campaign_id: number; publisher_id: number }> = [];
+        let clRows: Array<{ campaign_id: number; local_id: number }> = [];
+        try {
+          cpRows = await db.findMany(`SELECT campaign_id, publisher_id FROM campaign_publishers WHERE COALESCE(is_active, true) = true`);
+        } catch {
+          cpRows = [];
+        }
+        try {
+          clRows = await db.findMany(`SELECT campaign_id, local_id FROM campaign_locals WHERE COALESCE(is_active, true) = true`);
+        } catch {
+          clRows = [];
+        }
+
+        const campaignIds = new Set<number>([
+          ...ctRows.map((r: { campaign_id: number }) => r.campaign_id),
+          ...cpRows.map((r: { campaign_id: number }) => r.campaign_id),
+          ...clRows.map((r: { campaign_id: number }) => r.campaign_id)
+        ]);
+        for (const cid of campaignIds) {
+          const totemSlots = ctRows
+            .filter((r: { campaign_id: number }) => r.campaign_id === cid)
+            .map((r: { totem_id: number; start_time?: string; end_time?: string; days_of_week?: string | string[] }) => ({
+              targetId: String(r.totem_id),
+              targetType: 'totem' as const,
+              dayOfWeek: daysOfWeekToNumbers(r.days_of_week == null ? null : typeof r.days_of_week === 'string' ? r.days_of_week : JSON.stringify(r.days_of_week)),
+              startTime: r.start_time || undefined,
+              endTime: r.end_time || undefined
+            }));
+          const pubSlots = cpRows
+            .filter((r: { campaign_id: number }) => r.campaign_id === cid)
+            .map((r: { publisher_id: number }) => ({
+              targetId: String(r.publisher_id),
+              targetType: 'publisher' as const,
+              dayOfWeek: undefined as number[] | undefined,
+              startTime: undefined as string | undefined,
+              endTime: undefined as string | undefined
+            }));
+          const locSlots = clRows
+            .filter((r: { campaign_id: number }) => r.campaign_id === cid)
+            .map((r: { local_id: number }) => ({
+              targetId: String(r.local_id),
+              targetType: 'location' as const,
+              dayOfWeek: undefined as number[] | undefined,
+              startTime: undefined as string | undefined,
+              endTime: undefined as string | undefined
+            }));
+          const slots = [...totemSlots, ...pubSlots, ...locSlots];
+          if (slots.length > 0) {
+            scheduleAssignments.push({
+              id: `campaign-${cid}`,
+              sourceId: String(cid),
+              sourceType: 'campaign',
+              slots
+            });
+          }
+        }
+      } catch (schedErr: any) {
+        await logError('Erro ao obter schedule assignments no graph', schedErr);
+        warnings.push(`scheduleAssignments: ${schedErr.message}`);
       }
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         publishers,
         subscribers,
         scheduleAssignments,
         queryFilters: { dayOfWeek, time }
       };
+      if (warnings.length > 0) {
+        payload.warnings = warnings;
+      }
       return res.json(successResponse(payload));
     } catch (error: any) {
       await logError('Erro ao obter grafo da rede', error);
-      return res.status(500).json(errorResponse('Erro ao obter grafo da rede', error.message));
+      const msg = error?.message || String(error);
+      const isDev = process.env.NODE_ENV !== 'production';
+      return res.status(500).json(errorResponse(
+        'Erro ao obter grafo da rede',
+        msg,
+        isDev ? { stack: error?.stack } : undefined
+      ));
     }
   }
 );

@@ -188,6 +188,7 @@ export class PlaylistService {
         GROUP BY 
           p.playlist_id, 
           p.name, 
+          p.category_segment,
           p.description, 
           p.subscriber_id, 
           COALESCE(p.is_active, true),
@@ -252,6 +253,7 @@ export class PlaylistService {
         GROUP BY 
           p.playlist_id, 
           p.name, 
+          p.category_segment,
           p.description, 
           p.subscriber_id, 
           COALESCE(p.is_active, true),

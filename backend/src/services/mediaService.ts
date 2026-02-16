@@ -209,7 +209,7 @@ export class MediaService {
       }
 
       if (filters.mediaType) {
-        whereClause += ' AND m.media_type = $' + (params.length + 1);
+        whereClause += ' AND LOWER(m.media_type) = LOWER($' + (params.length + 1) + ')';
         params.push(filters.mediaType);
       }
 
@@ -1213,25 +1213,27 @@ export class MediaService {
 
   /**
    * Busca estatísticas de armazenamento
+   * Schema v2: tabela medias com file_size_bytes
    */
   async getStorageStats(): Promise<any> {
     try {
       const stats = await this.db.findFirst(`
         SELECT
-          COUNT(*) as totalFiles,
-          SUM(size) as totalSize,
-          AVG(size) as averageSize,
-          MAX(size) as maxSize,
-          MIN(size) as minSize
-        FROM media
+          COUNT(*)::bigint as totalFiles,
+          COALESCE(SUM(file_size_bytes), 0)::bigint as totalSize,
+          COALESCE(AVG(file_size_bytes), 0)::double precision as averageSize,
+          COALESCE(MAX(file_size_bytes), 0)::bigint as maxSize,
+          COALESCE(MIN(file_size_bytes), 0)::bigint as minSize
+        FROM medias
+        WHERE COALESCE(is_active, true) = true
       `);
 
       return {
-        totalFiles: stats.totalFiles || 0,
-        totalSize: stats.totalSize || 0,
-        averageSize: stats.averageSize || 0,
-        maxSize: stats.maxSize || 0,
-        minSize: stats.minSize || 0
+        totalFiles: Number(stats?.totalFiles || 0),
+        totalSize: Number(stats?.totalSize || 0),
+        averageSize: Number(stats?.averageSize || 0),
+        maxSize: Number(stats?.maxSize || 0),
+        minSize: Number(stats?.minSize || 0)
       };
     } catch (error: any) {
       await logError('Erro ao buscar estatísticas de armazenamento', error);
@@ -1328,25 +1330,24 @@ export class MediaService {
 
   /**
    * Busca mídia por tags
+   * PostgreSQL: tags é TEXT[], usa operador && para overlap ou ILIKE em unnest
    */
   async getMediaByTags(tags: string[], subscriberId?: number): Promise<MediaResponse[]> {
     try {
-      let whereClause = 'WHERE 1=1';
+      let whereClause = 'WHERE COALESCE(m.is_active, true) = true';
       const params: any[] = [];
+      let paramIndex = 1;
 
       if (subscriberId) {
-        whereClause += ' AND m.subscriber_id = ?';
+        whereClause += ` AND m.subscriber_id = $${paramIndex++}`;
         params.push(subscriberId);
       }
 
-      // Buscar mídia que contenha qualquer uma das tags
-      const tagConditions = tags.map(() => 'm.tags LIKE ?').join(' OR ');
-      whereClause += ` AND (${tagConditions})`;
-
-      // Adicionar parâmetros para cada tag
-      tags.forEach(tag => {
-        params.push(`%"${tag}"%`);
-      });
+      // Buscar mídia que contenha qualquer uma das tags (PostgreSQL TEXT[] overlap)
+      if (tags.length > 0) {
+        whereClause += ` AND m.tags && $${paramIndex++}::text[]`;
+        params.push(tags);
+      }
 
       const media = await this.db.findMany(`
         SELECT 

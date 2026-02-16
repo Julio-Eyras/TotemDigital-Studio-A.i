@@ -203,9 +203,28 @@ app.use(validatePayloadSize()); // Usa valor de securityConfig.maxPayloadSize
 // Rate limiting - aplicar limiter genérico em todas as rotas API
 app.use('/api/', apiLimiter);
 
-// Static files
-app.use('/assets', express.static('/opt/smart-signage/public/assets'));
-app.use('/uploads', express.static('/opt/smart-signage/public/assets/uploads'));
+// Static files (assets e uploads) – usar caminho configurável para dev/prod
+const defaultAssetsBase = '/opt/smart-signage/public/assets';
+const assetsBase = process.env.ASSETS_BASE_PATH
+  ? path.resolve(process.env.ASSETS_BASE_PATH)
+  : fs.existsSync(defaultAssetsBase)
+    ? defaultAssetsBase
+    : path.join(process.cwd(), 'public', 'assets');
+const uploadsPath = path.join(assetsBase, 'uploads');
+if (assetsBase) {
+  app.use('/assets', express.static(assetsBase));
+  if (fs.existsSync(uploadsPath)) {
+    app.use('/uploads', express.static(uploadsPath));
+  } else {
+    try {
+      fs.mkdirSync(uploadsPath, { recursive: true });
+      app.use('/uploads', express.static(uploadsPath));
+    } catch {
+      logInfoSync(`[Static] Pasta uploads não encontrada: ${uploadsPath} (crie para servir mídias estáticas)`);
+    }
+  }
+  logInfoSync(`[Static] Servindo assets em /assets a partir de: ${assetsBase}`);
+}
 
 // =============================================
 // ROUTES

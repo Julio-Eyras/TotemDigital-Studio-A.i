@@ -244,6 +244,13 @@ const Playlists: React.FC = () => {
     setSelectedPlaylist(pl);
     setEditorOpen(true);
 
+    // Buscar playlist por ID para garantir subscriber_name e dados completos
+    try {
+      const full = await playlistApi.getById(pl.playlist_id);
+      if (full) setSelectedPlaylist({ ...pl, ...full, subscriber_name: full.subscriber_name ?? full.subscribername ?? pl.subscriber_name ?? (pl as any).subscribername });
+    } catch {
+      // Manter pl se a busca falhar
+    }
     await loadPlaylistMedia(pl.playlist_id);
     await loadPlaylistCampaigns(pl.playlist_id);
     await loadPlaylistExposure(pl.playlist_id);
@@ -564,9 +571,11 @@ const Playlists: React.FC = () => {
                   margin="normal"
                   label="Subscriber (Anunciante)"
                   value={
-                    userSubscriberId
-                      ? `${(user as any)?.subscriberName || 'Subscriber'} (ID: ${userSubscriberId})`
-                      : '—'
+                    (editorMode === 'edit' && (selectedPlaylist?.subscriber_name || (selectedPlaylist as any)?.subscribername))
+                      ? `${(selectedPlaylist as any).subscriber_name || (selectedPlaylist as any).subscribername} (ID: ${selectedPlaylist.subscriber_id || selectedPlaylist.client_id || ''})`
+                      : userSubscriberId
+                        ? `${(user as any)?.subscriberName || subscribers.find(s => s.subscriber_id === userSubscriberId)?.name || 'Subscriber'} (ID: ${userSubscriberId})`
+                        : '—'
                   }
                   disabled
                   helperText="Campo fixo: esta playlist pertence ao subscriber do usuário logado."

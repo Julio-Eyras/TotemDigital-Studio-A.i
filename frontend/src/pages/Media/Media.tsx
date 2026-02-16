@@ -70,6 +70,7 @@ const Media: React.FC = () => {
   // Cache de thumbnails autorizados (Blob URLs) para evitar 401 em <img src="/api/...">
   const thumbObjectUrlsRef = useRef<Map<number, string>>(new Map());
   const [thumbVersion, setThumbVersion] = useState(0); // força rerender quando adicionamos um blob url
+  const [videoLoadFailed, setVideoLoadFailed] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     // Verificar se é admin e carregar subscribers
@@ -241,9 +242,37 @@ const Media: React.FC = () => {
     loadMediaItems();
   };
 
+  const [editForm, setEditForm] = useState<{ name: string; description: string; tags: string[]; status: string } | null>(null);
+
   const handleEditMedia = (media: MediaItem) => {
     setSelectedMedia(media);
+    setEditForm({
+      name: media.name || '',
+      description: media.description || '',
+      tags: Array.isArray(media.tags) ? [...media.tags] : (media.tags ? String(media.tags).split(',').map((t: string) => t.trim()).filter(Boolean) : []),
+      status: media.status || 'draft',
+    });
     setEditDialogOpen(true);
+  };
+
+  const handleSaveMedia = async () => {
+    if (!selectedMedia || !editForm) return;
+    try {
+      setError(null);
+      await mediaApi.update(selectedMedia.media_id, {
+        name: editForm.name,
+        description: editForm.description || undefined,
+        tags: editForm.tags,
+        status: editForm.status,
+      });
+      setEditDialogOpen(false);
+      setSelectedMedia(null);
+      setEditForm(null);
+      loadMediaItems();
+    } catch (e: any) {
+      console.error('Erro ao atualizar mídia:', e);
+      setError(e?.response?.data?.message || e?.message || 'Erro ao atualizar mídia');
+    }
   };
 
   const handleDeleteMedia = async (id: number) => {
@@ -419,18 +448,60 @@ const Media: React.FC = () => {
                 {(() => {
                   // Construir URL do preview/thumbnail
                   let previewUrl = getPreviewSrc(media);
-                  
-                  // Fallback seguro: usar file_path APENAS se for um caminho público servido pelo backend (/assets|/uploads).
-                  // Isso evita 404 quando o seed usa /media/... (paths demo).
-                  if (!previewUrl) {
+                  const isVideo = /^video$/i.test(String(media.media_type || ''));
+
+                  // Para imagens: fallback em file_path público quando disponível.
+                  // Para vídeos: NUNCA usar /assets/ como video src (404 em dev); preferir thumbnail (blob) ou ícone.
+                  if (!previewUrl && !isVideo) {
                     previewUrl = normalizePublicAssetUrlFromFilePath(media.file_path);
+                  } else if (!previewUrl && isVideo) {
+                    // Vídeo sem blob: mostrar ícone; não usar /assets/ (geralmente 404)
+                    previewUrl = undefined;
                   }
-                  
-                  // Debug removido: evitar poluir console
 
                   const finalPreviewUrl = previewUrl;
+                  // Blob URLs (thumbnail) são imagens; só usar <video> para URLs de vídeo (.mp4 etc)
+                  const isVideoUrl = isVideo && /\.(mp4|webm|ogg|mov)(\?|$)/i.test(finalPreviewUrl || '');
 
                   if (finalPreviewUrl) {
+                    const mediaId = media.media_id || media.id;
+                    const videoFailed = typeof mediaId === 'number' && videoLoadFailed.has(mediaId);
+                    // Vídeos com URL de arquivo: usar <video>; com blob (thumbnail): usar <img>
+                    // Se vídeo falhou ao carregar (404 em /assets/...), mostrar ícone
+                    if (isVideoUrl && videoFailed) {
+                      return (
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
+                          <Avatar sx={{ width: 80, height: 80, backgroundColor: alpha(getMediaTypeColor(media.media_type), 0.1), color: getMediaTypeColor(media.media_type) }}>
+                            {getMediaIcon(media.media_type)}
+                          </Avatar>
+                        </Box>
+                      );
+                    }
+                    if (isVideoUrl && !videoFailed) {
+                      return (
+                        <Box
+                          component="video"
+                          key={`${mediaId}-${thumbVersion}`}
+                          src={finalPreviewUrl}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          sx={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                          }}
+                          onError={() => {
+                            if (typeof mediaId === 'number') {
+                              setVideoLoadFailed((prev) => new Set(prev).add(mediaId));
+                            }
+                          }}
+                        />
+                      );
+                    }
                     return (
                       <>
                         <Box
@@ -447,7 +518,6 @@ const Media: React.FC = () => {
                             left: 0,
                           }}
                           onError={(e: any) => {
-                            // Se a imagem falhar ao carregar, ocultar e mostrar apenas o ícone
                             e.target.style.display = 'none';
                           }}
                         />
@@ -546,7 +616,7 @@ const Media: React.FC = () => {
                         fontWeight: 'bold'
                       }}
                     >
-                      {formatFileSize(media.size_bytes)}
+                      {formatFileSize(media.size_bytes ?? media.fileSizeBytes)}
                     </Typography>
                     {media.duration_seconds && (
                       <Typography 
@@ -701,56 +771,73 @@ const Media: React.FC = () => {
       />
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={editDialogOpen} onClose={() => { setEditDialogOpen(false); setEditForm(null); setError(null); }} maxWidth="sm" fullWidth>
         <DialogTitle>Editar Mídia</DialogTitle>
         <DialogContent>
-          <TextField
-            fullWidth
-            label="Nome"
-            defaultValue={selectedMedia?.name}
-            margin="normal"
-          />
-          <TextField
-            fullWidth
-            label="Descrição"
-            defaultValue={selectedMedia?.description}
-            margin="normal"
-            multiline
-            rows={3}
-          />
-          <TextField
-            fullWidth
-            label="Tags (separadas por vírgula)"
-            defaultValue={selectedMedia?.tags?.join(', ')}
-            margin="normal"
-            placeholder="tag1, tag2, tag3"
-          />
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Status</InputLabel>
-            <Select
-              defaultValue={selectedMedia?.status || 'draft'}
-              label="Status"
-            >
-              <MenuItem value="draft">Rascunho</MenuItem>
-              <MenuItem value="pending_approval">Aguardando Aprovação</MenuItem>
-              <MenuItem value="approved">Aprovado</MenuItem>
-              <MenuItem value="rejected">Rejeitado</MenuItem>
-              <MenuItem value="archived">Arquivado</MenuItem>
-            </Select>
-          </FormControl>
-          {selectedMedia?.subscriberName && (
-            <TextField
-              fullWidth
-              label="Subscriber"
-              value={selectedMedia.subscriberName}
-              margin="normal"
-              disabled
-            />
+          {editForm && (
+            <>
+              <TextField
+                fullWidth
+                label="Nome"
+                value={editForm.name}
+                onChange={(e) => setEditForm((prev) => prev ? { ...prev, name: e.target.value } : null)}
+                margin="normal"
+                required
+              />
+              <TextField
+                fullWidth
+                label="Descrição"
+                value={editForm.description}
+                onChange={(e) => setEditForm((prev) => prev ? { ...prev, description: e.target.value } : null)}
+                margin="normal"
+                multiline
+                rows={3}
+              />
+              <TextField
+                fullWidth
+                label="Tags (separadas por vírgula)"
+                value={editForm.tags.join(', ')}
+                onChange={(e) =>
+                  setEditForm((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          tags: e.target.value
+                            .split(',')
+                            .map((t) => t.trim())
+                            .filter(Boolean),
+                        }
+                      : null
+                  )
+                }
+                margin="normal"
+                placeholder="tag1, tag2, tag3"
+              />
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((prev) => (prev ? { ...prev, status: e.target.value } : null))}
+                  label="Status"
+                >
+                  <MenuItem value="draft">Rascunho</MenuItem>
+                  <MenuItem value="pending_approval">Aguardando Aprovação</MenuItem>
+                  <MenuItem value="approved">Aprovado</MenuItem>
+                  <MenuItem value="rejected">Rejeitado</MenuItem>
+                  <MenuItem value="archived">Arquivado</MenuItem>
+                </Select>
+              </FormControl>
+              {selectedMedia?.subscriberName && (
+                <TextField fullWidth label="Subscriber" value={selectedMedia.subscriberName} margin="normal" disabled />
+              )}
+            </>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
-          <Button variant="contained">Salvar</Button>
+          <Button onClick={() => { setEditDialogOpen(false); setEditForm(null); }}>Cancelar</Button>
+          <Button variant="contained" onClick={handleSaveMedia} disabled={!editForm?.name?.trim()}>
+            Salvar
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
