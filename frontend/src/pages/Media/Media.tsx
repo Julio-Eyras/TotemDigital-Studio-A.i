@@ -259,19 +259,35 @@ const Media: React.FC = () => {
     if (!selectedMedia || !editForm) return;
     try {
       setError(null);
-      await mediaApi.update(selectedMedia.media_id, {
+      
+      // Preparar dados de atualização
+      const updateData: any = {
         name: editForm.name,
         description: editForm.description || undefined,
-        tags: editForm.tags,
+        // Converter array de tags para string (backend espera string no validator, mas processa como array)
+        tags: Array.isArray(editForm.tags) && editForm.tags.length > 0 
+          ? editForm.tags.join(',') 
+          : undefined,
         status: editForm.status,
-      });
+      };
+      
+      // Se o status for "approved", também atualizar approvalStatus
+      if (editForm.status === 'approved') {
+        updateData.approvalStatus = 'approved';
+      } else if (editForm.status === 'rejected') {
+        updateData.approvalStatus = 'rejected';
+      } else if (editForm.status === 'pending_approval') {
+        updateData.approvalStatus = 'pending';
+      }
+      
+      await mediaApi.update(selectedMedia.media_id, updateData);
       setEditDialogOpen(false);
       setSelectedMedia(null);
       setEditForm(null);
       loadMediaItems();
     } catch (e: any) {
       console.error('Erro ao atualizar mídia:', e);
-      setError(e?.response?.data?.message || e?.message || 'Erro ao atualizar mídia');
+      setError(e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Erro ao atualizar mídia');
     }
   };
 
