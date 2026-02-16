@@ -14,7 +14,11 @@
 -- =============================================
 
 -- =============================================
--- LIMPEZA ANTES DA CARGA (mantém `users`)
+-- LIMPEZA ANTES DA CARGA
+-- Não listamos a tabela users no TRUNCATE; porém, devido ao CASCADE,
+-- ao truncar subscribers e publishers a tabela users também é truncada
+-- (users tem FK para subscribers e publishers). Os dados iniciais de
+-- users são re-inseridos pelo INSERT abaixo.
 -- =============================================
 DO $$
 DECLARE
@@ -82,13 +86,13 @@ INSERT INTO permissions (permission_id, name, resource, action, description) VAL
 (10, 'totem.update', 'totem', 'update', 'Editar totens')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO plans (plan_id, name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, sort_order) VALUES
-(1, 'Plano Básico', 'plano-basico', 'Plano básico', 99.00, 990.00, 'BRL', 'month', '{"campaigns":5,"storage_gb":10}'::jsonb, '{"totems":3,"campaigns":5,"storage_gb":10}'::jsonb, true, false, 1),
-(2, 'Plano Profissional', 'plano-profissional', 'Plano profissional', 299.00, 2990.00, 'BRL', 'month', '{"campaigns":20,"storage_gb":50}'::jsonb, '{"totems":10,"campaigns":20,"storage_gb":50}'::jsonb, true, true, 2),
-(3, 'Plano Enterprise', 'plano-enterprise', 'Plano enterprise', 999.00, 9990.00, 'BRL', 'month', '{"campaigns":100,"storage_gb":500}'::jsonb, '{"totems":50,"campaigns":100,"storage_gb":500}'::jsonb, true, false, 3),
-(4, 'Plano Shoppings', 'plano-shoppings', 'Plano para anunciantes em shoppings', 399.00, 3990.00, 'BRL', 'month', '{"campaigns":30,"storage_gb":80}'::jsonb, '{"totems":15,"campaigns":30,"storage_gb":80}'::jsonb, true, false, 4),
-(5, 'Plano Supermercados', 'plano-supermercados', 'Plano para anunciantes em supermercados', 349.00, 3490.00, 'BRL', 'month', '{"campaigns":25,"storage_gb":60}'::jsonb, '{"totems":12,"campaigns":25,"storage_gb":60}'::jsonb, true, false, 5),
-(6, 'Plano Farmácias', 'plano-farmacias', 'Plano para anunciantes em farmácias', 299.00, 2990.00, 'BRL', 'month', '{"campaigns":20,"storage_gb":50}'::jsonb, '{"totems":10,"campaigns":20,"storage_gb":50}'::jsonb, true, false, 6)
+INSERT INTO plans (plan_id, name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order) VALUES
+(1, 'Plano Básico', 'plano-basico', 'Plano básico', 99.00, 990.00, 'BRL', 'month', '{"campaigns":5,"storage_gb":10}'::jsonb, '{"totems":3,"campaigns":5,"storage_gb":10}'::jsonb, true, false, true, 1),
+(2, 'Plano Profissional', 'plano-profissional', 'Plano profissional', 299.00, 2990.00, 'BRL', 'month', '{"campaigns":20,"storage_gb":50}'::jsonb, '{"totems":10,"campaigns":20,"storage_gb":50}'::jsonb, true, true, false, 2),
+(3, 'Plano Enterprise', 'plano-enterprise', 'Plano enterprise', 999.00, 9990.00, 'BRL', 'month', '{"campaigns":100,"storage_gb":500}'::jsonb, '{"totems":50,"campaigns":100,"storage_gb":500}'::jsonb, true, false, false, 3),
+(4, 'Plano Shoppings', 'plano-shoppings', 'Plano para anunciantes em shoppings', 399.00, 3990.00, 'BRL', 'month', '{"campaigns":30,"storage_gb":80}'::jsonb, '{"totems":15,"campaigns":30,"storage_gb":80}'::jsonb, true, false, false, 4),
+(5, 'Plano Supermercados', 'plano-supermercados', 'Plano para anunciantes em supermercados', 349.00, 3490.00, 'BRL', 'month', '{"campaigns":25,"storage_gb":60}'::jsonb, '{"totems":12,"campaigns":25,"storage_gb":60}'::jsonb, true, false, false, 5),
+(6, 'Plano Farmácias', 'plano-farmacias', 'Plano para anunciantes em farmácias', 299.00, 2990.00, 'BRL', 'month', '{"campaigns":20,"storage_gb":50}'::jsonb, '{"totems":10,"campaigns":20,"storage_gb":50}'::jsonb, true, false, false, 6)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description) VALUES
@@ -215,7 +219,7 @@ ON CONFLICT DO NOTHING;
 
 -- =============================================
 -- MEDIAS - Propagandas por tema/subscriber
--- Path: uploads/client-{id}/medias/{arquivo} (copiados de player-web/propagandas e vinhetas)
+-- Path: uploads/subscriber-{id}/medias/{arquivo} (copiados de player-web/propagandas e vinhetas)
 -- =============================================
 INSERT INTO medias (
   media_id, subscriber_id, name, description, file_path, file_name, file_size_bytes,
@@ -226,31 +230,31 @@ INSERT INTO medias (
   is_active
 ) VALUES
 -- Subscriber 1 Cestto (Supermercados) - tema supermercado
-(1, 1, 'Cestto_00005', 'Propaganda Cestto - imagem', '/opt/smart-signage/public/assets/uploads/client-1/medias/Cestto_00005.png', 'Cestto_00005.png', 150000, 'image', 'image/png', NULL, 1920, 1080, '/api/media/1/thumbnail', '/api/media/1/thumbnail', 'approved', 'approved', ARRAY['cestto', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
-(2, 1, 'Cestto_0001', 'Propaganda Cestto - vídeo', '/opt/smart-signage/public/assets/uploads/client-1/medias/Cestto_0001.mp4', 'Cestto_0001.mp4', 500000, 'video', 'video/mp4', 30, 1920, 1080, '/api/media/2/thumbnail', '/api/media/2/thumbnail', 'approved', 'approved', ARRAY['cestto', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(1, 1, 'Cestto_00005', 'Propaganda Cestto - imagem', '/opt/smart-signage/public/assets/uploads/subscriber-1/medias/Cestto_00005.png', 'Cestto_00005.png', 150000, 'image', 'image/png', NULL, 1920, 1080, '/api/media/1/thumbnail', '/api/media/1/thumbnail', 'approved', 'approved', ARRAY['cestto', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(2, 1, 'Cestto_0001', 'Propaganda Cestto - vídeo', '/opt/smart-signage/public/assets/uploads/subscriber-1/medias/Cestto_0001.mp4', 'Cestto_0001.mp4', 500000, 'video', 'video/mp4', 30, 1920, 1080, '/api/media/2/thumbnail', '/api/media/2/thumbnail', 'approved', 'approved', ARRAY['cestto', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
 -- Subscriber 2 Bourbon (Shoppings) - tema shopping
-(3, 2, 'zaffari-bourbon', 'Propaganda Zaffari Bourbon', '/opt/smart-signage/public/assets/uploads/client-2/medias/zaffari-bourbon_8255.jpg', 'zaffari-bourbon_8255.jpg', 120000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/3/thumbnail', '/api/media/3/thumbnail', 'approved', 'approved', ARRAY['bourbon', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(3, 2, 'zaffari-bourbon', 'Propaganda Zaffari Bourbon', '/opt/smart-signage/public/assets/uploads/subscriber-2/medias/zaffari-bourbon_8255.jpg', 'zaffari-bourbon_8255.jpg', 120000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/3/thumbnail', '/api/media/3/thumbnail', 'approved', 'approved', ARRAY['bourbon', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
 -- Subscriber 3 Panvel (Farmácias) - tema farmácia
-(4, 3, 'Panvel_0001', 'Propaganda Panvel', '/opt/smart-signage/public/assets/uploads/client-3/medias/Panvel_0001.mp4', 'Panvel_0001.mp4', 450000, 'video', 'video/mp4', 20, 1920, 1080, '/api/media/4/thumbnail', '/api/media/4/thumbnail', 'approved', 'approved', ARRAY['panvel', 'farmacia'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
-(5, 3, 'Panvel_ABC', 'Propaganda Panvel ABC', '/opt/smart-signage/public/assets/uploads/client-3/medias/Panvel_ABC-00010.jpg', 'Panvel_ABC-00010.jpg', 100000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/5/thumbnail', '/api/media/5/thumbnail', 'approved', 'approved', ARRAY['panvel', 'farmacia'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(4, 3, 'Panvel_0001', 'Propaganda Panvel', '/opt/smart-signage/public/assets/uploads/subscriber-3/medias/Panvel_0001.mp4', 'Panvel_0001.mp4', 450000, 'video', 'video/mp4', 20, 1920, 1080, '/api/media/4/thumbnail', '/api/media/4/thumbnail', 'approved', 'approved', ARRAY['panvel', 'farmacia'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(5, 3, 'Panvel_ABC', 'Propaganda Panvel ABC', '/opt/smart-signage/public/assets/uploads/subscriber-3/medias/Panvel_ABC-00010.jpg', 'Panvel_ABC-00010.jpg', 100000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/5/thumbnail', '/api/media/5/thumbnail', 'approved', 'approved', ARRAY['panvel', 'farmacia'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
 -- Subscriber 4 Fruteira Geraldo (Supermercados)
-(6, 4, 'Fruteiradogeraldo0001', 'Propaganda Fruteira', '/opt/smart-signage/public/assets/uploads/client-4/medias/Fruteiradogeraldo0001.jpg', 'Fruteiradogeraldo0001.jpg', 180000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/6/thumbnail', '/api/media/6/thumbnail', 'approved', 'approved', ARRAY['fruteira', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
-(7, 4, 'Fruteiradogeraldo0002', 'Propaganda Fruteira vídeo', '/opt/smart-signage/public/assets/uploads/client-4/medias/Fruteiradogeraldo0002.mp4', 'Fruteiradogeraldo0002.mp4', 520000, 'video', 'video/mp4', 25, 1920, 1080, '/api/media/7/thumbnail', '/api/media/7/thumbnail', 'approved', 'approved', ARRAY['fruteira', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(6, 4, 'Fruteiradogeraldo0001', 'Propaganda Fruteira', '/opt/smart-signage/public/assets/uploads/subscriber-4/medias/Fruteiradogeraldo0001.jpg', 'Fruteiradogeraldo0001.jpg', 180000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/6/thumbnail', '/api/media/6/thumbnail', 'approved', 'approved', ARRAY['fruteira', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(7, 4, 'Fruteiradogeraldo0002', 'Propaganda Fruteira vídeo', '/opt/smart-signage/public/assets/uploads/subscriber-4/medias/Fruteiradogeraldo0002.mp4', 'Fruteiradogeraldo0002.mp4', 520000, 'video', 'video/mp4', 25, 1920, 1080, '/api/media/7/thumbnail', '/api/media/7/thumbnail', 'approved', 'approved', ARRAY['fruteira', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
 -- Subscriber 5 Fashion Store (Shoppings) - tema moda
-(8, 5, 'Fashion_Woman', 'Propaganda Fashion', '/opt/smart-signage/public/assets/uploads/client-5/medias/Fashion_Woman-0001.webp', 'Fashion_Woman-0001.webp', 80000, 'image', 'image/webp', NULL, 1920, 1080, '/api/media/8/thumbnail', '/api/media/8/thumbnail', 'approved', 'approved', ARRAY['fashion', 'moda', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
-(9, 5, 'moda_homem', 'Propaganda Moda Homem', '/opt/smart-signage/public/assets/uploads/client-5/medias/moda_homem.webp', 'moda_homem.webp', 90000, 'image', 'image/webp', NULL, 1920, 1080, '/api/media/9/thumbnail', '/api/media/9/thumbnail', 'approved', 'approved', ARRAY['moda', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(8, 5, 'Fashion_Woman', 'Propaganda Fashion', '/opt/smart-signage/public/assets/uploads/subscriber-5/medias/Fashion_Woman-0001.webp', 'Fashion_Woman-0001.webp', 80000, 'image', 'image/webp', NULL, 1920, 1080, '/api/media/8/thumbnail', '/api/media/8/thumbnail', 'approved', 'approved', ARRAY['fashion', 'moda', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(9, 5, 'moda_homem', 'Propaganda Moda Homem', '/opt/smart-signage/public/assets/uploads/subscriber-5/medias/moda_homem.webp', 'moda_homem.webp', 90000, 'image', 'image/webp', NULL, 1920, 1080, '/api/media/9/thumbnail', '/api/media/9/thumbnail', 'approved', 'approved', ARRAY['moda', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
 -- Subscriber 6 Beleza Produtos (Supermercados)
-(10, 6, 'beleza-produtos', 'Propaganda Beleza', '/opt/smart-signage/public/assets/uploads/client-6/medias/beleza-produtos-0001.mp4', 'beleza-produtos-0001.mp4', 380000, 'video', 'video/mp4', 15, 1920, 1080, '/api/media/10/thumbnail', '/api/media/10/thumbnail', 'approved', 'approved', ARRAY['beleza', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(10, 6, 'beleza-produtos', 'Propaganda Beleza', '/opt/smart-signage/public/assets/uploads/subscriber-6/medias/beleza-produtos-0001.mp4', 'beleza-produtos-0001.mp4', 380000, 'video', 'video/mp4', 15, 1920, 1080, '/api/media/10/thumbnail', '/api/media/10/thumbnail', 'approved', 'approved', ARRAY['beleza', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
 -- Subscriber 7 Check-up Saúde (Farmácias)
-(11, 7, 'check-up', 'Propaganda Check-up Saúde', '/opt/smart-signage/public/assets/uploads/client-7/medias/check-up.jpg', 'check-up.jpg', 110000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/11/thumbnail', '/api/media/11/thumbnail', 'approved', 'approved', ARRAY['checkup', 'farmacia', 'saude'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(11, 7, 'check-up', 'Propaganda Check-up Saúde', '/opt/smart-signage/public/assets/uploads/subscriber-7/medias/check-up.jpg', 'check-up.jpg', 110000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/11/thumbnail', '/api/media/11/thumbnail', 'approved', 'approved', ARRAY['checkup', 'farmacia', 'saude'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
 -- Subscriber 8 Super Promo (Supermercados)
-(12, 8, 'supermercado-promocoes', 'Promoções Supermercado', '/opt/smart-signage/public/assets/uploads/client-8/medias/supermercado-promocoes.jpg', 'supermercado-promocoes.jpg', 140000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/12/thumbnail', '/api/media/12/thumbnail', 'approved', 'approved', ARRAY['supermercado', 'promo'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
-(13, 8, 'black-friday-banner', 'Black Friday', '/opt/smart-signage/public/assets/uploads/client-8/medias/black-friday-banner.jpg', 'black-friday-banner.jpg', 95000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/13/thumbnail', '/api/media/13/thumbnail', 'approved', 'approved', ARRAY['blackfriday', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(12, 8, 'supermercado-promocoes', 'Promoções Supermercado', '/opt/smart-signage/public/assets/uploads/subscriber-8/medias/supermercado-promocoes.jpg', 'supermercado-promocoes.jpg', 140000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/12/thumbnail', '/api/media/12/thumbnail', 'approved', 'approved', ARRAY['supermercado', 'promo'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(13, 8, 'black-friday-banner', 'Black Friday', '/opt/smart-signage/public/assets/uploads/subscriber-8/medias/black-friday-banner.jpg', 'black-friday-banner.jpg', 95000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/13/thumbnail', '/api/media/13/thumbnail', 'approved', 'approved', ARRAY['blackfriday', 'supermercado'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
 -- Subscriber 9 Smartsignage Demo (Shoppings) - institucional
-(14, 9, 'Smartsignage-interface-333', 'Smartsignage Demo', '/opt/smart-signage/public/assets/uploads/client-9/medias/Smartsignage-interface-333.mp4', 'Smartsignage-interface-333.mp4', 600000, 'video', 'video/mp4', 30, 1920, 1080, '/api/media/14/thumbnail', '/api/media/14/thumbnail', 'approved', 'approved', ARRAY['smartsignage', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
-(15, 9, 'Resgate Totem', 'Resgate Totem', '/opt/smart-signage/public/assets/uploads/client-9/medias/Resgate Totem-_001.mp4', 'Resgate Totem-_001.mp4', 250000, 'video', 'video/mp4', 10, 1920, 1080, '/api/media/15/thumbnail', '/api/media/15/thumbnail', 'approved', 'approved', ARRAY['smartsignage', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(14, 9, 'Smartsignage-interface-333', 'Smartsignage Demo', '/opt/smart-signage/public/assets/uploads/subscriber-9/medias/Smartsignage-interface-333.mp4', 'Smartsignage-interface-333.mp4', 600000, 'video', 'video/mp4', 30, 1920, 1080, '/api/media/14/thumbnail', '/api/media/14/thumbnail', 'approved', 'approved', ARRAY['smartsignage', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
+(15, 9, 'Resgate Totem', 'Resgate Totem', '/opt/smart-signage/public/assets/uploads/subscriber-9/medias/Resgate Totem-_001.mp4', 'Resgate Totem-_001.mp4', 250000, 'video', 'video/mp4', 10, 1920, 1080, '/api/media/15/thumbnail', '/api/media/15/thumbnail', 'approved', 'approved', ARRAY['smartsignage', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true),
 -- Subscriber 10 Menu Executivo (Shoppings) - alimentação
-(16, 10, 'menu-executivo', 'Menu Executivo', '/opt/smart-signage/public/assets/uploads/client-10/medias/menu-executivo.jpg', 'menu-executivo.jpg', 130000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/16/thumbnail', '/api/media/16/thumbnail', 'approved', 'approved', ARRAY['menu', 'alimentacao', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true)
+(16, 10, 'menu-executivo', 'Menu Executivo', '/opt/smart-signage/public/assets/uploads/subscriber-10/medias/menu-executivo.jpg', 'menu-executivo.jpg', 130000, 'image', 'image/jpeg', NULL, 1920, 1080, '/api/media/16/thumbnail', '/api/media/16/thumbnail', 'approved', 'approved', ARRAY['menu', 'alimentacao', 'shopping'], 1, NOW() - INTERVAL '1 day', '{}'::jsonb, true)
 ON CONFLICT DO NOTHING;
 
 -- =============================================
@@ -261,18 +265,18 @@ INSERT INTO subscriber_contracts (
     contract_id, subscriber_id, plan_id, contract_number, contract_type, title, description,
     start_date, end_date, total_amount, currency, payment_terms, status,
     signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata,
-    document_path, document_filename, document_mime_type, document_size_bytes
+    document_path, document_filename, document_mime_type, document_size_bytes, is_active
 ) VALUES
-(1, 1, 5, 'SUB-CESTTO-2025-001', 'advertising', 'Contrato Cestto', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 25000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
-(2, 2, 4, 'SUB-BOURBON-2025-001', 'advertising', 'Contrato Bourbon', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 30000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
-(3, 3, 6, 'SUB-PANVEL-2025-001', 'advertising', 'Contrato Panvel', 'Contrato publicitário - Plano Farmácias', '2025-01-01', '2026-12-31', 20000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
-(4, 4, 5, 'SUB-FRUTEIRA-2025-001', 'advertising', 'Contrato Fruteira Geraldo', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 22000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
-(5, 5, 4, 'SUB-FASHION-2025-001', 'advertising', 'Contrato Fashion Store', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 28000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
-(6, 6, 5, 'SUB-BELEZA-2025-001', 'advertising', 'Contrato Beleza Produtos', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 18000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
-(7, 7, 6, 'SUB-CHECKUP-2025-001', 'advertising', 'Contrato Check-up Saúde', 'Contrato publicitário - Plano Farmácias', '2025-01-01', '2026-12-31', 19000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
-(8, 8, 5, 'SUB-SUPERPROMO-2025-001', 'advertising', 'Contrato Super Promo', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 21000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
-(9, 9, 4, 'SUB-SMARTSIGNAGE-2025-001', 'advertising', 'Contrato Smartsignage Demo', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 15000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
-(10, 10, 4, 'SUB-MENU-2025-001', 'advertising', 'Contrato Menu Executivo', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 24000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0)
+(1, 1, 5, 'SUB-CESTTO-2025-001', 'advertising', 'Contrato Cestto', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 25000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(2, 2, 4, 'SUB-BOURBON-2025-001', 'advertising', 'Contrato Bourbon', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 30000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(3, 3, 6, 'SUB-PANVEL-2025-001', 'advertising', 'Contrato Panvel', 'Contrato publicitário - Plano Farmácias', '2025-01-01', '2026-12-31', 20000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(4, 4, 5, 'SUB-FRUTEIRA-2025-001', 'advertising', 'Contrato Fruteira Geraldo', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 22000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(5, 5, 4, 'SUB-FASHION-2025-001', 'advertising', 'Contrato Fashion Store', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 28000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(6, 6, 5, 'SUB-BELEZA-2025-001', 'advertising', 'Contrato Beleza Produtos', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 18000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(7, 7, 6, 'SUB-CHECKUP-2025-001', 'advertising', 'Contrato Check-up Saúde', 'Contrato publicitário - Plano Farmácias', '2025-01-01', '2026-12-31', 19000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(8, 8, 5, 'SUB-SUPERPROMO-2025-001', 'advertising', 'Contrato Super Promo', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 21000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(9, 9, 4, 'SUB-SMARTSIGNAGE-2025-001', 'advertising', 'Contrato Smartsignage Demo', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 15000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(10, 10, 4, 'SUB-MENU-2025-001', 'advertising', 'Contrato Menu Executivo', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 24000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO publisher_contracts (
@@ -280,10 +284,10 @@ INSERT INTO publisher_contracts (
     start_date, end_date, revenue_share_percentage, revenue_share_rules, minimum_payout_amount,
     subscription_amount, subscription_interval, currency, payment_terms, status,
     signed_by_publisher_at, signed_by_tenant_at, created_by, metadata,
-    document_path, document_filename, document_mime_type, document_size_bytes
+    document_path, document_filename, document_mime_type, document_size_bytes, is_active
 ) VALUES
-(1, 1, 'PUB-ZAFFARI-2025-001', 'revenue_share', 'Contrato Zaffari', 'Revenue share Zaffari', '2025-01-01', NULL, 70.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0),
-(2, 2, 'PUB-KOCH-2025-001', 'revenue_share', 'Contrato Koch', 'Revenue share Grupo Koch', '2025-01-01', NULL, 65.00, '{}'::jsonb, 1000.00, NULL, NULL, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0)
+(1, 1, 'PUB-ZAFFARI-2025-001', 'revenue_share', 'Contrato Zaffari', 'Revenue share Zaffari', '2025-01-01', NULL, 70.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(2, 2, 'PUB-KOCH-2025-001', 'revenue_share', 'Contrato Koch', 'Revenue share Grupo Koch', '2025-01-01', NULL, 65.00, '{}'::jsonb, 1000.00, NULL, NULL, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true)
 ON CONFLICT DO NOTHING;
 
 -- =============================================
@@ -518,17 +522,17 @@ ON CONFLICT DO NOTHING;
 -- =============================================
 -- PLAN_PUBLISHER_ACCESS (planos 1-6 com acesso a publishers 1-2)
 -- =============================================
-INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictions, notes) VALUES
-(1, 1, true, '{}'::jsonb, NULL),
-(1, 2, true, '{}'::jsonb, NULL),
-(2, 1, true, '{}'::jsonb, NULL),
-(2, 2, true, '{}'::jsonb, NULL),
-(3, 1, true, '{}'::jsonb, NULL),
-(3, 2, true, '{}'::jsonb, NULL),
-(4, 1, true, '{}'::jsonb, NULL),
-(4, 2, true, '{}'::jsonb, NULL),
-(5, 1, true, '{}'::jsonb, NULL),
-(5, 2, true, '{}'::jsonb, NULL),
-(6, 1, true, '{}'::jsonb, NULL),
-(6, 2, true, '{}'::jsonb, NULL)
+INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictions, notes, is_active) VALUES
+(1, 1, true, '{}'::jsonb, NULL, true),
+(1, 2, true, '{}'::jsonb, NULL, true),
+(2, 1, true, '{}'::jsonb, NULL, true),
+(2, 2, true, '{}'::jsonb, NULL, true),
+(3, 1, true, '{}'::jsonb, NULL, true),
+(3, 2, true, '{}'::jsonb, NULL, true),
+(4, 1, true, '{}'::jsonb, NULL, true),
+(4, 2, true, '{}'::jsonb, NULL, true),
+(5, 1, true, '{}'::jsonb, NULL, true),
+(5, 2, true, '{}'::jsonb, NULL, true),
+(6, 1, true, '{}'::jsonb, NULL, true),
+(6, 2, true, '{}'::jsonb, NULL, true)
 ON CONFLICT DO NOTHING;

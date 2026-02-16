@@ -19,8 +19,14 @@ export const mediaFilterValidators = [
 export const updateMediaValidators = [
   body('name').optional().isString().isLength({ min: 1, max: 100 }).withMessage('Nome deve ter entre 1 e 100 caracteres'),
   body('description').optional().isString().isLength({ max: 1000 }).withMessage('Descrição deve ter no máximo 1000 caracteres'),
-  body('tags').optional().isString().withMessage('Tags deve ser uma string'),
+  body('tags').optional().custom((value) => {
+    // Aceitar string ou array (será convertido para string na rota)
+    if (value === undefined || value === null) return true;
+    if (typeof value === 'string') return true;
+    if (Array.isArray(value)) return true;
+    return false;
+  }).withMessage('Tags deve ser uma string ou array'),
   body('status').optional().isString().withMessage('Status deve ser uma string'),
-  body('approvalStatus').optional().isString().withMessage('approvalStatus deve ser uma string'),
+  body('approvalStatus').optional().isIn(['pending', 'approved', 'rejected']).withMessage('approvalStatus deve ser: pending, approved ou rejected'),
   body('rejectionReason').optional().isString().withMessage('rejectionReason deve ser uma string'),
 ];

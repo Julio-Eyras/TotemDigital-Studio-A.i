@@ -978,6 +978,7 @@ export class MediaService {
 
   /**
    * Busca thumbnail de mídia
+   * Compatível com caminhos antigos (client-X) e novos (subscriber-X)
    */
   async getThumbnail(mediaId: number): Promise<string | null> {
     try {
@@ -994,18 +995,33 @@ export class MediaService {
         return await this.ensurePlaceholderImage(placeholderPath);
       }
 
+      // Função helper para verificar caminho com compatibilidade client-X/subscriber-X
+      const checkFilePath = (filePath: string): string | null => {
+        if (fs.existsSync(filePath)) {
+          return filePath;
+        }
+        // Tentar caminho alternativo (client-X -> subscriber-X ou vice-versa)
+        const altPath = filePath.replace(/client-(\d+)/, 'subscriber-$1').replace(/subscriber-(\d+)/, 'client-$1');
+        if (altPath !== filePath && fs.existsSync(altPath)) {
+          return altPath;
+        }
+        return null;
+      };
+
       // 1) Se existir thumbnail ao lado do arquivo, usar
       const siblingThumb = media.filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-      if (fs.existsSync(siblingThumb)) {
-        return siblingThumb;
+      const existingSiblingThumb = checkFilePath(siblingThumb);
+      if (existingSiblingThumb) {
+        return existingSiblingThumb;
       }
 
       // 2) Se arquivo original existir e for imagem, gerar thumbnail em cache temporário
-      if (media.mediaType === 'image' && fs.existsSync(media.filePath)) {
+      const existingFilePath = checkFilePath(media.filePath);
+      if (media.mediaType === 'image' && existingFilePath) {
         if (fs.existsSync(generatedThumbPath)) {
           return generatedThumbPath;
         }
-        await (sharp as any)(media.filePath)
+        await (sharp as any)(existingFilePath)
           .resize(320, 180, { fit: 'inside', withoutEnlargement: true })
           .jpeg({ quality: 80, progressive: true })
           .toFile(generatedThumbPath);

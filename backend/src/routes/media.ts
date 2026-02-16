@@ -26,7 +26,25 @@ import { getMediaConfig, getAllowedMimeTypes, getStoragePath } from '../config/m
 
 const router = Router();
 
-// Middleware de autenticação para todas as rotas
+// GET thumbnail SEM auth - <img src="/api/media/:id/thumbnail"> não envia Authorization
+router.get('/:id/thumbnail',
+  param('id').isInt({ min: 1 }).withMessage('ID inválido'),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const mediaId = parseInt(req.params.id);
+      const thumbnail = await getMediaService().getThumbnail(mediaId);
+      if (!thumbnail) {
+        return res.status(404).json({ error: 'Thumbnail não encontrado' });
+      }
+      return res.sendFile(thumbnail);
+    } catch (_error: any) {
+      return res.status(500).json({ error: 'Erro ao obter thumbnail' });
+    }
+  }
+);
+
+// Middleware de autenticação para todas as rotas (thumbnail acima não exige auth)
 router.use(authMiddleware);
 
 // Aplicar bloqueio de dados de clientes para OPERATOR
@@ -554,13 +572,21 @@ router.put('/:id',
         return res.status(401).json({ error: 'Usuário não autenticado' });
       }
       
-      // Processar tags se fornecidas
+      // Processar tags se fornecidas (aceita string ou array)
       let processedTags: string[] | undefined = undefined;
-      if (req.body.tags) {
-        const tagsStr = String(req.body.tags);
-        processedTags = tagsStr.includes(',') 
-          ? tagsStr.split(',').map(t => t.trim()).filter(Boolean)
-          : [tagsStr.trim()].filter(Boolean);
+      if (req.body.tags !== undefined && req.body.tags !== null) {
+        if (Array.isArray(req.body.tags)) {
+          // Se já é array, usar diretamente (filtrando vazios)
+          processedTags = req.body.tags.map((t: any) => String(t).trim()).filter(Boolean);
+        } else {
+          // Se é string, converter para array
+          const tagsStr = String(req.body.tags).trim();
+          if (tagsStr) {
+            processedTags = tagsStr.includes(',') 
+              ? tagsStr.split(',').map((t: string) => t.trim()).filter(Boolean)
+              : [tagsStr].filter(Boolean);
+          }
+        }
       }
       
       const mediaData = {
@@ -581,7 +607,16 @@ router.put('/:id',
       if (error.message?.includes('Acesso negado')) {
         return res.status(403).json({ error: error.message });
       }
-      return res.status(400).json({ error: error.message || 'Erro ao atualizar arquivo de mídia' });
+      // Log detalhado do erro para debug
+      logError('Erro ao atualizar mídia', error, { 
+        mediaId: req.params.id, 
+        body: sanitizeForLogging(req.body),
+        userId: req.user?.id 
+      });
+      return res.status(400).json({ 
+        error: error.message || 'Erro ao atualizar arquivo de mídia',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   }
 );
@@ -637,33 +672,22 @@ router.get('/:id/download',
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
 
-      return res.download(media.filePath, media.name);
-    } catch (error) {
-      return res.status(500).json({ error: 'Erro ao fazer download do arquivo' });
-    }
-  }
-);
-
-/**
- * @route GET /api/media/:id/thumbnail
- * @desc Obter thumbnail do arquivo de mídia
- * @access Private
- */
-router.get('/:id/thumbnail',
-  param('id').isInt({ min: 1 }),
-  validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const mediaId = parseInt(req.params.id);
-      const thumbnail = await getMediaService().getThumbnail(mediaId);
-      if (!thumbnail) {
-        // getThumbnail() tenta sempre retornar um placeholder (para evitar UI quebrada).
-        // Se ainda assim não houver, retornar 404.
-        return res.status(404).json({ error: 'Thumbnail não encontrado' });
+      // Verificar caminho com compatibilidade client-X/subscriber-X
+      let filePath = media.filePath;
+      if (!fs.existsSync(filePath)) {
+        // Tentar caminho alternativo
+        const altPath = filePath.replace(/client-(\d+)/, 'subscriber-$1').replace(/subscriber-(\d+)/, 'client-$1');
+        if (altPath !== filePath && fs.existsSync(altPath)) {
+          filePath = altPath;
+        } else {
+          return res.status(404).json({ error: 'Arquivo físico não encontrado' });
+        }
       }
-      return res.sendFile(thumbnail);
-    } catch (_error: any) {
-      return res.status(500).json({ error: 'Erro ao obter thumbnail' });
+
+      return res.download(filePath, media.name);
+    } catch (error: any) {
+      logError('Erro ao fazer download do arquivo', error, { mediaId: req.params.id });
+      return res.status(500).json({ error: 'Erro ao fazer download do arquivo' });
     }
   }
 );
@@ -757,26 +781,26 @@ router.get('/stats/storage', async (_req: AuthenticatedRequest, res: Response) =
 });
 
 /**
- * @route GET /api/media/quota/:clientId
- * @desc Verificar quota de armazenamento do cliente
+ * @route GET /api/media/quota/:subscriberId
+ * @desc Verificar quota de armazenamento do subscriber
  * @access Private
  */
-router.get('/quota/:clientId',
-  param('clientId').isInt({ min: 1 }),
+router.get('/quota/:subscriberId',
+  param('subscriberId').isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const clientId = parseInt(req.params.clientId);
+      const subscriberId = parseInt(req.params.subscriberId);
       const storageService = new StorageService();
       
       const { uploadConfig } = require('../config/env').config;
       const quota = uploadConfig.mediaQuotaPerClient;
-      const currentUsage = await storageService.getSubscriberStorageUsage(clientId);
+      const currentUsage = await storageService.getSubscriberStorageUsage(subscriberId);
       const available = quota - currentUsage;
       const usagePercent = quota > 0 ? (currentUsage / quota) * 100 : 0;
 
       return res.json({
-        clientId,
+        subscriberId,
         quota,
         currentUsage,
         available,
@@ -786,7 +810,7 @@ router.get('/quota/:clientId',
         availableFormatted: storageService.formatBytes(available)
       });
     } catch (error: any) {
-      await logError('Erro ao verificar quota do cliente', error, { clientId: req.params.clientId });
+      await logError('Erro ao verificar quota do subscriber', error, { subscriberId: req.params.subscriberId });
       return res.status(500).json({ error: 'Erro ao verificar quota de armazenamento' });
     }
   }

@@ -115,7 +115,7 @@ log_status() {
 }
 
 # Copiar mídias de demonstração de player-web/propagandas para o diretório de uploads de cada subscriber.
-# Mapeamento seed v6.3: 10 subscribers (client-1 a client-10) - Cestto, Bourbon, Panvel, Fruteira, Fashion, Beleza, Check-up, Super Promo, Smartsignage, Menu Executivo
+# Mapeamento seed v6.3: 10 subscribers (subscriber-1 a subscriber-10) - Cestto, Bourbon, Panvel, Fruteira, Fashion, Beleza, Check-up, Super Promo, Smartsignage, Menu Executivo
 # Origem: player-web/propagandas (e player-web/vinhetas se existir)
 install_demo_media_files() {
     local install_dir="${INSTALL_DIR:-$(pwd)}"
@@ -132,11 +132,11 @@ install_demo_media_files() {
         return 0
     fi
 
-    log "Copiando mídias demo de ${src_dir} para ${uploads_base}/client-1..10/medias..."
+    log "Copiando mídias demo de ${src_dir} para ${uploads_base}/subscriber-1..10/medias..."
 
-    # Criar diretórios de destino (client-1 a client-10)
+    # Criar diretórios de destino (subscriber-1 a subscriber-10)
     for cid in 1 2 3 4 5 6 7 8 9 10; do
-        local target_dir="${uploads_base}/client-${cid}/medias"
+        local target_dir="${uploads_base}/subscriber-${cid}/medias"
         sudo mkdir -p "$target_dir" 2>/dev/null || mkdir -p "$target_dir" 2>/dev/null || true
     done
 
@@ -148,50 +148,50 @@ install_demo_media_files() {
         fi
     }
 
-    # client-1 Cestto (Supermercados): Cestto_00005.png, Cestto_0001.mp4
-    copy_if "${src_dir}/Cestto_00005.png" "${uploads_base}/client-1/medias/Cestto_00005.png"
-    copy_if "${src_dir}/Cestto_0001.mp4" "${uploads_base}/client-1/medias/Cestto_0001.mp4"
+    # subscriber-1 Cestto (Supermercados): Cestto_00005.png, Cestto_0001.mp4
+    copy_if "${src_dir}/Cestto_00005.png" "${uploads_base}/subscriber-1/medias/Cestto_00005.png"
+    copy_if "${src_dir}/Cestto_0001.mp4" "${uploads_base}/subscriber-1/medias/Cestto_0001.mp4"
 
-    # client-2 Bourbon (Shoppings): zaffari-bourbon_8255.jpg
-    copy_if "${src_dir}/zaffari-bourbon_8255.jpg" "${uploads_base}/client-2/medias/zaffari-bourbon_8255.jpg"
+    # subscriber-2 Bourbon (Shoppings): zaffari-bourbon_8255.jpg
+    copy_if "${src_dir}/zaffari-bourbon_8255.jpg" "${uploads_base}/subscriber-2/medias/zaffari-bourbon_8255.jpg"
 
-    # client-3 Panvel (Farmácias): Panvel_0001.mp4, Panvel_ABC-00010.jpg
-    copy_if "${src_dir}/Panvel_0001.mp4" "${uploads_base}/client-3/medias/Panvel_0001.mp4"
-    copy_if "${src_dir}/Panvel_ABC-00010.jpg" "${uploads_base}/client-3/medias/Panvel_ABC-00010.jpg"
+    # subscriber-3 Panvel (Farmácias): Panvel_0001.mp4, Panvel_ABC-00010.jpg
+    copy_if "${src_dir}/Panvel_0001.mp4" "${uploads_base}/subscriber-3/medias/Panvel_0001.mp4"
+    copy_if "${src_dir}/Panvel_ABC-00010.jpg" "${uploads_base}/subscriber-3/medias/Panvel_ABC-00010.jpg"
 
-    # client-4 Fruteira Geraldo (Supermercados): Fruteiradogeraldo0001.jpg, Fruteiradogeraldo0002.mp4
-    copy_if "${src_dir}/Fruteiradogeraldo0001.jpg" "${uploads_base}/client-4/medias/Fruteiradogeraldo0001.jpg"
-    copy_if "${src_dir}/Fruteiradogeraldo0002.mp4" "${uploads_base}/client-4/medias/Fruteiradogeraldo0002.mp4"
+    # subscriber-4 Fruteira Geraldo (Supermercados): Fruteiradogeraldo0001.jpg, Fruteiradogeraldo0002.mp4
+    copy_if "${src_dir}/Fruteiradogeraldo0001.jpg" "${uploads_base}/subscriber-4/medias/Fruteiradogeraldo0001.jpg"
+    copy_if "${src_dir}/Fruteiradogeraldo0002.mp4" "${uploads_base}/subscriber-4/medias/Fruteiradogeraldo0002.mp4"
 
-    # client-5 Fashion Store (Shoppings): Fashion_Woman-0001.webp, moda_homem.webp
-    copy_if "${src_dir}/Fashion_Woman-0001.webp" "${uploads_base}/client-5/medias/Fashion_Woman-0001.webp"
-    copy_if "${src_dir}/moda_homem.webp" "${uploads_base}/client-5/medias/moda_homem.webp"
+    # subscriber-5 Fashion Store (Shoppings): Fashion_Woman-0001.webp, moda_homem.webp
+    copy_if "${src_dir}/Fashion_Woman-0001.webp" "${uploads_base}/subscriber-5/medias/Fashion_Woman-0001.webp"
+    copy_if "${src_dir}/moda_homem.webp" "${uploads_base}/subscriber-5/medias/moda_homem.webp"
 
-    # client-6 Beleza Produtos (Supermercados): beleza-produtos-0001.mp4
-    copy_if "${src_dir}/beleza-produtos-0001.mp4" "${uploads_base}/client-6/medias/beleza-produtos-0001.mp4"
+    # subscriber-6 Beleza Produtos (Supermercados): beleza-produtos-0001.mp4
+    copy_if "${src_dir}/beleza-produtos-0001.mp4" "${uploads_base}/subscriber-6/medias/beleza-produtos-0001.mp4"
 
-    # client-7 Check-up Saúde (Farmácias): check-up.jpg
-    copy_if "${src_dir}/check-up.jpg" "${uploads_base}/client-7/medias/check-up.jpg"
+    # subscriber-7 Check-up Saúde (Farmácias): check-up.jpg
+    copy_if "${src_dir}/check-up.jpg" "${uploads_base}/subscriber-7/medias/check-up.jpg"
 
-    # client-8 Super Promo (Supermercados): supermercado-promocoes.jpg, black-friday-banner.jpg
-    copy_if "${src_dir}/supermercado-promocoes.jpg" "${uploads_base}/client-8/medias/supermercado-promocoes.jpg"
-    copy_if "${src_dir}/black-friday-banner.jpg" "${uploads_base}/client-8/medias/black-friday-banner.jpg"
+    # subscriber-8 Super Promo (Supermercados): supermercado-promocoes.jpg, black-friday-banner.jpg
+    copy_if "${src_dir}/supermercado-promocoes.jpg" "${uploads_base}/subscriber-8/medias/supermercado-promocoes.jpg"
+    copy_if "${src_dir}/black-friday-banner.jpg" "${uploads_base}/subscriber-8/medias/black-friday-banner.jpg"
 
-    # client-9 Smartsignage Demo (Shoppings): Smartsignage-interface-333.mp4, Resgate Totem-_001.mp4
-    copy_if "${src_dir}/Smartsignage-interface-333.mp4" "${uploads_base}/client-9/medias/Smartsignage-interface-333.mp4"
-    copy_if "${src_dir}/Resgate Totem-_001.mp4" "${uploads_base}/client-9/medias/Resgate Totem-_001.mp4"
+    # subscriber-9 Smartsignage Demo (Shoppings): Smartsignage-interface-333.mp4, Resgate Totem-_001.mp4
+    copy_if "${src_dir}/Smartsignage-interface-333.mp4" "${uploads_base}/subscriber-9/medias/Smartsignage-interface-333.mp4"
+    copy_if "${src_dir}/Resgate Totem-_001.mp4" "${uploads_base}/subscriber-9/medias/Resgate Totem-_001.mp4"
 
-    # client-10 Menu Executivo (Shoppings): menu-executivo.jpg
-    copy_if "${src_dir}/menu-executivo.jpg" "${uploads_base}/client-10/medias/menu-executivo.jpg"
+    # subscriber-10 Menu Executivo (Shoppings): menu-executivo.jpg
+    copy_if "${src_dir}/menu-executivo.jpg" "${uploads_base}/subscriber-10/medias/menu-executivo.jpg"
 
     # Ajustar permissões (best-effort)
     for cid in 1 2 3 4 5 6 7 8 9 10; do
-        [[ -d "${uploads_base}/client-${cid}" ]] && (sudo chown -R $USER:$USER "${uploads_base}/client-${cid}" 2>/dev/null || chown -R $USER:$USER "${uploads_base}/client-${cid}" 2>/dev/null || true)
-        sudo chmod -R 755 "${uploads_base}/client-${cid}" 2>/dev/null || true
-        sudo find "${uploads_base}/client-${cid}" -type f -exec chmod 644 {} \; 2>/dev/null || true
+        [[ -d "${uploads_base}/subscriber-${cid}" ]] && (sudo chown -R $USER:$USER "${uploads_base}/subscriber-${cid}" 2>/dev/null || chown -R $USER:$USER "${uploads_base}/subscriber-${cid}" 2>/dev/null || true)
+        sudo chmod -R 755 "${uploads_base}/subscriber-${cid}" 2>/dev/null || true
+        sudo find "${uploads_base}/subscriber-${cid}" -type f -exec chmod 644 {} \; 2>/dev/null || true
     done
 
-    log "✅ Mídias demo copiadas para ${uploads_base}/client-1..10 (origem: player-web/propagandas)"
+    log "✅ Mídias demo copiadas para ${uploads_base}/subscriber-1..10 (origem: player-web/propagandas)"
 }
 
 # =============================================================================
@@ -1577,37 +1577,44 @@ setup_project() {
         detect_project_directory
     fi
     
-    # CORREÇÃO CRÍTICA IMEDIATA: Corrigir ownership e permissões ANTES de qualquer operação
-    # ZIPs extraídos podem ter ownership/permissões incorretos
-    log "Corrigindo ownership e permissões de diretórios e arquivos (correção preventiva)..."
-    
-    # Obter usuário e grupo atual
+    # Validar/corrigir ownership e permissões apenas quando necessário (evita lentidão em reinstalações)
     CURRENT_USER="${USER:-$(whoami)}"
     CURRENT_GROUP="${GROUP:-$(id -gn)}"
     
-    log "Ajustando ownership para: $CURRENT_USER:$CURRENT_GROUP"
-    
-    # Corrigir ownership e permissões do diretório raiz do projeto primeiro
     if [[ -d "$SOURCE_DIR" ]]; then
-        # Corrigir ownership para o usuário atual (sem sudo se já for dono, com sudo se necessário)
-        if [[ -O "$SOURCE_DIR" ]]; then
-            # Já é dono, apenas corrigir permissões
-            find "$SOURCE_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
-            find "$SOURCE_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
-            find "$SOURCE_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
-        else
-            # Precisa de sudo para corrigir ownership
-            log "Ajustando ownership com sudo (pode pedir senha)..."
-            sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$SOURCE_DIR" 2>/dev/null || {
-                warn "⚠️ Não foi possível ajustar ownership (tentando sem sudo)..."
-                # Tentar sem sudo mesmo assim
-                chown -R "$CURRENT_USER:$CURRENT_GROUP" "$SOURCE_DIR" 2>/dev/null || true
-            }
-            find "$SOURCE_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
-            find "$SOURCE_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
-            find "$SOURCE_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+        NEED_CHOWN=0
+        NEED_PERMS=0
+        # Validação rápida: diretório raiz já é nosso e com permissão 755?
+        if [[ ! -O "$SOURCE_DIR" ]]; then
+            NEED_CHOWN=1
         fi
-        log "✅ Ownership e permissões do diretório raiz corrigidas"
+        ROOT_MODE=$(stat -c '%a' "$SOURCE_DIR" 2>/dev/null || echo "0")
+        [[ "$ROOT_MODE" != "755" ]] && [[ "$ROOT_MODE" != "775" ]] && NEED_PERMS=1
+        # Amostra: um ficheiro chave legível e com modo aceitável?
+        if [[ -f "$SOURCE_DIR/package.json" ]]; then
+            FMODE=$(stat -c '%a' "$SOURCE_DIR/package.json" 2>/dev/null || echo "0")
+            [[ "$FMODE" != "644" ]] && [[ "$FMODE" != "664" ]] && NEED_PERMS=1
+        fi
+        
+        if [[ "$NEED_CHOWN" -eq 0 ]] && [[ "$NEED_PERMS" -eq 0 ]]; then
+            log "Ownership e permissões já corretas (validação rápida) - nada a fazer"
+        else
+            log "Corrigindo ownership e permissões de diretórios e arquivos (correção preventiva)..."
+            log "Ajustando ownership para: $CURRENT_USER:$CURRENT_GROUP"
+            if [[ "$NEED_CHOWN" -eq 1 ]]; then
+                log "Ajustando ownership com sudo (pode pedir senha)..."
+                sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$SOURCE_DIR" 2>/dev/null || {
+                    warn "⚠️ Não foi possível ajustar ownership (tentando sem sudo)..."
+                    chown -R "$CURRENT_USER:$CURRENT_GROUP" "$SOURCE_DIR" 2>/dev/null || true
+                }
+            fi
+            if [[ "$NEED_PERMS" -eq 1 ]]; then
+                find "$SOURCE_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
+                find "$SOURCE_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+                find "$SOURCE_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+            fi
+            log "✅ Ownership e permissões do diretório raiz corrigidas"
+        fi
     fi
     
     # Para single-server, usar diretório de origem diretamente (mais simples e confiável)
@@ -1647,53 +1654,44 @@ setup_project() {
             log "⚠️  DB_USER não encontrado no config, usando padrão: smartsignage"
         fi
         
-        # CORREÇÃO CRÍTICA IMEDIATA: Corrigir ownership e permissões ANTES de qualquer verificação
-        # ZIPs criados no Windows não preservam ownership/permissões Unix, então corrigimos aqui
-        log "Corrigindo ownership e permissões de diretórios e arquivos (preventivo para ZIPs do Windows)..."
-        
-        # Obter usuário e grupo atual
-        CURRENT_USER="${USER:-$(whoami)}"
-        CURRENT_GROUP="${GROUP:-$(id -gn)}"
-        
-        log "Ajustando ownership para: $CURRENT_USER:$CURRENT_GROUP"
-        
-        # Corrigir ownership e permissões recursivamente
-        if [[ -d "$INSTALL_DIR" ]]; then
-            log "Corrigindo ownership e permissões recursivamente em $INSTALL_DIR..."
-            
-            # Corrigir ownership primeiro
-            if [[ -O "$INSTALL_DIR" ]]; then
-                # Já é dono, apenas corrigir permissões
-                log "Diretório já pertence ao usuário atual"
-            else
-                # Precisa ajustar ownership
-                log "Ajustando ownership com sudo (pode pedir senha)..."
-                sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR" 2>/dev/null || {
-                    warn "⚠️ Não foi possível ajustar ownership (tentando sem sudo)..."
-                    chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR" 2>/dev/null || true
-                }
+        # Em single-server INSTALL_DIR = SOURCE_DIR; ownership/permissões já foram validadas/corrigidas acima.
+        # Só corrigir de novo se for outro diretório (ex.: desenvolvimento com INSTALL_DIR diferente).
+        if [[ -d "$INSTALL_DIR" ]] && [[ "$INSTALL_DIR" != "$SOURCE_DIR" ]]; then
+            NEED_CHOWN=0
+            NEED_PERMS=0
+            [[ ! -O "$INSTALL_DIR" ]] && NEED_CHOWN=1
+            ROOT_MODE=$(stat -c '%a' "$INSTALL_DIR" 2>/dev/null || echo "0")
+            [[ "$ROOT_MODE" != "755" ]] && [[ "$ROOT_MODE" != "775" ]] && NEED_PERMS=1
+            if [[ "$NEED_CHOWN" -eq 1 ]] || [[ "$NEED_PERMS" -eq 1 ]]; then
+                log "Corrigindo ownership e permissões em $INSTALL_DIR..."
+                if [[ "$NEED_CHOWN" -eq 1 ]]; then
+                    sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR" 2>/dev/null || chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR" 2>/dev/null || true
+                fi
+                if [[ "$NEED_PERMS" -eq 1 ]]; then
+                    find "$INSTALL_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
+                    find "$INSTALL_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+                    find "$INSTALL_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+                fi
+                log "✅ Ownership e permissões corrigidas em $INSTALL_DIR"
             fi
-            
-            # TODOS os diretórios precisam de 755 (rwxr-xr-x) para permitir acesso (cd, ls)
-            find "$INSTALL_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
-            # TODOS os arquivos precisam de 644 (rw-r--r--) para permitir leitura
-            find "$INSTALL_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
-            # Scripts .sh precisam de execução
-            find "$INSTALL_DIR" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
-            log "✅ Ownership e permissões recursivas corrigidas em $INSTALL_DIR"
         fi
         
-        # Correção específica e explícita para diretórios críticos
+        # Correção leve só para diretórios críticos (apenas se modo estiver errado)
         if [[ -d "$INSTALL_DIR/frontend/src" ]]; then
-            # Garantir que diretórios possam ser acessados
-            find "$INSTALL_DIR/frontend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
-            find "$INSTALL_DIR/frontend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
-            log "✅ Permissões do frontend/src corrigidas preventivamente"
+            FMODE=$(stat -c '%a' "$INSTALL_DIR/frontend/src" 2>/dev/null || echo "0")
+            if [[ "$FMODE" != "755" ]] && [[ "$FMODE" != "775" ]]; then
+                find "$INSTALL_DIR/frontend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
+                find "$INSTALL_DIR/frontend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
+                log "✅ Permissões do frontend/src corrigidas"
+            fi
         fi
         if [[ -d "$INSTALL_DIR/backend/src" ]]; then
-            find "$INSTALL_DIR/backend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
-            find "$INSTALL_DIR/backend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
-            log "✅ Permissões do backend/src corrigidas preventivamente"
+            FMODE=$(stat -c '%a' "$INSTALL_DIR/backend/src" 2>/dev/null || echo "0")
+            if [[ "$FMODE" != "755" ]] && [[ "$FMODE" != "775" ]]; then
+                find "$INSTALL_DIR/backend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
+                find "$INSTALL_DIR/backend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
+                log "✅ Permissões do backend/src corrigidas"
+            fi
         fi
         
         # Apenas garantir que estamos no diretório correto
@@ -1861,42 +1859,27 @@ setup_project() {
     
     log "✅ Todos os arquivos essenciais verificados"
     
-    # CORREÇÃO CRÍTICA: Corrigir ownership e permissões de diretórios e arquivos
-    # Diretórios precisam de permissão de execução (x) para serem acessados
-    # Arquivos devem pertencer ao usuário atual
-    log "Corrigindo ownership e permissões de diretórios e arquivos do projeto..."
-    
-    # Obter usuário e grupo atual
+    # Validar/corrigir ownership e permissões só quando necessário (evita lentidão)
     CURRENT_USER="${USER:-$(whoami)}"
     CURRENT_GROUP="${GROUP:-$(id -gn)}"
     
-    # Corrigir ownership e permissões do frontend (mais crítico)
-    if [[ -d "$INSTALL_DIR/frontend/src" ]]; then
-        log "Corrigindo ownership e permissões do frontend/src..."
-        # Corrigir ownership
-        if [[ ! -O "$INSTALL_DIR/frontend/src" ]]; then
-            sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/frontend/src" 2>/dev/null || \
-            chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/frontend/src" 2>/dev/null || true
+    for SUB in "frontend/src" "backend/src"; do
+        if [[ -d "$INSTALL_DIR/$SUB" ]]; then
+            NEED_FIX=0
+            [[ ! -O "$INSTALL_DIR/$SUB" ]] && NEED_FIX=1
+            DMODE=$(stat -c '%a' "$INSTALL_DIR/$SUB" 2>/dev/null || echo "0")
+            [[ "$DMODE" != "755" ]] && [[ "$DMODE" != "775" ]] && NEED_FIX=1
+            if [[ "$NEED_FIX" -eq 1 ]]; then
+                log "Corrigindo ownership/permissões de $SUB..."
+                if [[ ! -O "$INSTALL_DIR/$SUB" ]]; then
+                    sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/$SUB" 2>/dev/null || chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/$SUB" 2>/dev/null || true
+                fi
+                find "$INSTALL_DIR/$SUB" -type d -exec chmod 755 {} \; 2>/dev/null || true
+                find "$INSTALL_DIR/$SUB" -type f -exec chmod 644 {} \; 2>/dev/null || true
+                log "✅ $SUB corrigido"
+            fi
         fi
-        # Todos os diretórios precisam de execução (755)
-        find "$INSTALL_DIR/frontend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
-        # Todos os arquivos precisam de leitura (644)
-        find "$INSTALL_DIR/frontend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
-        log "✅ Ownership e permissões do frontend/src corrigidas"
-    fi
-    
-    # Corrigir permissões do backend também
-    if [[ -d "$INSTALL_DIR/backend/src" ]]; then
-        log "Corrigindo ownership e permissões do backend/src..."
-        # Corrigir ownership
-        if [[ ! -O "$INSTALL_DIR/backend/src" ]]; then
-            sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/backend/src" 2>/dev/null || \
-            chown -R "$CURRENT_USER:$CURRENT_GROUP" "$INSTALL_DIR/backend/src" 2>/dev/null || true
-        fi
-        find "$INSTALL_DIR/backend/src" -type d -exec chmod 755 {} \; 2>/dev/null || true
-        find "$INSTALL_DIR/backend/src" -type f -exec chmod 644 {} \; 2>/dev/null || true
-        log "✅ Ownership e permissões do backend/src corrigidas"
-    fi
+    done
     
     cd $INSTALL_DIR
     log "Projeto configurado em $INSTALL_DIR"
@@ -4716,9 +4699,15 @@ server {
         proxy_hide_header Origin-Agent-Cluster;
     }
     
-    # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
+    # Assets - Proxy para backend (evita problemas de permissão)
+    # Backend já serve /assets via express.static
     location /assets/ {
-        alias /opt/smart-signage/public/assets/;
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -4822,9 +4811,15 @@ server {
         proxy_temp_file_write_size 512k;
     }
     
-    # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
+    # Assets - Proxy para backend (evita problemas de permissão)
+    # Backend já serve /assets via express.static
     location /assets/ {
-        alias /opt/smart-signage/public/assets/;
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -5095,9 +5090,15 @@ server {
         proxy_temp_file_write_size 512k;
     }
 
-    # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
+    # Assets - Proxy para backend (evita problemas de permissão)
+    # Backend já serve /assets via express.static
     location /assets/ {
-        alias /opt/smart-signage/public/assets/;
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -5199,9 +5200,15 @@ server {
         access_log off;
     }
     
-    # Assets - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
+    # Assets - Proxy para backend (evita problemas de permissão)
+    # Backend já serve /assets via express.static
     location /assets/ {
-        alias /opt/smart-signage/public/assets/;
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -5282,7 +5289,12 @@ server {
     
     # Assets
     location /assets/ {
-        alias /opt/smart-signage/public/assets/;
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -5355,9 +5367,15 @@ server {
         access_log off;
     }
     
-    # Assets
+    # Assets - Proxy para backend (evita problemas de permissão)
+    # Backend já serve /assets via express.static
     location /assets/ {
-        alias /opt/smart-signage/public/assets/;
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -6089,17 +6107,18 @@ test_endpoints() {
         log "===> 5) Upload de mídia - pulado (token inválido)"
     fi
     
-    # 6) Campanha simples (API aceita clientId→subscriberId; retorna .id ou .campaign_id e .title)
+    # 6) Campanha simples (API aceita subscriberId; retorna .id ou .campaign_id e .title; título único evita conflito com seed)
     if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
         log "===> 6) Campanha simples"
+        CAMPAIGN_TITLE="Campanha Teste Instalação $(date +%s)"
         CAMPAIGN_RESULT=$(curl -fsS -X POST "$API_HEALTH/api/campaigns" \
           -H "Authorization: Bearer $TOKEN" \
           -H "Content-Type: application/json" \
-          -d '{"subscriberId":1,"title":"Campanha Teste Instalação","description":"Demo pós-instalação","campaignType":"general","isActive":true}' 2>/dev/null | jq -r '(.id // .campaign_id | tostring) + " " + (.title // "")' 2>/dev/null || echo "")
+          -d "{\"subscriberId\":1,\"title\":\"$CAMPAIGN_TITLE\",\"description\":\"Demo pós-instalação\",\"campaignType\":\"general\",\"isActive\":true}" 2>/dev/null | jq -r '(.id // .campaign_id | tostring) + " " + (.title // "")' 2>/dev/null || echo "")
         if [[ -n "$CAMPAIGN_RESULT" ]] && [[ "$CAMPAIGN_RESULT" != "null " ]]; then
             log "✅ Campanha criada: $CAMPAIGN_RESULT"
         else
-            warning "⚠️  Falha ao criar campanha (pode já existir ou subscriberId inválido)"
+            warning "⚠️  Falha ao criar campanha (subscriberId=1 ou API pode exigir mais campos)"
         fi
     else
         log "===> 6) Campanha simples - pulado (token inválido)"
@@ -6123,8 +6142,7 @@ test_endpoints() {
         log "ℹ️  MQTT Broker: Não foi possível verificar (mosquitto_sub não disponível)"
     fi
     
-    # 8) Players e heartbeat (API /api/players retorna Player com totem_id; heartbeat em /api/totems/:id)
-    # clientId no createPlayer é publisher_id para buscar local_id (seed tem publishers 1,2 e locals)
+    # 8) Players e heartbeat (API /api/players usa clientId=publisher_id para local; fallback: /api/totems com localId=1)
     if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
         log "===> 8) Players e heartbeat"
         PLAYER_NAME="Totem Teste Instalação $(date +%s)"
@@ -6132,6 +6150,12 @@ test_endpoints() {
           -H "Authorization: Bearer $TOKEN" \
           -H "Content-Type: application/json" \
           -d "{\"name\":\"$PLAYER_NAME\",\"location\":\"Loja Central\",\"clientId\":1}" 2>/dev/null | jq -r '.totem_id // .id | tostring' 2>/dev/null || echo "")
+        if [[ -z "$PID" ]] || [[ "$PID" == "null" ]]; then
+            PID=$(curl -fsS -X POST "$API_HEALTH/api/totems" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"$PLAYER_NAME\",\"identifier\":\"TEST-INSTALL-$(date +%s)\",\"localId\":1}" 2>/dev/null | jq -r '.totem_id // .id | tostring' 2>/dev/null || echo "")
+        fi
         if [[ -n "$PID" ]] && [[ "$PID" != "null" ]] && [[ "$PID" != "" ]]; then
             HEARTBEAT_RESULT=$(curl -fsS -X POST "$API_HEALTH/api/totems/$PID/heartbeat" \
               -H "Authorization: Bearer $TOKEN" \
@@ -6143,7 +6167,7 @@ test_endpoints() {
                 warning "⚠️  Heartbeat: Falhou"
             fi
         else
-            warning "⚠️  Falha ao criar player (pode não haver local com publisher_id=1 - pulando heartbeat)"
+            warning "⚠️  Falha ao criar player (API /api/players ou /api/totems; seed tem local_id=1 para publisher_id=1)"
         fi
     else
         log "===> 8) Players e heartbeat - pulado (token inválido)"
@@ -7278,10 +7302,12 @@ validate_complete_installation() {
     # 3. Verificar configuração do Nginx
     if command -v nginx &> /dev/null && [[ -f "/etc/nginx/sites-enabled/smart-signage" ]]; then
         log "Verificando configuração do Nginx..."
-        if grep -q "alias /opt/smart-signage/public/assets/;" /etc/nginx/sites-enabled/smart-signage 2>/dev/null; then
-            log "✅ Nginx configurado corretamente para /opt/smart-signage"
+        if grep -q "location /assets/" /etc/nginx/sites-enabled/smart-signage 2>/dev/null && \
+           (grep -q "proxy_pass http://localhost:3000" /etc/nginx/sites-enabled/smart-signage 2>/dev/null || \
+            grep -q "alias /opt/smart-signage/public/assets/" /etc/nginx/sites-enabled/smart-signage 2>/dev/null); then
+            log "✅ Nginx configurado corretamente para assets"
         else
-            warn "⚠️  Nginx pode não estar configurado para /opt/smart-signage"
+            warn "⚠️  Nginx pode não estar configurado corretamente para assets"
             ((WARNINGS++))
         fi
     fi

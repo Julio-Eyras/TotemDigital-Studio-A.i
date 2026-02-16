@@ -132,22 +132,22 @@ export class StorageService {
   /**
    * Salva arquivo de mídia
    */
-  async saveMediaFile(file: FileInfo, clientId: number, mediaName: string): Promise<string> {
+  async saveMediaFile(file: FileInfo, subscriberId: number, mediaName: string): Promise<string> {
     try {
       // Verificar quota antes de salvar
-      const quotaCheck = await this.checkSubscriberQuota(clientId, file.size);
+      const quotaCheck = await this.checkSubscriberQuota(subscriberId, file.size);
       if (!quotaCheck.allowed) {
         throw new Error(`Quota de armazenamento excedida. Uso atual: ${this.formatBytes(quotaCheck.currentUsage)}, Quota: ${this.formatBytes(quotaCheck.quota)}, Disponível: ${this.formatBytes(quotaCheck.available)}, Arquivo: ${this.formatBytes(file.size)}`);
       }
 
-      // Criar diretório do cliente
-      const clientDir = path.join(this.uploadsPath, `client-${clientId}`, 'medias');
-      await this.ensureDirectoryExists(clientDir);
+      // Criar diretório do subscriber (usar subscriber- em vez de client-)
+      const subscriberDir = path.join(this.uploadsPath, `subscriber-${subscriberId}`, 'medias');
+      await this.ensureDirectoryExists(subscriberDir);
 
       // Gerar nome único para o arquivo
       const fileExtension = path.extname(file.originalname);
       const fileName = this.sanitizeFileName(mediaName) + fileExtension;
-      const filePath = path.join(clientDir, fileName);
+      const filePath = path.join(subscriberDir, fileName);
 
       // Verificar se arquivo já existe
       if (fs.existsSync(filePath)) {
@@ -155,7 +155,7 @@ export class StorageService {
         const timestamp = Date.now();
         const baseName = path.basename(fileName, fileExtension);
         const newFileName = `${baseName}_${timestamp}${fileExtension}`;
-        const newFilePath = path.join(clientDir, newFileName);
+        const newFilePath = path.join(subscriberDir, newFileName);
         
         fs.writeFileSync(newFilePath, file.buffer);
         return newFilePath;
@@ -179,7 +179,7 @@ export class StorageService {
       return filePath;
 
     } catch (error: any) {
-      logErrorSync('Erro ao salvar arquivo de mídia', error, { clientId, mediaName });
+      logErrorSync('Erro ao salvar arquivo de mídia', error, { subscriberId, mediaName });
       throw new Error('Erro ao salvar arquivo');
     }
   }
