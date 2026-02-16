@@ -40,6 +40,8 @@ apply_fix() {
 
     echo "→ Aplicando alterações de rede..."
     sudo netplan apply
+    # Corrigir permissões para evitar WARNING "Permissions ... are too open"
+    sudo chmod 600 "$NETPLAN_FILE" 2>/dev/null || true
   fi
 
   echo "✅ Correção aplicada com sucesso!"

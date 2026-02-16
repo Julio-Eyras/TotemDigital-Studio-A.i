@@ -1204,7 +1204,7 @@ install_nodejs() {
     if command -v node &> /dev/null; then
         NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
         if [[ $NODE_VERSION -ge 18 ]]; then
-            log "✅ Node.js v$(node --version) já está instalado!"
+            log "✅ Node.js $(node --version) já está instalado!"
             return
         else
             warn "⚠️  Node.js versão antiga detectada ($(node --version)). Atualizando..."
@@ -4046,11 +4046,11 @@ setup_database() {
             if [[ -f "$PG_HBA" ]]; then
                 # Remover TODAS as linhas que contêm listen_addresses (não pertence ao pg_hba.conf)
                 # Isso é crítico - listen_addresses no pg_hba.conf causa erro FATAL
-                if grep -q "listen_addresses" "$PG_HBA" 2>/dev/null; then
+                if sudo grep -q "listen_addresses" "$PG_HBA" 2>/dev/null; then
                     log "⚠️  Removendo linhas inválidas de listen_addresses do pg_hba.conf..."
                     sudo sed -i '/listen_addresses/d' "$PG_HBA" 2>/dev/null || true
                     # Verificar se foi removido
-                    if grep -q "listen_addresses" "$PG_HBA" 2>/dev/null; then
+                    if sudo grep -q "listen_addresses" "$PG_HBA" 2>/dev/null; then
                         warn "⚠️  Ainda há listen_addresses no pg_hba.conf após tentativa de remoção"
                         # Tentar remover de forma mais agressiva
                         sudo sed -i '/.*listen_addresses.*/d' "$PG_HBA" 2>/dev/null || true
@@ -4069,13 +4069,13 @@ setup_database() {
                 
                 # Encontrar onde inserir (antes da seção de replication se existir)
                 local insert_before_line=""
-                if grep -q "^# Allow replication" "$PG_HBA" || grep -q "^local[[:space:]]\+replication" "$PG_HBA"; then
-                    insert_before_line=$(grep -n "^# Allow replication\|^local[[:space:]]\+replication" "$PG_HBA" | head -1 | cut -d: -f1)
+                if sudo grep -q "^# Allow replication" "$PG_HBA" 2>/dev/null || sudo grep -q "^local[[:space:]]\+replication" "$PG_HBA" 2>/dev/null; then
+                    insert_before_line=$(sudo grep -n "^# Allow replication\|^local[[:space:]]\+replication" "$PG_HBA" 2>/dev/null | head -1 | cut -d: -f1)
                 fi
                 
                 # Adicionar regras genéricas para toda a rede local (permite conexões de qualquer banco/usuário da rede)
                 # Isso permite conexões da rede local além de localhost
-                if ! grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+192\.168\.0\.0/16[[:space:]]+md5" "$PG_HBA"; then
+                if ! sudo grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+192\.168\.0\.0/16[[:space:]]+md5" "$PG_HBA" 2>/dev/null; then
                     if [[ -n "$insert_before_line" ]]; then
                         sudo sed -i "${insert_before_line}i host    all    all    192.168.0.0/16    md5" "$PG_HBA" 2>/dev/null || \
                         echo "host    all    all    192.168.0.0/16    md5" | sudo tee -a "$PG_HBA" > /dev/null
@@ -4084,7 +4084,7 @@ setup_database() {
                     fi
                 fi
                 
-                if ! grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+10\.0\.0\.0/8[[:space:]]+md5" "$PG_HBA"; then
+                if ! sudo grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+10\.0\.0\.0/8[[:space:]]+md5" "$PG_HBA" 2>/dev/null; then
                     if [[ -n "$insert_before_line" ]]; then
                         sudo sed -i "${insert_before_line}i host    all    all    10.0.0.0/8         md5" "$PG_HBA" 2>/dev/null || \
                         echo "host    all    all    10.0.0.0/8         md5" | sudo tee -a "$PG_HBA" > /dev/null
@@ -4093,7 +4093,7 @@ setup_database() {
                     fi
                 fi
                 
-                if ! grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+172\.16\.0\.0/12[[:space:]]+md5" "$PG_HBA"; then
+                if ! sudo grep -qE "^host[[:space:]]+all[[:space:]]+all[[:space:]]+172\.16\.0\.0/12[[:space:]]+md5" "$PG_HBA" 2>/dev/null; then
                     if [[ -n "$insert_before_line" ]]; then
                         sudo sed -i "${insert_before_line}i host    all    all    172.16.0.0/12      md5" "$PG_HBA" 2>/dev/null || \
                         echo "host    all    all    172.16.0.0/12      md5" | sudo tee -a "$PG_HBA" > /dev/null
@@ -6047,20 +6047,21 @@ test_endpoints() {
     fi
     
     # 4) CRUD rápido - criar cliente e checar lista (apenas se token OK)
+    # API /api/clients retorna Client com client_id (não id); GET retorna { data, total }
     if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
         log "===> 4) CRUD rápido - criar cliente e checar lista"
         CLIENT_RESULT=$(curl -fsS -X POST "$API_HEALTH/api/clients" \
           -H "Authorization: Bearer $TOKEN" \
           -H "Content-Type: application/json" \
-          -d '{"name":"Cliente Teste","email":"cliente@teste.com"}' 2>/dev/null | jq -r '.id,.name' 2>/dev/null || echo "")
-        if [[ -n "$CLIENT_RESULT" ]]; then
+          -d '{"name":"Cliente Teste Instalação","email":"cliente-teste@instalacao.local"}' 2>/dev/null | jq -r '(.client_id // .id | tostring) + " " + (.name // "")' 2>/dev/null || echo "")
+        if [[ -n "$CLIENT_RESULT" ]] && [[ "$CLIENT_RESULT" != "null " ]]; then
             log "✅ Cliente criado: $CLIENT_RESULT"
         else
             warning "⚠️  Falha ao criar cliente (pode já existir)"
         fi
         
-        CLIENT_COUNT=$(curl -fsS -X GET "$API/api/clients?page=1&limit=5" \
-          -H "Authorization: Bearer $TOKEN" 2>/dev/null | jq '.items | length' 2>/dev/null || echo "0")
+        CLIENT_COUNT=$(curl -fsS -X GET "$API_HEALTH/api/clients?page=1&limit=5" \
+          -H "Authorization: Bearer $TOKEN" 2>/dev/null | jq 'if .data then (.data | length) elif .total != null then .total else 0 end' 2>/dev/null || echo "0")
         log "✅ Clientes na lista: $CLIENT_COUNT"
     else
         log "===> 4) CRUD rápido - pulado (token inválido)"
@@ -6072,7 +6073,7 @@ test_endpoints() {
         if [[ -f "./banner.jpg" ]] || [[ -f "$INSTALL_DIR/banner.jpg" ]]; then
             TEST_FILE="./banner.jpg"
             [[ ! -f "$TEST_FILE" ]] && TEST_FILE="$INSTALL_DIR/banner.jpg"
-            UPLOAD_RESULT=$(curl -fsS -X POST "$API/api/media/upload" \
+            UPLOAD_RESULT=$(curl -fsS -X POST "$API_HEALTH/api/media/upload" \
               -H "Authorization: Bearer $TOKEN" \
               -F "file=@$TEST_FILE" \
               -F "name=banner_loja" 2>/dev/null | jq -r '.id,.name' 2>/dev/null || echo "")
@@ -6088,17 +6089,17 @@ test_endpoints() {
         log "===> 5) Upload de mídia - pulado (token inválido)"
     fi
     
-    # 6) Campanha simples
+    # 6) Campanha simples (API aceita clientId→subscriberId; retorna .id ou .campaign_id e .title)
     if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
         log "===> 6) Campanha simples"
-        CAMPAIGN_RESULT=$(curl -fsS -X POST "$API/api/campaigns" \
+        CAMPAIGN_RESULT=$(curl -fsS -X POST "$API_HEALTH/api/campaigns" \
           -H "Authorization: Bearer $TOKEN" \
           -H "Content-Type: application/json" \
-          -d '{"clientId":1,"title":"Campanha Teste","description":"Demo","campaignType":"general","isActive":true}' 2>/dev/null | jq -r '.id,.title' 2>/dev/null || echo "")
-        if [[ -n "$CAMPAIGN_RESULT" ]]; then
+          -d '{"subscriberId":1,"title":"Campanha Teste Instalação","description":"Demo pós-instalação","campaignType":"general","isActive":true}' 2>/dev/null | jq -r '(.id // .campaign_id | tostring) + " " + (.title // "")' 2>/dev/null || echo "")
+        if [[ -n "$CAMPAIGN_RESULT" ]] && [[ "$CAMPAIGN_RESULT" != "null " ]]; then
             log "✅ Campanha criada: $CAMPAIGN_RESULT"
         else
-            warning "⚠️  Falha ao criar campanha (pode já existir ou clientId inválido)"
+            warning "⚠️  Falha ao criar campanha (pode já existir ou subscriberId inválido)"
         fi
     else
         log "===> 6) Campanha simples - pulado (token inválido)"
@@ -6122,25 +6123,27 @@ test_endpoints() {
         log "ℹ️  MQTT Broker: Não foi possível verificar (mosquitto_sub não disponível)"
     fi
     
-    # 8) Players e heartbeat
+    # 8) Players e heartbeat (API /api/players retorna Player com totem_id; heartbeat em /api/totems/:id)
+    # clientId no createPlayer é publisher_id para buscar local_id (seed tem publishers 1,2 e locals)
     if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
         log "===> 8) Players e heartbeat"
-        PID=$(curl -fsS -X POST "$API/api/players" \
+        PLAYER_NAME="Totem Teste Instalação $(date +%s)"
+        PID=$(curl -fsS -X POST "$API_HEALTH/api/players" \
           -H "Authorization: Bearer $TOKEN" \
           -H "Content-Type: application/json" \
-          -d '{"name":"Totem 1","location":"Loja Central","clientId":1}' 2>/dev/null | jq -r '.id' 2>/dev/null || echo "")
+          -d "{\"name\":\"$PLAYER_NAME\",\"location\":\"Loja Central\",\"clientId\":1}" 2>/dev/null | jq -r '.totem_id // .id | tostring' 2>/dev/null || echo "")
         if [[ -n "$PID" ]] && [[ "$PID" != "null" ]] && [[ "$PID" != "" ]]; then
-            HEARTBEAT_RESULT=$(curl -fsS -X POST "$API/api/totems/$PID/heartbeat" \
+            HEARTBEAT_RESULT=$(curl -fsS -X POST "$API_HEALTH/api/totems/$PID/heartbeat" \
               -H "Authorization: Bearer $TOKEN" \
               -H "Content-Type: application/json" \
               -d '{"status":"online","uptime":120,"memoryUsage":30.5}' 2>/dev/null | jq . 2>/dev/null || echo "")
             if [[ -n "$HEARTBEAT_RESULT" ]]; then
-                log "✅ Player criado e heartbeat: OK (Player ID: $PID)"
+                log "✅ Player criado e heartbeat: OK (Totem ID: $PID)"
             else
                 warning "⚠️  Heartbeat: Falhou"
             fi
         else
-            warning "⚠️  Falha ao criar player - pulando heartbeat"
+            warning "⚠️  Falha ao criar player (pode não haver local com publisher_id=1 - pulando heartbeat)"
         fi
     else
         log "===> 8) Players e heartbeat - pulado (token inválido)"
@@ -9983,6 +9986,15 @@ show_players_menu() {
 copy_selected_players() {
     log "Copiando players selecionados..."
     
+    # Single-server usando diretório de origem: players já estão no lugar, não copiar (evita "Falha ao copiar")
+    local src_abs inst_abs
+    src_abs="$(readlink -f "$SOURCE_DIR" 2>/dev/null || realpath "$SOURCE_DIR" 2>/dev/null || echo "$SOURCE_DIR")"
+    inst_abs="$(readlink -f "$INSTALL_DIR" 2>/dev/null || realpath "$INSTALL_DIR" 2>/dev/null || echo "$INSTALL_DIR")"
+    if [[ -n "$src_abs" && -n "$inst_abs" && "$src_abs" == "$inst_abs" ]]; then
+        log "✅ Usando diretório de origem - players já no lugar (pulando cópia)"
+        return 0
+    fi
+    
     if [[ "$INSTALL_ALL_PLAYERS" == "true" ]]; then
         log "Instalando todos os players..."
         if [[ -d "$SOURCE_DIR/player-client" ]]; then
@@ -10738,8 +10750,14 @@ main() {
     # Perguntar sobre players (após definir INSTALL_DIR)
     show_players_menu
     
-    # SEMPRE copiar/sincronizar player-web do repositório para INSTALL_DIR (necessário para /player funcionar)
-    if [[ -d "$SOURCE_DIR/player-web" ]] && [[ -f "$SOURCE_DIR/player-web/index.html" ]]; then
+    # Copiar/sincronizar player-web do repositório para INSTALL_DIR (necessário para /player funcionar)
+    # Quando INSTALL_DIR == SOURCE_DIR (single-server), player-web já está no lugar — não copiar
+    local _src_abs _inst_abs
+    _src_abs="$(readlink -f "$SOURCE_DIR" 2>/dev/null || realpath "$SOURCE_DIR" 2>/dev/null || echo "$SOURCE_DIR")"
+    _inst_abs="$(readlink -f "$INSTALL_DIR" 2>/dev/null || realpath "$INSTALL_DIR" 2>/dev/null || echo "$INSTALL_DIR")"
+    if [[ -n "$_src_abs" && -n "$_inst_abs" && "$_src_abs" == "$_inst_abs" ]]; then
+        log "✅ Player Web já no diretório de origem (pulando cópia)"
+    elif [[ -d "$SOURCE_DIR/player-web" ]] && [[ -f "$SOURCE_DIR/player-web/index.html" ]]; then
         log "Copiando Player Web (necessário para /player funcionar)..."
         mkdir -p "$INSTALL_DIR/player-web"
         cp -r "$SOURCE_DIR/player-web/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
