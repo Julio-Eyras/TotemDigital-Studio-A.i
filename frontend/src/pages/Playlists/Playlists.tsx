@@ -247,7 +247,7 @@ const Playlists: React.FC = () => {
     // Buscar playlist por ID para garantir subscriber_name e dados completos
     try {
       const full = await playlistApi.getById(pl.playlist_id);
-      if (full) setSelectedPlaylist({ ...pl, ...full, subscriber_name: full.subscriber_name ?? full.subscribername ?? pl.subscriber_name ?? (pl as any).subscribername });
+      if (full) setSelectedPlaylist({ ...pl, ...full, subscriber_name: full.subscriber_name ?? (full as any).subscribername ?? pl.subscriber_name ?? (pl as any).subscribername });
     } catch {
       // Manter pl se a busca falhar
     }

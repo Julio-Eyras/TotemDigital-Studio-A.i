@@ -419,7 +419,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
             multiple
             options={playlists.filter(p => {
               const campaignSubscriberId = subscriberId;
-              return !campaignSubscriberId || (p.subscriber_id || p.subscriber_id) === campaignSubscriberId;
+              return !campaignSubscriberId || (p.subscriber_id ?? p.client_id) === campaignSubscriberId;
             })}
             getOptionLabel={(option) => option.name}
             value={playlists.filter(p => ((data as any).playlistIds || []).includes(p.playlist_id))}
@@ -440,7 +440,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
             multiple
             options={playlists.filter(p => {
               const campaignSubscriberId = subscriberId;
-              return !campaignSubscriberId || (p.subscriber_id || p.subscriber_id) === campaignSubscriberId;
+              return !campaignSubscriberId || (p.subscriber_id ?? p.client_id) === campaignSubscriberId;
             })}
             getOptionLabel={(option) => option.name}
             value={playlists.filter(p => ((data as any).playlistIds || []).includes(p.playlist_id))}

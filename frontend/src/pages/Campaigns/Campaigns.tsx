@@ -1312,7 +1312,7 @@ const Campaigns: React.FC = () => {
                 multiple
                 options={mediaItems.filter(m => {
                   const campaignSubscriberId = selectedCampaign?.subscriber_id || (selectedCampaign as any)?.subscriberId;
-                  return !campaignSubscriberId || (m.subscriberId || m.subscriberId) === campaignSubscriberId;
+                  return !campaignSubscriberId || (m.subscriberId ?? m.clientId) === campaignSubscriberId;
                 })}
                 getOptionLabel={(option) => option.name}
                 value={mediaItems.filter(m => (selectedCampaign?.mediaIds || []).includes(m.media_id))}
