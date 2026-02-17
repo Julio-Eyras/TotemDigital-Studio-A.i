@@ -86,6 +86,10 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Datas padrão para contratos: início = hoje, vencimento = 31/12 do ano corrente
+  const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
+  const getDefaultContractEndDate = (): string => `${new Date().getFullYear()}-12-31`;
+
   const isSubscriberMaintenance = location.pathname.startsWith('/subscriber-contracts');
   const isPublisherMaintenance = location.pathname.startsWith('/publisher-contracts');
   const isMaintenance = isSubscriberMaintenance || isPublisherMaintenance;
@@ -132,8 +136,8 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
     contract_type: 'advertising',
     title: '',
     description: '',
-    start_date: '',
-    end_date: '',
+    start_date: getDefaultContractStartDate(),
+    end_date: getDefaultContractEndDate(),
     total_amount: undefined,
     currency: 'BRL',
     payment_terms: '',
@@ -159,8 +163,8 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
     contract_type: 'revenue_share',
     title: '',
     description: '',
-    start_date: '',
-    end_date: '',
+    start_date: getDefaultContractStartDate(),
+    end_date: getDefaultContractEndDate(),
     revenue_share_percentage: undefined,
     revenue_share_rules: undefined,
     minimum_payout_amount: undefined,
@@ -404,7 +408,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       const contractData: CreateContractRequest = {
         ...contractForm,
         start_date: formatDateForAPI(contractForm.start_date) || '',
-        end_date: formatDateForAPI(contractForm.end_date),
+        end_date: formatDateForAPI(contractForm.end_date || getDefaultContractEndDate()),
         // Só permitir publisherIds quando existir subscriber_id (evita INSERT com subscriber_id NULL no backend)
         publisherIds: hasSubscriber ? selectedPublisherIds : [],
       };
@@ -430,7 +434,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         title: contractForm.title,
         description: contractForm.description,
         start_date: formatDateForAPI(contractForm.start_date),
-        end_date: formatDateForAPI(contractForm.end_date),
+        end_date: formatDateForAPI(contractForm.end_date || getDefaultContractEndDate()),
         total_amount: contractForm.total_amount,
         currency: contractForm.currency,
         payment_terms: contractForm.payment_terms,
@@ -474,8 +478,15 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
 
   // Função helper para converter data yyyy-MM-dd para ISO
   const formatDateForAPI = (dateString: string | null | undefined): string | undefined => {
-    if (!dateString) return undefined;
+    if (!dateString || dateString.trim() === '') return undefined;
     try {
+      // Se já está no formato ISO completo (com T), usar diretamente
+      if (dateString.includes('T')) {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return undefined;
+        return date.toISOString();
+      }
+      // Se está no formato yyyy-MM-dd, adicionar hora para criar ISO válido
       const date = new Date(dateString + 'T00:00:00.000Z');
       if (isNaN(date.getTime())) return undefined;
       return date.toISOString();
@@ -486,20 +497,23 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
 
   const handleStartEdit = (contract: Contract) => {
     setSelectedContract(contract);
+    // Garantir que subscriber_id seja definido (pode vir como undefined/null do backend)
+    const subscriberId = contract.subscriber_id ?? (contract as any).subscriberId ?? undefined;
     setContractForm({
-      subscriber_id: contract.subscriber_id,
+      subscriber_id: subscriberId,
       plan_id: contract.plan_id,
       contract_number: contract.contract_number,
       contract_type: contract.contract_type,
       title: contract.title,
       description: contract.description || '',
-      start_date: formatDateForInput(contract.start_date),
-      end_date: formatDateForInput(contract.end_date),
+      start_date: formatDateForInput(contract.start_date) || getDefaultContractStartDate(),
+      end_date: formatDateForInput(contract.end_date) || getDefaultContractEndDate(),
       total_amount: contract.total_amount,
-      currency: contract.currency,
+      currency: contract.currency || 'BRL',
       payment_terms: contract.payment_terms || '',
-      status: contract.status,
+      status: contract.status || 'draft',
       publisherIds: [],
+      created_before_subscriber: !subscriberId,
     });
     setEditDialogOpen(true);
     setEditTab(0);
@@ -517,8 +531,8 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       contract_type: 'advertising',
       title: '',
       description: '',
-      start_date: '',
-      end_date: '',
+      start_date: getDefaultContractStartDate(),
+      end_date: getDefaultContractEndDate(),
       total_amount: undefined,
       currency: 'BRL',
       payment_terms: '',
@@ -586,8 +600,8 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       contract_type: contract.contract_type,
       title: contract.title,
       description: contract.description || '',
-      start_date: formatDateForInput(contract.start_date),
-      end_date: formatDateForInput(contract.end_date),
+      start_date: formatDateForInput(contract.start_date) || getDefaultContractStartDate(),
+      end_date: formatDateForInput(contract.end_date) || getDefaultContractEndDate(),
       revenue_share_percentage: contract.revenue_share_percentage,
       revenue_share_rules: contract.revenue_share_rules,
       minimum_payout_amount: contract.minimum_payout_amount,
@@ -607,8 +621,8 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       contract_type: 'revenue_share',
       title: '',
       description: '',
-      start_date: '',
-      end_date: '',
+      start_date: getDefaultContractStartDate(),
+      end_date: getDefaultContractEndDate(),
       revenue_share_percentage: undefined,
       revenue_share_rules: undefined,
       minimum_payout_amount: undefined,
@@ -634,7 +648,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       const createData = {
         ...publisherContractForm,
         start_date: formatDateForAPI(publisherContractForm.start_date) || '',
-        end_date: formatDateForAPI(publisherContractForm.end_date),
+        end_date: formatDateForAPI(publisherContractForm.end_date || getDefaultContractEndDate()),
       };
       await publisherContractApi.create(createData);
       setCreatePublisherContractDialogOpen(false);
@@ -656,7 +670,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         title: publisherContractForm.title,
         description: publisherContractForm.description,
         start_date: formatDateForAPI(publisherContractForm.start_date) || '',
-        end_date: formatDateForAPI(publisherContractForm.end_date),
+        end_date: formatDateForAPI(publisherContractForm.end_date || getDefaultContractEndDate()),
         revenue_share_percentage: publisherContractForm.revenue_share_percentage,
         revenue_share_rules: publisherContractForm.revenue_share_rules,
         minimum_payout_amount: publisherContractForm.minimum_payout_amount,
@@ -1212,7 +1226,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
                 fullWidth
                 label="Data de Início *"
                 type="date"
-                value={publisherContractForm.start_date}
+                value={formatDateForInput(publisherContractForm.start_date) || ''}
                 onChange={(e) => setPublisherContractForm({ ...publisherContractForm, start_date: e.target.value })}
                 margin="normal"
                 required
@@ -1224,8 +1238,8 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
                 fullWidth
                 label="Data de Término"
                 type="date"
-                value={publisherContractForm.end_date || ''}
-                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, end_date: e.target.value })}
+                value={formatDateForInput(publisherContractForm.end_date) || getDefaultContractEndDate()}
+                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, end_date: e.target.value || getDefaultContractEndDate() })}
                 margin="normal"
                 InputLabelProps={{ shrink: true }}
               />
@@ -1413,7 +1427,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
                 fullWidth
                 label="Data de Início *"
                 type="date"
-                value={publisherContractForm.start_date}
+                value={formatDateForInput(publisherContractForm.start_date) || ''}
                 onChange={(e) => setPublisherContractForm({ ...publisherContractForm, start_date: e.target.value })}
                 margin="normal"
                 required
@@ -1425,8 +1439,8 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
                 fullWidth
                 label="Data de Término"
                 type="date"
-                value={publisherContractForm.end_date || ''}
-                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, end_date: e.target.value })}
+                value={formatDateForInput(publisherContractForm.end_date) || getDefaultContractEndDate()}
+                onChange={(e) => setPublisherContractForm({ ...publisherContractForm, end_date: e.target.value || getDefaultContractEndDate() })}
                 margin="normal"
                 InputLabelProps={{ shrink: true }}
               />

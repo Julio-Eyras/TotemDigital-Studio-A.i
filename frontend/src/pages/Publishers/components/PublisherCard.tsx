@@ -96,9 +96,9 @@ const PublisherCard: React.FC<PublisherCardProps> = ({
             </Typography>
             <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
               <Chip
-                label={publisher.active ? 'Ativo' : 'Inativo'}
+                label={(publisher.active ?? publisher.is_active) ? 'Ativo' : 'Inativo'}
                 size="small"
-                color={publisher.active ? 'success' : 'default'}
+                color={(publisher.active ?? publisher.is_active) ? 'success' : 'default'}
               />
               {publisher.client_type && (
                 <Chip

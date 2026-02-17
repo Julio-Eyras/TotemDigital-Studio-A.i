@@ -85,6 +85,8 @@ import {
 } from '../../services/api';
 import { PublisherCard, PublisherForm, PublisherDetails } from './components';
 
+const getDefaultContractEndDate = (): string => `${new Date().getFullYear()}-12-31`;
+
 const Publishers: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -142,7 +144,7 @@ const Publishers: React.FC = () => {
     title: '',
     description: '',
     start_date: new Date().toISOString().split('T')[0],
-    end_date: undefined,
+    end_date: getDefaultContractEndDate(),
     currency: 'BRL',
     status: 'draft',
   });
@@ -370,7 +372,7 @@ const Publishers: React.FC = () => {
         title: '',
         description: '',
         start_date: new Date().toISOString().split('T')[0],
-        end_date: undefined,
+        end_date: getDefaultContractEndDate(),
         currency: 'BRL',
         status: 'draft',
       });
@@ -2069,7 +2071,7 @@ const Publishers: React.FC = () => {
                           title: '',
                           description: '',
                           start_date: new Date().toISOString().split('T')[0],
-                          end_date: undefined,
+                          end_date: getDefaultContractEndDate(),
                           currency: 'BRL',
                           status: 'draft',
                         });
@@ -2089,7 +2091,7 @@ const Publishers: React.FC = () => {
                             title: '',
                             description: '',
                             start_date: new Date().toISOString().split('T')[0],
-                            end_date: undefined,
+                            end_date: getDefaultContractEndDate(),
                             currency: 'BRL',
                             status: 'draft',
                           });
@@ -2153,7 +2155,7 @@ const Publishers: React.FC = () => {
                                   title: '',
                                   description: '',
                                   start_date: new Date().toISOString().split('T')[0],
-                                  end_date: undefined,
+                                  end_date: getDefaultContractEndDate(),
                                   currency: 'BRL',
                                   status: 'draft',
                                 });
@@ -2918,7 +2920,7 @@ const Publishers: React.FC = () => {
                             title: '',
                             description: '',
                             start_date: new Date().toISOString().split('T')[0],
-                            end_date: undefined,
+                            end_date: getDefaultContractEndDate(),
                             currency: 'BRL',
                             status: 'draft',
                           });

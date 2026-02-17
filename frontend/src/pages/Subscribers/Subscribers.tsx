@@ -90,6 +90,7 @@ import {
   CreateCampaignRequest,
   UpdateCampaignRequest,
   Contract,
+  CreateContractRequest,
   CreateLocalRequest,
   CreatePlayerRequest,
   CreateSmartTvRequest,
@@ -98,6 +99,7 @@ import {
   totemApi,
   smartTvApi,
   contractApi,
+  planApi,
 } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import { SortableList } from '../../components/SortableList/SortableList';
@@ -106,6 +108,40 @@ import { SubscriberCard, SubscriberDetails, SubscriberForm } from './components'
 const Subscribers: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+
+  // Datas padrão para contratos: início = hoje, vencimento = 31/12 do ano corrente
+  const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
+  const getDefaultContractEndDate = (): string => {
+    const year = new Date().getFullYear();
+    return `${year}-12-31`;
+  };
+
+  // Função helper para formatar datas ISO para input type="date" (yyyy-MM-dd)
+  const formatDateForInput = (dateString: string | null | undefined): string => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      return date.toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
+  };
+
+  // Função helper para formatar datas do input (yyyy-MM-dd) para API (ISO string)
+  const formatDateForAPI = (dateString: string | null | undefined): string | undefined => {
+    if (!dateString || dateString.trim() === '') return undefined;
+    try {
+      // Se já está no formato yyyy-MM-dd, adicionar hora para criar ISO válido
+      const date = dateString.includes('T') 
+        ? new Date(dateString) 
+        : new Date(dateString + 'T00:00:00.000Z');
+      if (isNaN(date.getTime())) return undefined;
+      return date.toISOString();
+    } catch {
+      return undefined;
+    }
+  };
   const [Subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -139,7 +175,10 @@ const Subscribers: React.FC = () => {
   const [editTab, setEditTab] = useState(0); // NOVO: Aba do dialog de edição
   const [newSubscriber, setNewSubscriber] = useState<CreateSubscriberRequest>({
     name: '',
-    contract_id: undefined, // Opcional - pode vincular um pré-contrato (se existir)
+    contract_ids: undefined,
+    plan_ids: undefined,
+    contract_id: undefined, // Mantido para compatibilidade
+    plan_id: undefined, // Mantido para compatibilidade
     contact_name: '',
     email: '',
     phone: '',
@@ -150,8 +189,34 @@ const Subscribers: React.FC = () => {
   });
   
   // Estados para contratos
-  const [availableContracts, setAvailableContracts] = useState<Contract[]>([]);
-  const [loadingContracts, setLoadingContracts] = useState(false);
+  const [availablePlansForContract, setAvailablePlansForContract] = useState<any[]>([]);
+  // NOVO: Estados para gerenciar contratos durante a criação
+  const [tempSubscriberContracts, setTempSubscriberContracts] = useState<(CreateContractRequest & { tempId: string })[]>([]);
+  const [editingSubscriberContractIndexCreate, setEditingSubscriberContractIndexCreate] = useState<number | null>(null);
+  // Estados para gerenciar contratos durante a edição
+  const [editingSubscriberContractIndexEdit, setEditingSubscriberContractIndexEdit] = useState<number | null>(null);
+  const [subscriberContractForm, setSubscriberContractForm] = useState<CreateContractRequest>({
+    contract_number: '',
+    contract_type: 'advertising',
+    title: '',
+    description: '',
+    start_date: getDefaultContractStartDate(),
+    end_date: getDefaultContractEndDate(),
+    currency: 'BRL',
+    status: 'draft',
+    plan_id: undefined,
+  });
+  const [subscriberContractFormEdit, setSubscriberContractFormEdit] = useState<CreateContractRequest>({
+    contract_number: '',
+    contract_type: 'advertising',
+    title: '',
+    description: '',
+    start_date: getDefaultContractStartDate(),
+    end_date: getDefaultContractEndDate(),
+    currency: 'BRL',
+    status: 'draft',
+    plan_id: undefined,
+  });
   // NOVO: Estados para gerenciar locais, totens, smart TVs e subscribers durante a criação
   const [tempLocals, setTempLocals] = useState<CreateLocalRequest[]>([]);
   const [tempTotems, setTempTotems] = useState<(CreatePlayerRequest & { tempId: string })[]>([]);
@@ -160,8 +225,9 @@ const Subscribers: React.FC = () => {
   const [editingTotemIndex, setEditingTotemIndex] = useState<number | null>(null);
   const [editingSmartTvIndex, setEditingSmartTvIndex] = useState<number | null>(null);
   
-  // Estados para edição de Assinante (carregar dados existentes)
+  // Estados para edição de Anunciante (carregar dados existentes)
   const [editMedias, setEditMedias] = useState<MediaItem[]>([]);
+  const [mediaPreviewFailed, setMediaPreviewFailed] = useState<Set<number>>(new Set());
   const [editPlaylists, setEditPlaylists] = useState<PlaylistItem[]>([]);
   const [editCampaigns, setEditCampaigns] = useState<Campaign[]>([]);
   const [editingEditMediaIndex, setEditingEditMediaIndex] = useState<number | null>(null);
@@ -276,9 +342,24 @@ const Subscribers: React.FC = () => {
 
   useEffect(() => {
     loadSubscribers();
-    loadAvailableContracts(); // Carregar contratos disponíveis
     loadOverallStats(); // Carregar estatísticas gerais
   }, [activeOnlyFilter, page, limit]);
+
+  // Carregar planos quando a aba Contratos for aberta (criação ou edição)
+  useEffect(() => {
+    if ((createTab === 1 && createDialogOpen) || (editTab === 1 && editDialogOpen)) {
+      const loadPlans = async () => {
+        try {
+          const plans = await planApi.getAll(false);
+          setAvailablePlansForContract(plans ?? []);
+        } catch (error) {
+          console.error('Erro ao carregar planos:', error);
+          setAvailablePlansForContract([]);
+        }
+      };
+      loadPlans();
+    }
+  }, [createTab, createDialogOpen, editTab, editDialogOpen]);
 
   useEffect(() => {
     // Debounce para busca
@@ -293,26 +374,6 @@ const Subscribers: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
   
-  const loadAvailableContracts = async () => {
-    try {
-      setLoadingContracts(true);
-      const response = await contractApi.getAll({ 
-        activeOnly: true,
-        status: 'draft',
-        limit: 1000 
-      });
-      // Filtrar apenas contratos sem subscriber_id (created_before_subscriber = true)
-      const contractsWithoutSubscriber = response.data.filter(
-        (c: Contract) => !c.subscriber_id || c.created_before_subscriber
-      );
-      setAvailableContracts(contractsWithoutSubscriber);
-    } catch (error) {
-      console.error('Erro ao carregar contratos:', error);
-      setError('Erro ao carregar lista de contratos');
-    } finally {
-      setLoadingContracts(false);
-    }
-  };
 
   // Carregar dados quando dialog de edição abre
   useEffect(() => {
@@ -409,12 +470,13 @@ const Subscribers: React.FC = () => {
       ]);
 
       setEditMedias(Array.isArray(mediasResponse?.data) ? mediasResponse.data : []);
+      setMediaPreviewFailed(new Set());
       setEditPlaylists(Array.isArray(playlistsResponse?.data) ? playlistsResponse.data : []);
       setEditCampaigns(Array.isArray(campaignsResponse?.data) ? campaignsResponse.data : []);
       setActiveContracts(Array.isArray(contractsResponse) ? contractsResponse : []);
     } catch (error) {
       console.error('Erro ao carregar dados do Subscriber para edição:', error);
-      setError('Erro ao carregar dados do Assinante');
+      setError('Erro ao carregar dados do Anunciante');
     }
   };
 
@@ -568,7 +630,7 @@ const Subscribers: React.FC = () => {
   };
 
   // ============================================================================
-  // FUNÇÕES DE CRUD PARA EDIÇÃO DE Assinante
+  // FUNÇÕES DE CRUD PARA EDIÇÃO DE Anunciante
   // ============================================================================
   // NOTA: Funções antigas para gerenciar locais, totens e smart TVs foram removidas
   // pois subscribers não podem mais gerenciar esses recursos diretamente.
@@ -1162,36 +1224,6 @@ const Subscribers: React.FC = () => {
     return phoneRegex.test(phone.trim());
   };
 
-  // Função para validar contrato
-  const validateContract = (contractId: number | undefined): { valid: boolean; error?: string } => {
-    if (!contractId || contractId <= 0) {
-      // Contrato é opcional
-      return { valid: true };
-    }
-    
-    const contract = availableContracts.find(c => c.contract_id === contractId);
-    if (!contract) {
-      return { valid: false, error: 'Contrato selecionado não foi encontrado. Por favor, recarregue a lista de contratos.' };
-    }
-
-    // Validar se o contrato está ativo (se tiver end_date, verificar se ainda está válido)
-    if (contract.end_date) {
-      const endDate = new Date(contract.end_date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      if (endDate < today) {
-        return { valid: false, error: `O contrato "${contract.contract_number}" expirou em ${endDate.toLocaleDateString('pt-BR')}. Selecione um contrato válido.` };
-      }
-    }
-
-    // Validar se o contrato tem subscriber_id (se não foi criado antes do subscriber)
-    if (contract.subscriber_id && !contract.created_before_subscriber) {
-      return { valid: false, error: `O contrato "${contract.contract_number}" já está vinculado a outro Assinante. Selecione um contrato disponível.` };
-    }
-
-    return { valid: true };
-  };
 
   // NOVO: handleCreateSubscriber modificado para criar Subscriber baseado em contrato
   const handleCreateSubscriber = async () => {
@@ -1201,23 +1233,22 @@ const Subscribers: React.FC = () => {
 
       // Validação: nome do Subscriber é obrigatório
       if (!newSubscriber.name || newSubscriber.name.trim() === '') {
-        setError('Nome do Assinante é obrigatório. Por favor, preencha o campo "Nome da Empresa / Razão Social".');
+        setError('Nome do Anunciante é obrigatório. Por favor, preencha o campo "Nome da Empresa / Razão Social".');
         setCreateTab(0); // Ir para aba de Informações
         return;
       }
 
       // Validação: nome deve ter pelo menos 3 caracteres
       if (newSubscriber.name.trim().length < 3) {
-        setError('O nome do Assinante deve ter pelo menos 3 caracteres.');
+        setError('O nome do Anunciante deve ter pelo menos 3 caracteres.');
         setCreateTab(0);
         return;
       }
 
-      // Validação: contrato é opcional (se fornecido, precisa ser válido)
-      const contractValidation = validateContract(newSubscriber.contract_id);
-      if (!contractValidation.valid) {
-        setError(contractValidation.error || 'Contrato inválido. Por favor, selecione um contrato válido.');
-        setCreateTab(0);
+      // O anunciante deve ter pelo menos um contrato na aba Contratos
+      if (!tempSubscriberContracts || tempSubscriberContracts.length === 0) {
+        setError('É obrigatório adicionar pelo menos um contrato na aba "Contratos" antes de criar o anunciante.');
+        setCreateTab(1); // Ir para aba de Contratos
         return;
       }
 
@@ -1242,15 +1273,38 @@ const Subscribers: React.FC = () => {
         return;
       }
 
-      // 1. Criar o Subscriber (vinculado ao contrato)
-      const createdSubscriber = await subscriberApi.create(newSubscriber);
+      // 1. Criar o Subscriber primeiro (sem contratos ainda)
+      const subscriberData = { ...newSubscriber };
+      delete subscriberData.contract_ids;
+      delete subscriberData.plan_ids;
+      delete subscriberData.contract_id;
+      delete subscriberData.plan_id;
+      
+      const createdSubscriber = await subscriberApi.create(subscriberData);
       const subscriberId = createdSubscriber.subscriber_id;
       
       if (!subscriberId) {
-        const errorMessage = 'Erro: Assinante criado mas não retornou ID válido. Por favor, entre em contato com o suporte.';
+        const errorMessage = 'Erro: Anunciante criado mas não retornou ID válido. Por favor, entre em contato com o suporte.';
         console.error(errorMessage);
         setError(errorMessage);
         return;
+      }
+
+      // 2. Criar os contratos vinculados ao anunciante
+      for (const contract of tempSubscriberContracts) {
+        try {
+          await contractApi.create({
+            ...contract,
+            start_date: formatDateForAPI(contract.start_date) || '',
+            end_date: formatDateForAPI(contract.end_date || getDefaultContractEndDate()),
+            subscriber_id: subscriberId,
+            created_before_subscriber: false,
+          });
+        } catch (contractError: any) {
+          console.error('Erro ao criar contrato:', contractError);
+          setError(`Erro ao criar contrato ${contract.contract_number}: ${contractError?.response?.data?.error || contractError?.message || 'Erro desconhecido'}`);
+          return;
+        }
       }
 
       // 2. NOTA: Subscribers não podem criar locais próprios
@@ -1393,6 +1447,7 @@ const Subscribers: React.FC = () => {
         address: '',
         description: '',
         contract_id: undefined,
+        plan_id: undefined,
       });
       setTempLocals([]);
       setTempTotems([]);
@@ -1493,12 +1548,12 @@ const Subscribers: React.FC = () => {
       loadSubscribers();
     } catch (error: any) {
       console.error('Erro ao atualizar Subscriber:', error);
-      setError(error?.response?.data?.error || error?.message || 'Erro ao atualizar Assinante');
+      setError(error?.response?.data?.error || error?.message || 'Erro ao atualizar Anunciante');
     }
   };
 
   const handleDeleteSubscriber = async (id: number) => {
-    if (window.confirm('Tem certeza que deseja excluir este Assinante?')) {
+    if (window.confirm('Tem certeza que deseja excluir este Anunciante?')) {
       try {
         await subscriberApi.delete(id);
         loadSubscribers();
@@ -1520,8 +1575,8 @@ const Subscribers: React.FC = () => {
 
   const getClientTypeLabel = (clientType?: string) => {
     switch (clientType) {
-      case 'subscriber': return 'Assinante';
-      case 'Subscriber': return 'Assinante';
+      case 'subscriber': return 'Anunciante';
+      case 'Subscriber': return 'Anunciante';
       case 'both': return 'Ambos';
       default: return 'N/A';
     }
@@ -1542,7 +1597,7 @@ const Subscribers: React.FC = () => {
       <Box sx={{ p: 3 }}>
         <LinearProgress />
         <Typography variant="h6" sx={{ mt: 2, textAlign: 'center' }}>
-          Carregando Assinantes...
+          Carregando Anunciantes...
         </Typography>
       </Box>
     );
@@ -1569,7 +1624,7 @@ const Subscribers: React.FC = () => {
             '&:hover': { backgroundColor: theme.palette.primary.dark }
           }}
         >
-          Adicionar Assinante
+          Adicionar Anunciante
         </Button>
       </Box>
 
@@ -1664,7 +1719,7 @@ const Subscribers: React.FC = () => {
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                placeholder="Buscar Assinantes..."
+                placeholder="Buscar Anunciantes..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => {
@@ -1746,7 +1801,7 @@ const Subscribers: React.FC = () => {
               showLastButton
             />
             <Typography variant="body2" color="text.secondary" textAlign="center">
-              Mostrando {((page - 1) * limit) + 1} - {Math.min(page * limit, total)} de {total} assinantes
+              Mostrando {((page - 1) * limit) + 1} - {Math.min(page * limit, total)} de {total} anunciantes
             </Typography>
           </Stack>
         </Box>
@@ -1758,17 +1813,17 @@ const Subscribers: React.FC = () => {
           <CardContent>
             <Business sx={{ fontSize: 64, color: theme.palette.text.secondary, mb: 2 }} />
             <Typography variant="h6" sx={{ mb: 1 }}>
-              Nenhum Assinante encontrado
+              Nenhum Anunciante encontrado
             </Typography>
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
-              Comece adicionando seus primeiros Assinantes
+              Comece adicionando seus primeiros Anunciantes
             </Typography>
             <Button
               variant="contained"
               startIcon={<Add />}
               onClick={() => setCreateDialogOpen(true)}
             >
-              Adicionar Primeiro Assinante
+              Adicionar Primeiro Anunciante
             </Button>
           </CardContent>
         </Card>
@@ -1783,14 +1838,28 @@ const Subscribers: React.FC = () => {
           setTempLocals([]);
           setTempTotems([]);
           setTempSmartTvs([]);
+          setTempSubscriberContracts([]);
+          setEditingSubscriberContractIndexCreate(null);
+          setSubscriberContractForm({
+            contract_number: '',
+            contract_type: 'advertising',
+            title: '',
+            description: '',
+            start_date: getDefaultContractStartDate(),
+            end_date: getDefaultContractEndDate(),
+            currency: 'BRL',
+            status: 'draft',
+            plan_id: undefined,
+          });
         }} 
         maxWidth="lg" 
         fullWidth
       >
-        <DialogTitle>Adicionar Assinante</DialogTitle>
+        <DialogTitle>Adicionar Anunciante</DialogTitle>
         <DialogContent>
           <Tabs value={createTab} onChange={(_, newValue) => setCreateTab(newValue)} sx={{ mb: 3 }}>
             <Tab label="Informações" />
+            <Tab label="Contratos" icon={tempSubscriberContracts && tempSubscriberContracts.length > 0 ? <Chip label={tempSubscriberContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
             <Tab label="Locais" icon={tempLocals.length > 0 ? <Chip label={tempLocals.length} size="small" color="primary" /> : undefined} iconPosition="end" />
             <Tab label="Totens" icon={tempTotems.length > 0 ? <Chip label={tempTotems.length} size="small" color="primary" /> : undefined} iconPosition="end" />
             <Tab label="Smart TVs" icon={tempSmartTvs.length > 0 ? <Chip label={tempSmartTvs.length} size="small" color="primary" /> : undefined} iconPosition="end" />
@@ -1805,16 +1874,272 @@ const Subscribers: React.FC = () => {
             />
           )}
 
-          {/* Aba Locais - REMOVIDA: Subscribers não criam locais próprios */}
+          {/* Aba Contratos */}
           {createTab === 1 && (
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2 }}>Contratos do Anunciante *</Typography>
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                <strong>Obrigatório:</strong> Um anunciante deve ter pelo menos um contrato. 
+                Adicione pelo menos um contrato antes de criar o anunciante.
+              </Alert>
+              
+              {/* Formulário para criar/editar Subscriber Contract */}
+              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingSubscriberContractIndexCreate !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                  {editingSubscriberContractIndexCreate !== null ? 'Editar Contrato' : 'Adicionar Contrato'}
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Plano</InputLabel>
+                      <Select
+                        value={subscriberContractForm.plan_id || ''}
+                        label="Plano"
+                        onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, plan_id: e.target.value ? Number(e.target.value) : undefined })}
+                      >
+                        <MenuItem value="">Nenhum (contrato sem plano)</MenuItem>
+                        {availablePlansForContract.map((p: any) => (
+                          <MenuItem key={p.planId} value={p.planId}>{p.name}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Número do Contrato *"
+                      value={subscriberContractForm.contract_number || ''}
+                      onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, contract_number: e.target.value })}
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small" required>
+                      <InputLabel>Tipo de Contrato *</InputLabel>
+                      <Select
+                        value={subscriberContractForm.contract_type || 'advertising'}
+                        label="Tipo de Contrato *"
+                        onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, contract_type: e.target.value as any })}
+                      >
+                        <MenuItem value="advertising">Advertising</MenuItem>
+                        <MenuItem value="subscription">Subscription</MenuItem>
+                        <MenuItem value="partnership">Partnership</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Título *"
+                      value={subscriberContractForm.title || ''}
+                      onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, title: e.target.value })}
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Descrição"
+                      value={subscriberContractForm.description || ''}
+                      onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, description: e.target.value })}
+                      size="small"
+                      multiline
+                      rows={2}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Data de Início *"
+                      type="date"
+                      value={formatDateForInput(subscriberContractForm.start_date) || ''}
+                      onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, start_date: e.target.value })}
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Data de Término"
+                      type="date"
+                      value={formatDateForInput(subscriberContractForm.end_date) || getDefaultContractEndDate()}
+                      onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, end_date: e.target.value || getDefaultContractEndDate() })}
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Moeda"
+                      value={subscriberContractForm.currency || 'BRL'}
+                      onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, currency: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Status</InputLabel>
+                      <Select
+                        value={subscriberContractForm.status || 'draft'}
+                        label="Status"
+                        onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, status: e.target.value as any })}
+                      >
+                        <MenuItem value="draft">Rascunho</MenuItem>
+                        <MenuItem value="active">Ativo</MenuItem>
+                        <MenuItem value="expired">Expirado</MenuItem>
+                        <MenuItem value="terminated">Terminado</MenuItem>
+                        <MenuItem value="cancelled">Cancelado</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      variant="contained"
+                      startIcon={<Add />}
+                      onClick={() => {
+                        if (!subscriberContractForm.contract_number || !subscriberContractForm.title) {
+                          setError('Número do contrato e título são obrigatórios');
+                          return;
+                        }
+                        if (editingSubscriberContractIndexCreate !== null) {
+                          const updated = [...tempSubscriberContracts];
+                          updated[editingSubscriberContractIndexCreate] = { ...subscriberContractForm, tempId: tempSubscriberContracts[editingSubscriberContractIndexCreate].tempId };
+                          setTempSubscriberContracts(updated);
+                          setEditingSubscriberContractIndexCreate(null);
+                        } else {
+                          setTempSubscriberContracts([...tempSubscriberContracts, { ...subscriberContractForm, tempId: `temp-${Date.now()}` }]);
+                        }
+                        setSubscriberContractForm({
+                          contract_number: '',
+                          contract_type: 'advertising',
+                          title: '',
+                          description: '',
+                          start_date: getDefaultContractStartDate(),
+                          end_date: getDefaultContractEndDate(),
+                          currency: 'BRL',
+                          status: 'draft',
+                          plan_id: undefined,
+                        });
+                      }}
+                      disabled={!subscriberContractForm.contract_number || !subscriberContractForm.title}
+                    >
+                      {editingSubscriberContractIndexCreate !== null ? 'Atualizar Contrato' : 'Adicionar Contrato'}
+                    </Button>
+                    {editingSubscriberContractIndexCreate !== null && (
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setEditingSubscriberContractIndexCreate(null);
+                          setSubscriberContractForm({
+                            contract_number: '',
+                            contract_type: 'advertising',
+                            title: '',
+                            description: '',
+                            start_date: getDefaultContractStartDate(),
+                            end_date: getDefaultContractEndDate(),
+                            currency: 'BRL',
+                            status: 'draft',
+                            plan_id: undefined,
+                          });
+                        }}
+                        sx={{ ml: 1 }}
+                      >
+                        Cancelar Edição
+                      </Button>
+                    )}
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {/* Lista de Subscriber Contracts temporários */}
+              {tempSubscriberContracts.length > 0 ? (
+                <List>
+                  {tempSubscriberContracts.map((contract, index) => (
+                    <ListItem
+                      key={contract.tempId}
+                      sx={{
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        mb: 1,
+                        flexDirection: 'column',
+                        alignItems: 'stretch',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                        <Box>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                            {contract.contract_number} - {contract.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {contract.description || 'Sem descrição'}
+                            {contract.plan_id && ` | Plano ID: ${contract.plan_id}`}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                          <Chip
+                            label={contract.status || 'draft'}
+                            size="small"
+                            color={contract.status === 'active' ? 'success' : 'default'}
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setSubscriberContractForm({ ...contract });
+                              setEditingSubscriberContractIndexCreate(index);
+                            }}
+                          >
+                            <Edit />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setTempSubscriberContracts(tempSubscriberContracts.filter((_, i) => i !== index));
+                              if (editingSubscriberContractIndexCreate === index) {
+                                setEditingSubscriberContractIndexCreate(null);
+                                setSubscriberContractForm({
+                                  contract_number: '',
+                                  contract_type: 'advertising',
+                                  title: '',
+                                  description: '',
+                                  start_date: getDefaultContractStartDate(),
+                                  end_date: getDefaultContractEndDate(),
+                                  currency: 'BRL',
+                                  status: 'draft',
+                                  plan_id: undefined,
+                                });
+                              }
+                            }}
+                          >
+                            <Delete />
+                          </IconButton>
+                        </Box>
+                      </Box>
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Alert severity="warning">
+                  <strong>Nenhum contrato adicionado.</strong> É obrigatório adicionar pelo menos um contrato antes de criar o anunciante.
+                </Alert>
+              )}
+            </Box>
+          )}
+
+          {/* Aba Locais - REMOVIDA: Subscribers não criam locais próprios */}
+          {createTab === 2 && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Locais
               </Typography>
               <Alert severity="info" sx={{ mb: 2 }}>
-                <strong>Nota:</strong> Assinantes não criam locais próprios. 
+                <strong>Nota:</strong> Anunciantes não criam locais próprios. 
                 Locais pertencem apenas a Publishers. 
-                Assinantes acessam locais através de planos e contratos.
+                Anunciantes acessam locais através de planos e contratos.
               </Alert>
               
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
@@ -1936,7 +2261,7 @@ const Subscribers: React.FC = () => {
           )}
 
           {/* Aba Totens */}
-          {createTab === 2 && (
+          {createTab === 3 && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Totens {tempTotems.length > 0 && `(${tempTotems.length})`}
@@ -2095,7 +2420,7 @@ const Subscribers: React.FC = () => {
           )}
 
           {/* Aba Smart TVs */}
-          {createTab === 3 && (
+          {createTab === 4 && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Smart TVs {tempSmartTvs.length > 0 && `(${tempSmartTvs.length})`}
@@ -2302,18 +2627,36 @@ const Subscribers: React.FC = () => {
           <Button onClick={() => {
             setCreateDialogOpen(false);
             setCreateTab(0);
-          setTempLocals([]);
-          setTempTotems([]);
-          setTempSmartTvs([]);
-        }}>
+            setTempLocals([]);
+            setTempTotems([]);
+            setTempSmartTvs([]);
+            setTempSubscriberContracts([]);
+            setEditingSubscriberContractIndexCreate(null);
+            setSubscriberContractForm({
+              contract_number: '',
+              contract_type: 'advertising',
+              title: '',
+              description: '',
+              start_date: getDefaultContractStartDate(),
+              end_date: getDefaultContractEndDate(),
+              currency: 'BRL',
+              status: 'draft',
+              plan_id: undefined,
+            });
+          }}>
             Cancelar
           </Button>
           <Button 
             variant="contained" 
             onClick={handleCreateSubscriber}
-            disabled={!newSubscriber.name}
+            disabled={!newSubscriber.name?.trim() || !tempSubscriberContracts || tempSubscriberContracts.length === 0}
+            title={
+              (!tempSubscriberContracts || tempSubscriberContracts.length === 0) 
+                ? 'Adicione pelo menos um contrato na aba "Contratos"' 
+                : ''
+            }
           >
-            Criar Assinante
+            Criar Anunciante
           </Button>
         </DialogActions>
       </Dialog>
@@ -2330,16 +2673,33 @@ const Subscribers: React.FC = () => {
           setEditingEditMediaIndex(null);
           setEditingEditPlaylistIndex(null);
           setEditingEditCampaignIndex(null);
+          setEditingSubscriberContractIndexEdit(null);
+          setSubscriberContractFormEdit({
+            contract_number: '',
+            contract_type: 'advertising',
+            title: '',
+            description: '',
+            start_date: getDefaultContractStartDate(),
+            end_date: getDefaultContractEndDate(),
+            currency: 'BRL',
+            status: 'draft',
+            plan_id: undefined,
+          });
         }} 
         maxWidth="lg" 
         fullWidth
       >
         <DialogTitle>
-          Editar Assinante - {selectedSubscriber?.name || ''}
+          Editar Anunciante - {selectedSubscriber?.name || ''}
         </DialogTitle>
         <DialogContent>
           <Tabs value={editTab} onChange={(_, newValue) => setEditTab(newValue)} sx={{ mb: 3 }}>
             <Tab label="Informações" />
+            <Tab 
+              label="Contratos" 
+              icon={activeContracts.length > 0 ? <Chip label={activeContracts.length} size="small" color="primary" /> : undefined} 
+              iconPosition="end" 
+            />
             <Tab 
               label="Mídias" 
               icon={editMedias.length > 0 ? <Chip label={editMedias.length} size="small" color="primary" /> : undefined} 
@@ -2359,21 +2719,324 @@ const Subscribers: React.FC = () => {
 
           {/* Aba Informações */}
           {editTab === 0 && selectedSubscriber && (
-            <SubscriberForm
-              mode="edit"
-              subscriber={selectedSubscriber}
-              data={selectedSubscriber}
-              onChange={(data) => {
-                setSelectedSubscriber({
-                  ...selectedSubscriber,
-                  ...(data as UpdateSubscriberRequest),
-                });
-              }}
-            />
+            <Box>
+              <SubscriberForm
+                mode="edit"
+                subscriber={selectedSubscriber}
+                data={selectedSubscriber}
+                onChange={(data) => {
+                  setSelectedSubscriber({
+                    ...selectedSubscriber,
+                    ...(data as UpdateSubscriberRequest),
+                  });
+                }}
+              />
+            </Box>
+          )}
+
+          {/* Aba Contratos */}
+          {editTab === 1 && selectedSubscriber && (
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2 }}>Contratos do Anunciante</Typography>
+              
+              {/* Formulário para criar/editar Subscriber Contract */}
+              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingSubscriberContractIndexEdit !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                  {editingSubscriberContractIndexEdit !== null ? 'Editar Contrato' : 'Adicionar Contrato'}
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Plano</InputLabel>
+                      <Select
+                        value={subscriberContractFormEdit.plan_id || ''}
+                        label="Plano"
+                        onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, plan_id: e.target.value ? Number(e.target.value) : undefined })}
+                      >
+                        <MenuItem value="">Nenhum (contrato sem plano)</MenuItem>
+                        {availablePlansForContract.map((p: any) => (
+                          <MenuItem key={p.planId} value={p.planId}>{p.name}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Número do Contrato *"
+                      value={subscriberContractFormEdit.contract_number || ''}
+                      onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, contract_number: e.target.value })}
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small" required>
+                      <InputLabel>Tipo de Contrato *</InputLabel>
+                      <Select
+                        value={subscriberContractFormEdit.contract_type || 'advertising'}
+                        label="Tipo de Contrato *"
+                        onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, contract_type: e.target.value as any })}
+                      >
+                        <MenuItem value="advertising">Advertising</MenuItem>
+                        <MenuItem value="subscription">Subscription</MenuItem>
+                        <MenuItem value="partnership">Partnership</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Título *"
+                      value={subscriberContractFormEdit.title || ''}
+                      onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, title: e.target.value })}
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Descrição"
+                      value={subscriberContractFormEdit.description || ''}
+                      onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, description: e.target.value })}
+                      size="small"
+                      multiline
+                      rows={2}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Data de Início *"
+                      type="date"
+                      value={formatDateForInput(subscriberContractFormEdit.start_date) || ''}
+                      onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, start_date: e.target.value })}
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Data de Término"
+                      type="date"
+                      value={formatDateForInput(subscriberContractFormEdit.end_date) || getDefaultContractEndDate()}
+                      onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, end_date: e.target.value || getDefaultContractEndDate() })}
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Moeda"
+                      value={subscriberContractFormEdit.currency || 'BRL'}
+                      onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, currency: e.target.value })}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Status</InputLabel>
+                      <Select
+                        value={subscriberContractFormEdit.status || 'draft'}
+                        label="Status"
+                        onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, status: e.target.value as any })}
+                      >
+                        <MenuItem value="draft">Rascunho</MenuItem>
+                        <MenuItem value="active">Ativo</MenuItem>
+                        <MenuItem value="expired">Expirado</MenuItem>
+                        <MenuItem value="terminated">Terminado</MenuItem>
+                        <MenuItem value="cancelled">Cancelado</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      variant="contained"
+                      startIcon={<Add />}
+                      onClick={async () => {
+                        if (!subscriberContractFormEdit.contract_number || !subscriberContractFormEdit.title) {
+                          setError('Número do contrato e título são obrigatórios');
+                          return;
+                        }
+                        if (!selectedSubscriber?.subscriber_id) {
+                          setError('Anunciante não selecionado');
+                          return;
+                        }
+                        try {
+                          if (editingSubscriberContractIndexEdit !== null) {
+                            // Atualizar contrato existente
+                            const contractToUpdate = activeContracts[editingSubscriberContractIndexEdit];
+                            await contractApi.update(contractToUpdate.contract_id, {
+                              ...subscriberContractFormEdit,
+                              start_date: formatDateForAPI(subscriberContractFormEdit.start_date),
+                              end_date: formatDateForAPI(subscriberContractFormEdit.end_date || getDefaultContractEndDate()),
+                            });
+                            setEditingSubscriberContractIndexEdit(null);
+                          } else {
+                            // Criar novo contrato
+                            await contractApi.create({
+                              ...subscriberContractFormEdit,
+                              start_date: formatDateForAPI(subscriberContractFormEdit.start_date) || '',
+                              end_date: formatDateForAPI(subscriberContractFormEdit.end_date || getDefaultContractEndDate()),
+                              subscriber_id: selectedSubscriber.subscriber_id,
+                              created_before_subscriber: false,
+                            });
+                          }
+                          // Recarregar contratos
+                          const list = await subscriberApi.getContracts(selectedSubscriber.subscriber_id);
+                          setActiveContracts(Array.isArray(list) ? list : []);
+                          // Limpar formulário
+                          setSubscriberContractFormEdit({
+                            contract_number: '',
+                            contract_type: 'advertising',
+                            title: '',
+                            description: '',
+                            start_date: getDefaultContractStartDate(),
+                            end_date: getDefaultContractEndDate(),
+                            currency: 'BRL',
+                            status: 'draft',
+                            plan_id: undefined,
+                          });
+                        } catch (error: any) {
+                          setError(error?.response?.data?.error || error?.message || 'Erro ao salvar contrato');
+                        }
+                      }}
+                      disabled={!subscriberContractFormEdit.contract_number || !subscriberContractFormEdit.title}
+                    >
+                      {editingSubscriberContractIndexEdit !== null ? 'Atualizar Contrato' : 'Adicionar Contrato'}
+                    </Button>
+                    {editingSubscriberContractIndexEdit !== null && (
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setEditingSubscriberContractIndexEdit(null);
+                          setSubscriberContractFormEdit({
+                            contract_number: '',
+                            contract_type: 'advertising',
+                            title: '',
+                            description: '',
+                            start_date: getDefaultContractStartDate(),
+                            end_date: getDefaultContractEndDate(),
+                            currency: 'BRL',
+                            status: 'draft',
+                            plan_id: undefined,
+                          });
+                        }}
+                        sx={{ ml: 1 }}
+                      >
+                        Cancelar Edição
+                      </Button>
+                    )}
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {/* Lista de Contratos do Anunciante */}
+              {activeContracts.length > 0 ? (
+                <List>
+                  {activeContracts.map((contract, index) => (
+                    <ListItem
+                      key={contract.contract_id}
+                      sx={{
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        mb: 1,
+                        flexDirection: 'column',
+                        alignItems: 'stretch',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                        <Box>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                            {contract.contract_number} - {contract.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {contract.description || 'Sem descrição'}
+                            {contract.plan_name && ` | Plano: ${contract.plan_name}`}
+                            {contract.start_date && ` | Início: ${new Date(contract.start_date).toLocaleDateString('pt-BR')}`}
+                            {contract.end_date && ` | Fim: ${new Date(contract.end_date).toLocaleDateString('pt-BR')}`}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                          <Chip
+                            label={contract.status || 'draft'}
+                            size="small"
+                            color={contract.status === 'active' ? 'success' : 'default'}
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={async () => {
+                              try {
+                                const plans = await planApi.getAll(false);
+                                setAvailablePlansForContract(plans ?? []);
+                                setSubscriberContractFormEdit({
+                                  contract_number: contract.contract_number,
+                                  contract_type: contract.contract_type as any,
+                                  title: contract.title,
+                                  description: contract.description || '',
+                                  start_date: formatDateForInput(contract.start_date) || getDefaultContractStartDate(),
+                                  end_date: formatDateForInput(contract.end_date) || getDefaultContractEndDate(),
+                                  currency: contract.currency || 'BRL',
+                                  status: contract.status as any || 'draft',
+                                  plan_id: contract.plan_id || undefined,
+                                });
+                                setEditingSubscriberContractIndexEdit(index);
+                              } catch (error) {
+                                console.error('Erro ao carregar dados do contrato:', error);
+                              }
+                            }}
+                          >
+                            <Edit />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={async () => {
+                              if (window.confirm(`Tem certeza que deseja excluir o contrato "${contract.contract_number}"?`)) {
+                                try {
+                                  await contractApi.delete(contract.contract_id);
+                                  const list = await subscriberApi.getContracts(selectedSubscriber!.subscriber_id);
+                                  setActiveContracts(Array.isArray(list) ? list : []);
+                                  if (editingSubscriberContractIndexEdit === index) {
+                                    setEditingSubscriberContractIndexEdit(null);
+                                    setSubscriberContractFormEdit({
+                                      contract_number: '',
+                                      contract_type: 'advertising',
+                                      title: '',
+                                      description: '',
+                                      start_date: getDefaultContractStartDate(),
+                                      end_date: getDefaultContractEndDate(),
+                                      currency: 'BRL',
+                                      status: 'draft',
+                                      plan_id: undefined,
+                                    });
+                                  }
+                                } catch (error: any) {
+                                  setError(error?.response?.data?.error || error?.message || 'Erro ao excluir contrato');
+                                }
+                              }
+                            }}
+                          >
+                            <Delete />
+                          </IconButton>
+                        </Box>
+                      </Box>
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Alert severity="info">
+                  Nenhum contrato vinculado ao anunciante ainda.
+                </Alert>
+              )}
+            </Box>
           )}
 
           {/* Aba Mídias */}
-          {editTab === 1 && selectedSubscriber && (
+          {editTab === 2 && selectedSubscriber && (
             <Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6">
@@ -2444,30 +3107,38 @@ const Subscribers: React.FC = () => {
               {editMedias.length > 0 ? (
                 <Grid container spacing={2}>
                   {editMedias.map((media, index) => {
-                    let previewUrl = media.thumbnailUrl || media.previewUrl || media.file_path;
+                    const apiThumbnail = media.media_id ? `${process.env.REACT_APP_API_URL || '/api'}/media/${media.media_id}/thumbnail` : null;
+                    let previewUrl: string | null = apiThumbnail || media.thumbnailUrl || media.previewUrl || media.file_path || null;
                     if (previewUrl && previewUrl.startsWith('/opt/smart-signage/public/assets/')) {
                       previewUrl = previewUrl.replace('/opt/smart-signage/public/assets/', '/assets/');
                     }
-                    
+                    if (previewUrl && (previewUrl.startsWith('/assets/uploads/') || previewUrl.includes('assets/uploads/'))) {
+                      previewUrl = apiThumbnail;
+                    }
+                    const showPlaceholder = mediaPreviewFailed.has(media.media_id) || !previewUrl;
+                    const isThumbnailUrl = previewUrl?.includes('/thumbnail');
+
                     return (
                       <Grid item xs={12} sm={6} md={4} key={media.media_id}>
                         <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                           <Box sx={{ position: 'relative', height: 150, bgcolor: theme.palette.grey[100], overflow: 'hidden' }}>
-                            {previewUrl && media.media_type === 'image' ? (
+                            {!showPlaceholder && previewUrl && (media.media_type === 'image' || isThumbnailUrl) ? (
                               <Box
                                 component="img"
                                 src={previewUrl}
                                 alt={media.name}
                                 sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
                               />
-                            ) : previewUrl && media.media_type === 'video' ? (
+                            ) : !showPlaceholder && previewUrl && media.media_type === 'video' && !isThumbnailUrl ? (
                               <Box
                                 component="video"
                                 src={previewUrl}
                                 sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                 muted
-                                onMouseEnter={(e: any) => e.target.play()}
-                                onMouseLeave={(e: any) => { e.target.pause(); e.target.currentTime = 0; }}
+                                onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
+                                onMouseEnter={(e: any) => e.target.play?.()}
+                                onMouseLeave={(e: any) => { e.target.pause?.(); e.target.currentTime = 0; }}
                               />
                             ) : (
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -2546,7 +3217,7 @@ const Subscribers: React.FC = () => {
           )}
 
           {/* Aba Playlists */}
-          {editTab === 2 && selectedSubscriber && (
+          {editTab === 3 && selectedSubscriber && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Playlists {editPlaylists.length > 0 && `(${editPlaylists.length})`}
@@ -2920,7 +3591,7 @@ const Subscribers: React.FC = () => {
           )}
 
           {/* Aba Campanhas */}
-          {editTab === 3 && selectedSubscriber && (
+          {editTab === 4 && selectedSubscriber && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Campanhas {editCampaigns.length > 0 && `(${editCampaigns.length})`}
@@ -3284,6 +3955,7 @@ const Subscribers: React.FC = () => {
           <Button variant="contained" onClick={handleEditSubscriber}>Salvar</Button>
         </DialogActions>
       </Dialog>
+
 
       {/* Details Dialog */}
       <SubscriberDetails

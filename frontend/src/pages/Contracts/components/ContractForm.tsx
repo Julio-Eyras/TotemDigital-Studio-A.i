@@ -65,6 +65,8 @@ const formatDateForInput = (dateString: string | null | undefined): string => {
   }
 };
 
+const getDefaultContractEndDate = (): string => `${new Date().getFullYear()}-12-31`;
+
 const ContractForm: React.FC<ContractFormProps> = ({
   mode,
   contract,
@@ -91,7 +93,15 @@ const ContractForm: React.FC<ContractFormProps> = ({
   };
 
   const getFieldValue = (field: string): any => {
-    return (data as any)[field] || '';
+    const formValue = (data as any)[field];
+    // Em modo edit, se o campo não estiver no form mas estiver no contract, usar o contract
+    if (mode === 'edit' && contract && (formValue === undefined || formValue === null || formValue === '')) {
+      const contractValue = (contract as any)[field];
+      if (contractValue !== undefined && contractValue !== null) {
+        return contractValue;
+      }
+    }
+    return formValue || '';
   };
 
   const hasError = (field: string): boolean => {
@@ -159,8 +169,34 @@ const ContractForm: React.FC<ContractFormProps> = ({
           )}
 
           {mode === 'edit' && contract && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Assinante: {contract.subscriber_name || 'N/A'}
+            <Alert 
+              severity={contract.subscriber_id ? "info" : "warning"} 
+              sx={{ mb: 2 }}
+            >
+              {contract.subscriber_id ? (
+                <>
+                  <strong>Assinante:</strong> {contract.subscriber_name || `ID ${contract.subscriber_id}`}
+                  {contract.subscriber_id && (
+                    <Typography component="span" variant="caption" sx={{ ml: 1, display: 'inline-block' }}>
+                      (Código: {contract.subscriber_id})
+                    </Typography>
+                  )}
+                </>
+              ) : (
+                <>
+                  <strong>⚠️ Contrato sem assinante vinculado</strong>
+                  {(contract as any).publisher_id && (
+                    <Typography component="div" variant="body2" sx={{ mt: 1 }}>
+                      <strong>Publicador vinculado:</strong> {(contract as any).publisher_name || `ID ${(contract as any).publisher_id}`}
+                      {(contract as any).publisher_id && (
+                        <Typography component="span" variant="caption" sx={{ ml: 1 }}>
+                          (Código: {(contract as any).publisher_id})
+                        </Typography>
+                      )}
+                    </Typography>
+                  )}
+                </>
+              )}
             </Alert>
           )}
 
@@ -168,7 +204,7 @@ const ContractForm: React.FC<ContractFormProps> = ({
             fullWidth 
             margin="normal" 
             required={!createdBeforeSubscriber}
-            disabled={!!createdBeforeSubscriber || !!effectiveSubscriberId}
+            disabled={mode === 'edit' || !!createdBeforeSubscriber || !!effectiveSubscriberId}
           >
             <InputLabel>{createdBeforeSubscriber ? 'Assinante (opcional)' : 'Assinante *'}</InputLabel>
             <Select
@@ -187,13 +223,21 @@ const ContractForm: React.FC<ContractFormProps> = ({
               <MenuItem value="">{createdBeforeSubscriber ? 'Nenhum (pré-contrato)' : 'Selecione...'}</MenuItem>
               {subscribers.map((subscriber) => {
                 const subscriberId = subscriber.subscriber_id || (subscriber as any).subscriberId;
+                const currentSubscriberId = getFieldValue('subscriber_id');
+                const isSelected = currentSubscriberId === subscriberId;
                 return (
                   <MenuItem key={subscriberId} value={subscriberId}>
                     {subscriber.name}
+                    {isSelected && ' ✓'}
                   </MenuItem>
                 );
               })}
             </Select>
+            {mode === 'edit' && contract?.subscriber_id && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75, display: 'block' }}>
+                Assinante vinculado: {contract.subscriber_name || `ID ${contract.subscriber_id}`}
+              </Typography>
+            )}
           </FormControl>
 
           <TextField
@@ -272,7 +316,7 @@ const ContractForm: React.FC<ContractFormProps> = ({
                 fullWidth
                 label="Data de Início *"
                 type="date"
-                value={getFieldValue('start_date')}
+                value={formatDateForInput(getFieldValue('start_date')) || ''}
                 onChange={(e) => handleFieldChange('start_date', e.target.value)}
                 margin="normal"
                 required
@@ -287,8 +331,8 @@ const ContractForm: React.FC<ContractFormProps> = ({
                 fullWidth
                 label="Data de Término"
                 type="date"
-                value={getFieldValue('end_date') || ''}
-                onChange={(e) => handleFieldChange('end_date', e.target.value || undefined)}
+                value={formatDateForInput(getFieldValue('end_date')) || getDefaultContractEndDate()}
+                onChange={(e) => handleFieldChange('end_date', e.target.value || getDefaultContractEndDate())}
                 margin="normal"
                 InputLabelProps={{ shrink: true }}
                 error={hasError('end_date')}

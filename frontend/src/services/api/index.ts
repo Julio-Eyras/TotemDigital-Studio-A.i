@@ -29,6 +29,42 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Tratamento de erros de conexão (servidor offline/reiniciando)
+    // Fazer logout automático e redirecionar para login
+    if (!error.response) {
+      const isNetworkError = 
+        error.code === 'ECONNREFUSED' ||
+        error.code === 'ETIMEDOUT' ||
+        error.code === 'ENOTFOUND' ||
+        error.message === 'Network Error' ||
+        error.message?.includes('timeout') ||
+        error.message?.includes('Failed to fetch');
+      
+      if (isNetworkError) {
+        // Servidor reiniciou ou está offline - fazer logout e redirecionar
+        console.warn('Erro de conexão (servidor reiniciando ou offline):', error.message);
+        
+        // Evitar logout em requisições de login
+        const reqUrl: string = String(originalRequest?.url || '');
+        const isAuthLoginRequest =
+          reqUrl.includes('/auth/login') ||
+          reqUrl.includes('/auth/subscriber-login') ||
+          reqUrl.includes('/auth/refresh');
+
+        if (!isAuthLoginRequest) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          // Forçar reload completo da página para limpar estado
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          } else {
+            window.location.reload();
+          }
+        }
+        return Promise.reject(error);
+      }
+    }
+
     // Tratamento de Rate Limiting (429)
     if (error.response?.status === 429) {
       const retryAfter = error.response.headers['retry-after'] || 
@@ -74,10 +110,14 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
+      // Fazer logout imediato e redirecionar para login
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
+      // Forçar reload completo da página para limpar estado
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
+      } else {
+        window.location.reload();
       }
       return Promise.reject(error);
     }
@@ -1821,6 +1861,8 @@ export interface Plan {
   isActive: boolean; // Backend retorna como isActive
   is_popular: boolean;
   isPopular: boolean; // Backend retorna como isPopular
+  is_default?: boolean;
+  isDefault?: boolean; // Backend retorna como isDefault (plano padrão)
   sort_order: number;
   sortOrder: number; // Backend retorna como sortOrder
   created_at: string;
@@ -1844,6 +1886,7 @@ export interface CreatePlanRequest {
   limits?: any;
   isActive?: boolean;
   isPopular?: boolean;
+  isDefault?: boolean;
   sortOrder?: number;
 }
 
@@ -1876,6 +1919,15 @@ export const planApi = {
   getBySlug: async (slug: string): Promise<Plan> => {
     const response = await api.get(`/plans/slug/${slug}`);
     return response.data.data;
+  },
+
+  getDefault: async (): Promise<Plan | null> => {
+    try {
+      const response = await api.get('/plans/default');
+      return response.data?.data ?? null;
+    } catch {
+      return null;
+    }
   },
 
   create: async (data: CreatePlanRequest): Promise<Plan> => {
@@ -2635,7 +2687,9 @@ export interface Publisher {
   is_subscriber?: boolean;
   is_publisher?: boolean;
   client_type?: 'subscriber' | 'publisher' | 'both';
+  /** Status ativo: backend retorna is_active (snake_case), normalizamos para active no getAll */
   active?: boolean;
+  is_active?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -2695,12 +2749,25 @@ export const publisherApi = {
     active_only?: boolean;
   }): Promise<PublisherListResponse> => {
     const response = await api.get('/publishers', { params });
-    return response.data;
+    const raw = response.data;
+    const list = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : []);
+    const normalized = list.map((p: any) => ({
+      ...p,
+      active: p.active !== undefined ? p.active : (p.is_active !== undefined ? p.is_active : true),
+    }));
+    if (Array.isArray(raw)) {
+      return { data: normalized, total: normalized.length } as PublisherListResponse;
+    }
+    return { ...raw, data: normalized } as PublisherListResponse;
   },
 
   getById: async (id: number): Promise<Publisher> => {
     const response = await api.get(`/publishers/${id}`);
-    return response.data.data;
+    const p = response.data.data || response.data;
+    return {
+      ...p,
+      active: p.active !== undefined ? p.active : (p.is_active !== undefined ? p.is_active : true),
+    } as Publisher;
   },
 
   create: async (data: CreatePublisherRequest): Promise<Publisher> => {
@@ -2761,7 +2828,13 @@ export interface Subscriber {
 
 export interface CreateSubscriberRequest {
   name: string;
-  contract_id?: number; // Opcional - pode vincular um pré-contrato (created_before_subscriber=true)
+  /** Vincular a contratos existentes. Obrigatório contract_ids OU plan_ids (pelo menos um). */
+  contract_ids?: number[];
+  /** Criar novos contratos com estes planos. Obrigatório contract_ids OU plan_ids (pelo menos um). */
+  plan_ids?: number[];
+  // Mantido para compatibilidade com versões antigas
+  contract_id?: number;
+  plan_id?: number;
   contact_name?: string;
   email?: string;
   phone?: string;
@@ -2843,6 +2916,11 @@ export const subscriberApi = {
   getContracts: async (subscriberId: number): Promise<Contract[]> => {
     const response = await api.get(`/subscribers/${subscriberId}/contracts`);
     return response.data.data || [];
+  },
+
+  addContract: async (subscriberId: number, planId: number): Promise<Contract> => {
+    const response = await api.post(`/subscribers/${subscriberId}/contracts`, { plan_id: planId });
+    return response.data.data ?? response.data;
   },
 
   // Validações prévias
