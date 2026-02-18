@@ -10,6 +10,7 @@ import { blockClientDataAccess } from '../middleware/operatorProtection.middlewa
 import * as fs from 'fs';
 import * as path from 'path';
 import { logError, logWarn } from '../utils/loggerHelper';
+import { isMissingTableError } from '../utils/dbErrors';
 
 const router = Router();
 
@@ -66,6 +67,9 @@ router.get('/', authorizeRole(['admin', 'gerente_marketing', 'visualizador']), a
     });
 
   } catch (error: any) {
+    if (isMissingTableError(error)) {
+      return res.json({ success: true, data: [] });
+    }
     await logError('Erro ao listar relatórios', error);
     return res.status(500).json({
       success: false,
@@ -214,18 +218,28 @@ router.get('/:id', async (req: any, res) => {
  */
 router.post('/', async (req: any, res) => {
   try {
-    const reportRequest = req.body;
+    const reportRequest = req.body || {};
+    const user = req.user || {};
 
-    // Verificar permissão para subscribers
-    const userSubscriberId = req.user.subscriberId || req.subscriberId;
-    if ((req.user.role === 'client' || req.user.role === 'subscriber') && reportRequest.filters.subscriberId && reportRequest.filters.subscriberId !== userSubscriberId) {
+    if (!reportRequest.type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Campo type é obrigatório para gerar relatório',
+        error: 'type_required'
+      });
+    }
+
+    const filters = reportRequest.filters || {};
+    const userSubscriberId = user.subscriberId || req.subscriberId;
+    if ((user.role === 'client' || user.role === 'subscriber') && filters.subscriberId && filters.subscriberId !== userSubscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode gerar relatórios para seu próprio subscriber'
       });
     }
 
-    const report = await getReportsService().generateReport(reportRequest, req.user.userId);
+    const userId = user.userId ?? user.id ?? 0;
+    const report = await getReportsService().generateReport(reportRequest, userId);
 
     return res.status(201).json({
       success: true,
@@ -235,7 +249,15 @@ router.post('/', async (req: any, res) => {
 
   } catch (error: any) {
     await logError('Erro ao gerar relatório', error);
-    return res.status(400).json({
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        success: false,
+        message: 'Recurso de relatórios não disponível. Execute as migrações do banco.',
+        error: error.message
+      });
+    }
+    const status = error.message && /obrigatório|inválido|required|invalid/i.test(error.message) ? 400 : 500;
+    return res.status(status).json({
       success: false,
       message: error.message || 'Erro ao gerar relatório',
       error: error.message

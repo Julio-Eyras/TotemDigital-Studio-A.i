@@ -140,14 +140,26 @@ router.get('/system-info', async (_req: Request, res: Response) => {
       FROM totems
     `);
     
-    // Últimos registros
+    // Últimos registros (ip vem de network_info JSONB, não coluna ip_address)
     const recentRegistrations = await db.findMany(`
-      SELECT totem_id, identifier, uin, status, created_at, ip_address
+      SELECT totem_id, identifier, uin, status, created_at, network_info
       FROM totems
       ORDER BY created_at DESC
       LIMIT 10
     `);
     
+    const recentWithIp = (recentRegistrations || []).map((t: any) => {
+      const ni = t.network_info ? (typeof t.network_info === 'string' ? JSON.parse(t.network_info) : t.network_info) : null;
+      return {
+        totem_id: t.totem_id,
+        identifier: t.identifier,
+        uin: t.uin,
+        status: t.status,
+        created_at: t.created_at,
+        ip_address: ni?.ip || ni?.ip_address || ni?.ipAddress || null
+      };
+    });
+
     return res.json({
       success: true,
       system: {
@@ -159,7 +171,7 @@ router.get('/system-info', async (_req: Request, res: Response) => {
       },
       totems: {
         stats: totemStats,
-        recentRegistrations: recentRegistrations
+        recentRegistrations: recentWithIp
       }
     });
   } catch (error: any) {

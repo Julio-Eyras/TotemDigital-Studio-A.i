@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { exportExecutionService } from '../services/exportExecutionService';
 import { logError } from '../utils/loggerHelper';
+import { isMissingTableError } from '../utils/dbErrors';
 
 const router = Router();
 
@@ -43,6 +44,13 @@ router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Res
       }
     });
   } catch (error: any) {
+    if (isMissingTableError(error)) {
+      return res.json({
+        success: true,
+        data: [],
+        pagination: { total: 0, page: 1, limit: filters?.limit || 10 }
+      });
+    }
     await logError('Erro ao listar execuções de exportação', error, { filters: req.query });
     return res.status(500).json({
       success: false,

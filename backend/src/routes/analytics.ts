@@ -8,6 +8,8 @@ import { AnalyticsService } from '../services/analyticsService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { logError } from '../utils/loggerHelper';
+import { isMissingTableError } from '../utils/dbErrors';
+import { isMissingTableError } from '../utils/dbErrors';
 
 const router = Router();
 
@@ -65,9 +67,9 @@ router.get('/overview', async (req: any, res) => {
       groupBy
     } = req.query;
 
-    // Aplicar filtro de cliente se for Client
+    const user = req.user || {};
     const filters = {
-      clientId: req.user.role === 'client' ? req.user.clientId : (clientId ? parseInt(clientId as string) : undefined),
+      clientId: user.role === 'client' ? (user as any).clientId : (clientId ? parseInt(clientId as string) : undefined),
       totemId: totemId ? parseInt(totemId as string) : undefined,
       campaignId: campaignId ? parseInt(campaignId as string) : undefined,
       startDate: startDate as string,
@@ -83,6 +85,9 @@ router.get('/overview', async (req: any, res) => {
     });
 
   } catch (error: any) {
+    if (isMissingTableError(error)) {
+      return res.json({ success: true, data: [] });
+    }
     await logError('Erro ao buscar análise detalhada', error);
     res.status(500).json({
       success: false,

@@ -802,11 +802,48 @@ check_os() {
     fi
 }
 
+# Aguardar lock do apt/dpkg (outro processo pode estar a usar)
+wait_for_apt_lock() {
+    local max_wait="${1:-300}"  # segundos (default 5 min)
+    local waited=0
+    # Esperar enquanto apt-get ou apt estiverem em execução (ou lock detetado via fuser se existir)
+    while true; do
+        local busy=0
+        if pgrep -x apt-get >/dev/null 2>&1 || pgrep -x apt >/dev/null 2>&1; then
+            busy=1
+        fi
+        if [[ $busy -eq 0 ]] && command -v fuser >/dev/null 2>&1; then
+            if ! fuser -v /var/lib/apt/lists/lock /var/lib/dpkg/lock-frontend 2>/dev/null | grep -q .; then
+                break
+            fi
+            busy=1
+        fi
+        if [[ $busy -eq 0 ]]; then
+            break
+        fi
+        if [[ $waited -ge $max_wait ]]; then
+            log "Aviso: Timeout à espera do lock do apt. A atualização do sistema será ignorada."
+            return 1
+        fi
+        log "Aguardando liberação do apt/dpkg (processo em curso)... ${waited}s"
+        sleep 10
+        waited=$((waited + 10))
+    done
+    return 0
+}
+
 # Atualizar sistema
 update_system() {
     log "Atualizando sistema..."
-    sudo apt update && sudo apt upgrade -y
-    log "Sistema atualizado com sucesso!"
+    if ! wait_for_apt_lock 300; then
+        log "Aviso: Não foi possível atualizar o sistema agora. Pode executar depois: sudo apt update && sudo apt upgrade -y"
+        return 0
+    fi
+    if sudo apt update && sudo apt upgrade -y; then
+        log "Sistema atualizado com sucesso!"
+    else
+        log "Aviso: Falha ao atualizar o sistema (ex.: outro apt em execução). Pode continuar a instalação ou executar depois: sudo apt update && sudo apt upgrade -y"
+    fi
 }
 
 # Instalar dependências básicas

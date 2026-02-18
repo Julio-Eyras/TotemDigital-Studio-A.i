@@ -498,6 +498,30 @@ CREATE TABLE IF NOT EXISTS fx_totem_sites (
     PRIMARY KEY (totem_id, site_id)
 );
 
+-- Telemetria de execução de efeitos SmartDisplayFX
+CREATE TABLE IF NOT EXISTS fx_telemetry (
+    id BIGSERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL REFERENCES totems(totem_id) ON DELETE CASCADE,
+    effect_id TEXT NOT NULL,
+    event_id TEXT,
+    content_id INTEGER,
+    planned_start_ts TIMESTAMP,
+    actual_start_ts TIMESTAMP,
+    ended_at TIMESTAMP,
+    duration_ms INTEGER,
+    avg_fps NUMERIC(10,2),
+    status TEXT,
+    error_message TEXT,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE fx_telemetry IS 'Telemetria de execução de efeitos FX nos totens';
+
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_totem ON fx_telemetry(totem_id);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_effect ON fx_telemetry(effect_id);
+CREATE INDEX IF NOT EXISTS idx_fx_telemetry_created ON fx_telemetry(created_at DESC);
+
 -- =============================================
 -- AUDITORIA E SEGURANÇA
 -- =============================================
@@ -602,6 +626,67 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 -- =============================================
 -- RELATÓRIOS E EXPORTAÇÕES
 -- =============================================
+
+-- Queries SQL para exportação agendada (Excel, PDF, CSV)
+CREATE TABLE IF NOT EXISTS export_queries (
+    query_id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    provider TEXT NOT NULL DEFAULT 'PostgreSQL',
+    sql_query TEXT NOT NULL,
+    database_config JSONB DEFAULT '{}',
+    export_config JSONB NOT NULL DEFAULT '{}',
+    enabled BOOLEAN DEFAULT true,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE export_queries IS 'Queries SQL para exportação (Excel, PDF, CSV)';
+
+-- Agendamentos cron para execução de export_queries
+CREATE TABLE IF NOT EXISTS export_schedules (
+    schedule_id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    query_id INTEGER NOT NULL REFERENCES export_queries(query_id) ON DELETE CASCADE,
+    cron_expression TEXT NOT NULL,
+    enabled BOOLEAN DEFAULT true,
+    last_execution TIMESTAMP,
+    next_execution TIMESTAMP,
+    execution_count INTEGER DEFAULT 0,
+    success_count INTEGER DEFAULT 0,
+    failure_count INTEGER DEFAULT 0,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE export_schedules IS 'Agendamentos cron para execução de export_queries';
+
+-- Histórico de execuções de exportação
+CREATE TABLE IF NOT EXISTS export_executions (
+    execution_id SERIAL PRIMARY KEY,
+    schedule_id INTEGER REFERENCES export_schedules(schedule_id) ON DELETE SET NULL,
+    query_id INTEGER NOT NULL REFERENCES export_queries(query_id) ON DELETE CASCADE,
+    job_id TEXT,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    records_exported INTEGER DEFAULT 0,
+    file_path TEXT,
+    file_size BIGINT,
+    error_message TEXT,
+    execution_log TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE export_executions IS 'Histórico de execuções de exportação';
+
+CREATE INDEX IF NOT EXISTS idx_export_executions_schedule ON export_executions(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_export_executions_query ON export_executions(query_id);
+CREATE INDEX IF NOT EXISTS idx_export_executions_status ON export_executions(status);
+CREATE INDEX IF NOT EXISTS idx_export_executions_created ON export_executions(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS reports (
     report_id SERIAL PRIMARY KEY,

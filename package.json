@@ -7,7 +7,9 @@
     "start": "node dist/index.js",
     "dev": "cd backend && npm run dev",
     "build": "tsc -p backend/tsconfig.json",
-    "test": "echo 'Testes implementados'",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && node node_modules/jest/bin/jest.js --coverage=false",
+    "test:frontend": "cd frontend && CI=true npm test -- --watchAll=false",
     "lint": "echo 'Linting implementado'"
   },
   "keywords": [

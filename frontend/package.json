@@ -63,6 +63,8 @@
     "schema-utils/ajv-keywords": "^5.1.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^14.3.1",
     "@types/d3": "^7.4.3",
     "@types/node": "^16.18.68",
     "@types/react": "^18.2.42",

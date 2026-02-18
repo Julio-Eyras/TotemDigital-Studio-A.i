@@ -9,6 +9,7 @@ import { query, param, body, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getFxTelemetryService } from '../services/fxTelemetryService';
 import { logError } from '../utils/loggerHelper';
+import { isMissingTableError } from '../utils/dbErrors';
 
 const router = Router();
 
@@ -57,6 +58,9 @@ router.get('/',
 
       return res.json(result);
     } catch (error: any) {
+      if (isMissingTableError(error)) {
+        return res.json({ data: [], total: 0, page: 1, limit: 50 });
+      }
       await logError('GET /api/smartdisplayfx/telemetry error', error, req.query);
       return res.status(500).json({
         error: 'Erro ao listar telemetria',
