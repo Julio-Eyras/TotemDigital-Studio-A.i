@@ -87,7 +87,7 @@ INSERT INTO permissions (permission_id, name, resource, action, description) VAL
 ON CONFLICT DO NOTHING;
 
 INSERT INTO plans (plan_id, name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order) VALUES
-(1, 'Plano Básico', 'plano-basico', 'Plano básico', 99.00, 990.00, 'BRL', 'month', '{"campaigns":5,"storage_gb":10}'::jsonb, '{"totems":3,"campaigns":5,"storage_gb":10}'::jsonb, true, false, true, 1),
+(1, 'Plano Básico', 'plano-basico', 'Plano básico', 99.00, 990.00, 'BRL', 'month', '{"campaigns":30,"storage_gb":50}'::jsonb, '{"totems":3,"campaigns":30,"storage_gb":50}'::jsonb, true, false, true, 1),
 (2, 'Plano Profissional', 'plano-profissional', 'Plano profissional', 299.00, 2990.00, 'BRL', 'month', '{"campaigns":20,"storage_gb":50}'::jsonb, '{"totems":10,"campaigns":20,"storage_gb":50}'::jsonb, true, true, false, 2),
 (3, 'Plano Enterprise', 'plano-enterprise', 'Plano enterprise', 999.00, 9990.00, 'BRL', 'month', '{"campaigns":100,"storage_gb":500}'::jsonb, '{"totems":50,"campaigns":100,"storage_gb":500}'::jsonb, true, false, false, 3),
 (4, 'Plano Shoppings', 'plano-shoppings', 'Plano para anunciantes em shoppings', 399.00, 3990.00, 'BRL', 'month', '{"campaigns":30,"storage_gb":80}'::jsonb, '{"totems":15,"campaigns":30,"storage_gb":80}'::jsonb, true, false, false, 4),

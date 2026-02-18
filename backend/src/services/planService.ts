@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { getCacheService } from './cacheService';
 
 export interface Plan {
   planId: number;
@@ -22,6 +23,7 @@ export interface Plan {
   limits: any;
   isActive: boolean;
   isPopular: boolean;
+  isDefault?: boolean;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -91,12 +93,13 @@ export class PlanService {
           limits,
           is_active as "isActive",
           is_popular as "isPopular",
+          COALESCE(is_default, false) as "isDefault",
           sort_order as "sortOrder",
           created_at as "createdAt",
           updated_at as "updatedAt"
         FROM plans
         ${whereClause}
-        ORDER BY sort_order ASC, name ASC
+        ORDER BY COALESCE(is_default, false) DESC, sort_order ASC, name ASC
       `);
 
       return plans;
@@ -129,6 +132,7 @@ export class PlanService {
           limits,
           is_active as "isActive",
           is_popular as "isPopular",
+          COALESCE(is_default, false) as "isDefault",
           sort_order as "sortOrder",
           created_at as "createdAt",
           updated_at as "updatedAt"
@@ -140,6 +144,44 @@ export class PlanService {
 
     } catch (error: any) {
       await logError('Erro ao buscar plano', error, { planId });
+      throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Retorna o plano marcado como padrão (is_default = true) ou o primeiro ativo por sort_order
+   */
+  async getDefaultPlan(): Promise<Plan | null> {
+    try {
+      const plan = await this.db.findFirst(`
+        SELECT 
+          plan_id as "planId",
+          name,
+          slug,
+          description,
+          price_monthly as "priceMonthly",
+          price_yearly as "priceYearly",
+          currency,
+          billing_interval as "billingInterval",
+          stripe_price_id_monthly as "stripePriceIdMonthly",
+          stripe_price_id_yearly as "stripePriceIdYearly",
+          stripe_product_id as "stripeProductId",
+          features,
+          limits,
+          is_active as "isActive",
+          is_popular as "isPopular",
+          COALESCE(is_default, false) as "isDefault",
+          sort_order as "sortOrder",
+          created_at as "createdAt",
+          updated_at as "updatedAt"
+        FROM plans
+        WHERE is_active = true
+        ORDER BY COALESCE(is_default, false) DESC, sort_order ASC NULLS LAST, plan_id ASC
+        LIMIT 1
+      `);
+      return plan || null;
+    } catch (error: any) {
+      await logError('Erro ao buscar plano padrão', error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -349,6 +391,14 @@ export class PlanService {
       const updatedPlan = await this.getPlanById(planId);
       if (!updatedPlan) {
         throw new Error('Erro ao buscar plano atualizado');
+      }
+
+      // Invalidar cache de limites dos subscribers (limites vêm dos planos)
+      try {
+        const cache = getCacheService();
+        await cache.deletePattern('subscriber:*:max_limits');
+      } catch (e) {
+        await logError('Erro ao invalidar cache de limites após atualizar plano', e as Error, { planId }).catch(() => {});
       }
 
       await logInfo('Plano atualizado com sucesso', { planId });

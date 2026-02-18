@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -233,6 +233,7 @@ const Subscribers: React.FC = () => {
   const [editingEditMediaIndex, setEditingEditMediaIndex] = useState<number | null>(null);
   const [editingEditPlaylistIndex, setEditingEditPlaylistIndex] = useState<number | null>(null);
   const [editingEditCampaignIndex, setEditingEditCampaignIndex] = useState<number | null>(null);
+  const [campaignSaveLoading, setCampaignSaveLoading] = useState(false);
   
   // Estados para upload de mídia
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -273,6 +274,11 @@ const Subscribers: React.FC = () => {
   
   // Estados para contratos
   const [activeContracts, setActiveContracts] = useState<any[]>([]);
+  /** Contratos com status "active" para vincular a campanhas (só estes podem ser usados nos totens) */
+  const contractsActiveForCampaign = useMemo(
+    () => (activeContracts || []).filter((c: any) => c.status === 'active'),
+    [activeContracts]
+  );
   const [editLocalForm, setEditLocalForm] = useState<CreateLocalRequest>({
     publisher_id: 0,
     name: '',
@@ -472,7 +478,39 @@ const Subscribers: React.FC = () => {
       setEditMedias(Array.isArray(mediasResponse?.data) ? mediasResponse.data : []);
       setMediaPreviewFailed(new Set());
       setEditPlaylists(Array.isArray(playlistsResponse?.data) ? playlistsResponse.data : []);
-      setEditCampaigns(Array.isArray(campaignsResponse?.data) ? campaignsResponse.data : []);
+      // campaignApi.getAll pode retornar CampaignListResponse (objeto com data) ou array diretamente
+      // Normalizar campanhas: backend retorna 'id' e 'contractId' (camelCase), frontend espera 'campaign_id' e 'contract_id' (snake_case)
+      const campaignsArray = Array.isArray(campaignsResponse) 
+        ? campaignsResponse 
+        : (campaignsResponse as any)?.data || [];
+      
+      const normalizedCampaigns = campaignsArray.map((c: any) => {
+        // Tentar múltiplas formas de obter o ID
+        const campaignId = c.campaign_id || c.id || c.campaignId || (c as any).campaignId;
+        const contractId = c.contract_id || c.contractId;
+        
+        const normalized = {
+          ...c,
+          campaign_id: campaignId,
+          contract_id: contractId,
+        };
+        
+        if (!normalized.campaign_id) {
+          console.error('[Campanha] Campanha sem ID após normalização - será ignorada', { 
+            original: c, 
+            normalized,
+            availableKeys: Object.keys(c),
+          });
+        }
+        return normalized;
+      }).filter((c: any) => c.campaign_id); // Filtrar campanhas sem ID
+      
+      console.log('[Campanha] Campanhas normalizadas', { 
+        total: campaignsArray.length,
+        normalized: normalizedCampaigns.length,
+        sample: normalizedCampaigns[0] 
+      });
+      setEditCampaigns(normalizedCampaigns);
       setActiveContracts(Array.isArray(contractsResponse) ? contractsResponse : []);
     } catch (error) {
       console.error('Erro ao carregar dados do Subscriber para edição:', error);
@@ -1110,7 +1148,32 @@ const Subscribers: React.FC = () => {
   // ============================================================================
 
   const handleAddCampaign = async () => {
-    if (!selectedSubscriber || !editCampaignForm.title) {
+    // PROTEÇÃO INICIAL ABSOLUTA: Resetar editingEditCampaignIndex se inválido ANTES de qualquer processamento
+    if (editingEditCampaignIndex !== null) {
+      const checkCampaign = editCampaigns[editingEditCampaignIndex];
+      const checkCampaignId = checkCampaign?.campaign_id || (checkCampaign as any)?.id;
+      if (!checkCampaign || !checkCampaignId || checkCampaignId === 0 || !Number.isInteger(checkCampaignId)) {
+        console.warn('[Campanha] PROTEÇÃO INICIAL: editingEditCampaignIndex inválido, resetando ANTES de processar', {
+          editingEditCampaignIndex,
+          checkCampaign,
+          checkCampaignId,
+          isInteger: Number.isInteger(checkCampaignId),
+          editCampaignsLength: editCampaigns.length,
+        });
+        setEditingEditCampaignIndex(null);
+      }
+    }
+
+    console.log('[Campanha] handleAddCampaign chamado', {
+      hasSubscriber: !!selectedSubscriber,
+      title: editCampaignForm.title,
+      titleTrim: editCampaignForm.title?.trim(),
+      editingEditCampaignIndex,
+      editCampaignsLength: editCampaigns.length,
+      campaignAtIndex: editingEditCampaignIndex !== null ? editCampaigns[editingEditCampaignIndex] : null,
+    });
+    setError(null);
+    if (!selectedSubscriber || !editCampaignForm.title?.trim()) {
       setError('Título da campanha é obrigatório');
       return;
     }
@@ -1120,7 +1183,7 @@ const Subscribers: React.FC = () => {
       try {
         const validation = await subscriberApi.validatePlanLimits(selectedSubscriber.subscriber_id, 'campaign');
         if (!validation.valid) {
-          setError(validation.message);
+          setError(validation.message || 'Limite de campanhas do plano excedido');
           return;
         }
       } catch (err: any) {
@@ -1129,49 +1192,164 @@ const Subscribers: React.FC = () => {
       }
     }
 
+    // Verificar se está em modo de edição e se a campanha existe
+    // Normalizar campaign_id: pode vir como campaign_id (snake_case) ou id (camelCase)
+    const campaignAtIndex = editingEditCampaignIndex !== null && editingEditCampaignIndex >= 0 && editingEditCampaignIndex < editCampaigns.length
+      ? editCampaigns[editingEditCampaignIndex]
+      : null;
+    const campaignIdAtEditIndex = campaignAtIndex?.campaign_id || (campaignAtIndex as any)?.id;
+    
+    let isEditMode = editingEditCampaignIndex !== null && 
+                     editingEditCampaignIndex >= 0 && 
+                     editingEditCampaignIndex < editCampaigns.length &&
+                     !!campaignIdAtEditIndex; // Garantir que campaignId existe e não é 0/null/undefined
+    
+    console.log('[Campanha] Verificação de modo de edição', {
+      editingEditCampaignIndex,
+      editCampaignsLength: editCampaigns.length,
+      campaignAtIndex,
+      campaignIdAtEditIndex,
+      isEditMode,
+    });
+    
+    if (editingEditCampaignIndex !== null && !isEditMode) {
+      console.warn('[Campanha] editingEditCampaignIndex definido mas campanha inválida, resetando para modo criação', {
+        editingEditCampaignIndex,
+        editCampaignsLength: editCampaigns.length,
+        campaignAtIndex,
+        campaignIdAtEditIndex,
+      });
+      setEditingEditCampaignIndex(null);
+      // Forçar modo criação após reset
+      isEditMode = false;
+    }
+
+    // PROTEÇÃO FINAL: Se não há campaignId válido, forçar modo criação
+    if (isEditMode && (!campaignIdAtEditIndex || campaignIdAtEditIndex === 0 || !Number.isInteger(campaignIdAtEditIndex))) {
+      console.warn('[Campanha] PROTEÇÃO FINAL: isEditMode=true mas campaignId inválido, forçando modo criação', {
+        editingEditCampaignIndex,
+        campaignIdAtEditIndex,
+        campaignAtIndex,
+        isInteger: Number.isInteger(campaignIdAtEditIndex),
+      });
+      isEditMode = false;
+      setEditingEditCampaignIndex(null);
+    }
+
+    // VALIDAÇÃO FINAL ABSOLUTA: NUNCA entrar em modo edição sem campaignId válido
+    const finalCampaignId = isEditMode && campaignIdAtEditIndex && campaignIdAtEditIndex > 0 && Number.isInteger(campaignIdAtEditIndex) 
+      ? campaignIdAtEditIndex 
+      : null;
+    const shouldEdit = !!finalCampaignId;
+
+    console.log('[Campanha] Decisão final', {
+      isEditMode,
+      finalCampaignId,
+      shouldEdit,
+      willCreate: !shouldEdit,
+    });
+
+    setCampaignSaveLoading(true);
     try {
-      if (editingEditCampaignIndex !== null) {
-        const campaign = editCampaigns[editingEditCampaignIndex];
+      // VALIDAÇÃO ABSOLUTA FINAL: NUNCA fazer UPDATE sem campaignId válido
+      if (shouldEdit && finalCampaignId && Number.isInteger(finalCampaignId) && finalCampaignId > 0) {
+        const campaign = editCampaigns[editingEditCampaignIndex!];
+        // Usar o campaignId já validado acima
+        const campaignId = finalCampaignId;
+        
+        // Verificação dupla antes de chamar API
+        if (!campaignId || campaignId === 0 || !Number.isInteger(campaignId)) {
+          console.error('[Campanha] ERRO CRÍTICO: Tentando UPDATE com campaignId inválido!', {
+            campaignId,
+            shouldEdit,
+            finalCampaignId,
+            editingEditCampaignIndex,
+          });
+          setError('Erro: campanha não encontrada para edição. Tente criar uma nova campanha.');
+          setEditingEditCampaignIndex(null);
+          setCampaignSaveLoading(false);
+          return;
+        }
+        
         const updateData: UpdateCampaignRequest = {
           ...editCampaignForm,
+          contractId: editCampaignForm.contractId !== undefined && editCampaignForm.contractId !== null ? Number(editCampaignForm.contractId) : undefined,
           mediaIds: campaignMedias.map(m => m.media_id),
           playlistIds: campaignPlaylists.map(p => p.playlist_id),
         };
-        await campaignApi.update(campaign.campaign_id, updateData);
+        console.log('[Campanha] Atualizando campanha', { 
+          campaignId, 
+          updateData,
+          contractId: updateData.contractId,
+          contractIdType: typeof updateData.contractId,
+        });
+        await campaignApi.update(campaignId, updateData);
         await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
         setEditingEditCampaignIndex(null);
         setCampaignMedias([]);
         setCampaignPlaylists([]);
       } else {
-        await campaignApi.create({
-          title: editCampaignForm.title || '',
+        const createData = {
+          title: editCampaignForm.title?.trim() || '',
           description: editCampaignForm.description,
           campaign_type: editCampaignForm.campaign_type || 'general',
-          priority: editCampaignForm.priority || 1,
-          contractId: editCampaignForm.contractId,
+          priority: editCampaignForm.priority ?? 1,
+          contractId: editCampaignForm.contractId !== undefined && editCampaignForm.contractId !== null ? Number(editCampaignForm.contractId) : undefined,
           subscriberId: selectedSubscriber.subscriber_id,
           mediaIds: campaignMedias.map(m => m.media_id),
           playlistIds: campaignPlaylists.map(p => p.playlist_id),
-        } as CreateCampaignRequest);
+        } as CreateCampaignRequest;
+        console.log('[Campanha] Criando nova campanha', { 
+          createData, 
+          isEditMode,
+          contractId: createData.contractId,
+          contractIdType: typeof createData.contractId,
+        });
+        await campaignApi.create(createData);
         await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
         setCampaignMedias([]);
         setCampaignPlaylists([]);
       }
+      setError(null);
       setEditCampaignForm({ title: '', description: '', campaign_type: 'general', priority: 1, contractId: undefined, status: 'draft', isActive: true });
     } catch (error: any) {
       console.error('Erro ao salvar campanha:', error);
-      setError(error?.response?.data?.error || 'Erro ao salvar campanha');
+      const msg =
+        error?.response?.data?.message ??
+        error?.response?.data?.error ??
+        (typeof error?.message === 'string' ? error.message : null) ??
+        'Erro ao salvar campanha. Verifique a consola (F12) ou tente novamente.';
+      setError(msg);
+    } finally {
+      setCampaignSaveLoading(false);
     }
   };
 
   const handleStartEditCampaign = async (index: number) => {
     const campaign = editCampaigns[index];
+    if (!campaign) {
+      console.error('[Campanha] Erro: campanha não encontrada no índice', { index, editCampaignsLength: editCampaigns.length });
+      return;
+    }
+    
+    // Normalizar contractId: pode vir como contract_id (snake_case) ou contractId (camelCase)
+    const contractId = campaign.contract_id || (campaign as any).contractId;
+    const normalizedContractId = contractId !== undefined && contractId !== null ? Number(contractId) : undefined;
+    
+    console.log('[Campanha] Iniciando edição', {
+      index,
+      campaign,
+      contractIdRaw: contractId,
+      contractIdNormalized: normalizedContractId,
+      campaignId: campaign.campaign_id || (campaign as any).id,
+    });
+    
     setEditCampaignForm({
       title: campaign.title || '',
       description: campaign.description,
       campaign_type: campaign.campaign_type || 'general',
       priority: campaign.priority || 1,
-      contractId: campaign.contract_id,
+      contractId: normalizedContractId,
       status: campaign.status || 'draft',
       isActive: campaign.is_active !== undefined ? campaign.is_active : true,
     });
@@ -1201,8 +1379,56 @@ const Subscribers: React.FC = () => {
     if (!selectedSubscriber || !window.confirm('Tem certeza que deseja excluir esta campanha?')) return;
     
     try {
+      // Validar índice
+      if (index < 0 || index >= editCampaigns.length) {
+        console.error('[Campanha] Erro: índice inválido para exclusão', { 
+          index, 
+          editCampaignsLength: editCampaigns.length,
+          editCampaigns: editCampaigns.map((c, i) => ({ 
+            index: i, 
+            campaign_id: c.campaign_id || (c as any).id,
+            title: c.title 
+          })),
+        });
+        setError('Erro: campanha não encontrada para exclusão');
+        return;
+      }
+
       const campaign = editCampaigns[index];
-      await campaignApi.delete(campaign.campaign_id);
+      if (!campaign) {
+        console.error('[Campanha] Erro: campanha não encontrada no índice', { index, editCampaignsLength: editCampaigns.length });
+        setError('Erro: campanha não encontrada para exclusão');
+        return;
+      }
+
+      // Normalizar campaignId: tentar múltiplas formas
+      const campaignId = campaign.campaign_id || (campaign as any).id || (campaign as any).campaignId;
+      
+      console.log('[Campanha] Tentando excluir', { 
+        index, 
+        campaign, 
+        campaignId,
+        campaignIdType: typeof campaignId,
+        isInteger: Number.isInteger(campaignId),
+        availableKeys: Object.keys(campaign),
+      });
+
+      // Validação rigorosa
+      if (!campaignId || campaignId === 0 || !Number.isInteger(campaignId) || campaignId < 1) {
+        console.error('[Campanha] Erro: campanha sem ID válido para exclusão', { 
+          campaign, 
+          index, 
+          campaignId,
+          campaignIdType: typeof campaignId,
+          isInteger: Number.isInteger(campaignId),
+          campaign_id: campaign.campaign_id,
+          id: (campaign as any).id,
+        });
+        setError('Erro: campanha não encontrada para exclusão (ID inválido)');
+        return;
+      }
+
+      await campaignApi.delete(campaignId);
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     } catch (error: any) {
       console.error('Erro ao excluir campanha:', error);
@@ -2666,6 +2892,7 @@ const Subscribers: React.FC = () => {
         open={editDialogOpen} 
         onClose={() => {
           setEditDialogOpen(false);
+          setError(null);
           setEditTab(0);
           setEditMedias([]);
           setEditPlaylists([]);
@@ -3594,9 +3821,13 @@ const Subscribers: React.FC = () => {
           {editTab === 4 && selectedSubscriber && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                Campanhas {editCampaigns.length > 0 && `(${editCampaigns.length})`}
+                Campanhas ({editCampaigns.length})
               </Typography>
-
+              {error && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                  {error}
+                </Alert>
+              )}
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingEditCampaignIndex !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>
                   {editingEditCampaignIndex !== null ? 'Editar Campanha' : 'Adicionar Campanha'}
@@ -3616,29 +3847,32 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small">
                       <InputLabel>Contrato</InputLabel>
                       <Select
-                        value={editCampaignForm.contractId || ''}
+                        value={editCampaignForm.contractId != null ? String(editCampaignForm.contractId) : ''}
                         label="Contrato"
-                        onChange={(e) => setEditCampaignForm({ ...editCampaignForm, contractId: e.target.value ? Number(e.target.value) : undefined })}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setEditCampaignForm({ ...editCampaignForm, contractId: v !== '' && v != null ? Number(v) : undefined });
+                        }}
                       >
                         <MenuItem value="">
                           <em>Nenhum (Rascunho)</em>
                         </MenuItem>
-                        {activeContracts.map((contract) => (
-                          <MenuItem key={contract.contract_id} value={contract.contract_id}>
-                            {contract.contract_number} - {contract.plan_name || 'Sem plano'} 
-                            {contract.start_date && contract.end_date && 
+                        {contractsActiveForCampaign.map((contract: any) => (
+                          <MenuItem key={contract.contract_id} value={String(contract.contract_id)}>
+                            {contract.contract_number} - {contract.plan_name || 'Sem plano'}
+                            {contract.start_date && contract.end_date &&
                               ` (${new Date(contract.start_date).toLocaleDateString('pt-BR')} a ${new Date(contract.end_date).toLocaleDateString('pt-BR')})`
                             }
                           </MenuItem>
                         ))}
                       </Select>
                     </FormControl>
-                    {activeContracts.length === 0 && (
+                    {contractsActiveForCampaign.length === 0 && (
                       <Alert severity="warning" sx={{ mt: 1 }}>
-                        Você precisa ter um contrato ativo para executar campanhas nos totens.
+                        Você precisa ter um contrato ativo para executar campanhas nos totens. Crie ou ative um contrato na aba &quot;Contratos&quot;.
                       </Alert>
                     )}
-                    {editCampaignForm.contractId === undefined && (
+                    {!editCampaignForm.contractId && (
                       <Alert severity="info" sx={{ mt: 1 }}>
                         Esta campanha não está vinculada a um contrato. Vincule a um contrato ativo para executá-la nos totens.
                       </Alert>
@@ -3843,12 +4077,17 @@ const Subscribers: React.FC = () => {
                   
                   <Grid item xs={12}>
                     <Button
+                      type="button"
                       variant="contained"
-                      startIcon={<Add />}
+                      startIcon={campaignSaveLoading ? undefined : <Add />}
                       onClick={handleAddCampaign}
-                      disabled={!editCampaignForm.title}
+                      disabled={campaignSaveLoading}
                     >
-                      {editingEditCampaignIndex !== null ? 'Atualizar Campanha' : 'Adicionar Campanha'}
+                      {campaignSaveLoading
+                        ? 'A adicionar…'
+                        : editingEditCampaignIndex !== null
+                          ? 'Atualizar Campanha'
+                          : 'Adicionar Campanha'}
                     </Button>
                     {editingEditCampaignIndex !== null && (
                       <Button
@@ -3870,8 +4109,11 @@ const Subscribers: React.FC = () => {
 
               {editCampaigns.length > 0 ? (
                 <List>
-                  {editCampaigns.map((campaign, index) => (
-                    <ListItem key={campaign.campaign_id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
+                  {editCampaigns.map((campaign, index) => {
+                    const campaignId = campaign.campaign_id || (campaign as any).id;
+                    const contractId = campaign.contract_id || (campaign as any).contractId;
+                    return (
+                    <ListItem key={campaignId} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
                       <ListItemIcon><CampaignIcon /></ListItemIcon>
                       <ListItemText
                         primary={
@@ -3889,10 +4131,10 @@ const Subscribers: React.FC = () => {
                             <Typography variant="body2">
                               Tipo: {campaign.campaign_type} | Prioridade: {campaign.priority} | Status: {campaign.status}
                             </Typography>
-                            {campaign.contract_id ? (
+                            {contractId ? (
                               <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
-                                ✓ Vinculada ao contrato: {campaign.contract_number || campaign.contract_title || `#${campaign.contract_id}`}
-                                {campaign.plan_name && ` (Plano: ${campaign.plan_name})`}
+                                ✓ Vinculada ao contrato: {(campaign as any).contract_number || (campaign as any).contract_title || `#${contractId}`}
+                                {(campaign as any).plan_name && ` (Plano: ${(campaign as any).plan_name})`}
                               </Typography>
                             ) : (
                               <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 0.5 }}>
@@ -3927,7 +4169,8 @@ const Subscribers: React.FC = () => {
                         <Delete />
                       </IconButton>
                     </ListItem>
-                  ))}
+                    );
+                  })}
                 </List>
               ) : (
                 <Alert severity="info">
