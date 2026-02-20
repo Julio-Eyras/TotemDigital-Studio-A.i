@@ -275,8 +275,9 @@ const Campaigns: React.FC = () => {
         search: searchTerm || undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
       });
-      // Normalizar dados do backend (campaignType -> campaign_type)
-      const normalizedCampaigns = (response.data || []).map(normalizeCampaign);
+      // campaignApi.getAll retorna um array de Campaign já normalizado
+      const campaignsArray = Array.isArray(response) ? response : [];
+      const normalizedCampaigns = campaignsArray.map(normalizeCampaign);
       setCampaigns(normalizedCampaigns);
     } catch (error: any) {
       console.error('Erro ao carregar campanhas:', error);

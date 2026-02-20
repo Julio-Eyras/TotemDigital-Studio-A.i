@@ -9,7 +9,6 @@ import { authenticateToken, authorizeRole } from '../middleware/auth.middleware'
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { logError } from '../utils/loggerHelper';
 import { isMissingTableError } from '../utils/dbErrors';
-import { isMissingTableError } from '../utils/dbErrors';
 
 const router = Router();
 
@@ -79,7 +78,7 @@ router.get('/overview', async (req: any, res) => {
 
     const analytics = await getAnalyticsService().getAnalytics(filters);
 
-    res.json({
+    return res.json({
       success: true,
       data: analytics
     });
@@ -89,7 +88,7 @@ router.get('/overview', async (req: any, res) => {
       return res.json({ success: true, data: [] });
     }
     await logError('Erro ao buscar análise detalhada', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message

@@ -48,13 +48,13 @@ router.get('/overview',
         endDate: endDate as string | undefined,
       });
 
-      res.json(overview);
+      return res.json(overview);
     } catch (error: any) {
       if (isMissingTableError(error)) {
         return res.json({ overview: {}, sites: [], metrics: [] });
       }
       await logError('GET /api/smartdisplayfx/analytics/overview error', error, req.query);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao obter overview de analytics',
         message: error.message
       });
@@ -87,13 +87,13 @@ router.get('/performance',
         endDate: endDate as string | undefined,
       });
 
-      res.json(metrics);
+      return res.json(metrics);
     } catch (error: any) {
       if (isMissingTableError(error)) {
         return res.json({ metrics: [], summary: {} });
       }
       await logError('GET /api/smartdisplayfx/analytics/performance error', error, req.query);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao obter métricas de performance',
         message: error.message
       });
@@ -120,13 +120,13 @@ router.get('/sites',
         endDate: endDate as string | undefined,
       });
 
-      res.json({ data: siteStats });
+      return res.json({ data: siteStats });
     } catch (error: any) {
       if (isMissingTableError(error)) {
         return res.json({ data: [] });
       }
       await logError('GET /api/smartdisplayfx/analytics/sites error', error, req.query);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Erro ao obter analytics por site',
         message: error.message
       });

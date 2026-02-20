@@ -79,6 +79,27 @@ router.post('/check',
 );
 
 /**
+ * @route POST /api/alerts/process-contract-audits
+ * @desc Processa registros de contract_change_audit e envia alertas
+ * @access Private (Admin, Admin SQL)
+ */
+router.post('/process-contract-audits',
+  validateRequest,
+  authorizeRole(['admin', 'admin_sql']) as any,
+  async (_req: any, res: Response) => {
+    try {
+      const { getContractAuditService } = await import('../services/contractAuditService');
+      const results = await getContractAuditService().processPending(100);
+
+      res.json(successResponse(results, { processed: results.length }));
+    } catch (error: any) {
+      await logError('POST /api/alerts/process-contract-audits error', error, {});
+      res.status(500).json(errorResponse('Erro ao processar contract audits', error.message));
+    }
+  }
+);
+
+/**
  * @route POST /api/alerts/:id/acknowledge
  * @desc Reconhece um alerta
  * @access Private (Admin, Admin SQL)

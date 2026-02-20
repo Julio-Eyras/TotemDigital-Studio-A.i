@@ -1,0 +1,54 @@
+# =============================================================================
+# Smart Signage Pro - Configuração do Sistema
+# =============================================================================
+# Este arquivo contém todas as configurações do sistema
+# IMPORTANTE: Altere as senhas e credenciais antes de usar em produção!
+# =============================================================================
+
+# Usuário do sistema para executar o Smart Signage Pro
+SYSTEM_USER=smartsignage
+
+# Grupo do sistema
+SYSTEM_GROUP=smartsignage
+
+# Usuário PostgreSQL do sistema (usuário que gerencia o PostgreSQL)
+POSTGRES_SYSTEM_USER=postgres
+
+# Senha do usuário postgres do PostgreSQL (ALTERE EM PRODUÇÃO!)
+# IMPORTANTE:
+# - Esta senha só será aplicada automaticamente em duas situações:
+#   1) Quando o PostgreSQL for instalado AGORA por este script (PG_WAS_INSTALLED=true)
+#   2) Quando a flag FORCE_CHANGE_POSTGRES_PASSWORD=true for usada
+# - Em instalações já existentes, a senha do postgres NÃO será alterada por padrão.
+POSTGRES_PASSWORD=smartsignage123
+
+# Flag opcional para forçar alteração da senha do usuário postgres mesmo em instalações existentes
+# Use com cuidado: FORCE_CHANGE_POSTGRES_PASSWORD=true
+FORCE_CHANGE_POSTGRES_PASSWORD=false
+
+# Usuário do banco de dados PostgreSQL (usuário da aplicação - master do sistema)
+DB_USER=smartsignage
+
+# Senha do usuário do banco de dados (ALTERE EM PRODUÇÃO!)
+DB_PASSWORD=smartsignage123
+
+# Nome do banco de dados
+DB_NAME=smartsignage
+
+# Host do banco de dados
+DB_HOST=localhost
+
+# Porta do banco de dados
+DB_PORT=5432
+
+# Diretório de uploads (relativo ao INSTALL_DIR que é determinado pelo modo de instalação)
+UPLOAD_PATH=/opt/smart-signage/public/assets/uploads
+
+# JWT Secret (ALTERE EM PRODUÇÃO! Use: openssl rand -base64 64)
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+
+# Porta do backend
+BACKEND_PORT=3000
+
+# Porta do frontend (Nginx)
+FRONTEND_PORT=80

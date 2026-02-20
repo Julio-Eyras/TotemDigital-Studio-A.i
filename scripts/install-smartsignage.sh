@@ -8063,6 +8063,32 @@ setup_first_boot() {
     }
     log "✅ Configuração media.storage.path atualizada para: ${MEDIA_STORAGE_PATH}"
 
+    # ==== Novas verificações relacionadas a contratos/alerts/reconcile (parte15) ====
+    # Garantir que o SQL da parte15 (contracts) esteja presente no package
+    PART15_SQL="$INSTALL_DIR/database/smartchannel-db-v2-refactored-part15-contracts.sql"
+    if [[ -f "$PART15_SQL" ]]; then
+        log "✅ Arquivo de contratos (part15) encontrado: $(basename "$PART15_SQL")"
+    else
+        warn "⚠️  Arquivo part15 (contratos) não encontrado em database/. Se você atualizou o schema, verifique que $PART15_SQL foi incluído no repositório."
+    fi
+
+    # Tornar executável o script de processamento de reconcile (se existir)
+    RECONCILE_SCRIPT="$INSTALL_DIR/database/scripts/run-reconcile-jobs.sh"
+    if [[ -f "$RECONCILE_SCRIPT" ]]; then
+        chmod +x "$RECONCILE_SCRIPT" 2>/dev/null || true
+        log "✅ Script de reconcile marcado como executável: $(basename "$RECONCILE_SCRIPT")"
+    else
+        warn "⚠️  Script run-reconcile-jobs.sh não encontrado em database/scripts/ - reconcile manual não disponível"
+    fi
+
+    # Verificar se a tabela de audit de contratos foi criada (contract_change_audit)
+    if sudo -u postgres psql -d "$TARGET_DB" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='contract_change_audit'" | grep -q 1; then
+        log "✅ Tabela contract_change_audit presente no banco."
+    else
+        warn "⚠️  Tabela contract_change_audit não encontrada. Se o schema foi aplicado com sucesso, verifique o arquivo part15 para trigger/funcções."
+    fi
+    # ========================================================================
+
     if ! ensure_admin_user; then
         error "❌ Não foi possível garantir usuário admin após aplicação do schema"
         exit 1

@@ -10,6 +10,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
+  let filters: any = {};
   try {
     const {
       scheduleId,
@@ -22,7 +23,7 @@ router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Res
       limit
     } = req.query;
 
-    const filters: any = {};
+    filters = {};
     if (scheduleId) filters.scheduleId = parseInt(scheduleId as string, 10);
     if (queryId) filters.queryId = parseInt(queryId as string, 10);
     if (status) filters.status = status;

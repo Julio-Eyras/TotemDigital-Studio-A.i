@@ -69,10 +69,20 @@ const SubscriberDashboard: React.FC = () => {
       // Carregar estatísticas de playlists
       const playlistsResponse = await playlistApi.getAll({ subscriberId });
       
+      const extractTotal = (resp: any) => {
+        if (resp == null) return 0;
+        if (Array.isArray(resp)) return resp.length;
+        if (typeof resp === 'object') {
+          if (typeof resp.total === 'number') return resp.total;
+          if (Array.isArray(resp.data)) return resp.data.length;
+        }
+        return 0;
+      };
+
       setStats({
-        totalMedia: mediaResponse.total || 0,
-        totalCampaigns: campaignsResponse.total || 0,
-        totalPlaylists: playlistsResponse.total || 0,
+        totalMedia: extractTotal(mediaResponse),
+        totalCampaigns: extractTotal(campaignsResponse),
+        totalPlaylists: extractTotal(playlistsResponse),
       });
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error);

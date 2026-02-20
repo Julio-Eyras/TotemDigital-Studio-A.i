@@ -21,10 +21,11 @@ router.use(authMiddleware);
  * @access Private (Admin, Manager)
  */
 router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
+  let filters: any = {};
   try {
     const { queryId, enabled, search, page, limit } = req.query;
 
-    const filters: any = {};
+    filters = {};
     if (queryId) filters.queryId = parseInt(queryId as string);
     if (enabled !== undefined) filters.enabled = enabled === 'true';
     if (search) filters.search = search;

@@ -57,10 +57,10 @@
 \i smartchannel-db-v2-refactored-part13-dispatcher-views.sql
 \echo '[15/16] Criando Reconciliation (plan_publisher_access -> subscriber_publisher_access)...'
 \i smartchannel-db-v2-refactored-part14-reconcile.sql
+\echo '[16/17] Criando Contracts indexes, triggers e audit (contracts -> campaigns)...'
+\i smartchannel-db-v2-refactored-part15-contracts.sql
 
-\echo '[16/16] Seeds: Dados Iniciais Playlist Mix...'
-\i seeds-playlist-mix.sql
-\echo '[15/15] Seeds: Dados Iniciais Playlist Mix...'
+\echo '[17/17] Seeds: Dados Iniciais Playlist Mix...'
 \i seeds-playlist-mix.sql
 
 \echo '[FINAL] Verificando schema...'

@@ -187,7 +187,7 @@ router.post('/plan-publisher',
 router.post('/plan-publisher/reconcile',
   authorizeRole(['admin', 'admin_sql']),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const reconcileService = require('../services/reconcileService').getReconcileService();
       const results = await reconcileService.processNow(100);
