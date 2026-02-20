@@ -11,9 +11,20 @@ export class ReconcileService {
    */
   async processPendingJobs(limit: number = 100): Promise<any[]> {
     try {
-      // Chamar função SQL process_pending_reconcile_jobs
-      const rows = await this.db.findMany(`SELECT execute_reconcile_job(job_id) as result FROM reconcile_plan_publisher_jobs WHERE processed_at IS NULL ORDER BY created_at LIMIT $1`, [limit]);
-      const results = rows.map((r: any) => r.result);
+      // Buscar até limit jobs pendentes e executar um por um
+      const jobs = await this.db.findMany(`
+        SELECT job_id FROM reconcile_plan_publisher_jobs
+        WHERE processed_at IS NULL
+        ORDER BY created_at
+        LIMIT $1
+      `, [limit]);
+
+      const results: any[] = [];
+      for (const j of jobs) {
+        const r = await this.db.findFirst(`SELECT execute_reconcile_job($1) as result`, [j.job_id]);
+        results.push(r?.result || null);
+      }
+
       await logInfo('Reconcile: processed pending jobs', { count: results.length });
       return results;
     } catch (error: any) {
@@ -28,49 +39,37 @@ export class ReconcileService {
   async processNow(limit: number = 100): Promise<any[]> {
     return await this.processPendingJobs(limit);
   }
-}
-
-let reconcileServiceInstance: ReconcileService | null = null;
-export function getReconcileService() {
-  if (!reconcileServiceInstance) reconcileServiceInstance = new ReconcileService();
-  return reconcileServiceInstance;
-}
-
-import { getDatabase } from '../config/database';
-import { logInfo, logError } from '../utils/loggerHelper';
-
-export class ReconcileService {
-  private get db() {
-    return getDatabase();
-  }
 
   /**
-   * Reconcile a single plan (idempotente)
+   * Reconcile jobs filtered by plan_id (processa jobs pendentes para o plan)
    */
-  async reconcilePlan(planId: number): Promise<void> {
+  async reconcilePlan(planId: number, limit: number = 100): Promise<any[]> {
     try {
-      await logInfo('[ReconcileService] Iniciando reconciliação para plan_id', { planId });
-      // Chamar função SQL que realiza a reconciliação (implementada em parte14)
-      await this.db.executeRaw(`SELECT reconcile_plan_publisher_access($1)`, [planId]);
-      await logInfo('[ReconcileService] Reconciliação concluída para plan_id', { planId });
+      const jobs = await this.db.findMany(`
+        SELECT job_id FROM reconcile_plan_publisher_jobs
+        WHERE processed_at IS NULL AND plan_id = $1
+        ORDER BY created_at
+        LIMIT $2
+      `, [planId, limit]);
+
+      const results: any[] = [];
+      for (const j of jobs) {
+        const r = await this.db.findFirst(`SELECT execute_reconcile_job($1) as result`, [j.job_id]);
+        results.push(r?.result || null);
+      }
+      await logInfo('Reconcile: processed plan jobs', { planId, count: results.length });
+      return results;
     } catch (error: any) {
-      await logError('[ReconcileService] Erro na reconciliação para plan_id', error, { planId });
+      await logError('Reconcile: error processing plan jobs', error, { planId });
       throw error;
     }
   }
 
   /**
-   * Reconcile all plans
+   * Reconcile all pending jobs regardless of plan
    */
-  async reconcileAll(): Promise<void> {
-    try {
-      await logInfo('[ReconcileService] Iniciando reconciliação global (todos os planos)');
-      await this.db.executeRaw(`SELECT reconcile_all_plan_publisher_access()`, []);
-      await logInfo('[ReconcileService] Reconciliação global concluída');
-    } catch (error: any) {
-      await logError('[ReconcileService] Erro na reconciliação global', error);
-      throw error;
-    }
+  async reconcileAll(limitPerBatch: number = 100): Promise<any[]> {
+    return await this.processPendingJobs(limitPerBatch);
   }
 }
 
