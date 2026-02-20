@@ -20,11 +20,13 @@ import {
   NetworkCheck,
 } from '@mui/icons-material';
 import { debugApi, SystemInfo as SystemInfoType } from '../../../services/api';
+import { adminApi } from '../../../services/api';
 
 const SystemInfo: React.FC = () => {
   const [systemInfo, setSystemInfo] = useState<SystemInfoType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reconciling, setReconciling] = useState(false);
 
   useEffect(() => {
     loadSystemInfo();
@@ -100,6 +102,27 @@ const SystemInfo: React.FC = () => {
           disabled={loading}
         >
           Atualizar
+        </Button>
+        <Button
+          variant="contained"
+          color="secondary"
+          startIcon={<Refresh />}
+          onClick={async () => {
+            try {
+              setReconciling(true);
+              await adminApi.reconcilePlanPublisherAccess();
+              await loadSystemInfo();
+              setReconciling(false);
+            } catch (err: any) {
+              setReconciling(false);
+              setError('Erro ao executar reconciliação: ' + (err?.response?.data?.error || err?.message || 'Erro desconhecido'));
+              console.error('Erro ao executar reconciliação:', err);
+            }
+          }}
+          disabled={reconciling}
+          sx={{ ml: 2 }}
+        >
+          {reconciling ? 'Reconciliação...' : 'Reconciliação planos↔acessos'}
         </Button>
       </Box>
 

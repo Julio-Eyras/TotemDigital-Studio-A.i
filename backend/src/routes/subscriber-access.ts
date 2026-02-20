@@ -10,6 +10,7 @@ import { validateRequest } from '../middleware/validation.middleware';
 import { param, query, body } from 'express-validator';
 import { getSubscriberAccessServiceInstance } from '../services/subscriberAccessService';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { getReconcileService } from '../services/reconcileService';
 
 const router = Router();
 
@@ -87,6 +88,33 @@ router.get('/plan-publisher',
 );
 
 /**
+ * @route POST /api/subscriber-access/reconcile
+ * @desc Endpoint admin para disparar reconciliação global ou por plan (body: { planId?: number })
+ * @access Private (Admin)
+ */
+router.post('/reconcile',
+  authorizeRole(['admin', 'admin_sql']),
+  body('planId').optional().isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const planId = req.body.planId ? parseInt(req.body.planId as any) : undefined;
+      const reconcileService = getReconcileService();
+      if (planId) {
+        await reconcileService.reconcilePlan(planId);
+        return res.json({ success: true, message: `Reconciliação executada para plan_id=${planId}` });
+      } else {
+        await reconcileService.reconcileAll();
+        return res.json({ success: true, message: 'Reconciliação global executada' });
+      }
+    } catch (error: any) {
+      await logError('Erro ao executar reconciliação via endpoint', error);
+      return res.status(500).json({ success: false, error: error.message || 'Erro interno' });
+    }
+  }
+);
+
+/**
  * @route POST /api/subscriber-access/plan-publisher
  * @desc Configura acesso de plano a publisher (admin only)
  * @access Private (Admin)
@@ -109,6 +137,17 @@ router.post('/plan-publisher',
       // Atualizar notes se fornecido
       if (notes !== undefined) {
         await accessService.updatePlanPublisherAccessNotes(planId, publisherId, notes);
+      }
+
+      // Disparar reconciliação para o plano alterado (sincrono; é rápido se a função for eficiente)
+      try {
+        const { getReconcileService } = require('../services/reconcileService');
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const reconcileService = getReconcileService();
+        await reconcileService.reconcilePlan(planId);
+      } catch (reconcileErr: any) {
+        // Log e continuar — não falhar a requisição por causa da reconciliação
+        await logInfo('Reconciliação do plan_publisher_access falhou (registrado)', { planId, error: reconcileErr?.message || reconcileErr });
       }
 
       await logInfo('Acesso plano → publisher configurado', {
@@ -155,6 +194,14 @@ router.delete('/plan-publisher/:planId/:publisherId',
         publisherId,
         removedBy: req.user?.id
       });
+      // Disparar reconciliação para o plano alterado
+      try {
+        const { getReconcileService } = require('../services/reconcileService');
+        const reconcileService = getReconcileService();
+        await reconcileService.reconcilePlan(planId);
+      } catch (reconcileErr: any) {
+        await logInfo('Reconciliação do plan_publisher_access falhou (registrado)', { planId, error: reconcileErr?.message || reconcileErr });
+      }
 
       return res.json({
         success: true,

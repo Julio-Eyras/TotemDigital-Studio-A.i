@@ -2423,6 +2423,14 @@ export const debugApi = {
   },
 };
 
+// Admin API
+export const adminApi = {
+  reconcilePlanPublisherAccess: async (planId?: number): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/subscriber-access/reconcile', planId ? { planId } : {});
+    return response.data;
+  }
+};
+
 // =============================================
 // LOGS API
 // =============================================
