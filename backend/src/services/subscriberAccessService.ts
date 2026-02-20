@@ -278,6 +278,19 @@ export class SubscriberAccessService {
   }
 
   /**
+   * Utility: Enfileira reconciliação imediata ao mudar plan_publisher_access (used by routes)
+   */
+  async enqueueReconcile(planId: number, publisherId: number): Promise<void> {
+    try {
+      await this.db.executeRaw(`SELECT enqueue_reconcile_plan_publisher($1, $2, 'upsert')`, [planId, publisherId]);
+      await logInfo('Reconcile enqueued', { planId, publisherId });
+    } catch (error: any) {
+      await logError('Erro ao enfileirar reconcile', error, { planId, publisherId });
+      throw error;
+    }
+  }
+
+  /**
    * Valida se uma campanha pode ser associada a publishers específicos
    */
   async validateCampaignPublishers(

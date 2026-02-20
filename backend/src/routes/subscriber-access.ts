@@ -134,6 +134,14 @@ router.post('/plan-publisher',
       
       await accessService.setPlanPublisherAccess(planId, publisherId, isAllowed, restrictions);
       
+      // Enfileirar reconcile para aplicar mudanças imediatamente
+      try {
+        await accessService.enqueueReconcile(planId, publisherId);
+      } catch (_e) {
+        // log only, don't fail request
+        await logError('Falha ao enfileirar reconcile (não crítico)', _e);
+      }
+      
       // Atualizar notes se fornecido
       if (notes !== undefined) {
         await accessService.updatePlanPublisherAccessNotes(planId, publisherId, notes);
@@ -166,6 +174,33 @@ router.post('/plan-publisher',
       return res.status(400).json({
         success: false,
         error: error.message || 'Erro ao configurar acesso'
+      });
+    }
+  }
+);
+
+/**
+ * @route POST /api/subscriber-access/plan-publisher/reconcile
+ * @desc Dispara processamento imediato dos jobs de reconciliação (admin only)
+ * @access Private (Admin)
+ */
+router.post('/plan-publisher/reconcile',
+  authorizeRole(['admin', 'admin_sql']),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const reconcileService = require('../services/reconcileService').getReconcileService();
+      const results = await reconcileService.processNow(100);
+      return res.json({
+        success: true,
+        message: 'Reconciliação iniciada',
+        results
+      });
+    } catch (error: any) {
+      await logError('Erro ao iniciar reconciliação', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Erro ao iniciar reconciliação'
       });
     }
   }

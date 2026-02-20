@@ -46,6 +46,28 @@ const SystemInfo: React.FC = () => {
     }
   };
 
+  const handleReconcile = async () => {
+    try {
+      setLoading(true);
+      // chamar endpoint de reconcile
+      const result = await (await import('../../../services/api')).subscriberAccessApi.reconcilePlanPublisher();
+      setSystemInfo((prev) => prev); // trigger render
+      // mostrar alerta simples (usando console e alert temporariamente)
+      if (result && result.success) {
+        // eslint-disable-next-line no-alert
+        alert('Reconciliação iniciada: ' + (result.results ? result.results.length + ' jobs processados' : 'verificar logs'));
+      } else {
+        // eslint-disable-next-line no-alert
+        alert('Reconciliação solicitada, verifique logs no servidor');
+      }
+    } catch (e: any) {
+      // eslint-disable-next-line no-alert
+      alert('Erro ao solicitar reconciliação: ' + (e?.message || 'Erro desconhecido'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatUptime = (seconds: number) => {
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);

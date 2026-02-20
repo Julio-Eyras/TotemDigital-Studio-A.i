@@ -3807,6 +3807,11 @@ export const subscriberAccessApi = {
     return response.data.data || [];
   },
 
+  reconcilePlanPublisher: async (): Promise<{ success: boolean; results?: any[] }> => {
+    const response = await api.post('/subscriber-access/plan-publisher/reconcile');
+    return response.data;
+  },
+
   // Configurar acesso de plano a publisher
   setPlanPublisherAccess: async (data: {
     planId: number;
