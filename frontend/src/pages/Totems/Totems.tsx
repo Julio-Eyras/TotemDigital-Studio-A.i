@@ -400,6 +400,27 @@ const Totems: React.FC = () => {
                           </IconButton>
                         </span>
                       </Tooltip>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        {canAdministerTotems && t?.totem_id && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<Refresh />}
+                            onClick={async () => {
+                              try {
+                                await totemApi.heartbeat(t.totem_id, 'online', { note: 'manual_refresh_from_ui' });
+                                setSuccess('Heartbeat forçado com sucesso');
+                                await loadAll();
+                              } catch (err: any) {
+                                console.error('Erro ao forçar heartbeat:', err);
+                                setError('Erro ao forçar heartbeat: ' + (err?.response?.data?.error || err?.message || 'Erro desconhecido'));
+                              }
+                            }}
+                          >
+                            Forçar heartbeat
+                          </Button>
+                        )}
+                      </Box>
                     </Box>
                   </CardContent>
                 </Card>

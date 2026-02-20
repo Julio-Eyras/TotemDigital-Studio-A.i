@@ -90,6 +90,7 @@ const Locals: React.FC = () => {
   const [selectedContracts, setSelectedContracts] = useState<PublisherContract[]>([]);
   const [detailsTab, setDetailsTab] = useState(0);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [publisherFilter, setPublisherFilter] = useState<number | undefined>(undefined);
   const [activeOnlyFilter, setActiveOnlyFilter] = useState<boolean>(true);
@@ -356,6 +357,11 @@ const Locals: React.FC = () => {
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
+          {success}
         </Alert>
       )}
 
@@ -787,8 +793,40 @@ const Locals: React.FC = () => {
                           </ListItemIcon>
                           <ListItemText
                             primary={totem.name || totem.identifier}
-                            secondary={`Status: ${totem.status || 'N/A'} | Identifier: ${totem.identifier || 'N/A'}`}
+                            secondary={
+                              <span>
+                                <strong>Status:</strong> {totem.status || 'N/A'} {' • '}
+                                <strong>Identifier:</strong> {totem.identifier || 'N/A'}
+                              </span>
+                            }
                           />
+                          <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>
+                            <Chip
+                              label={(totem.status || 'N/A').toUpperCase()}
+                              color={totem.status === 'online' ? 'success' : (totem.status === 'error' ? 'error' : 'default')}
+                              size="small"
+                            />
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<Refresh />}
+                              onClick={async () => {
+                                try {
+                                  // Forçar heartbeat 'online' para fins de debug/admin
+                                  await totemApi.heartbeat(totem.totem_id, 'online', { note: 'manual_refresh_from_ui' });
+                                  // Atualizar o totem específico localmente
+                                  const updated = await totemApi.getById(totem.totem_id);
+                                  setSelectedTotems((prev) => prev.map((p) => (p.totem_id === updated.totem_id ? updated : p)));
+                                  setSuccess('Heartbeat forçado com sucesso');
+                                } catch (err: any) {
+                                  console.error('Erro ao forçar heartbeat:', err);
+                                  setError('Erro ao forçar heartbeat: ' + (err?.response?.data?.error || err?.message || 'Erro desconhecido'));
+                                }
+                              }}
+                            >
+                              Forçar heartbeat
+                            </Button>
+                          </Box>
                         </ListItem>
                       ))}
                     </List>

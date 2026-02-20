@@ -1156,15 +1156,70 @@ export const campaignApi = {
     status?: string;
     campaignType?: string;
     isActive?: boolean;
-  } = {}): Promise<CampaignListResponse> => {
+  } = {}): Promise<Campaign[]> => {
     // Converter clientId para subscriberId se fornecido
     const apiParams: any = { ...params };
     if (apiParams.clientId && !apiParams.subscriberId) {
       apiParams.subscriberId = apiParams.clientId;
       delete apiParams.clientId;
     }
+    
+    console.log('[CampaignAPI] getAll chamado com params:', apiParams);
     const response = await api.get('/campaigns', { params: apiParams });
-    return response.data.data;
+    console.log('[CampaignAPI] Resposta completa da API:', {
+      status: response.status,
+      data: response.data,
+      dataData: response.data?.data,
+      isArray: Array.isArray(response.data?.data),
+    });
+    
+    // Backend retorna { success: true, data: Campaign[], meta: {...} }
+    // response.data.data é o array Campaign[]
+    const campaignsArray = Array.isArray(response.data?.data) ? response.data.data : [];
+    
+    // NORMALIZAÇÃO DEFINITIVA: garantir que TODAS as campanhas têm campaign_id e contract_id
+    const normalized = campaignsArray.map((c: any, idx: number) => {
+      const campaignId = c.campaign_id || c.id;
+      const contractId = c.contract_id || c.contractId;
+      
+      const normalizedCampaign: Campaign = {
+        ...c,
+        campaign_id: campaignId, // SEMPRE definir campaign_id
+        contract_id: contractId, // SEMPRE definir contract_id
+      };
+      
+      if (idx < 2) {
+        console.log(`[CampaignAPI] Normalizando campanha ${idx}:`, {
+          original: c,
+          normalized: normalizedCampaign,
+          campaignId,
+          contractId,
+          originalKeys: Object.keys(c),
+        });
+      }
+      
+      if (!normalizedCampaign.campaign_id) {
+        console.error(`[CampaignAPI] ERRO: Campanha ${idx} sem ID após normalização!`, {
+          original: c,
+          normalized: normalizedCampaign,
+          allKeys: Object.keys(c),
+        });
+      }
+      
+      return normalizedCampaign;
+    }).filter((c: Campaign) => !!c.campaign_id); // FILTRAR campanhas sem ID
+    
+    console.log('[CampaignAPI] Campanhas normalizadas:', {
+      totalRecebidas: campaignsArray.length,
+      totalNormalizadas: normalized.length,
+      sample: normalized[0] ? {
+        campaign_id: normalized[0].campaign_id,
+        contract_id: normalized[0].contract_id,
+        title: normalized[0].title,
+      } : null,
+    });
+    
+    return normalized;
   },
 
   getById: async (id: number): Promise<Campaign> => {
@@ -1173,17 +1228,184 @@ export const campaignApi = {
   },
 
   create: async (data: CreateCampaignRequest): Promise<Campaign> => {
-    const response = await api.post('/campaigns', data);
-    return response.data.data;
+    // REMOVER campos undefined do payload antes de enviar
+    const cleanData: any = {};
+    Object.keys(data).forEach(key => {
+      if ((data as any)[key] !== undefined) {
+        cleanData[key] = (data as any)[key];
+      }
+    });
+    // PADRÃO DE COMPATIBILIDADE: garantir que enviamos ambos os formatos (snake_case + camelCase)
+    if (cleanData.contractId !== undefined && cleanData.contract_id === undefined) {
+      cleanData.contract_id = cleanData.contractId;
+    }
+    if (cleanData.contract_id !== undefined && cleanData.contractId === undefined) {
+      cleanData.contractId = cleanData.contract_id;
+    }
+    
+    console.log('[CampaignAPI] create RECEBIDO (payload original):', {
+      data,
+      contractId: data.contractId,
+      contractIdType: typeof data.contractId,
+      contractIdIsUndefined: data.contractId === undefined,
+      contractIdIsNull: data.contractId === null,
+      contractIdIsZero: data.contractId === 0,
+      subscriberId: data.subscriberId,
+      allKeys: Object.keys(data),
+      undefinedFields: Object.keys(data).filter(k => (data as any)[k] === undefined),
+    });
+    
+    console.log('[CampaignAPI] create PAYLOAD LIMPO (enviando ao backend):', {
+      cleanData,
+      contractId: cleanData.contractId,
+      contractIdType: typeof cleanData.contractId,
+      contractIdIsUndefined: cleanData.contractId === undefined,
+      hasContractId: 'contractId' in cleanData,
+      subscriberId: cleanData.subscriberId,
+      allKeys: Object.keys(cleanData),
+      payloadStringified: JSON.stringify(cleanData),
+    });
+    
+    const response = await api.post('/campaigns', cleanData);
+    
+    console.log('[CampaignAPI] create RESPOSTA RAW:', {
+      status: response.status,
+      responseData: response.data,
+      campaignData: response.data?.data,
+      contractIdCamel: response.data?.data?.contractId,
+      contractIdSnake: response.data?.data?.contract_id,
+      allCampaignKeys: response.data?.data ? Object.keys(response.data.data) : [],
+    });
+    
+    // Normalizar resposta: garantir que contract_id sempre existe
+    const campaign = response.data.data;
+    const normalizedCampaign: Campaign = {
+      ...campaign,
+      campaign_id: campaign.campaign_id || campaign.id,
+      contract_id: campaign.contract_id || campaign.contractId,
+    };
+    // Garantir campos espelhados para compatibilidade (ambos sempre presentes)
+    (normalizedCampaign as any).contractId = normalizedCampaign.contract_id;
+    (normalizedCampaign as any).id = normalizedCampaign.campaign_id;
+    
+    console.log('[CampaignAPI] create RESPOSTA NORMALIZADA:', {
+      normalizedCampaign,
+      contract_id: normalizedCampaign.contract_id,
+      contractId: (normalizedCampaign as any).contractId,
+      campaign_id: normalizedCampaign.campaign_id,
+      id: (normalizedCampaign as any).id,
+    });
+    
+    return normalizedCampaign;
   },
 
   update: async (id: number, data: UpdateCampaignRequest): Promise<Campaign> => {
-    const response = await api.put(`/campaigns/${id}`, data);
-    return response.data.data;
+    // VALIDAÇÃO ABSOLUTA DEFINITIVA: nunca aceitar undefined/null/0/NaN
+    console.log('[CampaignAPI] update RECEBIDO:', { 
+      id, 
+      idType: typeof id,
+      isUndefined: id === undefined,
+      isNull: id === null,
+      isNaN: isNaN(id),
+      isInteger: Number.isInteger(id),
+      value: id,
+      data,
+    });
+    
+    // Verificar TODAS as condições possíveis
+    if (id === undefined || id === null || isNaN(id) || !Number.isFinite(id) || !Number.isInteger(id) || id <= 0) {
+      const errorMsg = `[CampaignAPI] ERRO CRÍTICO: Tentando UPDATE com ID inválido. ID recebido: ${id} (tipo: ${typeof id})`;
+      console.error(errorMsg, { 
+        id, 
+        idType: typeof id,
+        isUndefined: id === undefined,
+        isNull: id === null,
+        isNaN: isNaN(id),
+        isFinite: Number.isFinite(id),
+        isInteger: Number.isInteger(id),
+        value: id,
+        data,
+      });
+      throw new Error(errorMsg);
+    }
+    
+    // Converter para número inteiro para garantir
+    const finalId = Math.floor(Number(id));
+    if (finalId <= 0 || !Number.isInteger(finalId)) {
+      const errorMsg = `[CampaignAPI] ERRO CRÍTICO: ID convertido inválido. Original: ${id}, Convertido: ${finalId}`;
+      console.error(errorMsg, { id, finalId, data });
+      throw new Error(errorMsg);
+    }
+    
+    console.log('[CampaignAPI] update APROVADO - chamando API:', { 
+      originalId: id, 
+      finalId,
+      url: `/campaigns/${finalId}`,
+      data,
+    });
+    // Garantir compatibilidade de nomes de campo antes de enviar (enviar ambos)
+    const dataToSend = { ...data } as any;
+    if (dataToSend.contractId !== undefined && dataToSend.contract_id === undefined) {
+      dataToSend.contract_id = dataToSend.contractId;
+    }
+    if (dataToSend.contract_id !== undefined && dataToSend.contractId === undefined) {
+      dataToSend.contractId = dataToSend.contract_id;
+    }
+    
+    const response = await api.put(`/campaigns/${finalId}`, dataToSend);
+    
+    // Normalizar resposta
+    const campaign = response.data.data;
+    return {
+      ...campaign,
+      campaign_id: campaign.campaign_id || campaign.id,
+      contract_id: campaign.contract_id || campaign.contractId,
+    };
   },
 
   delete: async (id: number): Promise<void> => {
-    await api.delete(`/campaigns/${id}`);
+    // VALIDAÇÃO ABSOLUTA DEFINITIVA: nunca aceitar undefined/null/0/NaN
+    console.log('[CampaignAPI] delete RECEBIDO:', { 
+      id, 
+      idType: typeof id, 
+      isUndefined: id === undefined,
+      isNull: id === null,
+      isNaN: isNaN(id),
+      isInteger: Number.isInteger(id),
+      value: id,
+    });
+    
+    // Verificar TODAS as condições possíveis
+    if (id === undefined || id === null || isNaN(id) || !Number.isFinite(id) || !Number.isInteger(id) || id <= 0) {
+      const errorMsg = `[CampaignAPI] ERRO CRÍTICO: Tentando DELETE com ID inválido. ID recebido: ${id} (tipo: ${typeof id})`;
+      console.error(errorMsg, { 
+        id, 
+        idType: typeof id,
+        isUndefined: id === undefined,
+        isNull: id === null,
+        isNaN: isNaN(id),
+        isFinite: Number.isFinite(id),
+        isInteger: Number.isInteger(id),
+        value: id,
+      });
+      throw new Error(errorMsg);
+    }
+    
+    // Converter para número inteiro para garantir
+    const finalId = Math.floor(Number(id));
+    if (finalId <= 0 || !Number.isInteger(finalId)) {
+      const errorMsg = `[CampaignAPI] ERRO CRÍTICO: ID convertido inválido. Original: ${id}, Convertido: ${finalId}`;
+      console.error(errorMsg, { id, finalId });
+      throw new Error(errorMsg);
+    }
+    
+    console.log('[CampaignAPI] delete APROVADO - chamando API:', { 
+      originalId: id, 
+      finalId,
+      url: `/campaigns/${finalId}`,
+    });
+    
+    await api.delete(`/campaigns/${finalId}`);
   },
 
   getStats: async () => {
@@ -1487,6 +1709,16 @@ export const totemApi = {
 
   approve: async (id: number, generateEncryptedConfig: boolean = false): Promise<{ success: boolean; message: string; totem: Player; encryptedConfigPath?: string }> => {
     const response = await api.put(`/totems/${id}/approve`, { generateEncryptedConfig });
+    return response.data;
+  },
+
+  /**
+   * Registrar heartbeat manual (útil para debug/admin)
+   * body: { status: 'online'|'offline'|'error', ...optionalTelemetry }
+   */
+  heartbeat: async (id: number, status: 'online' | 'offline' | 'error' = 'online', payload?: Record<string, any>): Promise<any> => {
+    const body = { status, ...(payload || {}) };
+    const response = await api.post(`/totems/${id}/heartbeat`, body);
     return response.data;
   },
 
