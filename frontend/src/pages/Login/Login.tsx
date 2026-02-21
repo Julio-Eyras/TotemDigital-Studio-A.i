@@ -166,7 +166,7 @@ const Login: React.FC = () => {
             margin="normal"
             autoComplete="username"
             autoFocus
-            disabled={isLoading}
+            /* não desabilitar para evitar comportamento inesperado do navegador */
           />
 
           <TextField
@@ -180,7 +180,7 @@ const Login: React.FC = () => {
             helperText={validationErrors.password}
             margin="normal"
             autoComplete="current-password"
-            disabled={isLoading}
+            /* não desabilitar para evitar comportamento inesperado do navegador */
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">

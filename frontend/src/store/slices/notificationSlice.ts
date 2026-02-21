@@ -6,6 +6,8 @@ export interface Notification {
   title: string;
   message: string;
   duration?: number;
+  // Optional extra details (e.g. backend validation details)
+  details?: any;
   timestamp: number;
 }
 

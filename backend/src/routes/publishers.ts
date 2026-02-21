@@ -127,7 +127,20 @@ router.post('/',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { name, contact_name, email, phone, whatsapp, category_segment, description, contract_id } = req.body;
-      
+
+      // Se o payload trouxer recursos aninhados (locals/totems/smartTvs/contracts), usar criação transacional
+      if (req.body.locals || req.body.totems || req.body.smartTvs || req.body.contracts) {
+        const payload = {
+          publisher: { name, contact_name, email, phone, whatsapp, category_segment, description, contract_id },
+          locals: req.body.locals,
+          totems: req.body.totems,
+          smartTvs: req.body.smartTvs,
+          contracts: req.body.contracts
+        };
+        const newPublisher = await getPublisherService().createPublisherWithResources(payload);
+        return res.status(201).json(newPublisher);
+      }
+
       const newPublisher = await getPublisherService().createPublisher({
         name,
         contact_name,
@@ -138,7 +151,7 @@ router.post('/',
         description,
         contract_id, // Opcional - vincula publisher ao contrato (para rastreabilidade)
       });
-      
+
       return res.status(201).json(newPublisher);
     } catch (error: any) {
       await logError('Erro ao criar publisher', error);

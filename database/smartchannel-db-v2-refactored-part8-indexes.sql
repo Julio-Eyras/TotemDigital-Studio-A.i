@@ -63,6 +63,11 @@ CREATE INDEX IF NOT EXISTS idx_medias_active ON medias(is_active) WHERE is_activ
 CREATE INDEX IF NOT EXISTS idx_playlists_subscriber ON playlists(subscriber_id);
 CREATE INDEX IF NOT EXISTS idx_playlists_active ON playlists(is_active) WHERE is_active = true;
 
+-- Plans (compatibilidade: index para planos populares/padrão)
+CREATE INDEX IF NOT EXISTS idx_plans_popular_default_active
+ON plans (is_popular DESC, is_default DESC)
+WHERE is_active = true;
+
 -- =============================================
 -- ÍNDICES DE BILLING
 -- =============================================

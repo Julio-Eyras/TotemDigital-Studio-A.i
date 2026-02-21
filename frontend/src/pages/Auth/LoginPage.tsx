@@ -289,7 +289,8 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   onChange={handleInputChange}
                   margin="normal"
                   required
-                  disabled={loading}
+                  /* não desabilitar campo para evitar autocomplete/incidentes */
+                  autoComplete="username"
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -309,7 +310,9 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   onChange={handleInputChange}
                   margin="normal"
                   required
-                  disabled={loading}
+                  /* não desabilitar campo para evitar autocomplete/incidentes */
+                  autoComplete="current-password"
+                  inputProps={{ maxLength: 128, autoComplete: 'current-password' }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">

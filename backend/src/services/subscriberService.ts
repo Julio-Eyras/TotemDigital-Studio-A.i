@@ -333,6 +333,17 @@ export class SubscriberService {
 
       return newSubscriber;
     } catch (error: any) {
+      // Capturar unique constraint violation (nome/email duplicado)
+      if (error && (error.code === '23505' || (error.message && error.message.includes('duplicate key')))) {
+        const msg = error.detail || error.message || '';
+        if (msg.includes('name')) {
+          throw new Error('Subscriber com este nome já existe');
+        }
+        if (msg.includes('email')) {
+          throw new Error('Subscriber com este email já existe');
+        }
+        throw new Error('Subscriber com valores duplicados (nome/email) já existe');
+      }
       await logError('Erro ao criar subscriber', error, { data });
       throw error;
     }

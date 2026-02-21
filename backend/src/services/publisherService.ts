@@ -308,9 +308,97 @@ export class PublisherService {
 
       return newPublisher;
     } catch (error: any) {
+      // Capturar unique constraint violation (nome/email duplicado)
+      if (error && (error.code === '23505' || (error.message && error.message.includes('duplicate key')))) {
+        // Tentar inferir qual campo
+        const msg = error.detail || error.message || '';
+        if (msg.includes('name')) {
+          throw new Error('Publisher com este nome já existe');
+        }
+        if (msg.includes('email')) {
+          throw new Error('Publisher com este email já existe');
+        }
+        throw new Error('Publisher com valores duplicados (nome/email) já existe');
+      }
       await logError('Erro ao criar publisher', error, { data });
       throw error;
     }
+  }
+
+  /**
+   * Criar publisher e recursos relacionados (locals, totems, smart_tvs, contracts) dentro de uma transação
+   */
+  async createPublisherWithResources(payload: {
+    publisher: CreatePublisherRequest;
+    locals?: Array<any>;
+    totems?: Array<any>;
+    smartTvs?: Array<any>;
+    contracts?: Array<any>;
+  }): Promise<Publisher> {
+    // Implementação transacional usando transaction exportado do database-pg
+    const { transaction } = await import('../config/database-pg');
+    return await transaction(async (client) => {
+      const pub = payload.publisher;
+      // Inserir publisher
+      const resPub = await client.query(
+        `INSERT INTO publishers (name, contact_name, email, phone, whatsapp, category_segment, description, is_subscriber, is_publisher, client_type, is_active, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING publisher_id`,
+        [pub.name, pub.contact_name, pub.email, pub.phone, pub.whatsapp, pub.category_segment || null, pub.description || null, false, true, 'publisher']
+      );
+      const publisherId = resPub.rows[0].publisher_id;
+
+      const localIdMap: number[] = [];
+      if (payload.locals && Array.isArray(payload.locals)) {
+        for (const l of payload.locals) {
+          const resLocal = await client.query(
+            `INSERT INTO locals (publisher_id, name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description, is_active, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING local_id`,
+            [publisherId, l.name, l.category_segment || null, l.address || null, l.city || null, l.state || null, l.zip_code || null, l.country || null, l.latitude || null, l.longitude || null, l.timezone || null, l.description || null]
+          );
+          localIdMap.push(resLocal.rows[0].local_id);
+        }
+      }
+
+      const totemIdMap: number[] = [];
+      if (payload.totems && Array.isArray(payload.totems)) {
+        for (const t of payload.totems) {
+          const localIndex = typeof t.localIndex === 'number' ? t.localIndex : 0;
+          const localId = localIdMap[localIndex];
+          const resTotem = await client.query(
+            `INSERT INTO totems (identifier, uin, device_id, local_id, name, description, model, manufacturer, firmware_version, hardware_version, os_version, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,60,$13,$14,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING totem_id`,
+            [t.identifier || null, t.uin || null, t.deviceId || null, localId || null, t.name || null, t.description || null, t.model || null, t.manufacturer || null, t.firmwareVersion || null, t.hardwareVersion || null, t.osVersion || null, t.status || 'offline', t.network_info || '{}' , JSON.stringify(t.capabilities || {})]
+          );
+          totemIdMap.push(resTotem.rows[0].totem_id);
+        }
+      }
+
+      if (payload.smartTvs && Array.isArray(payload.smartTvs)) {
+        for (const s of payload.smartTvs) {
+          const totemIndex = typeof s.totemIndex === 'number' ? s.totemIndex : 0;
+          const totemId = totemIdMap[totemIndex];
+          await client.query(
+            `INSERT INTO smart_tvs (totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, last_heartbeat, capabilities, settings, is_active, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,$13,$14,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+            [totemId || null, s.identifier, s.device_id || null, s.name || null, s.brand || null, s.model || null, s.platform || null, s.firmware_version || null, s.resolution_width || null, s.resolution_height || null, s.orientation || 'landscape', s.status || 'offline', JSON.stringify(s.capabilities || {}), JSON.stringify(s.settings || {})]
+          );
+        }
+      }
+
+      if (payload.contracts && Array.isArray(payload.contracts)) {
+        for (const c of payload.contracts) {
+          await client.query(
+            `INSERT INTO publisher_contracts (publisher_id, contract_number, contract_type, title, description, start_date, end_date, revenue_share_percentage, revenue_share_rules, minimum_payout_amount, subscription_amount, subscription_interval, currency, payment_terms, status, signed_by_publisher_at, signed_by_tenant_at, created_by, metadata, document_path, document_filename, document_mime_type, document_size_bytes, is_active, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NULL,NULL,$16,$17,$18,$19,$20,$21,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+            [publisherId, c.contract_number, c.contract_type || 'revenue_share', c.title || null, c.description || null, c.start_date || null, c.end_date || null, c.revenue_share_percentage || 0, JSON.stringify(c.revenue_share_rules || {}), c.minimum_payout_amount || null, c.subscription_amount || null, c.subscription_interval || null, c.currency || 'BRL', c.payment_terms || 'Mensal', c.status || 'draft', c.created_by || null, JSON.stringify(c.metadata || {}), c.document_path || null, c.document_filename || null, c.document_mime_type || null, c.document_size_bytes || null]
+          );
+        }
+      }
+
+      const newPublisher = await this.getPublisherById(publisherId);
+      if (!newPublisher) throw new Error('Erro ao buscar publisher criado');
+      return newPublisher;
+    });
   }
 
   /**

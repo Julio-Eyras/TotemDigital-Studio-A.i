@@ -896,204 +896,108 @@ const Publishers: React.FC = () => {
         return;
       }
 
-      // 1. Criar o publisher
-      // Remover contract_id se for undefined para não enviar no payload
-      const publisherData: CreatePublisherRequest = {
-        ...newPublisher,
+      // Preparar variáveis para possível rollback (se alguma etapa falhar)
+      let publisherId: number | null = null;
+      const createdLocals: Local[] = [];
+      const createdTotems: any[] = [];
+      const createdSmartTvs: any[] = [];
+
+      // Validações extras antes de enviar payload aninhado
+      // Nome do publisher
+      if (!newPublisher.name || newPublisher.name.trim().length < 3) {
+        setError('Nome do publicador obrigatório e deve ter pelo menos 3 caracteres.');
+        setCreateTab(0);
+        return;
+      }
+
+      // Locals: cada local precisa ter nome válido
+      for (let i = 0; i < tempLocals.length; i++) {
+        const l = tempLocals[i];
+        if (!l.name || String(l.name).trim().length < 2) {
+          setError(`Local ${i + 1}: nome é obrigatório e deve ter pelo menos 2 caracteres.`);
+          setCreateTab(1);
+          return;
+        }
+      }
+
+      // Totems: cada totem precisa ter identifier OU name com pelo menos 2 caracteres.
+      // Identifier deve ser único entre os totens temporários.
+      const identifiers = new Set<string>();
+      for (let i = 0; i < tempTotems.length; i++) {
+        const t = tempTotems[i];
+        const id = t.identifier ? String(t.identifier).trim() : '';
+        const nm = t.name ? String(t.name).trim() : '';
+        if ((!id || id.length < 2) && (!nm || nm.length < 2)) {
+          setError(`Totem na posição ${i + 1}: identifier ou name é obrigatório e deve ter pelo menos 2 caracteres.`);
+          setCreateTab(2);
+          return;
+        }
+        if (id) {
+          if (identifiers.has(id)) {
+            setError(`Totem na posição ${i + 1}: identifier "${id}" duplicado entre totens.`);
+            setCreateTab(2);
+            return;
+          }
+          identifiers.add(id);
+        }
+        // Validar localIndex referente ao local temporário
+        const localIndex = t.localId;
+        if (typeof localIndex !== 'number' || localIndex < 0 || localIndex >= tempLocals.length) {
+          setError(`Totem na posição ${i + 1}: local inválido. Verifique o local selecionado.`);
+          setCreateTab(2);
+          return;
+        }
+      }
+
+      // Smart TVs: identifier obrigatório e totemIndex válido
+      for (let i = 0; i < tempSmartTvs.length; i++) {
+        const s = tempSmartTvs[i];
+        const ident = s.identifier ? String(s.identifier).trim() : '';
+        if (!ident || ident.length < 2) {
+          setError(`Smart TV na posição ${i + 1}: identifier é obrigatório e deve ter pelo menos 2 caracteres.`);
+          setCreateTab(3);
+          return;
+        }
+        const totemIndex = s.totem_id;
+        if (typeof totemIndex !== 'number' || totemIndex < 0 || totemIndex >= tempTotems.length) {
+          setError(`Smart TV na posição ${i + 1}: totem inválido. Verifique o totem associado.`);
+          setCreateTab(3);
+          return;
+        }
+      }
+
+      // Contracts: se fornecidos, verificar número e título
+      for (let i = 0; i < tempPublisherContracts.length; i++) {
+        const c = tempPublisherContracts[i];
+        if (!c.contract_number || !String(c.contract_number).trim()) {
+          setError(`Contrato ${i + 1}: contract_number é obrigatório.`);
+          setCreateTab(4);
+          return;
+        }
+        if (!c.title || !String(c.title).trim()) {
+          setError(`Contrato ${i + 1}: title é obrigatório.`);
+          setCreateTab(4);
+          return;
+        }
+      }
+
+      // Construir payload aninhado para criação transacional no backend
+      const payload: any = {
+        publisher: { ...newPublisher },
+        locals: tempLocals.length > 0 ? tempLocals.map(l => ({ ...l })) : undefined,
+        totems: tempTotems.length > 0 ? tempTotems.map(t => ({ ...t, localIndex: t.localId })) : undefined,
+        smartTvs: tempSmartTvs.length > 0 ? tempSmartTvs.map(s => ({ ...s, totemIndex: s.totem_id })) : undefined,
+        contracts: tempPublisherContracts.length > 0 ? tempPublisherContracts.map(c => ({ ...c })) : undefined
       };
-      const createdPublisher = await publisherApi.create(publisherData);
-      const publisherId = createdPublisher.publisher_id;
-      
+
+      const createdPublisher = await publisherApi.create(payload);
+      const publisherId = createdPublisher?.publisher_id || createdPublisher?.publisherId;
+
       if (!publisherId) {
         const errorMessage = 'Erro: Publicador criado mas não retornou ID válido';
         console.error(errorMessage);
         setError(errorMessage);
         return;
-      }
-
-      // 2. Criar os locais
-      const createdLocals: Local[] = [];
-      for (const local of tempLocals) {
-        const createdLocal = await localApi.create({
-          ...local,
-          publisher_id: publisherId,
-          contract_id: local.contract_id || undefined
-        });
-        createdLocals.push(createdLocal);
-      }
-
-      // 3. Criar os totens (usando os IDs dos locais criados)
-      // O localId no totem é o índice do local na lista tempTotems
-      const createdTotems: any[] = [];
-      for (const totem of tempTotems) {
-        const localIndex = totem.localId; // localId já é o índice
-        if (localIndex >= 0 && localIndex < createdLocals.length && createdLocals[localIndex]) {
-          const localId = createdLocals[localIndex].local_id;
-          
-          // Validar que temos name ou identifier (requisito do backend)
-          if (!totem.name && !totem.identifier) {
-            const errorMessage = `Totem na posição ${localIndex + 1}: Nome ou identificador é obrigatório`;
-            console.error(errorMessage);
-            setError(errorMessage);
-            return;
-          }
-          
-          // Validar que localId é um número válido
-          if (!localId || isNaN(Number(localId))) {
-            const errorMessage = `Totem na posição ${localIndex + 1}: Local ID inválido`;
-            console.error(errorMessage, { localId, createdLocals });
-            setError(errorMessage);
-            return;
-          }
-          
-          // Preparar dados do totem (identifier é obrigatório na interface, mas backend aceita name OU identifier)
-          const totemData: any = {
-            localId: Number(localId), // Garantir que é número
-            contract_id: totem.contract_id || undefined
-          };
-          
-          // Adicionar identifier OU name (backend requer pelo menos um)
-          // Backend valida: identifier deve ter entre 2 e 100 caracteres se fornecido
-          if (totem.identifier && totem.identifier.trim().length >= 2) {
-            totemData.identifier = totem.identifier.trim();
-          }
-          if (totem.name && totem.name.trim().length >= 2) {
-            totemData.name = totem.name.trim();
-          }
-          
-          // Validar que temos pelo menos um (name ou identifier)
-          if (!totemData.identifier && !totemData.name) {
-            const errorMessage = `Totem na posição ${localIndex + 1}: Nome ou identificador é obrigatório e deve ter pelo menos 2 caracteres`;
-            console.error(errorMessage, { identifier: totem.identifier, name: totem.name });
-            setError(errorMessage);
-            return;
-          }
-          
-          // Adicionar campos opcionais apenas se tiverem valor
-          if (totem.uin && totem.uin.trim()) {
-            totemData.uin = totem.uin.trim();
-          }
-          if (totem.deviceId && totem.deviceId.trim()) {
-            totemData.deviceId = totem.deviceId.trim();
-          }
-          if (totem.description && totem.description.trim()) {
-            totemData.description = totem.description.trim();
-          }
-          if (totem.firmwareVersion && totem.firmwareVersion.trim()) {
-            totemData.firmwareVersion = totem.firmwareVersion.trim();
-          }
-          
-          try {
-            const createdTotem = await totemApi.create(totemData);
-            createdTotems.push(createdTotem);
-          } catch (totemError: any) {
-            console.error('Erro ao criar totem:', totemError);
-            console.error('Response completa:', totemError?.response);
-            console.error('Dados enviados:', totemData);
-            
-            let errorMessage = `Erro ao criar totem "${totem.identifier || totem.name}": `;
-            
-            if (totemError?.response?.data) {
-              if (totemError.response.data.details && Array.isArray(totemError.response.data.details)) {
-                const validationErrors = totemError.response.data.details
-                  .map((detail: any) => detail.msg || detail.message || JSON.stringify(detail))
-                  .join(', ');
-                errorMessage += validationErrors;
-              } else if (totemError.response.data.error) {
-                errorMessage += totemError.response.data.error;
-              } else if (totemError.response.data.message) {
-                errorMessage += totemError.response.data.message;
-              }
-            } else if (totemError?.message) {
-              errorMessage += totemError.message;
-            } else {
-              errorMessage += 'Erro desconhecido';
-            }
-            
-            setError(errorMessage);
-            return;
-          }
-        } else {
-          const errorMessage = `Totem na posição ${localIndex + 1}: Local inválido ou não encontrado`;
-          console.error(errorMessage, { localIndex, createdLocals });
-          setError(errorMessage);
-          return;
-        }
-      }
-
-      // 4. Criar as Smart TVs (usando os IDs dos totens criados)
-      // O totem_id na Smart TV é o índice do totem na lista tempTotems
-      for (const smartTv of tempSmartTvs) {
-        const totemIndex = smartTv.totem_id; // totem_id já é o índice
-        if (totemIndex >= 0 && totemIndex < createdTotems.length && createdTotems[totemIndex]) {
-          const totem = createdTotems[totemIndex];
-          // Obter o ID do totem (padronizado: totem_id)
-          const totemId = totem.totem_id;
-          
-          // Validar que temos identifier (obrigatório)
-          if (!smartTv.identifier || !smartTv.identifier.trim()) {
-            console.warn(`Smart TV ignorada: identifier é obrigatório`, smartTv);
-            continue;
-          }
-          
-          // Validar que temos totemId válido
-          if (!totemId || totemId <= 0) {
-            console.warn(`Smart TV ignorada: totemId inválido`, { totem, totemId });
-            continue;
-          }
-          
-          try {
-            // Preparar dados da Smart TV (remover campos undefined/null)
-            const smartTvData: any = {
-              totem_id: totemId,
-              identifier: smartTv.identifier.trim(),
-              contract_id: smartTv.contract_id || undefined
-            };
-            
-            // Adicionar campos opcionais apenas se tiverem valor
-            if (smartTv.device_id && smartTv.device_id.trim()) {
-              smartTvData.device_id = smartTv.device_id.trim();
-            }
-            if (smartTv.name && smartTv.name.trim()) {
-              smartTvData.name = smartTv.name.trim();
-            }
-            if (smartTv.brand && smartTv.brand.trim()) {
-              smartTvData.brand = smartTv.brand.trim();
-            }
-            if (smartTv.model && smartTv.model.trim()) {
-              smartTvData.model = smartTv.model.trim();
-            }
-            if (smartTv.platform && smartTv.platform.trim()) {
-              smartTvData.platform = smartTv.platform.trim();
-            }
-            if (smartTv.firmware_version && smartTv.firmware_version.trim()) {
-              smartTvData.firmware_version = smartTv.firmware_version.trim();
-            }
-            if (smartTv.resolution_width && smartTv.resolution_width > 0) {
-              smartTvData.resolution_width = smartTv.resolution_width;
-            }
-            if (smartTv.resolution_height && smartTv.resolution_height > 0) {
-              smartTvData.resolution_height = smartTv.resolution_height;
-            }
-            if (smartTv.orientation && (smartTv.orientation === 'landscape' || smartTv.orientation === 'portrait')) {
-              smartTvData.orientation = smartTv.orientation;
-            }
-            
-            await smartTvApi.create(smartTvData);
-          } catch (smartTvError: any) {
-            console.error(`Erro ao criar Smart TV ${smartTv.identifier}:`, smartTvError);
-            console.error('Response:', smartTvError?.response?.data);
-            // Continuar com as próximas Smart TVs mesmo se uma falhar
-            const errorMessage = smartTvError?.response?.data?.error || smartTvError?.message || 'Erro desconhecido';
-            setError(`Erro ao criar Smart TV "${smartTv.identifier}": ${errorMessage}`);
-          }
-        } else {
-          console.warn(`Smart TV ignorada: totemIndex inválido ou totem não encontrado`, { 
-            totemIndex, 
-            createdTotemsLength: createdTotems.length,
-            smartTv 
-          });
-        }
       }
 
       // Subscribers não são criados aqui - são gerenciados separadamente
@@ -1196,6 +1100,58 @@ const Publishers: React.FC = () => {
       
       setError(errorMessage);
       
+      // Tentar rollback se recursos parciais foram criados
+      (async () => {
+        try {
+          // Remover Smart TVs criadas
+          for (const st of createdSmartTvs) {
+            try {
+              if (st && (st.smart_tv_id || st.smartTvId || st.id)) {
+                const id = st.smart_tv_id || st.smartTvId || st.id;
+                await smartTvApi.delete(id);
+              }
+            } catch (e) {
+              console.warn('Falha ao remover Smart TV durante rollback', e);
+            }
+          }
+
+          // Remover Totens criados
+          for (const t of createdTotems) {
+            try {
+              if (t && (t.totem_id || t.totemId || t.id)) {
+                const id = t.totem_id || t.totemId || t.id;
+                await totemApi.delete(id);
+              }
+            } catch (e) {
+              console.warn('Falha ao remover Totem durante rollback', e);
+            }
+          }
+
+          // Remover Locais criados
+          for (const l of createdLocals) {
+            try {
+              if (l && (l.local_id || l.localId || l.id)) {
+                const id = l.local_id || l.localId || l.id;
+                await localApi.delete(id);
+              }
+            } catch (e) {
+              console.warn('Falha ao remover Local durante rollback', e);
+            }
+          }
+
+          // Remover Publisher criado
+          if (publisherId) {
+            try {
+              await publisherApi.delete(publisherId);
+            } catch (e) {
+              console.warn('Falha ao remover Publisher durante rollback', e);
+            }
+          }
+        } catch (cleanupError) {
+          console.warn('Erro durante rollback automático', cleanupError);
+        }
+      })();
+
       // Se for erro de validação, voltar para aba de Informações
       if (error?.response?.status === 400) {
         setCreateTab(0);
@@ -2057,9 +2013,10 @@ const Publishers: React.FC = () => {
                           setError('Número do contrato e título são obrigatórios');
                           return;
                         }
-                        if (editingPublisherContractIndexCreate !== null) {
+                        if (editingPublisherContractIndexCreate !== null && tempPublisherContracts[editingPublisherContractIndexCreate]) {
                           const updated = [...tempPublisherContracts];
-                          updated[editingPublisherContractIndexCreate] = { ...publisherContractForm as CreatePublisherContractRequest, tempId: tempPublisherContracts[editingPublisherContractIndexCreate].tempId };
+                          const existingTempId = tempPublisherContracts[editingPublisherContractIndexCreate].tempId || `temp-${Date.now()}`;
+                          updated[editingPublisherContractIndexCreate] = { ...publisherContractForm as CreatePublisherContractRequest, tempId: existingTempId };
                           setTempPublisherContracts(updated);
                           setEditingPublisherContractIndexCreate(null);
                         } else {

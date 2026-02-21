@@ -85,10 +85,13 @@ api.interceptors.response.use(
                      `Muitas requisições. Aguarde ${retryAfterMinutes} minuto(s) antes de tentar novamente.`;
 
       // Emitir evento customizado para notificação
-      const rateLimitEvent = new CustomEvent('rateLimitExceeded', {
+      const rateLimitEvent = new CustomEvent('showNotification', {
         detail: {
-          retryAfter: retryAfterSeconds,
-          message: message,
+          type: 'warning',
+          title: 'Limite de requisições',
+          message,
+          details: { retryAfter: retryAfterSeconds },
+          duration: Math.max(60000, retryAfterSeconds * 1000) // pelo menos 60s
         },
       });
       window.dispatchEvent(rateLimitEvent);
@@ -124,21 +127,29 @@ api.interceptors.response.use(
 
     // Tratamento de 413 (Payload muito grande)
     if (error.response?.status === 413) {
-      const payloadErrorEvent = new CustomEvent('payloadTooLarge', {
+      const payloadErrorEvent = new CustomEvent('showNotification', {
         detail: {
+          type: 'error',
+          title: 'Payload muito grande',
           message: 'Arquivo ou dados muito grandes. Reduza o tamanho e tente novamente.',
-        },
+          details: error.response?.data,
+          duration: 30000
+        }
       });
       window.dispatchEvent(payloadErrorEvent);
     }
 
     // Tratamento de 400 (Bad Request) - Validação
     if (error.response?.status === 400) {
-      const validationError = error.response.data?.message || error.response.data?.error || 'Erro de validação';
-      const validationEvent = new CustomEvent('validationError', {
+      const validationMessage = error.response.data?.message || error.response.data?.error || 'Erro de validação';
+      const validationEvent = new CustomEvent('showNotification', {
         detail: {
-          message: validationError,
-        },
+          type: 'error',
+          title: 'Dados inválidos',
+          message: validationMessage,
+          details: error.response.data?.details || error.response.data,
+          duration: 30000
+        }
       });
       window.dispatchEvent(validationEvent);
     }

@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS subscribers (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE IF EXISTS subscribers
+  ADD CONSTRAINT IF NOT EXISTS uq_subscribers_name UNIQUE (name);
+ALTER TABLE IF EXISTS subscribers
+  ADD CONSTRAINT IF NOT EXISTS uq_subscribers_email UNIQUE (email);
 
 COMMENT ON TABLE subscribers IS 'Anunciantes/Assinantes que compram espaço publicitário';
 COMMENT ON COLUMN subscribers.subscriber_id IS 'ID único do assinante (anunciante)';
@@ -81,6 +85,10 @@ CREATE TABLE IF NOT EXISTS roles (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE IF EXISTS publishers
+  ADD CONSTRAINT IF NOT EXISTS uq_publishers_name UNIQUE (name);
+ALTER TABLE IF EXISTS publishers
+  ADD CONSTRAINT IF NOT EXISTS uq_publishers_email UNIQUE (email);
 
 -- =============================================
 -- PERMISSIONS (sem mudanças)
@@ -116,6 +124,7 @@ CREATE TABLE IF NOT EXISTS plans (
     limits JSONB DEFAULT '{}'::jsonb, -- Ex: { totems: 10, campaigns: 50, storage_gb: 100 }
     is_active BOOLEAN DEFAULT true,
     is_popular BOOLEAN DEFAULT false,
+    is_default BOOLEAN DEFAULT false,
     sort_order INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
