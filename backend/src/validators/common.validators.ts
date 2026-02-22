@@ -91,15 +91,17 @@ export const statusValidators = [
  * Validadores de email
  */
 export const emailValidators = [
-  body('email').optional().isEmail().withMessage('Email deve ser válido'),
+  // Tratar '' como ausente usando checkFalsy:true para evitar validar strings vazias
+  body('email').optional({ checkFalsy: true }).isEmail().withMessage('Email deve ser válido'),
 ];
 
 /**
  * Validadores de telefone
  */
 export const phoneValidators = [
-  body('phone').optional().isString().withMessage('Telefone deve ser uma string'),
-  body('whatsapp').optional().isString().withMessage('WhatsApp deve ser uma string'),
+  // Ignorar valores falsy ('' / null / undefined)
+  body('phone').optional({ checkFalsy: true }).isString().withMessage('Telefone deve ser uma string'),
+  body('whatsapp').optional({ checkFalsy: true }).isString().withMessage('WhatsApp deve ser uma string'),
 ];
 
 /**

@@ -21,10 +21,11 @@ CREATE TABLE IF NOT EXISTS subscribers (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE IF EXISTS subscribers
-  ADD CONSTRAINT IF NOT EXISTS uq_subscribers_name UNIQUE (name);
-ALTER TABLE IF EXISTS subscribers
-  ADD CONSTRAINT IF NOT EXISTS uq_subscribers_email UNIQUE (email);
+-- Constraints adicionadas via índices únicos idempotentes (compatível com versões antigas do Postgres)
+-- Criar índice único para `name` se não existir (equivalente prático à constraint)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_subscribers_name_idx ON subscribers (name);
+-- A coluna email foi definida como UNIQUE na criação da tabela; garantimos índice único idempotente também
+CREATE UNIQUE INDEX IF NOT EXISTS uq_subscribers_email_idx ON subscribers (email);
 
 COMMENT ON TABLE subscribers IS 'Anunciantes/Assinantes que compram espaço publicitário';
 COMMENT ON COLUMN subscribers.subscriber_id IS 'ID único do assinante (anunciante)';
@@ -85,10 +86,9 @@ CREATE TABLE IF NOT EXISTS roles (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE IF EXISTS publishers
-  ADD CONSTRAINT IF NOT EXISTS uq_publishers_name UNIQUE (name);
-ALTER TABLE IF EXISTS publishers
-  ADD CONSTRAINT IF NOT EXISTS uq_publishers_email UNIQUE (email);
+-- Criar índices únicos idempotentes para compatibilidade com sistemas que esperam constraints
+CREATE UNIQUE INDEX IF NOT EXISTS uq_publishers_name_idx ON publishers (name);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_publishers_email_idx ON publishers (email);
 
 -- =============================================
 -- PERMISSIONS (sem mudanças)

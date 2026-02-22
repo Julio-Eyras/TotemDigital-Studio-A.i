@@ -8406,6 +8406,9 @@ setup_first_boot() {
                 log "Validando integridade referencial dos seeds..."
                 execute_psql_file "$TARGET_DB" "$VALIDATE_SEEDS_FILE" "Validação de integridade (validate-seeds.sql)" || true
             fi
+            
+            # Data-migrations foram integradas ao seed principal (carga-inicial-v6.sql)
+            # e, portanto, não são executadas separadamente.
         else
             warn "⚠️ Arquivo de seeds não encontrado: $INITIAL_LOAD_SQL_FILE"
             warn "⚠️ Sem seeds. O sistema será instalado sem dados de exemplo."

@@ -84,6 +84,7 @@ const PublisherForm: React.FC<PublisherFormProps> = ({
             required
             error={hasError('name')}
             helperText={getHelperText('name', 'Nome completo da empresa ou razão social')}
+            inputProps={{ 'data-first-input': 'publisher-name' }}
           />
         </Grid>
 

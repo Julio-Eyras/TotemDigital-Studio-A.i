@@ -1,0 +1,44 @@
+---
+description: Garantir que alterações de schema e seeds sejam feitas nos arquivos definitivos (schema, seeds, install) — sem migrations paliativas
+alwaysApply: true
+---
+
+# Schema como fonte da verdade
+
+Regras principais:
+
+- Todas as alterações de esquema (tabelas, colunas, constraints, índices) devem ser aplicadas diretamente nos arquivos definitivos do schema (por exemplo `database/smartchannel-db-v2-refactored-part*.sql`) e nos arquivos de seed (`database/*.sql`), não em migrations ou patches temporários.
+- O instalador (`scripts/install-smartsignage.sh` / `database/apply-schema-v2.sh`) deve ser atualizado para suportar e aplicar essas alterações automaticamente durante a instalação inicial.
+- Não usar "workarounds" em runtime (scripts que substituem comportamentos ou tentam corrigir na aplicação). As correções devem ser persistentes no repositório.
+
+Checklist obrigatório ao alterar schema/seeds/install:
+
+1. Atualize o arquivo de schema definitivo correspondente (ex.: part2-tables-base.sql) — edite o CREATE TABLE/INDEX/COMMENT diretamente.  
+2. Atualize o(s) seed(s) relevantes se necessário (ex.: seeds-default-settings.sql, carga-inicial-v6.sql).  
+3. Atualize `database/apply-schema-v2.sh` e `scripts/install-smartsignage.sh` para garantir aplicação sem intervenção manual (incluindo permissões e compatibilidade).  
+4. Rode localmente o script de apply (em ambiente de teste) e valide que `psql` não retorna erros.  
+5. Adicione testes manuais ou automáticos (scripts/validate-*.sh ou validate-v6.js) para verificar integridade pós-aplicação.
+
+Exemplo (o que NÃO fazer):
+
+```text
+-- ❌ NÃO: adicionar ALTER TABLE ... ADD CONSTRAINT IF NOT EXISTS em migration temporária
+ALTER TABLE IF EXISTS subscribers
+  ADD CONSTRAINT IF NOT EXISTS uq_subscribers_name UNIQUE (name);
+```
+
+Exemplo (o que FAZER):
+
+```text
+-- ✅ Atualizar arquivo definitivo:
+-- database/smartchannel-db-v2-refactored-part2-tables-base.sql
+CREATE UNIQUE INDEX IF NOT EXISTS uq_subscribers_name_idx ON subscribers (name);
+
+-- ✅ Atualizar script de instalação para aplicar automaticamente
+```
+
+Se a mudança envolver compatibilidade com várias versões do Postgres, inclua no instalador lógica idempotente e comprovada para conversão (pré-processamento ou blocos DO $$ ... $$) — mas o arquivo definitivo ainda deve refletir o estado final esperado do schema.
+
+Comentários:
+- Mantenha regras curtas e diretas. Esta regra é aplicada sempre (alwaysApply: true).
+

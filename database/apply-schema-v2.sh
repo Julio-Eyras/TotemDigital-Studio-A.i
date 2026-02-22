@@ -6,6 +6,11 @@
 
 set -e  # Parar em caso de erro
 
+# Re-exec no bash se script for invocado com /bin/sh (garante compatibilidade de arrays e declare)
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec /bin/bash "$0" "$@"
+fi
+
 # Cores para output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -48,6 +53,9 @@ execute_sql_script() {
     
     print_color "$CYAN" "   Executando: $description..."
     
+    # Garantir permissão de leitura do arquivo (evita "Permissão negada" em alguns ambientes)
+    chmod a+r "$script_path" 2>/dev/null || true
+    
     # Executar psql
     local psql_output
     if psql_output=$(PGPASSWORD="${PGPASSWORD}" psql \
@@ -65,10 +73,41 @@ execute_sql_script() {
         fi
         return 0
     else
+        # Se erro for permission denied, tentar com sudo -u postgres (se disponível)
+        if echo "$psql_output" | grep -qi "permission denied"; then
+            if command -v sudo &> /dev/null; then
+                print_color "$YELLOW" "   Permissão negada detectada — tentando executar como user postgres via sudo..."
+                if sudo -u postgres psql -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$script_path" 2>&1; then
+                    print_color "$GREEN" "   ✅ Sucesso (via sudo postgres)!"
+                    return 0
+                else
+                    print_color "$RED" "   ❌ Falha ao executar como postgres via sudo"
+                fi
+            fi
+        fi
         print_color "$RED" "   ❌ Erro ao executar script"
-        echo "$psql_output" | tail -20
+        echo "$psql_output" | tail -40
         return 1
     fi
+}
+
+# Pré-processar SQL para compatibilidade com versões do Postgres
+# Substitui padrões não suportados como:
+#   ALTER TABLE IF EXISTS tbl ADD CONSTRAINT IF NOT EXISTS name UNIQUE (cols);
+# por:
+#   CREATE UNIQUE INDEX IF NOT EXISTS name ON tbl (cols);
+preprocess_sql() {
+    local orig="$1"
+    local tmp="$2"
+    cp "$orig" "$tmp"
+
+    # Regex simples que detecta o padrão na mesma linha ou em duas linhas
+    # e converte para CREATE UNIQUE INDEX IF NOT EXISTS
+    perl -0777 -pe 's/ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?([\w\.]+)\s*\n\s*ADD\s+CONSTRAINT\s+(?:IF\s+NOT\s+EXISTS\s+)?([\w_]+)\s+UNIQUE\s*\(([^)]+)\)\s*;/CREATE UNIQUE INDEX IF NOT EXISTS $2 ON $1 ($3);/gis' -i "$tmp" || true
+
+    # Também remover saídas inválidas deixadas por edições anteriores (linhas vazias com ALTER TABLE leftovers)
+    sed -E -i.bak '/^ALTER TABLE IF EXISTS[[:space:]]*$/d' "$tmp" || true
+    rm -f "${tmp}.bak" 2>/dev/null || true
 }
 
 # Script principal
@@ -86,6 +125,9 @@ main() {
     # Obter diretório do script
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     
+    # Garantir permissões de leitura para todos os arquivos .sql no diretório (evita "Permissão negada")
+    chmod a+r "$SCRIPT_DIR"/*.sql 2>/dev/null || true
+
     # Lista de scripts na ordem correta
     declare -a scripts=(
         "smartchannel-db-v2-refactored-part1-schema-setup.sql|Parte 1: Setup do Schema"
@@ -143,15 +185,20 @@ main() {
         
         print_color "$CYAN" "[$step/$total] $description"
         
-        if execute_sql_script "$script_path" "$description"; then
+        # Pré-processar script para maior compatibilidade e executar o temporário
+        tmp_sql="$(mktemp /tmp/smartsignage-schema-XXXX.sql)"
+        preprocess_sql "$script_path" "$tmp_sql"
+        if execute_sql_script "$tmp_sql" "$description"; then
             success_count=$((success_count + 1))
         else
             fail_count=$((fail_count + 1))
             print_color "$RED" ""
             print_color "$RED" "❌ ERRO: Falha ao executar $script_file"
             print_color "$YELLOW" "   Parando execução..."
+            rm -f "$tmp_sql"
             break
         fi
+        rm -f "$tmp_sql"
         
         echo ""
     done

@@ -17,10 +17,6 @@ import {
   sortValidators, 
   dateRangeValidators,
   idParamValidatorDefault,
-  nameValidators,
-  emailValidators,
-  phoneValidators,
-  descriptionValidators,
   // contractIdValidators removido - não utilizado
 } from '../validators/common.validators';
 
@@ -45,15 +41,17 @@ function getPublisherCampaignMixService(): PublisherCampaignMixService {
   return (global as any).publisherCampaignMixServiceInstance;
 }
 
-// Validações - usando validadores centralizados
+// Validações para criação de publisher (payload aninhado em `publisher`)
 const createPublisherValidator = [
-  ...nameValidators,
-  body('contract_id').optional().isInt({ min: 1 }).withMessage('Contract ID inválido (opcional, para rastreabilidade)'),
-  body('contact_name').optional().isString(),
-  body('category_segment').optional().isString(),
-  ...emailValidators,
-  ...phoneValidators,
-  ...descriptionValidators,
+  // publisher.name obrigatório dentro do objeto publisher
+  body('publisher.name').notEmpty().withMessage('Nome é obrigatório').isLength({ min: 2, max: 100 }).withMessage('Nome deve ter entre 2 e 100 caracteres'),
+  body('publisher.contract_id').optional().isInt({ min: 1 }).withMessage('Contract ID inválido (opcional, para rastreabilidade)'),
+  body('publisher.contact_name').optional().isString(),
+  body('publisher.category_segment').optional().isString(),
+  body('publisher.email').optional({ checkFalsy: true }).isEmail().withMessage('Email deve ser válido'),
+  body('publisher.phone').optional({ checkFalsy: true }).isString().withMessage('Telefone deve ser uma string'),
+  body('publisher.whatsapp').optional({ checkFalsy: true }).isString().withMessage('WhatsApp deve ser uma string'),
+  body('publisher.description').optional().isString().isLength({ max: 1000 }).withMessage('Descrição deve ter no máximo 1000 caracteres'),
   // Regra do domínio: Publisher NUNCA é Subscriber/ambos. Esses campos são ignorados/removidos.
 ];
 
@@ -126,7 +124,8 @@ router.post('/',
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { name, contact_name, email, phone, whatsapp, category_segment, description, contract_id } = req.body;
+      const pubBody = req.body && req.body.publisher ? req.body.publisher : req.body;
+      const { name, contact_name, email, phone, whatsapp, category_segment, description, contract_id } = pubBody;
 
       // Se o payload trouxer recursos aninhados (locals/totems/smartTvs/contracts), usar criação transacional
       if (req.body.locals || req.body.totems || req.body.smartTvs || req.body.contracts) {

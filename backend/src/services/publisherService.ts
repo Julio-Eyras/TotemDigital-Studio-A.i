@@ -395,9 +395,32 @@ export class PublisherService {
         }
       }
 
-      const newPublisher = await this.getPublisherById(publisherId);
-      if (!newPublisher) throw new Error('Erro ao buscar publisher criado');
-      return newPublisher;
+      // Buscar publisher usando o mesmo client (visibilidade da transação)
+      const pubRow = await client.query(
+        `SELECT 
+           p.publisher_id,
+           p.name,
+           p.contact_name,
+           p.email,
+           p.phone,
+           p.whatsapp,
+           p.category_segment,
+           p.description,
+           p.is_subscriber,
+           p.is_publisher,
+           p.client_type,
+           p.is_active,
+           p.created_at,
+           p.updated_at
+         FROM publishers p
+         WHERE p.publisher_id = $1
+        `, [publisherId]
+      );
+      if (!pubRow.rows || pubRow.rows.length === 0) {
+        throw new Error('Erro ao buscar publisher criado');
+      }
+      const pubData = pubRow.rows[0];
+      return { ...pubData, active: !!pubData.is_active } as Publisher;
     });
   }
 

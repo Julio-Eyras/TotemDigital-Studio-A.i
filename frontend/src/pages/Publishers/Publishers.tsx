@@ -108,6 +108,39 @@ const Publishers: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [createTab, setCreateTab] = useState(0); // NOVO: Aba do dialog de criação
   const [editTab, setEditTab] = useState(0); // NOVO: Aba do dialog de edição
+  // Quando uma aba é selecionada — focar automaticamente o primeiro campo relevante
+  useEffect(() => {
+    const map: { [key: number]: string } = {
+      0: '[data-first-input="publisher-name"]',
+      1: '[data-first-input="local-name"]',
+      2: '[data-first-input="totem-identifier"]',
+      3: '[data-first-input="smarttv-identifier"]',
+      4: '[data-first-input="contract-number"]',
+    };
+    const selector = map[createTab];
+    if (!selector) return;
+    // pequeno delay para garantir que o conteúdo da aba foi renderizado
+    setTimeout(() => {
+      const el = document.querySelector(selector) as HTMLElement | null;
+      if (el && typeof el.focus === 'function') el.focus();
+    }, 120);
+  }, [createTab]);
+
+  useEffect(() => {
+    const map: { [key: number]: string } = {
+      0: '[data-first-input="publisher-name"]',
+      1: '[data-first-input="local-name"]',
+      2: '[data-first-input="totem-identifier"]',
+      3: '[data-first-input="smarttv-identifier"]',
+      4: '[data-first-input="contract-number"]',
+    };
+    const selector = map[editTab];
+    if (!selector) return;
+    setTimeout(() => {
+      const el = document.querySelector(selector) as HTMLElement | null;
+      if (el && typeof el.focus === 'function') el.focus();
+    }, 120);
+  }, [editTab]);
   const [newPublisher, setNewPublisher] = useState<CreatePublisherRequest>({
     name: '',
     contact_name: '',
@@ -843,6 +876,12 @@ const Publishers: React.FC = () => {
 
   // NOVO: handleCreatePublisher modificado para criar publisher, locais e totens
   const handleCreatePublisher = async () => {
+    // Variáveis de rollback em escopo da função (acessíveis no catch)
+    let publisherId: number | null = null;
+    const createdLocals: Local[] = [];
+    const createdTotems: any[] = [];
+    const createdSmartTvs: any[] = [];
+
     try {
       // Limpar erros anteriores
       setError(null);
@@ -897,10 +936,7 @@ const Publishers: React.FC = () => {
       }
 
       // Preparar variáveis para possível rollback (se alguma etapa falhar)
-      let publisherId: number | null = null;
-      const createdLocals: Local[] = [];
-      const createdTotems: any[] = [];
-      const createdSmartTvs: any[] = [];
+      // (declaradas no escopo da função para serem acessíveis no catch)
 
       // Validações extras antes de enviar payload aninhado
       // Nome do publisher
@@ -991,7 +1027,9 @@ const Publishers: React.FC = () => {
       };
 
       const createdPublisher = await publisherApi.create(payload);
-      const publisherId = createdPublisher?.publisher_id || createdPublisher?.publisherId;
+      // Alguns endpoints retornam `publisher_id` (snake_case). Em casos antigos pode vir `publisherId` (camelCase).
+      // Forçamos um acesso seguro ao campo camelCase via `any` para agradar o compilador TS.
+      publisherId = createdPublisher?.publisher_id ?? (createdPublisher as any)?.publisherId ?? null;
 
       if (!publisherId) {
         const errorMessage = 'Erro: Publicador criado mas não retornou ID válido';
@@ -1130,8 +1168,9 @@ const Publishers: React.FC = () => {
           // Remover Locais criados
           for (const l of createdLocals) {
             try {
-              if (l && (l.local_id || l.localId || l.id)) {
-                const id = l.local_id || l.localId || l.id;
+              const localAny = l as any;
+              if (l && (l.local_id || localAny.localId || localAny.id)) {
+                const id = l.local_id ?? localAny.localId ?? localAny.id;
                 await localApi.delete(id);
               }
             } catch (e) {
@@ -1377,11 +1416,50 @@ const Publishers: React.FC = () => {
         <DialogTitle>Adicionar Publicador</DialogTitle>
         <DialogContent>
           <Tabs value={createTab} onChange={(_, newValue) => setCreateTab(newValue)} sx={{ mb: 3 }}>
-            <Tab label="Informações" />
-            <Tab label="Locais" icon={tempLocals.length > 0 ? <Chip label={tempLocals.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Totens" icon={tempTotems.length > 0 ? <Chip label={tempTotems.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Smart TVs" icon={tempSmartTvs.length > 0 ? <Chip label={tempSmartTvs.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Contratos" icon={tempPublisherContracts && tempPublisherContracts.length > 0 ? <Chip label={tempPublisherContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab 
+              label={
+                <span>
+                  Informações
+                  {createTab === 0 && error && <Typography component="span" sx={{ color: 'error.main', ml: 1, fontWeight: 'bold' }}>• Corrigir</Typography>}
+                </span>
+              } 
+            />
+            <Tab 
+              label={
+                <span>
+                  Locais
+                  {createTab === 1 && error && <Typography component="span" sx={{ color: 'error.main', ml: 1, fontWeight: 'bold' }}>• Corrigir</Typography>}
+                </span>
+              } 
+              icon={tempLocals.length > 0 ? <Chip label={tempLocals.length} size="small" color="primary" /> : undefined} iconPosition="end" 
+            />
+            <Tab 
+              label={
+                <span>
+                  Totens
+                  {createTab === 2 && error && <Typography component="span" sx={{ color: 'error.main', ml: 1, fontWeight: 'bold' }}>• Corrigir</Typography>}
+                </span>
+              } 
+              icon={tempTotems.length > 0 ? <Chip label={tempTotems.length} size="small" color="primary" /> : undefined} iconPosition="end" 
+            />
+            <Tab 
+              label={
+                <span>
+                  Smart TVs
+                  {createTab === 3 && error && <Typography component="span" sx={{ color: 'error.main', ml: 1, fontWeight: 'bold' }}>• Corrigir</Typography>}
+                </span>
+              } 
+              icon={tempSmartTvs.length > 0 ? <Chip label={tempSmartTvs.length} size="small" color="primary" /> : undefined} iconPosition="end" 
+            />
+            <Tab 
+              label={
+                <span>
+                  Contratos
+                  {createTab === 4 && error && <Typography component="span" sx={{ color: 'error.main', ml: 1, fontWeight: 'bold' }}>• Corrigir</Typography>}
+                </span>
+              } 
+              icon={tempPublisherContracts && tempPublisherContracts.length > 0 ? <Chip label={tempPublisherContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" 
+            />
           </Tabs>
 
           {/* Aba Informações */}
@@ -1414,6 +1492,7 @@ const Publishers: React.FC = () => {
                       onChange={(e) => setLocalForm({ ...localForm, name: e.target.value })}
                       size="small"
                       required
+                      inputProps={{ 'data-first-input': 'local-name' }}
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
@@ -1578,6 +1657,7 @@ const Publishers: React.FC = () => {
                       size="small"
                       required
                       helperText="Identificador único do totem"
+                      inputProps={{ 'data-first-input': 'totem-identifier' }}
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
@@ -1738,6 +1818,7 @@ const Publishers: React.FC = () => {
                       size="small"
                       required
                       helperText="Identificador único da Smart TV"
+                      inputProps={{ 'data-first-input': 'smarttv-identifier' }}
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
@@ -1918,6 +1999,7 @@ const Publishers: React.FC = () => {
                       onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_number: e.target.value })}
                       size="small"
                       required
+                      inputProps={{ 'data-first-input': 'contract-number' }}
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
@@ -2174,11 +2256,50 @@ const Publishers: React.FC = () => {
         <DialogTitle>Editar Publicador</DialogTitle>
         <DialogContent>
           <Tabs value={editTab} onChange={(_, newValue) => setEditTab(newValue)} sx={{ mb: 3 }}>
-            <Tab label="Informações" />
-            <Tab label="Locais" icon={editLocals.length > 0 ? <Chip label={editLocals.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Totens" icon={editTotems.length > 0 ? <Chip label={editTotems.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Smart TVs" icon={editSmartTvs.length > 0 ? <Chip label={editSmartTvs.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Contratos" icon={editPublisherContracts.length > 0 ? <Chip label={editPublisherContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab 
+              label={
+                <span>
+                  Informações
+                  {editTab === 0 && error && <Typography component="span" sx={{ color: 'error.main', ml: 1, fontWeight: 'bold' }}>• Corrigir</Typography>}
+                </span>
+              } 
+            />
+            <Tab 
+              label={
+                <span>
+                  Locais
+                  {editTab === 1 && error && <Typography component="span" sx={{ color: 'error.main', ml: 1, fontWeight: 'bold' }}>• Corrigir</Typography>}
+                </span>
+              } 
+              icon={editLocals.length > 0 ? <Chip label={editLocals.length} size="small" color="primary" /> : undefined} iconPosition="end" 
+            />
+            <Tab 
+              label={
+                <span>
+                  Totens
+                  {editTab === 2 && error && <Typography component="span" sx={{ color: 'error.main', ml: 1, fontWeight: 'bold' }}>• Corrigir</Typography>}
+                </span>
+              } 
+              icon={editTotems.length > 0 ? <Chip label={editTotems.length} size="small" color="primary" /> : undefined} iconPosition="end" 
+            />
+            <Tab 
+              label={
+                <span>
+                  Smart TVs
+                  {editTab === 3 && error && <Typography component="span" sx={{ color: 'error.main', ml: 1, fontWeight: 'bold' }}>• Corrigir</Typography>}
+                </span>
+              } 
+              icon={editSmartTvs.length > 0 ? <Chip label={editSmartTvs.length} size="small" color="primary" /> : undefined} iconPosition="end" 
+            />
+            <Tab 
+              label={
+                <span>
+                  Contratos
+                  {editTab === 4 && error && <Typography component="span" sx={{ color: 'error.main', ml: 1, fontWeight: 'bold' }}>• Corrigir</Typography>}
+                </span>
+              } 
+              icon={editPublisherContracts.length > 0 ? <Chip label={editPublisherContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" 
+            />
           </Tabs>
 
           {/* Aba Informações */}
@@ -2717,6 +2838,7 @@ const Publishers: React.FC = () => {
                       onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_number: e.target.value })}
                       size="small"
                       required
+                      inputProps={{ 'data-first-input': 'contract-number' }}
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>

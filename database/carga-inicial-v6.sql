@@ -536,3 +536,84 @@ INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictio
 (6, 1, true, '{}'::jsonb, NULL, true),
 (6, 2, true, '{}'::jsonb, NULL, true)
 ON CONFLICT DO NOTHING;
+
+-- =============================================
+-- DATA MIGRATION INTEGRADA: Atualizar caminhos de mídia
+-- Original: database/data-migrations/016-update-media-paths-client-to-subscriber.sql
+-- Objetivo: migrar paths contendo '/client-' para '/subscriber-'
+-- Idempotente: usa UPDATE ... WHERE LIKE; pode ser executado repetidas vezes sem efeitos colaterais
+-- =============================================
+DO $$
+DECLARE
+    v_count_file_path INTEGER;
+    v_count_thumbnail INTEGER;
+    v_count_preview INTEGER;
+BEGIN
+    IF to_regclass('public.medias') IS NULL THEN
+        RAISE NOTICE 'Tabela medias não existe — pulando migração de caminhos de mídia';
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*) INTO v_count_file_path
+    FROM medias 
+    WHERE file_path LIKE '%/client-%';
+    
+    SELECT COUNT(*) INTO v_count_thumbnail
+    FROM medias 
+    WHERE thumbnail_url LIKE '%/client-%';
+    
+    SELECT COUNT(*) INTO v_count_preview
+    FROM medias 
+    WHERE preview_url LIKE '%/client-%';
+    
+    RAISE NOTICE 'Registros a atualizar (media paths): file_path=% thumbnail_url=% preview_url=%', v_count_file_path, v_count_thumbnail, v_count_preview;
+END $$;
+
+-- Atualizar file_path
+UPDATE medias 
+SET file_path = REPLACE(file_path, '/client-', '/subscriber-') 
+WHERE file_path LIKE '%/client-%';
+
+-- Atualizar thumbnail_url
+UPDATE medias 
+SET thumbnail_url = REPLACE(thumbnail_url, '/client-', '/subscriber-') 
+WHERE thumbnail_url LIKE '%/client-%';
+
+-- Atualizar preview_url
+UPDATE medias 
+SET preview_url = REPLACE(preview_url, '/client-', '/subscriber-') 
+WHERE preview_url LIKE '%/client-%';
+
+DO $$
+DECLARE
+    v_remaining_file_path INTEGER;
+    v_remaining_thumbnail INTEGER;
+    v_remaining_preview INTEGER;
+    v_total_subscriber INTEGER;
+BEGIN
+    IF to_regclass('public.medias') IS NULL THEN
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*) INTO v_remaining_file_path
+    FROM medias 
+    WHERE file_path LIKE '%/client-%';
+    
+    SELECT COUNT(*) INTO v_remaining_thumbnail
+    FROM medias 
+    WHERE thumbnail_url LIKE '%/client-%';
+    
+    SELECT COUNT(*) INTO v_remaining_preview
+    FROM medias 
+    WHERE preview_url LIKE '%/client-%';
+    
+    SELECT COUNT(*) INTO v_total_subscriber
+    FROM medias 
+    WHERE file_path LIKE '%/subscriber-%';
+    
+    RAISE NOTICE 'Resultado da migração (media paths): remaining_file_path=% remaining_thumbnail=% remaining_preview=% total_with_subscriber=%', v_remaining_file_path, v_remaining_thumbnail, v_remaining_preview, v_total_subscriber;
+    
+    IF v_remaining_file_path > 0 OR v_remaining_thumbnail > 0 OR v_remaining_preview > 0 THEN
+        RAISE WARNING 'Alguns caminhos ainda contêm "client-". Verifique manualmente.';
+    END IF;
+END $$;
