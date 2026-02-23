@@ -3,7 +3,7 @@ import { logError } from '../utils/loggerHelper';
 
 export interface PublisherContract {
   contract_id: number;
-  publisher_id?: number; // Opcional - pode ser NULL se created_before_publisher = true
+  publisher_id: number;
   contract_number: string;
   contract_type: 'revenue_share' | 'subscription' | 'partnership' | 'hybrid';
   title: string;
@@ -27,13 +27,13 @@ export interface PublisherContract {
   metadata?: any;
   created_at: string;
   updated_at: string;
-  created_before_publisher?: boolean;
+  // created_before_publisher removed from schema
   // Relacionamentos
   publisher_name?: string;
 }
 
 export interface CreatePublisherContractRequest {
-  publisher_id?: number; // Opcional - pode ser NULL se created_before_publisher = true
+  publisher_id: number;
   contract_number: string;
   contract_type: 'revenue_share' | 'subscription' | 'partnership' | 'hybrid';
   title: string;
@@ -55,7 +55,7 @@ export interface CreatePublisherContractRequest {
   signed_by_publisher_at?: string;
   signed_by_tenant_at?: string;
   metadata?: any;
-  created_before_publisher?: boolean;
+  // created_before_publisher removed from API
 }
 
 export interface UpdatePublisherContractRequest {
@@ -169,7 +169,7 @@ export class PublisherContractService {
           pc.metadata,
           pc.created_at,
           pc.updated_at,
-          pc.created_before_publisher,
+        -- created_before_publisher removed from schema
           p.name as publisher_name
         FROM publisher_contracts pc
         LEFT JOIN publishers p ON pc.publisher_id = p.publisher_id
@@ -228,7 +228,7 @@ export class PublisherContractService {
           pc.metadata,
           pc.created_at,
           pc.updated_at,
-          pc.created_before_publisher,
+          -- created_before_publisher removed from schema
           p.name as publisher_name
         FROM publisher_contracts pc
         LEFT JOIN publishers p ON pc.publisher_id = p.publisher_id
@@ -270,23 +270,11 @@ export class PublisherContractService {
         signed_by_publisher_at,
         signed_by_tenant_at,
         metadata,
-        created_before_publisher = false,
       } = data;
 
-      // Validar publisher existe (se fornecido)
-      if (publisher_id) {
-        const publisher = await this.db.findFirst(`
-          SELECT publisher_id FROM publishers WHERE publisher_id = $1
-        `, [publisher_id]);
-
-        if (!publisher) {
-          throw new Error('Publisher não encontrado');
-        }
-      }
-
-      // Se publisher_id não fornecido, created_before_publisher deve ser true
-      if (!publisher_id && !created_before_publisher) {
-        throw new Error('Se publisher_id não for fornecido, created_before_publisher deve ser true');
+      // Enforce publisher_id presence — pre-contract concept removed
+      if (!publisher_id) {
+        throw new Error('publisher_id é obrigatório para criar um contrato de publisher');
       }
 
       // Validar contract_number único

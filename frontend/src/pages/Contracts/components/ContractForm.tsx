@@ -51,6 +51,7 @@ export interface ContractFormProps {
   effectiveSubscriberId?: number;
   activeTab?: number;
   onTabChange?: (tab: number) => void;
+  showCreateBeforeSubscriberCheckbox?: boolean;
 }
 
 // Função helper para converter data ISO para formato yyyy-MM-dd
@@ -82,6 +83,7 @@ const ContractForm: React.FC<ContractFormProps> = ({
   effectiveSubscriberId,
   activeTab = 0,
   onTabChange,
+  showCreateBeforeSubscriberCheckbox = true,
 }) => {
   const theme = useTheme();
 
@@ -114,7 +116,6 @@ const ContractForm: React.FC<ContractFormProps> = ({
   };
 
   const isCreateMode = mode === 'create';
-  const createdBeforeSubscriber = (data as CreateContractRequest).created_before_subscriber || false;
   const hasSubscriber = !!(data as CreateContractRequest).subscriber_id;
 
   return (
@@ -136,37 +137,7 @@ const ContractForm: React.FC<ContractFormProps> = ({
         <Box>
           <Typography variant="h6" sx={{ mb: 2 }}>Dados do Contrato</Typography>
 
-          {isCreateMode && (
-            <>
-              <FormControlLabel
-                sx={{ mt: 1 }}
-                control={
-                  <Checkbox
-                    checked={createdBeforeSubscriber}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      handleFieldChange('created_before_subscriber', checked);
-                      if (checked) {
-                        handleFieldChange('subscriber_id', undefined);
-                        if (onTogglePublisher) {
-                          // Limpar seleção de publishers
-                          selectedPublisherIds.forEach((id) => onTogglePublisher(id));
-                        }
-                      }
-                    }}
-                  />
-                }
-                label="Criar contrato antes do anunciante (pré-contrato)"
-              />
-
-              {createdBeforeSubscriber && (
-                <Alert severity="info" sx={{ mt: 1 }}>
-                  Este contrato será criado sem Assinante. Você poderá vinculá-lo depois (quando o Anunciante existir).
-                  Enquanto isso, a seleção de Publicadores ficará desabilitada.
-                </Alert>
-              )}
-            </>
-          )}
+          {/* Pré-contrato removido da UI */}
 
           {mode === 'edit' && contract && (
             <Alert 
@@ -203,24 +174,23 @@ const ContractForm: React.FC<ContractFormProps> = ({
           <FormControl 
             fullWidth 
             margin="normal" 
-            required={!createdBeforeSubscriber}
-            disabled={mode === 'edit' || !!createdBeforeSubscriber || !!effectiveSubscriberId}
+            required={!effectiveSubscriberId}
+            disabled={mode === 'edit' || !!effectiveSubscriberId}
           >
-            <InputLabel>{createdBeforeSubscriber ? 'Assinante (opcional)' : 'Assinante *'}</InputLabel>
-            <Select
+            <InputLabel>{effectiveSubscriberId ? 'Assinante (fixo)' : 'Assinante *'}</InputLabel>
+              <Select
               value={getFieldValue('subscriber_id') || ''}
-              label={createdBeforeSubscriber ? 'Assinante (opcional)' : 'Assinante *'}
+              label={effectiveSubscriberId ? 'Assinante (fixo)' : 'Assinante *'}
               onChange={(e) => {
                 const nextId = e.target.value ? Number(e.target.value) : undefined;
                 handleFieldChange('subscriber_id', nextId);
-                handleFieldChange('created_before_subscriber', !nextId);
                 if (!nextId && onTogglePublisher) {
                   // Limpar seleção de publishers
                   selectedPublisherIds.forEach((id) => onTogglePublisher(id));
                 }
               }}
             >
-              <MenuItem value="">{createdBeforeSubscriber ? 'Nenhum (pré-contrato)' : 'Selecione...'}</MenuItem>
+              <MenuItem value="">{effectiveSubscriberId ? 'Nenhum' : 'Selecione...'}</MenuItem>
               {subscribers.map((subscriber) => {
                 const subscriberId = subscriber.subscriber_id || (subscriber as any).subscriberId;
                 const currentSubscriberId = getFieldValue('subscriber_id');

@@ -250,7 +250,15 @@ export class SubscriberService {
    */
   async createSubscriber(data: CreateSubscriberRequest): Promise<Subscriber> {
     try {
-      const { name, contract_id, contact_name, email, phone, whatsapp, address, category_segment, description } = data;
+      const { name, contract_id } = data;
+      // Sanitizar campos opcionais: tratar '' como null, trim strings
+      const contact_name = (data.contact_name && String(data.contact_name).trim() !== '') ? String(data.contact_name).trim() : null;
+      const email = (data.email && String(data.email).trim() !== '') ? String(data.email).trim() : null;
+      const phone = (data.phone && String(data.phone).trim() !== '') ? String(data.phone).trim() : null;
+      const whatsapp = (data.whatsapp && String(data.whatsapp).trim() !== '') ? String(data.whatsapp).trim() : null;
+      const address = (data.address && String(data.address).trim() !== '') ? String(data.address).trim() : null;
+      const category_segment = (data.category_segment && String(data.category_segment).trim() !== '') ? String(data.category_segment).trim() : null;
+      const description = (data.description && String(data.description).trim() !== '') ? String(data.description).trim() : null;
 
       // Validar contrato apenas se contract_id foi fornecido
       if (contract_id) {
@@ -306,7 +314,7 @@ export class SubscriberService {
         INSERT INTO subscribers (name, contact_name, email, phone, whatsapp, address, category_segment, description, is_active, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING subscriber_id
-      `, [name, contact_name, email, phone, whatsapp, address, category_segment || null, description || null]);
+      `, [name, contact_name, email, phone, whatsapp, address, category_segment, description]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar subscriber');
@@ -354,7 +362,14 @@ export class SubscriberService {
    */
   async updateSubscriber(id: number, data: UpdateSubscriberRequest): Promise<Subscriber> {
     try {
-      const { name, contact_name, email, phone, whatsapp, address, category_segment, description, isActive } = data;
+      const { name, contact_name: raw_contact_name, email: raw_email, phone: raw_phone, whatsapp: raw_whatsapp, address: raw_address, category_segment: raw_category_segment, description: raw_description, isActive } = data;
+      const contact_name = (raw_contact_name !== undefined && raw_contact_name !== null && String(raw_contact_name).trim() !== '') ? String(raw_contact_name).trim() : undefined;
+      const email = (raw_email !== undefined && raw_email !== null && String(raw_email).trim() !== '') ? String(raw_email).trim() : undefined;
+      const phone = (raw_phone !== undefined && raw_phone !== null && String(raw_phone).trim() !== '') ? String(raw_phone).trim() : undefined;
+      const whatsapp = (raw_whatsapp !== undefined && raw_whatsapp !== null && String(raw_whatsapp).trim() !== '') ? String(raw_whatsapp).trim() : undefined;
+      const address = (raw_address !== undefined && raw_address !== null && String(raw_address).trim() !== '') ? String(raw_address).trim() : undefined;
+      const category_segment = (raw_category_segment !== undefined && raw_category_segment !== null && String(raw_category_segment).trim() !== '') ? String(raw_category_segment).trim() : undefined;
+      const description = (raw_description !== undefined && raw_description !== null && String(raw_description).trim() !== '') ? String(raw_description).trim() : undefined;
 
       // Verificar se subscriber existe
       const existingSubscriber = await this.getSubscriberById(id);
@@ -403,7 +418,7 @@ export class SubscriberService {
 
       if (email !== undefined) {
         updateFields.push(`email = $${paramIndex}`);
-        updateParams.push(email);
+        updateParams.push(email || null);
         paramIndex++;
       }
 

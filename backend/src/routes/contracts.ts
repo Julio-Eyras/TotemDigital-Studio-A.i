@@ -125,13 +125,6 @@ router.post('/',
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   async (req: any, res: any) => {
     try {
-      // Validação customizada: se subscriber_id não fornecido, created_before_subscriber deve ser true
-      if (!req.body.subscriber_id && !req.body.created_before_subscriber) {
-        return res.status(400).json({ 
-          error: 'Se subscriber_id não for fornecido, created_before_subscriber deve ser true' 
-        });
-      }
-
       const contract = await getContractService().createContract(req.body);
       return res.status(201).json({ success: true, data: contract });
     } catch (error: any) {

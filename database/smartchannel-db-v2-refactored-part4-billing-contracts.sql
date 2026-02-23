@@ -1,4 +1,15 @@
 -- =============================================
+-- Compat: remover colunas legacy se existirem (idempotente)
+-- Nota: a política do projeto é manter schema definitivo nos arquivos part*.sql.
+-- Estas instruções permitem aplicar a mudança em bancos existentes.
+ALTER TABLE IF EXISTS subscriber_contracts DROP COLUMN IF EXISTS created_before_subscriber CASCADE;
+ALTER TABLE IF EXISTS publisher_contracts DROP COLUMN IF EXISTS created_before_publisher CASCADE;
+
+-- Remover índices parciais legacy (se existirem)
+DROP INDEX IF EXISTS idx_subscriber_contracts_created_before;
+DROP INDEX IF EXISTS idx_publisher_contracts_created_before;
+
+-- =============================================
 -- SmartSignage Pro - Schema Refatorado v2.0
 -- PARTE 4: Billing e Contratos
 -- =============================================
@@ -144,7 +155,6 @@ CREATE TABLE IF NOT EXISTS subscriber_contracts (
     contract_id SERIAL PRIMARY KEY,
     subscriber_id INTEGER, -- FK para subscribers (NULL temporariamente até subscriber ser criado)
     plan_id INTEGER, -- FK para plans - Plano associado ao contrato
-    created_before_subscriber BOOLEAN DEFAULT false, -- Indica se contrato foi criado antes do subscriber
     
     contract_number TEXT UNIQUE NOT NULL,
     contract_type TEXT NOT NULL, 
@@ -188,10 +198,7 @@ CREATE TABLE IF NOT EXISTS subscriber_contracts (
     CONSTRAINT chk_subscriber_contract_dates 
         CHECK (end_date IS NULL OR start_date <= end_date),
     CONSTRAINT chk_subscriber_contract_creation
-        CHECK (
-            (subscriber_id IS NOT NULL) OR 
-            (created_before_subscriber = true AND subscriber_id IS NULL)
-        )
+        CHECK (subscriber_id IS NOT NULL)
 );
 
 COMMENT ON TABLE subscriber_contracts IS 'Contratos com subscribers (anunciantes)';
@@ -204,8 +211,7 @@ COMMENT ON COLUMN subscriber_contracts.document_path IS 'Caminho do arquivo do c
 
 CREATE TABLE IF NOT EXISTS publisher_contracts (
     contract_id SERIAL PRIMARY KEY,
-    publisher_id INTEGER, -- FK para publishers (NULL temporariamente até publisher ser criado)
-    created_before_publisher BOOLEAN DEFAULT false, -- Indica se contrato foi criado antes do publisher
+    publisher_id INTEGER NOT NULL, -- FK para publishers (obrigatório)
     
     contract_number TEXT UNIQUE NOT NULL,
     contract_type TEXT NOT NULL,
@@ -262,10 +268,7 @@ CREATE TABLE IF NOT EXISTS publisher_contracts (
     CONSTRAINT chk_publisher_contract_dates 
         CHECK (end_date IS NULL OR start_date <= end_date),
     CONSTRAINT chk_publisher_contract_creation
-        CHECK (
-            (publisher_id IS NOT NULL) OR 
-            (created_before_publisher = true AND publisher_id IS NULL)
-        )
+        CHECK (publisher_id IS NOT NULL)
 );
 
 COMMENT ON TABLE publisher_contracts IS 'Contratos com publishers (revenue share, subscription ou ambos)';

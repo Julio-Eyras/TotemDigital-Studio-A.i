@@ -1471,12 +1471,7 @@ const Subscribers: React.FC = () => {
         return;
       }
 
-      // O anunciante deve ter pelo menos um contrato na aba Contratos
-      if (!tempSubscriberContracts || tempSubscriberContracts.length === 0) {
-        setError('É obrigatório adicionar pelo menos um contrato na aba "Contratos" antes de criar o anunciante.');
-        setCreateTab(1); // Ir para aba de Contratos
-        return;
-      }
+      // Não é mais obrigatório adicionar contratos antes de criar o anunciante.
 
       // Validação: email (se fornecido)
       if (newSubscriber.email && newSubscriber.email.trim() !== '' && !validateEmail(newSubscriber.email)) {

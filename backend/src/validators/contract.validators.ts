@@ -19,7 +19,7 @@ export const createSubscriberContractValidators = [
   body('currency').optional().isString().isLength({ min: 3, max: 3 }).withMessage('Moeda deve ter 3 caracteres (ex: BRL)'),
   body('status').optional().isIn(['draft', 'active', 'expired', 'terminated', 'cancelled']).withMessage('Status inválido'),
   body('publisherIds').optional().isArray().withMessage('publisherIds deve ser um array'),
-  body('created_before_subscriber').optional().isBoolean().withMessage('created_before_subscriber deve ser um booleano'),
+ 
 ];
 
 /**
@@ -47,7 +47,7 @@ export const createPublisherContractValidators = [
   body('start_date').isISO8601().withMessage('Data de início inválida'),
   body('end_date').optional().isISO8601().withMessage('Data de término inválida'),
   body('publisher_id').optional().isInt({ min: 1 }).withMessage('publisher_id deve ser um número inteiro maior que 0'),
-  body('created_before_publisher').optional().isBoolean().withMessage('created_before_publisher deve ser um booleano'),
+ 
   body('revenue_share_percentage').optional().isFloat({ min: 0, max: 100 }).withMessage('revenue_share_percentage deve ser entre 0 e 100'),
   body('minimum_payout_amount').optional().isFloat({ min: 0 }).withMessage('minimum_payout_amount deve ser um número positivo'),
 ];

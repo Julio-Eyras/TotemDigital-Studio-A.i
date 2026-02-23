@@ -50,6 +50,7 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
   data,
   onChange,
   errors = {},
+  activeParentTab,
 }) => {
   const [availableContracts, setAvailableContracts] = useState<Contract[]>([]);
   const [loadingContracts, setLoadingContracts] = useState(false);
@@ -62,13 +63,13 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
 
   // When parent modal switches tabs, reload contracts if parent switched to Contracts tab (index 1)
   useEffect(() => {
-    if (mode === 'create' && typeof (props as any).activeParentTab !== 'undefined') {
-      if ((props as any).activeParentTab === 1) {
+    if (mode === 'create' && typeof activeParentTab !== 'undefined') {
+      if (activeParentTab === 1) {
         loadAvailableContracts();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [(props as any).activeParentTab]);
+  }, [activeParentTab]);
 
   const loadAvailableContracts = async () => {
     try {
@@ -115,51 +116,7 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
         Dados do Assinante
       </Typography>
 
-      {/* Campo de seleção de contrato - OPCIONAL (apenas no modo create) */}
-      {mode === 'create' && (
-        <>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Contrato (opcional)</InputLabel>
-            <Select
-              value={getFieldValue('contract_id') || ''}
-              label="Contrato (opcional)"
-              onChange={(e) =>
-                handleFieldChange(
-                  'contract_id',
-                  e.target.value ? Number(e.target.value) : undefined
-                )
-              }
-              disabled={loadingContracts}
-              error={hasError('contract_id')}
-            >
-              {loadingContracts ? (
-                <MenuItem disabled>Carregando contratos...</MenuItem>
-              ) : (
-                <>
-                  <MenuItem value="">Nenhum</MenuItem>
-                  {availableContracts.map((contract) => (
-                    <MenuItem key={contract.contract_id} value={contract.contract_id}>
-                      {contract.contract_number} - {contract.title}{' '}
-                      {contract.created_before_subscriber ? '(Pré-criado)' : ''}
-                    </MenuItem>
-                  ))}
-                </>
-              )}
-            </Select>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75 }}>
-              {getFieldValue('contract_id')
-                ? `Contrato selecionado: ${availableContracts.find((c) => c.contract_id === getFieldValue('contract_id'))?.title || 'N/A'}`
-                : 'Nenhum contrato selecionado. Você pode criar contratos na aba "Contratos" abaixo.'}
-            </Typography>
-          </FormControl>
-
-          {availableContracts.length === 0 && !loadingContracts && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Nenhum contrato disponível no momento. Você pode criar contratos na aba "Contratos" abaixo.
-            </Alert>
-          )}
-        </>
-      )}
+      {/* Removido campo de seleção de contrato por solicitação do usuário */}
 
       <Grid container spacing={2}>
         <Grid item xs={12}>

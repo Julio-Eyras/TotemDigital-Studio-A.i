@@ -94,10 +94,9 @@ CREATE INDEX IF NOT EXISTS idx_publisher_billing_created ON publisher_billing(cr
 CREATE INDEX IF NOT EXISTS idx_subscriber_contracts_subscriber ON subscriber_contracts(subscriber_id) WHERE subscriber_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_subscriber_contracts_status ON subscriber_contracts(status);
 CREATE INDEX IF NOT EXISTS idx_subscriber_contracts_plan ON subscriber_contracts(plan_id) WHERE plan_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_subscriber_contracts_created_before ON subscriber_contracts(created_before_subscriber) WHERE created_before_subscriber = true;
 CREATE INDEX IF NOT EXISTS idx_publisher_contracts_publisher ON publisher_contracts(publisher_id) WHERE publisher_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_publisher_contracts_status ON publisher_contracts(status);
-CREATE INDEX IF NOT EXISTS idx_publisher_contracts_created_before ON publisher_contracts(created_before_publisher) WHERE created_before_publisher = true;
+-- Removed indexes on created_before_* (no longer used)
 
 -- =============================================
 -- ÍNDICES DE CONTROLE DE ACESSO SUBSCRIBER → PUBLISHER

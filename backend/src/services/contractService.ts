@@ -3,7 +3,7 @@ import { logError } from '../utils/loggerHelper';
 
 export interface Contract {
   contract_id: number;
-  subscriber_id?: number; // Opcional - pode ser NULL se created_before_subscriber = true
+  subscriber_id: number;
   plan_id?: number;
   contract_number: string;
   contract_type: 'advertising' | 'subscription' | 'partnership';
@@ -24,14 +24,14 @@ export interface Contract {
   metadata?: any;
   created_at: string;
   updated_at: string;
-  created_before_subscriber?: boolean; // Indica se foi criado antes do subscriber
+  // created_before_subscriber removed from schema
   // Relacionamentos
   subscriber_name?: string;
   plan_name?: string;
 }
 
 export interface CreateContractRequest {
-  subscriber_id?: number; // Opcional - pode ser NULL se created_before_subscriber = true
+  subscriber_id: number;
   plan_id?: number;
   contract_number: string;
   contract_type: 'advertising' | 'subscription' | 'partnership';
@@ -51,7 +51,7 @@ export interface CreateContractRequest {
   signed_by_tenant_at?: string;
   metadata?: any;
   publisherIds?: number[]; // Publishers a serem associados ao contrato
-  created_before_subscriber?: boolean; // Indica se contrato é criado antes do subscriber
+  // created_before_subscriber removed from API
 }
 
 export interface UpdateContractRequest {
@@ -149,7 +149,7 @@ export class ContractService {
           sc.subscriber_id,
           sc.plan_id,
           sc.contract_number,
-          sc.created_before_subscriber,
+          -- created_before_subscriber removed from schema
           sc.contract_type,
           sc.title,
           sc.description,
@@ -267,8 +267,12 @@ export class ContractService {
         signed_by_tenant_at,
         metadata,
         publisherIds = [],
-        created_before_subscriber = false,
       } = data;
+
+      // Enforce subscriber_id presence — pre-contract concept removed
+      if (!subscriber_id) {
+        throw new Error('subscriber_id é obrigatório para criar um contrato');
+      }
 
       // Validar subscriber existe (se fornecido)
       if (subscriber_id) {
@@ -281,21 +285,6 @@ export class ContractService {
         }
       }
 
-      // Deprecarem: não exigir mais created_before_subscriber.
-      // Se subscriber_id não for fornecido, criamos o contrato sem subscriber vinculado.
-      // Logar aviso se campo legacy for utilizado.
-      let createdBefore = !!created_before_subscriber;
-      if (!subscriber_id) {
-        if (created_before_subscriber) {
-          // Aviso informativo — ainda aceitamos o valor por compatibilidade
-          console.info('Criando contrato sem subscriber_id (pré-contrato) — campo created_before_subscriber presente; será mantido por compatibilidade.');
-        } else {
-          // Sem subscriber_id e sem created_before_subscriber: criar contrato solto (pré-contrato implícito)
-          console.info('Criando contrato sem subscriber_id — será persistido sem vínculo (pré-contrato implícito).');
-        }
-        // manter createdBefore como booleano
-        createdBefore = !!created_before_subscriber;
-      }
 
       // Validar plan existe (se fornecido)
       if (plan_id) {
@@ -324,9 +313,9 @@ export class ContractService {
           start_date, end_date, total_amount, currency, payment_terms,
           document_path, document_filename, document_mime_type, document_size_bytes,
           status, signed_by_subscriber_at, signed_by_tenant_at, metadata,
-          created_before_subscriber, created_at, updated_at
+          created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING contract_id
       `, [
         subscriber_id || null,
@@ -348,7 +337,7 @@ export class ContractService {
         signed_by_subscriber_at || null,
         signed_by_tenant_at || null,
         metadata ? JSON.stringify(metadata) : null,
-        createdBefore,
+        -- created_before_subscriber removed
       ]);
 
       if (!result.rows || result.rows.length === 0) {
