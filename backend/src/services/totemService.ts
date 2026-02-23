@@ -142,6 +142,14 @@ export class TotemService {
   private get cache() {
     return getCacheService();
   }
+ 
+  // Normaliza objeto de totem para garantir campo `totem_id` e `id` consistentes
+  private normalizeTotemObject(t: any): any {
+    if (!t) return t;
+    if (t.id && !t.totem_id) t.totem_id = t.id;
+    if (t.totem_id && !t.id) t.id = t.totem_id;
+    return t;
+  }
 
   /**
    * Lista todos os totems (alias para getTotems)
@@ -222,6 +230,7 @@ export class TotemService {
           t.description,
           t.network_info as config,
           t.status,
+          t.forced_online_until,
           t.firmware_version as firmwareVersion,
           t.network_info->>'ip' as ipAddress,
           t.last_heartbeat as lastSeen,
@@ -251,9 +260,27 @@ export class TotemService {
 
       const total = totalResult?.total || 0;
 
+      // Normalizar objetos (garantir totem_id)
+      const normalizedTotems = totems.map((tt: any) => this.normalizeTotemObject(tt));
+
       // Buscar estatísticas para cada totem
       const totemsWithStats = await Promise.all(
-        totems.map(async (totem) => {
+        normalizedTotems.map(async (totem) => {
+          // Se houver forced_online_until no futuro, tratar como 'online' temporariamente
+          const forcedUntil = totem.forced_online_until || totem.forcedOnlineUntil || null;
+          if (forcedUntil) {
+            const forcedDate = new Date(forcedUntil);
+            if (!isNaN(forcedDate.getTime()) && forcedDate.getTime() > Date.now()) {
+              totem.status = 'online';
+              totem.forced_online = true;
+              totem.forced_online_until = forcedDate.toISOString();
+            } else {
+              totem.forced_online = false;
+            }
+          } else {
+            totem.forced_online = false;
+          }
+
           const stats = await this.getTotemStats(totem.id);
           const uptime = await this.calculateUptime(totem.lastHeartbeat);
           return { ...totem, ...stats, uptime };
@@ -305,7 +332,7 @@ export class TotemService {
         WHERE t.uin = $1 OR t.identifier = $2
       `, [uin, uin]);
 
-      return totem;
+      return this.normalizeTotemObject(totem);
     } catch (error: any) {
       await logError('Erro ao buscar totem por UIN', error);
       throw new Error('Erro interno do servidor');
@@ -349,7 +376,9 @@ export class TotemService {
       return null;
     }
 
-    const totem = result.rows[0];
+    let totem = result.rows[0];
+    // Normalizar campos (totem_id / id)
+    totem = this.normalizeTotemObject(totem);
     // Estatísticas e uptime serão calculados depois (fora da transação)
     return { ...totem, stats: {}, uptime: 0 };
   }
@@ -392,10 +421,12 @@ export class TotemService {
         return null;
       }
 
+      const normalized = this.normalizeTotemObject(totem);
+
       // Buscar estatísticas
-      const stats = await this.getTotemStats(totemId);
-      const uptime = await this.calculateUptime(totem.lastHeartbeat);
-      return { ...totem, ...stats, uptime };
+      const stats = await this.getTotemStats(normalized.id);
+      const uptime = await this.calculateUptime(normalized.lastHeartbeat);
+      return { ...normalized, ...stats, uptime };
 
     } catch (error: any) {
       await logError('Erro ao buscar totem', error);
@@ -441,10 +472,12 @@ export class TotemService {
         return null;
       }
 
+      const normalized = this.normalizeTotemObject(totem);
+
       // Buscar estatísticas
-      const stats = await this.getTotemStats(totem.id);
-      const uptime = await this.calculateUptime(totem.lastHeartbeat);
-      return { ...totem, ...stats, uptime };
+      const stats = await this.getTotemStats(normalized.id);
+      const uptime = await this.calculateUptime(normalized.lastHeartbeat);
+      return { ...normalized, ...stats, uptime };
 
     } catch (error: any) {
       await logError('Erro ao buscar totem por identifier', error);
@@ -490,10 +523,12 @@ export class TotemService {
         return null;
       }
 
+      const normalized = this.normalizeTotemObject(totem);
+
       // Buscar estatísticas
-      const stats = await this.getTotemStats(totem.id);
-      const uptime = await this.calculateUptime(totem.lastHeartbeat);
-      return { ...totem, ...stats, uptime };
+      const stats = await this.getTotemStats(normalized.id);
+      const uptime = await this.calculateUptime(normalized.lastHeartbeat);
+      return { ...normalized, ...stats, uptime };
 
     } catch (error: any) {
       await logError('Erro ao buscar totem por device ID', error);
@@ -1520,6 +1555,36 @@ export class TotemService {
   }
 
   /**
+   * Força totem a ficar online por X minutos (define forced_online_until)
+   */
+  async forceOnlineTotem(totemId: number, minutes: number, requestedBy: number): Promise<void> {
+    try {
+      const totem = await this.getTotemById(totemId);
+      if (!totem) throw new Error('Totem não encontrado');
+
+      const until = new Date(Date.now() + minutes * 60000);
+      await this.db.executeRaw(`
+        UPDATE totems
+        SET forced_online_until = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE totem_id = $2
+      `, [until.toISOString(), totemId]);
+
+      // Auditoria
+      await this.getAuditService().log('totem', 'force_online', requestedBy, {
+        totemId,
+        forced_until: until.toISOString(),
+        minutes
+      });
+
+      // Invalidate cache
+      await this.cache.invalidateEntity('totem', totemId).catch(() => {});
+    } catch (error: any) {
+      await logError('Erro ao forçar totem online', error, { totemId, minutes, requestedBy });
+      throw error;
+    }
+  }
+
+  /**
    * Remove totem (soft delete)
    */
   async deleteTotem(totemId: number, deletedBy: number): Promise<void> {
@@ -1599,7 +1664,7 @@ export class TotemService {
         ORDER BY t.last_heartbeat ASC
       `, [minutes]);
 
-      return totems;
+      return totems.map((tt: any) => this.normalizeTotemObject(tt));
 
     } catch (error: any) {
       await logError('Erro ao buscar totems offline', error);

@@ -26,7 +26,8 @@ router.use(authMiddleware);
 // Validações - usando validadores centralizados
 const createSubscriberValidator = [
   ...nameValidators,
-  body('contract_id').isInt({ min: 1 }).withMessage('Contract ID é obrigatório'),
+  // contract_id é opcional (pode criar subscriber sem contrato). Tratar '' como ausente.
+  body('contract_id').optional({ checkFalsy: true }).isInt({ min: 1 }).withMessage('Contract ID inválido'),
   body('contact_name').optional().isString(),
   body('category_segment').optional().isString(),
   ...emailValidators,

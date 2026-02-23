@@ -445,6 +445,12 @@ export interface Player {
   created_at: string;
   updated_at: string;
   config?: any;
+  // Campo adicionado: timestamp até o qual o totem foi forçado a ficar online (ISO string)
+  forced_online_until?: string;
+  // Flag auxiliar exposta pela API/serviço indicando estado forçado
+  forced_online?: boolean;
+  // Compatibilidade camelCase
+  forcedOnlineUntil?: string;
 }
 
 // Alias para compatibilidade
@@ -1738,6 +1744,11 @@ export const totemApi = {
     limit?: number;
   } = {}): Promise<PlayerListResponse> => {
     const response = await api.get('/totems/pending', { params });
+    return response.data;
+  },
+  
+  forceOnline: async (id: number, minutes: number = 30): Promise<{ success: boolean; message: string }> => {
+    const response = await api.put(`/totems/${id}/force-online`, { minutes });
     return response.data;
   },
   

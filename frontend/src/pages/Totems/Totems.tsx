@@ -147,7 +147,7 @@ const Totems: React.FC = () => {
 
   const handleApprove = async () => {
     if (!selectedTotem) return;
-    const totemId = (selectedTotem as any).totem_id ?? (selectedTotem as any).id;
+    const totemId = (selectedTotem as any).totem_id;
     if (!totemId) return;
     
     try {
@@ -356,6 +356,7 @@ const Totems: React.FC = () => {
           ) : (
             filteredTotems.map((t, idx) => {
               const totemKey = String((t as any).totem_id ?? (t as any).identifier ?? idx);
+              const totemId = (t as any).totem_id ?? null;
               return (
               <Grid item xs={12} sm={6} md={4} key={totemKey}>
                 <Card>
@@ -381,6 +382,12 @@ const Totems: React.FC = () => {
                             <Typography variant="caption" color="text.secondary">{t.location}</Typography>
                           </Box>
                         )}
+                        {/* Indicar se foi forçado online */}
+                        {(t.forced_online_until || (t as any).forced_online_until || (t as any).forcedOnlineUntil) && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            Forçado online até: {new Date((t.forced_online_until || (t as any).forcedOnlineUntil)).toLocaleString()}
+                          </Typography>
+                        )}
                       </Box>
                       <Chip 
                         size="small" 
@@ -394,21 +401,21 @@ const Totems: React.FC = () => {
                           <IconButton
                             size="small"
                             onClick={() => openRemoteControl(t)}
-                            disabled={!t?.totem_id}
+                            disabled={!totemId}
                           >
                             <Settings />
                           </IconButton>
                         </span>
                       </Tooltip>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        {canAdministerTotems && t?.totem_id && (
+                        {canAdministerTotems && totemId && (
                           <Button
                             size="small"
                             variant="outlined"
                             startIcon={<Refresh />}
                             onClick={async () => {
                               try {
-                                await totemApi.heartbeat(t.totem_id, 'online', { note: 'manual_refresh_from_ui' });
+                                await totemApi.heartbeat(totemId, 'online', { note: 'manual_refresh_from_ui' });
                                 setSuccess('Heartbeat forçado com sucesso');
                                 await loadAll();
                               } catch (err: any) {
@@ -420,6 +427,25 @@ const Totems: React.FC = () => {
                             Forçar heartbeat
                           </Button>
                         )}
+                      {canAdministerTotems && totemId && (t.status === 'offline' || t.status === 'error') && (
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="primary"
+                          onClick={async () => {
+                            try {
+                              await totemApi.forceOnline(totemId, 30);
+                              setSuccess('Totem forçado online por 30 minutos');
+                              await loadAll();
+                            } catch (err: any) {
+                              console.error('Erro ao forçar online:', err);
+                              setError('Erro ao forçar online: ' + (err?.response?.data?.error || err?.message || 'Erro desconhecido'));
+                            }
+                          }}
+                        >
+                          Forçar online (30m)
+                        </Button>
+                      )}
                       </Box>
                     </Box>
                   </CardContent>
@@ -620,8 +646,8 @@ const Totems: React.FC = () => {
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Totem pré-cadastrado pelo publisher que vinculou hardware. Aprovar para ativar e permitir recebimento de playlists.
               </Typography>
-              <Typography variant="body1" gutterBottom sx={{ mt: 2 }}>
-                <strong>Nome:</strong> {selectedTotem.name || selectedTotem.identifier || `Totem ${(selectedTotem as any).totem_id ?? (selectedTotem as any).id}`}
+                <Typography variant="body1" gutterBottom sx={{ mt: 2 }}>
+                <strong>Nome:</strong> {selectedTotem.name || selectedTotem.identifier || `Totem ${(selectedTotem as any).totem_id}`}
               </Typography>
               {selectedTotem.uin && (
                 <Typography variant="body2" color="text.secondary" gutterBottom>

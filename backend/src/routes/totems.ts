@@ -418,6 +418,33 @@ router.put('/:id/activate',
 );
 
 /**
+ * @route PUT /api/totems/:id/force-online
+ * @desc Forçar totem a ficar online por X minutos (default 30)
+ * @access Private (Admin)
+ */
+router.put('/:id/force-online',
+  authorizeRole(['admin']),
+  param('id').isInt({ min: 1 }),
+  body('minutes').optional().isInt({ min: 1, max: 1440 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id);
+      const minutes = req.body.minutes ? parseInt(req.body.minutes, 10) : 30;
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) return res.status(401).json({ error: 'Usuário não autenticado' });
+
+      const totemService = getTotemService();
+      await totemService.forceOnlineTotem(totemId, minutes, userId);
+      return res.json({ success: true, message: `Totem forçado online por ${minutes} minutos` });
+    } catch (error: any) {
+      await logError('Erro ao forçar totem online', error, { totemId: req.params.id });
+      return res.status(500).json({ success: false, error: error.message || 'Erro ao forçar totem online' });
+    }
+  }
+);
+
+/**
  * @route POST /api/totems/:id/heartbeat
  * @desc Registrar heartbeat do totem
  * @access Private (Totem)

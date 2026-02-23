@@ -57,6 +57,20 @@ if command -v systemctl &> /dev/null; then
         log "Parando smartsignage-frontend..."
         sudo systemctl stop smartsignage-frontend 2>/dev/null || true
     fi
+    
+    # Nginx (proxy) - parar também quando estiver ativo
+    if sudo systemctl is-active --quiet nginx 2>/dev/null; then
+        log "Parando nginx (proxy)..."
+        sudo systemctl stop nginx 2>/dev/null || warn "Falha ao parar nginx via systemctl (continuando)"
+    fi
+    # Se houver container docker nginx órfão, parar/remover também
+    if command -v docker &> /dev/null; then
+        if docker ps -a --filter "name=smartsignage-nginx" --format "{{.Names}}" | grep -q "smartsignage-nginx"; then
+            log "Parando container Docker smartsignage-nginx..."
+            docker stop smartsignage-nginx 2>/dev/null || true
+            docker rm -f smartsignage-nginx 2>/dev/null || true
+        fi
+    fi
 fi
 
 # 3. Parar processos por porta (Backend - porta 3000)

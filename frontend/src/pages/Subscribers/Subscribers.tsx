@@ -2097,6 +2097,7 @@ const Subscribers: React.FC = () => {
               mode="create"
               data={newSubscriber}
               onChange={(data) => setNewSubscriber(data as CreateSubscriberRequest)}
+              activeParentTab={createTab}
             />
           )}
 

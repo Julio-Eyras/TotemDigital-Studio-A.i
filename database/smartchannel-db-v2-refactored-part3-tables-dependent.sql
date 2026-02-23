@@ -62,6 +62,9 @@ CREATE TABLE IF NOT EXISTS totems (
     last_heartbeat TIMESTAMP,
     heartbeat_interval INTEGER DEFAULT 60, -- segundos
     
+    -- Forçar estado online por janela de tempo (útil para debug/admin)
+    forced_online_until TIMESTAMP,
+
     network_info JSONB, -- IP, MAC, DNS, etc.
     capabilities JSONB, -- Recursos do totem
     
@@ -72,7 +75,6 @@ CREATE TABLE IF NOT EXISTS totems (
     CONSTRAINT chk_totem_status 
         CHECK (status IN ('offline', 'online', 'error', 'maintenance', 'syncing'))
 );
-
 COMMENT ON TABLE totems IS 'Totens - micro-servidores edge que controlam Smart TVs';
 COMMENT ON COLUMN totems.local_id IS 'Local onde totem está instalado (FK → locals → publishers)';
 COMMENT ON COLUMN totems.identifier IS 'Identificador único do totem';

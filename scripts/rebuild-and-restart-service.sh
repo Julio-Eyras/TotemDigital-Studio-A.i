@@ -61,6 +61,14 @@ if [[ "$NO_RESTART" == "true" ]]; then
   warn "Opção --no-restart ativada: os serviços NÃO serão iniciados ao final."
 fi
 
+# Parar o Nginx (proxy) antes de parar/recompilar serviços para evitar solicitações para backend parado
+if [[ "$NO_NGINX" != "true" ]]; then
+  if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet nginx 2>/dev/null; then
+    info "Parando Nginx (proxy) antes do rebuild"
+    sudo systemctl stop nginx || warn "Falha ao parar nginx (continuando)"
+  fi
+fi
+
 # 1) Parar serviço principal se existir
 if command -v systemctl >/dev/null 2>&1; then
   if systemctl list-unit-files | rg -q --fixed-strings "smart-signage.service" >/dev/null 2>&1; then
@@ -121,9 +129,9 @@ fi
 
 # 5) Reiniciar nginx (opcional), salvo se --no-nginx
 if [[ "$NO_NGINX" != "true" ]]; then
-  if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet nginx 2>/dev/null; then
-    info "Recarregando Nginx"
-    sudo systemctl reload nginx || sudo systemctl restart nginx || warn "Não foi possível reiniciar nginx"
+  if command -v systemctl >/dev/null 2>&1; then
+    info "Reiniciando Nginx (proxy)"
+    sudo systemctl restart nginx || warn "Não foi possível reiniciar nginx"
   fi
 else
   info "--no-nginx fornecido: pulando recarga/restart do Nginx"

@@ -281,9 +281,20 @@ export class ContractService {
         }
       }
 
-      // Se subscriber_id não fornecido, created_before_subscriber deve ser true
-      if (!subscriber_id && !created_before_subscriber) {
-        throw new Error('Se subscriber_id não for fornecido, created_before_subscriber deve ser true');
+      // Deprecarem: não exigir mais created_before_subscriber.
+      // Se subscriber_id não for fornecido, criamos o contrato sem subscriber vinculado.
+      // Logar aviso se campo legacy for utilizado.
+      let createdBefore = !!created_before_subscriber;
+      if (!subscriber_id) {
+        if (created_before_subscriber) {
+          // Aviso informativo — ainda aceitamos o valor por compatibilidade
+          console.info('Criando contrato sem subscriber_id (pré-contrato) — campo created_before_subscriber presente; será mantido por compatibilidade.');
+        } else {
+          // Sem subscriber_id e sem created_before_subscriber: criar contrato solto (pré-contrato implícito)
+          console.info('Criando contrato sem subscriber_id — será persistido sem vínculo (pré-contrato implícito).');
+        }
+        // manter createdBefore como booleano
+        createdBefore = !!created_before_subscriber;
       }
 
       // Validar plan existe (se fornecido)
@@ -337,7 +348,7 @@ export class ContractService {
         signed_by_subscriber_at || null,
         signed_by_tenant_at || null,
         metadata ? JSON.stringify(metadata) : null,
-        created_before_subscriber,
+        createdBefore,
       ]);
 
       if (!result.rows || result.rows.length === 0) {

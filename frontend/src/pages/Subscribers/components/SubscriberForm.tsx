@@ -29,6 +29,8 @@ export interface SubscriberFormProps {
   data: CreateSubscriberRequest | UpdateSubscriberRequest;
   onChange: (data: CreateSubscriberRequest | UpdateSubscriberRequest) => void;
   errors?: { [key: string]: string };
+  // parent active tab index from modal (so the form can reload contracts when parent switches tabs)
+  activeParentTab?: number;
 }
 
 // Funções de validação
@@ -58,11 +60,21 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
     }
   }, [mode]);
 
+  // When parent modal switches tabs, reload contracts if parent switched to Contracts tab (index 1)
+  useEffect(() => {
+    if (mode === 'create' && typeof (props as any).activeParentTab !== 'undefined') {
+      if ((props as any).activeParentTab === 1) {
+        loadAvailableContracts();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(props as any).activeParentTab]);
+
   const loadAvailableContracts = async () => {
     try {
       setLoadingContracts(true);
+      // Solicitar contratos em rascunho (draft). NÃO combinar activeOnly=true com status='draft'
       const response = await contractApi.getAll({
-        activeOnly: true,
         status: 'draft',
         limit: 1000,
       });
@@ -136,19 +148,14 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
             </Select>
             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75 }}>
               {getFieldValue('contract_id')
-                ? `Contrato selecionado: ${
-                    availableContracts.find(
-                      (c) => c.contract_id === getFieldValue('contract_id')
-                    )?.title || 'N/A'
-                  }`
-                : 'Você pode criar o anunciante sem contrato e criar/vincular contratos depois.'}
+                ? `Contrato selecionado: ${availableContracts.find((c) => c.contract_id === getFieldValue('contract_id'))?.title || 'N/A'}`
+                : 'Nenhum contrato selecionado. Você pode criar contratos na aba "Contratos" abaixo.'}
             </Typography>
           </FormControl>
 
           {availableContracts.length === 0 && !loadingContracts && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              Nenhum pré-contrato disponível no momento (opcional). Você pode criar o anunciante
-              normalmente e criar contratos depois.
+              Nenhum contrato disponível no momento. Você pode criar contratos na aba "Contratos" abaixo.
             </Alert>
           )}
         </>
