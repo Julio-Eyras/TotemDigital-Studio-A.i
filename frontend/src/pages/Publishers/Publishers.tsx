@@ -181,6 +181,24 @@ const Publishers: React.FC = () => {
     currency: 'BRL',
     status: 'draft',
   });
+
+  // Próximo número = último sequencial existente (após o ponto) + 1. Ex: PUB-3.000004 -> próximo 000005
+  const generateInlinePublisherContractNumber = (publisherId: number): string => {
+    const list = [
+      ...editPublisherContracts.filter((c) => c.publisher_id === publisherId),
+      ...tempPublisherContracts,
+    ];
+    const parseSeq = (n: string) => {
+      if (!n || typeof n !== 'string') return 0;
+      const parts = n.trim().split('.');
+      const last = parts[parts.length - 1];
+      const num = parseInt(last, 10);
+      return Number.isNaN(num) ? 0 : num;
+    };
+    const maxSeq = list.length === 0 ? 0 : Math.max(0, ...list.map((c) => parseSeq(c.contract_number)));
+    const seq = String(maxSeq + 1).padStart(6, '0');
+    return `PUB-${publisherId}.${seq}`;
+  };
   const [editingEditLocalIndex, setEditingEditLocalIndex] = useState<number | null>(null);
   const [editingEditTotemIndex, setEditingEditTotemIndex] = useState<number | null>(null);
   const [editingEditSmartTvIndex, setEditingEditSmartTvIndex] = useState<number | null>(null);
@@ -267,7 +285,14 @@ const Publishers: React.FC = () => {
     }
   }, [editDialogOpen, selectedPublisher?.publisher_id]);
 
-
+  // Pré-preencher número do contrato na aba "Contratos do Publicador" quando o publicador está selecionado
+  useEffect(() => {
+    if (!editDialogOpen || !selectedPublisher) return;
+    setPublisherContractForm((prev) => {
+      if (prev.contract_number != null && prev.contract_number !== '') return prev;
+      return { ...prev, contract_number: generateInlinePublisherContractNumber(selectedPublisher.publisher_id) };
+    });
+  }, [editDialogOpen, selectedPublisher?.publisher_id, editPublisherContracts.length, tempPublisherContracts.length]);
 
   const loadPublishers = async () => {
     try {
@@ -396,11 +421,16 @@ const Publishers: React.FC = () => {
         await publisherContractApi.create({
           ...publisherContractForm,
           publisher_id: selectedPublisher.publisher_id,
+          contract_number:
+            publisherContractForm.contract_number ||
+            generateInlinePublisherContractNumber(selectedPublisher.publisher_id),
         } as CreatePublisherContractRequest);
         await loadPublisherContracts(selectedPublisher.publisher_id);
       }
       setPublisherContractForm({
-        contract_number: '',
+        contract_number: selectedPublisher
+          ? generateInlinePublisherContractNumber(selectedPublisher.publisher_id)
+          : '',
         contract_type: 'revenue_share',
         title: '',
         description: '',
@@ -410,8 +440,15 @@ const Publishers: React.FC = () => {
         status: 'draft',
       });
     } catch (error: any) {
-      console.error('Erro ao salvar publisher contract:', error);
-      setError(error?.response?.data?.error || 'Erro ao salvar contrato');
+      console.error('Erro ao criar contrato de publisher:', error);
+      const msg = error?.response?.data?.error || 'Erro ao salvar contrato';
+      setError(msg);
+      if (error?.response?.status === 409 && selectedPublisher) {
+        await loadPublisherContracts(selectedPublisher.publisher_id);
+        const newNumber = generateInlinePublisherContractNumber(selectedPublisher.publisher_id);
+        setPublisherContractForm((prev) => ({ ...prev, contract_number: newNumber }));
+        setError(`Número de contrato já existe. Foi sugerido outro: ${newNumber}. Corrija se necessário e salve novamente.`);
+      }
     }
   };
 
@@ -1041,6 +1078,7 @@ const Publishers: React.FC = () => {
       // Subscribers não são criados aqui - são gerenciados separadamente
 
       // 5. Criar os contratos de publisher (se houver)
+      const contractErrors: string[] = [];
       for (const contract of tempPublisherContracts) {
         try {
           await publisherContractApi.create({
@@ -1049,8 +1087,15 @@ const Publishers: React.FC = () => {
           } as CreatePublisherContractRequest);
         } catch (contractError: any) {
           console.error('Erro ao criar contrato de publisher:', contractError);
-          // Continuar com os outros contratos mesmo se um falhar
+          const msg = contractError?.response?.status === 409
+            ? (contractError?.response?.data?.error || 'Número de contrato já existe')
+            : (contractError?.response?.data?.error || contractError?.message || 'Erro ao criar contrato');
+          contractErrors.push(`${contract.contract_number || 'Contrato'}: ${msg}`);
         }
+      }
+
+      if (contractErrors.length > 0) {
+        setError(`Publicador criado. Alguns contratos não foram criados: ${contractErrors.join('; ')}. Edite o publicador para corrigir os números e adicionar os contratos.`);
       }
 
       // Recarregar lista de publishers
@@ -2102,10 +2147,23 @@ const Publishers: React.FC = () => {
                           setTempPublisherContracts(updated);
                           setEditingPublisherContractIndexCreate(null);
                         } else {
-                          setTempPublisherContracts([...tempPublisherContracts, { ...publisherContractForm as CreatePublisherContractRequest, tempId: `temp-${Date.now()}` }]);
+                          const autoNumber = selectedPublisher
+                            ? generateInlinePublisherContractNumber(selectedPublisher.publisher_id)
+                            : publisherContractForm.contract_number;
+                          setTempPublisherContracts([
+                            ...tempPublisherContracts,
+                            {
+                              ...(publisherContractForm as CreatePublisherContractRequest),
+                              contract_number: publisherContractForm.contract_number || autoNumber || '',
+                              tempId: `temp-${Date.now()}`,
+                            },
+                          ]);
                         }
                         setPublisherContractForm({
-                          contract_number: '',
+                          contract_number:
+                            selectedPublisher && selectedPublisher.publisher_id
+                              ? generateInlinePublisherContractNumber(selectedPublisher.publisher_id)
+                              : '',
                           contract_type: 'revenue_share',
                           title: '',
                           description: '',

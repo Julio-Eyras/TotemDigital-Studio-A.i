@@ -70,6 +70,8 @@ const TotemLogsViewer: React.FC<TotemLogsViewerProps> = ({
   });
   const wsRef = useRef<WebSocket | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const wsReconnectAttempts = useRef(0);
+  const wsLoggedFailure = useRef(false);
 
   useEffect(() => {
     loadLogs();
@@ -122,7 +124,8 @@ const TotemLogsViewer: React.FC<TotemLogsViewerProps> = ({
 
       ws.onopen = () => {
         setWsConnected(true);
-        // Subscribe para logs do totem
+        wsReconnectAttempts.current = 0;
+        wsLoggedFailure.current = false;
         ws.send(JSON.stringify({
           type: 'subscribe_logs',
           data: { totemId }
@@ -136,10 +139,8 @@ const TotemLogsViewer: React.FC<TotemLogsViewerProps> = ({
           if (message.type === 'connected') {
             // Conexão estabelecida
           } else if (message.type === 'log') {
-            // Novo log recebido
             setLogs(prev => [message.data, ...prev].slice(0, filters.limit));
           } else if (message.type === 'log_batch') {
-            // Batch de logs iniciais
             setLogs(message.data || []);
           } else if (message.type === 'error') {
             showError('Erro no WebSocket', message.error);
@@ -149,19 +150,23 @@ const TotemLogsViewer: React.FC<TotemLogsViewerProps> = ({
         }
       };
 
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+      ws.onerror = () => {
         setWsConnected(false);
+        if (!wsLoggedFailure.current) {
+          wsLoggedFailure.current = true;
+          console.warn('WebSocket: falha na conexão com /ws (logs em tempo real indisponíveis). Verifique se o proxy está configurado para /ws.');
+        }
       };
 
       ws.onclose = () => {
         setWsConnected(false);
-        // Tentar reconectar após 5 segundos
+        const delay = Math.min(5000 + wsReconnectAttempts.current * 2000, 30000);
+        wsReconnectAttempts.current += 1;
         setTimeout(() => {
           if (wsRef.current?.readyState === WebSocket.CLOSED) {
             connectWebSocket();
           }
-        }, 5000);
+        }, delay);
       };
     } catch (error: any) {
       showError('Erro ao conectar WebSocket', error.message);

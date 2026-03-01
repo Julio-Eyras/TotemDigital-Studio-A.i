@@ -982,33 +982,39 @@ export class CampaignService {
         throw new Error('Campanha não encontrada');
       }
 
-      // Construir query de atualização
+      // Construir query de atualização (placeholders PostgreSQL $1, $2, ...)
       const updates: string[] = [];
       const params: any[] = [];
+      let paramIndex = 1;
 
       if (data.title !== undefined) {
-        updates.push('title = ?');
+        updates.push(`title = $${paramIndex}`);
         params.push(data.title);
+        paramIndex++;
       }
 
       if (data.description !== undefined) {
-        updates.push('description = ?');
+        updates.push(`description = $${paramIndex}`);
         params.push(data.description);
+        paramIndex++;
       }
 
       if (data.categorySegment !== undefined) {
-        updates.push('category_segment = ?');
+        updates.push(`category_segment = $${paramIndex}`);
         params.push(data.categorySegment || null);
+        paramIndex++;
       }
 
       if (data.campaignType !== undefined) {
-        updates.push('campaign_type = ?');
+        updates.push(`campaign_type = $${paramIndex}`);
         params.push(data.campaignType);
+        paramIndex++;
       }
 
       if (data.priority !== undefined) {
-        updates.push('priority = ?');
+        updates.push(`priority = $${paramIndex}`);
         params.push(data.priority);
+        paramIndex++;
       }
 
       if (data.contractId !== undefined) {
@@ -1045,53 +1051,63 @@ export class CampaignService {
             throw new Error('Contrato está expirado (end_date no passado)');
           }
         }
-        updates.push('contract_id = ?');
+        updates.push(`contract_id = $${paramIndex}`);
         params.push(data.contractId);
+        paramIndex++;
       }
 
       if (data.commercialTier !== undefined) {
-        updates.push('commercial_tier = ?');
+        updates.push(`commercial_tier = $${paramIndex}`);
         params.push(data.commercialTier);
+        paramIndex++;
       }
 
       if (data.timezone !== undefined) {
-        updates.push('timezone = ?');
+        updates.push(`timezone = $${paramIndex}`);
         params.push(data.timezone);
+        paramIndex++;
       }
 
       if (data.startDate !== undefined) {
-        updates.push('start_date = ?');
+        updates.push(`start_date = $${paramIndex}`);
         params.push(data.startDate);
+        paramIndex++;
       }
 
       if (data.endDate !== undefined) {
-        updates.push('end_date = ?');
+        updates.push(`end_date = $${paramIndex}`);
         params.push(data.endDate);
+        paramIndex++;
       }
 
       if (data.startTime !== undefined) {
-        updates.push('start_time = ?');
+        updates.push(`start_time = $${paramIndex}`);
         params.push(data.startTime);
+        paramIndex++;
       }
 
       if (data.endTime !== undefined) {
-        updates.push('end_time = ?');
+        updates.push(`end_time = $${paramIndex}`);
         params.push(data.endTime);
+        paramIndex++;
       }
 
       if (data.daysOfWeek !== undefined) {
-        updates.push('days_of_week = ?');
+        updates.push(`days_of_week = $${paramIndex}`);
         params.push(JSON.stringify(data.daysOfWeek));
+        paramIndex++;
       }
 
       if (data.status !== undefined) {
-        updates.push('status = ?');
+        updates.push(`status = $${paramIndex}`);
         params.push(data.status);
+        paramIndex++;
       }
 
       if (data.isActive !== undefined) {
-        updates.push('is_active = ?');
+        updates.push(`is_active = $${paramIndex}`);
         params.push(data.isActive);
+        paramIndex++;
       }
 
       if (updates.length === 0) {
@@ -1100,18 +1116,12 @@ export class CampaignService {
 
       updates.push('updated_at = CURRENT_TIMESTAMP');
       params.push(campaignId);
+      const wherePlaceholder = `$${params.length}`;
 
-      // Atualizar campanha
-      params.push(campaignId);
-      // Adicionar campaignId como último parâmetro
-      params.push(campaignId);
-      const campaignIdPlaceholder = `$${params.length}`;
-
-      await this.db.executeRaw(`
-        UPDATE campaigns 
-        SET ${updates.join(', ')}
-        WHERE campaign_id = ${campaignIdPlaceholder}
-      `, params);
+      await this.db.executeRaw(
+        `UPDATE campaigns SET ${updates.join(', ')} WHERE campaign_id = ${wherePlaceholder}`,
+        params
+      );
 
       // Atualizar publishers se fornecidos
       if (data.publisherIds !== undefined) {
@@ -1124,6 +1134,22 @@ export class CampaignService {
           // Política A: manter histórico mesmo que alguns publishers não sejam acessíveis agora.
           // A execução (dispatcher/engine) deve filtrar por acesso vigente.
           await this.associatePublishers(campaignId, data.publisherIds, updatedBy, { allowInvalid: true });
+        }
+      }
+
+      // Atualizar playlists associadas à campanha (substitui as atuais pelas enviadas)
+      if (data.playlistIds !== undefined) {
+        const subscriberId = existingCampaign.subscriberId ?? (existingCampaign as any).subscriber_id;
+        if (subscriberId != null) {
+          await this.associatePlaylists(campaignId, Array.isArray(data.playlistIds) ? data.playlistIds : [], subscriberId, updatedBy);
+        }
+      }
+
+      // Atualizar mídias individuais associadas à campanha (substitui as atuais pelas enviadas)
+      if (data.mediaIds !== undefined) {
+        const subscriberId = existingCampaign.subscriberId ?? (existingCampaign as any).subscriber_id;
+        if (subscriberId != null) {
+          await this.associateMedias(campaignId, Array.isArray(data.mediaIds) ? data.mediaIds : [], subscriberId, updatedBy);
         }
       }
 

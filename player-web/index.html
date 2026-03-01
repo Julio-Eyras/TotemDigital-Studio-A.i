@@ -483,6 +483,12 @@
                         timezone
                     );
                     log('info', 'DispatchPlan de debug recebido.', response);
+                    if (response && response.plan && response.plan.metadata && response.plan.metadata.noCandidatesReason) {
+                        log('warn', '⚠️ Playlist vazia: ' + response.plan.metadata.noCandidatesReason);
+                        if (response.plan.metadata.diagnosticsUrl) {
+                            log('info', 'Diagnóstico: GET ' + API_BASE + response.plan.metadata.diagnosticsUrl);
+                        }
+                    }
                 } catch (e) {
                     log('error', 'Erro ao solicitar DispatchPlan de debug: ' + e.message, e);
                 }

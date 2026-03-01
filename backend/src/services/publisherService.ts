@@ -239,7 +239,6 @@ export class PublisherService {
             contract_id, 
             publisher_id, 
             status, 
-            created_before_publisher,
             start_date,
             end_date
           FROM publisher_contracts 
@@ -255,8 +254,8 @@ export class PublisherService {
           throw new Error('Contrato deve estar em status "draft" ou "active" para criar publisher');
         }
 
-        // Se contrato já tem publisher_id e não foi criado antes do publisher, erro
-        if (contract.publisher_id && !contract.created_before_publisher) {
+        // Se contrato já tem publisher_id, erro (pré-contratos não são mais suportados)
+        if (contract.publisher_id) {
           throw new Error('Contrato já está vinculado a outro publisher');
         }
       }

@@ -567,13 +567,13 @@ export class PlaylistService {
         throw new Error('Acesso negado: Você só pode adicionar mídias às suas próprias playlists');
       }
 
-      // Verificar se mídia existe e validar ownership
+      // Verificar se mídia existe e validar ownership (permite draft/pending_approval para mesmo subscriber)
       const media = await this.db.findFirst(`
         SELECT media_id, subscriber_id, status 
         FROM medias 
         WHERE media_id = $1
           AND COALESCE(is_active, true) = true
-          AND status IN ('approved', 'published', 'active')
+          AND status IN ('approved', 'published', 'active', 'draft', 'pending_approval')
       `, [mediaId]);
 
       if (!media) {
@@ -593,16 +593,16 @@ export class PlaylistService {
         orderIndex = (maxOrder?.max_order || 0) + 1;
       }
 
-      // Duração padrão se não especificada
-      if (!duration) {
-        duration = 10000; // 10 segundos
-      }
+      // Duração: API envia em ms; a coluna display_seconds está em segundos
+      const durationSeconds = duration
+        ? Math.max(1, Math.min(300, Math.floor(Number(duration) / 1000)))
+        : 10;
 
       // Adicionar mídia à playlist
       await this.db.executeRaw(`
         INSERT INTO playlist_items (playlist_id, media_id, order_index, display_seconds, created_at)
         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-      `, [playlistId, mediaId, orderIndex, duration]);
+      `, [playlistId, mediaId, orderIndex, durationSeconds]);
 
       // Invalidar cache
       await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});

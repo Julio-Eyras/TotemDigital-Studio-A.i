@@ -1,6 +1,7 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
+import { StorageService } from './storageService';
 
 export interface Subscriber {
   subscriber_id: number;
@@ -267,7 +268,6 @@ export class SubscriberService {
             contract_id, 
             subscriber_id, 
             status, 
-            created_before_subscriber,
             start_date,
             end_date
           FROM subscriber_contracts 
@@ -283,8 +283,8 @@ export class SubscriberService {
           throw new Error('Contrato deve estar em status "draft" ou "active" para vincular o subscriber');
         }
 
-        // Se contrato já tem subscriber_id e não foi criado antes do subscriber, erro
-        if (contract.subscriber_id && !contract.created_before_subscriber) {
+        // Se contrato já tem subscriber_id, erro (pré-contratos não são mais suportados)
+        if (contract.subscriber_id) {
           throw new Error('Contrato já está vinculado a outro subscriber');
         }
       }
@@ -327,10 +327,18 @@ export class SubscriberService {
         await this.db.executeRaw(`
           UPDATE subscriber_contracts 
           SET subscriber_id = $1,
-              created_before_subscriber = false,
               updated_at = CURRENT_TIMESTAMP
           WHERE contract_id = $2
         `, [subscriberId, contract_id]);
+      }
+
+      // Criar diretório de uploads do assinante (subscriber-{id}/medias) para permitir upload de mídias
+      try {
+        const storage = new StorageService();
+        await storage.ensureSubscriberUploadDirs(subscriberId);
+      } catch (dirError: any) {
+        await logError('Erro ao criar diretório de uploads do assinante (assinante foi criado)', dirError, { subscriberId });
+        // Não falhar a criação do assinante; o diretório pode ser criado depois ou manualmente
       }
 
       const newSubscriber = await this.getSubscriberById(subscriberId);

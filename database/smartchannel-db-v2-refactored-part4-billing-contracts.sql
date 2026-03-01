@@ -9,6 +9,18 @@ ALTER TABLE IF EXISTS publisher_contracts DROP COLUMN IF EXISTS created_before_p
 DROP INDEX IF EXISTS idx_subscriber_contracts_created_before;
 DROP INDEX IF EXISTS idx_publisher_contracts_created_before;
 
+-- Garantir unicidade por subscriber_id + contract_number (e não global em subscriber_contracts)
+ALTER TABLE IF EXISTS subscriber_contracts
+    DROP CONSTRAINT IF EXISTS subscriber_contracts_contract_number_key;
+DROP INDEX IF EXISTS subscriber_contracts_contract_number_key;
+
+-- Garantir unicidade por publisher_id + contract_number (e não global)
+-- (só remover índices/constraints antigos aqui; o índice novo é criado após CREATE TABLE)
+ALTER TABLE IF EXISTS publisher_contracts
+    DROP CONSTRAINT IF EXISTS publisher_contracts_contract_number_key;
+
+DROP INDEX IF EXISTS publisher_contracts_contract_number_key;
+
 -- =============================================
 -- SmartSignage Pro - Schema Refatorado v2.0
 -- PARTE 4: Billing e Contratos
@@ -156,7 +168,7 @@ CREATE TABLE IF NOT EXISTS subscriber_contracts (
     subscriber_id INTEGER, -- FK para subscribers (NULL temporariamente até subscriber ser criado)
     plan_id INTEGER, -- FK para plans - Plano associado ao contrato
     
-    contract_number TEXT UNIQUE NOT NULL,
+    contract_number TEXT NOT NULL,
     contract_type TEXT NOT NULL, 
         -- 'advertising' (contrato de publicidade)
         -- 'subscription' (contrato de assinatura)
@@ -205,6 +217,10 @@ COMMENT ON TABLE subscriber_contracts IS 'Contratos com subscribers (anunciantes
 COMMENT ON COLUMN subscriber_contracts.plan_id IS 'FK para plans - Plano associado ao contrato do subscriber';
 COMMENT ON COLUMN subscriber_contracts.document_path IS 'Caminho do arquivo do contrato (PDF/DOC/DOCX)';
 
+-- Unicidade por (subscriber_id, contract_number) — criado após a tabela existir
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriber_contracts_subscriber_contract_number
+    ON subscriber_contracts (subscriber_id, contract_number);
+
 -- =============================================
 -- PUBLISHER_CONTRACTS (Contratos de Publishers)
 -- =============================================
@@ -213,7 +229,7 @@ CREATE TABLE IF NOT EXISTS publisher_contracts (
     contract_id SERIAL PRIMARY KEY,
     publisher_id INTEGER NOT NULL, -- FK para publishers (obrigatório)
     
-    contract_number TEXT UNIQUE NOT NULL,
+    contract_number TEXT NOT NULL,
     contract_type TEXT NOT NULL,
         -- 'revenue_share' (contrato de revenue share)
         -- 'subscription' (contrato de assinatura)
@@ -274,4 +290,8 @@ CREATE TABLE IF NOT EXISTS publisher_contracts (
 COMMENT ON TABLE publisher_contracts IS 'Contratos com publishers (revenue share, subscription ou ambos)';
 COMMENT ON COLUMN publisher_contracts.revenue_share_percentage IS '% fixo de revenue share (NULL se variável)';
 COMMENT ON COLUMN publisher_contracts.revenue_share_rules IS 'Regras variáveis de revenue share (JSON)';
+
+-- Unicidade por (publisher_id, contract_number) — criado após a tabela existir
+CREATE UNIQUE INDEX IF NOT EXISTS idx_publisher_contracts_publisher_contract_number
+    ON publisher_contracts (publisher_id, contract_number);
 

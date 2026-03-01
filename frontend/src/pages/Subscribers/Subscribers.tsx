@@ -279,6 +279,25 @@ const Subscribers: React.FC = () => {
     () => (activeContracts || []).filter((c: any) => c.status === 'active'),
     [activeContracts]
   );
+
+  // Próximo número = último sequencial existente (após o ponto) + 1. Ex: SUB-11.000003 -> próximo 000004
+  const generateInlineSubscriberContractNumber = (subscriberId: number): string => {
+    const list = [...activeContracts, ...tempSubscriberContracts];
+    const parseSeq = (n: string) => {
+      if (!n || typeof n !== 'string') return 0;
+      const parts = n.trim().split('.');
+      const last = parts[parts.length - 1];
+      const num = parseInt(last, 10);
+      return Number.isNaN(num) ? 0 : num;
+    };
+    const maxSeq = list.length === 0 ? 0 : Math.max(0, ...list.map((c: any) => parseSeq(c.contract_number || '')));
+    const seq = String(maxSeq + 1).padStart(6, '0');
+    return `SUB-${subscriberId}.${seq}`;
+  };
+
+  // Número padrão no cadastro (novo anunciante, ainda sem ID): SUB-NOVO.<NNNNNN>
+  const defaultNewSubscriberContractNumber = `SUB-NOVO.${String(tempSubscriberContracts.length + 1).padStart(6, '0')}`;
+
   const [editLocalForm, setEditLocalForm] = useState<CreateLocalRequest>({
     publisher_id: 0,
     name: '',
@@ -524,6 +543,25 @@ const Subscribers: React.FC = () => {
       loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     }
   }, [editDialogOpen, selectedSubscriber?.subscriber_id]);
+
+  // Pré-preencher número do contrato na aba "Contratos do Anunciante" (edição)
+  useEffect(() => {
+    if (!editDialogOpen || !selectedSubscriber || editTab !== 1) return;
+    setSubscriberContractFormEdit((prev) => {
+      if (prev.contract_number != null && prev.contract_number !== '') return prev;
+      return { ...prev, contract_number: generateInlineSubscriberContractNumber(selectedSubscriber.subscriber_id) };
+    });
+  }, [editDialogOpen, editTab, selectedSubscriber?.subscriber_id, activeContracts.length]);
+
+  // Pré-preencher número do contrato no cadastro (novo assinante, aba Contratos): SUB-NOVO.<NNNNNN>
+  useEffect(() => {
+    if (!createDialogOpen || createTab !== 1) return;
+    setSubscriberContractForm((prev) => {
+      if (prev.contract_number != null && prev.contract_number !== '') return prev;
+      const seq = String(tempSubscriberContracts.length + 1).padStart(6, '0');
+      return { ...prev, contract_number: `SUB-NOVO.${seq}` };
+    });
+  }, [createDialogOpen, createTab, tempSubscriberContracts.length]);
 
   // NOVO: Funções para gerenciar locais temporários
   const handleAddLocal = () => {
@@ -1511,11 +1549,14 @@ const Subscribers: React.FC = () => {
         return;
       }
 
-      // 2. Criar os contratos vinculados ao anunciante
-      for (const contract of tempSubscriberContracts) {
+      // 2. Criar os contratos vinculados ao anunciante (número no formato SUB-<subscriberId>.<NNNNNN>)
+      for (let i = 0; i < tempSubscriberContracts.length; i++) {
+        const contract = tempSubscriberContracts[i];
+        const contractNumber = `SUB-${subscriberId}.${String(i + 1).padStart(6, '0')}`;
         try {
           await contractApi.create({
             ...contract,
+            contract_number: contractNumber,
             start_date: formatDateForAPI(contract.start_date) || '',
             end_date: formatDateForAPI(contract.end_date || getDefaultContractEndDate()),
             subscriber_id: subscriberId,
@@ -1523,7 +1564,7 @@ const Subscribers: React.FC = () => {
           });
         } catch (contractError: any) {
           console.error('Erro ao criar contrato:', contractError);
-          setError(`Erro ao criar contrato ${contract.contract_number}: ${contractError?.response?.data?.error || contractError?.message || 'Erro desconhecido'}`);
+          setError(`Erro ao criar contrato ${contractNumber}: ${contractError?.response?.data?.error || contractError?.message || 'Erro desconhecido'}`);
           return;
         }
       }
@@ -2078,7 +2119,19 @@ const Subscribers: React.FC = () => {
       >
         <DialogTitle>Adicionar Anunciante</DialogTitle>
         <DialogContent>
-          <Tabs value={createTab} onChange={(_, newValue) => setCreateTab(newValue)} sx={{ mb: 3 }}>
+          <Tabs
+            value={createTab}
+            onChange={(_, newValue) => {
+              setCreateTab(newValue);
+              if (newValue === 1) {
+                setSubscriberContractForm((prev) => ({
+                  ...prev,
+                  contract_number: prev.contract_number || `SUB-NOVO.${String(tempSubscriberContracts.length + 1).padStart(6, '0')}`,
+                }));
+              }
+            }}
+            sx={{ mb: 3 }}
+          >
             <Tab label="Informações" />
             <Tab label="Contratos" icon={tempSubscriberContracts && tempSubscriberContracts.length > 0 ? <Chip label={tempSubscriberContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
             <Tab label="Locais" icon={tempLocals.length > 0 ? <Chip label={tempLocals.length} size="small" color="primary" /> : undefined} iconPosition="end" />
@@ -2130,7 +2183,7 @@ const Subscribers: React.FC = () => {
                     <TextField
                       fullWidth
                       label="Número do Contrato *"
-                      value={subscriberContractForm.contract_number || ''}
+                      value={subscriberContractForm.contract_number || defaultNewSubscriberContractNumber}
                       onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, contract_number: e.target.value })}
                       size="small"
                       required
@@ -2224,20 +2277,21 @@ const Subscribers: React.FC = () => {
                       variant="contained"
                       startIcon={<Add />}
                       onClick={() => {
-                        if (!subscriberContractForm.contract_number || !subscriberContractForm.title) {
+                        const contractNumber = subscriberContractForm.contract_number || defaultNewSubscriberContractNumber;
+                        if (!contractNumber || !subscriberContractForm.title) {
                           setError('Número do contrato e título são obrigatórios');
                           return;
                         }
                         if (editingSubscriberContractIndexCreate !== null) {
                           const updated = [...tempSubscriberContracts];
-                          updated[editingSubscriberContractIndexCreate] = { ...subscriberContractForm, tempId: tempSubscriberContracts[editingSubscriberContractIndexCreate].tempId };
+                          updated[editingSubscriberContractIndexCreate] = { ...subscriberContractForm, contract_number: contractNumber, tempId: tempSubscriberContracts[editingSubscriberContractIndexCreate].tempId };
                           setTempSubscriberContracts(updated);
                           setEditingSubscriberContractIndexCreate(null);
                         } else {
-                          setTempSubscriberContracts([...tempSubscriberContracts, { ...subscriberContractForm, tempId: `temp-${Date.now()}` }]);
+                          setTempSubscriberContracts([...tempSubscriberContracts, { ...subscriberContractForm, contract_number: contractNumber, tempId: `temp-${Date.now()}` }]);
                         }
                         setSubscriberContractForm({
-                          contract_number: '',
+                          contract_number: `SUB-NOVO.${String(tempSubscriberContracts.length + 2).padStart(6, '0')}`,
                           contract_type: 'advertising',
                           title: '',
                           description: '',
@@ -2248,7 +2302,7 @@ const Subscribers: React.FC = () => {
                           plan_id: undefined,
                         });
                       }}
-                      disabled={!subscriberContractForm.contract_number || !subscriberContractForm.title}
+                      disabled={!(subscriberContractForm.contract_number || defaultNewSubscriberContractNumber) || !subscriberContractForm.title}
                     >
                       {editingSubscriberContractIndexCreate !== null ? 'Atualizar Contrato' : 'Adicionar Contrato'}
                     </Button>
@@ -2258,7 +2312,7 @@ const Subscribers: React.FC = () => {
                         onClick={() => {
                           setEditingSubscriberContractIndexCreate(null);
                           setSubscriberContractForm({
-                            contract_number: '',
+                            contract_number: defaultNewSubscriberContractNumber,
                             contract_type: 'advertising',
                             title: '',
                             description: '',

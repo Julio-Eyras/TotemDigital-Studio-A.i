@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
@@ -199,6 +199,37 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
     return initialPublisherId;
   }, [initialPublisherId, searchParams]);
 
+  // Extrai o sequencial (número após o último ponto) de um contract_number. Ex: PUB-3.000004 -> 4
+  const parseContractSequence = useCallback((contractNumber: string): number => {
+    if (!contractNumber || typeof contractNumber !== 'string') return 0;
+    const parts = contractNumber.trim().split('.');
+    const last = parts[parts.length - 1];
+    const num = parseInt(last, 10);
+    return Number.isNaN(num) ? 0 : num;
+  }, []);
+
+  // Gera número de contrato padrão para publisher: PUB-<publisherId>.<NNNNNN> (próximo = último sequencial + 1)
+  const generatePublisherContractNumber = useCallback(
+    (publisherId: number): string => {
+      const list = publisherContracts.filter((c) => c.publisher_id === publisherId);
+      const maxSeq = list.length === 0 ? 0 : Math.max(0, ...list.map((c) => parseContractSequence(c.contract_number)));
+      const seq = String(maxSeq + 1).padStart(6, '0');
+      return `PUB-${publisherId}.${seq}`;
+    },
+    [publisherContracts, parseContractSequence]
+  );
+
+  // Gera número de contrato padrão para subscriber: SUB-<subscriberId>.<NNNNNN> (próximo = último sequencial + 1)
+  const generateSubscriberContractNumber = useCallback(
+    (subscriberId: number): string => {
+      const list = contracts.filter((c) => c.subscriber_id === subscriberId);
+      const maxSeq = list.length === 0 ? 0 : Math.max(0, ...list.map((c) => parseContractSequence(c.contract_number)));
+      const seq = String(maxSeq + 1).padStart(6, '0');
+      return `SUB-${subscriberId}.${seq}`;
+    },
+    [contracts, parseContractSequence]
+  );
+
   // Apply initial tab/context
   useEffect(() => {
     if (effectiveType === 'publisher') setMainTab(1);
@@ -208,21 +239,31 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
   // Prefill create forms when coming from a contextual entrypoint (subscriber/publisher detail)
   useEffect(() => {
     if (effectiveSubscriberId) {
-      setContractForm((prev) => ({
-        ...prev,
-        subscriber_id: effectiveSubscriberId,
-      }));
+      setContractForm((prev) => {
+        const next = { ...prev, subscriber_id: effectiveSubscriberId };
+        if (!next.contract_number) {
+          next.contract_number = generateSubscriberContractNumber(effectiveSubscriberId);
+        }
+        return next;
+      });
     }
-  }, [effectiveSubscriberId]);
+  }, [effectiveSubscriberId, generateSubscriberContractNumber]);
 
   useEffect(() => {
     if (effectivePublisherId) {
-      setPublisherContractForm((prev) => ({
-        ...prev,
-        publisher_id: effectivePublisherId,
-      }));
+      setPublisherContractForm((prev) => {
+        const next: CreatePublisherContractRequest = {
+          ...prev,
+          publisher_id: effectivePublisherId,
+        };
+        // Só sugerir número se ainda não houver nada preenchido
+        if (!next.contract_number) {
+          next.contract_number = generatePublisherContractNumber(effectivePublisherId);
+        }
+        return next;
+      });
     }
-  }, [effectivePublisherId]);
+  }, [effectivePublisherId, generatePublisherContractNumber]);
 
   // Open create dialog from contextual links (e.g., Subscriber/Publisher details)
   useEffect(() => {
@@ -1173,7 +1214,16 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
               label={effectivePublisherId ? 'Publicador (fixo)' : 'Publicador *'}
               onChange={(e) => {
                 const nextId = e.target.value ? Number(e.target.value) : undefined;
-                setPublisherContractForm({ ...publisherContractForm, publisher_id: nextId });
+                setPublisherContractForm((prev) => {
+                  const updated: CreatePublisherContractRequest = {
+                    ...prev,
+                    publisher_id: nextId,
+                  };
+                  if (nextId && !updated.contract_number) {
+                    updated.contract_number = generatePublisherContractNumber(nextId);
+                  }
+                  return updated;
+                });
               }}
               disabled={!!effectivePublisherId}
             >

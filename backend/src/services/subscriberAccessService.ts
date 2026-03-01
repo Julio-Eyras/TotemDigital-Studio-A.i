@@ -313,7 +313,10 @@ export class SubscriberAccessService {
   }
 
   /**
-   * Obtém publishers acessíveis com informações completas
+   * Obtém publishers acessíveis com informações completas.
+   * 1. Busca em subscriber_publisher_access_active (fonte principal).
+   * 2. Se vazio, fallback: publishers via plan_publisher_access a partir dos contratos ativos do subscriber.
+   *    Isso cobre o caso em que a reconciliação ainda não foi executada.
    */
   async getAccessiblePublishersWithDetails(subscriberId: number): Promise<any[]> {
     try {
@@ -334,7 +337,34 @@ export class SubscriberAccessService {
         ORDER BY p.name
       `, [subscriberId]);
 
-      return publishers;
+      if (publishers.length > 0) {
+        return publishers;
+      }
+
+      // Fallback: publishers via plan_publisher_access a partir dos contratos ativos do subscriber
+      const viaPlan = await this.db.findMany(`
+        SELECT DISTINCT
+          ppa.publisher_id,
+          p.name as publisher_name,
+          p.email as publisher_email,
+          sc.contract_id as contract_id,
+          sc.plan_id as plan_id,
+          pl.name as plan_name,
+          'plan' as access_type,
+          sc.end_date as expires_at
+        FROM subscriber_contracts sc
+        INNER JOIN plan_publisher_access ppa ON sc.plan_id = ppa.plan_id AND ppa.is_allowed = true
+        JOIN publishers p ON ppa.publisher_id = p.publisher_id
+        LEFT JOIN plans pl ON sc.plan_id = pl.plan_id
+        WHERE sc.subscriber_id = $1
+          AND sc.status = 'active'
+          AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+          AND COALESCE(ppa.is_active, true) = true
+          AND COALESCE(p.is_active, true) = true
+        ORDER BY p.name
+      `, [subscriberId]);
+
+      return viaPlan;
     } catch (error: any) {
       await logError('Erro ao buscar publishers com detalhes', error, { subscriberId });
       return [];

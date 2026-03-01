@@ -115,7 +115,8 @@ export function normalizeCampaignData(data: any): {
     status: data.status || 'draft',
     isActive: data.isActive !== undefined ? data.isActive : (data.is_active !== undefined ? data.is_active : true),
     publisherIds: data.publisherIds || [],
-    playlistIds: data.playlistIds || [],
-    mediaIds: data.mediaIds || [],
+    // Manter undefined quando não enviados, para não sobrescrever associações no update
+    playlistIds: data.playlistIds !== undefined ? data.playlistIds : undefined,
+    mediaIds: data.mediaIds !== undefined ? data.mediaIds : undefined,
   };
 }

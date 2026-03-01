@@ -277,10 +277,12 @@ export class PublisherContractService {
         throw new Error('publisher_id é obrigatório para criar um contrato de publisher');
       }
 
-      // Validar contract_number único
+      // Validar contract_number único POR PUBLISHER
       const existingContract = await this.db.findFirst(`
-        SELECT contract_id FROM publisher_contracts WHERE contract_number = $1
-      `, [contract_number]);
+        SELECT contract_id 
+        FROM publisher_contracts 
+        WHERE publisher_id = $1 AND contract_number = $2
+      `, [publisher_id, contract_number]);
 
       if (existingContract) {
         throw new Error('Número de contrato já existe');
@@ -295,9 +297,9 @@ export class PublisherContractService {
           currency, payment_terms, document_path, document_filename,
           document_mime_type, document_size_bytes, status,
           signed_by_publisher_at, signed_by_tenant_at, metadata,
-          created_before_publisher, created_by, created_at, updated_at
+          created_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
         RETURNING contract_id
       `, [
         publisher_id || null,
@@ -322,7 +324,6 @@ export class PublisherContractService {
         signed_by_publisher_at || null,
         signed_by_tenant_at || null,
         metadata ? JSON.stringify(metadata) : null,
-        created_before_publisher,
         createdBy || null,
       ]);
 

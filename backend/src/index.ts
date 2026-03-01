@@ -111,6 +111,15 @@ const HOST = config.server.host;
 // Evitar ruído no console do navegador (favicon.ico 404)
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
+// Não deixar o Express responder a pedidos de upgrade WebSocket em /ws
+// (o servidor WebSocket trata o evento 'upgrade' no mesmo HTTP server)
+app.use((req, _res, next) => {
+  if (req.path === '/ws' && req.headers.upgrade === 'websocket') {
+    return; // não chamar next() = não enviar resposta; o upgrade fica com o WebSocketServer
+  }
+  next();
+});
+
 // =============================================
 // MIDDLEWARE GLOBAL
 // =============================================

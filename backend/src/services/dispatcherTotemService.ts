@@ -430,6 +430,55 @@ export class DispatcherTotemService {
             AND cp.is_active = true
             AND c.is_active = true
             AND c.status = 'active'
+          
+          UNION
+          
+          -- Fallback: campanhas via campaign_publishers quando o assinante tem acesso ao publisher
+          -- apenas via contrato/plano (plan_publisher_access), sem precisar de subscriber_publisher_access.
+          -- Assim o dispatcher considera a campanha mesmo se a reconciliação não tiver rodado.
+          SELECT DISTINCT
+            c.campaign_id,
+            c.subscriber_id,
+            c.contract_id,
+            c.title as campaign_title,
+            c.priority,
+            c.commercial_tier,
+            c.default_time_share_percent,
+            c.max_consecutive_slots,
+            CAST(c.start_date AS timestamp without time zone) as start_date,
+            CAST(c.end_date AS timestamp without time zone) as end_date,
+            c.start_time::text,
+            c.end_time::text,
+            c.days_of_week::text,
+            c.timezone,
+            c.status,
+            c.is_active,
+            t.totem_id,
+            NULL::timestamp without time zone as ct_start_date,
+            NULL::timestamp without time zone as ct_end_date,
+            NULL::text as ct_start_time,
+            NULL::text as ct_end_time,
+            NULL::text as ct_days_of_week,
+            NULL::integer as ct_priority,
+            'publisher' as source_type,
+            cp.publisher_id as source_id,
+            cp.time_share_percent as cp_time_share_percent,
+            cp.max_impressions_per_hour as cp_max_impressions_per_hour
+          FROM campaigns c
+          INNER JOIN campaign_publishers cp ON c.campaign_id = cp.campaign_id
+          INNER JOIN locals l ON cp.publisher_id = l.publisher_id
+          INNER JOIN totems t ON l.local_id = t.local_id
+          INNER JOIN subscriber_contracts sc ON sc.subscriber_id = c.subscriber_id
+            AND sc.status = 'active'
+            AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+          INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+            AND ppa.publisher_id = cp.publisher_id
+            AND ppa.is_allowed = true
+            AND COALESCE(ppa.is_active, true) = true
+          WHERE t.totem_id = $1
+            AND cp.is_active = true
+            AND c.is_active = true
+            AND c.status = 'active'
         )
         SELECT 
           tc.campaign_id,
@@ -641,6 +690,20 @@ export class DispatcherTotemService {
           )
         : { count: 0 };
 
+    const directWith = directWithAccess?.count ?? 0;
+    const groupWith = groupWithAccess?.count ?? 0;
+    const hasCandidates = directWith > 0 || groupWith > 0;
+    const suggestion: string[] = [];
+    if (!hasCandidates) {
+      if (publisherId === null) {
+        suggestion.push('Este totem não está vinculado a um local/publisher. Associe o totem a um local que pertença a um publisher.');
+      } else {
+        suggestion.push('Para o DispatchPlan retornar playlist, a campanha do assinante precisa estar vinculada a este totem ou ao publisher deste totem.');
+        suggestion.push('Em Assinantes → Editar Anunciante → CAMPANHAS → editar a campanha → aba PUBLICADORES: adicione o publisher onde este totem está.');
+        suggestion.push('Ou use a aba TOTENS e associe este totem diretamente à campanha.');
+      }
+    }
+
     return {
       totem: {
         totemId,
@@ -655,15 +718,17 @@ export class DispatcherTotemService {
         },
         dispatcherQuery: {
           directWithoutAccess: directWithoutAccess?.count ?? 0,
-          directWithAccess: directWithAccess?.count ?? 0,
+          directWithAccess: directWith,
           groupWithoutAccess: groupWithoutAccess?.count ?? 0,
-          groupWithAccess: groupWithAccess?.count ?? 0,
+          groupWithAccess: groupWith,
         },
       },
+      hasCandidates,
+      suggestion,
       notes: [
-        `A view subscriber_scheduled_campaigns_playlists_medias não é usada pelo dispatcher; é para auditoria/BI.`,
-        `O dispatcher filtra por c.status='active' e exige subscriber_publisher_access_active (quando aplicável).`,
-        `Se as contagens "WithoutAccess" forem > 0 e "WithAccess" forem 0, o problema está no acesso ativo subscriber↔publisher (ou publisher_id do local).`,
+        'A view subscriber_scheduled_campaigns_playlists_medias não é usada pelo dispatcher; é para auditoria/BI.',
+        'O dispatcher filtra por c.status=\'active\' e exige subscriber_publisher_access_active (quando aplicável).',
+        'Se "directWithAccess" e "groupWithAccess" forem 0: associe publishers ou totens à campanha do assinante.',
       ],
     };
   }

@@ -776,7 +776,9 @@ const Campaigns: React.FC = () => {
                 setNewCampaign({ 
                   ...newCampaign, 
                   subscriberId,
-                  publisherIds: [] // Limpar publishers ao mudar subscriber
+                  publisherIds: [],   // Limpar publishers ao mudar subscriber
+                  playlistIds: [],    // Limpar playlists (devem ser do mesmo subscriber)
+                  mediaIds: [],       // Limpar mídias (devem ser do mesmo subscriber)
                 });
                 
                 // Carregar publishers acessíveis para o subscriber selecionado
@@ -1487,9 +1489,13 @@ const Campaigns: React.FC = () => {
           setDetailsDialogOpen(false);
           setSelectedCampaign(null);
         }}
-        onEdit={(campaign) => {
+        onEdit={async (campaign) => {
           setDetailsDialogOpen(false);
           setSelectedCampaign(campaign);
+          const subscriberId = campaign.subscriber_id || (campaign as any).subscriberId;
+          if (subscriberId && !isAdmin) {
+            await loadAccessiblePublishers(subscriberId);
+          }
           setEditDialogOpen(true);
         }}
       />

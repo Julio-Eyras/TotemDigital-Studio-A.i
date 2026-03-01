@@ -394,7 +394,10 @@ class DispatcherRouter {
         sourceId: 0,
         validityStart: new Date(),
         validityEnd: new Date(),
-        metadata: {},
+        metadata: {
+          noCandidatesReason: 'Nenhuma campanha vinculada a este totem ou ao publisher deste totem. Na tela Campanhas, edite a campanha do assinante e associe "Publishers" (ou Totens) onde ela deve ser exibida.',
+          diagnosticsUrl: `/api/dispatcher-totem/${totemId}/diagnostics`,
+        },
       };
 
       // Retornar plano em formato consumível pelo player

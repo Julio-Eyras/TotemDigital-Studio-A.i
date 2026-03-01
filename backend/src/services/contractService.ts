@@ -1,5 +1,5 @@
 import { getDatabase } from '../config/database';
-import { logError } from '../utils/loggerHelper';
+import { logError, logDebugSync, logErrorSync } from '../utils/loggerHelper';
 
 export interface Contract {
   contract_id: number;
@@ -297,17 +297,17 @@ export class ContractService {
         }
       }
 
-      // Validar contract_number único
+      // Validar contract_number único por subscriber
       const existingContract = await this.db.findFirst(`
-        SELECT contract_id FROM subscriber_contracts WHERE contract_number = $1
-      `, [contract_number]);
+        SELECT contract_id FROM subscriber_contracts WHERE subscriber_id = $1 AND contract_number = $2
+      `, [subscriber_id, contract_number]);
 
       if (existingContract) {
         throw new Error('Número de contrato já existe');
       }
 
       // Criar contrato
-      const result = await this.db.executeRaw(`
+      const insertSql = `
         INSERT INTO subscriber_contracts (
           subscriber_id, plan_id, contract_number, contract_type, title, description,
           start_date, end_date, total_amount, currency, payment_terms,
@@ -315,9 +315,10 @@ export class ContractService {
           status, signed_by_subscriber_at, signed_by_tenant_at, metadata,
           created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING contract_id
-      `, [
+      `;
+      const insertParams = [
         subscriber_id || null,
         plan_id || null,
         contract_number,
@@ -336,9 +337,23 @@ export class ContractService {
         status,
         signed_by_subscriber_at || null,
         signed_by_tenant_at || null,
-        metadata ? JSON.stringify(metadata) : null,
-        -- created_before_subscriber removed
-      ]);
+        metadata ? JSON.stringify(metadata) : null
+      ];
+      // Log SQL & params for debugging mismatches (also write to temp file to guarantee visibility)
+      logDebugSync('Executing subscriber contract INSERT', { sql: insertSql.replace(/\s+/g, ' '), params: insertParams });
+      try {
+        const fs = require('fs');
+        fs.appendFileSync('/tmp/sql-debug.log', JSON.stringify({ sql: insertSql.replace(/\s+/g, ' '), params: insertParams }) + '\\n');
+      } catch (e) {
+        // ignore
+      }
+      let result;
+      try {
+        result = await this.db.executeRaw(insertSql, insertParams);
+      } catch (err: any) {
+        logErrorSync('Erro ao executar INSERT subscriber_contracts', err, { sql: insertSql.replace(/\s+/g, ' '), params: insertParams });
+        throw err;
+      }
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar contrato');
@@ -429,12 +444,13 @@ export class ContractService {
         publisherIds,
       } = data;
 
-      // Validar contract_number único (se mudou)
-      if (contract_number && contract_number !== existingContract.contract_number) {
+      // Validar contract_number único por subscriber (se mudou)
+      const subscriberId = existingContract.subscriber_id;
+      if (contract_number && contract_number !== existingContract.contract_number && subscriberId) {
         const existingContractNumber = await this.db.findFirst(`
           SELECT contract_id FROM subscriber_contracts 
-          WHERE contract_number = $1 AND contract_id != $2
-        `, [contract_number, id]);
+          WHERE subscriber_id = $1 AND contract_number = $2 AND contract_id != $3
+        `, [subscriberId, contract_number, id]);
 
         if (existingContractNumber) {
           throw new Error('Número de contrato já existe');

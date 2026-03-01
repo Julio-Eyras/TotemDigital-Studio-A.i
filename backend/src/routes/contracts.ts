@@ -129,6 +129,9 @@ router.post('/',
       return res.status(201).json({ success: true, data: contract });
     } catch (error: any) {
       await logError('Erro ao criar contrato', error);
+      if (error?.message === 'Número de contrato já existe') {
+        return res.status(409).json({ error: error.message });
+      }
       return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -150,6 +153,9 @@ router.put('/:id(\\d+)',
       return res.json({ success: true, data: contract });
     } catch (error: any) {
       await logError('Erro ao atualizar contrato', error);
+      if (error?.message === 'Número de contrato já existe') {
+        return res.status(409).json({ error: error.message });
+      }
       return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -246,17 +252,13 @@ router.post('/publisher-contracts',
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   async (req: any, res: any) => {
     try {
-      // Validação customizada: se publisher_id não fornecido, created_before_publisher deve ser true
-      if (!req.body.publisher_id && !req.body.created_before_publisher) {
-        return res.status(400).json({ 
-          error: 'Se publisher_id não for fornecido, created_before_publisher deve ser true' 
-        });
-      }
-
       const contract = await getPublisherContractService().createContract(req.body, req.user?.userId);
       return res.status(201).json({ success: true, data: contract });
     } catch (error: any) {
       await logError('Erro ao criar publisher contract', error);
+      if (error?.message === 'Número de contrato já existe') {
+        return res.status(409).json({ error: error.message });
+      }
       return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
@@ -278,6 +280,9 @@ router.put('/publisher-contracts/:id',
       return res.json({ success: true, data: contract });
     } catch (error: any) {
       await logError('Erro ao atualizar publisher contract', error);
+      if (error?.message === 'Número de contrato já existe') {
+        return res.status(409).json({ error: error.message });
+      }
       return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
     }
   }

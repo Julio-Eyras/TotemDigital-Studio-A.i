@@ -1368,6 +1368,17 @@ export const campaignApi = {
     if (dataToSend.contract_id !== undefined && dataToSend.contractId === undefined) {
       dataToSend.contractId = dataToSend.contract_id;
     }
+    if (dataToSend.campaign_type !== undefined && dataToSend.campaignType === undefined) {
+      dataToSend.campaignType = dataToSend.campaign_type;
+    }
+    if (dataToSend.campaignType !== undefined && dataToSend.campaign_type === undefined) {
+      dataToSend.campaign_type = dataToSend.campaignType;
+    }
+    // Não enviar null para contractId/contract_id (omitir para o backend aceitar "sem contrato")
+    if (dataToSend.contractId === null || dataToSend.contract_id === null) {
+      delete dataToSend.contractId;
+      delete dataToSend.contract_id;
+    }
     
     const response = await api.put(`/campaigns/${finalId}`, dataToSend);
     

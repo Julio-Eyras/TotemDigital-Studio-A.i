@@ -30,8 +30,8 @@ apply_fix() {
       echo "💾 Backup criado: $BACKUP_FILE"
     fi
 
-    # Adiciona optional: true se não existir
-    if grep -q "optional:" "$NETPLAN_FILE"; then
+    # Adiciona optional: true se não existir (usar sudo para evitar 'Permissão negada')
+    if sudo grep -q "optional:" "$NETPLAN_FILE"; then
       echo "✅ 'optional' já presente — nenhuma modificação feita."
     else
       echo "→ Adicionando 'optional: true' ao Netplan..."

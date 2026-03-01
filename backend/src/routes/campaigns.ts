@@ -408,8 +408,10 @@ router.put('/:id',
       });
     }
 
-    // Verificar se usuário tem acesso ao cliente da campanha
-    if (req.user.role !== 'admin_sql' && req.user.subscriberId !== existingCampaign.subscriberId) {
+    // Verificar se usuário do tipo client/subscriber tem acesso ao cliente da campanha.
+    // Admin e gerente_marketing (já filtrados no authorizeRole) podem editar qualquer campanha.
+    if ((req.user.role === 'client' || req.user.role === 'subscriber') &&
+        req.user.subscriberId !== existingCampaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode editar campanhas do seu cliente'

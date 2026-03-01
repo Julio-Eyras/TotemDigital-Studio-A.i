@@ -195,6 +195,163 @@ install_demo_media_files() {
 }
 
 # =============================================================================
+# Assets & Nginx alias + aplicar DDL/Seeds (idempotente)
+# =============================================================================
+setup_assets_and_db() {
+    log "Configurando pasta de assets públicos e Nginx (idempotente)..."
+    local PUBLIC_ASSETS="/opt/smart-signage/public/assets"
+    local FRONTEND_BUILD_ASSETS="/opt/smart-signage/frontend/build/assets"
+    local NGINX_CONF_OLD="/etc/nginx/conf.d/smart-signage-assets.conf"
+    local NGINX_SNIPPET="/etc/nginx/snippets/smart-signage-assets.conf"
+    local SITE_CONF="/etc/nginx/sites-enabled/smart-signage"
+    local NGINX_USER="www-data"
+    local APP_USER="smartchannel"
+
+    # Criar diretório persistente de assets e uploads
+    sudo mkdir -p "$PUBLIC_ASSETS/uploads" 2>/dev/null || true
+
+    # 1) Base de assets: legível pelo Nginx (www-data) e demais usuários
+    if id -u "$NGINX_USER" >/dev/null 2>&1; then
+        sudo chown -R "$NGINX_USER":"$NGINX_USER" "$PUBLIC_ASSETS" 2>/dev/null || true
+    else
+        sudo chown -R "$USER":"$USER" "$PUBLIC_ASSETS" 2>/dev/null || true
+    fi
+    sudo chmod -R u=rwX,g=rX,o=rX "$PUBLIC_ASSETS" 2>/dev/null || true
+
+    # 2) Pasta de uploads: escrita por smartchannel (backend) e www-data (Nginx)
+    if id -u "$APP_USER" >/dev/null 2>&1 && id -u "$NGINX_USER" >/dev/null 2>&1; then
+        sudo chown -R "$APP_USER":"$NGINX_USER" "$PUBLIC_ASSETS/uploads" 2>/dev/null || true
+        # setgid (2) nos diretórios para herdar grupo www-data; 775 garante escrita de dono e grupo
+        sudo chmod -R 2775 "$PUBLIC_ASSETS/uploads" 2>/dev/null || true
+    fi
+
+    # Se existia um conf.d criado anteriormente com location direto (inválido), mover para backup
+    if [[ -f "$NGINX_CONF_OLD" ]]; then
+        log "Movendo configuração inválida $NGINX_CONF_OLD para backup..."
+        sudo mv "$NGINX_CONF_OLD" "${NGINX_CONF_OLD}.bak.$(date +%s)" || true
+    fi
+
+    # Criar snippet com location (idempotente)
+    sudo mkdir -p /etc/nginx/snippets
+    sudo bash -c "cat > '$NGINX_SNIPPET' <<'NG_SNIP'
+# SmartSignage - assets snippet (auto-generated)
+location ^~ /assets/ {
+  alias /opt/smart-signage/public/assets/;
+  access_log off;
+  expires 7d;
+  add_header Cache-Control \"public, max-age=604800\";
+  try_files \$uri \$uri/ =404;
+}
+NG_SNIP"
+    sudo chmod 644 "$NGINX_SNIPPET" || true
+
+    # Criar link simbólico de compatibilidade (build -> public/assets)
+    if [[ -d "/opt/smart-signage/frontend/build" ]]; then
+        if [[ -e "$FRONTEND_BUILD_ASSETS" && ! -L "$FRONTEND_BUILD_ASSETS" ]]; then
+            sudo mv "$FRONTEND_BUILD_ASSETS" "${FRONTEND_BUILD_ASSETS}.bak.$(date +%s)" 2>/dev/null || true
+        fi
+        if [[ ! -L "$FRONTEND_BUILD_ASSETS" ]]; then
+            sudo ln -s "$PUBLIC_ASSETS" "$FRONTEND_BUILD_ASSETS" 2>/dev/null || true
+        fi
+    fi
+
+    # Inserir include do snippet dentro do server block do site principal (idempotente)
+    if [[ -f "$SITE_CONF" ]]; then
+        if sudo grep -q "include /etc/nginx/snippets/smart-signage-assets.conf;" "$SITE_CONF" 2>/dev/null; then
+            log "Include do snippet já presente em $SITE_CONF"
+        else
+            # Inserir depois da linha que define root /opt/smart-signage/frontend/build;
+            if sudo grep -q "root /opt/smart-signage/frontend/build;" "$SITE_CONF" 2>/dev/null; then
+                log "Inserindo include do snippet em $SITE_CONF (após root /opt/smart-signage/frontend/build;)"
+                sudo awk '/root \/opt\/smart-signage\/frontend\/build;/{print; print \"    include /etc/nginx/snippets/smart-signage-assets.conf;\"; next}1' "$SITE_CONF" > /tmp/smart-signage.conf.tmp && sudo mv /tmp/smart-signage.conf.tmp "$SITE_CONF"
+            else
+                log "root /opt/smart-signage/frontend/build; não encontrado em $SITE_CONF — adicionando include no final do server block se possível"
+                # tentativa simples: append include at end of file (best-effort)
+                sudo bash -c "echo \"    include /etc/nginx/snippets/smart-signage-assets.conf;\" >> '$SITE_CONF'"
+            fi
+        fi
+    else
+        # sites-enabled não existe: criar conf.d server que inclui snippet (fallback)
+        local FALLBACK_CONF="/etc/nginx/conf.d/smart-signage-assets-server.conf"
+        log "Arquivo $SITE_CONF não encontrado — criando $FALLBACK_CONF como fallback (server minimal)"
+        sudo bash -c "cat > '$FALLBACK_CONF' <<'NG_SRV'
+server {
+    listen 80;
+    server_name _;
+    root /opt/smart-signage/frontend/build;
+    include /etc/nginx/snippets/smart-signage-assets.conf;
+}
+NG_SRV"
+    fi
+
+    # Testar e recarregar nginx
+    if sudo nginx -t >/dev/null 2>&1; then
+        sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || true
+        log "✅ Nginx recarregado (assets alias configurado)"
+    else
+        warn "⚠️  Configuração Nginx inválida após alterações — verifique manualmente"
+    fi
+
+    # =============================================================================
+    # Aplicar DDL e Seeds (os arquivos part*.sql e carga-inicial-v6.sql são fonte da verdade)
+    # =============================================================================
+    log "Aplicando esquema DDL (part*.sql) e seeds (carga-inicial-v6.sql) — idempotente"
+
+    # Parâmetros de conexão — permitimos uso de variáveis de ambiente já definidas no instalador
+    DB_HOST="${DB_HOST:-localhost}"
+    DB_PORT="${DB_PORT:-5432}"
+    DB_NAME="${DB_NAME:-smartsignage}"
+    DB_USER="${DB_USER:-smartchannel}"
+    DB_PASSWORD="${DB_PASSWORD:-}"
+
+    # Se não houver password definido, tentamos usar trust via unix socket (postgres user) — keep safe
+    export PGPASSWORD="$DB_PASSWORD"
+    PSQL_BASE_ARGS="-h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
+
+    # Executar cada part*.sql em ordem alfanumérica
+    for f in database/smartchannel-db-v2-refactored-part*.sql; do
+        if [[ -f "$f" ]]; then
+            log "Executando DDL idempotente: $f"
+            sudo -u postgres psql -q -v ON_ERROR_STOP=1 -f "$f" 2>/tmp/install-ddl.err || {
+                # fallback usando psql com credenciais (se fornecidas)
+                psql $PSQL_BASE_ARGS -v ON_ERROR_STOP=1 -f "$f" 2>>/tmp/install-ddl.err || {
+                    log_error "Erro aplicando $f — ver /tmp/install-ddl.err"
+                    return 1
+                }
+            }
+        fi
+    done
+
+    # Aplicar seed principal se existir
+    if [[ -f "database/carga-inicial-v6.sql" ]]; then
+        log "Executando seed: database/carga-inicial-v6.sql"
+        sudo -u postgres psql -q -v ON_ERROR_STOP=1 -f "database/carga-inicial-v6.sql" 2>/tmp/install-seed.err || {
+            psql $PSQL_BASE_ARGS -v ON_ERROR_STOP=1 -f "database/carga-inicial-v6.sql" 2>>/tmp/install-seed.err || {
+                log_error "Erro aplicando seed — ver /tmp/install-seed.err"
+                return 1
+            }
+        }
+    fi
+
+    log "✅ Assets públicos e DDL/seeds aplicados (se não houveram erros fatais)"
+}
+
+# =============================================================================
+# Sanitize existing nginx confs that may contain location blocks at top-level
+# Move legacy/invalid conf.d files to backup BEFORE nginx is tested/started
+# =============================================================================
+sanitize_nginx_conf() {
+    local BAD_CONF="/etc/nginx/conf.d/smart-signage-assets.conf"
+    if [[ -f "$BAD_CONF" ]]; then
+        # check if file contains a leading 'location' directive outside server context
+        if sudo grep -qE '^[[:space:]]*location' "$BAD_CONF" 2>/dev/null; then
+            log "Detectado $BAD_CONF contendo 'location' no contexto global — movendo para backup"
+            sudo mv "$BAD_CONF" "${BAD_CONF}.moved.$(date +%s)" || true
+        fi
+    fi
+}
+
+# =============================================================================
 # GERENCIAMENTO DE CONFIGURAÇÃO CENTRALIZADA
 # =============================================================================
 
@@ -567,6 +724,8 @@ execute_psql_file() {
 
     # Substituir caminhos relativos \i por caminhos absolutos se necessário
     if grep -q "\\\\i " "$temp_schema"; then
+        # Garantir que os arquivos incluídos (\i) sejam legíveis pelo usuário do psql (ex.: postgres)
+        chmod -R a+rX "$schema_dir" 2>/dev/null || true
         # Substituir \i caminho_relativo por \i caminho_absoluto
         sed -i "s|\\\\i \\([^/].*\\.sql\\)|\\\\i ${schema_dir}/\\1|g" "$temp_schema" 2>/dev/null || {
             # Fallback: usar perl ou python se sed -i não funcionar
@@ -2911,8 +3070,30 @@ PYTHON_FINAL_FIX_EOF
             fi
         fi
         
-        # Instalar todas as dependências com --force para garantir que overrides sejam respeitados
-        log "Instalando todas as dependências do frontend (com --force para garantir overrides)..."
+        # Antes de instalar, remover 'overrides' para evitar conflitos EOVERRIDE com npm
+        python3 << 'PYTHON_DROP_OVERRIDES_EOF'
+import json
+import sys
+
+try:
+    with open('package.json', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    if 'overrides' in data:
+        del data['overrides']
+
+    with open('package.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+    sys.exit(0)
+except Exception as e:
+    print(f"Erro ao limpar overrides: {e}", file=sys.stderr)
+    # Não falhar a instalação apenas por não conseguir limpar overrides
+    sys.exit(0)
+PYTHON_DROP_OVERRIDES_EOF
+        
+        # Instalar todas as dependências (sem overrides) com --force apenas para garantir compatibilidade
+        log "Instalando todas as dependências do frontend (sem overrides de ajv)..."
         if ! npm install --legacy-peer-deps --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-all.log; then
             error "Falha ao instalar dependências do frontend"
             error "Verificando se o problema é com ajv..."
@@ -5161,8 +5342,8 @@ EOF
 # SERVER: Domínio Principal (${MAIN_DOMAIN})
 # ============================================
 server {
-    listen 80;
-    listen [::]:80;
+    listen 80 default_server;
+    listen [::]:80 default_server;
     server_name ${MAIN_SERVER_NAME};
     
     # Diretório raiz e arquivo índice
@@ -8443,12 +8624,12 @@ manage_demo_seed_strategy() {
     # Detectar marcadores de DEMO legados (default-demo, playlist demo, mídias demo) com timeout e tratamento de erro
     DEMO_TOTEM_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems WHERE uin = 'default-demo';" 2>/dev/null | tr -d ' ' || echo "0")
     DEMO_PLAYLIST_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists WHERE name ILIKE 'Playlist Demo' OR playlist_id = 5;" 2>/dev/null | tr -d ' ' || echo "0")
-    DEMO_MEDIA_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE title ILIKE 'Smart Signage-Pro %' OR file_path ILIKE '%smart-signage-pro-%' OR name ILIKE 'Smart Signage-Pro %' OR (tags::text ILIKE '%demo%');" 2>/dev/null | tr -d ' ' || echo "0")
+    DEMO_MEDIA_CNT=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE file_path ILIKE '%smart-signage-pro-%' OR name ILIKE 'Smart Signage-Pro %' OR (tags::text ILIKE '%demo%');" 2>/dev/null | tr -d ' ' || echo "0")
 
     # Contar dados NÃO-DEMO em tabelas principais (com timeout e tratamento de erro)
     NON_DEMO_CLIENTS=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM clients WHERE name NOT ILIKE '%demo%';" 2>/dev/null | tr -d ' ' || echo "0")
     NON_DEMO_TOTEMS=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM totems WHERE uin <> 'default-demo' OR uin IS NULL;" 2>/dev/null | tr -d ' ' || echo "0")
-    NON_DEMO_MEDIA=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE NOT (title ILIKE 'Smart Signage-Pro %' OR file_path ILIKE '%smart-signage-pro-%' OR name ILIKE 'Smart Signage-Pro %' OR (tags::text ILIKE '%demo%'));" 2>/dev/null | tr -d ' ' || echo "0")
+    NON_DEMO_MEDIA=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM medias WHERE NOT (file_path ILIKE '%smart-signage-pro-%' OR name ILIKE 'Smart Signage-Pro %' OR (tags::text ILIKE '%demo%'));" 2>/dev/null | tr -d ' ' || echo "0")
     NON_DEMO_PLAYLISTS=$(timeout 5 psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM playlists WHERE NOT (name ILIKE 'Playlist Demo' OR playlist_id = 5);" 2>/dev/null | tr -d ' ' || echo "0")
 
     [[ -z "$DEMO_TOTEM_CNT" ]] && DEMO_TOTEM_CNT=0
@@ -8543,11 +8724,10 @@ DELETE FROM totems WHERE totem_id IN (
   SELECT totem_id FROM totems WHERE uin = 'default-demo'
 );
 
--- Mídias de demonstração (por título/arquivo/tags contendo demo) - usando subqueries diretas
+-- Mídias de demonstração (por name/arquivo/tags contendo demo) - schema v2: medias tem 'name', não 'title'
 DELETE FROM playlist_items WHERE media_id IN (
   SELECT media_id FROM medias 
-  WHERE title ILIKE 'Smart Signage-Pro %' 
-     OR file_path ILIKE '%smart-signage-pro-%' 
+  WHERE file_path ILIKE '%smart-signage-pro-%' 
      OR name ILIKE 'Smart Signage-Pro %'
      OR (tags::text ILIKE '%demo%')
 );
@@ -8568,22 +8748,21 @@ DELETE FROM playlist_items WHERE media_id IN (
 -- );
 DELETE FROM execution_logs WHERE media_id IN (
   SELECT media_id FROM medias 
-  WHERE title ILIKE 'Smart Signage-Pro %' 
-     OR file_path ILIKE '%smart-signage-pro-%' 
+  WHERE file_path ILIKE '%smart-signage-pro-%' 
      OR name ILIKE 'Smart Signage-Pro %'
      OR (tags::text ILIKE '%demo%')
 );
 DELETE FROM medias WHERE media_id IN (
   SELECT media_id FROM medias 
-  WHERE title ILIKE 'Smart Signage-Pro %' 
-     OR file_path ILIKE '%smart-signage-pro-%' 
+  WHERE file_path ILIKE '%smart-signage-pro-%' 
      OR name ILIKE 'Smart Signage-Pro %'
      OR (tags::text ILIKE '%demo%')
 );
 
 -- Outros seeds pontuais conhecidos
-DELETE FROM short_links WHERE short_id = 'BF2024';
-DELETE FROM remote_commands WHERE request_id = 'CMD-001';
+DELETE FROM short_links WHERE short_code = 'BF2024';
+-- Schema v2: remote_commands não tem coluna request_id (tem command_id, totem_id, command_type, etc.). Sem seed demo por request_id; remoção omitida.
+-- DELETE FROM remote_commands WHERE request_id = 'CMD-001';
 
 COMMIT;
 SQL
@@ -10880,8 +11059,12 @@ main() {
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
         setup_first_boot  # Executar migrations e seed ANTES de iniciar o serviço
     fi
-    
+
+    # Sanitize any legacy/invalid nginx confs before testing/reloading nginx
+    sanitize_nginx_conf
     setup_nginx
+    # Configurar assets públicos e aplicar DDL/seeds (idempotente)
+    setup_assets_and_db
     setup_letsencrypt  # Configurar Let's Encrypt se escolhido
     create_systemd_service
     

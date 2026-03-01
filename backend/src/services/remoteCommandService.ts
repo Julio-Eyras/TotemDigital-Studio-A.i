@@ -66,31 +66,28 @@ export class RemoteCommandService {
         throw new Error('Totem não está ativo');
       }
 
-      // Gerar request_id único
-      const requestId = `cmd_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-
-      // Inserir comando
+      // Inserir comando (tabela remote_commands: command_id, totem_id, user_id, command_type, status, parameters)
       const result = await this.db.executeRaw(`
         INSERT INTO remote_commands (
-          totem_id, request_id, command_type, command_data, status, priority, created_by
+          totem_id, user_id, command_type, status, parameters
         )
-        VALUES ($1, $2, $3, $4, 'pending', 1, $5)
+        VALUES ($1, $2, $3, 'pending', $4)
         RETURNING *
       `, [
         request.totemId,
-        requestId,
+        userId,
         request.commandType,
-        request.commandData ? JSON.stringify(request.commandData) : null,
-        userId
+        request.commandData ? JSON.stringify(request.commandData) : null
       ]);
 
       const command = result.rows[0];
+      const commandId = command.command_id ?? command.id;
 
       // Registrar evento
       await this.getEventLogService().logEvent({
         eventType: EventType.TOTEM_COMMAND_SENT,
         entityType: 'remote_command',
-        entityId: command.id,
+        entityId: commandId,
         totemId: request.totemId,
         metadata: {
           commandType: request.commandType,
@@ -101,7 +98,7 @@ export class RemoteCommandService {
       }).catch(e => logWarn('Erro ao registrar evento de comando', { error: e.message }));
 
       await logInfo('Comando remoto criado', {
-        commandId: command.id,
+        commandId: commandId,
         totemId: request.totemId
       });
 
@@ -314,18 +311,19 @@ export class RemoteCommandService {
    * Mapeia resultado do banco para RemoteCommand
    */
   private mapToRemoteCommand(row: any): RemoteCommand {
+    const params = row.parameters ?? row.command_data;
     return {
-      id: row.id,
+      id: row.command_id ?? row.id,
       totemId: row.totem_id,
       commandType: row.command_type,
-      commandData: row.command_data ? (typeof row.command_data === 'string' ? JSON.parse(row.command_data) : row.command_data) : undefined,
+      commandData: params ? (typeof params === 'string' ? JSON.parse(params) : params) : undefined,
       status: row.status === 'executing' ? 'executing' : (row.status === 'sent' ? 'sent' : row.status),
-      result: row.result ? (typeof row.result === 'string' ? (row.result.startsWith('{') || row.result.startsWith('[') ? JSON.parse(row.result) : row.result) : row.result) : undefined,
-      errorMessage: row.error_message || (row.result && row.status === 'failed' ? row.result : undefined),
+      result: row.response ?? row.result,
+      errorMessage: row.error_message,
       sentAt: row.sent_at ? new Date(row.sent_at) : (row.executed_at ? new Date(row.executed_at) : undefined),
       executedAt: row.executed_at ? new Date(row.executed_at) : undefined,
       completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
-      createdBy: row.created_by,
+      createdBy: row.user_id ?? row.created_by,
       createdAt: new Date(row.created_at),
       updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(row.created_at)
     };

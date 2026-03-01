@@ -91,6 +91,19 @@ export class StorageService {
   }
 
   /**
+   * Cria a estrutura de diretórios de upload para um subscriber (subscriber-{id}/medias).
+   * Deve ser chamado ao cadastrar um novo assinante para garantir que uploads funcionem.
+   */
+  async ensureSubscriberUploadDirs(subscriberId: number): Promise<void> {
+    const subscriberDir = path.join(this.uploadsPath, `subscriber-${subscriberId}`, 'medias');
+    await this.ensureDirectoryExists(subscriberDir);
+    logInfoSync('[StorageService] Diretório de upload do assinante criado/verificado', {
+      subscriberId,
+      path: subscriberDir
+    });
+  }
+
+  /**
    * Verifica se cliente tem quota disponível para novo arquivo
    */
   async checkSubscriberQuota(subscriberId: number, fileSize: number): Promise<{ allowed: boolean; currentUsage: number; quota: number; available: number }> {
