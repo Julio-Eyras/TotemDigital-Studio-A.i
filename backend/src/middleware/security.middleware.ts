@@ -13,7 +13,7 @@ import { securityConfig } from '../config/env';
  */
 export const apiLimiter = rateLimit({
   windowMs: securityConfig.rateLimit.windowMs,
-  max: securityConfig.rateLimit.maxRequests * 2, // Dobrar limite para evitar bloqueios
+  max: Math.max(securityConfig.rateLimit.maxRequests, 500), // mínimo 500/15min para uso normal do painel
   message: {
     error: 'Muitas requisições. Tente novamente em alguns minutos.',
     retryAfter: '15 minutos'

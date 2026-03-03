@@ -124,7 +124,7 @@ export const securityConfig = {
   maxPayloadSize: parseSize(getEnv('MAX_PAYLOAD_SIZE', '10MB')),
   rateLimit: {
     windowMs: getEnvNumber('RATE_LIMIT_WINDOW_MS', 900000), // 15 minutos
-    maxRequests: getEnvNumber('RATE_LIMIT_MAX_REQUESTS', 100),
+    maxRequests: getEnvNumber('RATE_LIMIT_MAX_REQUESTS', 500), // painel faz muitas chamadas (alerts, subscribers, stats); 500*2=1000/15min
     authWindowMs: getEnvNumber('AUTH_RATE_LIMIT_WINDOW_MS', 900000), // 15 minutos
     authMaxRequests: getEnvNumber('AUTH_RATE_LIMIT_MAX_REQUESTS', 5),
     uploadWindowMs: getEnvNumber('UPLOAD_RATE_LIMIT_WINDOW_MS', 3600000), // 1 hora

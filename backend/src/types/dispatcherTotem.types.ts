@@ -31,6 +31,8 @@ export interface DispatchPlan {
     mixId?: number;
     mixVersion?: number;
     mixStrategy?: string;
+    /** true quando o plano veio do 3º nível (propaganda padrão). */
+    defaultAd?: boolean;
   };
   cacheKey?: string;
   cacheExpiresAt?: Date;

@@ -10,8 +10,12 @@
  * - Auditoria de decisões
  */
 
+import fs from 'fs';
+import path from 'path';
 import { getDatabase } from '../config/database';
+import { config } from '../config/env';
 import { logError, logDebug } from '../utils/loggerHelper';
+import { normalizeDownloadUrl } from '../utils/pathHelper';
 import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService, TotemPlaylistMix } from './totemPlaylistMixService';
 import {
@@ -102,8 +106,30 @@ export class DispatcherTotemService {
       const candidates = await this.getCandidateSchedules(totemId, targetTimestamp, timezone);
       
       if (candidates.length === 0) {
-        await logDebug('[DispatcherTotem] Nenhum candidato encontrado', { totemId });
-        
+        await logDebug('[DispatcherTotem] Nenhum candidato encontrado, tentando playlist consolidada do totem', { totemId });
+        const fallbackPlan = await this.getFallbackPlanFromTotemPlaylist(totemId, targetTimestamp);
+        if (fallbackPlan) {
+          await logDebug('[DispatcherTotem] Usando playlist consolidada (totem_playlists) como fallback', { totemId, items: fallbackPlan.mediaItems.length });
+          return {
+            success: true,
+            plan: fallbackPlan,
+            candidates: includeCandidates ? [] : undefined,
+            fromCache: false,
+            executionTimeMs: Date.now() - startTime,
+          };
+        }
+        // 3º nível: propaganda padrão (propagandas/vinhetas da configuração do player)
+        const defaultAdPlan = await this.getDefaultAdPlan(totemId, targetTimestamp);
+        if (defaultAdPlan) {
+          await logDebug('[DispatcherTotem] Usando propaganda padrão (configuração)', { totemId, items: defaultAdPlan.mediaItems.length });
+          return {
+            success: true,
+            plan: defaultAdPlan,
+            candidates: includeCandidates ? [] : undefined,
+            fromCache: false,
+            executionTimeMs: Date.now() - startTime,
+          };
+        }
         return {
           success: true,
           plan: undefined,
@@ -138,8 +164,27 @@ export class DispatcherTotemService {
       }
 
       if (validatedCandidates.length === 0) {
-        await logDebug('[DispatcherTotem] Nenhum candidato válido após validação comercial', { totemId });
-        
+        await logDebug('[DispatcherTotem] Nenhum candidato válido após validação comercial, tentando fallbacks', { totemId });
+        const fallbackPlan = await this.getFallbackPlanFromTotemPlaylist(totemId, targetTimestamp);
+        if (fallbackPlan) {
+          return {
+            success: true,
+            plan: fallbackPlan,
+            candidates: includeCandidates ? candidates : undefined,
+            fromCache: false,
+            executionTimeMs: Date.now() - startTime,
+          };
+        }
+        const defaultAdPlan = await this.getDefaultAdPlan(totemId, targetTimestamp);
+        if (defaultAdPlan) {
+          return {
+            success: true,
+            plan: defaultAdPlan,
+            candidates: includeCandidates ? candidates : undefined,
+            fromCache: false,
+            executionTimeMs: Date.now() - startTime,
+          };
+        }
         return {
           success: true,
           plan: undefined,
@@ -194,8 +239,27 @@ export class DispatcherTotemService {
         winner = await this.resolveConflicts(validatedCandidates, totemId, targetTimestamp);
         
         if (!winner) {
-          await logDebug('[DispatcherTotem] Nenhum candidato válido após resolução', { totemId });
-          
+          await logDebug('[DispatcherTotem] Nenhum candidato válido após resolução, tentando fallbacks', { totemId });
+          const fallbackPlan = await this.getFallbackPlanFromTotemPlaylist(totemId, targetTimestamp);
+          if (fallbackPlan) {
+            return {
+              success: true,
+              plan: fallbackPlan,
+              candidates: includeCandidates ? validatedCandidates : undefined,
+              fromCache: false,
+              executionTimeMs: Date.now() - startTime,
+            };
+          }
+          const defaultAdPlan = await this.getDefaultAdPlan(totemId, targetTimestamp);
+          if (defaultAdPlan) {
+            return {
+              success: true,
+              plan: defaultAdPlan,
+              candidates: includeCandidates ? validatedCandidates : undefined,
+              fromCache: false,
+              executionTimeMs: Date.now() - startTime,
+            };
+          }
           return {
             success: true,
             plan: undefined,
@@ -380,9 +444,14 @@ export class DispatcherTotemService {
           INNER JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
           INNER JOIN totems t_direct ON ct.totem_id = t_direct.totem_id
           INNER JOIN locals l_direct ON t_direct.local_id = l_direct.local_id
-          INNER JOIN subscriber_publisher_access_active spa_direct
-            ON spa_direct.subscriber_id = c.subscriber_id
-           AND spa_direct.publisher_id = l_direct.publisher_id
+          INNER JOIN subscriber_contracts sc_direct ON sc_direct.subscriber_id = c.subscriber_id
+            AND sc_direct.status = 'active'
+            AND (sc_direct.end_date IS NULL OR sc_direct.end_date >= CURRENT_DATE)
+            AND (sc_direct.start_date IS NULL OR sc_direct.start_date <= CURRENT_DATE)
+          INNER JOIN plan_publisher_access ppa_direct ON ppa_direct.plan_id = sc_direct.plan_id
+            AND ppa_direct.publisher_id = l_direct.publisher_id
+            AND ppa_direct.is_allowed = true
+            AND COALESCE(ppa_direct.is_active, true) = true
           WHERE ct.totem_id = $1
             AND ct.is_active = true
             AND c.is_active = true
@@ -390,7 +459,7 @@ export class DispatcherTotemService {
           
           UNION
           
-          -- Campanhas via publishers (grupo). Mesmos tipos (timestamp/text) que a primeira perna.
+          -- Campanhas via publishers (grupo). Elegibilidade por contrato+plano (plan_publisher_access).
           SELECT DISTINCT
             c.campaign_id,
             c.subscriber_id,
@@ -421,9 +490,14 @@ export class DispatcherTotemService {
             cp.max_impressions_per_hour as cp_max_impressions_per_hour
           FROM campaigns c
           INNER JOIN campaign_publishers cp ON c.campaign_id = cp.campaign_id
-          INNER JOIN subscriber_publisher_access_active spa_group
-            ON spa_group.subscriber_id = c.subscriber_id
-           AND spa_group.publisher_id = cp.publisher_id
+          INNER JOIN subscriber_contracts sc_group ON sc_group.subscriber_id = c.subscriber_id
+            AND sc_group.status = 'active'
+            AND (sc_group.end_date IS NULL OR sc_group.end_date >= CURRENT_DATE)
+            AND (sc_group.start_date IS NULL OR sc_group.start_date <= CURRENT_DATE)
+          INNER JOIN plan_publisher_access ppa_group ON ppa_group.plan_id = sc_group.plan_id
+            AND ppa_group.publisher_id = cp.publisher_id
+            AND ppa_group.is_allowed = true
+            AND COALESCE(ppa_group.is_active, true) = true
           INNER JOIN locals l ON cp.publisher_id = l.publisher_id
           INNER JOIN totems t ON l.local_id = t.local_id
           WHERE t.totem_id = $1
@@ -477,6 +551,54 @@ export class DispatcherTotemService {
             AND COALESCE(ppa.is_active, true) = true
           WHERE t.totem_id = $1
             AND cp.is_active = true
+            AND c.is_active = true
+            AND c.status = 'active'
+          
+          UNION
+          
+          -- Regra por contrato/plano: campanha cujo CONTRATO designado tem um PLANO que permite o publisher do totem.
+          -- Não exige campaign_publishers: basta o plano do contrato da campanha incluir o publisher do totem (e contrato válido).
+          SELECT DISTINCT
+            c.campaign_id,
+            c.subscriber_id,
+            c.contract_id,
+            c.title as campaign_title,
+            c.priority,
+            c.commercial_tier,
+            c.default_time_share_percent,
+            c.max_consecutive_slots,
+            CAST(c.start_date AS timestamp without time zone) as start_date,
+            CAST(c.end_date AS timestamp without time zone) as end_date,
+            c.start_time::text,
+            c.end_time::text,
+            c.days_of_week::text,
+            c.timezone,
+            c.status,
+            c.is_active,
+            t_plan.totem_id,
+            NULL::timestamp without time zone as ct_start_date,
+            NULL::timestamp without time zone as ct_end_date,
+            NULL::text as ct_start_time,
+            NULL::text as ct_end_time,
+            NULL::text as ct_days_of_week,
+            NULL::integer as ct_priority,
+            'contract_plan' as source_type,
+            ppa_plan.publisher_id as source_id,
+            NULL::integer as cp_time_share_percent,
+            NULL::integer as cp_max_impressions_per_hour
+          FROM campaigns c
+          INNER JOIN subscriber_contracts sc_plan ON sc_plan.contract_id = c.contract_id
+            AND sc_plan.subscriber_id = c.subscriber_id
+            AND sc_plan.status = 'active'
+            AND (sc_plan.end_date IS NULL OR sc_plan.end_date >= CURRENT_DATE)
+            AND (sc_plan.start_date IS NULL OR sc_plan.start_date <= CURRENT_DATE)
+          INNER JOIN plan_publisher_access ppa_plan ON ppa_plan.plan_id = sc_plan.plan_id
+            AND ppa_plan.is_allowed = true
+            AND COALESCE(ppa_plan.is_active, true) = true
+          INNER JOIN totems t_plan ON t_plan.totem_id = $1
+          INNER JOIN locals l_plan ON l_plan.local_id = t_plan.local_id
+            AND l_plan.publisher_id = ppa_plan.publisher_id
+          WHERE c.contract_id IS NOT NULL
             AND c.is_active = true
             AND c.status = 'active'
         )
@@ -574,6 +696,179 @@ export class DispatcherTotemService {
     } catch (error: any) {
       await logError('[DispatcherTotem] Erro ao buscar candidatos', error, { totemId });
       throw error;
+    }
+  }
+
+  /**
+   * Fallback: quando não há candidatos (campaign_totems/campaign_publishers), usa a playlist
+   * consolidada do totem (totem_playlists + totem_playlist_items) gerada pela tela "Playlists de Totem".
+   * Assim o player recebe conteúdo quando a playlist foi regenerada mesmo sem vínculo direto no dispatcher.
+   */
+  async getFallbackPlanFromTotemPlaylist(totemId: number, timestamp: Date): Promise<DispatchPlan | null> {
+    try {
+      const tp = await this.db.findFirst(`
+        SELECT 
+          tp.totem_playlist_id, 
+          tp.version, 
+          tp.total_items, 
+          tp.total_duration_seconds, 
+          tp.generated_at
+        FROM totem_playlists tp
+        WHERE tp.totem_id = $1
+          AND COALESCE(tp.is_active, true) = true
+          AND COALESCE(tp.status, 'active') = 'active'
+        ORDER BY tp.generated_at DESC NULLS LAST, tp.totem_playlist_id DESC
+        LIMIT 1
+      `, [totemId]);
+      if (!tp || !tp.totem_playlist_id) return null;
+
+      const items = await this.db.findMany(`
+        SELECT tpi.media_id, tpi.order_index, tpi.display_seconds, tpi.campaign_id
+        FROM totem_playlist_items tpi
+        WHERE tpi.totem_playlist_id = $1
+          AND COALESCE(tpi.is_active, true) = true
+        ORDER BY tpi.order_index
+      `, [tp.totem_playlist_id]);
+      if (!items.length) return null;
+
+      const mediaIds = [...new Set(items.map((i: any) => i.media_id))];
+      const medias = await this.db.findMany(`
+        SELECT media_id, file_path, media_type, duration_seconds, width, height, mime_type
+        FROM medias
+        WHERE media_id = ANY($1::int[]) AND is_active = true
+      `, [mediaIds]);
+      const mediaMap = new Map(medias.map((m: any) => [m.media_id, m]));
+
+      const now = timestamp || new Date();
+      const validityEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const mediaItems: DispatchMediaItem[] = items
+        .filter((item: any) => mediaMap.has(item.media_id))
+        .map((item: any, index: number) => {
+          const m = mediaMap.get(item.media_id);
+          const duration = item.display_seconds ?? m?.duration_seconds ?? 10;
+          const url = normalizeDownloadUrl(m?.file_path) || '';
+          return {
+            mediaId: item.media_id,
+            order: item.order_index ?? index + 1,
+            duration: Number(duration) || 10,
+            url: url || `/api/media/${item.media_id}/stream`,
+            mediaType: m?.media_type || 'image',
+            metadata: { width: m?.width, height: m?.height, mimeType: m?.mime_type },
+          };
+        });
+      if (mediaItems.length === 0) return null;
+
+      const totalDuration = mediaItems.reduce((sum, i) => sum + i.duration, 0);
+      return {
+        totemId,
+        timestamp: now,
+        playlistId: tp.totem_playlist_id,
+        playlistName: `Totem #${totemId} (v${tp.version})`,
+        mediaItems,
+        totalDuration,
+        priority: 1,
+        source: 'mix',
+        sourceId: tp.totem_playlist_id,
+        sourceName: `Playlist consolidada totem ${totemId}`,
+        validityStart: now,
+        validityEnd,
+        metadata: {
+          mixId: tp.totem_playlist_id,
+          mixVersion: tp.version,
+          mixStrategy: 'totem_playlist_fallback',
+        },
+      };
+    } catch (error: any) {
+      await logError('[DispatcherTotem] Erro ao obter fallback totem_playlists', error, { totemId });
+      return null;
+    }
+  }
+
+  /** Extensões de mídia para propaganda padrão (igual ao player). */
+  private static readonly DEFAULT_AD_VIDEO_EXT = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v', '.ogv'];
+  private static readonly DEFAULT_AD_IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+
+  private listDefaultAdMediaFiles(dir: string): string[] {
+    if (!dir || !fs.existsSync(dir)) return [];
+    const files = fs.readdirSync(dir, { withFileTypes: true });
+    const ext = [...DispatcherTotemService.DEFAULT_AD_VIDEO_EXT, ...DispatcherTotemService.DEFAULT_AD_IMAGE_EXT];
+    return files
+      .filter((f) => f.isFile() && ext.includes(path.extname(f.name).toLowerCase()))
+      .map((f) => f.name)
+      .sort((a, b) => path.basename(a, path.extname(a)).localeCompare(path.basename(b, path.extname(b)), undefined, { numeric: true }));
+  }
+
+  /**
+   * 3º nível de fallback: propaganda padrão configurada (propagandas/vinhetas do player).
+   * Usado quando não há candidatos e não há playlist consolidada (totem_playlists).
+   */
+  async getDefaultAdPlan(totemId: number, timestamp: Date): Promise<DispatchPlan | null> {
+    try {
+      const playerDir = process.env.PLAYER_DIR || config.player?.dir || '/opt/smart-signage/player-web';
+      const propagandasDir = path.join(playerDir, 'propagandas');
+      const vinhetasDir = path.join(playerDir, 'vinhetas');
+
+      const propagandas = this.listDefaultAdMediaFiles(propagandasDir);
+      const vinhetas = this.listDefaultAdMediaFiles(vinhetasDir);
+
+      const imageExt = DispatcherTotemService.DEFAULT_AD_IMAGE_EXT;
+      const defaultImageDuration = 20; // segundos, igual ao player
+      const mediaItems: DispatchMediaItem[] = [];
+      let order = 0;
+
+      const toItem = (file: string, folder: string, durationSec?: number) => {
+        const ext = path.extname(file).toLowerCase();
+        const isImage = imageExt.includes(ext);
+        const duration = durationSec ?? (isImage ? defaultImageDuration : 10);
+        return {
+          mediaId: 0,
+          order: ++order,
+          duration,
+          url: `/api/player-static/${folder}/${encodeURIComponent(file)}`,
+          mediaType: isImage ? 'image' : 'video',
+          metadata: { source: 'default_ad' },
+        } as DispatchMediaItem;
+      };
+
+      // Intercalar: N propagandas, 1 vinheta (como no player)
+      const n = 5;
+      let pi = 0, vi = 0;
+      while (pi < propagandas.length || vi < vinhetas.length) {
+        for (let k = 0; k < n && pi < propagandas.length; k++) {
+          mediaItems.push(toItem(propagandas[pi++], 'propagandas'));
+        }
+        if (vi < vinhetas.length) {
+          mediaItems.push(toItem(vinhetas[vi++], 'vinhetas'));
+        }
+      }
+
+      if (mediaItems.length === 0) return null;
+
+      const totalDuration = mediaItems.reduce((sum, i) => sum + (i.duration || 10), 0);
+      const now = timestamp || new Date();
+      const validityEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+      return {
+        totemId,
+        timestamp: now,
+        playlistId: 0,
+        playlistName: 'Propaganda padrão',
+        mediaItems,
+        totalDuration,
+        priority: 0,
+        source: 'mix',
+        sourceId: 0,
+        sourceName: 'Propaganda padrão (configuração)',
+        validityStart: now,
+        validityEnd,
+        metadata: {
+          mixStrategy: 'default_ad',
+          defaultAd: true,
+        },
+      };
+    } catch (error: any) {
+      await logError('[DispatcherTotem] Erro ao obter plano de propaganda padrão', error, { totemId });
+      return null;
     }
   }
 
