@@ -43,7 +43,7 @@ import {
   FilterList,
   Clear,
 } from '@mui/icons-material';
-import { dispatcherDebugApi, DispatcherMessage } from '../../services/api';
+import { dispatcherDebugApi, DispatcherMessage, getWebSocketUrl } from '../../services/api';
 
 interface MessageDetailsModalProps {
   open: boolean;
@@ -190,6 +190,7 @@ const DispatcherMonitor: React.FC = () => {
   const [paused, setPaused] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const wsReconnectAttempts = useRef(0);
 
   const fetchMessages = async () => {
     if (paused) return;
@@ -214,10 +215,11 @@ const DispatcherMonitor: React.FC = () => {
         return;
       }
 
-      const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws?token=${token}`;
+      const wsUrl = getWebSocketUrl(token);
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
+        wsReconnectAttempts.current = 0;
         console.log('WebSocket conectado para monitoramento em tempo real');
       };
 
@@ -238,12 +240,16 @@ const DispatcherMonitor: React.FC = () => {
       };
 
       ws.onclose = () => {
-        console.log('WebSocket desconectado, tentando reconectar em 5s...');
+        const delay = Math.min(3000 + wsReconnectAttempts.current * 2000, 30000);
+        wsReconnectAttempts.current += 1;
+        if (wsReconnectAttempts.current <= 3) {
+          console.warn(`WebSocket desconectado. Reconectando em ${delay / 1000}s (tentativa ${wsReconnectAttempts.current})...`);
+        }
         setTimeout(() => {
-          if (autoRefresh && !paused) {
+          if (autoRefresh && !paused && wsRef.current?.readyState === WebSocket.CLOSED) {
             connectWebSocket();
           }
-        }, 5000);
+        }, delay);
       };
 
       wsRef.current = ws;

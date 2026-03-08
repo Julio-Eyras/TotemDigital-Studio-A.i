@@ -3092,9 +3092,30 @@ except Exception as e:
     sys.exit(0)
 PYTHON_DROP_OVERRIDES_EOF
         
+        # Reduzir falhas de rede (ECONNRESET): mais tempo e retentativas
+        npm config set fetch-timeout 120000 2>/dev/null || true
+        npm config set fetch-retries 5 2>/dev/null || true
+        npm config set fetch-retry-mintimeout 20000 2>/dev/null || true
+        
         # Instalar todas as dependências (sem overrides) com --force apenas para garantir compatibilidade
         log "Instalando todas as dependências do frontend (sem overrides de ajv)..."
-        if ! npm install --legacy-peer-deps --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-all.log; then
+        _npm_ok=false
+        for _attempt in 1 2 3; do
+            if [[ $_attempt -gt 1 ]]; then
+                log "Tentativa $_attempt/3 (após falha de rede)..."
+                sleep 5
+            fi
+            if npm install --legacy-peer-deps --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-all.log; then
+                _npm_ok=true
+                break
+            fi
+            if grep -qE "ECONNRESET|ETIMEDOUT|network|ENOTFOUND|EAI_AGAIN" /tmp/npm-install-all.log; then
+                warn "Falha de rede detectada. Tentando novamente..."
+            else
+                break
+            fi
+        done
+        if ! $_npm_ok; then
             error "Falha ao instalar dependências do frontend"
             error "Verificando se o problema é com ajv..."
             
@@ -3515,6 +3536,7 @@ PYTHON_FIX_PLUGIN_EOF
             fi
         fi
         
+        export_frontend_build_env
         log "Compilando frontend..."
         npm run build
         
@@ -4092,6 +4114,7 @@ setup_database() {
                     # Limpar build anterior
                     rm -rf build dist 2>/dev/null || true
                     
+                    export_frontend_build_env
                     # Compilar React
                     log "Compilando frontend (React)..."
                     npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-build.log"
@@ -4858,6 +4881,9 @@ setup_letsencrypt() {
     
     # Criar configuração Nginx temporária (HTTP) para validação
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
+    _backend_port=""
+    [[ -f "$INSTALL_DIR/.env" ]] && _backend_port=$(grep -E '^BACKEND_PORT=' "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
+    BACKEND_PORT=${_backend_port:-3000}
     
     # Configurar primeiro com HTTP apenas
     sudo tee $NGINX_CONFIG > /dev/null << EOF
@@ -4891,6 +4917,21 @@ server {
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;
         proxy_read_timeout 300s;
+    }
+    
+    # WebSocket (logs em tempo real, monitor) – proxy para o backend com upgrade (OBRIGATÓRIO para /ws)
+    location /ws {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
     }
     
     # Player - Proxy para backend Express (^~ evita que /player/js/* seja capturado por regex .js)
@@ -4934,6 +4975,7 @@ EOF
     
     sudo ln -sf $NGINX_CONFIG /etc/nginx/sites-enabled/
     sudo rm -f /etc/nginx/sites-enabled/default
+    verify_nginx_ws_config "$NGINX_CONFIG"
     
     # Recarregar Nginx
     if sudo nginx -t && sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload; then
@@ -4972,9 +5014,33 @@ EOF
     fi
 }
 
+# Exporta variáveis de build do frontend a partir do .env (REACT_APP_*).
+# Chamar antes de npm run build no frontend para parametrizar API/WebSocket URL.
+export_frontend_build_env() {
+    local env_file="${INSTALL_DIR:-.}/.env"
+    if [[ -f "$env_file" ]]; then
+        if grep -qE '^REACT_APP_API_URL=' "$env_file" 2>/dev/null; then
+            export REACT_APP_API_URL=$(grep -E '^REACT_APP_API_URL=' "$env_file" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
+            [[ -n "$REACT_APP_API_URL" ]] && log "Build do frontend: REACT_APP_API_URL=$REACT_APP_API_URL (WebSocket usará este host/porta)"
+        fi
+    fi
+}
+
+# Verifica se o config Nginx ativo inclui proxy WebSocket /ws (evita handshake 200)
+verify_nginx_ws_config() {
+    local cfg="${1:-/etc/nginx/sites-available/smart-signage}"
+    if [[ -f "$cfg" ]] && sudo grep -q 'location /ws' "$cfg" 2>/dev/null; then
+        log "Config Nginx inclui proxy WebSocket /ws"
+    else
+        warning "Config Nginx pode não ter proxy /ws - WebSocket pode falhar (handshake 200)"
+    fi
+}
+
 # Configurar Nginx apenas HTTP (sem SSL)
 setup_nginx_http_only() {
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
+    [[ -f "$INSTALL_DIR/.env" ]] && grep -qE '^BACKEND_PORT=' "$INSTALL_DIR/.env" && BACKEND_PORT=$(grep -E '^BACKEND_PORT=' "$INSTALL_DIR/.env" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
+    BACKEND_PORT=${BACKEND_PORT:-3000}
     
     sudo tee $NGINX_CONFIG > /dev/null << EOF
 server {
@@ -4985,6 +5051,21 @@ server {
     location / {
         root $FRONTEND_BUILD_DIR;
         try_files \$uri \$uri/ /index.html;
+    }
+    
+    # WebSocket (logs em tempo real, monitor) – proxy para o backend com upgrade (OBRIGATÓRIO para /ws)
+    location /ws {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
     }
     
     # Backend API
@@ -5043,6 +5124,7 @@ server {
     }
 }
 EOF
+    verify_nginx_ws_config "$NGINX_CONFIG"
 }
 
 # Configurar Nginx
@@ -5198,6 +5280,13 @@ setup_nginx() {
     
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
     
+    # Porta do backend (do .env ou padrão 3000) – usada em location /ws e pode ser reutilizada noutros proxy_pass
+    if [[ -f "$INSTALL_DIR/.env" ]]; then
+        _backend_port=$(grep -E '^BACKEND_PORT=' "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
+        [[ -n "$_backend_port" ]] && BACKEND_PORT="$_backend_port"
+    fi
+    BACKEND_PORT=${BACKEND_PORT:-3000}
+    
     if [[ "$ENABLE_HTTPS_SELF_SIGNED" == "true" ]] && [[ "$INSTALL_MODE" == "single-server" ]]; then
         SSL_DIR="$INSTALL_DIR/nginx/ssl"
         sudo mkdir -p "$SSL_DIR"
@@ -5247,6 +5336,21 @@ server {
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;
         proxy_read_timeout 300s;
+    }
+    
+    # WebSocket (logs em tempo real, monitor) – proxy para o backend com upgrade (OBRIGATÓRIO para /ws)
+    location /ws {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
     }
     
     # Arquivos estáticos do React (JS, CSS, etc.) - DEPOIS de /api/ para não interceptar
@@ -5378,6 +5482,21 @@ server {
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;
         proxy_read_timeout 300s;
+    }
+    
+    # WebSocket (logs em tempo real, monitor) – proxy para o backend com upgrade (OBRIGATÓRIO para /ws)
+    location /ws {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
     }
     
     # Player - Proxy para backend Express (^~ evita que /player/js/* seja capturado por regex .js)
@@ -5614,6 +5733,7 @@ EOF
 
     sudo ln -sf $NGINX_CONFIG /etc/nginx/sites-enabled/
     sudo rm -f /etc/nginx/sites-enabled/default
+    verify_nginx_ws_config "$NGINX_CONFIG"
     
     # Se Let's Encrypt está ativo, não configurar aqui (será feito em setup_letsencrypt)
     if [[ "$ENABLE_HTTPS_LETSENCRYPT" == "true" ]]; then
@@ -9683,6 +9803,7 @@ rebuild_and_restart() {
             }
         fi
         
+        export_frontend_build_env
         # Compilar React
         log "Compilando frontend (React)..."
         npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-build.log"

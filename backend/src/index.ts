@@ -99,7 +99,7 @@ import { dispatcherDebugService } from './services/dispatcherDebugService';
 import { createDatabaseWrapper } from './config/database-pg';
 import { rateLimitHeavyOperations } from './middleware/rateLimitUser.middleware';
 import { openApiSpec } from './config/swagger';
-import { getExpressLimit } from './config/mediaConfig';
+import { getExpressLimit, getStoragePath } from './config/mediaConfig';
 
 // Services
 import { SystemService } from './services/systemService';
@@ -113,11 +113,18 @@ app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
 // Não deixar o Express responder a pedidos de upgrade WebSocket em /ws
 // (o servidor WebSocket trata o evento 'upgrade' no mesmo HTTP server)
-app.use((req, _res, next) => {
-  if (req.path === '/ws' && req.headers.upgrade === 'websocket') {
+app.use((req, res, next) => {
+  if (req.path !== '/ws') return next();
+  if (req.headers.upgrade === 'websocket') {
     return; // não chamar next() = não enviar resposta; o upgrade fica com o WebSocketServer
   }
-  next();
+  // GET /ws sem Upgrade: evitar que caia no catch-all (index.html 200). Exigir upgrade.
+  res.setHeader('Content-Type', 'application/json');
+  res.status(426).json({
+    error: 'Upgrade Required',
+    message: 'Esta rota aceita apenas conexões WebSocket. Use Upgrade: websocket.',
+    code: 'WS_UPGRADE_REQUIRED'
+  });
 });
 
 // =============================================
@@ -220,6 +227,35 @@ const assetsBase = process.env.ASSETS_BASE_PATH
     ? defaultAssetsBase
     : path.join(process.cwd(), 'public', 'assets');
 const uploadsPath = path.join(assetsBase, 'uploads');
+// Servir /assets/uploads/* a partir do path configurado (DB/medias), para evitar 404 quando ASSETS_BASE_PATH difere do storage
+app.get(/^\/assets\/uploads\/(.*)$/, (req, res): void => {
+  const subpath = (req.params[0] || '').replace(/^\/+/, '').replace(/\.\./g, '');
+  if (!subpath) {
+    res.status(404).end();
+    return;
+  }
+  try {
+    const base = getStoragePath();
+    if (!base) {
+      res.status(404).end();
+      return;
+    }
+    const filePath = path.join(base, subpath);
+    const resolvedBase = path.resolve(base);
+    const resolvedFile = path.resolve(filePath);
+    if (!resolvedFile.startsWith(resolvedBase)) {
+      res.status(403).end();
+      return;
+    }
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      res.status(404).end();
+      return;
+    }
+    res.sendFile(filePath);
+  } catch {
+    res.status(404).end();
+  }
+});
 if (assetsBase) {
   app.use('/assets', express.static(assetsBase));
   if (fs.existsSync(uploadsPath)) {
@@ -473,11 +509,10 @@ if (fs.existsSync(jsDir)) {
 }
 
 // IMPORTANTE: Rota /api/player-static/* DEVE vir ANTES de todas as rotas app.use('/api/...')
-// para evitar que outras rotas interceptem antes
-// Servir JS/CSS do player via /api/player-static/* (Nginx sempre faz proxy de /api/ para o backend)
-app.get('/api/player-static/*', (req, res) => {
-  // Extrair subpath da URL: /api/player-static/js/app.js -> js/app.js
-  const subpathRaw = req.path.replace(/^\/api\/player-static\/?/, '').replace(/^\//, '');
+// para evitar que outras rotas interceptem antes.
+// Usar regex para capturar todo o path (propagandas/vinhetas/arquivo.mp4, js/app.js, etc.)
+app.get(/^\/api\/player-static\/(.*)$/, (req, res) => {
+  const subpathRaw = (req.params[0] || '').replace(/^\//, '');
   if (!subpathRaw) {
     return res.status(404).end();
   }

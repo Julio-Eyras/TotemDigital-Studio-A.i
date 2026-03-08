@@ -33,8 +33,13 @@ fi
 # 2) systemd units (preferencial)
 if command -v systemctl &> /dev/null; then
   info "Tentando iniciar unidades systemd (smart-signage / smartsignage-backend / smartsignage-frontend)..."
-  if systemctl list-unit-files | rg -q --fixed-strings "smart-signage.service" >/dev/null 2>&1; then
-    sudo systemctl start smart-signage.service || warn "Falha ao iniciar smart-signage.service"
+  if [[ ! -f /etc/systemd/system/smart-signage.service ]]; then
+    warn "smart-signage.service não encontrado. Criando..."
+    "$SCRIPT_DIR/create-smart-signage-service.sh" "$PROJECT_ROOT" || true
+    sudo systemctl daemon-reload 2>/dev/null || true
+  fi
+  if systemctl list-unit-files 2>/dev/null | grep -q -- "smart-signage.service" || [[ -f /etc/systemd/system/smart-signage.service ]]; then
+    sudo systemctl start smart-signage.service 2>/dev/null || warn "Falha ao iniciar smart-signage.service"
     sleep 1
   else
     if systemctl list-unit-files | rg -q --fixed-strings "smartsignage-backend" >/dev/null 2>&1; then

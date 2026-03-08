@@ -40,6 +40,16 @@ class SmartSignagePlayer {
         this.playlistChangeDetector = null;
     }
 
+    /** Resolve URL de mídia: se for path relativo (/api/...), converte para URL absoluta com apiBaseURL */
+    _resolveMediaURL(url) {
+        if (!url || typeof url !== 'string') return url || '';
+        const trimmed = url.trim();
+        if (/^(https?:|\/\/|blob:)/i.test(trimmed)) return trimmed;
+        const base = (this.config.apiBaseURL || '').replace(/\/$/, '');
+        if (!base) return trimmed;
+        return base + (trimmed.startsWith('/') ? '' : '/') + trimmed;
+    }
+
     /** Carrega player-config.json (fallbackImageDuration, fallbackPropagandasPerVinheta) */
     async loadPlayerConfig() {
         try {
@@ -447,9 +457,13 @@ class SmartSignagePlayer {
                 console.log(`[Player] Reproduzindo mídia ${mediaItem.mediaId} do cache`);
                 await this.mediaPlayer.play(mediaItem, cachedBlobURL);
             } else {
-                // Fallback: streaming direto (enquanto baixa em background)
+                // Garantir URL absoluta (backend pode enviar path relativo /api/player-static/...)
+                const mediaUrl = this._resolveMediaURL(mediaItem.url);
+                if (!mediaUrl) {
+                    throw new Error('URL de mídia vazia: ' + (mediaItem.url || mediaItem.mediaId));
+                }
                 console.log(`[Player] Mídia ${mediaItem.mediaId} não está em cache, usando streaming`);
-                await this.mediaPlayer.play(mediaItem, mediaItem.url);
+                await this.mediaPlayer.play(mediaItem, mediaUrl);
                 
                 // Baixar em background para próximo uso (não bloqueia)
                 this.mediaCacheManager.downloadMedia(mediaItem, this.apiClient).catch(err => {
@@ -638,6 +652,22 @@ class MediaPlayerHTML5 {
         if (list) list.forEach((fn) => fn(data));
     }
 
+    /** Gera mensagem legível a partir do evento de erro (DOM Event ou MediaError). */
+    _mediaErrorMessage(e, element, type, url) {
+        if (!e) return type + ' error';
+        // MediaError (video): code 1=ABORTED, 2=NETWORK, 3=DECODE, 4=SRC_NOT_SUPPORTED
+        const mediaErr = element && element.error;
+        if (mediaErr) {
+            const codes = { 1: 'ABORTED', 2: 'NETWORK', 3: 'DECODE', 4: 'SRC_NOT_SUPPORTED' };
+            const codeStr = codes[mediaErr.code] || ('CODE_' + mediaErr.code);
+            const detail = mediaErr.message ? ': ' + mediaErr.message : '';
+            return 'Video ' + codeStr + detail + (url ? ' (' + url + ')' : '');
+        }
+        if (e.message) return e.message;
+        if (e.type) return type + ' error: ' + e.type;
+        return type + ' error';
+    }
+
     async play(mediaItem, url) {
         return new Promise((resolve, reject) => {
             this._stopSilent();
@@ -688,7 +718,10 @@ class MediaPlayerHTML5 {
             const secs = durationSec != null ? durationSec : (Date.now() - this._startedAt) / 1000;
             finish(null, secs);
         };
-        v.onerror = (e) => finish(e || new Error('Video error'));
+        v.onerror = (e) => {
+            const msg = this._mediaErrorMessage(e, v, 'video', url);
+            finish(new Error(msg));
+        };
 
         this.container.appendChild(v);
         this.currentElement = v;
@@ -705,7 +738,10 @@ class MediaPlayerHTML5 {
         img.src = url;
         img.style.width = img.style.height = '100%';
         img.style.objectFit = 'contain';
-        img.onerror = (e) => finish(e || new Error('Image error'));
+        img.onerror = (e) => {
+            const msg = this._mediaErrorMessage(e, img, 'image', url);
+            finish(new Error(msg));
+        };
 
         this.container.appendChild(img);
         this.currentElement = img;

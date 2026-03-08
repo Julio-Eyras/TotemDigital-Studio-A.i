@@ -2,6 +2,27 @@ import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
+/**
+ * Retorna a URL base do WebSocket (host:port sem protocolo).
+ * Usa REACT_APP_API_URL quando definido (conexão direta ao backend), senão mesmo host da página (proxy reverso).
+ */
+export function getWebSocketHost(): string {
+  const apiUrl = process.env.REACT_APP_API_URL;
+  if (apiUrl && (apiUrl.startsWith('http://') || apiUrl.startsWith('https://'))) {
+    return apiUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  }
+  return typeof window !== 'undefined' ? window.location.host : '';
+}
+
+/**
+ * Monta a URL completa do WebSocket para /ws (com token em query).
+ */
+export function getWebSocketUrl(token: string): string {
+  const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = getWebSocketHost();
+  return `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
+}
+
 // Configurar axios
 const api = axios.create({
   baseURL: API_BASE_URL,

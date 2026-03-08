@@ -36,7 +36,7 @@ import {
   Error as ErrorIcon,
   BugReport,
 } from '@mui/icons-material';
-import { totemApi } from '../../services/api';
+import { totemApi, getWebSocketUrl } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
 
 interface TotemLogsViewerProps {
@@ -115,10 +115,7 @@ const TotemLogsViewer: React.FC<TotemLogsViewerProps> = ({
         return;
       }
 
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = process.env.REACT_APP_API_URL?.replace(/^https?:\/\//, '') || window.location.host;
-      const wsUrl = `${wsProtocol}//${wsHost}/ws?token=${token}`;
-
+      const wsUrl = getWebSocketUrl(token);
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 

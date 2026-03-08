@@ -596,7 +596,8 @@
                 };
                 
                 player.onPlaybackError = (err) => {
-                    log('error', `Erro na reprodução: ${err.message}`, err);
+                    const msg = (err && err.message) || (err && err.type) || (err && String(err)) || 'Erro desconhecido';
+                    log('error', `Erro na reprodução: ${msg}`, err);
                 };
                 
                 try {
