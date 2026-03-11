@@ -581,12 +581,11 @@ export class SubscriberService {
         throw new Error('Subscriber não encontrado');
       }
 
-      // Soft delete - marcar como inativo
-      await this.db.executeRaw(`
-        UPDATE subscribers 
-        SET is_active = false, updated_at = CURRENT_TIMESTAMP
-        WHERE subscriber_id = $1
-      `, [id]);
+      // Soft delete em cascata (lógica encapsulada no banco)
+      await this.db.executeRaw(
+        `SELECT deactivate_subscriber_cascade($1)`,
+        [id]
+      );
     } catch (error: any) {
       await logError('Erro ao excluir subscriber', error, { id });
       throw error;

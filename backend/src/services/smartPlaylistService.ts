@@ -162,44 +162,44 @@ export class SmartPlaylistService {
       const offset = (page - 1) * limit;
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
+      let paramIndex = 1;
 
-      // Aplicar filtros
+      // Aplicar filtros (placeholders $1, $2, ... para compatibilidade com pg)
       if (filters.subscriberId) {
-        whereClause += ' AND sp.client_id = ?';
+        whereClause += ` AND sp.client_id = $${paramIndex}`;
         params.push(filters.subscriberId);
+        paramIndex++;
       }
-
       if (filters.campaignId) {
-        whereClause += ' AND sp.campaign_id = ?';
+        whereClause += ` AND sp.campaign_id = $${paramIndex}`;
         params.push(filters.campaignId);
+        paramIndex++;
       }
-
       if (filters.totemId) {
-        whereClause += ' AND sp.totem_id = ?';
+        whereClause += ` AND sp.totem_id = $${paramIndex}`;
         params.push(filters.totemId);
+        paramIndex++;
       }
-
       if (filters.status) {
-        whereClause += ' AND sp.status = ?';
+        whereClause += ` AND sp.status = $${paramIndex}`;
         params.push(filters.status);
+        paramIndex++;
       }
-
       if (filters.aiEnabled !== undefined) {
-        whereClause += ' AND sp.ai_enabled = ?';
+        whereClause += ` AND sp.ai_enabled = $${paramIndex}`;
         params.push(filters.aiEnabled);
+        paramIndex++;
       }
-
       if (filters.search) {
-        const searchParamIndex = params.length + 1;
-        whereClause += ` AND (sp.name LIKE $${searchParamIndex} OR sp.description LIKE $${searchParamIndex + 1})`;
+        whereClause += ` AND (sp.name ILIKE $${paramIndex} OR sp.description ILIKE $${paramIndex + 1})`;
         params.push(`%${filters.search}%`, `%${filters.search}%`);
+        paramIndex += 2;
       }
 
-      // Buscar smart playlists
-      const limitParamIndex = params.length + 1;
-      const offsetParamIndex = params.length + 2;
+      const limitParamIndex = paramIndex;
+      const offsetParamIndex = paramIndex + 1;
       params.push(limit, offset);
-      
+
       const playlists = await this.db.findMany(`
         SELECT 
           sp.smart_playlist_id,
@@ -240,12 +240,11 @@ export class SmartPlaylistService {
         LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
       `, params);
 
-      // Contar total
       const totalResult = await this.db.findFirst(`
         SELECT COUNT(*) as total
         FROM smart_playlists sp
         ${whereClause}
-      `, params);
+      `, params.slice(0, -2));
 
       const total = totalResult?.total || 0;
 

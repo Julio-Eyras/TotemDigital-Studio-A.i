@@ -36,12 +36,12 @@ DECLARE
   v_contract_number text;
   v_result jsonb;
 BEGIN
-  -- 1. Inserir publisher
+  -- 1. Inserir publisher (email vazio normalizado a NULL para evitar violação de UNIQUE)
   INSERT INTO publishers (name, contact_name, email, phone, whatsapp, category_segment, description, is_subscriber, is_publisher, client_type, is_active, created_at, updated_at)
   VALUES (
     COALESCE(p_publisher->>'name', ''),
     p_publisher->>'contact_name',
-    p_publisher->>'email',
+    NULLIF(TRIM(COALESCE(p_publisher->>'email', '')), ''),
     p_publisher->>'phone',
     p_publisher->>'whatsapp',
     p_publisher->>'category_segment',

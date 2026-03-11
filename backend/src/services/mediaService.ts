@@ -186,6 +186,7 @@ export class MediaService {
       sortOrder?: 'asc' | 'desc';
       createdFrom?: string;
       createdTo?: string;
+      includeInactiveSubscribers?: boolean;
     } = {},
     requestSubscriberId?: number,
     isAdmin: boolean = false
@@ -195,6 +196,7 @@ export class MediaService {
     }
     try {
       const offset = (page - 1) * limit;
+      const includeInactiveSubscribers = !!filters.includeInactiveSubscribers;
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
@@ -231,6 +233,14 @@ export class MediaService {
       if (filters.createdTo) {
         whereClause += ' AND m.created_at <= $' + (params.length + 1);
         params.push(filters.createdTo);
+      }
+
+      // Apenas mídias ativas
+      whereClause += ' AND m.is_active = true';
+
+      // Subscribers ativos por padrão; em modo diagnóstico (includeInactiveSubscribers=true) permitimos inativos
+      if (!includeInactiveSubscribers) {
+        whereClause += ' AND s.is_active = true';
       }
 
       // Validação de campo de ordenação
@@ -281,7 +291,7 @@ export class MediaService {
           -- Dados do usuário que aprovou
           u.username as "approvedByName"
         FROM medias m
-        LEFT JOIN subscribers s ON m.subscriber_id = s.subscriber_id
+        JOIN subscribers s ON m.subscriber_id = s.subscriber_id
         LEFT JOIN users u ON m.approved_by = u.id
         ${whereClause}
         ORDER BY ${sortField} ${orderDirection}
@@ -292,6 +302,7 @@ export class MediaService {
       const totalResult = await this.db.findFirst(`
         SELECT COUNT(*) as total
         FROM medias m
+        JOIN subscribers s ON m.subscriber_id = s.subscriber_id
         ${whereClause}
       `, params);
 

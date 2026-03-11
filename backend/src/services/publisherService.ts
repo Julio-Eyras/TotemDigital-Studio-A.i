@@ -339,7 +339,12 @@ export class PublisherService {
     contracts?: Array<any>;
   }): Promise<Publisher> {
     const db = getDatabase();
-    const pPublisher = JSON.stringify(payload.publisher);
+    // Normalizar email vazio para null (evita UNIQUE constraint quando procedure/BD não normaliza)
+    const publisher = { ...payload.publisher };
+    if (publisher.email != null && String(publisher.email).trim() === '') {
+      publisher.email = undefined;
+    }
+    const pPublisher = JSON.stringify(publisher);
     const pLocals = JSON.stringify(payload.locals ?? []);
     const pTotems = JSON.stringify(payload.totems ?? []);
     const pSmartTvs = JSON.stringify(payload.smartTvs ?? []);

@@ -308,6 +308,12 @@ export class UserService {
     try {
       const { username, email, password, name, role, publisherId, subscriberId, userType, isTenantUser, flags } = data;
 
+      // Email é NOT NULL no schema; normalizar vazio para evitar 500
+      const emailNorm = (email != null && String(email).trim() !== '') ? String(email).trim() : null;
+      if (emailNorm === null) {
+        throw new Error('Email é obrigatório');
+      }
+
       // Verificar se username já existe
       const existingUser = await this.db.findFirst(`
         SELECT id FROM users WHERE username = $1
@@ -370,15 +376,15 @@ export class UserService {
             throw new Error(`userType inválido para role '${role}': use 'subscriber_user'`);
           }
         } else {
-          // system roles
+          // system roles (admin, owner_system, etc.): sem publisher/subscriber = tenant user
           finalPublisherId = null;
           finalSubscriberId = null;
           finalUserType = userType || 'system_user';
           if (finalUserType !== 'system_user') {
             throw new Error(`userType inválido para role '${role}': use 'system_user'`);
           }
+          finalIsTenantUser = true; // constraint exige is_tenant_user=true quando ambos NULL
         }
-        finalIsTenantUser = false;
       }
 
       // Validar publisher existe se fornecido
@@ -418,7 +424,7 @@ export class UserService {
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING id as user_id
-      `, [username, email, hashedPassword, name, role, finalPublisherId, finalSubscriberId, finalUserType, finalIsTenantUser]);
+      `, [username, emailNorm, hashedPassword, name, role, finalPublisherId, finalSubscriberId, finalUserType, finalIsTenantUser]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar usuário');

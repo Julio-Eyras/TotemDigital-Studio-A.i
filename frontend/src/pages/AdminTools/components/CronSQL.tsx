@@ -197,6 +197,7 @@ const CronSQL: React.FC = () => {
     },
     enabled: true,
   });
+  const [cleanupDays, setCleanupDays] = useState<number>(90);
   const [sqlValidation, setSqlValidation] = useState<SqlValidationResult | null>(null);
   const [validatingSql, setValidatingSql] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
@@ -1160,6 +1161,57 @@ const CronSQL: React.FC = () => {
                 ))}
               </Select>
             </FormControl>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Modelo rápido"
+                select
+                value=""
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === 'cleanup_inactive_subscribers') {
+                    const sql = `SELECT cleanup_inactive_subscribers(${cleanupDays});`;
+                    setQueryForm((prev) => ({
+                      ...prev,
+                      name: prev.name || 'Limpar subscribers inativos',
+                      description: prev.description || 'Remove subscribers inativos e dependências após N dias (default 90).',
+                      provider: 'PostgreSQL',
+                      sqlQuery: sql,
+                    }));
+                    setSqlValidation(null);
+                  }
+                }}
+                fullWidth
+                SelectProps={{ displayEmpty: true }}
+                helperText="Modelos de SQL administrativos (apenas PostgreSQL)"
+              >
+                <MenuItem value="">
+                  <em>Selecionar modelo...</em>
+                </MenuItem>
+                <MenuItem value="cleanup_inactive_subscribers">
+                  Limpar subscribers inativos (cleanup_inactive_subscribers)
+                </MenuItem>
+              </TextField>
+              <TextField
+                label="Dias de inatividade (cleanup_inactive_subscribers)"
+                type="number"
+                value={cleanupDays}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value || '0', 10);
+                  const days = Number.isNaN(v) || v <= 0 ? 90 : v;
+                  setCleanupDays(days);
+                  if (queryForm.sqlQuery.includes('cleanup_inactive_subscribers(')) {
+                    setQueryForm((prev) => ({
+                      ...prev,
+                      sqlQuery: `SELECT cleanup_inactive_subscribers(${days});`,
+                    }));
+                    setSqlValidation(null);
+                  }
+                }}
+                inputProps={{ min: 1 }}
+                sx={{ minWidth: 220 }}
+              />
+            </Stack>
+
             <TextField
               label="Query SQL"
               value={queryForm.sqlQuery}

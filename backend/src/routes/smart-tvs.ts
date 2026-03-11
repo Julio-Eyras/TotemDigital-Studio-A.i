@@ -65,9 +65,10 @@ const validateRequest = (req: any, res: any, next: any) => {
 /**
  * @route GET /api/smart-tvs
  * @desc Listar todas as Smart TVs
- * @access Private 
- *   - Admins/Owners: Requer flag_smart_0
- *   - Publishers/Subscribers: Podem ver suas próprias Smart TVs sem flag obrigatória
+ * @access Private
+ *   - Admin, owner_system, admin_sql: acesso à listagem sem flag
+ *   - Publishers/Subscribers: podem ver suas próprias Smart TVs sem flag
+ *   - Outros system users: requerem flag_smart_0
  */
 router.get('/',
   query('page').optional().isInt({ min: 1 }),
@@ -95,16 +96,10 @@ router.get('/',
                           userRole === 'subscriber_user' ||
                           (subscriberId !== undefined && subscriberId > 0);
       const isOwnerOrAdminSql = userRole === 'owner_system' || userRole === 'admin_sql';
-      
-      // Publishers e subscribers podem acessar suas próprias Smart TVs sem flag
-      // Owner_system e admin_sql têm acesso total (sem verificação de flag)
-      // Admin comum precisa de flag_smart_0 para acesso técnico
-      // Outros system users precisam de flag_smart_0
-      if (!isPublisher && !isSubscriber && !isOwnerOrAdminSql) {
-        // Verificar flag para admins comuns e outros system users
-        if (!req.user?.flags?.flag_smart_0) {
-          return res.status(403).json(errorResponse('Acesso negado: Requer flag_smart_0 para acesso técnico'));
-        }
+      // Admin (role admin) pode listar Smart TVs sem flag; apenas outros system users precisam de flag_smart_0
+      const canListWithoutFlag = isPublisher || isSubscriber || isOwnerOrAdminSql || isAdmin;
+      if (!canListWithoutFlag && !req.user?.flags?.flag_smart_0) {
+        return res.status(403).json(errorResponse('Acesso negado: Requer flag_smart_0 para acesso técnico'));
       }
 
       const { page = 1, limit = 10, search, totemId, publisherId: queryPublisherId, active_only } = req.query;

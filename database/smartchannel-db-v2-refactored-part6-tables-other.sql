@@ -911,3 +911,40 @@ CREATE TABLE IF NOT EXISTS stripe_customers (
         CHECK (subscriber_id IS NOT NULL OR publisher_id IS NOT NULL)
 );
 
+-- =============================================
+-- SMART PLAYLISTS (playlist inteligente com IA)
+-- =============================================
+CREATE TABLE IF NOT EXISTS smart_playlists (
+    smart_playlist_id SERIAL PRIMARY KEY,
+    client_id INTEGER NOT NULL, -- FK subscribers (anunciante)
+    campaign_id INTEGER, -- FK campaigns (opcional)
+    totem_id INTEGER, -- FK totems (opcional)
+    name TEXT NOT NULL,
+    description TEXT,
+    target_audience TEXT,
+    time_of_day TEXT,
+    day_of_week TEXT,
+    season TEXT,
+    weather TEXT,
+    location TEXT,
+    content_type TEXT,
+    duration INTEGER,
+    max_items INTEGER,
+    ai_enabled BOOLEAN DEFAULT false,
+    rules JSONB DEFAULT '[]'::jsonb,
+    status TEXT NOT NULL DEFAULT 'inactive',
+        -- inactive, active, generating, error
+    last_generated TIMESTAMP,
+    next_generation TIMESTAMP,
+    generated_items INTEGER DEFAULT 0,
+    total_duration INTEGER DEFAULT 0,
+    effectiveness REAL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_smart_playlist_status
+        CHECK (status IN ('inactive', 'active', 'generating', 'error'))
+);
+
+COMMENT ON TABLE smart_playlists IS 'Playlists inteligentes (IA) por subscriber/campanha/totem';
+COMMENT ON COLUMN smart_playlists.client_id IS 'Subscriber (anunciante) dono da smart playlist';
+

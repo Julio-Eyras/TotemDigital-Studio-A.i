@@ -1870,3 +1870,43 @@ BEGIN
     END IF;
 END $$;
 
+-- =============================================
+-- FKs da tabela SMART_PLAYLISTS
+-- =============================================
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_smart_playlists_client'
+        AND t.relname = 'smart_playlists'
+    ) THEN
+        ALTER TABLE smart_playlists
+            ADD CONSTRAINT fk_smart_playlists_client 
+            FOREIGN KEY (client_id) REFERENCES subscribers(subscriber_id) 
+            ON DELETE CASCADE;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_smart_playlists_campaign'
+        AND t.relname = 'smart_playlists'
+    ) THEN
+        ALTER TABLE smart_playlists
+            ADD CONSTRAINT fk_smart_playlists_campaign 
+            FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) 
+            ON DELETE SET NULL;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_smart_playlists_totem'
+        AND t.relname = 'smart_playlists'
+    ) THEN
+        ALTER TABLE smart_playlists
+            ADD CONSTRAINT fk_smart_playlists_totem 
+            FOREIGN KEY (totem_id) REFERENCES totems(totem_id) 
+            ON DELETE SET NULL;
+    END IF;
+END $$;
+

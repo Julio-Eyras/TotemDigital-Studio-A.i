@@ -656,3 +656,77 @@ DROP TRIGGER IF EXISTS trigger_cascade_plan_deactivate ON plans;
 CREATE TRIGGER trigger_cascade_plan_deactivate
     AFTER UPDATE OF is_active ON plans
     FOR EACH ROW EXECUTE FUNCTION cascade_plan_deactivate();
+
+-- =============================================
+-- 9. FUNÇÃO: Soft delete em cascata para subscriber
+-- =============================================
+
+CREATE OR REPLACE FUNCTION deactivate_subscriber_cascade(p_subscriber_id INTEGER)
+RETURNS void AS $$
+BEGIN
+    -- Desativar subscriber
+    UPDATE subscribers
+    SET is_active = false,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE subscriber_id = p_subscriber_id;
+
+    -- Desativar campanhas do subscriber
+    UPDATE campaigns
+    SET is_active = false,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE subscriber_id = p_subscriber_id;
+
+    -- Desativar playlists do subscriber
+    UPDATE playlists
+    SET is_active = false,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE subscriber_id = p_subscriber_id;
+
+    -- Desativar mídias do subscriber
+    UPDATE medias
+    SET is_active = false,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE subscriber_id = p_subscriber_id;
+
+    -- Desativar acessos subscriber → publisher
+    UPDATE subscriber_publisher_access
+    SET is_active = false,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE subscriber_id = p_subscriber_id;
+
+    -- Desativar contratos do subscriber
+    UPDATE subscriber_contracts
+    SET is_active = false,
+        status = CASE 
+                   WHEN status IN ('draft', 'active') THEN 'terminated'
+                   ELSE status
+                 END,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE subscriber_id = p_subscriber_id;
+
+    -- Desativar billing do subscriber
+    UPDATE subscriber_billing
+    SET is_active = false,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE subscriber_id = p_subscriber_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =============================================
+-- 10. FUNÇÃO: Limpeza física de subscribers inativos antigos
+-- =============================================
+
+CREATE OR REPLACE FUNCTION cleanup_inactive_subscribers(p_older_than_days INTEGER DEFAULT 90)
+RETURNS INTEGER AS $$
+DECLARE
+    v_deleted INTEGER := 0;
+BEGIN
+    DELETE FROM subscribers
+    WHERE is_active = false
+      AND updated_at < (CURRENT_TIMESTAMP - (p_older_than_days || ' days')::INTERVAL);
+
+    GET DIAGNOSTICS v_deleted = ROW_COUNT;
+    RETURN v_deleted;
+END;
+$$ LANGUAGE plpgsql;
+

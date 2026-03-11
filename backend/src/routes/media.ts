@@ -168,7 +168,8 @@ router.get('/',
         sortBy = 'created_at',
         sortOrder = 'desc',
         createdFrom,
-        createdTo
+        createdTo,
+        includeInactiveSubscribers
       } = req.query;
 
       const result = await getMediaService().getMedia(
@@ -182,6 +183,8 @@ router.get('/',
           sortOrder: sortOrder as 'asc' | 'desc' | undefined,
           createdFrom: createdFrom as string | undefined,
           createdTo: createdTo as string | undefined,
+          // Apenas administradores podem enxergar mídias de subscribers inativos
+          includeInactiveSubscribers: isAdmin && includeInactiveSubscribers === 'true',
         },
         requestSubscriberId,
         isAdmin

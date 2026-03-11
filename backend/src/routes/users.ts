@@ -171,9 +171,11 @@ router.post('/',
       });
 
       res.status(201).json(newUser);
-    } catch (error) {
+    } catch (error: any) {
       await logError('Erro ao criar usuário', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      const msg = error?.message || '';
+      const isValidation = msg.includes('obrigatório') || msg.includes('já existe') || msg.includes('inválido') || msg.includes('não encontrado') || msg.includes('requer ');
+      res.status(isValidation ? 400 : 500).json({ error: msg || 'Erro interno do servidor' });
     }
   }
 );
