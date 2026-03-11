@@ -39,7 +39,9 @@ data class PlayerConfigResponse(
     val autoStart: Boolean,
     val fullscreen: Boolean,
     val portrait: Boolean,
-    val abandonPin: String
+    val abandonPin: String,
+    /** Opção administrativa: preferir storage externo (default true). null = usar default. */
+    val storageUseExternalFirst: Boolean? = null
 )
 
 data class HeartbeatData(

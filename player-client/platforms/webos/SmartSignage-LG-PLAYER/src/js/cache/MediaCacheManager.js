@@ -1,12 +1,15 @@
 /**
  * MediaCacheManager - webOS
- * Gerencia cache local de mídias do DispatchPlan usando FileSystem API
+ * Gerencia cache local de mídias do DispatchPlan em {pathBase}/propagandas/
+ * (design: path fixo propagandas, storage externo por defeito).
+ * Usa StorageHelper quando disponível; senão fallback para cacheDir legado.
  */
 
 class MediaCacheManager {
     constructor(options = {}) {
         this.maxCacheSize = options.maxCacheSize || 500 * 1024 * 1024; // 500MB padrão
         this.cacheDir = options.cacheDir || '/media/internal/smartsignage/cache';
+        this.storageHelper = options.storageHelper || null;
         this.metadataKey = 'smartsignage_cache_metadata';
         this.dispatchPlanKey = 'smartsignage_last_dispatch_plan';
         
@@ -114,10 +117,11 @@ class MediaCacheManager {
                 throw new Error(`Checksum inválido: esperado ${mediaItem.metadata.checksum}, calculado ${checksum}`);
             }
             
-            // Salvar arquivo
+            // Salvar em propagandas com convenção {mediaId}.{ext} (design)
             const extension = this.getFileExtension(mediaItem.metadata?.mimeType || 'application/octet-stream');
-            const fileName = `${mediaItem.mediaId}_${checksum}.${extension}`;
-            const localPath = `${this.cacheDir}/${fileName}`;
+            const writeDir = this.storageHelper ? await this.storageHelper.getWritePropagandasDir() : this.cacheDir;
+            const fileName = `${mediaItem.mediaId}.${extension}`;
+            const localPath = `${writeDir}/${fileName}`;
             
             await this.saveFile(localPath, data);
             
@@ -168,9 +172,13 @@ class MediaCacheManager {
     }
 
     /**
-     * Obtém caminho local de uma mídia
+     * Obtém caminho local de uma mídia (prioridade: StorageHelper.resolveMediaPath, depois metadata)
      */
-    async getLocalPath(mediaId) {
+    async getLocalPath(mediaId, extension) {
+        if (this.storageHelper) {
+            const path = await this.storageHelper.resolveMediaPath(mediaId, extension);
+            if (path) return path;
+        }
         const cached = await this.getCachedMedia(mediaId);
         return cached?.localPath || null;
     }

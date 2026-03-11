@@ -16,6 +16,12 @@
     <div id="status-bar" class="hidden">
       <span id="status-text">Carregando...</span>
     </div>
+    <!-- Debug: storage interno + USB -->
+    <button type="button" id="btn-debug" style="position: absolute; top: 8px; right: 8px; z-index: 2000; padding: 6px 12px;">Debug</button>
+    <div id="debug-panel" style="display: none; position: absolute; top: 44px; right: 8px; z-index: 2000; max-width: 400px; max-height: 320px; overflow: auto; background: rgba(0,0,0,0.9); color: #fff; padding: 12px; font-size: 12px; border-radius: 8px;">
+      <pre id="debug-storage-text" style="margin: 0; white-space: pre-wrap; word-break: break-all;"></pre>
+      <button type="button" id="btn-debug-refresh-storage" style="margin-top: 8px;">Atualizar info storage</button>
+    </div>
   </div>
 
   <!-- MQTT Client (para SmartDisplayFX) -->
@@ -50,6 +56,9 @@
     };
   </script>
   
+  <!-- Storage e cache (propagandas, interno + USB) -->
+  <script src="src/js/storage/StorageHelper.js"></script>
+  <script src="src/js/cache/MediaCacheManager.js"></script>
   <!-- Scripts Electron específicos -->
   <script src="src/js/player/media-player.js"></script>
   <script src="src/js/app.js"></script>

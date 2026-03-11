@@ -80,10 +80,25 @@ app.on('before-quit', () => {
 
 // IPC Handlers
 ipcMain.handle('get-config', () => {
+  const path = require('path');
+  const storagePath = process.env.STORAGE_PATH ||
+    path.join(app.getPath('userData'), 'storage');
+  const apiBaseURL = process.env.API_BASE_URL || 'http://localhost:3000';
+  const totemUIN = process.env.TOTEM_UIN || '';
+  const totemSecret = process.env.TOTEM_SECRET || '';
+  // Opção administrativa: preferir storage externo (default true). Pode ser sobrescrito por config.json ou API.
+  const useExternalFirst = process.env.STORAGE_USE_EXTERNAL_FIRST !== undefined
+    ? (process.env.STORAGE_USE_EXTERNAL_FIRST === '1' || process.env.STORAGE_USE_EXTERNAL_FIRST === 'true')
+    : true;
   return {
-    apiBaseURL: process.env.API_BASE_URL || 'http://localhost:3000',
-    totemUIN: process.env.TOTEM_UIN || '',
-    totemSecret: process.env.TOTEM_SECRET || '',
+    apiBaseURL,
+    totemUIN,
+    totemSecret,
+    storagePath,
+    useExternalFirst,
+    API_BASE_URL: apiBaseURL,
+    TOTEM_UIN: totemUIN,
+    TOTEM_SECRET: totemSecret,
   };
 });
 

@@ -21,6 +21,7 @@ class SmartSignageApp {
     this.useDispatcher = true; // Usar novo dispatcher por padrão
     this.totemConnectionManager = null; // Gerenciador de conexão com totem
     this.mediaCacheManager = null; // Gerenciador de cache local
+    this.storageHelper = null; // Storage propagandas, externo por defeito (design 3.3)
     
     this.initialized = false;
   }
@@ -63,11 +64,20 @@ class SmartSignageApp {
         console.log('[App] Totem local não encontrado, usando servidor central');
       }
 
-      // Inicializar MediaCacheManager para cache local de mídias
+      // Storage: path propagandas, externo por defeito (design 3.3)
+      if (typeof StorageHelper !== 'undefined') {
+        this.storageHelper = new StorageHelper({
+          useExternalFirst: this.config.use_external_first !== undefined ? this.config.use_external_first : true
+        });
+        await this.storageHelper.ensurePropagandasDirs();
+      }
+
+      // Inicializar MediaCacheManager para cache em .../propagandas/
       if (typeof MediaCacheManager !== 'undefined') {
         this.mediaCacheManager = new MediaCacheManager({
           maxCacheSize: 500 * 1024 * 1024, // 500MB
-          cacheDir: '/media/internal/smartsignage/cache'
+          cacheDir: 'smartsignage/cache',
+          storageHelper: this.storageHelper
         });
         await this.mediaCacheManager.init();
       }
@@ -86,6 +96,7 @@ class SmartSignageApp {
       let validation = null;
       if (this.useDispatcher && this.deviceToken) {
         try {
+          await this.applyPlayerConfigFromApi();
           const dispatchPlan = await this.getDispatchPlan();
           
           // Processar cache local de mídias em background (se disponível)
@@ -297,6 +308,23 @@ class SmartSignageApp {
     } catch (error) {
       console.warn('[App] Erro ao obter token:', error);
       return null;
+    }
+  }
+
+  /**
+   * Aplica config do player vinda da API (storage externo/interno).
+   */
+  async applyPlayerConfigFromApi() {
+    try {
+      const response = await fetch(`${this.apiUrl}/api/player/config`);
+      if (!response.ok) return;
+      const config = await response.json();
+      if (config && typeof config.storageUseExternalFirst === 'boolean' && this.storageHelper) {
+        this.storageHelper.useExternalFirst = config.storageUseExternalFirst;
+        console.log('[App] Config aplicada: storageUseExternalFirst=' + config.storageUseExternalFirst);
+      }
+    } catch (e) {
+      console.warn('[App] Erro ao obter config do player (usando defaults)', e);
     }
   }
 

@@ -12,14 +12,15 @@ class MediaPlayer {
   }
 
   /**
-   * Reproduz item de mídia
+   * Reproduz item de mídia (url ou file:// para path local)
    */
   async play(item) {
     this.stop();
 
     this.currentItem = item;
+    const type = (item.type || item.mediaType || 'video').toLowerCase();
 
-    switch (item.type) {
+    switch (type) {
       case 'video':
         await this.playVideo(item);
         break;
@@ -30,7 +31,7 @@ class MediaPlayer {
         await this.playHTML(item);
         break;
       default:
-        throw new Error(`Unsupported media type: ${item.type}`);
+        await this.playVideo(item);
     }
   }
 

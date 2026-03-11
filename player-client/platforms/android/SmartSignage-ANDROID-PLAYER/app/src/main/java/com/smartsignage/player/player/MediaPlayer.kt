@@ -84,8 +84,13 @@ class MediaPlayer(private val context: Context) {
             currentItem = mediaItem
             onEndCallback = onEnd
 
-            // Tentar usar caminho local primeiro (se disponível)
-            val url = getLocalPathCallback?.invoke(mediaItem.mediaId) ?: mediaItem.url
+            // Tentar usar caminho local primeiro (resolução interno → USB)
+            val localPath = getLocalPathCallback?.invoke(mediaItem.mediaId)
+            val url = if (!localPath.isNullOrEmpty()) {
+                if (localPath.startsWith("/")) "file://$localPath" else localPath
+            } else {
+                mediaItem.url
+            }
 
             when (mediaItem.mediaType.lowercase()) {
                 "video" -> playVideo(url, mediaItem.duration)

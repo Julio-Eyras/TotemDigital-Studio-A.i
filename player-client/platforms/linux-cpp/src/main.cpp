@@ -15,7 +15,9 @@
 #include "core/HeartbeatService.h"
 #include "core/Scheduler.h"
 #include "player/MediaPlayer.h"
+#include "storage/StorageHelper.h"
 #include "utils/Logger.h"
+#include <jsoncpp/json/json.h>
 
 bool g_running = true;
 
@@ -42,6 +44,18 @@ int main(int argc, char* argv[]) {
     auto scheduler = std::make_shared<Scheduler>();
     auto heartbeatService = std::make_shared<HeartbeatService>(apiClient, 30000);
     auto mediaPlayer = std::make_shared<MediaPlayer>();
+    SmartSignage::StorageHelper storageHelper;
+    storageHelper.ensurePropagandasDirs();
+
+        // Aplicar config da API (storage externo/interno)
+        try {
+            Json::Value config = apiClient->getConfig();
+            if (config.isMember("storageUseExternalFirst") && config["storageUseExternalFirst"].isBool()) {
+                storageHelper.setUseExternalFirst(config["storageUseExternalFirst"].asBool());
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "[Main] Erro ao obter config (usando defaults): " << e.what() << std::endl;
+        }
 
         // Autenticar totem
         if (!apiClient->authenticateTotem()) {
@@ -64,13 +78,18 @@ int main(int argc, char* argv[]) {
                 playlistManager->loadPlaylist();
             }
 
-            // Obter próximo item
             auto item = playlistManager->getNextItem();
             if (item) {
-                // Verificar agendamento
                 if (scheduler->shouldDisplay(*item)) {
-                    mediaPlayer->play(*item);
-                    // Aguardar término da reprodução
+                    // Preferir path local em propagandas (design 3.3)
+                    std::string localPath = storageHelper.resolveMediaPath(std::to_string(item->id), "");
+                    if (!localPath.empty()) {
+                        PlaylistItem localItem = *item;
+                        localItem.url = "file://" + localPath;
+                        mediaPlayer->play(localItem);
+                    } else {
+                        mediaPlayer->play(*item);
+                    }
                     mediaPlayer->waitForCompletion();
                 } else {
                     // Item não agendado, pular

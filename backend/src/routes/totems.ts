@@ -380,10 +380,25 @@ router.delete('/:id',
       if (!userId) {
         return res.status(401).json({ error: 'Usuário não autenticado' });
       }
+
       await getTotemService().deleteTotem(totemId, userId);
       return res.json({ message: 'Totem deletado com sucesso' });
-    } catch (error) {
-      return res.status(500).json({ error: 'Erro ao deletar totem' });
+    } catch (error: any) {
+      await logError('Erro ao deletar totem', error, {
+        totemId: req.params.id,
+        userId: req.user?.id || req.user?.userId,
+      });
+
+      const message = error?.message || 'Erro ao deletar totem';
+      // Erros de domínio conhecidos do TotemService
+      if (message.includes('Totem não encontrado')) {
+        return res.status(404).json({ error: message });
+      }
+      if (message.includes('Não é possível remover totem com dados associados')) {
+        return res.status(400).json({ error: message });
+      }
+
+      return res.status(500).json({ error: message });
     }
   }
 );

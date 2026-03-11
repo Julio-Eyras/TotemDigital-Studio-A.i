@@ -201,13 +201,10 @@ BEGIN
   AND spa.is_active = true;
 
   -- 3) Opcional: registrar audit log simples (se tabela audit_logs existir)
-  PERFORM
-    CASE WHEN to_regclass('public.audit_logs') IS NOT NULL THEN
-      (INSERT INTO audit_logs (user_id, action, entity, entity_id, metadata, timestamp)
-        VALUES (NULL, 'reconcile', 'plan_publisher_access', p_plan_id, NULL, CURRENT_TIMESTAMP))
-    ELSE
-      NULL
-    END;
+  IF to_regclass('public.audit_logs') IS NOT NULL THEN
+    INSERT INTO audit_logs (user_id, action, entity, entity_id, metadata, timestamp)
+    VALUES (NULL, 'reconcile', 'plan_publisher_access', p_plan_id, NULL, CURRENT_TIMESTAMP);
+  END IF;
 
 END;
 $$ LANGUAGE plpgsql;

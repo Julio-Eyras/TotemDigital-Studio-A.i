@@ -768,11 +768,16 @@ class MediaPlayerHTML5 {
 
     _stopSilent() {
         if (!this.currentElement) return;
-        if (this.currentElement.tagName === 'VIDEO') {
-            this.currentElement.pause();
-            this.currentElement.src = '';
+        const el = this.currentElement;
+        // Remover handlers antes de limpar src para evitar que o browser dispare
+        // 'error' (Empty src) e nosso onerror chame finish() → erro falso na reprodução
+        el.onerror = null;
+        el.onended = null;
+        if (el.tagName === 'VIDEO') {
+            el.pause();
+            el.src = '';
         }
-        this.currentElement.remove();
+        el.remove();
         this.currentElement = null;
         
         // Limpar Blob URL

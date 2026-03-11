@@ -3,8 +3,11 @@ package com.smartsignage.player
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebView
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.FragmentActivity
+import com.smartsignage.player.storage.StorageHelper
 import androidx.lifecycle.ViewModelProvider
 import com.smartsignage.player.models.PlayerState
 import com.smartsignage.player.smartdisplayfx.SmartDisplayFxConfig
@@ -22,6 +25,8 @@ class MainActivity : FragmentActivity() {
     private lateinit var statusText: TextView
     private lateinit var fxWebView: WebView
     private var smartDisplayFxManager: SmartDisplayFxManager? = null
+    private var debugPanel: LinearLayout? = null
+    private var debugStorageText: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,6 +36,8 @@ class MainActivity : FragmentActivity() {
         playerContainer = findViewById(R.id.player_container)
         statusText = findViewById(R.id.status_text)
         fxWebView = findViewById(R.id.fx_webview)
+        debugPanel = findViewById(R.id.debug_panel)
+        debugStorageText = findViewById(R.id.debug_storage_text)
 
         // Inicializar ViewModel
         viewModel = ViewModelProvider(this)[PlayerViewModel::class.java]
@@ -70,8 +77,40 @@ class MainActivity : FragmentActivity() {
             }
         }
 
+        // Debug: toggle painel e botão Atualizar info storage
+        findViewById<Button>(R.id.btn_debug).setOnClickListener {
+            val panel = debugPanel
+            if (panel != null) {
+                panel.visibility = if (panel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+                if (panel.visibility == View.VISIBLE) viewModel.refreshDebugStorageInfo()
+            }
+        }
+        findViewById<Button>(R.id.btn_debug_refresh_storage).setOnClickListener {
+            viewModel.refreshDebugStorageInfo()
+        }
+        viewModel.debugStorageInfo.observe(this) { info ->
+            debugStorageText?.text = formatDebugStorageInfo(info)
+        }
+
         // Inicializar player
         viewModel.initialize()
+    }
+
+    private fun formatDebugStorageInfo(info: StorageHelper.DebugStorageInfo?): String {
+        if (info == null) return "Storage: a carregar..."
+        val sb = StringBuilder()
+        sb.append("Ordem de resolução: ${info.resolutionOrder}\n\n")
+        for (e in info.entries) {
+            sb.append("${e.label}\n")
+            sb.append("  Path: ${e.path}\n")
+            sb.append("  Espaço livre: ${e.freeSpaceBytes / (1024*1024)} MB\n")
+            sb.append("  Ficheiros em propagandas: ${e.fileCount}\n")
+            if (e.fileNames.isNotEmpty()) {
+                sb.append("  Ficheiros: ${e.fileNames.take(15).joinToString(", ")}${if (e.fileNames.size > 15) "..." else ""}\n")
+            }
+            sb.append("\n")
+        }
+        return sb.toString()
     }
 
     /**

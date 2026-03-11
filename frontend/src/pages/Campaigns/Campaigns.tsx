@@ -873,6 +873,7 @@ const Campaigns: React.FC = () => {
             onChange={(_, newValue) => {
               setNewCampaign({ ...newCampaign, playlistIds: newValue.map(p => p.playlist_id) });
             }}
+            noOptionsText="Nenhuma playlist cadastrada. Crie em Assinantes > Playlists, adicione mídias e depois selecione aqui."
             renderInput={(params) => (
               <TextField {...params} label="Playlists" margin="normal" />
             )}
@@ -1252,6 +1253,7 @@ const Campaigns: React.FC = () => {
                     playlistIds: newIds
                   });
                 }}
+                noOptionsText="Nenhuma playlist cadastrada. Crie em Assinantes > Playlists, adicione mídias e depois selecione aqui."
                 renderInput={(params) => (
                   <TextField {...params} label="Playlists" margin="normal" helperText="Selecione playlists e depois arraste para reordenar" />
                 )}

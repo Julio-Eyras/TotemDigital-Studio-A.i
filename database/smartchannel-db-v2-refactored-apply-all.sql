@@ -59,10 +59,13 @@
 \i smartchannel-db-v2-refactored-part14-reconcile.sql
 \echo '[16/17] Criando Contracts indexes, triggers e audit (contracts -> campaigns)...'
 \i smartchannel-db-v2-refactored-part15-contracts.sql
-\echo '[17/18] Ajustes em Plans (compatibilidade seeds)...'
+\echo '[17/19] Ajustes em Plans (compatibilidade seeds)...'
 \i smartchannel-db-v2-refactored-part16-plans.sql
 
-\echo '[18/18] Seeds: Dados Iniciais Playlist Mix...'
+\echo '[18/19] Criando procedures atómicas (publisher/subscriber com recursos)...'
+\i smartchannel-db-v2-refactored-part17-atomic-procedures.sql
+
+\echo '[19/19] Seeds: Dados Iniciais Playlist Mix...'
 \i seeds-playlist-mix.sql
 
 \echo '[FINAL] Verificando schema...'

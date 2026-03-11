@@ -1039,14 +1039,9 @@ const Publishers: React.FC = () => {
         }
       }
 
-      // Contracts: se fornecidos, verificar número e título
+      // Contracts: se fornecidos, apenas título é obrigatório (contract_number é gerado no banco pela procedure)
       for (let i = 0; i < tempPublisherContracts.length; i++) {
         const c = tempPublisherContracts[i];
-        if (!c.contract_number || !String(c.contract_number).trim()) {
-          setError(`Contrato ${i + 1}: contract_number é obrigatório.`);
-          setCreateTab(4);
-          return;
-        }
         if (!c.title || !String(c.title).trim()) {
           setError(`Contrato ${i + 1}: title é obrigatório.`);
           setCreateTab(4);
@@ -1077,26 +1072,7 @@ const Publishers: React.FC = () => {
 
       // Subscribers não são criados aqui - são gerenciados separadamente
 
-      // 5. Criar os contratos de publisher (se houver)
-      const contractErrors: string[] = [];
-      for (const contract of tempPublisherContracts) {
-        try {
-          await publisherContractApi.create({
-            ...contract,
-            publisher_id: publisherId,
-          } as CreatePublisherContractRequest);
-        } catch (contractError: any) {
-          console.error('Erro ao criar contrato de publisher:', contractError);
-          const msg = contractError?.response?.status === 409
-            ? (contractError?.response?.data?.error || 'Número de contrato já existe')
-            : (contractError?.response?.data?.error || contractError?.message || 'Erro ao criar contrato');
-          contractErrors.push(`${contract.contract_number || 'Contrato'}: ${msg}`);
-        }
-      }
-
-      if (contractErrors.length > 0) {
-        setError(`Publicador criado. Alguns contratos não foram criados: ${contractErrors.join('; ')}. Edite o publicador para corrigir os números e adicionar os contratos.`);
-      }
+      // Contratos já foram criados pela procedure create_publisher_with_resources quando enviados no payload; não criar de novo via API.
 
       // Recarregar lista de publishers
       await loadPublishers();

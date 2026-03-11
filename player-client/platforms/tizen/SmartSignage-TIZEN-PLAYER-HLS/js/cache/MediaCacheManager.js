@@ -1,12 +1,15 @@
 /**
  * MediaCacheManager - Tizen
- * Gerencia cache local de mídias do DispatchPlan usando Tizen FileSystem API
+ * Gerencia cache local de mídias do DispatchPlan em .../propagandas/
+ * (design: path fixo propagandas, storage externo por defeito).
  */
 
 class MediaCacheManager {
     constructor(options = {}) {
         this.maxCacheSize = options.maxCacheSize || 500 * 1024 * 1024; // 500MB padrão
-        this.cacheDir = options.cacheDir || '/media/internal/smartsignage/cache';
+        this.cacheDir = options.cacheDir || 'smartsignage/cache';
+        this.storageHelper = options.storageHelper || null;
+        this._writePropagandasDir = null;
         this.metadataKey = 'smartsignage_cache_metadata';
         this.dispatchPlanKey = 'smartsignage_last_dispatch_plan';
         
@@ -38,10 +41,10 @@ class MediaCacheManager {
         const stats = { success: 0, failed: 0, skipped: 0 };
         
         try {
-            // Salvar último DispatchPlan para modo offline
             await this.saveLastDispatchPlan(dispatchPlan);
-            
-            // Verificar espaço disponível
+            if (this.storageHelper) {
+                this._writePropagandasDir = await this.storageHelper.getWritePropagandasDir();
+            }
             await this.ensureCacheSpace(dispatchPlan.mediaItems);
             
             // Processar cada mídia
@@ -118,10 +121,11 @@ class MediaCacheManager {
                 throw new Error(`Checksum inválido: esperado ${mediaItem.metadata.checksum}, calculado ${checksum}`);
             }
             
-            // Salvar arquivo usando Tizen FileSystem API
+            // Salvar em propagandas com convenção {mediaId}.{ext} (design)
             const extension = this.getFileExtension(mediaItem.metadata?.mimeType || 'application/octet-stream');
-            const fileName = `${mediaItem.mediaId}_${checksum}.${extension}`;
-            const localPath = `${this.cacheDir}/${fileName}`;
+            const writeDir = this._writePropagandasDir || this.cacheDir;
+            const fileName = `${mediaItem.mediaId}.${extension}`;
+            const localPath = `${writeDir}/${fileName}`;
             
             await this.saveFile(localPath, data);
             
@@ -172,9 +176,13 @@ class MediaCacheManager {
     }
 
     /**
-     * Obtém caminho local de uma mídia
+     * Obtém caminho local de uma mídia (prioridade: StorageHelper.resolveMediaPath)
      */
-    async getLocalPath(mediaId) {
+    async getLocalPath(mediaId, extension) {
+        if (this.storageHelper) {
+            const path = await this.storageHelper.resolveMediaPath(mediaId, extension);
+            if (path) return path;
+        }
         const cached = await this.getCachedMedia(mediaId);
         return cached?.localPath || null;
     }
@@ -270,7 +278,8 @@ class MediaCacheManager {
     }
 
     /**
-     * Salva arquivo usando Tizen FileSystem API
+     * Salva arquivo usando Tizen FileSystem API.
+     * path pode ser caminho completo (ex.: smartsignage/propagandas/123.mp4) ou só nome de ficheiro.
      */
     async saveFile(path, data) {
         if (typeof tizen === 'undefined' || !tizen.filesystem) {
@@ -279,23 +288,35 @@ class MediaCacheManager {
         
         return new Promise((resolve, reject) => {
             try {
-                // Obter diretório de documentos
                 const documentsDir = tizen.filesystem.resolve('documents');
+                const parts = path.split('/').filter(Boolean);
+                const fileName = parts.pop();
+                const dirPath = parts.join('/');
+                const effectiveDir = dirPath || this.cacheDir;
                 
-                // Criar diretório de cache se não existir
-                const cacheDir = documentsDir.resolve(this.cacheDir);
-                if (!cacheDir.isDirectory) {
-                    documentsDir.createDirectory(this.cacheDir);
+                let cacheDirObj;
+                if (dirPath) {
+                    try {
+                        cacheDirObj = documentsDir.resolve(effectiveDir);
+                    } catch (e) {
+                        documentsDir.createDirectory(effectiveDir);
+                        cacheDirObj = documentsDir.resolve(effectiveDir);
+                    }
+                } else {
+                    cacheDirObj = documentsDir.resolve(this.cacheDir);
+                    if (!cacheDirObj.isDirectory) {
+                        documentsDir.createDirectory(this.cacheDir);
+                        cacheDirObj = documentsDir.resolve(this.cacheDir);
+                    }
+                }
+                if (!cacheDirObj.isDirectory) {
+                    return reject(new Error('Not a directory: ' + effectiveDir));
                 }
                 
-                // Criar arquivo
-                const file = cacheDir.createFile(path.split('/').pop());
+                const file = cacheDirObj.createFile(fileName);
                 const fileStream = file.openStream('w');
-                
-                // Escrever dados
                 fileStream.write(data);
                 fileStream.close();
-                
                 resolve();
             } catch (error) {
                 reject(error);

@@ -144,6 +144,10 @@ main() {
         "smartchannel-db-v2-refactored-part11-playlist-mix.sql|Parte 11: Playlist Mix (Tabelas)"
         "smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql|Parte 12: Playlist Mix (Funções e Triggers)"
         "smartchannel-db-v2-refactored-part13-dispatcher-views.sql|Parte 13: Dispatcher Views"
+        "smartchannel-db-v2-refactored-part14-reconcile.sql|Parte 14: Reconciliation (plan_publisher_access)"
+        "smartchannel-db-v2-refactored-part15-contracts.sql|Parte 15: Contracts indexes, triggers e audit"
+        "smartchannel-db-v2-refactored-part16-plans.sql|Parte 16: Plans (compatibilidade seeds)"
+        "smartchannel-db-v2-refactored-part17-atomic-procedures.sql|Parte 17: Procedures atómicas (publisher/subscriber)"
         "seeds-playlist-mix.sql|Seeds: Dados Iniciais Playlist Mix"
     )
     

@@ -58,7 +58,9 @@ export const swaggerDocumentation = {
     { name: 'Webhooks', description: 'Webhooks configuráveis' },
     { name: 'Billing', description: 'Faturamento e assinaturas' },
     { name: 'Reports', description: 'Geração de relatórios' },
-    { name: 'PlaylistMix', description: 'Mixagem inteligente de playlists para totens' }
+    { name: 'PlaylistMix', description: 'Mixagem inteligente de playlists para totens' },
+    { name: 'Publishers', description: 'Publicadores (criação com ou sem recursos/contratos)' },
+    { name: 'Subscribers', description: 'Anunciantes (criação com ou sem contratos)' }
   ],
   paths: {
     '/auth/login': {
@@ -106,6 +108,102 @@ export const swaggerDocumentation = {
             }
           },
           '401': { description: 'Credenciais inválidas' }
+        }
+      }
+    },
+    '/publishers': {
+      post: {
+        tags: ['Publishers'],
+        summary: 'Criar publisher',
+        description: `
+          **Dois formatos de body:**
+          1. **Simples:** \`{ name, contact_name?, email?, ... }\` — cria apenas o publisher.
+          2. **Com recursos:** \`{ publisher: { name, ... }, locals?: [], totems?: [], smartTvs?: [], contracts?: [] }\` — criação atómica (procedure). 
+          Neste caso, \`contract_number\` é gerado no banco como **PUB-{publisher_id}.000001**, etc. Não é necessário enviar \`contract_number\` nos contratos.
+        `,
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                oneOf: [
+                  { $ref: '#/components/schemas/CreatePublisherSimple' },
+                  { $ref: '#/components/schemas/CreatePublisherWithResources' }
+                ]
+              }
+            }
+          }
+        },
+        responses: {
+          '201': {
+            description: 'Publisher criado',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    publisher_id: { type: 'integer' },
+                    name: { type: 'string' },
+                    contact_name: { type: 'string', nullable: true },
+                    email: { type: 'string', nullable: true },
+                    is_active: { type: 'boolean' },
+                    created_at: { type: 'string', format: 'date-time' },
+                    updated_at: { type: 'string', format: 'date-time' }
+                  }
+                }
+              }
+            }
+          },
+          '400': { description: 'Dados inválidos' },
+          '500': { description: 'Erro de banco (constraint, procedure)' }
+        }
+      }
+    },
+    '/subscribers': {
+      post: {
+        tags: ['Subscribers'],
+        summary: 'Criar subscriber (anunciante)',
+        description: `
+          **Dois formatos de body:**
+          1. **Simples:** \`{ name, contact_name?, email?, ... }\` — cria apenas o anunciante.
+          2. **Com contratos:** \`{ subscriber: { name, ... }, contracts: [ { title, plan_id?, ... } ] }\` — criação atómica (procedure).
+          Neste caso, \`contract_number\` é gerado no banco como **SUB-{subscriber_id}.000001**, etc. Em cada contrato só \`title\` é obrigatório.
+        `,
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                oneOf: [
+                  { $ref: '#/components/schemas/CreateSubscriberSimple' },
+                  { $ref: '#/components/schemas/CreateSubscriberWithContracts' }
+                ]
+              }
+            }
+          }
+        },
+        responses: {
+          '201': {
+            description: 'Subscriber criado',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    subscriber_id: { type: 'integer' },
+                    name: { type: 'string' },
+                    contact_name: { type: 'string', nullable: true },
+                    email: { type: 'string', nullable: true },
+                    is_active: { type: 'boolean' },
+                    created_at: { type: 'string', format: 'date-time' },
+                    updated_at: { type: 'string', format: 'date-time' }
+                  }
+                }
+              }
+            }
+          },
+          '400': { description: 'Dados inválidos' },
+          '500': { description: 'Erro de banco (constraint, procedure)' }
         }
       }
     },
@@ -721,6 +819,105 @@ export const swaggerDocumentation = {
       }
     },
     schemas: {
+      CreatePublisherSimple: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string', example: 'Editora XYZ' },
+          contact_name: { type: 'string' },
+          email: { type: 'string', format: 'email' },
+          phone: { type: 'string' },
+          whatsapp: { type: 'string' },
+          category_segment: { type: 'string' },
+          description: { type: 'string' }
+        }
+      },
+      CreatePublisherWithResources: {
+        type: 'object',
+        required: ['publisher'],
+        properties: {
+          publisher: {
+            type: 'object',
+            required: ['name'],
+            properties: {
+              name: { type: 'string' },
+              contact_name: { type: 'string' },
+              email: { type: 'string' },
+              phone: { type: 'string' },
+              whatsapp: { type: 'string' },
+              category_segment: { type: 'string' },
+              description: { type: 'string' }
+            }
+          },
+          locals: { type: 'array', items: { type: 'object' }, description: 'Locais do publisher' },
+          totems: { type: 'array', items: { type: 'object' }, description: 'Totems (localIndex 0-based)' },
+          smartTvs: { type: 'array', items: { type: 'object' }, description: 'Smart TVs (totemIndex 0-based)' },
+          contracts: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                contract_type: { type: 'string', enum: ['revenue_share', 'subscription', 'partnership', 'hybrid'] },
+                start_date: { type: 'string', format: 'date' },
+                end_date: { type: 'string', format: 'date' }
+              }
+            },
+            description: 'contract_number gerado no banco (PUB-{id}.000001)'
+          }
+        }
+      },
+      CreateSubscriberSimple: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string', example: 'Anunciante ABC' },
+          contact_name: { type: 'string' },
+          email: { type: 'string', format: 'email' },
+          phone: { type: 'string' },
+          whatsapp: { type: 'string' },
+          address: { type: 'string' },
+          category_segment: { type: 'string' },
+          description: { type: 'string' }
+        }
+      },
+      CreateSubscriberWithContracts: {
+        type: 'object',
+        required: ['subscriber', 'contracts'],
+        properties: {
+          subscriber: {
+            type: 'object',
+            required: ['name'],
+            properties: {
+              name: { type: 'string' },
+              contact_name: { type: 'string' },
+              email: { type: 'string' },
+              phone: { type: 'string' },
+              whatsapp: { type: 'string' },
+              address: { type: 'string' },
+              category_segment: { type: 'string' },
+              description: { type: 'string' }
+            }
+          },
+          contracts: {
+            type: 'array',
+            items: {
+              type: 'object',
+              required: ['title'],
+              properties: {
+                title: { type: 'string' },
+                plan_id: { type: 'integer' },
+                contract_type: { type: 'string', enum: ['advertising', 'subscription', 'partnership'] },
+                start_date: { type: 'string', format: 'date' },
+                end_date: { type: 'string', format: 'date' },
+                total_amount: { type: 'number' },
+                currency: { type: 'string' }
+              }
+            },
+            description: 'contract_number gerado no banco (SUB-{id}.000001)'
+          }
+        }
+      },
       FxAnalyticsOverview: {
         type: 'object',
         properties: {

@@ -171,7 +171,7 @@ export class SubscriberService {
   }
 
   /**
-   * Listar contratos ativos de um subscriber
+   * Listar contratos ativos de um subscriber (status active e dentro do período)
    */
   async getActiveContracts(subscriberId: number): Promise<any[]> {
     try {
@@ -210,6 +210,52 @@ export class SubscriberService {
       return contracts || [];
     } catch (error: any) {
       await logError('Erro ao buscar contratos ativos do subscriber', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Listar todos os contratos de um subscriber (qualquer status), para exibição na edição do anunciante.
+   */
+  async getSubscriberContracts(subscriberId: number, activeOnly = false): Promise<any[]> {
+    try {
+      const statusCondition = activeOnly
+        ? `AND sc.status = 'active' AND sc.start_date <= CURRENT_DATE AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)`
+        : '';
+      const contracts = await this.db.findMany(`
+        SELECT 
+          sc.contract_id,
+          sc.contract_number,
+          sc.title,
+          sc.description,
+          sc.start_date,
+          sc.end_date,
+          sc.status,
+          sc.total_amount,
+          sc.currency,
+          sc.contract_type,
+          p.plan_id,
+          p.name AS plan_name,
+          p.slug AS plan_slug,
+          p.price_monthly,
+          p.price_yearly,
+          CASE 
+            WHEN sc.status = 'active' 
+              AND sc.start_date <= CURRENT_DATE 
+              AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+            THEN true
+            ELSE false
+          END AS is_valid
+        FROM subscriber_contracts sc
+        LEFT JOIN plans p ON sc.plan_id = p.plan_id
+        WHERE sc.subscriber_id = $1
+          ${statusCondition}
+        ORDER BY sc.start_date DESC, sc.contract_id DESC
+      `, [subscriberId]);
+
+      return contracts || [];
+    } catch (error: any) {
+      await logError('Erro ao buscar contratos do subscriber', error);
       throw error;
     }
   }
@@ -363,6 +409,43 @@ export class SubscriberService {
       await logError('Erro ao criar subscriber', error, { data });
       throw error;
     }
+  }
+
+  /**
+   * Criar subscriber e subscriber_contracts numa única transação via procedure no banco.
+   * contract_number é gerado no banco como SUB-{subscriber_id}.{seq}.
+   * Uso: POST /api/subscribers com body { subscriber: { name, ... }, contracts: [ { plan_id?, title, ... } ] }
+   */
+  async createSubscriberWithContracts(payload: {
+    subscriber: CreateSubscriberRequest & { is_active?: boolean };
+    contracts?: Array<Record<string, unknown>>;
+  }): Promise<Subscriber> {
+    const db = getDatabase();
+    const pSubscriber = JSON.stringify(payload.subscriber);
+    const pContracts = JSON.stringify(payload.contracts ?? []);
+
+    const row = await db.findFirst(
+      `SELECT create_subscriber_with_contracts($1::jsonb, $2::jsonb) AS data`,
+      [pSubscriber, pContracts]
+    );
+    if (!row?.data) {
+      throw new Error('Erro ao criar subscriber com contratos: procedimento não retornou dados');
+    }
+    const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+    const subscriberId = data.subscriber_id;
+    if (!subscriberId) {
+      throw new Error('Erro ao criar subscriber com contratos: subscriber_id não retornado');
+    }
+
+    const subData = await db.findFirst(
+      `SELECT subscriber_id, name, contact_name, email, phone, whatsapp, address, category_segment, description, is_active, created_at, updated_at
+       FROM subscribers WHERE subscriber_id = $1`,
+      [subscriberId]
+    );
+    if (!subData) {
+      throw new Error('Erro ao buscar subscriber criado');
+    }
+    return subData as Subscriber;
   }
 
   /**

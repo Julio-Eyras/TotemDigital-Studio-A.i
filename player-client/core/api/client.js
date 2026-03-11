@@ -269,7 +269,35 @@ class APIClient {
   }
 
   /**
-   * Baixa arquivo de mídia
+   * Baixa arquivo a partir da URL do plano (absoluta ou relativa ao baseURL)
+   */
+  async downloadFromUrl(mediaUrl) {
+    const url = mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')
+      ? mediaUrl
+      : `${this.baseURL}${mediaUrl.startsWith('/') ? '' : '/'}${mediaUrl}`;
+    const headers = {};
+
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    if (this.totemUIN && this.totemSecret) {
+      const token = await this.generateTotemToken();
+      headers['X-Totem-Token'] = token;
+      headers['X-Totem-UIN'] = this.totemUIN;
+    }
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+    }
+
+    return response;
+  }
+
+  /**
+   * Baixa arquivo de mídia por ID (fallback)
    */
   async downloadMedia(mediaId) {
     const url = `${this.baseURL}/api/player/media/${mediaId}/download`;

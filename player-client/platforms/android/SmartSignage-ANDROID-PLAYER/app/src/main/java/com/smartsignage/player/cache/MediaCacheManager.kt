@@ -2,389 +2,246 @@ package com.smartsignage.player.cache
 
 import android.content.Context
 import android.util.Log
+import com.smartsignage.player.api.APIClient
+import com.smartsignage.player.models.DispatchPlan
+import com.smartsignage.player.models.DispatchPlanMediaItem
+import com.smartsignage.player.storage.StorageHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 
 /**
  * MediaCacheManager - Android
- * Gerencia cache local de mídias do DispatchPlan
+ * Gerencia cache local em {pathBase}/propagandas/ (design: path fixo /propagandas).
+ * Usa StorageHelper: interno + USB quando presente; resolução interno → USB para leitura.
  */
 class MediaCacheManager(private val context: Context) {
-    
-    private val cacheDir: File = File(context.getExternalFilesDir(null), "cache/media")
-    private val metadataFile: File = File(context.getExternalFilesDir(null), "cache/metadata.json")
-    private val dispatchPlanFile: File = File(context.getExternalFilesDir(null), "cache/dispatch_plan.json")
-    
-    companion object {
-        private const val TAG = "MediaCacheManager"
-        private const val MAX_CACHE_SIZE = 32L * 1024 * 1024 * 1024 // 32GB
-        private const val CACHE_THRESHOLD = 0.8 // 80%
-    }
+
+    private val storageHelper = StorageHelper(context)
+    private val metadataFile: File = File(context.filesDir, "cache/metadata.json")
+    private val dispatchPlanFile: File = File(context.filesDir, "cache/dispatch_plan.json")
 
     init {
-        // Criar diretórios se não existirem
-        cacheDir.mkdirs()
+        metadataFile.parentFile?.mkdirs()
+    }
+
+    companion object {
+        private const val TAG = "MediaCacheManager"
+        private const val CACHE_THRESHOLD_FREE = 0.2 // Manter pelo menos 20% livre
     }
 
     /**
-     * Processa DispatchPlan e baixa mídias necessárias
+     * Processa DispatchPlan: baixa mídias para .../propagandas/{mediaId}.{ext}
      */
     suspend fun processDispatchPlan(
-        dispatchPlan: com.smartsignage.player.models.DispatchPlan,
-        apiClient: com.smartsignage.player.api.APIClient
+        dispatchPlan: DispatchPlan,
+        apiClient: APIClient
     ): CacheStats = withContext(Dispatchers.IO) {
         val stats = CacheStats()
-        
         try {
-            // Salvar último DispatchPlan para modo offline
             saveLastDispatchPlan(dispatchPlan)
-            
-            // Verificar espaço disponível
             ensureCacheSpace(dispatchPlan.mediaItems)
-            
-            // Processar cada mídia
-            dispatchPlan.mediaItems.forEach { mediaItem ->
+            for (mediaItem in dispatchPlan.mediaItems) {
                 try {
-                    val cached = getCachedMedia(mediaItem.mediaId)
-                    
-                    if (cached != null && cached.valid) {
-                        // Verificar checksum se disponível
-                        if (mediaItem.metadata?.checksum != null) {
-                            val isValid = validateChecksum(cached.localPath, mediaItem.metadata.checksum)
-                            if (!isValid) {
-                                Log.warn(TAG, "Mídia ${mediaItem.mediaId} corrompida, removendo e baixando novamente")
-                                removeCachedMedia(mediaItem.mediaId)
-                                downloadMedia(mediaItem, apiClient, stats)
-                            } else {
-                                stats.skipped++
-                            }
-                        } else {
+                    val mediaIdStr = mediaItem.mediaId.toString()
+                    val ext = getFileExtension(mediaItem.metadata?.get("mimeType")?.toString() ?: "application/octet-stream")
+                    val resolved = storageHelper.resolveMediaPath(mediaIdStr, ext)
+                    if (resolved != null) {
+                        val meta = loadMediaMetadata(mediaItem.mediaId)
+                        if (meta != null && mediaItem.metadata?.get("checksum")?.toString()?.let { meta.checksum == it } == true) {
                             stats.skipped++
+                            continue
                         }
-                    } else {
-                        // Download necessário
-                        downloadMedia(mediaItem, apiClient, stats)
                     }
+                    downloadMedia(mediaItem, apiClient, stats)
                 } catch (e: Exception) {
                     Log.e(TAG, "Erro ao processar mídia ${mediaItem.mediaId}", e)
                     stats.failed++
                 }
             }
-            
             Log.i(TAG, "Processamento concluído: ${stats.success} sucesso, ${stats.failed} falhas, ${stats.skipped} puladas")
-            
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao processar DispatchPlan", e)
         }
-        
         stats
     }
 
-    /**
-     * Baixa uma mídia específica
-     */
     private suspend fun downloadMedia(
-        mediaItem: com.smartsignage.player.models.DispatchPlanMediaItem,
-        apiClient: com.smartsignage.player.api.APIClient,
+        mediaItem: DispatchPlanMediaItem,
+        apiClient: APIClient,
         stats: CacheStats
     ) = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "Baixando mídia ${mediaItem.mediaId}...")
-            
-            // Determinar URL de download
-            val downloadUrl = if (mediaItem.url.startsWith("http://") || mediaItem.url.startsWith("https://")) {
-                mediaItem.url
+            val mediaIdStr = mediaItem.mediaId.toString()
+            val ext = getFileExtension(mediaItem.metadata?.get("mimeType")?.toString() ?: "application/octet-stream")
+            val fileName = "$mediaIdStr.$ext"
+            val propagandasDir = storageHelper.getWritePropagandasDir()
+            val localFile = File(propagandasDir, fileName)
+
+            val response = if (mediaItem.url.isNotBlank()) {
+                apiClient.downloadFromUrl(mediaItem.url)
             } else {
-                "${apiClient.baseURL}/api/media/${mediaItem.mediaId}/download"
+                apiClient.downloadMedia(mediaItem.mediaId)
             }
-            
-            // Baixar arquivo
-            val response = apiClient.downloadMedia(mediaItem.mediaId)
             if (!response.isSuccessful) {
                 throw IOException("HTTP ${response.code}: ${response.message}")
             }
-            
             val body = response.body?.bytes() ?: throw IOException("Response body is null")
-            
-            // Validar tamanho se disponível
-            if (mediaItem.metadata?.size != null && body.size != mediaItem.metadata.size) {
-                throw IOException("Tamanho incorreto: esperado ${mediaItem.metadata.size}, recebido ${body.size}")
-            }
-            
-            // Calcular checksum
+
             val checksum = calculateChecksum(body)
-            
-            // Validar checksum se disponível
-            if (mediaItem.metadata?.checksum != null && checksum != mediaItem.metadata.checksum) {
-                throw IOException("Checksum inválido: esperado ${mediaItem.metadata.checksum}, calculado $checksum")
+            val expectedChecksum = mediaItem.metadata?.get("checksum")?.toString()
+            if (expectedChecksum != null && checksum != expectedChecksum) {
+                throw IOException("Checksum inválido")
             }
-            
-            // Salvar arquivo
-            val extension = getFileExtension(mediaItem.metadata?.mimeType ?: "application/octet-stream")
-            val fileName = "${mediaItem.mediaId}_${checksum}.$extension"
-            val localPath = File(cacheDir, fileName)
-            
-            FileOutputStream(localPath).use { it.write(body) }
-            
-            // Salvar metadados
-            saveMediaMetadata(mediaItem.mediaId, MediaMetadata(
-                mediaId = mediaItem.mediaId,
-                url = mediaItem.url,
-                localPath = localPath.absolutePath,
-                checksum = checksum,
-                size = body.size,
-                mimeType = mediaItem.metadata?.mimeType ?: "application/octet-stream",
-                downloadedAt = System.currentTimeMillis(),
-                lastAccessed = System.currentTimeMillis(),
-                valid = true
-            ))
-            
+
+            FileOutputStream(localFile).use { it.write(body) }
+
+            saveMediaMetadata(
+                mediaItem.mediaId,
+                MediaMetadata(
+                    mediaId = mediaItem.mediaId,
+                    url = mediaItem.url,
+                    localPath = localFile.absolutePath,
+                    checksum = checksum,
+                    size = body.size,
+                    mimeType = mediaItem.metadata?.get("mimeType")?.toString() ?: "application/octet-stream",
+                    extension = ext,
+                    downloadedAt = System.currentTimeMillis(),
+                    lastAccessed = System.currentTimeMillis(),
+                    valid = true
+                )
+            )
             stats.success++
-            Log.d(TAG, "Mídia ${mediaItem.mediaId} baixada com sucesso: ${localPath.absolutePath}")
-            
+            Log.d(TAG, "Mídia ${mediaItem.mediaId} baixada: ${localFile.absolutePath}")
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao baixar mídia ${mediaItem.mediaId}", e)
             stats.failed++
-            throw e
         }
     }
 
-    /**
-     * Obtém mídia do cache
-     */
     fun getCachedMedia(mediaId: Int): MediaMetadata? {
-        return try {
-            val metadata = loadMediaMetadata(mediaId)
-            if (metadata != null && metadata.valid) {
-                // Verificar se arquivo ainda existe
-                val file = File(metadata.localPath)
-                if (file.exists()) {
-                    // Atualizar último acesso
-                    metadata.lastAccessed = System.currentTimeMillis()
-                    saveMediaMetadata(mediaId, metadata)
-                    metadata
-                } else {
-                    null
-                }
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao obter mídia do cache", e)
-            null
+        val meta = loadMediaMetadata(mediaId) ?: return null
+        val ext = meta.extension.ifEmpty { null }
+        val path = storageHelper.resolveMediaPath(mediaId.toString(), ext)
+        if (path != null && File(path).exists()) {
+            meta.lastAccessed = System.currentTimeMillis()
+            saveMediaMetadata(mediaId, meta)
+            return meta.copy(localPath = path)
         }
+        return null
     }
 
-    /**
-     * Obtém caminho local de uma mídia
-     */
+    /** Path local para reprodução (ordem conforme config: por defeito externo → interno) */
     fun getLocalPath(mediaId: Int): String? {
-        return getCachedMedia(mediaId)?.localPath
+        val meta = loadMediaMetadata(mediaId)
+        val ext = meta?.extension?.takeIf { it.isNotEmpty() }
+        return storageHelper.resolveMediaPath(mediaId.toString(), ext)
     }
 
-    /**
-     * Remove mídia do cache
-     */
     fun removeCachedMedia(mediaId: Int) {
-        try {
-            val metadata = loadMediaMetadata(mediaId)
-            if (metadata != null && metadata.localPath.isNotEmpty()) {
-                File(metadata.localPath).delete()
+        val meta = loadMediaMetadata(mediaId) ?: return
+        val ext = meta.extension.ifEmpty { null }
+        for (root in storageHelper.getStorageRoots()) {
+            val prop = File(root, StorageHelper.PROPAGANDAS_DIR)
+            if (ext != null) {
+                File(prop, "${mediaId}.$ext").delete()
+            } else {
+                for (e in listOf("mp4", "webm", "jpg", "jpeg", "png", "gif", "webp")) {
+                    File(prop, "$mediaId.$e").delete()
+                }
             }
-            removeMediaMetadata(mediaId)
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao remover mídia do cache", e)
+        }
+        removeMediaMetadata(mediaId)
+    }
+
+    private suspend fun ensureCacheSpace(mediaItems: List<DispatchPlanMediaItem>) {
+        val totalNeeded = mediaItems.sumOf { (it.metadata?.get("size") as? Number)?.toLong() ?: 0L }
+        val writeProp = storageHelper.getWritePropagandasDir()
+        var free = storageHelper.getFreeSpaceBytes(writeProp.parentFile ?: writeProp)
+        if (totalNeeded > free * (1 - CACHE_THRESHOLD_FREE)) {
+            val allMeta = loadAllMediaMetadata()
+            val currentIds = mediaItems.map { it.mediaId }.toSet()
+            val unused = allMeta.filter { it.mediaId !in currentIds }.sortedBy { it.lastAccessed }
+            var freed = 0L
+            for (m in unused) {
+                if (freed >= totalNeeded) break
+                removeCachedMedia(m.mediaId)
+                freed += m.size
+            }
+            Log.i(TAG, "Limpeza: $freed bytes liberados")
         }
     }
 
-    /**
-     * Garante espaço suficiente no cache
-     */
-    private suspend fun ensureCacheSpace(mediaItems: List<com.smartsignage.player.models.DispatchPlanMediaItem>) {
-        val totalSize = mediaItems.sumOf { it.metadata?.size?.toLong() ?: 0L }
-        val currentSize = getCacheSize()
-        val availableSpace = MAX_CACHE_SIZE - currentSize
-        
-        if (totalSize > availableSpace) {
-            val neededSpace = totalSize - availableSpace
-            Log.i(TAG, "Espaço insuficiente. Liberando $neededSpace bytes...")
-            cleanupCache(neededSpace, mediaItems.map { it.mediaId })
-        }
-    }
-
-    /**
-     * Obtém tamanho atual do cache
-     */
-    fun getCacheSize(): Long {
-        return cacheDir.listFiles()?.sumOf { it.length() } ?: 0L
-    }
-
-    /**
-     * Limpa cache usando política LRU
-     */
-    private fun cleanupCache(minBytesToFree: Long, currentMediaIds: List<Int>) {
-        val currentMediaIdsSet = currentMediaIds.toSet()
-        val allMetadata = loadAllMediaMetadata()
-        
-        // Filtrar mídias não usadas e ordenar por último acesso (LRU)
-        val unusedMedia = allMetadata
-            .filter { it.mediaId !in currentMediaIdsSet }
-            .sortedBy { it.lastAccessed }
-        
-        var freedSpace = 0L
-        for (metadata in unusedMedia) {
-            if (freedSpace >= minBytesToFree) break
-            
-            removeCachedMedia(metadata.mediaId)
-            freedSpace += metadata.size
-        }
-        
-        Log.i(TAG, "Limpeza concluída: $freedSpace bytes liberados")
-    }
-
-    /**
-     * Salva último DispatchPlan para modo offline
-     */
-    private fun saveLastDispatchPlan(dispatchPlan: com.smartsignage.player.models.DispatchPlan) {
-        try {
-            val json = com.google.gson.Gson().toJson(dispatchPlan)
-            dispatchPlanFile.writeText(json)
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao salvar DispatchPlan", e)
-        }
-    }
-
-    /**
-     * Carrega último DispatchPlan salvo (modo offline)
-     */
-    fun loadLastDispatchPlan(): com.smartsignage.player.models.DispatchPlan? {
+    fun loadLastDispatchPlan(): DispatchPlan? {
         return try {
             if (dispatchPlanFile.exists()) {
-                val json = dispatchPlanFile.readText()
-                com.google.gson.Gson().fromJson(json, com.smartsignage.player.models.DispatchPlan::class.java)
-            } else {
-                null
-            }
+                com.google.gson.Gson().fromJson(
+                    dispatchPlanFile.readText(),
+                    DispatchPlan::class.java
+                )
+            } else null
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao carregar DispatchPlan", e)
             null
         }
     }
 
-    /**
-     * Salva metadados de mídia
-     */
-    private fun saveMediaMetadata(mediaId: Int, metadata: MediaMetadata) {
+    private fun saveLastDispatchPlan(plan: DispatchPlan) {
         try {
-            val allMetadata = loadAllMediaMetadata().toMutableMap()
-            allMetadata[mediaId] = metadata
-            val json = com.google.gson.Gson().toJson(allMetadata)
-            metadataFile.writeText(json)
+            dispatchPlanFile.writeText(com.google.gson.Gson().toJson(plan))
         } catch (e: Exception) {
-            Log.e(TAG, "Erro ao salvar metadados", e)
+            Log.e(TAG, "Erro ao salvar DispatchPlan", e)
         }
     }
 
-    /**
-     * Carrega metadados de uma mídia
-     */
-    private fun loadMediaMetadata(mediaId: Int): MediaMetadata? {
-        return loadAllMediaMetadata()[mediaId]
+    private fun saveMediaMetadata(mediaId: Int, metadata: MediaMetadata) {
+        val all = loadAllMediaMetadata().toMutableMap()
+        all[mediaId] = metadata
+        metadataFile.writeText(com.google.gson.Gson().toJson(all))
     }
 
-    /**
-     * Carrega todos os metadados
-     */
+    private fun loadMediaMetadata(mediaId: Int): MediaMetadata? = loadAllMediaMetadata()[mediaId]
+
     private fun loadAllMediaMetadata(): Map<Int, MediaMetadata> {
+        if (!metadataFile.exists()) return emptyMap()
         return try {
-            if (metadataFile.exists()) {
-                val json = metadataFile.readText()
-                val type = object : com.google.gson.reflect.TypeToken<Map<Int, MediaMetadata>>() {}.type
-                com.google.gson.Gson().fromJson(json, type) ?: emptyMap()
-            } else {
-                emptyMap()
-            }
+            val type = object : com.google.gson.reflect.TypeToken<Map<Int, MediaMetadata>>() {}.type
+            com.google.gson.Gson().fromJson(metadataFile.readText(), type) ?: emptyMap()
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao carregar metadados", e)
             emptyMap()
         }
     }
 
-    /**
-     * Remove metadados de uma mídia
-     */
     private fun removeMediaMetadata(mediaId: Int) {
-        try {
-            val allMetadata = loadAllMediaMetadata().toMutableMap()
-            allMetadata.remove(mediaId)
-            val json = com.google.gson.Gson().toJson(allMetadata)
-            metadataFile.writeText(json)
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao remover metadados", e)
-        }
+        val all = loadAllMediaMetadata().toMutableMap()
+        all.remove(mediaId)
+        metadataFile.writeText(com.google.gson.Gson().toJson(all))
     }
 
-    /**
-     * Calcula checksum SHA-256
-     */
     private fun calculateChecksum(data: ByteArray): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        val hash = digest.digest(data)
-        return hash.joinToString("") { "%02x".format(it) }
+        return digest.digest(data).joinToString("") { "%02x".format(it) }
     }
 
-    /**
-     * Valida checksum de um arquivo
-     */
-    private fun validateChecksum(filePath: String, expectedChecksum: String): Boolean {
-        return try {
-            val file = File(filePath)
-            val data = file.readBytes()
-            val calculatedChecksum = calculateChecksum(data)
-            calculatedChecksum == expectedChecksum
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao validar checksum", e)
-            false
-        }
+    private fun getFileExtension(mimeType: String): String = when (mimeType) {
+        "video/mp4" -> "mp4"
+        "video/webm" -> "webm"
+        "video/quicktime" -> "mov"
+        "image/jpeg", "image/jpg" -> "jpg"
+        "image/png" -> "png"
+        "image/gif" -> "gif"
+        "image/webp" -> "webp"
+        else -> "bin"
     }
 
-    /**
-     * Obtém extensão de arquivo do MIME type
-     */
-    private fun getFileExtension(mimeType: String): String {
-        return when (mimeType) {
-            "video/mp4" -> "mp4"
-            "video/webm" -> "webm"
-            "video/quicktime" -> "mov"
-            "image/jpeg", "image/jpg" -> "jpg"
-            "image/png" -> "png"
-            "image/gif" -> "gif"
-            "image/webp" -> "webp"
-            "audio/mpeg", "audio/mp3" -> "mp3"
-            "audio/ogg" -> "ogg"
-            "audio/wav" -> "wav"
-            else -> "bin"
-        }
-    }
+    fun getStorageHelper(): StorageHelper = storageHelper
 
-    /**
-     * Estatísticas de cache
-     */
-    data class CacheStats(
-        var success: Int = 0,
-        var failed: Int = 0,
-        var skipped: Int = 0
-    )
+    data class CacheStats(var success: Int = 0, var failed: Int = 0, var skipped: Int = 0)
 
-    /**
-     * Metadados de mídia em cache
-     */
     data class MediaMetadata(
         val mediaId: Int,
         val url: String,
@@ -392,6 +249,7 @@ class MediaCacheManager(private val context: Context) {
         val checksum: String,
         val size: Long,
         val mimeType: String,
+        val extension: String = "",
         val downloadedAt: Long,
         var lastAccessed: Long,
         val valid: Boolean

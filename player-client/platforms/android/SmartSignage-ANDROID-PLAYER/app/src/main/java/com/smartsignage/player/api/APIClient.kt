@@ -6,6 +6,7 @@ import com.smartsignage.player.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
+import java.net.URL
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
@@ -228,7 +229,27 @@ class APIClient(
     }
 
     /**
-     * Baixa arquivo de mídia
+     * Baixa arquivo a partir da URL do plano (absoluta ou relativa ao baseURL).
+     * Para URL relativa (ex.: /assets/uploads/...) usa baseURL + url.
+     */
+    suspend fun downloadFromUrl(url: String): Response = withContext(Dispatchers.IO) {
+        val fullUrl = when {
+            url.startsWith("http://") || url.startsWith("https://") -> url
+            url.startsWith("/") -> "$baseURL$url"
+            else -> "$baseURL/$url"
+        }
+        val requestBuilder = Request.Builder().url(fullUrl)
+        requestBuilder.addHeader("Content-Type", "application/octet-stream")
+        if (totemUIN.isNotEmpty() && totemSecret.isNotEmpty()) {
+            requestBuilder.addHeader("X-Totem-Token", generateTotemToken())
+            requestBuilder.addHeader("X-Totem-UIN", totemUIN)
+        }
+        token?.let { requestBuilder.addHeader("Authorization", "Bearer $it") }
+        client.newCall(requestBuilder.build()).execute()
+    }
+
+    /**
+     * Baixa arquivo de mídia por ID (fallback quando url não disponível)
      */
     suspend fun downloadMedia(mediaId: Int): Response {
         return try {

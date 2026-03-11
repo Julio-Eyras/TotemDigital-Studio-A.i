@@ -271,6 +271,8 @@ export const playerConfig = {
   autoStart: getEnvBoolean('PLAYER_AUTO_START', true),
   fullscreen: getEnvBoolean('PLAYER_FULLSCREEN', true),
   portrait: getEnvBoolean('PLAYER_PORTRAIT', false),
+  /** Storage externo por defeito (configurável na opção administrativa); ver DESIGN_PLAYER_PLATAFORMAS_STORAGE_E_DOWNLOAD.md 3.3 */
+  storageUseExternalFirst: getEnvBoolean('PLAYER_STORAGE_USE_EXTERNAL_FIRST', true),
   // Porta separada para o player (opcional). Se definida, cria servidor Express separado
   // Se não definida, o player é servido na mesma porta do backend
   port: getEnvNumber('PLAYER_PORT', 0) || undefined // 0 ou não definido = usar porta do backend

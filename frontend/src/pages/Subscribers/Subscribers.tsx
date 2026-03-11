@@ -273,7 +273,8 @@ const Subscribers: React.FC = () => {
   const [campaignPlaylists, setCampaignPlaylists] = useState<any[]>([]);
   
   // Estados para contratos
-  const [activeContracts, setActiveContracts] = useState<any[]>([]);
+  // null = ainda não carregado do backend (evita gerar número antes da hora)
+  const [activeContracts, setActiveContracts] = useState<any[] | null>(null);
   /** Contratos com status "active" para vincular a campanhas (só estes podem ser usados nos totens) */
   const contractsActiveForCampaign = useMemo(
     () => (activeContracts || []).filter((c: any) => c.status === 'active'),
@@ -282,7 +283,7 @@ const Subscribers: React.FC = () => {
 
   // Próximo número = último sequencial existente (após o ponto) + 1. Ex: SUB-11.000003 -> próximo 000004
   const generateInlineSubscriberContractNumber = (subscriberId: number): string => {
-    const list = [...activeContracts, ...tempSubscriberContracts];
+    const list = [...(activeContracts || []), ...tempSubscriberContracts];
     const parseSeq = (n: string) => {
       if (!n || typeof n !== 'string') return 0;
       const parts = n.trim().split('.');
@@ -491,7 +492,7 @@ const Subscribers: React.FC = () => {
         mediaApi.getAll({ subscriberId, limit: 1000 }),
         playlistApi.getAll({ subscriberId, limit: 1000 }),
         campaignApi.getAll({ subscriberId, limit: 1000 }),
-        subscriberApi.getContracts(subscriberId).catch(() => []), // Carregar contratos
+        subscriberApi.getContracts(subscriberId, { activeOnly: false }).catch(() => []), // Todos os contratos (incl. rascunho) para a aba Contratos do modal
       ]);
 
       setEditMedias(Array.isArray(mediasResponse?.data) ? mediasResponse.data : []);
@@ -546,12 +547,17 @@ const Subscribers: React.FC = () => {
 
   // Pré-preencher número do contrato na aba "Contratos do Anunciante" (edição)
   useEffect(() => {
-    if (!editDialogOpen || !selectedSubscriber || editTab !== 1) return;
+    // Só gerar quando:
+    // - modal de edição aberto
+    // - aba Contratos ativa
+    // - subscriber selecionado
+    // - contratos já carregados (activeContracts != null)
+    if (!editDialogOpen || !selectedSubscriber || editTab !== 1 || !Array.isArray(activeContracts)) return;
     setSubscriberContractFormEdit((prev) => {
       if (prev.contract_number != null && prev.contract_number !== '') return prev;
       return { ...prev, contract_number: generateInlineSubscriberContractNumber(selectedSubscriber.subscriber_id) };
     });
-  }, [editDialogOpen, editTab, selectedSubscriber?.subscriber_id, activeContracts.length]);
+  }, [editDialogOpen, editTab, selectedSubscriber?.subscriber_id, activeContracts]);
 
   // Pré-preencher número do contrato no cadastro (novo assinante, aba Contratos): SUB-NOVO.<NNNNNN>
   useEffect(() => {
@@ -1532,16 +1538,35 @@ const Subscribers: React.FC = () => {
         return;
       }
 
-      // 1. Criar o Subscriber primeiro (sem contratos ainda)
       const subscriberData = { ...newSubscriber };
       delete subscriberData.contract_ids;
       delete subscriberData.plan_ids;
       delete subscriberData.contract_id;
       delete subscriberData.plan_id;
-      
-      const createdSubscriber = await subscriberApi.create(subscriberData);
+
+      let createdSubscriber;
+      if (tempSubscriberContracts.length > 0) {
+        // Criar subscriber + contratos numa única chamada (procedure; contract_number gerado no banco como SUB-{id}.{seq})
+        const payload = {
+          subscriber: subscriberData,
+          contracts: tempSubscriberContracts.map((c) => ({
+            title: c.title,
+            plan_id: c.plan_id,
+            contract_type: c.contract_type || 'advertising',
+            start_date: formatDateForAPI(c.start_date) || undefined,
+            end_date: c.end_date ? formatDateForAPI(c.end_date) : undefined,
+            total_amount: c.total_amount,
+            currency: c.currency || 'BRL',
+            payment_terms: c.payment_terms,
+            description: c.description,
+          })),
+        };
+        createdSubscriber = await subscriberApi.create(payload);
+      } else {
+        createdSubscriber = await subscriberApi.create(subscriberData);
+      }
+
       const subscriberId = createdSubscriber.subscriber_id;
-      
       if (!subscriberId) {
         const errorMessage = 'Erro: Anunciante criado mas não retornou ID válido. Por favor, entre em contato com o suporte.';
         console.error(errorMessage);
@@ -1549,27 +1574,9 @@ const Subscribers: React.FC = () => {
         return;
       }
 
-      // 2. Criar os contratos vinculados ao anunciante (número no formato SUB-<subscriberId>.<NNNNNN>)
-      for (let i = 0; i < tempSubscriberContracts.length; i++) {
-        const contract = tempSubscriberContracts[i];
-        const contractNumber = `SUB-${subscriberId}.${String(i + 1).padStart(6, '0')}`;
-        try {
-          await contractApi.create({
-            ...contract,
-            contract_number: contractNumber,
-            start_date: formatDateForAPI(contract.start_date) || '',
-            end_date: formatDateForAPI(contract.end_date || getDefaultContractEndDate()),
-            subscriber_id: subscriberId,
-            created_before_subscriber: false,
-          });
-        } catch (contractError: any) {
-          console.error('Erro ao criar contrato:', contractError);
-          setError(`Erro ao criar contrato ${contractNumber}: ${contractError?.response?.data?.error || contractError?.message || 'Erro desconhecido'}`);
-          return;
-        }
-      }
+      // Contratos já foram criados pela procedure quando enviados no payload; não criar de novo via API.
 
-      // 2. NOTA: Subscribers não podem criar locais próprios
+      // NOTA: Subscribers não podem criar locais próprios
       // Locais pertencem apenas a publishers
       // Subscribers acessam locais através de planos e contratos
       const createdLocals: Local[] = [];
@@ -2184,9 +2191,9 @@ const Subscribers: React.FC = () => {
                       fullWidth
                       label="Número do Contrato *"
                       value={subscriberContractForm.contract_number || defaultNewSubscriberContractNumber}
-                      onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, contract_number: e.target.value })}
                       size="small"
                       required
+                      InputProps={{ readOnly: true, disabled: true }}
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
@@ -2972,11 +2979,16 @@ const Subscribers: React.FC = () => {
         <DialogContent>
           <Tabs value={editTab} onChange={(_, newValue) => setEditTab(newValue)} sx={{ mb: 3 }}>
             <Tab label="Informações" />
-            <Tab 
-              label="Contratos" 
-              icon={activeContracts.length > 0 ? <Chip label={activeContracts.length} size="small" color="primary" /> : undefined} 
-              iconPosition="end" 
-            />
+            {(() => {
+              const contractsCount = (activeContracts || []).length;
+              return (
+                <Tab
+                  label="Contratos"
+                  icon={contractsCount > 0 ? <Chip label={contractsCount} size="small" color="primary" /> : undefined}
+                  iconPosition="end"
+                />
+              );
+            })()}
             <Tab 
               label="Mídias" 
               icon={editMedias.length > 0 ? <Chip label={editMedias.length} size="small" color="primary" /> : undefined} 
@@ -3042,9 +3054,9 @@ const Subscribers: React.FC = () => {
                       fullWidth
                       label="Número do Contrato *"
                       value={subscriberContractFormEdit.contract_number || ''}
-                      onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, contract_number: e.target.value })}
                       size="small"
                       required
+                      InputProps={{ readOnly: true, disabled: true }}
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
@@ -3213,7 +3225,7 @@ const Subscribers: React.FC = () => {
               </Box>
 
               {/* Lista de Contratos do Anunciante */}
-              {activeContracts.length > 0 ? (
+              {Array.isArray(activeContracts) && activeContracts.length > 0 ? (
                 <List>
                   {activeContracts.map((contract, index) => (
                     <ListItem

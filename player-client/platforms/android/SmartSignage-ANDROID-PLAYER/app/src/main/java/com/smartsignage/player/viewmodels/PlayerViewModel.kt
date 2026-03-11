@@ -11,7 +11,10 @@ import com.smartsignage.player.core.*
 import com.smartsignage.player.models.*
 import com.smartsignage.player.player.MediaPlayer
 import com.smartsignage.player.discovery.TotemDiscoveryService
+import com.smartsignage.player.storage.StorageHelper
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 /**
  * PlayerViewModel - Android
@@ -31,6 +34,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     val playerState = MutableLiveData<PlayerState>()
     val errorMessage = MutableLiveData<String>()
+    /** Info de storage para o painel Debug (interno + USB, ordem, ficheiros, espaço) */
+    val debugStorageInfo = MutableLiveData<StorageHelper.DebugStorageInfo?>()
 
     companion object {
         private const val TAG = "PlayerViewModel"
@@ -91,14 +96,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         apiClient.token = deviceToken
                         Log.i(TAG, "Device token obtido com sucesso")
                     } else {
-                        Log.warn(TAG, "Falha ao obter device token, usando autenticação legada")
+                        Log.w(TAG, "Falha ao obter device token, usando autenticação legada")
                     }
                 } catch (e: Exception) {
-                    Log.warn(TAG, "Erro ao obter device token, usando autenticação legada", e)
+                    Log.w(TAG, "Erro ao obter device token, usando autenticação legada", e)
                 }
 
                 // Inicializar componentes (com contexto para cache)
                 playlistManager = PlaylistManager(apiClient, getApplication())
+                playlistManager.getStorageHelper()?.ensurePropagandasDirs()
                 scheduler = Scheduler()
                 heartbeatService = HeartbeatService(apiClient)
                 mediaPlayer = MediaPlayer(getApplication())
@@ -121,7 +127,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 // Iniciar heartbeat
                 heartbeatService.start(viewModelScope)
 
-                // Carregar e iniciar conteúdo via DispatchPlan
+                // Carregar e iniciar conteúdo via DispatchPlan (aplica config do backend antes)
                 loadAndStartFromDispatchPlan()
 
             } catch (e: Exception) {
@@ -133,11 +139,23 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     /**
      * Carrega e inicia conteúdo via DispatchPlan.
+     * Aplica config do backend (ex.: storage externo/interno) antes de carregar o plano.
      * Em caso de falha, tenta modo offline e depois fluxo legado de playlist.
      */
     private fun loadAndStartFromDispatchPlan() {
         viewModelScope.launch {
             try {
+                // Aplicar config administrativa (storage externo/interno) antes de processar plano
+                try {
+                    val config = apiClient.getConfig()
+                    config?.storageUseExternalFirst?.let { useExternal ->
+                        playlistManager.getStorageHelper()?.useExternalFirst = useExternal
+                        Log.i(TAG, "Config aplicada: storageUseExternalFirst=$useExternal")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Erro ao obter config do player (usando defaults)", e)
+                }
+
                 val token = deviceToken
                 if (token == null || TOTEM_UIN.isEmpty()) {
                     playerState.value = PlayerState.Error("Configuração de UIN/token inválida")
@@ -271,6 +289,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      */
     fun pause() {
         mediaPlayer?.pause()
+    }
+
+    /**
+     * Atualiza info de storage para o painel Debug (interno + USB, propagandas, espaço livre)
+     */
+    fun refreshDebugStorageInfo() {
+        viewModelScope.launch {
+            val info = withContext(Dispatchers.IO) { playlistManager.getDebugStorageInfo() }
+            debugStorageInfo.postValue(info)
+        }
     }
 
     /**

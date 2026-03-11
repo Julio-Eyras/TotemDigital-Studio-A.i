@@ -56,7 +56,7 @@ ON CONFLICT DO NOTHING;
 -- PUBLISHERS (2) - is_active=true para iniciar ativos
 -- =============================================
 INSERT INTO publishers (publisher_id, name, contact_name, email, phone, whatsapp, category_segment, description, is_subscriber, is_publisher, client_type, is_active) VALUES
-(1, 'Cia Zaffari', 'Gerente Zaffari', 'admin@zaffari.com.br', '+55 51 3220-1000', '+55 51 98000-1000', 'Shopping', 'Rede de shoppings Cia Zaffari', false, true, 'publisher', true),
+(1, 'Cia.Totem Digital', 'Gerente ismael', 'ismael@totemdigital.com.br', '+55 51 3220-1000', '+55 51 98000-1000', 'Shopping', 'Rede de shoppings Cia Zaffari', false, true, 'publisher', true),
 (2, 'Grupo Koch', 'Gerente Koch', 'admin@koch.com.br', '+55 51 3220-2000', '+55 51 98000-2000', 'Shopping', 'Grupo Koch - múltiplos totens', false, true, 'publisher', true)
 ON CONFLICT DO NOTHING;
 
@@ -108,7 +108,7 @@ ON CONFLICT (setting_key) DO NOTHING;
 -- =============================================
 INSERT INTO users (id, username, email, password_hash, first_name, last_name, name, phone, role, user_type, is_tenant_user, publisher_id, subscriber_id, is_active, email_verified) VALUES
 (1, 'admin', 'admin@smartsignage.local', '$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2', 'Admin', 'Sistema', 'Admin Sistema', '+55 11 0000-0000', 'admin', 'system_user', true, NULL, NULL, true, true),
-(2, 'zaffari.admin', 'admin@zaffari.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Zaffari', 'Admin Zaffari', '+55 51 3220-1000', 'manager', 'publisher_user', false, 1, NULL, true, true),
+(2, 'totemdigital.admin', 'ismael@totemdiigital.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'totem_digital', 'Admin totem digital', '+55 51 3220-1000', 'manager', 'publisher_user', false, 1, NULL, true, true),
 (3, 'koch.admin', 'admin@koch.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Koch', 'Admin Koch', '+55 51 3220-2000', 'manager', 'publisher_user', false, 2, NULL, true, true),
 (4, 'cestto.admin', 'contato@cestto.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Cestto', 'Admin Cestto', '+55 51 3333-1111', 'manager', 'subscriber_user', false, NULL, 1, true, true),
 (5, 'bourbon.admin', 'contato@bourbon.com.br', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Bourbon', 'Admin Bourbon', '+55 51 3333-2222', 'manager', 'subscriber_user', false, NULL, 2, true, true),
@@ -261,24 +261,26 @@ ON CONFLICT DO NOTHING;
 -- SUBSCRIBER_CONTRACTS - Cada subscriber em plano diferente
 -- Planos: 4=Shoppings, 5=Supermercados, 6=Farmácias
 -- =============================================
+-- contract_number: regra SUB-{subscriber_id}.{seq} (gerado no banco em criação atómica; na carga usamos formato alinhado)
 INSERT INTO subscriber_contracts (
     contract_id, subscriber_id, plan_id, contract_number, contract_type, title, description,
     start_date, end_date, total_amount, currency, payment_terms, status,
     signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata,
     document_path, document_filename, document_mime_type, document_size_bytes, is_active
 ) VALUES
-(1, 1, 5, 'SUB-CESTTO-2025-001', 'advertising', 'Contrato Cestto', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 25000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
-(2, 2, 4, 'SUB-BOURBON-2025-001', 'advertising', 'Contrato Bourbon', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 30000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
-(3, 3, 6, 'SUB-PANVEL-2025-001', 'advertising', 'Contrato Panvel', 'Contrato publicitário - Plano Farmácias', '2025-01-01', '2026-12-31', 20000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
-(4, 4, 5, 'SUB-FRUTEIRA-2025-001', 'advertising', 'Contrato Fruteira Geraldo', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 22000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
-(5, 5, 4, 'SUB-FASHION-2025-001', 'advertising', 'Contrato Fashion Store', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 28000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
-(6, 6, 5, 'SUB-BELEZA-2025-001', 'advertising', 'Contrato Beleza Produtos', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 18000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
-(7, 7, 6, 'SUB-CHECKUP-2025-001', 'advertising', 'Contrato Check-up Saúde', 'Contrato publicitário - Plano Farmácias', '2025-01-01', '2026-12-31', 19000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
-(8, 8, 5, 'SUB-SUPERPROMO-2025-001', 'advertising', 'Contrato Super Promo', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 21000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
-(9, 9, 4, 'SUB-SMARTSIGNAGE-2025-001', 'advertising', 'Contrato Smartsignage Demo', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 15000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
-(10, 10, 4, 'SUB-MENU-2025-001', 'advertising', 'Contrato Menu Executivo', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 24000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true)
+(1, 1, 5, 'SUB-1.000001', 'advertising', 'Contrato Cestto', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 25000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(2, 2, 4, 'SUB-2.000001', 'advertising', 'Contrato Bourbon', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 30000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(3, 3, 6, 'SUB-3.000001', 'advertising', 'Contrato Panvel', 'Contrato publicitário - Plano Farmácias', '2025-01-01', '2026-12-31', 20000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(4, 4, 5, 'SUB-4.000001', 'advertising', 'Contrato Fruteira Geraldo', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 22000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(5, 5, 4, 'SUB-5.000001', 'advertising', 'Contrato Fashion Store', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 28000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(6, 6, 5, 'SUB-6.000001', 'advertising', 'Contrato Beleza Produtos', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 18000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(7, 7, 6, 'SUB-7.000001', 'advertising', 'Contrato Check-up Saúde', 'Contrato publicitário - Plano Farmácias', '2025-01-01', '2026-12-31', 19000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(8, 8, 5, 'SUB-8.000001', 'advertising', 'Contrato Super Promo', 'Contrato publicitário - Plano Supermercados', '2025-01-01', '2026-12-31', 21000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(9, 9, 4, 'SUB-9.000001', 'advertising', 'Contrato Smartsignage Demo', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 15000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(10, 10, 4, 'SUB-10.000001', 'advertising', 'Contrato Menu Executivo', 'Contrato publicitário - Plano Shoppings', '2025-01-01', '2026-12-31', 24000.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true)
 ON CONFLICT DO NOTHING;
 
+-- contract_number: regra PUB-{publisher_id}.{seq} (gerado no banco em criação atómica; na carga usamos formato alinhado)
 INSERT INTO publisher_contracts (
     contract_id, publisher_id, contract_number, contract_type, title, description,
     start_date, end_date, revenue_share_percentage, revenue_share_rules, minimum_payout_amount,
@@ -286,8 +288,8 @@ INSERT INTO publisher_contracts (
     signed_by_publisher_at, signed_by_tenant_at, created_by, metadata,
     document_path, document_filename, document_mime_type, document_size_bytes, is_active
 ) VALUES
-(1, 1, 'PUB-ZAFFARI-2025-001', 'revenue_share', 'Contrato Zaffari', 'Revenue share Zaffari', '2025-01-01', NULL, 70.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
-(2, 2, 'PUB-KOCH-2025-001', 'revenue_share', 'Contrato Koch', 'Revenue share Grupo Koch', '2025-01-01', NULL, 65.00, '{}'::jsonb, 1000.00, NULL, NULL, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true)
+(1, 1, 'PUB-1.000001', 'revenue_share', 'Contrato Zaffari', 'Revenue share Zaffari', '2025-01-01', NULL, 70.00, '{}'::jsonb, 500.00, NULL, NULL, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true),
+(2, 2, 'PUB-2.000001', 'revenue_share', 'Contrato Koch', 'Revenue share Grupo Koch', '2025-01-01', NULL, 65.00, '{}'::jsonb, 1000.00, NULL, NULL, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days', 1, '{}'::jsonb, NULL, NULL, NULL, 0, true)
 ON CONFLICT DO NOTHING;
 
 -- =============================================

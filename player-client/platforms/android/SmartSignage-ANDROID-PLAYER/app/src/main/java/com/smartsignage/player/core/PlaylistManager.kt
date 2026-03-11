@@ -8,6 +8,7 @@ import com.smartsignage.player.models.PlaylistResponse
 import com.smartsignage.player.models.DispatchPlan
 import com.smartsignage.player.models.DispatchPlanMediaItem
 import com.smartsignage.player.cache.MediaCacheManager
+import com.smartsignage.player.storage.StorageHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -139,10 +140,19 @@ class PlaylistManager(
     }
 
     /**
-     * Obtém caminho local de uma mídia (se disponível em cache)
+     * Obtém caminho local de uma mídia (resolução: interno → USB)
      */
     fun getLocalPath(mediaId: Int): String? {
         return cacheManager?.getLocalPath(mediaId)
+    }
+
+    /**
+     * Info de storage para o painel Debug (storages, ordem, ficheiros em propagandas, espaço livre)
+     */
+    fun getStorageHelper(): StorageHelper? = cacheManager?.getStorageHelper()
+
+    fun getDebugStorageInfo(): StorageHelper.DebugStorageInfo? {
+        return cacheManager?.getStorageHelper()?.getDebugStorageInfo()
     }
     
     /**

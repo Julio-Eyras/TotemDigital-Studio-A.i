@@ -5,6 +5,7 @@ import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { protectContractValues } from '../middleware/contractValuesProtection.middleware';
 import { getSubscriberService } from '../services/subscriberService';
 import { logError } from '../utils/loggerHelper';
+import { isDatabaseError } from '../utils/dbErrors';
 import { 
   paginationValidators, 
   searchValidators, 
@@ -44,6 +45,14 @@ const validateRequest = (req: any, res: any, next: any) => {
     });
   }
   return next();
+};
+
+/** Normaliza body para validação: quando enviar subscriber + contracts, expõe subscriber.name como name para o nameValidator. */
+const normalizeSubscriberCreateBody = (req: any, _res: any, next: any) => {
+  if (Array.isArray(req.body.contracts) && req.body.subscriber && req.body.name === undefined) {
+    req.body.name = req.body.subscriber.name;
+  }
+  next();
 };
 
 /**
@@ -118,17 +127,34 @@ router.get('/:id',
 
 /**
  * @route POST /api/subscribers
- * @desc Criar novo subscriber (anunciante)
+ * @desc Criar novo subscriber (anunciante).
+ * Aceita dois formatos:
+ * - Simples: body com name, contact_name, ... (createSubscriber).
+ * - Com contratos: body com subscriber: { name, ... } e contracts: [ { plan_id?, title, ... } ] (procedure create_subscriber_with_contracts; contract_number gerado no banco como SUB-{id}.{seq}).
  * @access Private (Apenas roles administrativos - baseado em contrato)
  */
 router.post('/',
+  normalizeSubscriberCreateBody,
   createSubscriberValidator,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   async (req: any, res: any) => {
     try {
+      // Se vier contracts (array), criar subscriber + contratos numa única transação (procedure)
+      if (Array.isArray(req.body.contracts)) {
+        const sub = req.body.subscriber ?? req.body;
+        if (!sub?.name || !String(sub.name).trim()) {
+          return res.status(400).json({ error: 'Nome do subscriber é obrigatório quando se envia contracts' });
+        }
+        const newSubscriber = await getSubscriberService().createSubscriberWithContracts({
+          subscriber: sub,
+          contracts: req.body.contracts,
+        });
+        return res.status(201).json(newSubscriber);
+      }
+
       const { name, contact_name, email, phone, whatsapp, address, category_segment, description, contract_id } = req.body;
-      
+
       const newSubscriber = await getSubscriberService().createSubscriber({
         name,
         contact_name,
@@ -138,13 +164,14 @@ router.post('/',
         address,
         category_segment,
         description,
-        contract_id, // Obrigatório - vincula subscriber ao contrato
+        contract_id,
       });
 
       return res.status(201).json(newSubscriber);
     } catch (error: any) {
       await logError('Erro ao criar subscriber', error);
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      const status = isDatabaseError(error) ? 500 : 400;
+      return res.status(status).json({ error: error.message || 'Erro ao criar subscriber' });
     }
   }
 );
@@ -287,7 +314,7 @@ router.get('/:id/stats',
 
 /**
  * @route GET /api/subscribers/:id/contracts
- * @desc Listar contratos ativos de um subscriber
+ * @desc Listar contratos de um subscriber. Query: ?activeOnly=true (default) só ativos; ?activeOnly=false todos (para aba Contratos na edição do anunciante).
  */
 router.get('/:id/contracts',
   ...idParamValidatorDefault,
@@ -296,7 +323,8 @@ router.get('/:id/contracts',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
+      const activeOnly = req.query.activeOnly !== 'false';
+
       // Verificar permissão: subscriber só pode ver seus próprios contratos
       if (req.user.role === 'client' || req.user.role === 'subscriber') {
         const userSubscriberId = req.subscriberId || req.user.clientId || req.user.subscriberId;
@@ -308,8 +336,8 @@ router.get('/:id/contracts',
           });
         }
       }
-      
-      const contracts = await getSubscriberService().getActiveContracts(parseInt(id));
+
+      const contracts = await getSubscriberService().getSubscriberContracts(parseInt(id), activeOnly);
       return res.json({ success: true, data: contracts });
     } catch (error: any) {
       await logError('Erro ao listar contratos do subscriber', error);

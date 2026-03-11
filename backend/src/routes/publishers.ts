@@ -11,6 +11,7 @@ import { validateRequest as validateRequestMiddleware } from '../middleware/vali
 import { param, query, body, validationResult } from 'express-validator';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { errorResponse } from '../utils/apiResponse';
+import { isDatabaseError } from '../utils/dbErrors';
 import { 
   paginationValidators, 
   searchValidators, 
@@ -153,8 +154,13 @@ router.post('/',
 
       return res.status(201).json(newPublisher);
     } catch (error: any) {
-      await logError('Erro ao criar publisher', error);
-      return res.status(400).json(errorResponse('Erro ao criar publisher', error.message));
+      await logError('Erro ao criar publisher', error, { body: req.body });
+      const message = error?.message || 'Erro interno ao criar publicador';
+      const status = isDatabaseError(error) ? 500 : 400;
+      return res.status(status).json({
+        ...errorResponse('Erro ao criar publisher', message),
+        details: process.env.NODE_ENV !== 'production' ? (error?.detail || error?.code) : undefined,
+      });
     }
   }
 );

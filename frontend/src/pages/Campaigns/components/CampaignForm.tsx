@@ -426,6 +426,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
             onChange={(_, newValue) => {
               handleFieldChange('playlistIds', newValue.map(p => p.playlist_id));
             }}
+            noOptionsText="Nenhuma playlist cadastrada. Crie em Assinantes > Playlists, adicione mídias e depois selecione aqui."
             renderInput={(params) => (
               <TextField {...params} label="Playlists" margin="normal" helperText="Selecione playlists para associar à campanha" />
             )}
@@ -447,6 +448,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
             onChange={(_, newValue) => {
               handleFieldChange('playlistIds', newValue.map(p => p.playlist_id));
             }}
+            noOptionsText="Nenhuma playlist cadastrada. Crie em Assinantes > Playlists, adicione mídias e depois selecione aqui."
             renderInput={(params) => (
               <TextField {...params} label="Playlists" margin="normal" />
             )}

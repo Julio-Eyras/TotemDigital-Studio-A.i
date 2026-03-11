@@ -34,6 +34,7 @@ let deviceToken = null; // Token de dispositivo do dispatcher
 let currentDispatchPlan = null; // Último DispatchPlan recebido
 let totemConnectionManager = null; // Gerenciador de conexão com totem
 let mediaCacheManager = null; // Gerenciador de cache local
+let storageHelper = null; // Storage propagandas, externo por defeito (design 3.3)
 
 // SmartDisplayFX
 let fxClient;
@@ -70,16 +71,25 @@ async function init() {
       logger?.info('Totem local não encontrado, usando servidor central');
     }
 
+    // Storage: path propagandas, externo por defeito (design 3.3)
+    if (typeof StorageHelper !== 'undefined') {
+      storageHelper = new StorageHelper({
+        useExternalFirst: CONFIG.useExternalFirst !== undefined ? CONFIG.useExternalFirst : true
+      });
+      await storageHelper.ensurePropagandasDirs();
+    }
+
     // Inicializar cache
     if (CONFIG.CACHE_ENABLED) {
       cache = new Cache();
       cache.setMaxSize(CONFIG.CACHE_MAX_SIZE);
       
-      // Inicializar MediaCacheManager para cache local de mídias
+      // Inicializar MediaCacheManager para cache local em .../propagandas/
       if (typeof MediaCacheManager !== 'undefined') {
         mediaCacheManager = new MediaCacheManager({
           maxCacheSize: CONFIG.CACHE_MAX_SIZE,
-          cacheDir: '/media/internal/smartsignage/cache'
+          cacheDir: '/media/internal/smartsignage/cache',
+          storageHelper: storageHelper
         });
         await mediaCacheManager.init();
       }
@@ -259,11 +269,29 @@ async function loadConfig() {
 }
 
 /**
+ * Aplica config do player vinda da API (storage externo/interno) — paridade com Android/Linux.
+ */
+async function applyPlayerConfigFromApi() {
+  try {
+    if (!apiClient || !apiClient.getConfig) return;
+    const config = await apiClient.getConfig();
+    if (config && typeof config.storageUseExternalFirst === 'boolean' && storageHelper) {
+      storageHelper.useExternalFirst = config.storageUseExternalFirst;
+      logger?.info('Config aplicada: storageUseExternalFirst=' + config.storageUseExternalFirst);
+    }
+  } catch (e) {
+    logger?.warn('Erro ao obter config do player (usando defaults)', e);
+  }
+}
+
+/**
  * Carrega e inicia playlist
  */
 async function loadAndStartPlaylist() {
   try {
     updateStatus('Carregando conteúdo...');
+
+    await applyPlayerConfigFromApi();
     
     // Tentar usar DispatchPlan primeiro (novo fluxo - NATIVO, sem conversão)
     if (CONFIG.USE_DISPATCHER && deviceToken) {
@@ -375,9 +403,10 @@ async function convertDispatchPlanToPlaylist(dispatchPlan, useLocalPaths = false
   const items = await Promise.all(dispatchPlan.mediaItems.map(async (item, index) => {
     let url = item.url;
     
-    // Tentar usar caminho local do cache (se disponível)
+    // Tentar usar caminho local do cache (propagandas)
     if (useLocalPaths && mediaCacheManager) {
-      const localPath = await mediaCacheManager.getLocalPath(item.mediaId);
+      const ext = item.metadata?.mimeType ? getFileExtension(item.metadata.mimeType) : null;
+      const localPath = await mediaCacheManager.getLocalPath(item.mediaId, ext);
       if (localPath) {
         url = `file://${localPath}`;
         logger?.debug(`Usando mídia do cache local: ${localPath}`);
@@ -495,10 +524,11 @@ async function playNext() {
   try {
     updateStatus(`Reproduzindo: ${mediaItem.metadata?.name || `Item ${mediaItem.mediaId}`}`);
     
-    // Tentar usar caminho local primeiro
+    // Tentar usar caminho local primeiro (propagandas, resolução externo → interno)
     let url = mediaItem.url;
     if (mediaCacheManager) {
-      const localPath = await mediaCacheManager.getLocalPath(mediaItem.mediaId);
+      const ext = mediaItem.metadata?.mimeType ? getFileExtension(mediaItem.metadata.mimeType) : null;
+      const localPath = await mediaCacheManager.getLocalPath(mediaItem.mediaId, ext);
       if (localPath) {
         url = `file://${localPath}`;
         logger?.debug(`Usando mídia do cache local: ${localPath}`);

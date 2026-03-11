@@ -14,6 +14,7 @@ let CONFIG = {
   PLAYLIST_UPDATE_INTERVAL: 300000,
   CACHE_ENABLED: true,
   CACHE_MAX_SIZE: 50 * 1024 * 1024,
+  storagePath: null,
 };
 
 // Inicialização
@@ -25,6 +26,12 @@ let logger;
 let scheduler;
 let cache;
 let errorHandler;
+let storageHelper;
+let mediaCacheManager;
+let deviceToken = null;
+let currentDispatchPlan = null;
+let currentDispatchIndex = 0;
+let deviceId = '';
 
 // SmartDisplayFX
 let fxClient;
@@ -37,7 +44,8 @@ let playerBridge;
 async function init() {
   try {
     // Carregar configuração do main process
-    CONFIG = await ipcRenderer.invoke('get-config');
+    const mainConfig = await ipcRenderer.invoke('get-config');
+    Object.assign(CONFIG, mainConfig);
 
     // Carregar configuração de arquivo se disponível
     try {
@@ -50,7 +58,18 @@ async function init() {
       console.warn('Failed to load config file, using defaults');
     }
 
-    // Inicializar cache
+    // Storage: path fixo /propagandas, interno + USB (Linux)
+    if (typeof StorageHelper === 'undefined' || typeof MediaCacheManager === 'undefined') {
+      throw new Error('StorageHelper/MediaCacheManager não carregados. Inclua os scripts no index.html.');
+    }
+    storageHelper = new StorageHelper({
+      pathBase: CONFIG.storagePath || null,
+      useExternalFirst: CONFIG.useExternalFirst !== undefined ? CONFIG.useExternalFirst : true
+    });
+    await storageHelper.ensurePropagandasDirs();
+    mediaCacheManager = new MediaCacheManager(storageHelper);
+
+    // Inicializar cache (legado)
     if (CONFIG.CACHE_ENABLED) {
       cache = new Cache();
       cache.setMaxSize(CONFIG.CACHE_MAX_SIZE);
@@ -58,9 +77,9 @@ async function init() {
 
     // Inicializar API client
     apiClient = new APIClient(
-      CONFIG.API_BASE_URL,
-      CONFIG.TOTEM_UIN,
-      CONFIG.TOTEM_SECRET
+      CONFIG.API_BASE_URL || CONFIG.apiBaseURL,
+      CONFIG.TOTEM_UIN || CONFIG.totemUIN,
+      CONFIG.TOTEM_SECRET || CONFIG.totemSecret
     );
 
     // Inicializar logger
@@ -69,20 +88,44 @@ async function init() {
     // Inicializar error handler
     errorHandler = new ErrorHandler(logger, apiClient);
 
-    // Autenticar totem
-    const authenticated = await apiClient.authenticateTotem();
-    if (!authenticated) {
-      logger.error('Failed to authenticate totem');
-      showError('Falha na autenticação. Verifique a configuração.');
-      return;
+    // DeviceId para Linux
+    const os = require('os');
+    deviceId = CONFIG.deviceId || `linux-${os.hostname()}-${require('crypto').randomBytes(4).toString('hex')}`;
+
+    // Token: tentar getDeviceToken (fluxo DispatchPlan)
+    if (CONFIG.TOTEM_UIN || CONFIG.totemUIN) {
+      try {
+        const tokenRes = await apiClient.getDeviceToken(
+          CONFIG.TOTEM_UIN || CONFIG.totemUIN,
+          deviceId,
+          'linux',
+          '2.1.0'
+        );
+        if (tokenRes && tokenRes.token) {
+          deviceToken = tokenRes.token;
+          apiClient.token = deviceToken;
+          logger.info('Device token obtido (DispatchPlan)');
+        }
+      } catch (e) {
+        logger.warn('getDeviceToken falhou, tentando auth legado', e);
+      }
     }
 
-    logger.info('Totem authenticated successfully');
+    // Autenticar totem (legado, se ainda não tem token)
+    if (!apiClient.token) {
+      const authenticated = await apiClient.authenticateTotem();
+      if (!authenticated) {
+        logger.error('Failed to authenticate totem');
+        showError('Falha na autenticação. Verifique a configuração.');
+        return;
+      }
+      logger.info('Totem authenticated successfully');
+    }
 
     // Inicializar scheduler
     scheduler = new Scheduler();
 
-    // Inicializar playlist manager
+    // Inicializar playlist manager (legado)
     playlistManager = new PlaylistManager(apiClient, cache);
 
     // Inicializar heartbeat
@@ -98,14 +141,15 @@ async function init() {
     // Inicializar SmartDisplayFX
     await initSmartDisplayFX();
 
-    // Carregar e iniciar playlist
+    // Debug: botão e painel storage
+    setupDebugPanel();
+
+    // Carregar e iniciar: preferir DispatchPlan (propagandas), fallback playlist legada
     await loadAndStartPlaylist();
 
-    // Configurar atualização periódica de playlist
+    // Configurar atualização periódica (DispatchPlan ou playlist legada)
     setInterval(async () => {
-      if (playlistManager.needsUpdate(CONFIG.PLAYLIST_UPDATE_INTERVAL)) {
-        await loadAndStartPlaylist();
-      }
+      await loadAndStartPlaylist();
     }, CONFIG.PLAYLIST_UPDATE_INTERVAL);
 
     // Atualizar scheduler periodicamente
@@ -333,20 +377,84 @@ async function initSmartDisplayFX() {
 }
 
 /**
- * Carrega e inicia playlist
+ * Carrega DispatchPlan e processa cache em propagandas (interno + USB)
+ */
+async function loadFromDispatchPlan() {
+  if (!deviceToken && !apiClient.token) return false;
+  const uin = CONFIG.TOTEM_UIN || CONFIG.totemUIN;
+  if (!uin) return false;
+  try {
+    const plan = await apiClient.getDispatchPlan(
+      uin,
+      deviceToken || apiClient.token,
+      deviceId,
+      null,
+      Intl.DateTimeFormat().resolvedOptions().timeZone
+    );
+    if (!plan || !plan.mediaItems || !plan.mediaItems.length) {
+      return false;
+    }
+    currentDispatchPlan = plan;
+    currentDispatchIndex = 0;
+    const stats = await mediaCacheManager.processDispatchPlan(plan, apiClient);
+    logger.info('DispatchPlan carregado: ' + plan.mediaItems.length + ' itens, cache: ' + stats.success + ' ok, ' + stats.skipped + ' skip, ' + stats.failed + ' fail');
+    return true;
+  } catch (e) {
+    logger.warn('loadFromDispatchPlan falhou', e);
+    return false;
+  }
+}
+
+/**
+ * Aplica config do player vinda da API (ex.: storage externo/interno) — paridade com Android.
+ */
+async function applyPlayerConfigFromApi() {
+  try {
+    const config = await apiClient.getConfig();
+    if (config && typeof config.storageUseExternalFirst === 'boolean' && storageHelper) {
+      storageHelper.useExternalFirst = config.storageUseExternalFirst;
+      logger?.info('Config aplicada: storageUseExternalFirst=' + config.storageUseExternalFirst);
+    }
+  } catch (e) {
+    logger?.warn('Erro ao obter config do player (usando defaults)', e);
+  }
+}
+
+/**
+ * Carrega e inicia playlist (DispatchPlan primeiro, depois legada)
  */
 async function loadAndStartPlaylist() {
   try {
     updateStatus('Carregando playlist...');
+
+    await applyPlayerConfigFromApi();
+
+    let useDispatch = false;
+    if (deviceToken || apiClient.token) {
+      useDispatch = await loadFromDispatchPlan();
+      if (!useDispatch && mediaCacheManager) {
+        const lastPlan = await mediaCacheManager.loadLastDispatchPlan();
+        if (lastPlan && lastPlan.mediaItems && lastPlan.mediaItems.length) {
+          currentDispatchPlan = lastPlan;
+          currentDispatchIndex = 0;
+          useDispatch = true;
+          logger.info('Usando último DispatchPlan em cache (offline)');
+        }
+      }
+    }
+
+    if (useDispatch) {
+      updateStatus('Playlist carregada (DispatchPlan)');
+      playNext();
+      return;
+    }
+
     await playlistManager.loadPlaylist();
-    
-    // Filtrar itens por agendamento
     if (playlistManager.currentPlaylist && scheduler) {
       const filteredItems = scheduler.filterScheduledItems(
         playlistManager.currentPlaylist.items
       );
       playlistManager.currentPlaylist.items = filteredItems;
-      
       if (filteredItems.length === 0) {
         logger.warn('No scheduled items in playlist');
         updateStatus('Nenhum conteúdo agendado no momento');
@@ -354,7 +462,7 @@ async function loadAndStartPlaylist() {
         return;
       }
     }
-
+    currentDispatchPlan = null;
     updateStatus('Playlist carregada');
     playNext();
   } catch (error) {
@@ -369,9 +477,33 @@ async function loadAndStartPlaylist() {
 }
 
 /**
- * Reproduz próximo item
+ * Reproduz próximo item (DispatchPlan com path local ou playlist legada)
  */
 async function playNext() {
+  if (currentDispatchPlan && currentDispatchPlan.mediaItems && currentDispatchPlan.mediaItems.length) {
+    const idx = currentDispatchIndex % currentDispatchPlan.mediaItems.length;
+    currentDispatchIndex = (currentDispatchIndex + 1) % currentDispatchPlan.mediaItems.length;
+    const mediaItem = currentDispatchPlan.mediaItems[idx];
+    const localPath = mediaCacheManager ? await mediaCacheManager.getLocalPath(mediaItem.mediaId) : null;
+    const item = {
+      id: mediaItem.mediaId,
+      type: (mediaItem.mediaType || 'video').toLowerCase(),
+      url: localPath ? 'file://' + localPath : mediaItem.url,
+      localPath: localPath || null,
+      duration: (mediaItem.duration || 10) * 1000,
+      name: 'Item ' + mediaItem.mediaId
+    };
+    try {
+      updateStatus('Reproduzindo: ' + item.name);
+      await mediaPlayer.play(item);
+    } catch (error) {
+      if (errorHandler) errorHandler.handle(error, { phase: 'play_media', itemId: item.id });
+      else if (logger) logger.error('Failed to play media', error);
+      setTimeout(playNext, 2000);
+    }
+    return;
+  }
+
   const item = playlistManager.getNextItem();
   if (!item) {
     logger.warn('No items in playlist');
@@ -380,9 +512,7 @@ async function playNext() {
     return;
   }
 
-  // Verificar agendamento
   if (scheduler && !scheduler.shouldDisplay(item)) {
-    logger.debug('Item skipped due to schedule', { itemId: item.id });
     playNext();
     return;
   }
@@ -398,6 +528,43 @@ async function playNext() {
     }
     updateStatus('Erro ao reproduzir mídia');
     setTimeout(playNext, 2000);
+  }
+}
+
+/**
+ * Painel Debug: storage (interno + USB), ordem, ficheiros em propagandas
+ */
+function setupDebugPanel() {
+  const btn = document.getElementById('btn-debug');
+  const panel = document.getElementById('debug-panel');
+  const text = document.getElementById('debug-storage-text');
+  const btnRefresh = document.getElementById('btn-debug-refresh-storage');
+  if (!btn || !panel) return;
+
+  btn.addEventListener('click', () => {
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    if (panel.style.display === 'block') refreshDebugStorageInfo();
+  });
+
+  if (btnRefresh) {
+    btnRefresh.addEventListener('click', () => refreshDebugStorageInfo());
+  }
+}
+
+async function refreshDebugStorageInfo() {
+  const text = document.getElementById('debug-storage-text');
+  if (!text || !storageHelper) return;
+  try {
+    const info = await storageHelper.getDebugStorageInfo();
+    let s = 'Ordem de resolução: ' + info.resolutionOrder + '\n\n';
+    for (const e of info.entries) {
+      s += e.label + '\n  Path: ' + e.path + '\n  Ficheiros em propagandas: ' + e.fileCount + '\n';
+      if (e.fileNames && e.fileNames.length) s += '  Ficheiros: ' + e.fileNames.slice(0, 15).join(', ') + (e.fileNames.length > 15 ? '...' : '') + '\n';
+      s += '\n';
+    }
+    text.textContent = s;
+  } catch (e) {
+    text.textContent = 'Erro ao obter info: ' + (e && e.message);
   }
 }
 

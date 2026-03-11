@@ -63,6 +63,8 @@ export interface PlayerConfig {
   fullscreen: boolean;
   portrait: boolean;
   abandonPin: string;
+  /** Preferir storage externo (USB) para propagandas; configurável na opção administrativa */
+  storageUseExternalFirst?: boolean;
 }
 
 export class SystemService {
@@ -221,7 +223,8 @@ export class SystemService {
         autoStart: config.player.autoStart,
         fullscreen: config.player.fullscreen,
         portrait: config.player.portrait,
-        abandonPin: config.security.playerAbandonPin
+        abandonPin: config.security.playerAbandonPin,
+        storageUseExternalFirst: config.player.storageUseExternalFirst
       };
 
     } catch (error: any) {

@@ -56,13 +56,14 @@ FRONTEND_PORT="3001"
 BACKEND_URL="http://localhost:$BACKEND_PORT"
 FRONTEND_URL="http://localhost:$FRONTEND_PORT"
 
-# Caminhos
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Caminhos (raiz do projeto = pasta acima de scripts/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 BACKEND_ENV="$BACKEND_DIR/.env"
 BACKEND_LOGS="$BACKEND_DIR/logs"
-REPORT_FILE="$ROOT_DIR/validacao-sistema-$(date +%Y%m%d-%H%M%S).txt"
+REPORT_FILE="$SCRIPT_DIR/validacao-sistema-$(date +%Y%m%d-%H%M%S).txt"
 
 # Contadores de validação
 TOTAL_TESTS=0

@@ -303,7 +303,10 @@ const TotemPlayListPage: React.FC = () => {
           {loading ? (
             <LinearProgress />
           ) : playlists.length === 0 ? (
-            <Alert severity="info">Nenhuma playlist encontrada</Alert>
+            <Alert severity="info">
+              <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Nenhuma playlist encontrada</Typography>
+              <Typography variant="body2" component="span">Para as playlists aparecerem: contrato do assinante com plano que tenha acesso a este publisher; campanha ativa com este publisher em PUBLICADORES e com playlists ou mídias diretas; depois use &quot;Regenerar&quot; ou aguarde o totem solicitar o plano. Consulte docs/FLUXO_PLAYLIST_POR_TOTEM.md para o fluxo completo.</Typography>
+            </Alert>
           ) : (
             <Grid container spacing={2}>
               {playlists.map((playlist) => (
