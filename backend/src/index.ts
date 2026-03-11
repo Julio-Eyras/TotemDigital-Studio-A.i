@@ -237,7 +237,8 @@ app.get(/^\/assets\/uploads\/(.*)$/, (req, res): void => {
   try {
     const base = getStoragePath();
     if (!base) {
-      res.status(404).end();
+      const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="225" viewBox="0 0 400 225" role="img" aria-label="Mídia não encontrada"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1e293b"/><stop offset="100%" stop-color="#0f172a"/></linearGradient></defs><rect width="400" height="225" fill="url(#bg)"/><rect x="32" y="32" width="336" height="161" rx="12" ry="12" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6 6"/><text x="150" y="110" fill="#e5e7eb" font-family="system-ui,sans-serif" font-size="18">Pré-visualização indisponível</text></svg>`;
+      res.status(200).type('image/svg+xml').send(placeholderSvg.trim());
       return;
     }
     const filePath = path.join(base, subpath);
@@ -248,7 +249,28 @@ app.get(/^\/assets\/uploads\/(.*)$/, (req, res): void => {
       return;
     }
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-      res.status(404).end();
+      // Fallback amigável: se o arquivo físico não existe (ex.: mídias demo não copiadas),
+      // devolver um SVG simples em vez de 404 para evitar erros visuais na UI.
+      const placeholderSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="225" viewBox="0 0 400 225" role="img" aria-label="Mídia não encontrada">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="225" fill="url(#bg)"/>
+  <rect x="32" y="32" width="336" height="161" rx="12" ry="12" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6 6"/>
+  <circle cx="90" cy="112" r="26" fill="#0f172a" stroke="#38bdf8" stroke-width="3"/>
+  <path d="M78 114l8-8 8 8 6-6 10 10" fill="none" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="150" y="110" fill="#e5e7eb" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" font-weight="600">
+    Pré-visualização indisponível
+  </text>
+  <text x="150" y="136" fill="#9ca3af" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13">
+    Arquivo de mídia não encontrado no servidor.
+  </text>
+</svg>`;
+      res.status(200).type('image/svg+xml').send(placeholderSvg.trim());
       return;
     }
     res.sendFile(filePath);
@@ -1090,15 +1112,16 @@ async function startServer() {
   }
 }
 
-// Tratamento de erros não capturados para evitar crashes.
+// Tratamento de erros não capturados: logar e sair para o systemd reiniciar (retomar continuidade).
 // IMPORTANTE: estes handlers NÃO PODEM depender do banco/redis (podem estar indisponíveis),
 // e NUNCA devem lançar exceções (senão vira loop e o processo cai).
+// Saída com exit(1) garante que o systemd (Restart=always) reinicie o serviço.
+const FATAL_EXIT_DELAY_MS = 2000;
+
 process.on('uncaughtException', (error: Error) => {
-  // Log mínimo síncrono para garantir visibilidade mesmo sem DB
   // eslint-disable-next-line no-console
   console.error('[FATAL][uncaughtException]', error);
 
-  // Tenta registrar no sistema de logs; se falhar, ignora (não pode quebrar o processo)
   logError('Erro não capturado (uncaughtException)', error, {
     type: 'uncaughtException',
     timestamp: new Date().toISOString(),
@@ -1106,6 +1129,8 @@ process.on('uncaughtException', (error: Error) => {
     // eslint-disable-next-line no-console
     console.error('[FATAL][uncaughtException][logError failed]', e);
   });
+
+  setTimeout(() => process.exit(1), FATAL_EXIT_DELAY_MS);
 });
 
 process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
@@ -1121,6 +1146,8 @@ process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
     // eslint-disable-next-line no-console
     console.error('[FATAL][unhandledRejection][logError failed]', e);
   });
+
+  setTimeout(() => process.exit(1), FATAL_EXIT_DELAY_MS);
 });
 
 // Iniciar servidor

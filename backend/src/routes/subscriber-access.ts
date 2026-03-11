@@ -121,15 +121,19 @@ router.post('/reconcile',
  */
 router.post('/plan-publisher',
   authorizeRole(['admin', 'admin_sql']),
-  body('planId').isInt({ min: 1 }),
-  body('publisherId').isInt({ min: 1 }),
-  body('isAllowed').isBoolean(),
-  body('restrictions').optional().isObject(),
+  body('planId').toInt().isInt({ min: 1 }),
+  body('publisherId').toInt().isInt({ min: 1 }),
+  body('isAllowed').optional().default(true).toBoolean().isBoolean(),
+  body('restrictions').optional().custom((val) => val === null || val === undefined || (typeof val === 'object' && !Array.isArray(val))).withMessage('restrictions deve ser um objeto ou null'),
   body('notes').optional().isString(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { planId, publisherId, isAllowed, restrictions, notes } = req.body;
+      const planId = Number(req.body.planId);
+      const publisherId = Number(req.body.publisherId);
+      const isAllowed = req.body.isAllowed !== undefined ? Boolean(req.body.isAllowed) : true;
+      const restrictions = req.body.restrictions != null && typeof req.body.restrictions === 'object' && !Array.isArray(req.body.restrictions) ? req.body.restrictions : undefined;
+      const notes = req.body.notes;
       const accessService = getSubscriberAccessServiceInstance();
       
       await accessService.setPlanPublisherAccess(planId, publisherId, isAllowed, restrictions);
@@ -171,9 +175,11 @@ router.post('/plan-publisher',
       });
     } catch (error: any) {
       await logError('Erro ao configurar acesso plano → publisher', error, req.body);
-      return res.status(400).json({
+      const message = error?.message || 'Erro ao configurar acesso';
+      const isFk = /foreign key|violates foreign key|plan_id|publisher_id/i.test(String(message));
+      return res.status(isFk ? 404 : 400).json({
         success: false,
-        error: error.message || 'Erro ao configurar acesso'
+        error: isFk ? 'Plano ou publisher não encontrado. Verifique se o plano e o publisher existem.' : message
       });
     }
   }

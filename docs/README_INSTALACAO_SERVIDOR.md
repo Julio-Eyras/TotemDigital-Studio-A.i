@@ -272,6 +272,10 @@ Substitua `SEU_IP` pelo IP do seu servidor:
 - 📊 **Grafana**: `http://SEU_IP:3002` (admin/admin)
 - 📈 **Prometheus**: `http://SEU_IP:9090`
 
+**WebSocket (Monitor em tempo real):** O painel usa `ws://SEU_IP/ws` para atualizações ao vivo. Se aparecer "Error during WebSocket handshake: Unexpected response code: 200", o Nginx não está a fazer proxy do `/ws` para o backend. Pode corrigir **sem refazer a instalação** executando no servidor: `sudo bash scripts/fix-nginx-websocket.sh` (o script adiciona ou confirma o bloco `location /ws` e recarrega o Nginx). O config gerado por `install-smartsignage.sh` já inclui este bloco; o script é útil quando o config em uso é outro ou foi criado antes de o /ws existir no instalador.
+
+**Player – "Totem não encontrado" (404 em `/api/player/validate`):** O endpoint existe e responde. O 404 significa que o **UIN** do totem (ex.: `td-academia`) não está registrado no sistema. Cadastre o totem no painel em **Anunciantes → Publishers → Totens** (ou equivalente) com o mesmo UIN que o player envia, para a validação passar.
+
 ---
 
 ## 🔧 COMANDOS ESSENCIAIS

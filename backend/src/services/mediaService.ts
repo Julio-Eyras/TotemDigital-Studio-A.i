@@ -809,18 +809,30 @@ export class MediaService {
         throw new Error('Acesso negado: mídia não pertence a este subscriber');
       }
 
-      // Verificar se está sendo usada em playlists
-      const playlistUsage = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM playlist_items WHERE media_id = $1
-      `, [mediaId]);
+      // Verificar se está sendo usada em playlists, campanhas ou totem playlists
+      const [playlistUsage, campaignUsage, totemUsage] = await Promise.all([
+        this.db.findFirst(`SELECT COUNT(*) as count FROM playlist_items WHERE media_id = $1`, [mediaId]),
+        this.db.findFirst(`SELECT COUNT(*) as count FROM campaign_medias WHERE media_id = $1`, [mediaId]),
+        this.db.findFirst(`SELECT COUNT(*) as count FROM totem_playlist_items WHERE media_id = $1`, [mediaId])
+      ]);
 
-      if (playlistUsage && parseInt(playlistUsage.count) > 0) {
+      const inPlaylist = playlistUsage && parseInt(String(playlistUsage.count), 10) > 0;
+      const inCampaign = campaignUsage && parseInt(String(campaignUsage.count), 10) > 0;
+      const inTotem = totemUsage && parseInt(String(totemUsage.count), 10) > 0;
+      if (inPlaylist) {
         throw new Error('Não é possível remover mídia que está sendo usada em playlists');
       }
+      if (inCampaign) {
+        throw new Error('Não é possível remover mídia que está sendo usada em campanhas');
+      }
+      if (inTotem) {
+        throw new Error('Não é possível remover mídia que está sendo usada em playlists de totem');
+      }
 
-      // Remover arquivo físico
-      if (media.filePath) {
-        await this.getStorageService().deleteMediaFile(media.filePath);
+      // Remover arquivo físico (filePath pode vir como filePath ou file_path do banco)
+      const filePathToDelete = media.filePath || (media as any).file_path;
+      if (filePathToDelete) {
+        await this.getStorageService().deleteMediaFile(filePathToDelete);
       }
 
       // Remover do banco

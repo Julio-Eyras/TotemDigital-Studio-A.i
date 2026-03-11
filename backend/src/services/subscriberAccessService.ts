@@ -273,7 +273,7 @@ export class SubscriberAccessService {
         planId,
         publisherId
       });
-      throw new Error('Erro ao configurar acesso');
+      throw error;
     }
   }
 

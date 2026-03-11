@@ -232,6 +232,9 @@ export class PublisherService {
         description
       } = data;
 
+      // Normalizar email vazio para null (evita violação de UNIQUE quando vários publishers sem email)
+      const emailNorm = (email != null && String(email).trim() !== '') ? String(email).trim() : null;
+
       // Validar contrato apenas se contract_id foi fornecido
       if (contract_id) {
         const contract = await this.db.findFirst(`
@@ -282,7 +285,7 @@ export class PublisherService {
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING publisher_id
-      `, [name, contact_name, email, phone, whatsapp, category_segment || null, description, finalIsSubscriber, finalIsPublisher, finalClientType]);
+      `, [name, contact_name || null, emailNorm, phone || null, whatsapp || null, category_segment || null, description || null, finalIsSubscriber, finalIsPublisher, finalClientType]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar publisher');
@@ -325,7 +328,8 @@ export class PublisherService {
   }
 
   /**
-   * Criar publisher e recursos relacionados (locals, totems, smart_tvs, contracts) dentro de uma transação
+   * Criar publisher e recursos relacionados (locals, totems, smart_tvs, contracts) via procedure atómica no banco.
+   * contract_number é gerado no banco como PUB-{publisher_id}.{seq}.
    */
   async createPublisherWithResources(payload: {
     publisher: CreatePublisherRequest;
@@ -334,93 +338,36 @@ export class PublisherService {
     smartTvs?: Array<any>;
     contracts?: Array<any>;
   }): Promise<Publisher> {
-    // Implementação transacional usando transaction exportado do database-pg
-    const { transaction } = await import('../config/database-pg');
-    return await transaction(async (client) => {
-      const pub = payload.publisher;
-      // Inserir publisher
-      const resPub = await client.query(
-        `INSERT INTO publishers (name, contact_name, email, phone, whatsapp, category_segment, description, is_subscriber, is_publisher, client_type, is_active, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING publisher_id`,
-        [pub.name, pub.contact_name, pub.email, pub.phone, pub.whatsapp, pub.category_segment || null, pub.description || null, false, true, 'publisher']
-      );
-      const publisherId = resPub.rows[0].publisher_id;
+    const db = getDatabase();
+    const pPublisher = JSON.stringify(payload.publisher);
+    const pLocals = JSON.stringify(payload.locals ?? []);
+    const pTotems = JSON.stringify(payload.totems ?? []);
+    const pSmartTvs = JSON.stringify(payload.smartTvs ?? []);
+    const pContracts = JSON.stringify(payload.contracts ?? []);
 
-      const localIdMap: number[] = [];
-      if (payload.locals && Array.isArray(payload.locals)) {
-        for (const l of payload.locals) {
-          const resLocal = await client.query(
-            `INSERT INTO locals (publisher_id, name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description, is_active, created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING local_id`,
-            [publisherId, l.name, l.category_segment || null, l.address || null, l.city || null, l.state || null, l.zip_code || null, l.country || null, l.latitude || null, l.longitude || null, l.timezone || null, l.description || null]
-          );
-          localIdMap.push(resLocal.rows[0].local_id);
-        }
-      }
+    const row = await db.findFirst(
+      `SELECT create_publisher_with_resources($1::jsonb, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb) AS data`,
+      [pPublisher, pLocals, pTotems, pSmartTvs, pContracts]
+    );
+    if (!row?.data) {
+      throw new Error('Erro ao criar publisher com recursos: procedimento não retornou dados');
+    }
+    const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+    const publisherId = data.publisher_id;
+    if (!publisherId) {
+      throw new Error('Erro ao criar publisher com recursos: publisher_id não retornado');
+    }
 
-      const totemIdMap: number[] = [];
-      if (payload.totems && Array.isArray(payload.totems)) {
-        for (const t of payload.totems) {
-          const localIndex = typeof t.localIndex === 'number' ? t.localIndex : 0;
-          const localId = localIdMap[localIndex];
-          const resTotem = await client.query(
-            `INSERT INTO totems (identifier, uin, device_id, local_id, name, description, model, manufacturer, firmware_version, hardware_version, os_version, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active, created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,60,$13,$14,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING totem_id`,
-            [t.identifier || null, t.uin || null, t.deviceId || null, localId || null, t.name || null, t.description || null, t.model || null, t.manufacturer || null, t.firmwareVersion || null, t.hardwareVersion || null, t.osVersion || null, t.status || 'offline', t.network_info || '{}' , JSON.stringify(t.capabilities || {})]
-          );
-          totemIdMap.push(resTotem.rows[0].totem_id);
-        }
-      }
-
-      if (payload.smartTvs && Array.isArray(payload.smartTvs)) {
-        for (const s of payload.smartTvs) {
-          const totemIndex = typeof s.totemIndex === 'number' ? s.totemIndex : 0;
-          const totemId = totemIdMap[totemIndex];
-          await client.query(
-            `INSERT INTO smart_tvs (totem_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, last_heartbeat, capabilities, settings, is_active, created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,$13,$14,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-            [totemId || null, s.identifier, s.device_id || null, s.name || null, s.brand || null, s.model || null, s.platform || null, s.firmware_version || null, s.resolution_width || null, s.resolution_height || null, s.orientation || 'landscape', s.status || 'offline', JSON.stringify(s.capabilities || {}), JSON.stringify(s.settings || {})]
-          );
-        }
-      }
-
-      if (payload.contracts && Array.isArray(payload.contracts)) {
-        for (const c of payload.contracts) {
-          await client.query(
-            `INSERT INTO publisher_contracts (publisher_id, contract_number, contract_type, title, description, start_date, end_date, revenue_share_percentage, revenue_share_rules, minimum_payout_amount, subscription_amount, subscription_interval, currency, payment_terms, status, signed_by_publisher_at, signed_by_tenant_at, created_by, metadata, document_path, document_filename, document_mime_type, document_size_bytes, is_active, created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NULL,NULL,$16,$17,$18,$19,$20,$21,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-            [publisherId, c.contract_number, c.contract_type || 'revenue_share', c.title || null, c.description || null, c.start_date || null, c.end_date || null, c.revenue_share_percentage || 0, JSON.stringify(c.revenue_share_rules || {}), c.minimum_payout_amount || null, c.subscription_amount || null, c.subscription_interval || null, c.currency || 'BRL', c.payment_terms || 'Mensal', c.status || 'draft', c.created_by || null, JSON.stringify(c.metadata || {}), c.document_path || null, c.document_filename || null, c.document_mime_type || null, c.document_size_bytes || null]
-          );
-        }
-      }
-
-      // Buscar publisher usando o mesmo client (visibilidade da transação)
-      const pubRow = await client.query(
-        `SELECT 
-           p.publisher_id,
-           p.name,
-           p.contact_name,
-           p.email,
-           p.phone,
-           p.whatsapp,
-           p.category_segment,
-           p.description,
-           p.is_subscriber,
-           p.is_publisher,
-           p.client_type,
-           p.is_active,
-           p.created_at,
-           p.updated_at
-         FROM publishers p
-         WHERE p.publisher_id = $1
-        `, [publisherId]
-      );
-      if (!pubRow.rows || pubRow.rows.length === 0) {
-        throw new Error('Erro ao buscar publisher criado');
-      }
-      const pubData = pubRow.rows[0];
-      return { ...pubData, active: !!pubData.is_active } as Publisher;
-    });
+    const pubData = await db.findFirst(
+      `SELECT publisher_id, name, contact_name, email, phone, whatsapp, category_segment, description,
+              is_subscriber, is_publisher, client_type, is_active, created_at, updated_at
+       FROM publishers WHERE publisher_id = $1`,
+      [publisherId]
+    );
+    if (!pubData) {
+      throw new Error('Erro ao buscar publisher criado');
+    }
+    return { ...pubData, active: !!pubData.is_active } as Publisher;
   }
 
   /**

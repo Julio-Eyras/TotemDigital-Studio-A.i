@@ -316,6 +316,22 @@ export function validateTotemToken(uin: string, token: string, maxAge: number = 
 }
 
 /**
+ * @route GET /api/player/config
+ * @desc Configuração do player (serverUrl, heartbeat, storage externo/interno, etc.)
+ */
+router.get('/config', async (_req: Request, res: Response) => {
+  try {
+    const { SystemService } = await import('../services/systemService');
+    const systemService = new SystemService();
+    const playerConfig = await systemService.getPlayerConfig();
+    return res.json(playerConfig);
+  } catch (err: any) {
+    await logError('Erro ao obter config do player', err);
+    return res.status(500).json({ error: err.message || 'Erro ao obter config' });
+  }
+});
+
+/**
  * @route GET /api/player/fallback-manifest
  * @desc Lista arquivos de propagandas e vinhetas para modo fallback (sem autenticação)
  */
@@ -340,6 +356,7 @@ router.get('/fallback-manifest', async (_req: Request, res: Response) => {
  * @desc Validar totem por UIN e token, retornar status, comandos pendentes e playlist
  * @access Public (para totens na porta 80)
  * @note Todas as requisições passam pelo DispatcherRouter para monitoramento centralizado
+ * @res 404 Totem não encontrado = UIN não está registrado; cadastre o totem no painel (Anunciantes → Publishers → Totens) com o mesmo UIN.
  */
 router.get('/validate',
   query('uin').isString().isLength({ min: 1, max: 100 }),

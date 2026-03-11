@@ -722,30 +722,42 @@ execute_psql_file() {
         exit 1
     fi
 
-    # Substituir caminhos relativos \i por caminhos absolutos se necessário
+    # Substituir caminhos relativos \i por caminhos absolutos; se em dir inacessível ao postgres, copiar .sql para /tmp
+    local schema_to_use="$temp_schema"
+    local cleanup_schema_dir=""
     if grep -q "\\\\i " "$temp_schema"; then
-        # Garantir que os arquivos incluídos (\i) sejam legíveis pelo usuário do psql (ex.: postgres)
         chmod -R a+rX "$schema_dir" 2>/dev/null || true
-        # Substituir \i caminho_relativo por \i caminho_absoluto
-        sed -i "s|\\\\i \\([^/].*\\.sql\\)|\\\\i ${schema_dir}/\\1|g" "$temp_schema" 2>/dev/null || {
-            # Fallback: usar perl ou python se sed -i não funcionar
-            perl -i -pe "s|\\\\i ([^/].*\.sql)|\\\\i ${schema_dir}/\$1|g" "$temp_schema" 2>/dev/null || true
-        }
+        local temp_schema_dir
+        temp_schema_dir=$(mktemp -d /tmp/smartchannel-schema-dir-XXXX 2>/dev/null) || true
+        if [[ -n "$temp_schema_dir" ]] && [[ -d "$temp_schema_dir" ]]; then
+            cleanup_schema_dir="$temp_schema_dir"
+            cp -p "$schema_dir"/*.sql "$temp_schema_dir/" 2>/dev/null || true
+            chmod -R a+rX "$temp_schema_dir" 2>/dev/null || true
+            sed -i "s|\\\\i \\([^/].*\\.sql\\)|\\\\i ${temp_schema_dir}/\\1|g" "$temp_schema" 2>/dev/null || \
+                perl -i -pe "s|\\\\i ([^/].*\.sql)|\\\\i ${temp_schema_dir}/\$1|g" "$temp_schema" 2>/dev/null || true
+            # Reescrever também \i caminho_absoluto (schema_dir) para temp_schema_dir, para consistência
+            sed -i "s|\\\\i ${schema_dir}/|\\\\i ${temp_schema_dir}/|g" "$temp_schema" 2>/dev/null || true
+        else
+            sudo chmod -R o+rX "$schema_dir" 2>/dev/null || true
+            sed -i "s|\\\\i \\([^/].*\\.sql\\)|\\\\i ${schema_dir}/\\1|g" "$temp_schema" 2>/dev/null || {
+                perl -i -pe "s|\\\\i ([^/].*\.sql)|\\\\i ${schema_dir}/\$1|g" "$temp_schema" 2>/dev/null || true
+            }
+        fi
     fi
 
     chmod 644 "$temp_schema" 2>/dev/null || true
-
-    local schema_to_use="$temp_schema"
     local psql_output
     local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
     if ! psql_output=$(sudo -u "$POSTGRES_USER" psql -v ON_ERROR_STOP=1 -d "$database_name" -f "$schema_to_use" 2>&1); then
         rm -f "$schema_to_use" 2>/dev/null || true
+        [[ -n "$cleanup_schema_dir" ]] && rm -rf "$cleanup_schema_dir" 2>/dev/null || true
         error "❌ Falha ao aplicar ${description}"
         echo "$psql_output"
         exit 1
     fi
 
     rm -f "$schema_to_use" 2>/dev/null || true
+    [[ -n "$cleanup_schema_dir" ]] && rm -rf "$cleanup_schema_dir" 2>/dev/null || true
 
     # Mostrar apenas mensagens relevantes (erros já capturados acima)
     if [[ -n "$psql_output" ]]; then
@@ -779,7 +791,7 @@ retry_with_backoff() {
 
 # Banner
 show_banner() {
-    clear
+    clear 2>/dev/null || true
     echo -e "${PURPLE}"
     echo "╔══════════════════════════════════════════════════════════════╗"
     echo "║                    Smart Signage Pro                        ║"
@@ -1614,6 +1626,10 @@ detect_and_remove_previous_installation() {
                 echo
                 echo -e "${RED}⚠️  ESTA AÇÃO É IRREVERSÍVEL!${NC}"
                 echo
+                if [[ "$SKIP_MENU" == "true" ]]; then
+                    log "Modo --skip-menu: a manter instalação anterior em $INSTALL_DIR_CHECK (sem remover)."
+                    continue
+                fi
                 read -p "Deseja REMOVER COMPLETAMENTE a instalação anterior? (s/N): " confirm_remove
                 
                 if [[ "$confirm_remove" =~ ^[Ss]$ ]]; then
@@ -5033,6 +5049,7 @@ verify_nginx_ws_config() {
         log "Config Nginx inclui proxy WebSocket /ws"
     else
         warning "Config Nginx pode não ter proxy /ws - WebSocket pode falhar (handshake 200)"
+        warning "Se o monitor mostrar 'Unexpected response code: 200', recarregue o config deste script ou adicione manualmente: location /ws { proxy_pass http://localhost:3000; proxy_http_version 1.1; proxy_set_header Upgrade \$http_upgrade; proxy_set_header Connection \"upgrade\"; ... }"
     fi
 }
 
@@ -5243,6 +5260,21 @@ setup_nginx() {
         # Usar diretório original se não estiver em home ou se não for single-server
         FRONTEND_BUILD_DIR="$INSTALL_DIR/frontend/build"
     fi
+
+    # Exibir URLs principais de acesso (baseadas no primeiro IP da máquina)
+    local SERVER_IP
+    SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    if [[ -z "$SERVER_IP" ]]; then
+        SERVER_IP="SEU_IP_DO_SERVIDOR"
+    fi
+
+    log "========================================="
+    log " URLs de acesso ao Smart Signage Pro"
+    log "  - Login HTTP : http://$SERVER_IP/"
+    log "  - Login HTTPS: https://$SERVER_IP/   (se HTTPS estiver configurado no Nginx)"
+    log "  - Player HTTP: http://$SERVER_IP/player"
+    log "  - Player HTTPS: https://$SERVER_IP/player   (se HTTPS estiver configurado no Nginx)"
+    log "========================================="
     
     # SINGLE-SERVER: SEMPRE fazer deploy de player-web em /opt/smart-signage/player-web (instalação funcional, sem scripts de correção)
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
@@ -5846,10 +5878,10 @@ EOF
     fi
 }
 
-# Criar serviço systemd
+# Criar serviço systemd (backend Node em modo single-server)
 create_systemd_service() {
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
-        log "Criando serviço systemd..."
+        log "Criando serviço systemd (smart-signage.service)..."
         
         SERVICE_FILE="/etc/systemd/system/smart-signage.service"
         
@@ -5874,7 +5906,7 @@ ENV_EOF
             log "✅ Arquivo .env criado em $ENV_FILE_PATH"
         fi
         
-        sudo tee $SERVICE_FILE > /dev/null << EOF
+        sudo tee "$SERVICE_FILE" > /dev/null << EOF
 [Unit]
 Description=Smart Signage Pro Backend
 After=network.target postgresql.service
@@ -5910,6 +5942,39 @@ EOF
         
         log "✅ Serviço systemd criado e habilitado"
         log "⚠️  O serviço será iniciado após configurar o banco de dados"
+    fi
+}
+
+# Garantir que o serviço systemd existe antes de iniciar backend (modo single-server)
+ensure_smart_signage_service() {
+    if [[ "$INSTALL_MODE" != "single-server" ]]; then
+        return 0
+    fi
+
+    local service_file="/etc/systemd/system/smart-signage.service"
+
+    if [[ -f "$service_file" ]]; then
+        # Serviço já existe; nada a fazer (idempotente)
+        return 0
+    fi
+
+    log "Serviço smart-signage.service não encontrado. Tentando recriar automaticamente..."
+
+    # Preferir helper dedicado se existir (scripts/create-smart-signage-service.sh),
+    # que já sabe lidar com INSTALL_DIR/backend e .env.
+    local helper_script=""
+    if [[ -f "$INSTALL_DIR/scripts/create-smart-signage-service.sh" ]]; then
+        helper_script="$INSTALL_DIR/scripts/create-smart-signage-service.sh"
+    elif [[ -n "${SOURCE_DIR:-}" && -f "$SOURCE_DIR/scripts/create-smart-signage-service.sh" ]]; then
+        helper_script="$SOURCE_DIR/scripts/create-smart-signage-service.sh"
+    fi
+
+    if [[ -n "$helper_script" ]]; then
+        log "Usando helper: $helper_script (INSTALL_DIR=$INSTALL_DIR)..."
+        bash "$helper_script" "$INSTALL_DIR"
+    else
+        log "Helper create-smart-signage-service.sh não encontrado. Usando create_systemd_service() inline..."
+        create_systemd_service
     fi
 }
 
@@ -7064,9 +7129,15 @@ EOF
             exit 1
         fi
         
+        # Garantir que o serviço systemd do backend existe antes de tentar iniciar
+        ensure_smart_signage_service
+
         log "Iniciando Backend..."
         sudo systemctl start smart-signage
-        wait_for_backend
+        wait_for_backend || {
+            error "❌ Backend não respondeu. Verifique: sudo journalctl -u smart-signage -n 80"
+            exit 1
+        }
         
         # Nginx já foi iniciado em setup_nginx(), apenas verificar
         log "Verificando Nginx..."
@@ -7076,7 +7147,10 @@ EOF
             sudo systemctl start nginx
             sleep 2
         fi
-        wait_for_nginx
+        wait_for_nginx || {
+            error "❌ Nginx não respondeu na porta 80. Verifique: sudo nginx -t && sudo systemctl status nginx"
+            exit 1
+        }
         
     elif [[ "$INSTALL_MODE" == "development" ]]; then
         # Ordem para Desenvolvimento
@@ -11216,6 +11290,35 @@ main() {
     # Para single-server: iniciar serviços após setup completo
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
         start_services_in_order
+        
+        # Verificar que portas 80 e 3000 estão em uso; se não, criar serviço (se faltar), iniciar e revalidar
+        if ! (command -v ss &>/dev/null && ss -tlnp 2>/dev/null | grep -q ":3000 ") || \
+           ! (command -v ss &>/dev/null && ss -tlnp 2>/dev/null | grep -q ":80 "); then
+            warning "Portas 80 ou 3000 não estão ativas. Garantindo serviço backend e reiniciando..."
+            # Garantir que o unit smart-signage.service existe (cria se estiver em falta)
+            ensure_smart_signage_service
+            sudo systemctl daemon-reload 2>/dev/null || true
+            sudo systemctl start smart-signage 2>/dev/null || true
+            sleep 5
+            sudo systemctl start nginx 2>/dev/null || true
+            sleep 2
+            if [[ -f "$INSTALL_DIR/scripts/fix-nginx-and-port80.sh" ]]; then
+                log "Aplicando fix-nginx-and-port80.sh como fallback..."
+                bash "$INSTALL_DIR/scripts/fix-nginx-and-port80.sh" 2>/dev/null || true
+            fi
+            if ! (command -v ss &>/dev/null && ss -tlnp 2>/dev/null | grep -q ":3000 "); then
+                error "❌ Backend não está a escutar na porta 3000."
+                error "   Execute: sudo systemctl status smart-signage && sudo journalctl -u smart-signage -n 50"
+                error "   Depois: sudo bash $INSTALL_DIR/scripts/start-services.sh"
+                exit 1
+            fi
+            if ! (command -v ss &>/dev/null && ss -tlnp 2>/dev/null | grep -q ":80 "); then
+                error "❌ Nginx não está a escutar na porta 80."
+                error "   Execute: sudo nginx -t && sudo systemctl status nginx"
+                error "   Depois: sudo bash $INSTALL_DIR/scripts/start-services.sh"
+                exit 1
+            fi
+        fi
     else
         check_startup_order
     fi

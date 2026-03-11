@@ -241,6 +241,10 @@ export class StorageService {
    * Remove arquivo de mídia
    */
   async deleteMediaFile(filePath: string): Promise<void> {
+    if (!filePath || typeof filePath !== 'string') {
+      logWarnSync('[StorageService] deleteMediaFile ignorado: filePath inválido');
+      return;
+    }
     try {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
@@ -253,7 +257,6 @@ export class StorageService {
         fs.unlinkSync(thumbnailPath);
         logDebugSync(`[StorageService] Thumbnail removido: ${thumbnailPath}`);
       }
-
     } catch (error: any) {
       logErrorSync('Erro ao remover arquivo', error, { filePath });
       throw new Error('Erro ao remover arquivo');

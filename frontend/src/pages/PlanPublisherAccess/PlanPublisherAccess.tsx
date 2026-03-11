@@ -388,9 +388,9 @@ const PlanPublisherAccessPage: React.FC = () => {
         for (const planPublisher of planPublishers) {
           try {
             await subscriberAccessApi.setPlanPublisherAccess({
-              planId: savedPlanId,
-              publisherId: planPublisher.publisherId,
-              isAllowed: planPublisher.isAllowed,
+              planId: Number(savedPlanId),
+              publisherId: Number(planPublisher.publisherId),
+              isAllowed: planPublisher.isAllowed === true,
               restrictions: planPublisher.restrictions,
               notes: planPublisher.notes,
             });

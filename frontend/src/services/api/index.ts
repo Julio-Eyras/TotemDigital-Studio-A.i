@@ -901,8 +901,12 @@ export const mediaApi = {
         filePath = filePath.replace('/opt/smart-signage/public/assets/', '/assets/');
       }
       
-      // Construir thumbnailUrl se não existir
-      let thumbnailUrl = item.thumbnailUrl || item.thumbnail_url || item.thumbnailUrlComputed;
+      const mediaId = item.media_id ?? item.id;
+      const baseUrl = (typeof process !== 'undefined' && process.env?.REACT_APP_API_URL) ? String(process.env.REACT_APP_API_URL).replace(/\/$/, '') : '';
+      // Preferir sempre a API de thumbnail quando temos media_id (evita 404 em /assets/uploads quando Nginx não faz proxy)
+      const apiThumbnailUrl = mediaId ? `${baseUrl}/api/media/${mediaId}/thumbnail` : null;
+      
+      let thumbnailUrl = apiThumbnailUrl || item.thumbnailUrl || item.thumbnail_url || item.thumbnailUrlComputed;
       if (!thumbnailUrl && filePath) {
         if (item.media_type === 'image' || item.mediaType === 'image') {
           thumbnailUrl = filePath;
@@ -3150,6 +3154,23 @@ export interface UpdateSubscriberRequest {
   isActive?: boolean;
 }
 
+/** Payload para criar subscriber e contratos numa única chamada (procedure). contract_number gerado no banco como SUB-{id}.{seq} */
+export interface CreateSubscriberWithContractsRequest {
+  subscriber: CreateSubscriberRequest;
+  contracts: Array<{
+    title: string;
+    plan_id?: number;
+    contract_type?: string;
+    start_date?: string;
+    end_date?: string;
+    total_amount?: number;
+    currency?: string;
+    payment_terms?: string;
+    description?: string;
+    [key: string]: unknown;
+  }>;
+}
+
 export interface SubscriberListResponse {
   data: Subscriber[];
   total: number;
@@ -3173,7 +3194,7 @@ export const subscriberApi = {
     return response.data;
   },
 
-  create: async (data: CreateSubscriberRequest): Promise<Subscriber> => {
+  create: async (data: CreateSubscriberRequest | CreateSubscriberWithContractsRequest): Promise<Subscriber> => {
     const response = await api.post('/subscribers', data);
     return response.data;
   },
@@ -3207,8 +3228,10 @@ export const subscriberApi = {
     return response.data.data || {};
   },
 
-  getContracts: async (subscriberId: number): Promise<Contract[]> => {
-    const response = await api.get(`/subscribers/${subscriberId}/contracts`);
+  getContracts: async (subscriberId: number, params?: { activeOnly?: boolean }): Promise<Contract[]> => {
+    const response = await api.get(`/subscribers/${subscriberId}/contracts`, {
+      params: params?.activeOnly === false ? { activeOnly: 'false' } : undefined,
+    });
     return response.data.data || [];
   },
 

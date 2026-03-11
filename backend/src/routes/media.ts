@@ -648,10 +648,17 @@ router.delete('/:id',
       await getMediaService().deleteMedia(mediaId, userId, requestSubscriberId, isAdmin);
       return res.json({ message: 'Arquivo de mídia deletado com sucesso' });
     } catch (error: any) {
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
+      const msg = error.message || '';
+      if (msg.includes('Acesso negado')) {
+        return res.status(403).json({ error: msg });
       }
-      return res.status(500).json({ error: error.message || 'Erro ao deletar arquivo de mídia' });
+      if (msg.includes('não encontrada') || msg.includes('não encontrado')) {
+        return res.status(404).json({ error: msg });
+      }
+      if (msg.includes('Não é possível remover')) {
+        return res.status(400).json({ error: msg });
+      }
+      return res.status(500).json({ error: msg || 'Erro ao deletar arquivo de mídia' });
     }
   }
 );
