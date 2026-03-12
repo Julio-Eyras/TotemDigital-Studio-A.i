@@ -526,7 +526,7 @@ router.get('/validate',
         // Continuar mesmo se houver erro ao buscar comandos
       }
 
-      // Buscar playlist ativa do totem através de campanha
+      // Buscar playlist ativa do totem através de campanha (forma 2: campaign_totems).
       let activePlaylist = null;
       try {
         activePlaylist = await db.findFirst(`
@@ -554,7 +554,6 @@ router.get('/validate',
         `, [totemId]);
       } catch (playlistError: any) {
         await logError(`[${transactionId}] Erro ao buscar playlist ativa`, playlistError, { totemId, transactionId });
-        // Continuar mesmo se houver erro ao buscar playlist
       }
 
       // Se não tiver playlist via campanha, buscar playlist direta do totem

@@ -57,6 +57,8 @@ export interface CandidateSchedule {
   campaignTitle: string;
   playlistId: number;
   playlistName: string;
+  mediaId?: number;
+  mediaName?: string;
   priority: number;
   source: 'direct' | 'group' | 'campaign';
   sourceId: number;

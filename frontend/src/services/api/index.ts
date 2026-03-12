@@ -1179,6 +1179,7 @@ export interface UpdateCampaignRequest {
   playlistIds?: number[];
   publisherIds?: number[];
   mediaIds?: number[];
+  totemIds?: number[];
 }
 
 export interface CampaignListResponse {

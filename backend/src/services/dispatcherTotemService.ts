@@ -14,6 +14,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDatabase } from '../config/database';
 import { config } from '../config/env';
+import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../config/featureFlags';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { normalizeDownloadUrl } from '../utils/pathHelper';
 import { getCacheService } from './cacheService';
@@ -78,7 +79,11 @@ export class DispatcherTotemService {
         const cached = await this.getFromCache(cacheKey);
         // Se pedimos candidates, mas o cache não tem candidates (porque foi gerado via /dispatch sem includeCandidates),
         // tratar como cache miss para evitar retorno "vazio" no endpoint /candidates.
-        if (cached && (!includeCandidates || (cached.candidates && cached.candidates.length > 0))) {
+        // Além disso, ignorar entradas de cache cujo plano não contenha mídias (mediaItems vazio),
+        // pois isso costuma indicar um cache antigo/inconsistente para o player.
+        const hasCandidatesData = !includeCandidates || (cached?.candidates && cached.candidates.length > 0);
+        const hasMediaItems = !!cached?.plan?.mediaItems && cached.plan.mediaItems.length > 0;
+        if (cached && hasCandidatesData && hasMediaItems) {
           await logDebug('[DispatcherTotem] Cache hit', { totemId, cacheKey });
           
           // Registrar log de auditoria (cache hit)
@@ -408,10 +413,11 @@ export class DispatcherTotemService {
 
       // Buscar campanhas ativas que apontam para este totem
       // Via campaign_totems (direto) ou via campaign_publishers (grupo)
-      // FASE 1.2: Incluir campos comerciais
+      // Forma 2 (direct) pode ser desabilitada por DISABLE_DIRECT_CAMPAIGN_TOTEM; código preservado.
+      const enableDirectLeg = !DISABLE_DIRECT_CAMPAIGN_TOTEM;
       const campaigns = await this.db.findMany(`
         WITH totem_campaigns AS (
-          -- Campanhas diretas (via campaign_totems). CAST explícito para timestamp em ambas as pernas da UNION.
+          -- Campanhas diretas (via campaign_totems). Desabilitado quando DISABLE_DIRECT_CAMPAIGN_TOTEM=true.
           SELECT DISTINCT
             c.campaign_id,
             c.subscriber_id,
@@ -456,6 +462,7 @@ export class DispatcherTotemService {
             AND ct.is_active = true
             AND c.is_active = true
             AND c.status = 'active'
+            AND ($2::boolean)
           
           UNION
           
@@ -630,7 +637,7 @@ export class DispatcherTotemService {
         FROM totem_campaigns tc
         WHERE tc.is_active = true
           AND tc.status = 'active'
-      `, [totemId]);
+      `, [totemId, enableDirectLeg]);
 
       // Buscar playlists associadas a cada campanha
       const candidates: CandidateSchedule[] = [];
@@ -657,6 +664,20 @@ export class DispatcherTotemService {
 
         const playlist = playlists[0];
 
+        // Buscar uma mídia representativa da playlist (primeiro item ativo)
+        const media = await this.db.findFirst(`
+          SELECT 
+            m.media_id,
+            m.name
+          FROM playlist_items pi
+          INNER JOIN medias m ON m.media_id = pi.media_id
+          WHERE pi.playlist_id = $1
+            AND COALESCE(pi.is_active, true) = true
+            AND m.is_active = true
+          ORDER BY pi.order_index ASC, m.media_id ASC
+          LIMIT 1
+        `, [playlist.playlist_id]);
+
         // Validar frequência temporal
         const temporalValid = await this.validateTemporalFrequency(
           campaign,
@@ -672,6 +693,8 @@ export class DispatcherTotemService {
           campaignTitle: campaign.campaign_title,
           playlistId: playlist.playlist_id,
           playlistName: playlist.playlist_name,
+          mediaId: media?.media_id ? Number(media.media_id) : undefined,
+          mediaName: media?.name || undefined,
           priority: campaign.effective_priority,
           source: campaign.source_type === 'direct' ? 'direct' : 'campaign',
           sourceId: campaign.source_id,
@@ -691,7 +714,18 @@ export class DispatcherTotemService {
         });
       }
 
-      return candidates;
+      // Deduplicar por (campaignId, playlistId): a mesma campanha pode vir da perna "direct" (campaign_totems)
+      // e das pernas "publisher"/"contract_plan"; manter uma única entrada por campanha+playlist para evitar duplicidade na UI.
+      const seen = new Map<string, CandidateSchedule>();
+      for (const c of candidates) {
+        const key = `${c.campaignId}-${c.playlistId}`;
+        if (!seen.has(key)) seen.set(key, c);
+        // Opcional: preferir o candidato "direct" quando houver dois para o mesmo par (prioridade ao totem explícito)
+        else if (c.source === 'direct') seen.set(key, c);
+      }
+      const deduped = Array.from(seen.values());
+
+      return deduped;
 
     } catch (error: any) {
       await logError('[DispatcherTotem] Erro ao buscar candidatos', error, { totemId });

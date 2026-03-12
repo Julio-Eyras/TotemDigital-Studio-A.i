@@ -171,6 +171,22 @@ const Campaigns: React.FC = () => {
     return (((selectedCampaign as any).publisherIds || []) as number[]).filter((x) => typeof x === 'number');
   };
 
+  const getSelectedTotemIds = (): number[] => {
+    if (!selectedCampaign) return [];
+    return ((selectedCampaign as any).totemIds || []) as number[];
+  };
+
+  const toggleTotemForSelectedCampaign = (totemId: number) => {
+    if (!selectedCampaign) return;
+    const current = getSelectedTotemIds();
+    const exists = current.includes(totemId);
+    const next = exists ? current.filter((id) => id !== totemId) : [...current, totemId];
+    setSelectedCampaign({
+      ...selectedCampaign,
+      totemIds: next,
+    } as any);
+  };
+
   const loadDerivedDevices = async () => {
     if (!selectedCampaign) return;
     const publisherIds = getSelectedPublisherIds();
@@ -218,8 +234,8 @@ const Campaigns: React.FC = () => {
   // Carregar devices derivados quando entrar nas abas Totens/Smart TVs
   useEffect(() => {
     if (!editDialogOpen) return;
-    // 4 = Totens, 5 = Smart TVs (ver Tabs abaixo)
-    if (editTab === 4 || editTab === 5) {
+    // 2 = Totens, 3 = Smart TVs (ordem das abas: Principal, Publicadores, Totens, Smart TVs, Mídias, Playlists, Agendamento)
+    if (editTab === 2 || editTab === 3) {
       loadDerivedDevices();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -253,6 +269,9 @@ const Campaigns: React.FC = () => {
       // Compat de datas
       start_date: campaign.start_date ?? campaign.startDate,
       end_date: campaign.end_date ?? campaign.endDate,
+      // Compat de totems selecionados explicitamente (opcional)
+      // Se vazio/undefined, dispatcher assume todos os totems dos publishers selecionados
+      totemIds: campaign.totemIds ?? campaign.totem_ids ?? [],
       // Compat de tipo/status/ativo
       campaign_type: normalizeCampaignType(campaign.campaign_type ?? campaign.campaignType),
       status: campaign.status ?? 'draft',
@@ -447,8 +466,12 @@ const Campaigns: React.FC = () => {
 
   const handleEditCampaign = async () => {
     if (!selectedCampaign) return;
-    
+    // Checklist persistência: (1) Editar usa getById ao abrir → campaign.totemIds/publisherIds vêm do backend.
+    // (2) Payload abaixo envia publisherIds e totemIds; backend faz DELETE+INSERT em campaign_publishers e campaign_totems.
+    // (3) Se não gravar, conferir: Network tab (PUT 200?), backend atualizado (associatePublishers com DELETE), cache do navegador.
     try {
+      const publisherIds = ((selectedCampaign as any).publisherIds || []) as number[];
+      const totemIds = getSelectedTotemIds();
       const updateData: UpdateCampaignRequest = {
         title: selectedCampaign.title,
         categorySegment: (selectedCampaign as any).categorySegment || (selectedCampaign as any).category_segment,
@@ -461,8 +484,8 @@ const Campaigns: React.FC = () => {
         isActive: selectedCampaign.is_active !== undefined ? selectedCampaign.is_active : ((selectedCampaign as any).isActive !== undefined ? (selectedCampaign as any).isActive : true),
         playlistIds: orderedPlaylistIds.length > 0 ? orderedPlaylistIds : (selectedCampaign.playlistIds || []),
         mediaIds: orderedMediaIds.length > 0 ? orderedMediaIds : (selectedCampaign.mediaIds || []),
-        publisherIds: (selectedCampaign as any).publisherIds || [],
-        // Campos comerciais
+        publisherIds,
+        totemIds,
         commercial_tier: (selectedCampaign as any).commercial_tier || 'standard',
         default_time_share_percent: (selectedCampaign as any).default_time_share_percent ?? 0,
         max_consecutive_slots: (selectedCampaign as any).max_consecutive_slots ?? 2,
@@ -664,13 +687,23 @@ const Campaigns: React.FC = () => {
                 campaign={campaign}
                 highlighted={isHighlighted}
                 onEdit={async (campaign) => {
-                  setSelectedCampaign(normalizeCampaign(campaign));
-                  // Carregar publishers acessíveis se houver subscriberId
-                  const subscriberId = campaign.subscriber_id || (campaign as any).subscriberId;
-                  if (subscriberId && !isAdmin) {
-                    await loadAccessiblePublishers(subscriberId);
+                  // Checklist persistência: recarregar por ID para ter publisherIds/totemIds atualizados do backend
+                  try {
+                    const full = await campaignApi.getById(campaign.campaign_id);
+                    const normalized = normalizeCampaign(full);
+                    setSelectedCampaign(normalized);
+                    const subscriberId = normalized.subscriber_id || (normalized as any).subscriberId;
+                    if (subscriberId && !isAdmin) {
+                      await loadAccessiblePublishers(subscriberId);
+                    }
+                    setEditDialogOpen(true);
+                  } catch (e) {
+                    console.error('Erro ao carregar campanha para edição', e);
+                    setSelectedCampaign(normalizeCampaign(campaign));
+                    const subscriberId = campaign.subscriber_id || (campaign as any).subscriberId;
+                    if (subscriberId && !isAdmin) await loadAccessiblePublishers(subscriberId);
+                    setEditDialogOpen(true);
                   }
-                  setEditDialogOpen(true);
                 }}
                 onDelete={(campaign) => handleDeleteCampaign(campaign.campaign_id)}
                 onView={(campaign) => {
@@ -988,10 +1021,10 @@ const Campaigns: React.FC = () => {
           >
             <Tab label="Principal" />
             <Tab label="Publicadores" />
-            <Tab label="Playlists" />
-            <Tab label="Mídias" />
             <Tab label="Totens" />
             <Tab label="Smart TVs" />
+            <Tab label="Mídias" />
+            <Tab label="Playlists" />
             <Tab label="Agendamento" />
           </Tabs>
 
@@ -1187,7 +1220,7 @@ const Campaigns: React.FC = () => {
           )}
           
           {/* Seleção de Playlists */}
-          {editTab === 2 && (
+          {editTab === 5 && (
           <Box sx={{ mt: 2 }}>
             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
               Playlists
@@ -1263,7 +1296,7 @@ const Campaigns: React.FC = () => {
           )}
           
           {/* Seleção de Mídias Diretas */}
-          {editTab === 3 && (
+          {editTab === 4 && (
           <Box sx={{ mt: 2 }}>
             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
               Mídias Diretas (sem playlist)
@@ -1337,37 +1370,55 @@ const Campaigns: React.FC = () => {
           </Box>
           )}
 
-          {/* Aba Totens (derivados dos publishers selecionados) */}
-          {editTab === 4 && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
-                Totens impactados (derivado dos publishers selecionados)
-              </Typography>
+          {/* Aba Totens (igual à aba Publishers: Autocomplete múltiplo, chips com X, dropdown para adicionar) */}
+          {editTab === 2 && selectedCampaign && (
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Totens (Onde a campanha será exibida)</InputLabel>
               {derivedDevicesLoading ? (
-                <LinearProgress />
+                <LinearProgress sx={{ mt: 2 }} />
               ) : (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {derivedTotems.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">
-                      Nenhum totem encontrado para os publishers selecionados.
-                    </Typography>
-                  ) : (
-                    derivedTotems.map((t) => (
-                      <Chip
-                        key={t.totem_id}
-                        label={`${t.name || t.identifier || 'Totem'} (#${t.totem_id})`}
-                        size="small"
-                        color={t.status === 'online' ? 'success' : 'default'}
-                      />
-                    ))
+                <Autocomplete
+                  multiple
+                  options={derivedTotems}
+                  getOptionLabel={(option) => `${option.name || option.identifier || 'Totem'} (#${option.totem_id})`}
+                  isOptionEqualToValue={(option, value) => option.totem_id === value.totem_id}
+                  // UI: mostrar apenas os totens realmente selecionados (chips com X para remover).
+                  // Regra de negócio \"vazio = todos os totens dos publishers\" continua na camada de execução.
+                  value={derivedTotems.filter((t) =>
+                    getSelectedTotemIds().includes(t.totem_id)
                   )}
-                </Box>
+                  onChange={(_, newValue) => {
+                    if (!selectedCampaign) return;
+                    const nextIds =
+                      newValue.length === 0
+                        ? []
+                        : newValue.map((t: any) => t.totem_id);
+                    setSelectedCampaign({
+                      ...selectedCampaign,
+                      totemIds: nextIds,
+                    } as any);
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Totens"
+                      margin="normal"
+                      helperText={
+                        derivedTotems.length === 0
+                          ? 'Nenhum totem nos publishers selecionados. Selecione publishers na aba Publicadores.'
+                          : 'Selecione os totens onde a campanha será exibida. Se nenhum for selecionado, a campanha vale para todos os totens dos publishers.'
+                      }
+                    />
+                  )}
+                  disabled={derivedTotems.length === 0}
+                  noOptionsText="Nenhum totem nos publishers selecionados. Selecione publishers na aba Publicadores."
+                />
               )}
-            </Box>
+            </FormControl>
           )}
 
           {/* Aba Smart TVs (derivadas dos publishers selecionados) */}
-          {editTab === 5 && (
+          {editTab === 3 && (
             <Box sx={{ mt: 2 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
                 Smart TVs impactadas (derivado dos publishers selecionados)

@@ -50,6 +50,7 @@ export const updateCampaignValidators = [
   body('status').optional().isIn(['draft', 'active', 'approved', 'paused', 'finished', 'cancelled']).withMessage('Status inválido'),
   body('isActive').optional().isBoolean().withMessage('isActive deve ser um booleano'),
   body('publisherIds').optional().isArray().withMessage('publisherIds deve ser um array'),
+  body('totemIds').optional().isArray().withMessage('totemIds deve ser um array'),
   body('playlistIds').optional().isArray().withMessage('playlistIds deve ser um array'),
   body('mediaIds').optional().isArray().withMessage('mediaIds deve ser um array'),
 ];

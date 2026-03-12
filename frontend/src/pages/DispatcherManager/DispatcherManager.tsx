@@ -113,6 +113,8 @@ interface EligibleCampaign {
   timeSharePercent: number;
   playlistId: number;
   playlistName: string;
+   mediaId?: number;
+   mediaName?: string;
   status: string;
   startDate: string;
   endDate: string;
@@ -173,6 +175,8 @@ const DispatcherManager: React.FC = () => {
   const [eligibleMedia, setEligibleMedia] = useState<EligibleMedia[]>([]);
   const [timeline, setTimeline] = useState<TimelineSlot[]>([]);
   const [dispatchPlan, setDispatchPlan] = useState<DispatchPlan | null>(null);
+  const [dispatchFromCache, setDispatchFromCache] = useState<boolean | undefined>(undefined);
+  const [dispatchExecutionMs, setDispatchExecutionMs] = useState<number | undefined>(undefined);
   
   // Dialogs
   const [campaignDetailOpen, setCampaignDetailOpen] = useState(false);
@@ -228,8 +232,8 @@ const DispatcherManager: React.FC = () => {
       );
       
       if (candidatesResponse.success && candidatesResponse.candidates) {
-        // Processar campanhas elegíveis
-        const campaigns: EligibleCampaign[] = candidatesResponse.candidates.map((c: any) => ({
+        // Processar campanhas elegíveis (deduplicando por campanha+playlist)
+        const rawCampaigns: EligibleCampaign[] = candidatesResponse.candidates.map((c: any) => ({
           campaignId: c.campaignId,
           title: c.campaignTitle,
           priority: c.priority,
@@ -237,6 +241,8 @@ const DispatcherManager: React.FC = () => {
           timeSharePercent: c.timeSharePercent || 0,
           playlistId: c.playlistId,
           playlistName: c.playlistName,
+          mediaId: c.mediaId,
+          mediaName: c.mediaName,
           status: c.temporalValid ? 'eligible' : 'invalid',
           startDate: '',
           endDate: '',
@@ -244,6 +250,16 @@ const DispatcherManager: React.FC = () => {
           endTime: '',
           daysOfWeek: [],
         }));
+
+        const uniqueCampaignsMap = new Map<string, EligibleCampaign>();
+        rawCampaigns.forEach((campaign) => {
+          const key = `${campaign.campaignId}-${campaign.playlistId}`;
+          if (!uniqueCampaignsMap.has(key)) {
+            uniqueCampaignsMap.set(key, campaign);
+          }
+        });
+
+        const campaigns = Array.from(uniqueCampaignsMap.values());
         setEligibleCampaigns(campaigns);
         
         // Processar playlists elegíveis
@@ -318,6 +334,8 @@ const DispatcherManager: React.FC = () => {
       
       if (response.success && response.data) {
         setDispatchPlan(response.data);
+        setDispatchFromCache(response.fromCache);
+        setDispatchExecutionMs(response.executionTimeMs);
       }
     } catch (err: any) {
       console.error('Erro ao carregar plano:', err);
@@ -406,12 +424,20 @@ const DispatcherManager: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={4}>
               {dispatchPlan && (
-                <Chip
-                  icon={<CheckCircle />}
-                  label={`Plano: ${dispatchPlan.playlistName || 'N/A'}`}
-                  color="success"
-                  variant="outlined"
-                />
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Chip
+                    icon={<CheckCircle />}
+                    label={`Plano: ${dispatchPlan.playlistName || 'N/A'} (${dispatchPlan.mediaItems.length} mídias)`}
+                    color="success"
+                    variant="outlined"
+                  />
+                  <Typography variant="caption" color="text.secondary">
+                    Origem: {dispatchPlan.source} #{dispatchPlan.sourceId} · Campanha: {dispatchPlan.metadata?.campaignTitle || dispatchPlan.metadata?.campaignId || '-'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Cache: {dispatchFromCache ? 'SIM (cache ativo)' : 'NÃO (recalculado)'} · Execução: {dispatchExecutionMs ?? 0} ms
+                  </Typography>
+                </Box>
               )}
             </Grid>
           </Grid>
@@ -444,6 +470,8 @@ const DispatcherManager: React.FC = () => {
                   <TableCell>Tier</TableCell>
                   <TableCell>Time Share</TableCell>
                   <TableCell>Playlist</TableCell>
+                  <TableCell>Mídia ID</TableCell>
+                  <TableCell>Mídia</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Ações</TableCell>
                 </TableRow>
@@ -451,13 +479,13 @@ const DispatcherManager: React.FC = () => {
               <TableBody>
                 {eligibleCampaigns.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center">
+                    <TableCell colSpan={10} align="center">
                       {selectedTotemId ? 'Nenhuma campanha elegível encontrada' : 'Selecione um totem'}
                     </TableCell>
                   </TableRow>
                 ) : (
                   eligibleCampaigns.map((campaign) => (
-                    <TableRow key={campaign.campaignId}>
+                    <TableRow key={`${campaign.campaignId}-${campaign.playlistId}`}>
                       <TableCell>{campaign.campaignId}</TableCell>
                       <TableCell>{campaign.title}</TableCell>
                       <TableCell>
@@ -478,6 +506,8 @@ const DispatcherManager: React.FC = () => {
                         )}
                       </TableCell>
                       <TableCell>{campaign.playlistName}</TableCell>
+                      <TableCell>{campaign.mediaId ?? '-'}</TableCell>
+                      <TableCell>{campaign.mediaName ?? '-'}</TableCell>
                       <TableCell>
                         <Chip
                           label={campaign.status === 'eligible' ? 'Elegível' : 'Inválida'}

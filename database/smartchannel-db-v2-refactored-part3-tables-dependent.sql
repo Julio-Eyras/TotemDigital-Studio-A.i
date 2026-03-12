@@ -167,6 +167,26 @@ CREATE TABLE IF NOT EXISTS campaigns (
     days_of_week TEXT, -- JSON array: ["mon", "tue", "wed"]
     timezone TEXT DEFAULT 'America/Sao_Paulo',
     
+    -- Configuração avançada de agendamento (datas/dias/horários)
+    -- Formato sugerido:
+    -- {
+    --   "date_range": {
+    --     "start_date": "2026-03-11",
+    --     "end_date": "2026-03-31"
+    --   },
+    --   "days_of_week": ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"],
+    --   "time_windows": [
+    --     { "start": "07:30", "end": "09:00" },
+    --     { "start": "11:30", "end": "13:30" },
+    --     { "start": "19:00", "end": "22:00" }
+    --   ]
+    -- }
+    -- Regras:
+    -- - Se days_of_week estiver ausente, assumir todos os dias da semana.
+    -- - Se time_windows estiver ausente ou vazio, assumir o dia inteiro (00:00–23:59) nos dias permitidos.
+    -- - Se date_range não estiver definido, usar start_date/end_date das colunas legadas.
+    schedule_config JSONB,
+    
     status TEXT DEFAULT 'draft', -- draft, pending_approval, approved, active, paused, finished, deleted
     is_active BOOLEAN DEFAULT true,
     
@@ -197,6 +217,7 @@ COMMENT ON COLUMN campaigns.subscriber_id IS 'Subscriber (anunciante) dono da ca
 COMMENT ON COLUMN campaigns.contract_id IS 'Contrato do subscriber vinculado à campanha. Opcional, mas necessário para execução nos totens.';
 COMMENT ON COLUMN campaigns.status IS 'Status: draft, pending_approval, approved, active, paused, finished';
 COMMENT ON COLUMN campaigns.category_segment IS 'Categoria/segmento da campanha (taxonomia livre ou controlada)';
+COMMENT ON COLUMN campaigns.schedule_config IS 'Configuração detalhada de agendamento (JSON). Ver comentários na definição da coluna para formato e regras de fallback.';
 
 -- =============================================
 -- MEDIAS (Mídias dos Subscribers)

@@ -44,7 +44,7 @@ import {
   Stop,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { Campaign, campaignApi, PlaylistItem, MediaItem, Publisher, Player, playlistApi, mediaApi } from '../../../services/api';
+import { Campaign, campaignApi, PlaylistItem, MediaItem, Publisher, playlistApi, mediaApi, publisherApi } from '../../../services/api';
 
 export interface CampaignDetailsProps {
   open: boolean;
@@ -121,7 +121,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [publishers, setPublishers] = useState<Publisher[]>([]);
-  const [players, setPlayers] = useState<Player[]>([]);
+  const [totems, setTotems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -165,26 +165,61 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
         promises.push(Promise.resolve([]));
       }
 
-      // Publishers (se disponível via API)
+      // Publishers
       if ((campaign as any).publisherIds && (campaign as any).publisherIds.length > 0) {
-        promises.push(Promise.resolve([])); // Placeholder - implementar quando API estiver disponível
+        promises.push(
+          Promise.all(
+            ((campaign as any).publisherIds as number[]).map((id) =>
+              publisherApi.getById(id).catch(() => null)
+            )
+          ).then((results) => results.filter(Boolean))
+        );
       } else {
         promises.push(Promise.resolve([]));
       }
 
-      // Players/Totens (se disponível via API)
+      // Totens impactados:
+      // - Se houver totemIds explícitos, usamos esses IDs
+      // - Caso contrário, derivamos a lista a partir dos publishers vinculados (publisherApi.getTotems)
       if ((campaign as any).totemIds && (campaign as any).totemIds.length > 0) {
-        promises.push(Promise.resolve([])); // Placeholder - implementar quando API estiver disponível
+        const explicitTotemIds = ((campaign as any).totemIds as number[]).filter((id) => typeof id === 'number');
+        promises.push(
+          Promise.all(
+            explicitTotemIds.map((id) =>
+              // Não temos totemApi.getById aqui; usar publisherApi.getTotems por publisher seria custoso.
+              // Como fallback, retornamos apenas os IDs; os nomes serão exibidos como "Totem <id>".
+              Promise.resolve({ totem_id: id, name: `Totem ${id}` })
+            )
+          )
+        );
+      } else if ((campaign as any).publisherIds && (campaign as any).publisherIds.length > 0) {
+        const publisherIds = ((campaign as any).publisherIds as number[]).filter((id) => typeof id === 'number');
+        promises.push(
+          Promise.all(
+            publisherIds.map((publisherId) =>
+              publisherApi.getTotems(publisherId).catch(() => [])
+            )
+          ).then((resultsArrays) => {
+            const flat = ([] as any[]).concat(...resultsArrays);
+            const seen = new Set<number>();
+            return flat.filter((t: any) => {
+              const id = t.totem_id || t.id;
+              if (!id || seen.has(id)) return false;
+              seen.add(id);
+              return true;
+            });
+          })
+        );
       } else {
         promises.push(Promise.resolve([]));
       }
 
-      const [playlistsData, mediaData, publishersData, playersData] = await Promise.all(promises);
+      const [playlistsData, mediaData, publishersData, totemsData] = await Promise.all(promises);
       
       setPlaylists(Array.isArray(playlistsData) ? playlistsData : []);
       setMediaItems(Array.isArray(mediaData) ? mediaData : []);
-      setPublishers(Array.isArray(publishersData) ? publishersData : []);
-      setPlayers(Array.isArray(playersData) ? playersData : []);
+      setPublishers(Array.isArray(publishersData) ? (publishersData as Publisher[]) : []);
+      setTotems(Array.isArray(totemsData) ? totemsData : []);
     } catch (error) {
       console.error('Erro ao carregar detalhes da campanha:', error);
     } finally {
@@ -404,9 +439,23 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
             </Typography>
             {!(campaign as any).publisherIds || (campaign as any).publisherIds.length === 0 ? (
               <Alert severity="info">Nenhum publisher associado a esta campanha</Alert>
+            ) : publishers.length > 0 ? (
+              <List>
+                {publishers.map((publisher) => (
+                  <ListItem key={publisher.publisher_id}>
+                    <ListItemIcon>
+                      <Business />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={`${publisher.name} (#${publisher.publisher_id})`}
+                      secondary={publisher.email || undefined}
+                    />
+                  </ListItem>
+                ))}
+              </List>
             ) : (
-              <Alert severity="info">
-                Publishers associados: {(campaign as any).publisherIds.join(', ')}
+              <Alert severity="warning">
+                Publishers associados: {(campaign as any).publisherIds.join(', ')} (detalhes não disponíveis)
               </Alert>
             )}
           </Box>
@@ -416,13 +465,33 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
         {activeTab === 4 && (
           <Box>
             <Typography variant="h6" sx={{ mb: 2 }}>
-              Totens ({(campaign as any).totemIds?.length || 0})
+              Totens ({totems.length || (campaign as any).totemIds?.length || 0})
             </Typography>
-            {!(campaign as any).totemIds || (campaign as any).totemIds.length === 0 ? (
-              <Alert severity="info">Nenhum totem associado a esta campanha</Alert>
-            ) : (
+            {totems.length === 0 && (!(campaign as any).totemIds || (campaign as any).totemIds.length === 0) ? (
               <Alert severity="info">
-                Totens associados: {(campaign as any).totemIds.join(', ')}
+                Nenhum totem associado explicitamente. Totens impactados serão derivados dos publishers selecionados na aba "Publishers".
+              </Alert>
+            ) : totems.length > 0 ? (
+              <List>
+                {totems.map((totem: any) => {
+                  const id = totem.totem_id || totem.id;
+                  const name = totem.name || totem.identifier || `Totem ${id}`;
+                  return (
+                    <ListItem key={id}>
+                      <ListItemIcon>
+                        <Computer />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={`${name} (#${id})`}
+                        secondary={totem.location_name || totem.local_name || undefined}
+                      />
+                    </ListItem>
+                  );
+                })}
+              </List>
+            ) : (
+              <Alert severity="warning">
+                Totens associados: {(campaign as any).totemIds.join(', ')} (detalhes não disponíveis)
               </Alert>
             )}
           </Box>

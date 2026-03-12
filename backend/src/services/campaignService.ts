@@ -53,6 +53,7 @@ export interface UpdateCampaignRequest {
   publisherIds?: number[];
   playlistIds?: number[];
   mediaIds?: number[];
+  totemIds?: number[];
 }
 
 export interface CampaignResponse {
@@ -83,6 +84,7 @@ export interface CampaignResponse {
   publisherNames?: string[];
   playlistIds?: number[];
   playlistNames?: string[];
+  totemIds?: number[];
   totemCount?: number;
   playlistCount?: number;
   mediaCount?: number;
@@ -568,6 +570,15 @@ export class CampaignService {
 
       campaign.mediaIds = directMedias.map(m => m.media_id);
       campaign.mediaNames = directMedias.map(m => m.media_name || m.file_name);
+
+      // Totens explicitamente associados (campaign_totems)
+      const totemRows = await this.db.findMany(`
+        SELECT totem_id
+        FROM campaign_totems
+        WHERE campaign_id = $1 AND COALESCE(is_active, true) = true
+        ORDER BY totem_id
+      `, [campaignId]);
+      campaign.totemIds = totemRows.map((r: any) => Number(r.totem_id));
 
       // Buscar estatísticas
       const stats = await this.getCampaignStats(campaignId);
@@ -1153,6 +1164,69 @@ export class CampaignService {
         }
       }
 
+      // Atualizar totems explicitamente associados à campanha (campaign_totems)
+      // Regra:
+      // - Se totemIds vier undefined: não mexe nas associações atuais
+      // - Se vier array (inclusive vazio): sincroniza campaign_totems para bater exatamente com essa lista
+      if (data.totemIds !== undefined) {
+        const desiredTotemIds = Array.isArray(data.totemIds)
+          ? (data.totemIds as number[]).filter((id) => typeof id === 'number')
+          : [];
+
+        // Buscar associações atuais
+        const existingRows = await this.db.findMany(`
+          SELECT totem_id 
+          FROM campaign_totems 
+          WHERE campaign_id = $1
+        `, [campaignId]);
+
+        const existingIds = existingRows.map((r: any) => Number(r.totem_id)).filter((id) => !isNaN(id));
+
+        const toRemove = existingIds.filter((id) => !desiredTotemIds.includes(id));
+        const toAdd = desiredTotemIds.filter((id) => !existingIds.includes(id));
+
+        if (toRemove.length > 0) {
+          await this.db.executeRaw(`
+            DELETE FROM campaign_totems 
+            WHERE campaign_id = $1 
+              AND totem_id = ANY($2::int[])
+          `, [campaignId, toRemove]);
+        }
+
+        for (const totemId of toAdd) {
+          // Garantir que o totem existe e está ativo
+          const totem = await this.db.findFirst(`
+            SELECT totem_id 
+            FROM totems 
+            WHERE totem_id = $1 
+              AND COALESCE(is_active, true) = true
+          `, [totemId]);
+
+          if (!totem) {
+            continue;
+          }
+
+          await this.db.executeRaw(`
+            INSERT INTO campaign_totems (
+              campaign_id,
+              totem_id,
+              start_date,
+              end_date,
+              start_time,
+              end_time,
+              days_of_week,
+              priority,
+              is_active
+            )
+            VALUES ($1, $2, NULL, NULL, NULL, NULL, NULL, 1, true)
+            ON CONFLICT (campaign_id, totem_id)
+            DO UPDATE SET
+              is_active = EXCLUDED.is_active,
+              updated_at = CURRENT_TIMESTAMP
+          `, [campaignId, totemId]);
+        }
+      }
+
       // Buscar campanha atualizada
       const updatedCampaign = await this.getCampaignById(campaignId);
       if (!updatedCampaign) {
@@ -1252,28 +1326,27 @@ export class CampaignService {
         throw new Error('Totem não encontrado ou inativo');
       }
 
-      // Verificar se já está associado (PostgreSQL placeholders)
+      // Verificar se já está associado (PK é campaign_id + totem_id; tabela não tem coluna id)
       const existing = await this.db.findFirst(`
-        SELECT id FROM campaign_totems WHERE campaign_id = $1 AND totem_id = $2
+        SELECT 1 FROM campaign_totems WHERE campaign_id = $1 AND totem_id = $2
       `, [campaignId, data.totemId]);
 
       if (existing) {
         throw new Error('Totem já está associado à campanha');
       }
 
-      // Adicionar totem à campanha (PostgreSQL placeholders)
+      // Adicionar totem à campanha (schema: start_date, end_date, start_time, end_time, days_of_week, priority, is_active)
       await this.db.executeRaw(`
         INSERT INTO campaign_totems (
-          campaign_id, totem_id, scheduled_start, scheduled_end, 
-          status, config, is_active
+          campaign_id, totem_id, start_date, end_date,
+          start_time, end_time, days_of_week, priority, is_active
         )
-        VALUES ($1, $2, $3, $4, 'pending', $5, 1)
+        VALUES ($1, $2, $3, $4, NULL, NULL, NULL, 1, true)
       `, [
         campaignId,
         data.totemId,
-        data.scheduledStart,
-        data.scheduledEnd,
-        data.config ? JSON.stringify(data.config) : null
+        data.scheduledStart ?? null,
+        data.scheduledEnd ?? null
       ]);
 
       // Log de auditoria
@@ -1293,9 +1366,9 @@ export class CampaignService {
    */
   async removeTotemFromCampaign(campaignId: number, totemId: number, removedBy: number): Promise<void> {
     try {
-      // Verificar se associação existe (PostgreSQL placeholders)
+      // Verificar se associação existe (PK é campaign_id + totem_id)
       const association = await this.db.findFirst(`
-        SELECT id FROM campaign_totems WHERE campaign_id = $1 AND totem_id = $2
+        SELECT 1 FROM campaign_totems WHERE campaign_id = $1 AND totem_id = $2
       `, [campaignId, totemId]);
 
       if (!association) {
@@ -2108,7 +2181,12 @@ export class CampaignService {
         });
       }
 
-      // Associar publishers
+      // Substituir associações: remover as atuais e inserir a nova lista
+      await this.db.executeRaw(`
+        DELETE FROM campaign_publishers WHERE campaign_id = $1
+      `, [campaignId]);
+
+      // Inserir/atualizar cada publisher da lista
       for (const publisherId of publisherIds) {
         const hasAccessNow = await accessService.hasAccess(campaign.subscriber_id, publisherId);
         const accessDetails = await accessService.getAccessDetails(campaign.subscriber_id, publisherId);

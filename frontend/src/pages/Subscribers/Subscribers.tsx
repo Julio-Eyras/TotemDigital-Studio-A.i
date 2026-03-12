@@ -1375,48 +1375,13 @@ const Subscribers: React.FC = () => {
       console.error('[Campanha] Erro: campanha não encontrada no índice', { index, editCampaignsLength: editCampaigns.length });
       return;
     }
-    
-    // Normalizar contractId: pode vir como contract_id (snake_case) ou contractId (camelCase)
-    const contractId = campaign.contract_id || (campaign as any).contractId;
-    const normalizedContractId = contractId !== undefined && contractId !== null ? Number(contractId) : undefined;
-    
-    console.log('[Campanha] Iniciando edição', {
-      index,
-      campaign,
-      contractIdRaw: contractId,
-      contractIdNormalized: normalizedContractId,
-      campaignId: campaign.campaign_id || (campaign as any).id,
-    });
-    
-    setEditCampaignForm({
-      title: campaign.title || '',
-      description: campaign.description,
-      campaign_type: campaign.campaign_type || 'general',
-      priority: campaign.priority || 1,
-      contractId: normalizedContractId,
-      status: campaign.status || 'draft',
-      isActive: campaign.is_active !== undefined ? campaign.is_active : true,
-    });
-    setEditingEditCampaignIndex(index);
-    
-    // Carregar mídias e playlists associadas à campanha
-    try {
-      // Buscar mídias associadas
-      const campaignMediasList = editMedias.filter(m => 
-        campaign.mediaIds?.includes(m.media_id) || false
-      );
-      setCampaignMedias(campaignMediasList);
-      
-      // Buscar playlists associadas
-      const campaignPlaylistsList = editPlaylists.filter(p => 
-        campaign.playlistIds?.includes(p.playlist_id) || false
-      );
-      setCampaignPlaylists(campaignPlaylistsList);
-    } catch (error) {
-      console.error('Erro ao carregar conteúdo da campanha:', error);
-      setCampaignMedias([]);
-      setCampaignPlaylists([]);
+    const campaignId = campaign.campaign_id || (campaign as any).id;
+    if (!campaignId) {
+      console.error('[Campanha] Erro: campanha sem ID válido para navegação', { campaign });
+      return;
     }
+    // Abrir a tela de Campanhas com a campanha destacada, usando o formulário completo (CampaignForm)
+    navigate('/campaigns', { state: { highlightId: campaignId } });
   };
 
   const handleDeleteCampaign = async (index: number) => {
