@@ -1,0 +1,86 @@
+buildscript {
+    ext {
+        kotlin_version = "1.9.24"
+        agp_version = "8.3.2"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:$agp_version"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+android {
+    namespace 'br.com.smartchannel.playerad'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'br.com.smartchannel.playerad'
+        // API 24 = Android 7.0 (alguns STBs/TV ainda em 24/25). Evitar java.time sem desugaring.
+        minSdk 24
+        targetSdk 34
+
+        versionCode 1
+        versionName '1.0'
+
+        // Android TV: não habilitar multidex por enquanto.
+        multiDexEnabled false
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Sem signingConfig o AGP gera *-release-unsigned.apk e adb falha com INSTALL_PARSE_FAILED_NO_CERTIFICATES.
+            // Para instalação local/TV via auto_install.sh. Para Play Store, configure signingConfigs.release + key.properties.
+            signingConfig signingConfigs.debug
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+
+    // Garantir compatibilidade com TV
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/*.kotlin_module']
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.2'
+    implementation 'androidx.activity:activity-ktx:1.9.0'
+
+    implementation 'androidx.tvprovider:tvprovider:1.0.0'
+
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+
+    // Media3 (remove deprecações do ExoPlayer 2.x)
+    implementation 'androidx.media3:media3-common:1.2.0'
+    implementation 'androidx.media3:media3-exoplayer:1.2.0'
+    implementation 'androidx.media3:media3-ui:1.2.0'
+}
+
+repositories {
+    google()
+    mavenCentral()
+}
+

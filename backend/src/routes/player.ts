@@ -1401,7 +1401,12 @@ router.post('/event',
     'playlist_end',
     'playlist_item_play'
   ]),
-  body('mediaId').optional().isInt({ min: 0 }),
+  body('mediaId').optional().custom((val) => {
+    if (val === undefined || val === null) return true;
+    if (typeof val === 'number' && Number.isInteger(val) && val >= 0) return true;
+    if (typeof val === 'string' && (/^fb-/.test(val) || /^\d+$/.test(val))) return true;
+    return false;
+  }).withMessage('mediaId deve ser inteiro ou id de fallback (fb-*)'),
   body('playlistId').optional().isInt({ min: 0 }),
   body('campaignId').optional({ nullable: true }).isInt({ min: 0 }),
   body('duration').optional().isInt({ min: 0 }),

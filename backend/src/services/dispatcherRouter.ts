@@ -621,14 +621,21 @@ class DispatcherRouter {
       request.totemId = totemId;
 
       // Registrar evento no event_logs (totem_id, entityType, entityId, etc.)
-      const { eventType, mediaId, playlistId, campaignId, metadata } = request.body || {};
+      const { eventType, mediaId: rawMediaId, playlistId, campaignId, metadata } = request.body || {};
       const eventLogService = getEventLogService();
+
+      // mediaId pode ser número ou string de fallback (fb-*); event_logs.media_id é INTEGER
+      const isFallbackId = typeof rawMediaId === 'string' && rawMediaId.startsWith('fb-');
+      const mediaIdNum = rawMediaId != null && !isFallbackId ? Number(rawMediaId) : null;
+      const validMediaId = typeof mediaIdNum === 'number' && !Number.isNaN(mediaIdNum) ? mediaIdNum : null;
+      const effectiveEntityId = validMediaId ?? playlistId ?? totemId;
+      const entityType = validMediaId != null ? 'media' : playlistId ? 'playlist' : 'totem';
 
       const eventId = await eventLogService.logEvent({
         eventType: eventType as EventType,
-        entityType: mediaId ? 'media' : playlistId ? 'playlist' : 'totem',
-        entityId: mediaId || playlistId || totemId,
-        mediaId,
+        entityType,
+        entityId: typeof effectiveEntityId === 'number' && !Number.isNaN(effectiveEntityId) ? effectiveEntityId : totemId,
+        mediaId: validMediaId ?? undefined,
         playlistId,
         campaignId,
         totemId,

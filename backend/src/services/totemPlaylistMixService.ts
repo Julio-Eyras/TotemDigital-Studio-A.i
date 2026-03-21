@@ -556,10 +556,11 @@ export class TotemPlaylistMixService {
         totemId
       );
 
-      // 5. Coletar todos os itens de todas as playlists
+      // 5. Coletar todos os itens de todas as playlists + mídias diretas das campanhas
       const allItems: MixItem[] = [];
 
       for (const campaign of mixedCampaigns) {
+        // 5.1 Itens vindos de playlists da campanha
         for (const playlist of campaign.playlists) {
           // Buscar itens da playlist
           const playlistItems = await this.db.findMany(`
@@ -600,6 +601,46 @@ export class TotemPlaylistMixService {
               duration: item.duration || item.media_duration || 10,
             });
           }
+        }
+
+        // 5.2 Mídias diretas associadas à campanha (campaign_medias)
+        const directMedias = await this.db.findMany(`
+          SELECT 
+            cm.media_id,
+            cm.order_index,
+            cm.display_seconds as duration,
+            m.tags,
+            m.duration_seconds as media_duration
+          FROM campaign_medias cm
+          INNER JOIN medias m ON m.media_id = cm.media_id
+          WHERE cm.campaign_id = $1
+            AND COALESCE(cm.is_active, true) = true
+            AND m.is_active = true
+          ORDER BY cm.order_index ASC, m.media_id ASC
+        `, [campaign.campaign_id]);
+
+        for (const item of directMedias) {
+          const weight = this.calculateItemWeight(
+            item,
+            campaign,
+            // Não há playlist específica; usamos um objeto \"playlist\" neutro apenas para o cálculo de peso
+            { playlist_id: 0, name: 'direct-medias', priority: 1 } as any,
+            rule,
+            aiContext
+          );
+
+          allItems.push({
+            media_id: item.media_id,
+            playlist_id: 0,
+            campaign_id: campaign.campaign_id,
+            subscriber_id: campaign.subscriber_id,
+            order_index: item.order_index ?? 0,
+            weight,
+            source: 'campaign',
+            priority: campaign.priority,
+            tags: item.tags ? (typeof item.tags === 'string' ? JSON.parse(item.tags) : item.tags) : [],
+            duration: item.duration || item.media_duration || 10,
+          });
         }
       }
 

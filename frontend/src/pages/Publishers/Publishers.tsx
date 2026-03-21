@@ -87,6 +87,31 @@ import { PublisherCard, PublisherForm, PublisherDetails } from './components';
 
 const getDefaultContractEndDate = (): string => `${new Date().getFullYear()}-12-31`;
 
+// Formatar data ISO para input type="date" (yyyy-MM-dd)
+const formatDateForInput = (dateString: string | null | undefined): string => {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  } catch {
+    return '';
+  }
+};
+
+// Formatar data do input (yyyy-MM-dd) para API (ISO string)
+const formatDateForAPI = (dateString: string | null | undefined): string | undefined => {
+  if (!dateString || String(dateString).trim() === '') return undefined;
+  try {
+    const str = String(dateString);
+    const date = str.includes('T') ? new Date(str) : new Date(str + 'T00:00:00.000Z');
+    if (isNaN(date.getTime())) return undefined;
+    return date.toISOString();
+  } catch {
+    return undefined;
+  }
+};
+
 const Publishers: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -412,14 +437,19 @@ const Publishers: React.FC = () => {
     }
 
     try {
+      const payload = {
+        ...publisherContractForm,
+        start_date: formatDateForAPI(publisherContractForm.start_date),
+        end_date: formatDateForAPI(publisherContractForm.end_date),
+      };
       if (editingPublisherContractIndex !== null) {
         const contract = editPublisherContracts[editingPublisherContractIndex];
-        await publisherContractApi.update(contract.contract_id, publisherContractForm as UpdatePublisherContractRequest);
+        await publisherContractApi.update(contract.contract_id, payload as UpdatePublisherContractRequest);
         await loadPublisherContracts(selectedPublisher.publisher_id);
         setEditingPublisherContractIndex(null);
       } else {
         await publisherContractApi.create({
-          ...publisherContractForm,
+          ...payload,
           publisher_id: selectedPublisher.publisher_id,
           contract_number:
             publisherContractForm.contract_number ||
@@ -459,8 +489,8 @@ const Publishers: React.FC = () => {
       contract_type: contract.contract_type,
       title: contract.title,
       description: contract.description,
-      start_date: contract.start_date,
-      end_date: contract.end_date,
+      start_date: formatDateForInput(contract.start_date) || undefined,
+      end_date: formatDateForInput(contract.end_date) || undefined,
       revenue_share_percentage: contract.revenue_share_percentage,
       minimum_payout_amount: contract.minimum_payout_amount,
       subscription_amount: contract.subscription_amount,
@@ -2064,7 +2094,7 @@ const Publishers: React.FC = () => {
                       fullWidth
                       label="Data de Início *"
                       type="date"
-                      value={publisherContractForm.start_date || ''}
+                      value={formatDateForInput(publisherContractForm.start_date) || ''}
                       onChange={(e) => setPublisherContractForm({ ...publisherContractForm, start_date: e.target.value })}
                       size="small"
                       InputLabelProps={{ shrink: true }}
@@ -2076,7 +2106,7 @@ const Publishers: React.FC = () => {
                       fullWidth
                       label="Data de Término"
                       type="date"
-                      value={publisherContractForm.end_date || ''}
+                      value={formatDateForInput(publisherContractForm.end_date) || ''}
                       onChange={(e) => setPublisherContractForm({ ...publisherContractForm, end_date: e.target.value || undefined })}
                       size="small"
                       InputLabelProps={{ shrink: true }}
@@ -2916,7 +2946,7 @@ const Publishers: React.FC = () => {
                       fullWidth
                       label="Data de Início *"
                       type="date"
-                      value={publisherContractForm.start_date || ''}
+                      value={formatDateForInput(publisherContractForm.start_date) || ''}
                       onChange={(e) => setPublisherContractForm({ ...publisherContractForm, start_date: e.target.value })}
                       size="small"
                       InputLabelProps={{ shrink: true }}
@@ -2928,7 +2958,7 @@ const Publishers: React.FC = () => {
                       fullWidth
                       label="Data de Término"
                       type="date"
-                      value={publisherContractForm.end_date || ''}
+                      value={formatDateForInput(publisherContractForm.end_date) || ''}
                       onChange={(e) => setPublisherContractForm({ ...publisherContractForm, end_date: e.target.value || undefined })}
                       size="small"
                       InputLabelProps={{ shrink: true }}

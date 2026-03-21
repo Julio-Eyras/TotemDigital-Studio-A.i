@@ -117,23 +117,15 @@ class MediaCacheManager {
     async downloadMedia(mediaItem, apiClient, stats) {
         try {
             console.log(`[MediaCacheManager] Baixando mídia ${mediaItem.mediaId}...`);
-            
-            // Baixar arquivo via API ou URL direta
-            let blob;
-            if (apiClient && apiClient.downloadMedia) {
-                const response = await apiClient.downloadMedia(mediaItem.mediaId);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                blob = await response.blob();
-            } else {
-                // Fallback: baixar diretamente da URL
-                const response = await fetch(mediaItem.url);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                blob = await response.blob();
+
+            // Player Web: sempre baixar usando a URL do DispatchPlan.
+            // O backend já fornece uma URL HTTP válida (ex.: /assets/uploads/... ou /api/player-static/...),
+            // então não dependemos de um endpoint separado (/api/player/media).
+            const response = await fetch(mediaItem.url);
+            if (!response || !response.ok) {
+                throw new Error(`HTTP ${response ? response.status : 'N/A'}: ${response ? response.statusText : 'No response'}`);
             }
+            const blob = await response.blob();
             
             // Converter Blob para ArrayBuffer para calcular checksum
             const arrayBuffer = await blob.arrayBuffer();
@@ -164,12 +156,12 @@ class MediaCacheManager {
                 valid: true
             });
             
-            stats.success++;
+            if (stats) stats.success++;
             console.log(`[MediaCacheManager] Mídia ${mediaItem.mediaId} baixada com sucesso`);
             
         } catch (error) {
             console.error(`[MediaCacheManager] Erro ao baixar mídia ${mediaItem.mediaId}`, error);
-            stats.failed++;
+            if (stats) stats.failed++;
             throw error;
         }
     }
@@ -529,9 +521,18 @@ class MediaCacheManager {
      * Calcula checksum SHA-256
      */
     async calculateChecksum(data) {
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        try {
+            if (typeof crypto === 'undefined' || !crypto.subtle || !crypto.subtle.digest) {
+                console.warn('[MediaCacheManager] crypto.subtle.digest não disponível; ignorando checksum.');
+                return '';
+            }
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        } catch (error) {
+            console.error('[MediaCacheManager] Erro ao calcular checksum', error);
+            return '';
+        }
     }
 
     /**

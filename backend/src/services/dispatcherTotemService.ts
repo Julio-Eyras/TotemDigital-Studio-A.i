@@ -1591,7 +1591,7 @@ export class DispatcherTotemService {
           mediaId: media.media_id,
           order: mixItem.order_index,
           duration: mixItem.duration || media.duration_seconds || 10,
-          url: media.file_path,
+          url: normalizeDownloadUrl(media.file_path) || '',
           mediaType: media.media_type,
           metadata: {
             width: media.width,
@@ -1664,7 +1664,7 @@ export class DispatcherTotemService {
       mediaId: item.media_id,
       order: item.order_index,
       duration: item.duration || item.duration_seconds || 10,
-      url: item.file_path,
+      url: normalizeDownloadUrl(item.file_path) || '',
       mediaType: item.media_type,
       metadata: {
         width: item.width,
