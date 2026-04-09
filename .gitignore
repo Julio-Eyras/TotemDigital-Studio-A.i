@@ -261,3 +261,7 @@ $RECYCLE.BIN/
 # Android SDK local (máquina específica)
 SmartSignage-AD/local.properties
 
+# Artefactos acidentais na raiz (ficheiros vazios / lixo de npm)
+/node
+/smart-signage-frontend@2.1.0
+
