@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import com.smartsignage.player.BuildConfig
 import com.smartsignage.player.api.APIClient
 import com.smartsignage.player.core.*
 import com.smartsignage.player.models.*
@@ -62,45 +63,29 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 // Inicializar API client
                 apiClient = APIClient(API_BASE_URL, TOTEM_UIN, TOTEM_SECRET)
 
-                // NOVO FLUXO: Obter token de dispositivo via /api/player/token
-                val deviceTokenResponse = apiClient.getDeviceToken(
+                if (TOTEM_UIN.isEmpty()) {
+                    playerState.value = PlayerState.Error(
+                        "Configure TOTEM_UIN (ex.: SharedPreferences / BuildConfig)"
+                    )
+                    return@launch
+                }
+
+                // Contrato Dispatcher: /api/player/token + primeiro /api/player/heartbeat antes do dispatch
+                val sessionOk = apiClient.dispatcherStartupSequence(
                     uin = TOTEM_UIN,
                     deviceId = deviceId,
                     platform = PLATFORM,
                     appVersion = BuildConfig.VERSION_NAME
                 )
-
-                if (deviceTokenResponse == null || deviceTokenResponse.token.isEmpty()) {
-                    playerState.value = PlayerState.Error("Falha ao obter token de dispositivo")
+                if (!sessionOk) {
+                    playerState.value = PlayerState.Error(
+                        "Falha na sessão Dispatcher (token ou heartbeat inicial)"
+                    )
                     return@launch
                 }
 
-                deviceToken = deviceTokenResponse.token
-
-                // Obter deviceId
-                deviceId = android.provider.Settings.Secure.getString(
-                    getApplication<Application>().contentResolver,
-                    android.provider.Settings.Secure.ANDROID_ID
-                ) ?: "android-${System.currentTimeMillis()}"
-                
-                // Obter token de dispositivo (novo fluxo)
-                try {
-                    val tokenResponse = apiClient.getDeviceToken(
-                        TOTEM_UIN,
-                        deviceId!!,
-                        "android",
-                        "2.1.0"
-                    )
-                    deviceToken = tokenResponse?.token
-                    if (deviceToken != null) {
-                        apiClient.token = deviceToken
-                        Log.i(TAG, "Device token obtido com sucesso")
-                    } else {
-                        Log.w(TAG, "Falha ao obter device token, usando autenticação legada")
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Erro ao obter device token, usando autenticação legada", e)
-                }
+                deviceToken = apiClient.getDispatcherToken()
+                Log.i(TAG, "Sessão Dispatcher: token + heartbeat inicial OK")
 
                 // Inicializar componentes (com contexto para cache)
                 playlistManager = PlaylistManager(apiClient, getApplication())
@@ -166,7 +151,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 val success = playlistManager.loadFromDispatchPlan(
                     uin = TOTEM_UIN,
                     deviceToken = token,
-                    deviceId = deviceId ?: "",
+                    deviceId = deviceId,
                     timezone = timezone
                 )
 
@@ -178,9 +163,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     val lastPlan = playlistManager.loadLastDispatchPlanFromCache()
                     if (lastPlan != null) {
                         Log.i(TAG, "Usando último DispatchPlan em cache (modo offline)")
-                        // Usar DispatchPlan diretamente (sem conversão)
-                        playlistManager.currentDispatchPlan = lastPlan
-                        playlistManager.currentIndex = 0
+                        playlistManager.applyOfflineDispatchPlan(lastPlan)
                         playNext()
                         return@launch
                     }
@@ -201,9 +184,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 try {
                     val lastPlan = playlistManager.loadLastDispatchPlanFromCache()
                     if (lastPlan != null) {
-                        // Usar DispatchPlan diretamente (sem conversão)
-                        playlistManager.currentDispatchPlan = lastPlan
-                        playlistManager.currentIndex = 0
+                        playlistManager.applyOfflineDispatchPlan(lastPlan)
                         playNext()
                         return@launch
                     }
@@ -229,7 +210,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             // Verificar agendamento (se necessário - DispatchPlan já aplicou regras)
             // Nota: DispatchPlan já considera agendamento, mas podemos validar localmente se necessário
-            val dispatchPlan = playlistManager.getCurrentDispatchPlan()
+            val dispatchPlan = playlistManager.currentDispatchPlan
             if (dispatchPlan != null) {
                 // Validar validade temporal se disponível
                 val now = System.currentTimeMillis()

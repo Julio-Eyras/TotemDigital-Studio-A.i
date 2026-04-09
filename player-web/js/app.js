@@ -195,7 +195,8 @@ class SmartSignagePlayer {
             await this.loadPlayerConfig();
             await this.initAPIClient();
             await this.initCache();
-            await this.getDeviceToken();
+            // Contrato Dispatcher: token + heartbeat inicial antes do primeiro dispatch
+            await this.bootstrapDispatcherSession();
             await this.initMediaPlayer();
             
             // Tentar carregar último plano do cache (modo offline)
@@ -276,6 +277,37 @@ class SmartSignagePlayer {
         throw new Error('Falha ao obter device token');
     }
 
+    /**
+     * (1) /api/player/token → (2) /api/player/heartbeat com métricas de cache (cache já inicializado).
+     */
+    async bootstrapDispatcherSession() {
+        console.log('[Player] Ciclo de vida: (1) token → (2) heartbeat inicial');
+        await this.getDeviceToken();
+        const metrics = {
+            phase: 'startup',
+            isOnline: typeof navigator !== 'undefined' && navigator.onLine,
+            platform: this.config.platform,
+            appVersion: this.config.appVersion,
+            userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+            cacheSize: await this.mediaCacheManager.getCacheSize()
+        };
+        const res = await this.apiClient.sendHeartbeat({
+            status: 'online',
+            version: this.config.appVersion,
+            platform: this.config.platform,
+            deviceId: this.config.deviceId,
+            metrics,
+            executedCommands: []
+        });
+        if (this.apiClient.token) {
+            this.deviceToken = this.apiClient.token;
+        }
+        if (res && Array.isArray(res.pendingCommands) && res.pendingCommands.length) {
+            this.pendingCommands = res.pendingCommands;
+        }
+        console.log('[Player] Sessão Dispatcher pronta');
+    }
+
     async initMediaPlayer() {
         const container = document.getElementById('player-container') || document.body;
         this.mediaPlayer = new MediaPlayerHTML5({ container });
@@ -290,18 +322,19 @@ class SmartSignagePlayer {
     }
 
     async loadDispatchPlan(skipInitialPlaylistEnd) {
-        if (!this.apiClient.token) {
+        if (!this.apiClient.token && !this.deviceToken) {
             throw new Error('Token não disponível para dispatch');
         }
 
         const timestamp = new Date().toISOString();
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+        const token = this.apiClient.token || this.deviceToken;
         let response;
         try {
             response = await this.apiClient.getDispatchPlan(
                 this.config.totemUIN,
-                this.apiClient.token,
+                token,
                 this.config.deviceId,
                 timestamp,
                 timezone
@@ -594,6 +627,9 @@ class SmartSignagePlayer {
             executedCommands: []
         });
 
+        if (this.apiClient.token) {
+            this.deviceToken = this.apiClient.token;
+        }
         if (res && Array.isArray(res.pendingCommands) && res.pendingCommands.length) {
             this.pendingCommands = res.pendingCommands;
         }

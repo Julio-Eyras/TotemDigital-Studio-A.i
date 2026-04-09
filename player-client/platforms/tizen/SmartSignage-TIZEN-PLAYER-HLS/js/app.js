@@ -431,7 +431,8 @@ class SmartSignageApp {
     this.heartbeatService = new HeartbeatService(
       this.apiUrl,
       this.uin,
-      this.config.heartbeat_interval
+      this.config.heartbeat_interval,
+      this.deviceId || null
     );
     // Usar deviceToken se disponível, senão token legado
     this.heartbeatService.setToken(this.deviceToken || this.token);

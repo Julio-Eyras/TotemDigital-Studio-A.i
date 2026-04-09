@@ -10,6 +10,7 @@ describe('ContractService - estruturas e validações', () => {
     it('deve ter campos obrigatórios', () => {
       const c: Contract = {
         contract_id: 1,
+        subscriber_id: 1,
         contract_number: 'CT-001',
         contract_type: 'advertising',
         title: 'Contrato Teste',
@@ -51,6 +52,7 @@ describe('ContractService - estruturas e validações', () => {
   describe('CreateContractRequest', () => {
     it('deve aceitar payload mínimo válido', () => {
       const req: CreateContractRequest = {
+        subscriber_id: 1,
         contract_number: 'CT-001',
         contract_type: 'advertising',
         title: 'Título',

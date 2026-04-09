@@ -91,23 +91,35 @@ async function init() {
     // DeviceId para Linux
     const os = require('os');
     deviceId = CONFIG.deviceId || `linux-${os.hostname()}-${require('crypto').randomBytes(4).toString('hex')}`;
+    apiClient.deviceId = deviceId;
 
-    // Token: tentar getDeviceToken (fluxo DispatchPlan)
+    // Dispatcher: token + heartbeat inicial (alinhado ao core / player-web)
     if (CONFIG.TOTEM_UIN || CONFIG.totemUIN) {
       try {
-        const tokenRes = await apiClient.getDeviceToken(
-          CONFIG.TOTEM_UIN || CONFIG.totemUIN,
-          deviceId,
-          'linux',
-          '2.1.0'
-        );
-        if (tokenRes && tokenRes.token) {
-          deviceToken = tokenRes.token;
-          apiClient.token = deviceToken;
-          logger.info('Device token obtido (DispatchPlan)');
+        if (typeof apiClient.dispatcherStartupSequence === 'function') {
+          await apiClient.dispatcherStartupSequence({
+            uin: CONFIG.TOTEM_UIN || CONFIG.totemUIN,
+            deviceId,
+            platform: 'linux',
+            appVersion: '2.1.0',
+          });
+          deviceToken = apiClient.token;
+          logger.info('Dispatcher: token + heartbeat inicial (linux-electron)');
+        } else {
+          const tokenRes = await apiClient.getDeviceToken(
+            CONFIG.TOTEM_UIN || CONFIG.totemUIN,
+            deviceId,
+            'linux',
+            '2.1.0'
+          );
+          if (tokenRes && tokenRes.token) {
+            deviceToken = tokenRes.token;
+            apiClient.token = deviceToken;
+            logger.info('Device token obtido (getDeviceToken)');
+          }
         }
       } catch (e) {
-        logger.warn('getDeviceToken falhou, tentando auth legado', e);
+        logger.warn('dispatcherStartupSequence/getDeviceToken falhou, tentando auth legado', e);
       }
     }
 

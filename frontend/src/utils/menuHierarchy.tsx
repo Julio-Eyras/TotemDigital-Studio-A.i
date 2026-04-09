@@ -226,6 +226,7 @@ function getSystemAdminMenu(): HierarchicalMenuItem[] {
       children: [
         { text: 'Assinantes', icon: <People />, path: '/subscribers' },
         { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
+        { text: 'Vinhetas', icon: <VideoLibrary />, path: '/vinhetas' },
         { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
         { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
         { text: 'Rede Visual', icon: <Link />, path: '/network-topology?view=graph' },
@@ -475,6 +476,7 @@ function getSubscriberUserMenu(): HierarchicalMenuItem[] {
       children: [
         { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
         { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
+        { text: 'Vinhetas', icon: <VideoLibrary />, path: '/vinhetas' },
         { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
         { text: 'Rede Visual', icon: <Link />, path: '/network-topology?view=graph' },
       ],
@@ -492,6 +494,7 @@ function getDefaultMenu(): HierarchicalMenuItem[] {
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
     { text: 'Mídia', icon: <VideoLibrary />, path: '/media' },
+    { text: 'Vinhetas', icon: <VideoLibrary />, path: '/vinhetas' },
     { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
     { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
     { text: 'Analytics', icon: <Analytics />, path: '/analytics' },

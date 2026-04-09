@@ -402,6 +402,7 @@ $importantRootFiles = @(
     # Scripts principais agora ficam em ./scripts
     "scripts\\install-windows.ps1",
     "scripts\\install-smartsignage.ps1",
+    "scripts\\install-smartsignage.windows.lib.ps1",
     "scripts\\install-smartsignage.sh",
     "scripts\\fix-frontend-ajv.ps1",
     "scripts\\criar-zip-distribuicao.ps1",

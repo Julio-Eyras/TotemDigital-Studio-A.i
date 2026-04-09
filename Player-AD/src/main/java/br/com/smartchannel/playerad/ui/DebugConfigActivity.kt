@@ -9,6 +9,7 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.lifecycle.lifecycleScope
 import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.api.DispatcherApiClient
@@ -16,18 +17,23 @@ import br.com.smartchannel.playerad.config.PlayerConfig
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.util.LocalNetworkAddresses
 import br.com.smartchannel.playerad.util.PlayerAdLogger
+import br.com.smartchannel.playerad.util.AppDirs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class DebugConfigActivity : AppCompatActivity() {
 
     private lateinit var editServerUrl: EditText
     private lateinit var editUin: EditText
     private lateinit var editDeviceId: EditText
+    private lateinit var switchAcceptImages: SwitchCompat
 
     private lateinit var btnTestHeartbeat: Button
     private lateinit var btnTestDispatch: Button
@@ -44,6 +50,7 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var btnRefreshOperationalLog: Button
     private lateinit var btnClearOperationalLog: Button
     private lateinit var textOperationalLog: TextView
+    private lateinit var textOfflineState: TextView
 
     private var lastHeartbeatToken: String? = null
     private var lastDispatchPlan: JSONObject? = null
@@ -58,6 +65,7 @@ class DebugConfigActivity : AppCompatActivity() {
         editServerUrl = findViewById(R.id.editServerUrl)
         editUin = findViewById(R.id.editUin)
         editDeviceId = findViewById(R.id.editDeviceId)
+        switchAcceptImages = findViewById(R.id.switchAcceptImages)
 
         btnTestHeartbeat = findViewById(R.id.btnTestHeartbeat)
         btnTestDispatch = findViewById(R.id.btnTestDispatch)
@@ -74,6 +82,7 @@ class DebugConfigActivity : AppCompatActivity() {
         btnRefreshOperationalLog = findViewById(R.id.btnRefreshOperationalLog)
         btnClearOperationalLog = findViewById(R.id.btnClearOperationalLog)
         textOperationalLog = findViewById(R.id.textOperationalLog)
+        textOfflineState = findViewById(R.id.textOfflineState)
 
         bindLocalIps()
 
@@ -85,6 +94,7 @@ class DebugConfigActivity : AppCompatActivity() {
         editServerUrl.setText(current.serverUrl)
         editUin.setText(current.uin)
         editDeviceId.setText(current.deviceId)
+        switchAcceptImages.isChecked = current.acceptImagesInPlaylist
 
         setHeartbeatAndDispatchState(heartbeatOk = false, dispatchOk = false)
 
@@ -116,11 +126,13 @@ class DebugConfigActivity : AppCompatActivity() {
         btnRefreshOperationalLog.setOnClickListener { refreshOperationalLog() }
         btnClearOperationalLog.setOnClickListener { confirmClearOperationalLog() }
 
+        refreshOfflineState()
         refreshOperationalLog()
     }
 
     override fun onResume() {
         super.onResume()
+        refreshOfflineState()
         refreshOperationalLog()
     }
 
@@ -133,6 +145,76 @@ class DebugConfigActivity : AppCompatActivity() {
         }
     }
 
+    private fun refreshOfflineState() {
+        lifecycleScope.launch {
+            val text = withContext(Dispatchers.IO) { buildOfflineStateText() }
+            textOfflineState.text = text
+        }
+    }
+
+    private fun buildOfflineStateText(): String {
+        val root = AppDirs.root(this)
+        val propDir = File(root, "propagandas")
+        val vinDir = File(root, "vinhetas")
+        val dispatchFile = File(root, "last-dispatch-plan.json")
+        val sourceFile = File(root, "current-plan-source.txt")
+
+        val propagandasCount = listMediaCount(propDir)
+        val vinhetasCount = listMediaCount(vinDir)
+
+        val source = try {
+            if (sourceFile.exists()) sourceFile.readText(Charsets.UTF_8).trim().ifBlank { "-" } else "-"
+        } catch (_: Exception) { "-" }
+
+        val dispatchSummary = if (!dispatchFile.exists()) {
+            "ultimo_dispatch: (nao encontrado)"
+        } else {
+            try {
+                val raw = dispatchFile.readText(Charsets.UTF_8)
+                val json = JSONObject(raw)
+                val planObj = json.optJSONObject("plan")
+                val playlistName = planObj?.optString("playlistName", "(sem nome)") ?: "(sem nome)"
+                val playlistId = planObj?.optLong("playlistId", 0L) ?: 0L
+                val items = planObj?.optJSONArray("mediaItems")?.length() ?: 0
+                val modified = formatEpoch(dispatchFile.lastModified())
+                "ultimo_dispatch: $playlistName (id=$playlistId, itens=$items, mod=$modified)"
+            } catch (_: Exception) {
+                "ultimo_dispatch: (invalido/corrompido)"
+            }
+        }
+
+        return buildString {
+            append("fonte_plano_atual: $source")
+            append("\n$dispatchSummary")
+            append("\npropagandas: $propagandasCount arquivo(s)")
+            append("\nvinhetas: $vinhetasCount arquivo(s)")
+            append("\nroot: ${root.absolutePath}")
+        }
+    }
+
+    private fun listMediaCount(dir: File): Int {
+        if (!dir.exists() || !dir.isDirectory) return 0
+        return dir.listFiles { f ->
+            f.isFile && (
+                f.name.endsWith(".mp4", true) ||
+                    f.name.endsWith(".webm", true) ||
+                    f.name.endsWith(".mov", true) ||
+                    f.name.endsWith(".jpg", true) ||
+                    f.name.endsWith(".jpeg", true) ||
+                    f.name.endsWith(".png", true)
+                )
+        }?.size ?: 0
+    }
+
+    private fun formatEpoch(ms: Long): String {
+        if (ms <= 0L) return "-"
+        return try {
+            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(ms))
+        } catch (_: Exception) {
+            ms.toString()
+        }
+    }
+
     private fun confirmClearOperationalLog() {
         AlertDialog.Builder(this)
             .setTitle("Limpar registo")
@@ -141,6 +223,7 @@ class DebugConfigActivity : AppCompatActivity() {
             .setPositiveButton("Limpar") { _, _ ->
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) { PlayerAdLogger.clearFile() }
+                    refreshOfflineState()
                     refreshOperationalLog()
                     appendStatus(if (ok) "Registo operacional limpo." else "Não foi possível limpar o registo.")
                 }
@@ -168,7 +251,13 @@ class DebugConfigActivity : AppCompatActivity() {
         val uin = editUin.text?.toString()?.trim().orEmpty()
         val deviceId = editDeviceId.text?.toString()?.trim().orEmpty()
         if (serverUrl.isBlank() || uin.isBlank() || deviceId.isBlank()) return null
-        return PlayerConfig(serverUrl = serverUrl, uin = uin, deviceId = deviceId)
+        return PlayerConfig(
+            serverUrl = serverUrl,
+            uin = uin,
+            deviceId = deviceId,
+            acceptImagesInPlaylist = switchAcceptImages.isChecked,
+            fallbackPropagandasPerVinheta = PlayerConfigLoader(this).load().fallbackPropagandasPerVinheta
+        )
     }
 
     private fun setHeartbeatAndDispatchState(heartbeatOk: Boolean, dispatchOk: Boolean) {
@@ -216,6 +305,7 @@ class DebugConfigActivity : AppCompatActivity() {
                 appendStatus("token (parcial): ${token.take(10)}...")
                 PlayerAdLogger.i("DEBUG_UI", "Teste heartbeat OK (ecrã debug)")
                 setHeartbeatAndDispatchState(heartbeatOk = true, dispatchOk = dispatchOk)
+                refreshOfflineState()
                 refreshOperationalLog()
             }.onFailure { err ->
                 heartbeatOk = false
@@ -226,6 +316,7 @@ class DebugConfigActivity : AppCompatActivity() {
                 PlayerAdLogger.e("DEBUG_UI", "Teste heartbeat falhou (ecrã debug)", err)
                 setHeartbeatAndDispatchState(heartbeatOk = false, dispatchOk = false)
                 suggestBasedOnError(err)
+                refreshOfflineState()
                 refreshOperationalLog()
             }
         }
@@ -272,6 +363,7 @@ class DebugConfigActivity : AppCompatActivity() {
                 PlayerAdLogger.logDispatchPlanReceived(pid, name.ifBlank { "(sem nome)" }, items, campaignIdForLog)
                 PlayerAdLogger.i("DEBUG_UI", "Teste DispatchPlan OK (ecrã debug)")
                 setHeartbeatAndDispatchState(heartbeatOk = heartbeatOk, dispatchOk = dispatchOk)
+                refreshOfflineState()
                 refreshOperationalLog()
             }.onFailure { err ->
                 dispatchOk = false
@@ -280,6 +372,7 @@ class DebugConfigActivity : AppCompatActivity() {
                 PlayerAdLogger.e("DEBUG_UI", "Teste DispatchPlan falhou (ecrã debug)", err)
                 suggestBasedOnError(err)
                 setHeartbeatAndDispatchState(heartbeatOk = heartbeatOk, dispatchOk = false)
+                refreshOfflineState()
                 refreshOperationalLog()
             }
         }
@@ -328,6 +421,8 @@ class DebugConfigActivity : AppCompatActivity() {
             put("serverUrl", cfg.serverUrl)
             put("uin", cfg.uin)
             put("deviceId", cfg.deviceId)
+            put("acceptImagesInPlaylist", cfg.acceptImagesInPlaylist)
+            put("fallbackPropagandasPerVinheta", cfg.fallbackPropagandasPerVinheta)
         }
         val internal = File(filesDir, "player-config.json")
         internal.writeText(json.toString(), Charsets.UTF_8)

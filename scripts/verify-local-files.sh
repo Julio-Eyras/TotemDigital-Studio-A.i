@@ -169,6 +169,7 @@ info "🔍 Verificando Scripts..."
 
 check_file "scripts/install-smartsignage.sh" "Script de instalação (Linux)"
 check_file "scripts/install-smartsignage.ps1" "Script de instalação (Windows)"
+check_file "scripts/install-smartsignage.windows.lib.ps1" "Biblioteca do instalador Windows"
 check_file "scripts/manage-system.sh" "Script de gerenciamento"
 check_file "scripts/backup-system.sh" "Script de backup"
 check_file "scripts/monitor-system.sh" "Script de monitoramento"

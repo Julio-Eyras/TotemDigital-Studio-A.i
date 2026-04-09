@@ -76,6 +76,28 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textColor="#FFFFFF"
+            android:text="Aceitar imagens na playlist"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Desligado: itens de imagem são ignorados (só vídeo)."/>
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switchAcceptImages"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:checked="true"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
             android:textColor="#FFFFFF"
             android:textStyle="bold"
@@ -142,6 +164,32 @@
             android:fontFamily="monospace"
             android:visibility="gone"
             android:text=""/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:text="Estado offline"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#BDBDBD"
+            android:textSize="11sp"
+            android:text="Fonte do plano, último DispatchPlan persistido e total de mídias locais (propagandas/vinhetas)."/>
+
+        <TextView
+            android:id="@+id/textOfflineState"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#E0E0E0"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:text="(carregar...)"/>
 
         <LinearLayout
             android:layout_width="match_parent"

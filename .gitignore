@@ -257,3 +257,7 @@ $RECYCLE.BIN/
 !nginx/frontend.conf
 !monitoring/prometheus/prometheus.yml
 !monitoring/grafana/datasources/prometheus.yml
+
+# Android SDK local (máquina específica)
+SmartSignage-AD/local.properties
+

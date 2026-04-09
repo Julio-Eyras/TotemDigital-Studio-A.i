@@ -13,6 +13,7 @@ class APIClient {
         this.totemUIN = totemUIN;
         this.totemSecret = totemSecret;
         this.token = null;
+        this.deviceId = null;
     }
 
     /**
@@ -97,8 +98,26 @@ class APIClient {
         if (response.token) {
             this.token = response.token;
         }
+        if (deviceId) {
+            this.deviceId = deviceId;
+        }
         
         return response;
+    }
+
+    /**
+     * GET /api/player/token + POST /api/player/heartbeat (contrato de arranque antes do dispatch).
+     */
+    async dispatcherStartupSequence({ uin, deviceId, platform, appVersion }) {
+        await this.getDeviceToken(uin, deviceId, platform, appVersion);
+        return this.sendHeartbeat({
+            uin,
+            deviceId,
+            platform,
+            version: appVersion,
+            status: 'online',
+            metrics: { phase: 'startup' },
+        });
     }
 
     /**
@@ -124,10 +143,68 @@ class APIClient {
     }
 
     /**
-     * Envia heartbeat
+     * Envia heartbeat (query uin/token/deviceId + body — alinhado ao DispatcherRouter).
+     * Atualiza this.token se a resposta trouxer token novo.
      */
-    async sendHeartbeat(data) {
-        return await this.request('/api/player/heartbeat', 'POST', data);
+    async sendHeartbeat(data = {}) {
+        const uin = data.uin || this.totemUIN;
+        const token = data.token || this.token;
+        if (!uin || !token) {
+            throw new Error('UIN e token são obrigatórios para heartbeat');
+        }
+
+        const params = new URLSearchParams({ uin, token });
+        const deviceId = data.deviceId || this.deviceId;
+        if (deviceId) params.append('deviceId', deviceId);
+
+        const body = {
+            executedCommands: data.executedCommands || [],
+            metrics: data.metrics || {},
+            status: data.status || 'online',
+            version: data.version,
+            platform: data.platform,
+            firmwareVersion: data.firmwareVersion,
+            config: data.config,
+            ipAddress: data.ipAddress,
+        };
+
+        const response = await this.request(`/api/player/heartbeat?${params.toString()}`, 'POST', body);
+        if (response && response.token) {
+            this.token = response.token;
+        }
+        return response;
+    }
+
+    /**
+     * Envia evento de playback (Dispatcher) — query uin/token/deviceId.
+     */
+    async sendEvent(payload) {
+        const uin = payload.uin || this.totemUIN;
+        const token = payload.token || this.token;
+        if (!uin) {
+            throw new Error('UIN é obrigatório para evento');
+        }
+
+        const params = new URLSearchParams({ uin });
+        if (token) params.append('token', token);
+        const deviceId = payload.deviceId || this.deviceId;
+        if (deviceId) params.append('deviceId', deviceId);
+
+        const metadata = { ...(payload.metadata || {}) };
+        if (deviceId && metadata.deviceId == null) metadata.deviceId = deviceId;
+        if (metadata.player == null) metadata.player = 'player-client-linux-windows';
+
+        const body = {
+            eventType: payload.eventType,
+            mediaId: payload.mediaId,
+            playlistId: payload.playlistId,
+            campaignId: payload.campaignId,
+            duration: payload.duration,
+            completed: payload.completed,
+            metadata,
+        };
+
+        return await this.request(`/api/player/event?${params.toString()}`, 'POST', body);
     }
 
     /**

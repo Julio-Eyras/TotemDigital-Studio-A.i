@@ -41,6 +41,9 @@ interface UploadDialogProps {
   canSelectSubscriber?: boolean;
   subscribers?: (Client | Subscriber)[];
   userSubscriberId?: number;
+  dialogTitle?: string;
+  defaultTags?: string[];
+  lockDefaultTags?: boolean;
 }
 
 const MediaUploadDialog: React.FC<UploadDialogProps> = ({
@@ -51,6 +54,9 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   canSelectSubscriber,
   subscribers = [],
   userSubscriberId,
+  dialogTitle,
+  defaultTags = [],
+  lockDefaultTags = false,
 }) => {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -77,7 +83,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    tags: '',
+    tags: defaultTags.join(', '),
     subscriberId: userSubscriberId || ((canSelectSubscriber ?? isAdmin) && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined),
   });
 
@@ -87,12 +93,13 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   useEffect(() => {
     if (!open) return;
     setFormData((prev) => {
-      if (prev.subscriberId) return prev;
+      const nextTags = lockDefaultTags ? defaultTags.join(', ') : (prev.tags || defaultTags.join(', '));
       const fallback = userSubscriberId || (canPickSubscriber && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined);
-      return { ...prev, subscriberId: fallback };
+      if (prev.subscriberId) return { ...prev, tags: nextTags };
+      return { ...prev, subscriberId: fallback, tags: nextTags };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, userSubscriberId, canPickSubscriber, subscribers?.length]);
+  }, [open, userSubscriberId, canPickSubscriber, subscribers?.length, lockDefaultTags, defaultTags.join(',')]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showError } = useNotification();
@@ -217,7 +224,12 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
         const mediaData: CreateMediaRequest = {
           name: formData.name || file.name.split('.')[0],
           description: formData.description,
-          tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
+          tags: Array.from(
+            new Set([
+              ...defaultTags.map((t) => t.trim()).filter(Boolean),
+              ...(formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : []),
+            ])
+          ),
           subscriberId: formData.subscriberId,
         };
 
@@ -258,7 +270,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     setFormData({ 
       name: '', 
       description: '', 
-      tags: '',
+      tags: defaultTags.join(', '),
       subscriberId: userSubscriberId || ((canSelectSubscriber ?? isAdmin) && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined),
     });
     setUploading(false);
@@ -286,7 +298,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
       <DialogTitle>
-        Upload de Mídia
+        {dialogTitle || 'Upload de Mídia'}
       </DialogTitle>
       <DialogContent>
         <Box sx={{ pt: 2 }}>
@@ -358,7 +370,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                 value={formData.tags}
                 onChange={handleInputChange}
                 placeholder="promoção, verão, produto"
-                disabled={uploading}
+                disabled={uploading || lockDefaultTags}
               />
             </Grid>
           </Grid>

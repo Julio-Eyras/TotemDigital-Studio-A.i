@@ -22,6 +22,15 @@ const CONFIG = {
     TIMEOUT: 30000 // 30 segundos
 };
 
+for (const arg of process.argv.slice(2)) {
+    const m = arg.match(/^--platform=(.+)$/);
+    if (m) CONFIG.PLATFORM = m[1];
+    const u = arg.match(/^--api=(.+)$/);
+    if (u) CONFIG.API_BASE_URL = u[1];
+    const t = arg.match(/^--uin=(.+)$/);
+    if (t) CONFIG.TOTEM_UIN = t[1];
+}
+
 // Estatísticas de teste
 const stats = {
     total: 0,
@@ -87,9 +96,10 @@ async function testGetDeviceToken() {
             throw new Error(`Status ${response.status}: ${JSON.stringify(response.data)}`);
         }
     } catch (error) {
-        console.error('  ✗ Falha:', error.message);
+        const msg = error && error.message ? error.message : String(error);
+        console.error('  ✗ Falha:', msg);
         stats.failed++;
-        stats.errors.push({ test: 'getDeviceToken', error: error.message });
+        stats.errors.push({ test: 'getDeviceToken', error: msg });
         return null;
     }
 }
@@ -207,7 +217,7 @@ async function testOfflineMode() {
  * Teste: Heartbeat com deviceId
  */
 async function testHeartbeat(deviceToken) {
-    console.log('\n[TEST] 5. Enviar heartbeat com deviceId...');
+    console.log('\n[TEST] 5. Enviar heartbeat (query uin/token/deviceId + corpo Dispatcher)...');
     stats.total++;
     
     if (!deviceToken) {
@@ -216,25 +226,29 @@ async function testHeartbeat(deviceToken) {
     }
     
     try {
-        const heartbeatData = {
+        const params = new URLSearchParams({
+            uin: CONFIG.TOTEM_UIN,
+            token: deviceToken,
+        });
+        if (CONFIG.DEVICE_ID) params.append('deviceId', CONFIG.DEVICE_ID);
+
+        const body = {
             status: 'online',
             version: CONFIG.APP_VERSION,
             platform: CONFIG.PLATFORM,
-            deviceId: CONFIG.DEVICE_ID,
             metrics: {
                 isOnline: true,
-                cacheSize: 0
-            }
+                cacheSize: 0,
+                integrationTest: true,
+            },
+            executedCommands: [],
         };
-        
-        const url = `${CONFIG.API_BASE_URL}/api/player/heartbeat`;
+
+        const url = `${CONFIG.API_BASE_URL}/api/player/heartbeat?${params.toString()}`;
         const response = await httpRequest(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${deviceToken}`
-            },
-            body: heartbeatData
+            headers: { 'Content-Type': 'application/json' },
+            body,
         });
         
         if (response.status === 200) {

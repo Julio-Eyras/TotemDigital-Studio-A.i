@@ -122,23 +122,36 @@ async function init() {
       CONFIG.DEVICE_ID = `webos-${Date.now()}`;
     }
 
-    // Obter token de dispositivo (novo fluxo)
+    apiClient.deviceId = CONFIG.DEVICE_ID;
+
+    // Obter token de dispositivo + heartbeat inicial (novo fluxo)
     if (CONFIG.USE_DISPATCHER) {
       try {
-        const tokenResponse = await apiClient.getDeviceToken(
-          CONFIG.TOTEM_UIN,
-          CONFIG.DEVICE_ID,
-          CONFIG.PLATFORM,
-          CONFIG.APP_VERSION
-        );
-        
-        if (tokenResponse && tokenResponse.token) {
-          deviceToken = tokenResponse.token;
-          apiClient.token = deviceToken;
-          logger.info('Device token obtained successfully');
+        if (typeof apiClient.dispatcherStartupSequence === 'function') {
+          await apiClient.dispatcherStartupSequence({
+            uin: CONFIG.TOTEM_UIN,
+            deviceId: CONFIG.DEVICE_ID,
+            platform: CONFIG.PLATFORM,
+            appVersion: CONFIG.APP_VERSION,
+          });
+          deviceToken = apiClient.token;
+          logger.info('Dispatcher: token + heartbeat inicial (webos)');
         } else {
-          logger.warn('Failed to get device token, falling back to legacy auth');
-          CONFIG.USE_DISPATCHER = false;
+          const tokenResponse = await apiClient.getDeviceToken(
+            CONFIG.TOTEM_UIN,
+            CONFIG.DEVICE_ID,
+            CONFIG.PLATFORM,
+            CONFIG.APP_VERSION
+          );
+
+          if (tokenResponse && tokenResponse.token) {
+            deviceToken = tokenResponse.token;
+            apiClient.token = deviceToken;
+            logger.info('Device token obtained successfully');
+          } else {
+            logger.warn('Failed to get device token, falling back to legacy auth');
+            CONFIG.USE_DISPATCHER = false;
+          }
         }
       } catch (error) {
         logger.warn('Failed to get device token, falling back to legacy auth', error);
@@ -163,26 +176,20 @@ async function init() {
     // Inicializar playlist manager
     playlistManager = new PlaylistManager(apiClient, cache);
 
-    // Inicializar heartbeat (atualizado para incluir deviceId e platform)
+    // Heartbeat: deviceId/platform/version vão em apiClient + métricas (sendHeartbeat do core não recebe argumentos)
     heartbeatService = new HeartbeatService(apiClient, CONFIG.HEARTBEAT_INTERVAL);
-    // Atualizar heartbeat para incluir informações do dispositivo
-    if (heartbeatService.sendHeartbeat && typeof heartbeatService.sendHeartbeat === 'function') {
-      const originalSend = heartbeatService.sendHeartbeat.bind(heartbeatService);
-      heartbeatService.sendHeartbeat = async function(data) {
-        const enhancedData = {
-          ...data,
-          deviceId: CONFIG.DEVICE_ID,
-          platform: CONFIG.PLATFORM,
-          appVersion: CONFIG.APP_VERSION,
-          metrics: {
-            ...(data.metrics || {}),
-            isOnline: navigator.onLine,
-            cacheSize: cache ? cache.getSize() : 0
-          }
-        };
-        return originalSend(enhancedData);
+    const baseGetSystemMetrics = heartbeatService.getSystemMetrics.bind(heartbeatService);
+    heartbeatService.getSystemMetrics = function webosHeartbeatMetrics() {
+      const base = baseGetSystemMetrics();
+      return {
+        ...base,
+        deviceId: CONFIG.DEVICE_ID,
+        platform: CONFIG.PLATFORM,
+        appVersion: CONFIG.APP_VERSION,
+        isOnline: navigator.onLine,
+        cacheSize: cache ? cache.getSize() : 0,
       };
-    }
+    };
     heartbeatService.start();
 
     // Inicializar media player

@@ -85,8 +85,8 @@ class SmartSignagePlayer extends EventEmitter {
             // 2. Inicializar API Client
             await this.initAPIClient();
             
-            // 3. Obter token de dispositivo
-            await this.getDeviceToken();
+            // 3. Token + heartbeat inicial (contrato: GET /token → POST /heartbeat antes do dispatch)
+            await this.bootstrapDispatcherSession();
             
             // 4. Inicializar cache local
             if (this.config.cacheEnabled) {
@@ -106,7 +106,7 @@ class SmartSignagePlayer extends EventEmitter {
             // 6. Inicializar media player
             await this.initMediaPlayer();
             
-            // 7. Carregar DispatchPlan inicial
+            // 7. Carregar DispatchPlan inicial (GET /api/player/dispatch)
             await this.loadDispatchPlan();
             
             // 8. Iniciar serviços
@@ -160,7 +160,7 @@ class SmartSignagePlayer extends EventEmitter {
     }
 
     /**
-     * Obtém token de dispositivo
+     * Obtém apenas token (GET /api/player/token). Para arranque completo use bootstrapDispatcherSession().
      */
     async getDeviceToken() {
         try {
@@ -183,6 +183,23 @@ class SmartSignagePlayer extends EventEmitter {
             console.error('[Player] Erro ao obter device token:', error);
             throw error;
         }
+    }
+
+    /**
+     * Token + primeiro heartbeat antes do dispatch (ver api/client.dispatcherStartupSequence).
+     */
+    async bootstrapDispatcherSession() {
+        console.log('[Player] Ciclo de vida: (1) /api/player/token → (2) /api/player/heartbeat');
+        await this.apiClient.dispatcherStartupSequence({
+            uin: this.config.totemUIN,
+            deviceId: this.config.deviceId,
+            platform: this.config.platform,
+            appVersion: this.config.appVersion
+        });
+        if (this.apiClient.token) {
+            this.deviceToken = this.apiClient.token;
+        }
+        console.log('[Player] Sessão Dispatcher pronta');
     }
 
     /**
@@ -270,7 +287,8 @@ class SmartSignagePlayer extends EventEmitter {
      */
     async loadDispatchPlan() {
         try {
-            if (!this.deviceToken) {
+            const token = this.apiClient.token || this.deviceToken;
+            if (!token) {
                 throw new Error('Device token não disponível');
             }
             
@@ -279,7 +297,7 @@ class SmartSignagePlayer extends EventEmitter {
             
             const response = await this.apiClient.getDispatchPlan(
                 this.config.totemUIN,
-                this.deviceToken,
+                token,
                 this.config.deviceId,
                 timestamp,
                 timezone
@@ -453,8 +471,12 @@ class SmartSignagePlayer extends EventEmitter {
                 deviceId: this.config.deviceId,
                 metrics: metrics
             });
+            if (this.apiClient.token) {
+                this.deviceToken = this.apiClient.token;
+            }
         } catch (error) {
             console.error('[Player] Erro ao enviar heartbeat:', error);
+            throw error;
         }
     }
 

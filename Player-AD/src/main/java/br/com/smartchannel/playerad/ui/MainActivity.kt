@@ -89,7 +89,15 @@ class MainActivity : AppCompatActivity() {
 
         val config = PlayerConfigLoader(this).load()
         val apiClient = DispatcherApiClient(config.serverUrl, config.uin, config.deviceId)
-        playerController = PlayerController(this, apiClient, cacheManager, exoPlayer, imageView)
+        playerController = PlayerController(
+            this,
+            apiClient,
+            cacheManager,
+            exoPlayer,
+            imageView,
+            config.acceptImagesInPlaylist,
+            config.fallbackPropagandasPerVinheta
+        )
 
         playbackJob = lifecycleScope.launch {
             try {

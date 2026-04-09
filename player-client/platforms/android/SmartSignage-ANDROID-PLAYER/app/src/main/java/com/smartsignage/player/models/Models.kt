@@ -86,7 +86,9 @@ data class DispatchPlan(
     val totalDuration: Int?,
     val priority: Int?,
     val source: String?,
-    val sourceId: Int?
+    val sourceId: Int?,
+    val validityStart: String? = null,
+    val validityEnd: String? = null
 )
 
 /**

@@ -15,11 +15,20 @@ class HeartbeatService {
   }
 
   /**
-   * Inicia serviço de heartbeat
+   * Inicia serviço de heartbeat.
+   * Requer APIClient com totemUIN e token (ex.: após getDeviceToken); caso contrário o servidor responde 401.
    */
   start() {
     if (this.isRunning) {
       return;
+    }
+
+    const ac = this.apiClient;
+    if (!ac?.totemUIN) {
+      console.warn('[HeartbeatService] apiClient.totemUIN ausente — heartbeat vai falhar até configurar UIN.');
+    }
+    if (!ac?.token) {
+      console.warn('[HeartbeatService] apiClient.token ausente — chame getDeviceToken() (ou equivalente) antes de start().');
     }
 
     this.isRunning = true;

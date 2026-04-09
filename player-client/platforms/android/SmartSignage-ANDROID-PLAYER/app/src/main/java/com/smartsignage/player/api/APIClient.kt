@@ -6,11 +6,19 @@ import com.smartsignage.player.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
+import okhttp3.logging.HttpLoggingInterceptor
 import java.net.URL
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import com.google.gson.JsonParser
 import java.io.IOException
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -32,6 +40,15 @@ class APIClient(
     private val gson = Gson()
     private var token: String? = null
     private var refreshToken: String? = null
+
+    /** Token do Dispatcher (device/HMAC) após /token ou heartbeat. */
+    fun getDispatcherToken(): String? = token
+
+    /** UIN usado no último getDeviceToken (query do heartbeat/dispatch). */
+    private var lastDispatcherUin: String = ""
+
+    /** deviceId usado no último getDeviceToken. */
+    private var lastDispatcherDeviceId: String? = null
 
     companion object {
         private const val TAG = "APIClient"
@@ -216,16 +233,90 @@ class APIClient(
     }
 
     /**
-     * Envia heartbeat
+     * Heartbeat do Dispatcher: POST /api/player/heartbeat?uin=&token=&deviceId= com corpo JSON (status, metrics, executedCommands).
+     * Atualiza [token] se a resposta incluir um novo token.
      */
-    suspend fun sendHeartbeat(data: HeartbeatData): Boolean {
-        return try {
-            val response = request("/api/player/heartbeat", "POST", data)
-            response.isSuccessful
+    suspend fun sendHeartbeat(data: HeartbeatData): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val uin = lastDispatcherUin.ifEmpty { totemUIN }
+            val tok = token
+            if (uin.isEmpty() || tok.isNullOrBlank()) {
+                Log.w(TAG, "sendHeartbeat: UIN ou token vazio (obtenha device token antes)")
+                return@withContext false
+            }
+            val enc: (String) -> String = { URLEncoder.encode(it, StandardCharsets.UTF_8.name()) }
+            val q = StringBuilder("uin=${enc(uin)}&token=${enc(tok)}")
+            lastDispatcherDeviceId?.takeIf { it.isNotBlank() }?.let { q.append("&deviceId=${enc(it)}") }
+            val url = "${baseURL.trimEnd('/')}/api/player/heartbeat?$q"
+
+            val metrics = (data.metrics ?: emptyMap()).toMutableMap()
+            metrics["timestamp"] = data.timestamp
+            val bodyMap = mapOf(
+                "status" to data.status,
+                "metrics" to metrics,
+                "executedCommands" to emptyList<Any>()
+            )
+            val json = gson.toJson(bodyMap)
+            val requestBuilder = Request.Builder()
+                .url(url)
+                .post(json.toRequestBody(JSON))
+            requestBuilder.addHeader("Content-Type", "application/json")
+            if (totemUIN.isNotEmpty() && totemSecret.isNotEmpty()) {
+                requestBuilder.addHeader("X-Totem-Token", generateTotemToken())
+                requestBuilder.addHeader("X-Totem-UIN", totemUIN)
+            }
+            requestBuilder.addHeader("Authorization", "Bearer $tok")
+            val resp = client.newCall(requestBuilder.build()).execute()
+            if (resp.isSuccessful) {
+                val str = resp.body?.string().orEmpty()
+                try {
+                    val root = JsonParser.parseString(str)
+                    if (root.isJsonObject) {
+                        val obj = root.asJsonObject
+                        if (obj.has("token") && obj.get("token").isJsonPrimitive) {
+                            token = obj.get("token").asString
+                        }
+                    }
+                } catch (_: Exception) { }
+                true
+            } else {
+                Log.e(TAG, "sendHeartbeat failed: HTTP ${resp.code}")
+                false
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Send heartbeat error", e)
             false
         }
+    }
+
+    private fun isoTimestampUtc(): String {
+        val f = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+        f.timeZone = TimeZone.getTimeZone("UTC")
+        return f.format(Date())
+    }
+
+    /**
+     * Ciclo de arranque: GET /api/player/token + primeiro POST heartbeat (antes do dispatch).
+     */
+    suspend fun dispatcherStartupSequence(
+        uin: String,
+        deviceId: String,
+        platform: String,
+        appVersion: String
+    ): Boolean {
+        val tr = getDeviceToken(uin, deviceId, platform, appVersion) ?: return false
+        if (tr.token.isBlank()) return false
+        return sendHeartbeat(
+            HeartbeatData(
+                status = "online",
+                timestamp = isoTimestampUtc(),
+                metrics = mapOf(
+                    "phase" to "startup",
+                    "platform" to platform,
+                    "appVersion" to appVersion
+                )
+            )
+        )
     }
 
     /**
@@ -309,7 +400,13 @@ class APIClient(
         appVersion: String
     ): DeviceTokenResponse? {
         return try {
-            val query = "?uin=${uin}&deviceId=${deviceId}&platform=${platform}&appVersion=${appVersion}"
+            lastDispatcherUin = uin
+            lastDispatcherDeviceId = deviceId
+            val utf8 = StandardCharsets.UTF_8.name()
+            val query = "?uin=${URLEncoder.encode(uin, utf8)}" +
+                "&deviceId=${URLEncoder.encode(deviceId, utf8)}" +
+                "&platform=${URLEncoder.encode(platform, utf8)}" +
+                "&appVersion=${URLEncoder.encode(appVersion, utf8)}"
             val response = request("/api/player/token$query")
 
             if (response.isSuccessful) {

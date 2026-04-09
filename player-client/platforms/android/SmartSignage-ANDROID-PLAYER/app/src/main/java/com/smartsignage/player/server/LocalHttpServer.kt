@@ -36,7 +36,7 @@ class LocalHttpServer(
      */
     fun start() {
         if (isRunning) {
-            Log.warn(TAG, "Servidor já está em execução")
+            Log.w(TAG, "Servidor já está em execução")
             return
         }
 
@@ -208,7 +208,7 @@ class LocalHttpServer(
      * Obtém tamanho do cache
      */
     private fun getCacheSize(): Long {
-        return cacheManager.getCacheSize()
+        return cacheManager.getCacheSizeBytes()
     }
 
     /**
@@ -313,7 +313,7 @@ class LocalHttpServer(
                 }
             }
         } catch (e: Exception) {
-            Log.warn(TAG, "Erro ao detectar IP local", e)
+            Log.w(TAG, "Erro ao detectar IP local", e)
         }
         
         return "http://localhost:$port"

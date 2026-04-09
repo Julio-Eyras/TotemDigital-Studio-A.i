@@ -161,14 +161,25 @@ class PlaylistManager(
     suspend fun loadLastDispatchPlanFromCache(): DispatchPlan? {
         return cacheManager?.loadLastDispatchPlan()
     }
+
+    /**
+     * Aplica um DispatchPlan já carregado (ex.: modo offline) e reinicia o índice de reprodução.
+     */
+    fun applyOfflineDispatchPlan(plan: DispatchPlan) {
+        currentDispatchPlan = plan
+        currentPlaylist = null
+        currentIndex = 0
+        lastUpdate = System.currentTimeMillis()
+        Log.i(TAG, "Offline DispatchPlan aplicado: ${plan.playlistName} (${plan.mediaItems.size} itens)")
+    }
     
     /**
      * DEPRECATED: Converte DispatchPlan para PlaylistResponse (mantido apenas para compatibilidade)
      * 
-     * @deprecated Use getCurrentDispatchPlan() e trabalhe diretamente com DispatchPlan
+     * @deprecated Use a propriedade [currentDispatchPlan] e trabalhe diretamente com DispatchPlan
      * TODO: Remover quando todos os componentes usarem DispatchPlan nativamente
      */
-    @Deprecated("Use getCurrentDispatchPlan() instead")
+    @Deprecated("Use currentDispatchPlan instead")
     fun mapDispatchPlanToPlaylist(plan: DispatchPlan, useLocalPaths: Boolean = false): PlaylistResponse {
         val items = plan.mediaItems.map { mediaItem ->
             val type = when (mediaItem.mediaType.lowercase()) {
@@ -246,13 +257,6 @@ class PlaylistManager(
         }
         
         return null
-    }
-    
-    /**
-     * Obtém DispatchPlan completo (formato nativo)
-     */
-    fun getCurrentDispatchPlan(): DispatchPlan? {
-        return currentDispatchPlan
     }
     
     /**

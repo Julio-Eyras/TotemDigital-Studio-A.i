@@ -233,10 +233,17 @@ class DispatcherRouter {
         };
       }
 
-      // Validar token se fornecido
+      // Validar token se fornecido (HMAC OU device_token — alinhado a dispatch/heartbeat/event)
       const token = request.query?.token as string;
       if (token && typeof token === 'string') {
-        if (!validateTotemToken(request.uin, token)) {
+        const validHmac = validateTotemToken(request.uin, token);
+        const deviceTokenService = getDeviceTokenService();
+        const validDeviceToken = await deviceTokenService.validateToken(request.uin, token, {
+          deviceId: request.deviceId || null,
+          ipAddress: request.ipAddress || undefined,
+          userAgent: request.userAgent || undefined,
+        });
+        if (!validHmac && !validDeviceToken) {
           return {
             success: false,
             error: 'Token inválido ou expirado',
@@ -589,10 +596,24 @@ class DispatcherRouter {
         };
       }
 
-      // Validar token se fornecido
+      // Validar token se fornecido (HMAC do totem OU device_token — igual a dispatch/heartbeat)
       const token = request.query?.token as string;
       if (token && typeof token === 'string') {
-        if (!validateTotemToken(request.uin, token)) {
+        const validHmac = validateTotemToken(request.uin, token);
+        const deviceTokenService = getDeviceTokenService();
+        const meta = request.body?.metadata;
+        const deviceIdFromMeta =
+          meta && typeof meta === 'object' && meta !== null && typeof (meta as any).deviceId === 'string'
+            ? String((meta as any).deviceId).trim() || null
+            : null;
+        const effectiveDeviceId = (request.deviceId as string | undefined)?.trim() || deviceIdFromMeta;
+        const validDeviceToken = await deviceTokenService.validateToken(request.uin, token, {
+          deviceId: effectiveDeviceId || null,
+          ipAddress: request.ipAddress || undefined,
+          userAgent: request.userAgent || undefined,
+        });
+
+        if (!validHmac && !validDeviceToken) {
           return {
             success: false,
             error: 'Token inválido ou expirado',

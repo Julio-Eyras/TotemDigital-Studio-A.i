@@ -106,7 +106,7 @@ class MediaCacheManager(private val context: Context) {
                     url = mediaItem.url,
                     localPath = localFile.absolutePath,
                     checksum = checksum,
-                    size = body.size,
+                    size = body.size.toLong(),
                     mimeType = mediaItem.metadata?.get("mimeType")?.toString() ?: "application/octet-stream",
                     extension = ext,
                     downloadedAt = System.currentTimeMillis(),
@@ -162,9 +162,9 @@ class MediaCacheManager(private val context: Context) {
         val writeProp = storageHelper.getWritePropagandasDir()
         var free = storageHelper.getFreeSpaceBytes(writeProp.parentFile ?: writeProp)
         if (totalNeeded > free * (1 - CACHE_THRESHOLD_FREE)) {
-            val allMeta = loadAllMediaMetadata()
+            val allMeta = loadAllMediaMetadata().values.toList()
             val currentIds = mediaItems.map { it.mediaId }.toSet()
-            val unused = allMeta.filter { it.mediaId !in currentIds }.sortedBy { it.lastAccessed }
+            val unused = allMeta.filter { m -> m.mediaId !in currentIds }.sortedBy { m -> m.lastAccessed }
             var freed = 0L
             for (m in unused) {
                 if (freed >= totalNeeded) break
@@ -239,6 +239,9 @@ class MediaCacheManager(private val context: Context) {
     }
 
     fun getStorageHelper(): StorageHelper = storageHelper
+
+    /** Soma dos tamanhos conhecidos no índice de metadados (aproximação do cache). */
+    fun getCacheSizeBytes(): Long = loadAllMediaMetadata().values.sumOf { it.size }
 
     data class CacheStats(var success: Int = 0, var failed: Int = 0, var skipped: Int = 0)
 

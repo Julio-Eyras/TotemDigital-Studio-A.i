@@ -1,0 +1,14 @@
+{
+  "projectName": "SmartSignage-AD",
+  "serverUrl": "http://192.168.1.110",
+  "uin": "tot001",
+  "deviceId": "android-ad-tot001",
+  "mode": "hybrid",
+  "syncIntervalSeconds": 30,
+  "acceptImagesInPlaylist": true,
+  "fallbackPropagandasPerVinheta": 2,
+  "internalCacheLimitPercent": 5,
+  "imageDurationSeconds": 20,
+  "fallbackPropagandas": [],
+  "fallbackVinhetas": []
+}

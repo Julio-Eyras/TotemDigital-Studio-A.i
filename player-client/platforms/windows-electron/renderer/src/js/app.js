@@ -25,6 +25,8 @@ let logger;
 let scheduler;
 let cache;
 let errorHandler;
+let deviceToken = null;
+let deviceId = '';
 
 // SmartDisplayFX
 let fxClient;
@@ -63,21 +65,55 @@ async function init() {
       CONFIG.TOTEM_SECRET
     );
 
+    const os = require('os');
+    deviceId = CONFIG.deviceId || `win-${os.hostname()}-${require('crypto').randomBytes(4).toString('hex')}`;
+    apiClient.deviceId = deviceId;
+
     // Inicializar logger
     logger = new Logger(apiClient, CONFIG.logLevel || 'info');
 
     // Inicializar error handler
     errorHandler = new ErrorHandler(logger, apiClient);
 
-    // Autenticar totem
-    const authenticated = await apiClient.authenticateTotem();
-    if (!authenticated) {
-      logger.error('Failed to authenticate totem');
-      showError('Falha na autenticação. Verifique a configuração.');
-      return;
+    if (CONFIG.TOTEM_UIN || CONFIG.totemUIN) {
+      try {
+        if (typeof apiClient.dispatcherStartupSequence === 'function') {
+          await apiClient.dispatcherStartupSequence({
+            uin: CONFIG.TOTEM_UIN || CONFIG.totemUIN,
+            deviceId,
+            platform: 'windows',
+            appVersion: '2.1.0',
+          });
+          deviceToken = apiClient.token;
+          logger.info('Dispatcher: token + heartbeat inicial (windows-electron)');
+        } else {
+          const tokenRes = await apiClient.getDeviceToken(
+            CONFIG.TOTEM_UIN || CONFIG.totemUIN,
+            deviceId,
+            'windows',
+            '2.1.0'
+          );
+          if (tokenRes && tokenRes.token) {
+            deviceToken = tokenRes.token;
+            apiClient.token = deviceToken;
+            logger.info('Device token obtido (getDeviceToken)');
+          }
+        }
+      } catch (e) {
+        logger.warn('dispatcherStartupSequence/getDeviceToken falhou, tentando auth legado', e);
+      }
     }
 
-    logger.info('Totem authenticated successfully');
+    // Autenticar totem (legado, se ainda não tem token)
+    if (!apiClient.token) {
+      const authenticated = await apiClient.authenticateTotem();
+      if (!authenticated) {
+        logger.error('Failed to authenticate totem');
+        showError('Falha na autenticação. Verifique a configuração.');
+        return;
+      }
+      logger.info('Totem authenticated successfully');
+    }
 
     // Inicializar scheduler
     scheduler = new Scheduler();

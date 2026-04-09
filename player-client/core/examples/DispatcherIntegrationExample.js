@@ -60,7 +60,19 @@ class DispatcherIntegration {
       await this.initializeLocalServer();
     }
 
+    // 5. Heartbeat inicial (contrato: token → heartbeat → dispatch nas syncs seguintes)
+    await this.initialHeartbeat();
+
     console.log('[DispatcherIntegration] Inicialização concluída');
+  }
+
+  /**
+   * Primeiro POST /api/player/heartbeat após /token — regista online e atualiza token na resposta.
+   */
+  async initialHeartbeat() {
+    console.log('[DispatcherIntegration] Ciclo de vida: heartbeat inicial...');
+    await this.sendHeartbeat({ phase: 'startup' });
+    console.log('[DispatcherIntegration] Ciclo de vida: heartbeat inicial OK');
   }
 
   /**
@@ -379,10 +391,10 @@ async function main() {
   });
 
   try {
-    // Inicializar
+    // Inicializar (token → heartbeat inicial → pronto para dispatch)
     await integration.initialize();
 
-    // Sincronizar DispatchPlan
+    // Sincronizar DispatchPlan (primeiro fetch após ciclo de vida)
     const plan = await integration.syncDispatchPlan();
     console.log('Plano recebido:', plan);
 

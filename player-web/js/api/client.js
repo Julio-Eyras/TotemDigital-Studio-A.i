@@ -93,6 +93,23 @@ class APIClient {
     }
 
     /**
+     * GET /api/player/token + POST /api/player/heartbeat (arranque antes do dispatch).
+     * Para métricas ricas (ex.: cacheSize), prefira heartbeat manual após o primeiro getDeviceToken.
+     */
+    async dispatcherStartupSequence({ uin, deviceId, platform, appVersion }) {
+        await this.getDeviceToken(uin, deviceId, platform, appVersion);
+        return this.sendHeartbeat({
+            uin,
+            deviceId,
+            platform,
+            version: appVersion,
+            status: 'online',
+            metrics: { phase: 'startup' },
+            executedCommands: []
+        });
+    }
+
+    /**
      * Obtém DispatchPlan do Dispatcher-Totem
      */
     async getDispatchPlan(uin, token, deviceId, timestamp, timezone) {
@@ -169,6 +186,12 @@ class APIClient {
 
         const queryParams = { uin };
         if (token) queryParams.token = token;
+        const deviceId = payload.deviceId || this.deviceId;
+        if (deviceId) queryParams.deviceId = deviceId;
+
+        const metadata = { ...(payload.metadata || {}) };
+        if (deviceId && metadata.deviceId == null) metadata.deviceId = deviceId;
+        if (metadata.player == null) metadata.player = 'player-web';
 
         const body = {
             eventType: payload.eventType,
@@ -177,7 +200,7 @@ class APIClient {
             campaignId: payload.campaignId,
             duration: payload.duration,
             completed: payload.completed,
-            metadata: payload.metadata || {}
+            metadata
         };
 
         return await this.requestWithQuery('/api/player/event', 'POST', queryParams, body);

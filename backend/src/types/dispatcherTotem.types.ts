@@ -44,6 +44,7 @@ export interface DispatchMediaItem {
   duration: number; // em segundos
   url: string;
   mediaType: string;
+  cacheBucket: 'propagandas' | 'vinhetas';
   metadata?: {
     width?: number;
     height?: number;

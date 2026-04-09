@@ -189,11 +189,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 4. Heartbeat Service
+        // 4. Heartbeat Service (corpo e URL alinhados ao Dispatcher)
+        val hwForHb = deviceInfo.collectHardwareInfo()
         heartbeatService = HeartbeatService(
             config!!.apiBaseUrl,
             uin!!,
-            config!!.heartbeatInterval
+            config!!.heartbeatInterval,
+            hwForHb.deviceId
         )
         heartbeatService.setToken(token)
         heartbeatService.setCallbacks(

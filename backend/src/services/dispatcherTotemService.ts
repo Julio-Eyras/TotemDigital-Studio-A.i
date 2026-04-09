@@ -19,6 +19,7 @@ import { logError, logDebug } from '../utils/loggerHelper';
 import { normalizeDownloadUrl } from '../utils/pathHelper';
 import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService, TotemPlaylistMix } from './totemPlaylistMixService';
+import { resolveDispatchCacheBucket } from './dispatchMediaBucket';
 import {
   DispatchRequest,
   DispatchPlan,
@@ -767,7 +768,7 @@ export class DispatcherTotemService {
 
       const mediaIds = [...new Set(items.map((i: any) => i.media_id))];
       const medias = await this.db.findMany(`
-        SELECT media_id, file_path, media_type, duration_seconds, width, height, mime_type
+        SELECT media_id, file_path, media_type, duration_seconds, width, height, mime_type, tags
         FROM medias
         WHERE media_id = ANY($1::int[]) AND is_active = true
       `, [mediaIds]);
@@ -787,6 +788,7 @@ export class DispatcherTotemService {
             duration: Number(duration) || 10,
             url: url || `/api/media/${item.media_id}/stream`,
             mediaType: m?.media_type || 'image',
+            cacheBucket: resolveDispatchCacheBucket(m || {}),
             metadata: { width: m?.width, height: m?.height, mimeType: m?.mime_type },
           };
         });
@@ -860,6 +862,7 @@ export class DispatcherTotemService {
           duration,
           url: `/api/player-static/${folder}/${encodeURIComponent(file)}`,
           mediaType: isImage ? 'image' : 'video',
+          cacheBucket: folder === 'vinhetas' ? 'vinhetas' : 'propagandas',
           metadata: { source: 'default_ad' },
         } as DispatchMediaItem;
       };
@@ -1576,6 +1579,7 @@ export class DispatcherTotemService {
           m.name,
           m.file_path,
           m.media_type,
+          m.tags,
           m.width,
           m.height,
           m.mime_type,
@@ -1593,6 +1597,7 @@ export class DispatcherTotemService {
           duration: mixItem.duration || media.duration_seconds || 10,
           url: normalizeDownloadUrl(media.file_path) || '',
           mediaType: media.media_type,
+          cacheBucket: resolveDispatchCacheBucket(media),
           metadata: {
             width: media.width,
             height: media.height,
@@ -1647,6 +1652,7 @@ export class DispatcherTotemService {
         m.name,
         m.file_path,
         m.media_type,
+        m.tags,
         m.width,
         m.height,
         m.mime_type,
@@ -1666,6 +1672,7 @@ export class DispatcherTotemService {
       duration: item.duration || item.duration_seconds || 10,
       url: normalizeDownloadUrl(item.file_path) || '',
       mediaType: item.media_type,
+      cacheBucket: resolveDispatchCacheBucket(item),
       metadata: {
         width: item.width,
         height: item.height,

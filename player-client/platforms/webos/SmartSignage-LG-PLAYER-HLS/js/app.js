@@ -163,6 +163,14 @@ class SmartSignageApp {
    * Inicializa componentes principais
    */
   async initializeComponents(validation) {
+    if (!this.deviceInfo.hardwareInfo) {
+      try {
+        await this.deviceInfo.collectHardwareInfo();
+      } catch (e) {
+        console.warn('[App] Não foi possível coletar hardwareInfo (deviceId no heartbeat opcional)', e);
+      }
+    }
+
     // 1. Player HLS
     this.player = new HLSPlayer('player');
     
@@ -189,11 +197,13 @@ class SmartSignageApp {
     this.commandFetcher.setToken(this.token);
     this.commandFetcher.onCommand = (command) => this.processCommand(command);
 
-    // 4. Heartbeat Service
+    // 4. Heartbeat Service (deviceId opcional, alinhado ao Dispatcher)
+    const hbDeviceId = this.deviceInfo.hardwareInfo?.deviceId || null;
     this.heartbeatService = new HeartbeatService(
       this.apiUrl,
       this.uin,
-      this.config.heartbeat_interval
+      this.config.heartbeat_interval,
+      hbDeviceId
     );
     this.heartbeatService.setToken(this.token);
     this.heartbeatService.setCallbacks(

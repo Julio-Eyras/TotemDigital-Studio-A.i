@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Linux/macOS. No Windows use: Player-AD\instalar-dispositivo.cmd ou scripts\install-player-adb.ps1
 set -euo pipefail
 
 PLAYER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -81,25 +81,23 @@ class FallbackManager(
      * Tenta próximo fallback disponível
      */
     private suspend fun tryNextFallback() = withContext(Dispatchers.Main) {
-        if (currentFallbackIndex >= fallbackUrls.size) {
-            Log.e(TAG, "Todos os fallbacks falharam")
-            currentFallbackIndex = 0
-            return@withContext
-        }
+        while (currentFallbackIndex < fallbackUrls.size) {
+            val fallbackUrl = fallbackUrls[currentFallbackIndex]
+            Log.d(TAG, "Tentando fallback ${currentFallbackIndex + 1}/${fallbackUrls.size}: $fallbackUrl")
 
-        val fallbackUrl = fallbackUrls[currentFallbackIndex]
-        Log.d(TAG, "Tentando fallback ${currentFallbackIndex + 1}/${fallbackUrls.size}: $fallbackUrl")
-
-        try {
-            player?.play(fallbackUrl)
-            Log.d(TAG, "Fallback ativado com sucesso")
-            startPrimaryStreamRetry()
-        } catch (error: Exception) {
-            Log.w(TAG, "Falha ao ativar fallback $fallbackUrl", error)
-            currentFallbackIndex++
-            delay(5000)
-            tryNextFallback()
+            try {
+                player?.play(fallbackUrl)
+                Log.d(TAG, "Fallback ativado com sucesso")
+                startPrimaryStreamRetry()
+                return@withContext
+            } catch (error: Exception) {
+                Log.w(TAG, "Falha ao ativar fallback $fallbackUrl", error)
+                currentFallbackIndex++
+                delay(5000)
+            }
         }
+        Log.e(TAG, "Todos os fallbacks falharam")
+        currentFallbackIndex = 0
     }
 
     /**
@@ -127,17 +125,17 @@ class FallbackManager(
                 .head()
                 .build()
 
-            val response = client.newCall(request).execute()
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    Log.d(TAG, "Stream principal recuperado! Retornando...")
+                    fallbackActive = false
+                    retryCount = 0
+                    currentFallbackIndex = 0
+                    retryJob?.cancel()
 
-            if (response.isSuccessful) {
-                Log.d(TAG, "Stream principal recuperado! Retornando...")
-                fallbackActive = false
-                retryCount = 0
-                currentFallbackIndex = 0
-                retryJob?.cancel()
-
-                withContext(Dispatchers.Main) {
-                    player?.play(primaryStream)
+                    withContext(Dispatchers.Main) {
+                        player?.play(primaryStream)
+                    }
                 }
             }
         } catch (error: Exception) {

@@ -1,6 +1,8 @@
 package br.com.smartchannel.playerad.playback
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import br.com.smartchannel.playerad.api.DispatcherApiClient
 import br.com.smartchannel.playerad.api.PlayerEventsClient
@@ -12,6 +14,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
 import androidx.media3.exoplayer.ExoPlayer
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,6 +22,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -37,9 +42,19 @@ class PlayerController(
     private val apiClient: DispatcherApiClient,
     private val cacheManager: MediaCacheManager,
     private val exoPlayer: ExoPlayer,
-    private val imageView: ImageView
+    private val imageView: ImageView,
+    private val acceptImagesInPlaylist: Boolean = true,
+    private val fallbackPropagandasPerVinheta: Int = 3
 ) {
+    private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL }
+
     private val DEFAULT_IMAGE_DURATION_SECONDS = 20L
+    private val persistedDispatchFile: File by lazy {
+        File(AppDirs.root(context), "last-dispatch-plan.json")
+    }
+    private val currentPlanSourceFile: File by lazy {
+        File(AppDirs.root(context), "current-plan-source.txt")
+    }
 
     data class DispatchMediaItem(
         val mediaId: Long,
@@ -65,37 +80,62 @@ class PlayerController(
      * Obtém token, faz dispatch e começa o loop de playback.
      */
     suspend fun start() {
-        val token = try {
-            val t = apiClient.heartbeat()
-            PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados")
-            t
-        } catch (e: Exception) {
-            PlayerAdLogger.e("HEARTBEAT", "Falha no heartbeat inicial", e)
-            throw e
-        }
-        val dispatchJson = try {
-            apiClient.getDispatchPlan(token)
-        } catch (e: Exception) {
-            PlayerAdLogger.e("DISPATCH", "Falha ao obter DispatchPlan", e)
-            throw e
-        }
-        val plan = parseDispatchPlan(dispatchJson)
-        PlayerAdLogger.logDispatchPlanReceived(
-            plan.playlistId,
-            plan.playlistName,
-            plan.mediaItems.size,
-            plan.campaignId
-        )
         eventsClient = PlayerEventsClient(
             baseUrl = apiClient.baseUrl.trimEnd('/'),
             uin = apiClient.uin,
-            deviceId = apiClient.deviceId
+            deviceId = apiClient.deviceId,
+            dispatcher = apiClient
         )
-        preloadPlan(plan)
-        playLoop(plan, token)
+
+        PlayerAdLogger.i("LIFECYCLE", "(1) Heartbeat inicial — token/sessão (GET /token se necessário + POST /heartbeat)")
+        var sessionToken = apiClient.cachedToken() ?: ""
+        val initialPlanWithSource = try {
+            val token = apiClient.heartbeat()
+            PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados")
+            PlayerAdLogger.i("LIFECYCLE", "(2) DispatchPlan + pré-cache (GET /api/player/dispatch)")
+            val dispatchJson = apiClient.getDispatchPlan(token)
+            saveDispatchPlanToDisk(dispatchJson)
+            sessionToken = apiClient.cachedToken() ?: token
+            val plan = parseDispatchPlan(dispatchJson)
+            PlayerAdLogger.logDispatchPlanReceived(
+                plan.playlistId,
+                plan.playlistName,
+                plan.mediaItems.size,
+                plan.campaignId
+            )
+            preloadPlan(plan)
+            plan to PlanSource.ONLINE
+        } catch (e: Exception) {
+            PlayerAdLogger.e("DISPATCH", "Falha no arranque online (heartbeat/dispatch); tentando fallback local", e)
+            val persistedPlan = loadDispatchPlanFromDisk()?.let { parseDispatchPlan(it) }
+            if (persistedPlan != null && persistedPlan.mediaItems.isNotEmpty()) {
+                PlayerAdLogger.logFallbackActivated(
+                    "arranque offline — usando ultimo DispatchPlan persistido (${persistedPlan.mediaItems.size} itens)"
+                )
+                persistedPlan to PlanSource.PERSISTED
+            } else {
+            val fallback = buildFallbackPlan()
+            if (fallback == null || fallback.mediaItems.isEmpty()) {
+                PlayerAdLogger.e("PLAYBACK", "Sem rede, sem DispatchPlan persistido util e sem fallback local", e)
+                throw e
+            }
+            PlayerAdLogger.logFallbackActivated(
+                "arranque offline — ${fallback.mediaItems.size} itens locais (propagandas/vinhetas), proporcao=${fallbackPropagandasPerVinheta}:1"
+            )
+            fallback to PlanSource.FALLBACK_LOCAL
+            }
+        }
+        val (initialPlan, initialSource) = initialPlanWithSource
+        updatePlanSource(initialSource, "Fonte inicial do plano")
+        PlayerAdLogger.i("LIFECYCLE", "(3) Loop de playback; após cada ciclo: heartbeat + novo dispatch; eventos com token atualizado")
+        playLoop(initialPlan, sessionToken, initialSource)
     }
 
     private fun parseDispatchPlan(json: JSONObject): DispatchPlan {
+        if (!json.optBoolean("success", true)) {
+            val err = json.optString("error", "").ifBlank { "(sem mensagem)" }
+            PlayerAdLogger.e("DISPATCH", "Resposta com success=false: $err", null)
+        }
         val planObj = json.optJSONObject("plan") ?: JSONObject()
         val playlistId = planObj.optLong("playlistId", 0L)
         val playlistName = planObj.optString("playlistName", "DispatchPlan")
@@ -173,11 +213,30 @@ class PlayerController(
      * Loop simples: toca todos os itens em ordem, repetindo em ciclo.
      * Preferindo cache local, caindo para streaming via URL.
      */
-    private suspend fun playLoop(plan: DispatchPlan, token: String) = withContext(Dispatchers.Main) {
+    private suspend fun playLoop(
+        plan: DispatchPlan,
+        token: String,
+        initialSource: PlanSource
+    ) = withContext(Dispatchers.Main) {
         var currentPlan = plan
+        var currentToken = token
+        var currentPlanSource = initialSource
         var index = 0
+        var completedFullCycle = false
         while (true) {
             if (currentPlan.mediaItems.isEmpty()) {
+                val persistedPlan = loadDispatchPlanFromDisk()?.let { parseDispatchPlan(it) }
+                if (persistedPlan != null && persistedPlan.mediaItems.isNotEmpty()) {
+                    PlayerAdLogger.logFallbackActivated(
+                        "plano remoto vazio — usando ultimo DispatchPlan persistido (${persistedPlan.mediaItems.size} itens)"
+                    )
+                    currentPlan = persistedPlan
+                    currentPlanSource = PlanSource.PERSISTED
+                    updatePlanSource(currentPlanSource, "Fonte do plano alterada")
+                    index = 0
+                    completedFullCycle = false
+                    continue
+                }
                 // Plano vazio: tentar usar fallback sintético (propagandas + vinhetas locais)
                 val fallback = buildFallbackPlan()
                 if (fallback == null || fallback.mediaItems.isEmpty()) {
@@ -192,17 +251,56 @@ class PlayerController(
                         "plano remoto vazio — ${fallback.mediaItems.size} itens locais (propagandas/vinhetas)"
                     )
                     currentPlan = fallback
+                    currentPlanSource = PlanSource.FALLBACK_LOCAL
+                    updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                     index = 0
+                    completedFullCycle = false
                 }
             }
+
+            if (currentPlan.mediaItems.isNotEmpty() && index == 0 && completedFullCycle) {
+                try {
+                    currentToken = withContext(Dispatchers.IO) { apiClient.heartbeat() }
+                    val dispatchJson = withContext(Dispatchers.IO) {
+                        apiClient.getDispatchPlan(currentToken)
+                    }
+                    withContext(Dispatchers.IO) { saveDispatchPlanToDisk(dispatchJson) }
+                    apiClient.cachedToken()?.let { currentToken = it }
+                    val newPlan = parseDispatchPlan(dispatchJson)
+                    PlayerAdLogger.i(
+                        "DISPATCH",
+                        "Plano atualizado após ciclo — playlist=${newPlan.playlistName} (${newPlan.mediaItems.size} itens)"
+                    )
+                    PlayerAdLogger.logDispatchPlanReceived(
+                        newPlan.playlistId,
+                        newPlan.playlistName,
+                        newPlan.mediaItems.size,
+                        newPlan.campaignId
+                    )
+                    currentPlan = newPlan
+                    currentPlanSource = PlanSource.ONLINE
+                    updatePlanSource(currentPlanSource, "Fonte do plano alterada")
+                    withContext(Dispatchers.IO) { preloadPlan(currentPlan) }
+                } catch (e: Exception) {
+                    PlayerAdLogger.e(
+                        "DISPATCH",
+                        "Falha ao atualizar plano após ciclo; mantém plano atual ($currentPlanSource)",
+                        e
+                    )
+                }
+            }
+
             val item = currentPlan.mediaItems[index]
-            playItem(plan, item, token)
+            currentToken = playItem(currentPlan, item, currentToken)
 
             index = (index + 1) % currentPlan.mediaItems.size
+            if (index == 0) completedFullCycle = true
         }
     }
 
-    private suspend fun playItem(plan: DispatchPlan, item: DispatchMediaItem, token: String) {
+    /** @return token a usar no próximo item (pode ter sido renovado ao enviar eventos). */
+    private suspend fun playItem(plan: DispatchPlan, item: DispatchMediaItem, token: String): String {
+        var t = token
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
         // Fallback local (file://) não usa cache/metadata
@@ -220,6 +318,16 @@ class PlayerController(
 
         // Para imagens, não usamos ExoPlayer: mostramos em ImageView.
         if (!isVideo) {
+            if (!acceptImagesInPlaylist) {
+                imageView.visibility = android.view.View.GONE
+                imageView.setImageDrawable(null)
+                PlayerAdLogger.i(
+                    "PLAYBACK",
+                    "Imagem ignorada (aceitar imagens na playlist desligado) — mediaId=${item.mediaId}"
+                )
+                delay(1L)
+                return t
+            }
             imageView.visibility = android.view.View.VISIBLE
             exoPlayer.stop()
             val durationSeconds = item.duration ?: DEFAULT_IMAGE_DURATION_SECONDS
@@ -234,8 +342,8 @@ class PlayerController(
 
             // Atualiza eventos para imagem (equivalente ao player-web)
             try {
-                eventsClient.sendEvent(
-                    token = token,
+                t = eventsClient.sendEvent(
+                    token = t,
                     eventType = "image_display",
                     mediaId = item.mediaId,
                     playlistId = plan.playlistId,
@@ -256,16 +364,15 @@ class PlayerController(
                 else -> Uri.parse(item.url)
             }
 
+            val maxSide = targetMaxBitmapSidePx()
             val bitmap = withContext(Dispatchers.IO) {
                 try {
-                    if (imageUri.scheme == "file") {
-                        android.graphics.BitmapFactory.decodeFile(imageUri.path)
-                    } else {
-                        // Fallback: tenta decodificar via HTTP (pode ser lento mas evita tela vazia)
-                        val conn = java.net.URL(imageUri.toString()).openConnection()
-                        conn.getInputStream().use { input ->
-                            android.graphics.BitmapFactory.decodeStream(input)
+                    when (imageUri.scheme) {
+                        "file" -> {
+                            val path = imageUri.path ?: return@withContext null
+                            decodeScaledBitmapFromFile(path, maxSide)
                         }
+                        else -> decodeScaledBitmapFromHttp(imageUri.toString(), maxSide)
                     }
                 } catch (_: Exception) {
                     null
@@ -278,10 +385,10 @@ class PlayerController(
                 imageView.setImageDrawable(null)
             }
 
-            kotlinx.coroutines.delay(durationMs)
+            delay(durationMs)
             imageView.visibility = android.view.View.GONE
             PlayerAdLogger.logPlaybackEnd("imagem", item.mediaId, durationSeconds)
-            return
+            return t
         }
 
         // Vídeos: garantir que ImageView está escondido e usar ExoPlayer com duração natural.
@@ -305,8 +412,8 @@ class PlayerController(
 
         // Evento de início de reprodução
         try {
-            eventsClient.sendEvent(
-                token = token,
+            t = eventsClient.sendEvent(
+                token = t,
                 eventType = "video_playback_start",
                 mediaId = item.mediaId,
                 playlistId = plan.playlistId,
@@ -330,8 +437,8 @@ class PlayerController(
 
         // Evento de fim de reprodução
         try {
-            eventsClient.sendEvent(
-                token = token,
+            t = eventsClient.sendEvent(
+                token = t,
                 eventType = "video_playback_end",
                 mediaId = item.mediaId,
                 playlistId = plan.playlistId,
@@ -341,12 +448,13 @@ class PlayerController(
                 metadata = emptyMap()
             )
         } catch (_: Exception) { }
+        return t
     }
 
     /**
      * Constrói um DispatchPlan sintético de fallback usando arquivos locais:
      * - Usa arquivos em propagandas/ e vinhetas/
-     * - Intercala: 3 propagandas, 1 vinheta
+     * - Intercala: N propagandas, 1 vinheta (N vindo de config)
      * - duration dos vídeos fica a cargo do player (duration=null),
      *   mantendo o "padrão da mídia" (duração real do arquivo).
      */
@@ -354,15 +462,14 @@ class PlayerController(
         val propagandas = listFallbackFiles(propagandasDir)
         val vinhetas = listFallbackFiles(vinhetasDir)
 
-        // Para o cenário pedido: um vídeo em propagandas e um em vinhetas,
-        // a regra do fallback deve gerar sempre 3 propagandas + 1 vinheta (total 4 itens),
-        // repetindo o único arquivo quando necessário.
+        // Regra configurável: N propagandas + 1 vinheta, repetindo arquivos se necessário.
         if (propagandas.isEmpty() || vinhetas.isEmpty()) return null
 
         val items = mutableListOf<DispatchMediaItem>()
+        val propagandasPerVinheta = fallbackPropagandasPerVinheta.coerceAtLeast(1)
 
-        // 3 propagandas
-        for (k in 0 until 3) {
+        // N propagandas
+        for (k in 0 until propagandasPerVinheta) {
             val file = propagandas[k % propagandas.size]
             val mediaType = guessFallbackMediaType(file.name)
             val durationSeconds = if (mediaType == "image") DEFAULT_IMAGE_DURATION_SECONDS else null
@@ -389,7 +496,7 @@ class PlayerController(
 
         return DispatchPlan(
             playlistId = 0L,
-            playlistName = "Fallback (Propagandas padrão)",
+            playlistName = "Fallback (Propagandas padrão ${propagandasPerVinheta}:1)",
             mediaItems = items,
             campaignId = null
         )
@@ -430,9 +537,112 @@ class PlayerController(
         }
     }
 
+    private suspend fun saveDispatchPlanToDisk(json: JSONObject) = withContext(Dispatchers.IO) {
+        try {
+            val parent = persistedDispatchFile.parentFile
+            if (parent != null && !parent.exists()) parent.mkdirs()
+            persistedDispatchFile.writeText(json.toString(), Charsets.UTF_8)
+        } catch (e: Exception) {
+            PlayerAdLogger.e("DISPATCH", "Falha ao persistir ultimo DispatchPlan em disco", e)
+        }
+    }
+
+    private suspend fun loadDispatchPlanFromDisk(): JSONObject? = withContext(Dispatchers.IO) {
+        try {
+            if (!persistedDispatchFile.exists()) return@withContext null
+            val raw = persistedDispatchFile.readText(Charsets.UTF_8)
+            if (raw.isBlank()) return@withContext null
+            JSONObject(raw)
+        } catch (e: Exception) {
+            PlayerAdLogger.e("DISPATCH", "Falha ao ler DispatchPlan persistido", e)
+            null
+        }
+    }
+
+    private suspend fun persistCurrentPlanSource(source: PlanSource) = withContext(Dispatchers.IO) {
+        try {
+            val parent = currentPlanSourceFile.parentFile
+            if (parent != null && !parent.exists()) parent.mkdirs()
+            currentPlanSourceFile.writeText(source.name, Charsets.UTF_8)
+        } catch (e: Exception) {
+            PlayerAdLogger.e("PLAYBACK", "Falha ao persistir fonte atual do plano", e)
+        }
+    }
+
+    private suspend fun updatePlanSource(source: PlanSource, logPrefix: String) {
+        PlayerAdLogger.i("PLAYBACK", "$logPrefix: $source")
+        persistCurrentPlanSource(source)
+    }
+
     /**
      * Suspende até o ExoPlayer sinalizar fim ou erro, retornando a posição tocada em ms.
      */
+    /**
+     * Limite do maior lado do bitmap em px (ligado ao ecrã, com teto para 4K).
+     */
+    private fun targetMaxBitmapSidePx(): Int {
+        val dm = context.resources.displayMetrics
+        val longest = maxOf(dm.widthPixels, dm.heightPixels)
+        return longest.coerceIn(720, 3840)
+    }
+
+    private fun calculateInSampleSizeForMaxSide(bounds: BitmapFactory.Options, maxSide: Int): Int {
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return 1
+        var w = bounds.outWidth
+        var h = bounds.outHeight
+        var sample = 1
+        while (w > maxSide || h > maxSide) {
+            sample *= 2
+            w = (w + 1) / 2
+            h = (h + 1) / 2
+        }
+        return sample.coerceAtLeast(1)
+    }
+
+    private fun decodeScaledBitmapFromFile(path: String, maxSide: Int): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val opts = BitmapFactory.Options().apply {
+            inSampleSize = calculateInSampleSizeForMaxSide(bounds, maxSide)
+            inJustDecodeBounds = false
+        }
+        return BitmapFactory.decodeFile(path, opts)
+    }
+
+    private fun openImageHttpConnection(imageUrl: String): HttpURLConnection {
+        val conn = URL(imageUrl).openConnection() as HttpURLConnection
+        conn.connectTimeout = 12_000
+        conn.readTimeout = 30_000
+        return conn
+    }
+
+    /** Duas leituras HTTP: bounds + decode com inSampleSize (evita OOM em imagens grandes). */
+    private fun decodeScaledBitmapFromHttp(imageUrl: String, maxSide: Int): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val connBounds = openImageHttpConnection(imageUrl)
+        try {
+            connBounds.inputStream.use { input ->
+                BitmapFactory.decodeStream(input, null, bounds)
+            }
+        } finally {
+            connBounds.disconnect()
+        }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val opts = BitmapFactory.Options().apply {
+            inSampleSize = calculateInSampleSizeForMaxSide(bounds, maxSide)
+            inJustDecodeBounds = false
+        }
+        val connDecode = openImageHttpConnection(imageUrl)
+        try {
+            return connDecode.inputStream.use { input ->
+                BitmapFactory.decodeStream(input, null, opts)
+            }
+        } finally {
+            connDecode.disconnect()
+        }
+    }
+
     private suspend fun waitForPlaybackEnd(): Long = suspendCancellableCoroutine { cont ->
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {

@@ -1,38 +1,42 @@
 /**
- * HeartbeatService - Envia status periódico para o backend
- * Intervalo padrão: 30 segundos
+ * HeartbeatService - Envia status periódico para o backend (Dispatcher)
+ * URL: /api/player/heartbeat com query uin, token, deviceId (opcional)
+ * Corpo: { status, metrics, executedCommands }
  */
 
 class HeartbeatService {
-  constructor(apiUrl, tvId, interval = 30000) {
+  constructor(apiUrl, tvId, interval = 30000, deviceId = null) {
     this.apiUrl = apiUrl;
     this.tvId = tvId;
     this.interval = interval;
+    this.deviceId = deviceId;
     this.heartbeatInterval = null;
     this.startTime = Date.now();
     this.token = null;
-    this.getPlayerStatus = null; // Callback para obter status do player
-    this.getCurrentStream = null; // Callback para obter stream atual
+    this.getPlayerStatus = null;
+    this.getCurrentStream = null;
   }
 
-  /**
-   * Define token de autenticação
-   */
+  /** Base da API sempre terminando em /api (compatível com base com ou sem sufixo) */
+  _dispatchApiBase() {
+    let b = String(this.apiUrl || '').replace(/\/$/, '');
+    if (!b.endsWith('/api')) b = `${b}/api`;
+    return b;
+  }
+
   setToken(token) {
     this.token = token;
   }
 
-  /**
-   * Define callbacks para obter informações do player
-   */
+  setDeviceId(deviceId) {
+    this.deviceId = deviceId;
+  }
+
   setCallbacks(getPlayerStatus, getCurrentStream) {
     this.getPlayerStatus = getPlayerStatus;
     this.getCurrentStream = getCurrentStream;
   }
 
-  /**
-   * Inicia envio de heartbeats
-   */
   start() {
     if (this.heartbeatInterval) {
       console.warn('[Heartbeat] Service já está ativo');
@@ -41,18 +45,13 @@ class HeartbeatService {
 
     console.log(`[Heartbeat] Iniciando service (intervalo: ${this.interval}ms)`);
 
-    // Enviar heartbeat imediatamente
     this.sendHeartbeat();
 
-    // Depois, enviar periodicamente
     this.heartbeatInterval = setInterval(() => {
       this.sendHeartbeat();
     }, this.interval);
   }
 
-  /**
-   * Para o serviço de heartbeat
-   */
   stop() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
@@ -61,39 +60,48 @@ class HeartbeatService {
     }
   }
 
-  /**
-   * Envia heartbeat para o backend
-   */
   async sendHeartbeat() {
     try {
       const uptime = Math.floor((Date.now() - this.startTime) / 1000);
-      
-      // Obter status do player via callback
-      const status = this.getPlayerStatus ? this.getPlayerStatus() : 'UNKNOWN';
+      const rawStatus = this.getPlayerStatus ? this.getPlayerStatus() : null;
       const currentStream = this.getCurrentStream ? this.getCurrentStream() : null;
 
-      const data = {
-        status: status,
-        uptime: uptime,
+      const statusLine =
+        typeof rawStatus === 'string' && rawStatus.trim() !== ''
+          ? rawStatus
+          : 'online';
+
+      const metrics = {
+        uptime,
         current_stream: currentStream,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
-
-      let url = `${this.apiUrl}/player/heartbeat?uin=${this.tvId}`;
-
-      // Adicionar token como query param (formato esperado pelo backend)
-      if (this.token) {
-        url += `&token=${encodeURIComponent(this.token)}`;
+      if (rawStatus != null && typeof rawStatus !== 'string') {
+        metrics.playerStatus = rawStatus;
       }
 
-      const headers = {
-        'Content-Type': 'application/json'
+      const body = {
+        status: statusLine,
+        metrics,
+        executedCommands: [],
       };
+
+      let url = `${this._dispatchApiBase()}/player/heartbeat?uin=${encodeURIComponent(this.tvId)}`;
+
+      if (this.token) {
+        url += `&token=${encodeURIComponent(this.token)}`;
+      } else {
+        console.warn('[Heartbeat] Sem token; o servidor pode rejeitar o heartbeat');
+      }
+
+      if (this.deviceId) {
+        url += `&deviceId=${encodeURIComponent(this.deviceId)}`;
+      }
 
       const response = await fetch(url, {
         method: 'POST',
-        headers: headers,
-        body: JSON.stringify(data)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -101,13 +109,12 @@ class HeartbeatService {
       }
 
       const result = await response.json();
-      
-      // Atualizar token se recebido na resposta
+
       if (result.token) {
         this.token = result.token;
       }
 
-      console.log('[Heartbeat] Enviado com sucesso:', { status, uptime });
+      console.log('[Heartbeat] Enviado com sucesso:', { status: statusLine, uptime });
       return result;
     } catch (error) {
       console.warn('[Heartbeat] Erro ao enviar heartbeat:', error.message);
@@ -115,14 +122,9 @@ class HeartbeatService {
     }
   }
 
-  /**
-   * Obtém uptime em segundos
-   */
   getUptime() {
     return Math.floor((Date.now() - this.startTime) / 1000);
   }
 }
 
-// Exportar para uso global
 window.HeartbeatService = HeartbeatService;
-

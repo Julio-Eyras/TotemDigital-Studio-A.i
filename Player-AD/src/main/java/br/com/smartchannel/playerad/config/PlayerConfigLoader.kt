@@ -5,11 +5,12 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * Carrega configuração do Player-AD (serverUrl, uin, deviceId).
+ * Carrega configuração do Player-AD (serverUrl, uin, deviceId, acceptImagesInPlaylist,
+ * fallbackPropagandasPerVinheta).
  *
  * Ordem de busca:
- * 1. Arquivo externo em /sdcard/smartsignage/player-config.json (se existir)
- * 2. Arquivo interno em filesDir/player-config.json (se existir)
+ * 1. Arquivo interno em filesDir/player-config.json (se existir)
+ * 2. Arquivo externo em /sdcard/smartsignage/player-config.json (se existir)
  * 3. Defaults embutidos (fallback)
  */
 class PlayerConfigLoader(private val context: Context) {
@@ -31,7 +32,9 @@ class PlayerConfigLoader(private val context: Context) {
         return PlayerConfig(
             serverUrl = "http://192.168.1.110",
             uin = "tot001",
-            deviceId = "android-tv-tot001"
+            deviceId = "android-tv-tot001",
+            acceptImagesInPlaylist = true,
+            fallbackPropagandasPerVinheta = 3
         )
     }
 
@@ -45,7 +48,16 @@ class PlayerConfigLoader(private val context: Context) {
             if (serverUrl.isBlank() || uin.isBlank() || deviceId.isBlank()) {
                 null
             } else {
-                PlayerConfig(serverUrl, uin, deviceId)
+                val acceptImages = json.optBoolean("acceptImagesInPlaylist", true)
+                val fallbackRatioRaw = json.optInt("fallbackPropagandasPerVinheta", 3)
+                val fallbackRatio = fallbackRatioRaw.coerceAtLeast(1)
+                PlayerConfig(
+                    serverUrl = serverUrl,
+                    uin = uin,
+                    deviceId = deviceId,
+                    acceptImagesInPlaylist = acceptImages,
+                    fallbackPropagandasPerVinheta = fallbackRatio
+                )
             }
         } catch (_: Exception) {
             null

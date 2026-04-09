@@ -4,36 +4,30 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
-import androidx.lifecycle.LifecycleService
-import com.smartsignage.player.core.HeartbeatService as CoreHeartbeatService
 
 /**
- * HeartbeatService - Android Service
- * Serviço em background para heartbeat
+ * HeartbeatService - Android Service (stub)
+ * Heartbeat ativo é feito pelo [com.smartsignage.player.core.HeartbeatService] no ViewModel.
  */
-class HeartbeatService : LifecycleService() {
+class HeartbeatService : Service() {
 
-    private lateinit var coreHeartbeatService: CoreHeartbeatService
+    companion object {
+        private const val TAG = "HeartbeatService"
+    }
 
     override fun onCreate() {
         super.onCreate()
-        // Inicializar será feito quando necessário
+        Log.d(TAG, "onCreate")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        super.onStartCommand(intent, flags, startId)
-        // Service será iniciado quando necessário
         return START_STICKY
     }
 
-    override fun onBind(intent: Intent): IBinder? {
-        super.onBind(intent)
-        return null
-    }
+    override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         super.onDestroy()
-        // Cleanup será feito automaticamente
+        Log.d(TAG, "onDestroy")
     }
 }
-

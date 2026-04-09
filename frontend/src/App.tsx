@@ -24,6 +24,7 @@ import SubscriberLayout from './components/Layout/SubscriberLayout';
 // Lazy-loaded pages (code splitting)
 const Dashboard = React.lazy(() => import('./pages/Dashboard/Dashboard'));
 const Media = React.lazy(() => import('./pages/Media/Media'));
+const Vinhetas = React.lazy(() => import('./pages/Vinhetas/Vinhetas'));
 const Playlists = React.lazy(() => import('./pages/Playlists/Playlists'));
 const Players = React.lazy(() => import('./pages/Players/Players'));
 const Users = React.lazy(() => import('./pages/Users/Users'));
@@ -316,6 +317,14 @@ const AppContent: React.FC = () => {
             element={
               <ProtectedRoute>
                 <Media />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/vinhetas"
+            element={
+              <ProtectedRoute>
+                <Vinhetas />
               </ProtectedRoute>
             }
           />
