@@ -260,6 +260,18 @@ $RECYCLE.BIN/
 
 # Android SDK local (máquina específica)
 SmartSignage-AD/local.properties
+**/local.properties
+
+# Gradle — cache e estado local (Android Studio / gradlew); nunca versionar
+**/.gradle/
+
+# Builds nativos Android (NDK / CMake)
+**/.cxx/
+**/.externalNativeBuild/
+
+# APK/AAB em pacotes de pendrive (binários grandes; gerar com assemble/release)
+install-pendrive/**/*.apk
+install-pendrive-smartsignage-ad/**/*.apk
 
 # Artefactos acidentais na raiz (ficheiros vazios / lixo de npm)
 /node
