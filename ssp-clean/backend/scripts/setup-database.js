@@ -1,0 +1,215 @@
+/**
+ * Script para criar o banco de dados e aplicar o schema
+ */
+
+const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Configuração para conectar ao Postgres local
+ * - Prioriza variáveis de ambiente (útil no Windows, onde psql pode não estar instalado)
+ * - Mantém defaults para ambiente dev
+ */
+const PG_HOST = process.env.PGHOST || 'localhost';
+const PG_PORT = Number(process.env.PGPORT || 5432);
+const PG_USER = process.env.PGUSER || 'postgres';
+const PG_PASSWORD = process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || 'postgres';
+const DB_NAME = process.env.DB_NAME || 'smartsignage';
+
+// Conectar ao banco postgres (padrão) para criar o banco alvo
+const adminConfig = {
+  host: PG_HOST,
+  port: PG_PORT,
+  user: PG_USER,
+  password: PG_PASSWORD,
+  database: 'postgres'
+};
+
+const dbConfig = {
+  ...adminConfig,
+  database: DB_NAME
+};
+
+async function createDatabase() {
+  const adminPool = new Pool(adminConfig);
+  
+  try {
+    console.log('🔍 Verificando se o banco de dados existe...');
+
+    const resetDb = ['1', 'true', 'yes'].includes(String(process.env.RESET_DB || '').toLowerCase());
+    
+    // Verificar se o banco já existe
+    const checkResult = await adminPool.query(
+      "SELECT 1 FROM pg_database WHERE datname = $1",
+      [DB_NAME]
+    );
+    
+    if (checkResult.rows.length > 0) {
+      if (!resetDb) {
+        console.log(`✅ Banco de dados \"${DB_NAME}\" já existe`);
+        await adminPool.end();
+        return true;
+      }
+
+      if (!/^[a-zA-Z0-9_]+$/.test(DB_NAME)) {
+        throw new Error(`Nome de banco inválido para reset: "${DB_NAME}". Use apenas [a-zA-Z0-9_].`);
+      }
+
+      console.log(`🧹 RESET_DB ativo: recriando banco \"${DB_NAME}\" (isso vai apagar todos os dados)...`);
+
+      // Encerrar conexões ativas para permitir DROP DATABASE
+      await adminPool.query(
+        `
+        SELECT pg_terminate_backend(pid)
+        FROM pg_stat_activity
+        WHERE datname = $1
+          AND pid <> pg_backend_pid()
+        `,
+        [DB_NAME]
+      );
+
+      await adminPool.query(`DROP DATABASE IF EXISTS ${DB_NAME}`);
+      console.log('✅ Banco de dados removido');
+
+      console.log(`📦 Criando banco de dados \"${DB_NAME}\"...`);
+      await adminPool.query(`CREATE DATABASE ${DB_NAME}`);
+      console.log('✅ Banco de dados recriado com sucesso!');
+
+      await adminPool.end();
+      return true;
+    }
+    
+    console.log(`📦 Criando banco de dados \"${DB_NAME}\"...`);
+    await adminPool.query(`CREATE DATABASE ${DB_NAME}`);
+    console.log('✅ Banco de dados criado com sucesso!');
+    
+    await adminPool.end();
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao criar banco de dados:', error.message);
+    await adminPool.end();
+    return false;
+  }
+}
+
+async function applySchema() {
+  const dbDir = path.join(__dirname, '../../database');
+  const loadDemoSeeds = ['1', 'true', 'yes'].includes(String(process.env.LOAD_DEMO_SEEDS || '').toLowerCase());
+  
+  // Ordem dos arquivos SQL a serem executados
+  const sqlFiles = [
+    'smartchannel-db-v2-refactored-part1-schema-setup.sql',
+    'smartchannel-db-v2-refactored-part2-tables-base.sql',
+    'smartchannel-db-v2-refactored-part3-tables-dependent.sql',
+    'smartchannel-db-v2-refactored-part4-billing-contracts.sql',
+    'smartchannel-db-v2-refactored-part5-tables-relationships.sql',
+    'smartchannel-db-v2-refactored-part6-tables-other.sql',
+    'smartchannel-db-v2-refactored-part7-foreign-keys.sql',
+    'smartchannel-db-v2-refactored-part8-indexes.sql',
+    'smartchannel-db-v2-refactored-part9-triggers-functions.sql',
+    'smartchannel-db-v2-refactored-part10-views.sql',
+    'smartchannel-db-v2-refactored-part11-playlist-mix.sql',
+    'smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql',
+    'smartchannel-db-v2-refactored-part13-dispatcher-views.sql',
+    'seeds-default-settings.sql',
+    'seeds-playlist-mix.sql'
+  ];
+
+  if (loadDemoSeeds) {
+    // Usar carga-inicial-v6.sql (validada e consistente) como padrão.
+    const v6Seed = path.join(dbDir, 'carga-inicial-v6.sql');
+
+    if (fs.existsSync(v6Seed)) {
+      sqlFiles.push('carga-inicial-v6.sql');
+    }
+  }
+  // Fix sequences after seeds (SERIAL columns with explicit IDs)
+  const fixSeqFile = path.join(dbDir, 'fix-sequences-after-seed.sql');
+  if (fs.existsSync(fixSeqFile)) {
+    sqlFiles.push('fix-sequences-after-seed.sql');
+  }
+  
+  const pool = new Pool(dbConfig);
+  
+  try {
+    console.log('📄 Aplicando schema v2.0...\n');
+    if (loadDemoSeeds) {
+      console.log('🌱 LOAD_DEMO_SEEDS ativo: aplicando carga inicial (v5) ao final.\n');
+    }
+    
+    for (let i = 0; i < sqlFiles.length; i++) {
+      const sqlFile = sqlFiles[i];
+      const filePath = path.join(dbDir, sqlFile);
+      
+      if (!fs.existsSync(filePath)) {
+        console.error(`❌ Arquivo não encontrado: ${sqlFile}`);
+        continue;
+      }
+      
+      console.log(`[${i + 1}/${sqlFiles.length}] Executando ${sqlFile}...`);
+      const sql = fs.readFileSync(filePath, 'utf8');
+      
+      // Executar o SQL completo (pg aceita múltiplos comandos)
+      try {
+        await pool.query(sql);
+        console.log(`   ✅ ${sqlFile} executado com sucesso`);
+      } catch (err) {
+        // Ignorar erros de "já existe" e similares
+        if (err.message.includes('already exists') || 
+            err.message.includes('duplicate key') ||
+            err.message.includes('does not exist') || // Coluna não existe (pode ser problema de ordem)
+            err.code === '42P07' || // duplicate_table
+            err.code === '42710' || // duplicate_object
+            err.code === '42703') { // undefined_column
+          console.log(`   ⚠️  ${sqlFile}: ${err.message.substring(0, 150)}`);
+          console.log(`   ℹ️  Continuando (erro esperado/não crítico)...`);
+          // Não lançar erro - continuar
+        } else if (sqlFile.includes('indexes') || sqlFile.includes('triggers') || sqlFile.includes('foreign-keys') || sqlFile.includes('views')) {
+          // Para índices, triggers, FKs e views, avisar mas continuar
+          console.log(`   ⚠️  ${sqlFile}: ${err.message.substring(0, 150)}`);
+          console.log(`   ℹ️  Continuando (erro em estrutura não crítica)...`);
+        } else {
+          console.error(`   ❌ Erro ao executar ${sqlFile}:`, err.message.substring(0, 200));
+          throw err;
+        }
+      }
+    }
+    
+    console.log('\n✅ Schema aplicado com sucesso!');
+    if (!loadDemoSeeds) {
+      console.log('\nℹ️  Dica: para carregar dados de demonstração (carga inicial v5), execute:');
+      console.log('   $env:LOAD_DEMO_SEEDS=1; node backend/scripts/setup-database.js');
+    }
+    await pool.end();
+    return true;
+  } catch (error) {
+    console.error('\n❌ Erro ao aplicar schema:', error.message);
+    await pool.end();
+    return false;
+  }
+}
+
+async function main() {
+  console.log('🚀 Configurando banco de dados SmartSignage Pro...\n');
+  
+  const dbCreated = await createDatabase();
+  if (!dbCreated) {
+    process.exit(1);
+  }
+  
+  // Aplicar schema automaticamente
+  console.log('\n📋 Aplicando schema v2.0...');
+  const schemaApplied = await applySchema();
+  if (schemaApplied) {
+    console.log('\n✅ Configuração do banco de dados concluída!');
+    process.exit(0);
+  } else {
+    console.log('\n⚠️  Schema não foi aplicado. Você pode aplicar manualmente usando:');
+    console.log('   psql -U postgres -d smartsignage -f database/smartchannel-db-v2-refactored-apply-all.sql');
+    process.exit(1);
+  }
+}
+
+main().catch(console.error);
+

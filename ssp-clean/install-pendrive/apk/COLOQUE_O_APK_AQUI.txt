@@ -1,0 +1,9 @@
+Coloque nesta pasta um único ficheiro APK assinado do Player-AD (release).
+
+Exemplo de nome: player-ad-release.apk
+
+Gere o APK com Gradle no projeto Player-AD:
+  ./gradlew assembleRelease
+
+Ou execute na raiz do repositório:
+  Player-AD/scripts/prepare-install-pendrive.sh

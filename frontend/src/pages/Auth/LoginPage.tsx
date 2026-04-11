@@ -119,6 +119,10 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       else if (error.response?.status === 401) {
         setError('Credenciais inválidas. Verifique seu usuário e senha.');
       }
+      // Backend indisponível (Nginx sem upstream/API fora do ar)
+      else if (error.response?.status === 502) {
+        setError('Servidor temporariamente indisponível (502). Verifique se o serviço da API está ativo.');
+      }
       // Outros erros
       else {
         setError(error.response?.data?.error || error.response?.data?.message || 'Erro ao fazer login. Tente novamente.');

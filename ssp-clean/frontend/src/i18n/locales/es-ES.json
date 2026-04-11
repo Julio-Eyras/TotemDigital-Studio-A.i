@@ -1,0 +1,55 @@
+{
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "export": "Exportar",
+    "import": "Importar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "warning": "Advertencia",
+    "info": "Información"
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "users": "Usuarios",
+    "clients": "Clientes",
+    "media": "Medios",
+    "playlists": "Listas de reproducción",
+    "campaigns": "Campañas",
+    "totems": "Tótems",
+    "analytics": "Analíticas",
+    "reports": "Informes",
+    "settings": "Configuración",
+    "billing": "Facturación"
+  },
+  "dashboard": {
+    "title": "Panel",
+    "totalClients": "Total de Clientes",
+    "totalTotems": "Total de Tótems",
+    "totalCampaigns": "Total de Campañas",
+    "totalMedia": "Total de Medios",
+    "onlineTotems": "Tótems En Línea",
+    "offlineTotems": "Tótems Desconectados"
+  },
+  "auth": {
+    "login": "Iniciar Sesión",
+    "logout": "Cerrar Sesión",
+    "username": "Usuario",
+    "password": "Contraseña",
+    "forgotPassword": "Olvidé mi contraseña",
+    "resetPassword": "Restablecer contraseña"
+  },
+  "errors": {
+    "generic": "Ocurrió un error. Intente nuevamente.",
+    "network": "Error de conexión. Verifique su internet.",
+    "unauthorized": "No autorizado. Inicie sesión nuevamente.",
+    "notFound": "Recurso no encontrado."
+  }
+}
+

@@ -1,0 +1,55 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Information"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "clients": "Clients",
+    "media": "Media",
+    "playlists": "Playlists",
+    "campaigns": "Campaigns",
+    "totems": "Totems",
+    "analytics": "Analytics",
+    "reports": "Reports",
+    "settings": "Settings",
+    "billing": "Billing"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "totalClients": "Total Clients",
+    "totalTotems": "Total Totems",
+    "totalCampaigns": "Total Campaigns",
+    "totalMedia": "Total Media",
+    "onlineTotems": "Online Totems",
+    "offlineTotems": "Offline Totems"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "username": "Username",
+    "password": "Password",
+    "forgotPassword": "Forgot Password",
+    "resetPassword": "Reset Password"
+  },
+  "errors": {
+    "generic": "An error occurred. Please try again.",
+    "network": "Connection error. Check your internet.",
+    "unauthorized": "Unauthorized. Please login again.",
+    "notFound": "Resource not found."
+  }
+}
+

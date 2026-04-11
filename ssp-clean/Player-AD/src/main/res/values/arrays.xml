@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="player_storage_modes">
+        <item>auto</item>
+        <item>internal</item>
+        <item>external_primary</item>
+        <item>sdcard</item>
+        <item>removable_preferred</item>
+        <item>path_override</item>
+    </string-array>
+</resources>

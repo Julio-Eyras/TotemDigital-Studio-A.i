@@ -1,0 +1,21 @@
+{
+  "id": "br.com.smartchannel.playerwos",
+  "version": "1.0.0",
+  "vendor": "Smart Signage Pro",
+  "type": "web",
+  "main": "index.html",
+  "title": "SmartSignage Player-WOS",
+  "icon": "icon.png",
+  "largeIcon": "icon.png",
+  "visible": false,
+  "supportTouchMode": "none",
+  "noSplashOnLaunch": true,
+  "requiredPermissions": [
+    "network.operation",
+    "media.operation",
+    "media.read",
+    "systeminformation.operation"
+  ],
+  "disableBackHistoryAPI": true,
+  "trustLevel": "trusted"
+}

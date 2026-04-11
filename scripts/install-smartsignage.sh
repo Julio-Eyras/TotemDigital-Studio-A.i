@@ -11290,6 +11290,18 @@ main() {
     # Para single-server: iniciar serviços após setup completo
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
         start_services_in_order
+
+        # Garantia extra: instalação deve terminar com backend habilitado e ativo.
+        # Em alguns cenários (race de systemd/DB), o serviço pode ficar inativo
+        # mesmo após a sequência principal de start.
+        if ! systemctl is-active --quiet smart-signage 2>/dev/null; then
+            warning "Serviço smart-signage inativo após instalação. Aplicando start forçado..."
+            ensure_smart_signage_service
+            sudo systemctl daemon-reload 2>/dev/null || true
+            sudo systemctl enable smart-signage 2>/dev/null || true
+            sudo systemctl start smart-signage 2>/dev/null || true
+            sleep 5
+        fi
         
         # Verificar que portas 80 e 3000 estão em uso; se não, criar serviço (se faltar), iniciar e revalidar
         if ! (command -v ss &>/dev/null && ss -tlnp 2>/dev/null | grep -q ":3000 ") || \
@@ -11318,6 +11330,40 @@ main() {
                 error "   Depois: sudo bash $INSTALL_DIR/scripts/start-services.sh"
                 exit 1
             fi
+        fi
+
+        # Last resort: chamar start-services.sh automaticamente quando disponível.
+        # Isso cobre cenários intermitentes de pós-instalação (systemd/nginx) sem ação manual.
+        if ! (command -v ss &>/dev/null && ss -tlnp 2>/dev/null | grep -q ":3000 ") || \
+           ! (command -v ss &>/dev/null && ss -tlnp 2>/dev/null | grep -q ":80 "); then
+            local start_services_script=""
+            if [[ -x "$INSTALL_DIR/scripts/start-services.sh" ]]; then
+                start_services_script="$INSTALL_DIR/scripts/start-services.sh"
+            elif [[ -x "$SOURCE_DIR/scripts/start-services.sh" ]]; then
+                start_services_script="$SOURCE_DIR/scripts/start-services.sh"
+            elif [[ -f "$INSTALL_DIR/scripts/start-services.sh" ]]; then
+                start_services_script="$INSTALL_DIR/scripts/start-services.sh"
+            elif [[ -f "$SOURCE_DIR/scripts/start-services.sh" ]]; then
+                start_services_script="$SOURCE_DIR/scripts/start-services.sh"
+            fi
+
+            if [[ -n "$start_services_script" ]]; then
+                warning "Aplicando fallback final: executando $start_services_script ..."
+                bash "$start_services_script" || true
+                sleep 3
+            fi
+        fi
+
+        # Verificação final após fallback.
+        if ! (command -v ss &>/dev/null && ss -tlnp 2>/dev/null | grep -q ":3000 "); then
+            error "❌ Backend não está a escutar na porta 3000 após fallback automático."
+            error "   Execute: sudo systemctl status smart-signage && sudo journalctl -u smart-signage -n 80"
+            exit 1
+        fi
+        if ! (command -v ss &>/dev/null && ss -tlnp 2>/dev/null | grep -q ":80 "); then
+            error "❌ Nginx não está a escutar na porta 80 após fallback automático."
+            error "   Execute: sudo nginx -t && sudo systemctl status nginx"
+            exit 1
         fi
     else
         check_startup_order

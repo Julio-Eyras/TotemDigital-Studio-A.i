@@ -1,0 +1,81 @@
+# Smart Signage Pro v2.1 - Dockerfile Backend
+# Container especializado apenas para o backend
+# PostgreSQL-only (Prisma removido)
+
+FROM node:18-alpine AS builder
+
+# Instalar dependências do sistema
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    curl \
+    bash \
+    openssl \
+    openssl-dev
+
+# Definir diretório de trabalho
+WORKDIR /app/backend
+
+# Copiar arquivos de dependências e configuração (explicitamente)
+COPY backend/package.json ./package.json
+COPY backend/tsconfig.json ./tsconfig.json
+
+# Instalar dependências do backend (incluindo dev para build)
+RUN npm install --include=dev
+
+# Copiar código fonte do backend
+COPY backend/src ./src
+
+# Compilar TypeScript
+RUN npm run build
+
+# Estágio de produção
+FROM node:18-alpine AS production
+
+# Instalar dependências do sistema
+RUN apk add --no-cache \
+    curl \
+    bash \
+    tzdata \
+    openssl \
+    ffmpeg
+
+# Definir timezone
+ENV TZ=America/Sao_Paulo
+ENV NODE_ENV=production
+
+# Criar usuário não-root
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S smartsignage -u 1001
+
+# Definir diretório de trabalho
+WORKDIR /app
+
+# Copiar dependências compiladas do backend
+COPY --from=builder /app/backend/dist ./backend/dist
+COPY --from=builder /app/backend/package*.json ./backend/
+
+# Instalar apenas dependências de produção
+WORKDIR /app/backend
+RUN npm install --omit=dev
+WORKDIR /app
+
+# Criar diretórios necessários
+RUN mkdir -p /app/data /app/uploads /app/logs /app/backups && \
+    chown -R smartsignage:nodejs /app
+
+# Expor porta
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/health || exit 1
+
+# Comando de inicialização - usar o caminho correto
+WORKDIR /app/backend
+
+# Mudar para usuário não-root ANTES do CMD
+USER smartsignage
+
+CMD ["node", "dist/index.js"]
