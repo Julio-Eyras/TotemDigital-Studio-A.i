@@ -274,6 +274,14 @@ install-pendrive/**/*.apk
 install-pendrive-smartsignage-ad/**/*.apk
 ssp-clean/install-pendrive/**/*.apk
 
+# Vídeos de demo do player-web (pesados; manter só imagens no Git — copiar .mp4 no deploy local)
+player-web/propagandas/*.mp4
+player-web/vinhetas/*.mp4
+propagandas/*.mp4
+vinhetas/*.mp4
+ssp-clean/player-web/propagandas/*.mp4
+ssp-clean/player-web/vinhetas/*.mp4
+
 # Artefactos acidentais na raiz (ficheiros vazios / lixo de npm)
 /node
 /smart-signage-frontend@2.1.0

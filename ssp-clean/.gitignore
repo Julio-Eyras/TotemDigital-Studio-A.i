@@ -273,6 +273,11 @@ SmartSignage-AD/local.properties
 install-pendrive/**/*.apk
 install-pendrive-smartsignage-ad/**/*.apk
 
+# Vídeos de demo do player-web (pesados; copiar .mp4 localmente)
+player-web/propagandas/*.mp4
+player-web/vinhetas/*.mp4
+vinhetas/*.mp4
+
 # Artefactos acidentais na raiz (ficheiros vazios / lixo de npm)
 /node
 /smart-signage-frontend@2.1.0
