@@ -2275,8 +2275,24 @@ export class CampaignService {
         throw new Error(`Mídias não encontradas na campanha: ${invalidIds.join(', ')}`);
       }
 
-      if (mediaIds.length !== existingMediaIds.length) {
-        throw new Error('Número de mídias não corresponde ao número de mídias na campanha');
+      if (mediaIds.length > existingMediaIds.length) {
+        throw new Error('Não é possível adicionar mídias pelo endpoint de reordenação');
+      }
+
+      const uniqueMediaIds = [...new Set(mediaIds)];
+      if (uniqueMediaIds.length !== mediaIds.length) {
+        throw new Error('Lista de mídias contém IDs duplicados');
+      }
+
+      // Lista mais curta = remoção de vínculos (clientes antigos chamavam reorder ao excluir na UI).
+      if (mediaIds.length < existingMediaIds.length) {
+        const subscriberId = campaign.subscriberId ?? (campaign as any).subscriber_id;
+        if (subscriberId == null || typeof subscriberId !== 'number') {
+          throw new Error('Campanha sem subscriber válido para atualizar mídias');
+        }
+        await this.associateMedias(campaignId, mediaIds, subscriberId, userId);
+        await this.cache.invalidateEntity('campaign', campaignId).catch(() => {});
+        return;
       }
 
       // Atualizar order_index para cada mídia
@@ -2339,8 +2355,23 @@ export class CampaignService {
         throw new Error(`Playlists não encontradas na campanha: ${invalidIds.join(', ')}`);
       }
 
-      if (playlistIds.length !== existingPlaylistIds.length) {
-        throw new Error('Número de playlists não corresponde ao número de playlists na campanha');
+      if (playlistIds.length > existingPlaylistIds.length) {
+        throw new Error('Não é possível adicionar playlists pelo endpoint de reordenação');
+      }
+
+      const uniquePlaylistIds = [...new Set(playlistIds)];
+      if (uniquePlaylistIds.length !== playlistIds.length) {
+        throw new Error('Lista de playlists contém IDs duplicados');
+      }
+
+      if (playlistIds.length < existingPlaylistIds.length) {
+        const subscriberId = campaign.subscriberId ?? (campaign as any).subscriber_id;
+        if (subscriberId == null || typeof subscriberId !== 'number') {
+          throw new Error('Campanha sem subscriber válido para atualizar playlists');
+        }
+        await this.associatePlaylists(campaignId, playlistIds, subscriberId, userId);
+        await this.cache.invalidateEntity('campaign', campaignId).catch(() => {});
+        return;
       }
 
       // Atualizar priority para cada playlist (usando priority como ordem)

@@ -16,20 +16,23 @@ if ! command -v adb >/dev/null 2>&1; then
 fi
 
 if [[ -z "$APK_PATH" ]]; then
-  echo "Buscando APK release..."
-  # Se Gradle estiver disponível e o build ainda não tiver acontecido, tenta build.
-  if [[ ! -d "$APP_ROOT/build/outputs/apk/release" ]]; then
-    echo "Tentando build release..."
-    if [[ -x "$APP_ROOT/gradlew" ]]; then
-      (cd "$APP_ROOT" && ./gradlew assembleRelease)
-    elif command -v gradle >/dev/null 2>&1; then
-      (cd "$APP_ROOT" && gradle assembleRelease)
-    else
-      echo "❌ Nem ./gradlew nem 'gradle' encontrados. Gere o APK via Android Studio/Gradle."
-      exit 1
-    fi
-  fi
+  echo "Buscando APK (release, senão debug)..."
   APK_PATH="$(ls -1t "$APP_ROOT/build/outputs/apk/release/"*.apk 2>/dev/null | head -n 1 || true)"
+  if [[ -z "$APK_PATH" || ! -f "$APK_PATH" ]]; then
+    echo "Compilando release..."
+    if [[ -x "$APP_ROOT/gradlew" ]]; then
+      (cd "$APP_ROOT" && ./gradlew assembleRelease --no-daemon) || true
+    elif command -v gradle >/dev/null 2>&1; then
+      (cd "$APP_ROOT" && gradle assembleRelease) || true
+    fi
+    APK_PATH="$(ls -1t "$APP_ROOT/build/outputs/apk/release/"*.apk 2>/dev/null | head -n 1 || true)"
+  fi
+  if [[ -z "$APK_PATH" || ! -f "$APK_PATH" ]]; then
+    echo "Release indisponível ou falhou (ex.: mergeReleaseResources); compilando debug..."
+    if [[ ! -x "$APP_ROOT/gradlew" ]]; then chmod +x "$APP_ROOT/gradlew"; fi
+    (cd "$APP_ROOT" && ./gradlew assembleDebug --no-daemon)
+    APK_PATH="$(ls -1t "$APP_ROOT/build/outputs/apk/debug/"*.apk 2>/dev/null | head -n 1 || true)"
+  fi
 fi
 
 if [[ -z "$APK_PATH" || ! -f "$APK_PATH" ]]; then
@@ -41,7 +44,10 @@ echo "APK: $APK_PATH"
 adb devices | sed -n '1,3p'
 
 echo "Instalando APK..."
-adb install -r "$APK_PATH"
+if ! adb install -r -d -g "$APK_PATH"; then
+  adb uninstall br.com.smartchannel.playerad 2>/dev/null || true
+  adb install -r -d -g "$APK_PATH"
+fi
 
 if [[ -n "$CONFIG_JSON_PATH" ]]; then
   if [[ ! -f "$CONFIG_JSON_PATH" ]]; then

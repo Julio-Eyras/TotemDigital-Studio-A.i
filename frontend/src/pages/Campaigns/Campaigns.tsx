@@ -1239,10 +1239,11 @@ const Campaigns: React.FC = () => {
                   onReorder={handleReorderPlaylists}
                   onDelete={(id) => {
                     const newOrder = orderedPlaylistIds.filter(playlistId => playlistId !== id);
-                    handleReorderPlaylists(newOrder);
-                    setSelectedCampaign({ 
-                      ...selectedCampaign!, 
-                      playlistIds: newOrder
+                    // Remover ≠ reordenar: PUT .../reorder exige a mesma quantidade de itens no backend.
+                    setOrderedPlaylistIds(newOrder);
+                    setSelectedCampaign({
+                      ...selectedCampaign!,
+                      playlistIds: newOrder,
                     });
                   }}
                   emptyMessage="Nenhuma playlist selecionada"
@@ -1314,11 +1315,12 @@ const Campaigns: React.FC = () => {
                   })}
                   onReorder={handleReorderMedias}
                   onDelete={(id) => {
-                    const newOrder = orderedMediaIds.filter(mediaId => mediaId !== id);
-                    handleReorderMedias(newOrder);
-                    setSelectedCampaign({ 
-                      ...selectedCampaign!, 
-                      mediaIds: newOrder
+                    const newOrder = orderedMediaIds.filter((mediaId) => mediaId !== id);
+                    // Remover ≠ reordenar: PUT .../medias/reorder exige a mesma quantidade de itens no backend.
+                    setOrderedMediaIds(newOrder);
+                    setSelectedCampaign({
+                      ...selectedCampaign!,
+                      mediaIds: newOrder,
                     });
                   }}
                   emptyMessage="Nenhuma mídia selecionada"

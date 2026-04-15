@@ -1,4 +1,0 @@
-usuario: admin
-senha: admin123
-hash : $2a$12$2GuPOr8gVcVHHkttb.XuEu9SZ9cSzQAr7pYCKFfTG1bxs.pX4Ha2O
-

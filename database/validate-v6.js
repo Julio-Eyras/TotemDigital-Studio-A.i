@@ -34,7 +34,7 @@ async function validateAndExecute() {
     console.log('🔍 Validando schema...');
     const tables = [
       'subscribers', 'publishers', 'users', 'totems', 'smart_tvs',
-      'campaigns', 'medias', 'playlists', 'tags', 'fx_telemetry'
+      'campaigns', 'campaign_medias', 'medias', 'playlists', 'tags', 'fx_telemetry'
     ];
     
     let schemaExists = true;
@@ -138,6 +138,13 @@ async function validateAndExecute() {
                 LEFT JOIN totems t ON tv.totem_id = t.totem_id 
                 WHERE tv.totem_id IS NOT NULL AND t.totem_id IS NULL`
       },
+      {
+        name: 'Campaign medias → Campanhas / Mídias',
+        query: `SELECT COUNT(*) as count FROM campaign_medias cm
+                LEFT JOIN campaigns c ON cm.campaign_id = c.campaign_id
+                LEFT JOIN medias m ON cm.media_id = m.media_id
+                WHERE c.campaign_id IS NULL OR m.media_id IS NULL`
+      },
     ];
 
     for (const rel of relationships) {
@@ -174,7 +181,7 @@ async function validateAndExecute() {
         SELECT 
           COUNT(*) FILTER (WHERE status = 'failed') as failed,
           COUNT(*) as total,
-          ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'failed') / COUNT(*), 2) as failure_rate
+          ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'failed') / NULLIF(COUNT(*), 0), 2) as failure_rate
         FROM fx_telemetry 
         WHERE totem_id = 1
       `);

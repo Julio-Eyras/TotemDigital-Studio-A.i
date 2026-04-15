@@ -7,6 +7,7 @@ alwaysApply: true
 
 Regras principais:
 
+- Desenvolvimento apenas na árvore principal do repositório (`backend/`, `frontend/`, `database/`, `scripts/`). Não existe mais cópia paralela `ssp-clean`. Seeds e verificação pós-instalação seguem o fluxo **v6** (`database/carga-inicial-v6.sql`, `database/validate-v6.js`, `database/check-and-load-v6.js` quando aplicável).
 - Todas as alterações de esquema (tabelas, colunas, constraints, índices) devem ser aplicadas diretamente nos arquivos definitivos do schema (por exemplo `database/smartchannel-db-v2-refactored-part*.sql`) e nos arquivos de seed (`database/*.sql`), não em migrations ou patches temporários.
 - O instalador (`scripts/install-smartsignage.sh` / `database/apply-schema-v2.sh`) deve ser atualizado para suportar e aplicar essas alterações automaticamente durante a instalação inicial.
 - Não usar "workarounds" em runtime (scripts que substituem comportamentos ou tentam corrigir na aplicação). As correções devem ser persistentes no repositório.
