@@ -98,7 +98,8 @@ class MainActivity : AppCompatActivity() {
             exoPlayer,
             imageView,
             config.acceptImagesInPlaylist,
-            config.fallbackPropagandasPerVinheta
+            config.fallbackPropagandasPerVinheta,
+            config.maxSecondsWithoutServerCheck
         )
 
         playbackJob = lifecycleScope.launch {

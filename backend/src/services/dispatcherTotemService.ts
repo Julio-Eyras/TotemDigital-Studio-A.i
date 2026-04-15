@@ -233,7 +233,7 @@ export class DispatcherTotemService {
           if (winner) {
             const technicalValid = await this.validateTechnicalCompatibility(winner, totemId);
             if (technicalValid.valid) {
-              const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId);
+              const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId, winner.campaignId);
               if (integrityValid.valid) {
                 plan = await this.generateDispatchPlan(winner, totemId, targetTimestamp);
               }
@@ -303,7 +303,7 @@ export class DispatcherTotemService {
         }
 
         // Validar integridade da playlist
-        const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId);
+        const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId, winner.campaignId);
         if (!integrityValid.valid) {
           await logDebug('[DispatcherTotem] Falha na validação de integridade', { 
             totemId, 
@@ -1513,33 +1513,17 @@ export class DispatcherTotemService {
    * Validar integridade da playlist
    */
   private async validatePlaylistIntegrity(
-    playlistId: number
+    playlistId: number,
+    campaignId?: number
   ): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
     
     try {
-      // Buscar itens da playlist
-      const items = await this.db.findMany(`
-        SELECT 
-          pi.media_id,
-          pi.order_index,
-          pi.display_seconds as duration,
-          m.media_id,
-          m.file_path,
-          m.media_type,
-          m.width,
-          m.height
-        FROM playlist_items pi
-        INNER JOIN medias m ON pi.media_id = m.media_id
-        WHERE pi.playlist_id = $1
-          AND pi.is_active = true
-          AND m.is_active = true
-          AND m.status IN ('approved', 'published')
-        ORDER BY pi.order_index
-      `, [playlistId]);
+      const consolidated = await this.getConsolidatedDispatchItems(playlistId, campaignId);
+      const items = consolidated.items;
 
       if (items.length === 0) {
-        errors.push('Playlist vazia ou sem mídias válidas');
+        errors.push('Playlist/campanha sem mídias válidas para dispatch');
         return { valid: false, errors };
       }
 
@@ -1559,6 +1543,136 @@ export class DispatcherTotemService {
       errors.push(`Erro na validação de integridade: ${error.message}`);
       return { valid: false, errors };
     }
+  }
+
+  /**
+   * Consolida mídias de playlist_items e campaign_medias para dispatch.
+   * Deduplica por media_id e preserva ordem determinística.
+   */
+  private async getConsolidatedDispatchItems(
+    playlistId: number,
+    campaignId?: number
+  ): Promise<{
+    items: Array<{
+      media_id: number;
+      order_index: number;
+      duration: number | null;
+      name: string | null;
+      file_path: string | null;
+      media_type: string | null;
+      tags: any;
+      width: number | null;
+      height: number | null;
+      mime_type: string | null;
+      duration_seconds: number | null;
+      source: 'playlist' | 'campaign';
+      source_priority: number;
+    }>;
+    playlistItemsCount: number;
+    campaignMediaCount: number;
+  }> {
+    const playlistItems = await this.db.findMany(`
+      SELECT 
+        pi.media_id,
+        pi.order_index,
+        pi.display_seconds as duration,
+        m.name,
+        m.file_path,
+        m.media_type,
+        m.tags,
+        m.width,
+        m.height,
+        m.mime_type,
+        m.duration_seconds
+      FROM playlist_items pi
+      INNER JOIN medias m ON pi.media_id = m.media_id
+      WHERE pi.playlist_id = $1
+        AND COALESCE(pi.is_active, true) = true
+        AND m.is_active = true
+        AND m.status IN ('approved', 'published')
+      ORDER BY pi.order_index ASC, m.media_id ASC
+    `, [playlistId]);
+
+    const campaignItems = campaignId
+      ? await this.db.findMany(`
+          SELECT 
+            cm.media_id,
+            cm.order_index,
+            cm.display_seconds as duration,
+            m.name,
+            m.file_path,
+            m.media_type,
+            m.tags,
+            m.width,
+            m.height,
+            m.mime_type,
+            m.duration_seconds
+          FROM campaign_medias cm
+          INNER JOIN medias m ON cm.media_id = m.media_id
+          WHERE cm.campaign_id = $1
+            AND COALESCE(cm.is_active, true) = true
+            AND m.is_active = true
+            AND m.status IN ('approved', 'published')
+          ORDER BY cm.order_index ASC, m.media_id ASC
+        `, [campaignId])
+      : [];
+
+    const normalizedPlaylist = playlistItems.map((item: any) => ({
+      ...item,
+      order_index: Number(item.order_index ?? 0),
+      source: 'playlist' as const,
+      source_priority: 0,
+    }));
+    const normalizedCampaign = campaignItems.map((item: any) => ({
+      ...item,
+      order_index: Number(item.order_index ?? 0),
+      source: 'campaign' as const,
+      source_priority: 1,
+    }));
+
+    const byMediaId = new Map<number, any>();
+    for (const item of [...normalizedPlaylist, ...normalizedCampaign]) {
+      const mediaId = Number(item.media_id);
+      if (!Number.isFinite(mediaId)) continue;
+
+      const existing = byMediaId.get(mediaId);
+      if (!existing) {
+        byMediaId.set(mediaId, item);
+        continue;
+      }
+
+      const isBetterOrder =
+        item.order_index < existing.order_index ||
+        (
+          item.order_index === existing.order_index &&
+          item.source_priority < existing.source_priority
+        );
+      if (isBetterOrder) {
+        // Preservar duration explícita caso a escolha "melhor" venha sem duração.
+        if ((item.duration == null || Number(item.duration) <= 0) && existing.duration != null) {
+          item.duration = existing.duration;
+        }
+        byMediaId.set(mediaId, item);
+        continue;
+      }
+
+      // Mantém item existente, mas preenche duration se faltava.
+      if ((existing.duration == null || Number(existing.duration) <= 0) && item.duration != null) {
+        existing.duration = item.duration;
+      }
+    }
+
+    const items = Array.from(byMediaId.values()).sort((a, b) => {
+      if (a.order_index !== b.order_index) return a.order_index - b.order_index;
+      if (a.source_priority !== b.source_priority) return a.source_priority - b.source_priority;
+      return Number(a.media_id) - Number(b.media_id);
+    });
+
+    return {
+      items,
+      playlistItemsCount: normalizedPlaylist.length,
+      campaignMediaCount: normalizedCampaign.length,
+    };
   }
 
   /**
@@ -1642,41 +1756,26 @@ export class DispatcherTotemService {
     totemId: number,
     timestamp: Date
   ): Promise<DispatchPlan> {
-    // Buscar itens da playlist
-    const items = await this.db.findMany(`
-      SELECT 
-        pi.media_id,
-        pi.order_index,
-        pi.display_seconds as duration,
-        m.media_id,
-        m.name,
-        m.file_path,
-        m.media_type,
-        m.tags,
-        m.width,
-        m.height,
-        m.mime_type,
-        m.duration_seconds
-      FROM playlist_items pi
-      INNER JOIN medias m ON pi.media_id = m.media_id
-      WHERE pi.playlist_id = $1
-        AND pi.is_active = true
-        AND m.is_active = true
-        AND m.status IN ('approved', 'published')
-      ORDER BY pi.order_index
-    `, [candidate.playlistId]);
+    const consolidated = await this.getConsolidatedDispatchItems(
+      candidate.playlistId,
+      candidate.campaignId
+    );
+    const items = consolidated.items;
 
-    const mediaItems: DispatchMediaItem[] = items.map(item => ({
+    const mediaItems: DispatchMediaItem[] = items.map((item, index) => ({
       mediaId: item.media_id,
-      order: item.order_index,
+      order: index + 1,
       duration: item.duration || item.duration_seconds || 10,
       url: normalizeDownloadUrl(item.file_path) || '',
-      mediaType: item.media_type,
-      cacheBucket: resolveDispatchCacheBucket(item),
+      mediaType: item.media_type || 'image',
+      cacheBucket: resolveDispatchCacheBucket({
+        ...item,
+        file_path: item.file_path || undefined,
+      }),
       metadata: {
-        width: item.width,
-        height: item.height,
-        mimeType: item.mime_type,
+        width: item.width ?? undefined,
+        height: item.height ?? undefined,
+        mimeType: item.mime_type ?? undefined,
       },
     }));
 
@@ -1709,6 +1808,9 @@ export class DispatcherTotemService {
       metadata: {
         campaignId: candidate.campaignId,
         campaignTitle: campaign?.title,
+        playlistItemsCount: consolidated.playlistItemsCount,
+        campaignMediaCount: consolidated.campaignMediaCount,
+        mergedItemsCount: mediaItems.length,
       },
     };
   }

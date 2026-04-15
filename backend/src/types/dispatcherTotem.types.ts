@@ -28,6 +28,9 @@ export interface DispatchPlan {
     platform?: string;
     campaignId?: number;
     campaignTitle?: string;
+    playlistItemsCount?: number;
+    campaignMediaCount?: number;
+    mergedItemsCount?: number;
     mixId?: number;
     mixVersion?: number;
     mixStrategy?: string;

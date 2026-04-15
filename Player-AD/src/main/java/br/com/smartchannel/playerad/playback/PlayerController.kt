@@ -44,7 +44,8 @@ class PlayerController(
     private val exoPlayer: ExoPlayer,
     private val imageView: ImageView,
     private val acceptImagesInPlaylist: Boolean = true,
-    private val fallbackPropagandasPerVinheta: Int = 3
+    private val fallbackPropagandasPerVinheta: Int = 3,
+    private val maxSecondsWithoutServerCheck: Int = 60
 ) {
     private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL }
 
@@ -90,21 +91,15 @@ class PlayerController(
         PlayerAdLogger.i("LIFECYCLE", "(1) Heartbeat inicial — token/sessão (GET /token se necessário + POST /heartbeat)")
         var sessionToken = apiClient.cachedToken() ?: ""
         val initialPlanWithSource = try {
-            val token = apiClient.heartbeat()
-            PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados")
-            PlayerAdLogger.i("LIFECYCLE", "(2) DispatchPlan + pré-cache (GET /api/player/dispatch)")
-            val dispatchJson = apiClient.getDispatchPlan(token)
-            saveDispatchPlanToDisk(dispatchJson)
-            sessionToken = apiClient.cachedToken() ?: token
-            val plan = parseDispatchPlan(dispatchJson)
+            val online = fetchOnlinePlan(sessionToken)
+            sessionToken = online.token
             PlayerAdLogger.logDispatchPlanReceived(
-                plan.playlistId,
-                plan.playlistName,
-                plan.mediaItems.size,
-                plan.campaignId
+                online.plan.playlistId,
+                online.plan.playlistName,
+                online.plan.mediaItems.size,
+                online.plan.campaignId
             )
-            preloadPlan(plan)
-            plan to PlanSource.ONLINE
+            online.plan to PlanSource.ONLINE
         } catch (e: Exception) {
             PlayerAdLogger.e("DISPATCH", "Falha no arranque online (heartbeat/dispatch); tentando fallback local", e)
             val persistedPlan = loadDispatchPlanFromDisk()?.let { parseDispatchPlan(it) }
@@ -274,9 +269,36 @@ class PlayerController(
         var currentPlan = plan
         var currentToken = token
         var currentPlanSource = initialSource
+        val maxGapMs = maxSecondsWithoutServerCheck.coerceAtLeast(10) * 1000L
+        var lastServerCheckAtMs = System.currentTimeMillis()
         var index = 0
         var completedFullCycle = false
         while (true) {
+            val nowMs = System.currentTimeMillis()
+            if (nowMs - lastServerCheckAtMs >= maxGapMs) {
+                try {
+                    val refreshed = fetchOnlinePlan(currentToken)
+                    currentToken = refreshed.token
+                    currentPlan = refreshed.plan
+                    currentPlanSource = PlanSource.ONLINE
+                    updatePlanSource(currentPlanSource, "Fonte do plano alterada")
+                    if (index >= currentPlan.mediaItems.size) index = 0
+                    completedFullCycle = false
+                    PlayerAdLogger.i(
+                        "DISPATCH",
+                        "Checagem temporal (${maxSecondsWithoutServerCheck}s) — plano atualizado (${currentPlan.mediaItems.size} itens)"
+                    )
+                } catch (e: Exception) {
+                    PlayerAdLogger.e(
+                        "DISPATCH",
+                        "Checagem temporal (${maxSecondsWithoutServerCheck}s) falhou; mantém plano atual ($currentPlanSource)",
+                        e
+                    )
+                } finally {
+                    lastServerCheckAtMs = System.currentTimeMillis()
+                }
+            }
+
             if (currentPlan.mediaItems.isEmpty()) {
                 val persistedPlan = loadDispatchPlanFromDisk()?.let { parseDispatchPlan(it) }
                 if (persistedPlan != null && persistedPlan.mediaItems.isNotEmpty()) {
@@ -313,13 +335,9 @@ class PlayerController(
 
             if (currentPlan.mediaItems.isNotEmpty() && index == 0 && completedFullCycle) {
                 try {
-                    currentToken = withContext(Dispatchers.IO) { apiClient.heartbeat() }
-                    val dispatchJson = withContext(Dispatchers.IO) {
-                        apiClient.getDispatchPlan(currentToken)
-                    }
-                    withContext(Dispatchers.IO) { saveDispatchPlanToDisk(dispatchJson) }
-                    apiClient.cachedToken()?.let { currentToken = it }
-                    val newPlan = parseDispatchPlan(dispatchJson)
+                    val refreshed = fetchOnlinePlan(currentToken)
+                    currentToken = refreshed.token
+                    val newPlan = refreshed.plan
                     PlayerAdLogger.i(
                         "DISPATCH",
                         "Plano atualizado após ciclo — playlist=${newPlan.playlistName} (${newPlan.mediaItems.size} itens)"
@@ -333,7 +351,7 @@ class PlayerController(
                     currentPlan = newPlan
                     currentPlanSource = PlanSource.ONLINE
                     updatePlanSource(currentPlanSource, "Fonte do plano alterada")
-                    withContext(Dispatchers.IO) { preloadPlan(currentPlan) }
+                    lastServerCheckAtMs = System.currentTimeMillis()
                 } catch (e: Exception) {
                     PlayerAdLogger.e(
                         "DISPATCH",
@@ -349,6 +367,26 @@ class PlayerController(
             index = (index + 1) % currentPlan.mediaItems.size
             if (index == 0) completedFullCycle = true
         }
+    }
+
+    private data class OnlinePlanResult(
+        val token: String,
+        val plan: DispatchPlan
+    )
+
+    private suspend fun fetchOnlinePlan(previousToken: String): OnlinePlanResult {
+        PlayerAdLogger.i("LIFECYCLE", "(2) DispatchPlan + pré-cache (GET /api/player/dispatch)")
+        val token = apiClient.heartbeat()
+        PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados")
+        val dispatchJson = apiClient.getDispatchPlan(token)
+        saveDispatchPlanToDisk(dispatchJson)
+        val effectiveToken = apiClient.cachedToken() ?: token.ifBlank { previousToken }
+        val plan = parseDispatchPlan(dispatchJson)
+        preloadPlan(plan)
+        return OnlinePlanResult(
+            token = effectiveToken,
+            plan = plan
+        )
     }
 
     /** @return token a usar no próximo item (pode ter sido renovado ao enviar eventos). */

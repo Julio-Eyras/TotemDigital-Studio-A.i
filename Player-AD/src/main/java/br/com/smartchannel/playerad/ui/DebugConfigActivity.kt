@@ -37,6 +37,7 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var editUin: EditText
     private lateinit var editDeviceId: EditText
     private lateinit var switchAcceptImages: SwitchCompat
+    private lateinit var editMaxSecondsWithoutServerCheck: EditText
     private lateinit var spinnerStorage: Spinner
     private lateinit var editStoragePath: EditText
 
@@ -71,6 +72,7 @@ class DebugConfigActivity : AppCompatActivity() {
         editUin = findViewById(R.id.editUin)
         editDeviceId = findViewById(R.id.editDeviceId)
         switchAcceptImages = findViewById(R.id.switchAcceptImages)
+        editMaxSecondsWithoutServerCheck = findViewById(R.id.editMaxSecondsWithoutServerCheck)
         spinnerStorage = findViewById(R.id.spinnerStorage)
         editStoragePath = findViewById(R.id.editStoragePath)
 
@@ -102,6 +104,7 @@ class DebugConfigActivity : AppCompatActivity() {
         editUin.setText(current.uin)
         editDeviceId.setText(current.deviceId)
         switchAcceptImages.isChecked = current.acceptImagesInPlaylist
+        editMaxSecondsWithoutServerCheck.setText(current.maxSecondsWithoutServerCheck.toString())
 
         val storageModes = resources.getStringArray(R.array.player_storage_modes)
         val spinAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, storageModes)
@@ -272,12 +275,16 @@ class DebugConfigActivity : AppCompatActivity() {
         val storageMode = PlayerConfigLoader.parseStorageMode(modeRaw)
         val pathOverride = editStoragePath.text?.toString()?.trim().orEmpty()
         if (storageMode == PlayerStorageMode.PATH_OVERRIDE && pathOverride.isBlank()) return null
+        val maxSecondsRaw = editMaxSecondsWithoutServerCheck.text?.toString()?.trim().orEmpty()
+        val maxSeconds = maxSecondsRaw.toIntOrNull()?.coerceAtLeast(10)
+            ?: loaded.maxSecondsWithoutServerCheck.coerceAtLeast(10)
         return PlayerConfig(
             serverUrl = serverUrl,
             uin = uin,
             deviceId = deviceId,
             acceptImagesInPlaylist = switchAcceptImages.isChecked,
             fallbackPropagandasPerVinheta = loaded.fallbackPropagandasPerVinheta,
+            maxSecondsWithoutServerCheck = maxSeconds,
             storageMode = storageMode,
             storagePathOverride = pathOverride.takeIf { it.isNotBlank() }
         )
@@ -446,6 +453,7 @@ class DebugConfigActivity : AppCompatActivity() {
             put("deviceId", cfg.deviceId)
             put("acceptImagesInPlaylist", cfg.acceptImagesInPlaylist)
             put("fallbackPropagandasPerVinheta", cfg.fallbackPropagandasPerVinheta)
+            put("maxSecondsWithoutServerCheck", cfg.maxSecondsWithoutServerCheck)
             put("storage", PlayerConfigLoader.storageModeToJsonValue(cfg.storageMode))
             if (cfg.storageMode == PlayerStorageMode.PATH_OVERRIDE && !cfg.storagePathOverride.isNullOrBlank()) {
                 put("storagePathOverride", cfg.storagePathOverride)

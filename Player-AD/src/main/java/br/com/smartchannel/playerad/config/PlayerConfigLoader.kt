@@ -6,7 +6,7 @@ import java.io.File
 
 /**
  * Carrega configuração do Player-AD (serverUrl, uin, deviceId, acceptImagesInPlaylist,
- * fallbackPropagandasPerVinheta, storage, storagePathOverride).
+ * fallbackPropagandasPerVinheta, maxSecondsWithoutServerCheck, storage, storagePathOverride).
  *
  * Ordem de busca:
  * 1. Arquivo interno em filesDir/player-config.json (se existir)
@@ -35,6 +35,7 @@ class PlayerConfigLoader(private val context: Context) {
             deviceId = "android-tv-tot001",
             acceptImagesInPlaylist = true,
             fallbackPropagandasPerVinheta = 3,
+            maxSecondsWithoutServerCheck = 60,
             storageMode = PlayerStorageMode.AUTO,
             storagePathOverride = null
         )
@@ -53,6 +54,8 @@ class PlayerConfigLoader(private val context: Context) {
                 val acceptImages = json.optBoolean("acceptImagesInPlaylist", true)
                 val fallbackRatioRaw = json.optInt("fallbackPropagandasPerVinheta", 3)
                 val fallbackRatio = fallbackRatioRaw.coerceAtLeast(1)
+                val maxSecondsRaw = json.optInt("maxSecondsWithoutServerCheck", 60)
+                val maxSeconds = maxSecondsRaw.coerceAtLeast(10)
                 val storageMode = parseStorageMode(json.optString("storage", ""))
                 val pathOverride = json.optString("storagePathOverride", "").trim().takeIf { it.isNotBlank() }
                 PlayerConfig(
@@ -61,6 +64,7 @@ class PlayerConfigLoader(private val context: Context) {
                     deviceId = deviceId,
                     acceptImagesInPlaylist = acceptImages,
                     fallbackPropagandasPerVinheta = fallbackRatio,
+                    maxSecondsWithoutServerCheck = maxSeconds,
                     storageMode = storageMode,
                     storagePathOverride = pathOverride
                 )
