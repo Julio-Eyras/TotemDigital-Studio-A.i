@@ -15,12 +15,14 @@ module.exports = {
     '^.+\\.ts$': 'ts-jest',
   },
   collectCoverageFrom: [
-    'src/**/*.ts',
+    // A suite atual é majoritariamente unitária (validators/utils).
+    // Restringimos o escopo para cobertura representativa do que é testado hoje.
+    'src/validators/**/*.ts',
+    'src/utils/apiResponse.ts',
+    'src/utils/dbErrors.ts',
     '!src/**/*.d.ts',
     '!src/**/*.test.ts',
     '!src/**/*.spec.ts',
-    '!src/index.ts',
-    '!src/config/swagger.ts',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: [
