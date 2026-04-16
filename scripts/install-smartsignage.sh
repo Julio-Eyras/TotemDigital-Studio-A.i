@@ -7,7 +7,10 @@
 # Versão do Script: 2.1.5
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
-# Suporta 3 modos: Single-Server, Docker, Desenvolvimento
+# Suporta modos de instalação e perfil MQTT para single-server:
+# - Single-Server (perfil dev)
+# - Single-Server (perfil produção com Mosquitto local)
+# - Docker
 #
 # Uso: ./install-smartsignage.sh [OPÇÕES]
 # =============================================================================
@@ -24,7 +27,8 @@ SCRIPT_VERSION="2.1.8"
 #   --force              Força rebuild mesmo se não detectar mudanças
 #   --check-only         Apenas verifica se rebuild é necessário (não executa)
 #   --skip-menu          Pula menu interativo (usa defaults do menu: Single-Server)
-#   --mode <modo>        Define o modo (single-server|docker) e pula o menu
+#   --mode <modo>        Define o modo (single-server|single-server-prod|docker) e pula o menu
+#   --mqtt-mode <modo>   Perfil MQTT no single-server (dev|production)
 #   --https-self-signed  Habilita HTTPS com certificado autoassinado (single-server)
 # =============================================================================
 
@@ -57,6 +61,13 @@ SEEDS_OPTION_FORCED=false
 START_TOTEM=false
 CONFIGURE_DNS_LOCAL=false
 DB_WAS_CREATED_OR_RESET=false
+SINGLE_SERVER_MQTT_MODE="dev"       # dev | production
+MQTT_LOCAL_BROKER_REQUIRED=false
+MQTT_BACKEND_USERNAME="backend"
+MQTT_BACKEND_PASSWORD=""
+MQTT_PLAYER_USERNAME="player"
+MQTT_PLAYER_PASSWORD=""
+MQTT_WS_URL_DEFAULT="ws://localhost:9001"
 
 # Modos especiais (operações focadas)
 DB_ONLY_MODE=false                # Reinstala apenas o banco (drop + schema + seeds), sem rebuild de backend/frontend
@@ -849,10 +860,18 @@ parse_arguments() {
             --mode|--install-mode)
                 SKIP_MENU=true
                 if [[ -z "${2:-}" ]]; then
-                    error "Faltou valor para --mode. Use: --mode single-server|docker"
+                    error "Faltou valor para --mode. Use: --mode single-server|single-server-prod|docker"
                     exit 1
                 fi
                 INSTALL_MODE="$2"
+                shift 2
+                ;;
+            --mqtt-mode)
+                if [[ -z "${2:-}" ]]; then
+                    error "Faltou valor para --mqtt-mode. Use: --mqtt-mode dev|production"
+                    exit 1
+                fi
+                SINGLE_SERVER_MQTT_MODE="$2"
                 shift 2
                 ;;
             --https-self-signed)
@@ -920,7 +939,8 @@ parse_arguments() {
                 echo "  --force              Força rebuild sempre"
                 echo "  --check-only         Apenas verifica se precisa rebuild"
                 echo "  --skip-menu          Pula menu (usa defaults do menu: Single-Server)"
-                echo "  --mode <modo>        Define o modo (single-server|docker) e pula o menu"
+                echo "  --mode <modo>        Define o modo (single-server|single-server-prod|docker) e pula o menu"
+                echo "  --mqtt-mode <modo>   Perfil MQTT no single-server (dev|production)"
                 echo "  --https-self-signed  Habilita HTTPS autoassinado (single-server)"
                 echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir (fluxo completo)"
                 echo "  --preserve-db        Preserva o banco de dados existente durante reinstalação"
@@ -1044,6 +1064,122 @@ install_dependencies() {
         ffmpeg
     
     log "Dependências básicas instaladas!"
+}
+
+# Aplicar perfil MQTT para modo single-server
+apply_single_server_mqtt_profile() {
+    # Normalizar aliases de modo
+    if [[ "$INSTALL_MODE" == "single-server-prod" ]]; then
+        INSTALL_MODE="single-server"
+        SINGLE_SERVER_MQTT_MODE="production"
+    elif [[ "$INSTALL_MODE" == "single-server-dev" ]]; then
+        INSTALL_MODE="single-server"
+        SINGLE_SERVER_MQTT_MODE="dev"
+    fi
+
+    if [[ "$INSTALL_MODE" != "single-server" ]]; then
+        MQTT_LOCAL_BROKER_REQUIRED=false
+        return 0
+    fi
+
+    case "$SINGLE_SERVER_MQTT_MODE" in
+        production|prod|mosquitto)
+            SINGLE_SERVER_MQTT_MODE="production"
+            MQTT_LOCAL_BROKER_REQUIRED=true
+            MQTT_BACKEND_USERNAME="${MQTT_BACKEND_USERNAME:-backend}"
+            MQTT_PLAYER_USERNAME="${MQTT_PLAYER_USERNAME:-player}"
+            [[ -z "$MQTT_BACKEND_USERNAME" ]] && MQTT_BACKEND_USERNAME="backend"
+            [[ -z "$MQTT_PLAYER_USERNAME" ]] && MQTT_PLAYER_USERNAME="player"
+            [[ -z "$MQTT_BACKEND_PASSWORD" ]] && MQTT_BACKEND_PASSWORD="$(openssl rand -hex 16 2>/dev/null || echo "changeme-backend")"
+            [[ -z "$MQTT_PLAYER_PASSWORD" ]] && MQTT_PLAYER_PASSWORD="$(openssl rand -hex 16 2>/dev/null || echo "changeme-player")"
+            ;;
+        dev|development|"")
+            SINGLE_SERVER_MQTT_MODE="dev"
+            MQTT_LOCAL_BROKER_REQUIRED=false
+            MQTT_BACKEND_USERNAME=""
+            MQTT_BACKEND_PASSWORD=""
+            MQTT_PLAYER_USERNAME=""
+            MQTT_PLAYER_PASSWORD=""
+            ;;
+        *)
+            error "Perfil MQTT inválido: $SINGLE_SERVER_MQTT_MODE (use dev|production)"
+            exit 1
+            ;;
+    esac
+
+    log "Perfil MQTT single-server: $SINGLE_SERVER_MQTT_MODE"
+}
+
+# Instala e configura Mosquitto local para produção (single-server)
+setup_mosquitto_local() {
+    if [[ "$INSTALL_MODE" != "single-server" || "$MQTT_LOCAL_BROKER_REQUIRED" != "true" ]]; then
+        return 0
+    fi
+
+    log "Configurando Mosquitto local (produção)..."
+    sudo apt install -y mosquitto mosquitto-clients
+
+    local conf_dir="/etc/mosquitto/conf.d"
+    local conf_file="${conf_dir}/smartsignage-production.conf"
+    local passwd_file="/etc/mosquitto/passwd"
+    local acl_file="/etc/mosquitto/acl"
+
+    sudo mkdir -p "$conf_dir"
+
+    # Recriar senha de forma idempotente para refletir credenciais atuais do instalador
+    sudo rm -f "$passwd_file"
+    sudo mosquitto_passwd -b -c "$passwd_file" "$MQTT_BACKEND_USERNAME" "$MQTT_BACKEND_PASSWORD"
+    sudo mosquitto_passwd -b "$passwd_file" "$MQTT_PLAYER_USERNAME" "$MQTT_PLAYER_PASSWORD"
+
+    sudo tee "$acl_file" > /dev/null <<EOF
+# SmartSignage MQTT ACL (gerado pelo instalador)
+user ${MQTT_BACKEND_USERNAME}
+topic readwrite smartdisplay/#
+topic read \$SYS/#
+
+user ${MQTT_PLAYER_USERNAME}
+topic read smartdisplay/+/timeline
+topic read smartdisplay/+/effect
+topic read smartdisplay/+/sync_time
+topic write smartdisplay/+/telemetry
+topic read \$SYS/broker/version
+EOF
+
+    sudo chmod 600 "$passwd_file" "$acl_file"
+
+    sudo tee "$conf_file" > /dev/null <<'EOF'
+# SmartSignage Mosquitto production profile
+per_listener_settings false
+allow_anonymous false
+password_file /etc/mosquitto/passwd
+acl_file /etc/mosquitto/acl
+
+persistence true
+persistence_location /var/lib/mosquitto/
+autosave_interval 180
+autosave_on_changes true
+
+listener 1883
+protocol mqtt
+
+listener 9001
+protocol websockets
+
+log_type error
+log_type warning
+log_type notice
+log_type information
+EOF
+
+    sudo systemctl enable mosquitto
+    sudo systemctl restart mosquitto
+
+    if systemctl is-active --quiet mosquitto; then
+        log "✅ Mosquitto local ativo (1883/TCP, 9001/WS)"
+    else
+        error "❌ Mosquitto não iniciou corretamente. Verifique: sudo systemctl status mosquitto"
+        exit 1
+    fi
 }
 
 # Perguntar sobre DNS local (movido para o topo junto com outras perguntas)
@@ -1579,6 +1715,12 @@ configure_firewall() {
         sudo ufw allow from 192.168.0.0/16 to any port 5432 2>/dev/null || true
         sudo ufw allow from 10.0.0.0/8 to any port 5432 2>/dev/null || true
         sudo ufw allow from 172.16.0.0/12 to any port 5432 2>/dev/null || true
+
+        # MQTT em produção (broker local)
+        if [[ "$MQTT_LOCAL_BROKER_REQUIRED" == "true" ]]; then
+            sudo ufw allow 1883/tcp 2>/dev/null || true  # MQTT TCP
+            sudo ufw allow 9001/tcp 2>/dev/null || true  # MQTT over WebSocket
+        fi
     fi
     
     sudo ufw --force enable
@@ -4674,11 +4816,11 @@ RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 
 # SmartDisplayFX / MQTT
-SMARTDISPLAYFX_MQTT_ENABLED=true
+SMARTDISPLAYFX_MQTT_ENABLED=$([[ "$MQTT_LOCAL_BROKER_REQUIRED" == "true" ]] && echo "true" || echo "false")
 SMARTDISPLAYFX_MQTT_URL=mqtt://localhost:1883
-SMARTDISPLAYFX_MQTT_WS_URL=ws://localhost:9001
-SMARTDISPLAYFX_MQTT_USERNAME=
-SMARTDISPLAYFX_MQTT_PASSWORD=
+SMARTDISPLAYFX_MQTT_WS_URL=${MQTT_WS_URL_DEFAULT}
+SMARTDISPLAYFX_MQTT_USERNAME=${MQTT_BACKEND_USERNAME}
+SMARTDISPLAYFX_MQTT_PASSWORD=${MQTT_BACKEND_PASSWORD}
 SMARTDISPLAYFX_MQTT_PREFIX=smartdisplay
 EOF
 
@@ -4743,11 +4885,11 @@ RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 
 # SmartDisplayFX / MQTT
-SMARTDISPLAYFX_MQTT_ENABLED=true
+SMARTDISPLAYFX_MQTT_ENABLED=$([[ "$MQTT_LOCAL_BROKER_REQUIRED" == "true" ]] && echo "true" || echo "false")
 SMARTDISPLAYFX_MQTT_URL=mqtt://localhost:1883
-SMARTDISPLAYFX_MQTT_WS_URL=ws://localhost:9001
-SMARTDISPLAYFX_MQTT_USERNAME=
-SMARTDISPLAYFX_MQTT_PASSWORD=
+SMARTDISPLAYFX_MQTT_WS_URL=${MQTT_WS_URL_DEFAULT}
+SMARTDISPLAYFX_MQTT_USERNAME=${MQTT_BACKEND_USERNAME}
+SMARTDISPLAYFX_MQTT_PASSWORD=${MQTT_BACKEND_PASSWORD}
 SMARTDISPLAYFX_MQTT_PREFIX=smartdisplay
 EOF
         }
@@ -7121,6 +7263,21 @@ EOF
         else
             log "✅ PostgreSQL já está rodando"
         fi
+
+        if [[ "$MQTT_LOCAL_BROKER_REQUIRED" == "true" ]]; then
+            log "Verificando Mosquitto local..."
+            if ! systemctl is-active --quiet mosquitto; then
+                log "Iniciando Mosquitto..."
+                sudo systemctl enable mosquitto 2>/dev/null || true
+                sudo systemctl start mosquitto
+                wait_for_mqtt || {
+                    error "❌ Mosquitto não respondeu. Verifique: sudo journalctl -u mosquitto -n 80"
+                    exit 1
+                }
+            else
+                log "✅ Mosquitto já está rodando"
+            fi
+        fi
         
         # Garantir que o banco de dados existe antes de iniciar o serviço
         log "Verificando se banco de dados existe..."
@@ -7221,12 +7378,19 @@ check_startup_order() {
         
     elif [[ "$INSTALL_MODE" == "single-server" ]]; then
         # Ordem para Single-Server
-        SERVICES=("backend" "nginx")
+        if [[ "$MQTT_LOCAL_BROKER_REQUIRED" == "true" ]]; then
+            SERVICES=("mqtt" "backend" "nginx")
+        else
+            SERVICES=("backend" "nginx")
+        fi
         
         for service in "${SERVICES[@]}"; do
             log "Verificando $service..."
             
             case $service in
+                "mqtt")
+                    wait_for_mqtt
+                    ;;
                 "backend")
                     wait_for_backend
                     ;;
@@ -7297,6 +7461,10 @@ wait_for_mqtt() {
     log "Aguardando MQTT Broker..."
     local attempts=0
     local delay=2
+    local mqtt_auth_args=()
+    if [[ -n "${MQTT_BACKEND_USERNAME:-}" && -n "${MQTT_BACKEND_PASSWORD:-}" ]]; then
+        mqtt_auth_args=(-u "$MQTT_BACKEND_USERNAME" -P "$MQTT_BACKEND_PASSWORD")
+    fi
     
     # Em Docker, verificar se container está rodando
     if [[ "$INSTALL_MODE" == "docker" ]]; then
@@ -7304,7 +7472,7 @@ wait_for_mqtt() {
             if $COMPOSE_CMD ps | grep -q smartsignage-mqtt; then
                 # Tentar conectar via mosquitto_sub se disponível
                 if command -v mosquitto_sub &> /dev/null; then
-                    if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
+                    if timeout 2 mosquitto_sub -h localhost -p 1883 "${mqtt_auth_args[@]}" -t '$SYS/#' -C 1 > /dev/null 2>&1; then
                         log "✅ MQTT Broker: Pronto"
                         return 0
                     fi
@@ -7325,7 +7493,7 @@ wait_for_mqtt() {
     # Instalação local - verificar se mosquitto está respondendo
     if command -v mosquitto_sub &> /dev/null; then
         while [[ $attempts -lt 15 ]]; do
-            if timeout 2 mosquitto_sub -h localhost -p 1883 -t '$SYS/#' -C 1 > /dev/null 2>&1; then
+            if timeout 2 mosquitto_sub -h localhost -p 1883 "${mqtt_auth_args[@]}" -t '$SYS/#' -C 1 > /dev/null 2>&1; then
                 log "✅ MQTT Broker: Pronto"
                 return 0
             fi
@@ -10270,6 +10438,8 @@ show_menu() {
             INSTALL_MODE="single-server"
         fi
 
+        apply_single_server_mqtt_profile
+
         log "Modo selecionado: $INSTALL_MODE (skip-menu)"
         case "$INSTALL_MODE" in
             docker)
@@ -10281,7 +10451,7 @@ show_menu() {
                 DATABASE_URL="postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage"
                 ;;
             *)
-                error "INSTALL_MODE inválido: $INSTALL_MODE (use single-server|docker)"
+                error "INSTALL_MODE inválido: $INSTALL_MODE (use single-server|single-server-prod|docker)"
                 exit 1
                 ;;
         esac
@@ -10290,16 +10460,18 @@ show_menu() {
     
     echo
     echo -e "${CYAN}Selecione o modo de instalação:${NC}"
-    echo -e "${GREEN}1)${NC} Single-Server (Appliance dedicado)"
-    echo -e "${GREEN}2)${NC} Docker (Produção - PostgreSQL)"
-    echo -e "${GREEN}3)${NC} Rebuild e Restart (Limpa cache, reconstrói builds e reinicia serviços)"
+    echo -e "${GREEN}1)${NC} Single-Server DEV (Nginx + Backend local, sem broker MQTT local)"
+    echo -e "${GREEN}2)${NC} Single-Server PRODUÇÃO (Nginx + Backend + Mosquitto local)"
+    echo -e "${GREEN}3)${NC} Docker (Produção - PostgreSQL)"
+    echo -e "${GREEN}4)${NC} Rebuild e Restart (Limpa cache, reconstrói builds e reinicia serviços)"
     echo
-    read -p "Digite sua escolha (1-3) [padrão: 1]: " choice
+    read -p "Digite sua escolha (1-4) [padrão: 1]: " choice
     choice=${choice:-1}
     
     case $choice in
         1)
             INSTALL_MODE="single-server"
+            SINGLE_SERVER_MQTT_MODE="dev"
             # Escolher banco para servidor único
             echo
             echo -e "${CYAN}Banco de dados para Single-Server:${NC}"
@@ -10308,11 +10480,17 @@ show_menu() {
             DATABASE_URL="postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage"
             ;;
         2)
+            INSTALL_MODE="single-server"
+            SINGLE_SERVER_MQTT_MODE="production"
+            DB_DRIVER="postgresql"
+            DATABASE_URL="postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage"
+            ;;
+        3)
             INSTALL_MODE="docker"
             DB_DRIVER="postgresql"
             DATABASE_URL="postgresql://smartsignage:smartsignage123@postgres:5432/smartsignage"
             ;;
-        3)
+        4)
             INSTALL_MODE="rebuild-restart"
             SKIP_MENU=true
             ;;
@@ -10322,8 +10500,14 @@ show_menu() {
             ;;
     esac
     
+    apply_single_server_mqtt_profile
+
     echo
-    log "Modo selecionado: $INSTALL_MODE"
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        log "Modo selecionado: $INSTALL_MODE ($SINGLE_SERVER_MQTT_MODE)"
+    else
+        log "Modo selecionado: $INSTALL_MODE"
+    fi
 }
 
 # Menu de seleção de players
@@ -11002,6 +11186,7 @@ main() {
         if [[ -z "$INSTALL_MODE" ]]; then
             INSTALL_MODE="single-server"
         fi
+        apply_single_server_mqtt_profile
         setup_project
 
         # Garantir que não vamos preservar o banco (reinstalação limpa)
@@ -11040,6 +11225,7 @@ main() {
         if [[ -z "$INSTALL_MODE" ]]; then
             INSTALL_MODE="single-server"
         fi
+        apply_single_server_mqtt_profile
         setup_project_build_only
 
         # =====================================================================
@@ -11246,6 +11432,7 @@ main() {
     install_project_dependencies
     setup_database
     setup_environment
+    setup_mosquitto_local
     
     # Configurar DNS local (opcional, antes do Nginx)
     setup_local_dns
