@@ -4,6 +4,17 @@
 
 ---
 
+## Diagramas (PNG)
+
+| Ficheiro | Descrição |
+|----------|-----------|
+| [**diagrams/SmartSignage-ER-sistema-completo.png**](./diagrams/SmartSignage-ER-sistema-completo.png) | **Diagrama ER de todo o sistema**: uma caixa por `part*.sql` do schema v2, com **todas** as tabelas listadas (legível em ecrã normal, formato vertical). |
+| [**diagrams/SmartSignage-ER-sistema-completo-detalhe.png**](./diagrams/SmartSignage-ER-sistema-completo-detalhe.png) | Variante com **um nó por tabela** + subconjunto de FKs (útil com zoom; gerado pelo mesmo script). |
+
+Regenerar: `python3 scripts/generate-er-system-png.py` ou com detalhe: `python3 scripts/generate-er-system-png.py --detalhe` (requer Graphviz `dot`).
+
+---
+
 ## Modelo de dados e Smart TV / totens
 
 | Documento | Descrição |

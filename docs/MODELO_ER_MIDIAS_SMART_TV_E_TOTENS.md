@@ -3,6 +3,8 @@
 Documento de referência para o **modelo de dados** e os **fluxos** usados para gerir mídias em **totens** e **Smart TVs** no SmartSignage Pro.  
 Alinha-se ao **schema definitivo** em `database/smartchannel-db-v2-refactored-part*.sql` e à **carga de demonstração v6** em `database/carga-inicial-v6.sql` (validação: `database/validate-v6.js`).
 
+**Diagrama visual de todo o sistema (PNG):** [`diagrams/SmartSignage-ER-sistema-completo.png`](./diagrams/SmartSignage-ER-sistema-completo.png) — lista completa de tabelas por ficheiro `part*.sql`; ver também [`diagrams/SmartSignage-ER-sistema-completo-detalhe.png`](./diagrams/SmartSignage-ER-sistema-completo-detalhe.png).
+
 > **Sobre o ZIP** `docs/ModeloERparaGerenciarMídiasEmTvsSmart.zip`: permanece no repositório como **anexo** (diagramas / export). A **fonte de verdade** para o modelo em evolução é o SQL em `database/` + este Markdown (o ZIP pode ficar desfasado entre releases).
 
 ---

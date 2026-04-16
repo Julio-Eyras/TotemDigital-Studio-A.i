@@ -1,0 +1,181 @@
+digraph SmartSignageERDetail {
+  graph [rankdir=TB; splines=spline; fontsize=10; dpi=140; bgcolor=white;
+        label="SmartSignage Pro — todas as tabelas (nós individuais)\nLegível com zoom; prefira o PNG por clusters para visão geral";
+        labelloc=t; labeljust=l; nodesep=0.1; ranksep=0.45;]
+  node [shape=box; style="filled,rounded"; fillcolor="#f7f9fc"; fontname="Helvetica"; fontsize=7];
+  edge [color="#555555"; arrowsize=0.5];
+
+  subgraph "cluster_part1-schema-setup" {
+    label="part1-schema-setup"; style=filled; color="#e8eef7"; fontname="Helvetica Bold";
+    "schema_version";
+  }
+
+  subgraph "cluster_part11-playlist-mix" {
+    label="part11-playlist-mix"; style=filled; color="#e8eef7"; fontname="Helvetica Bold";
+    "ai_context_data";
+    "playlist_mix_history";
+    "playlist_mix_rules";
+    "totem_playlist_mix";
+  }
+
+  subgraph "cluster_part14-reconcile" {
+    label="part14-reconcile"; style=filled; color="#e8eef7"; fontname="Helvetica Bold";
+    "reconcile_plan_publisher_jobs";
+  }
+
+  subgraph "cluster_part15-contracts" {
+    label="part15-contracts"; style=filled; color="#e8eef7"; fontname="Helvetica Bold";
+    "contract_change_audit";
+  }
+
+  subgraph "cluster_part2-tables-base" {
+    label="part2-tables-base"; style=filled; color="#e8eef7"; fontname="Helvetica Bold";
+    "ai_models";
+    "alert_rules";
+    "fx_effects";
+    "fx_rules";
+    "fx_timelines";
+    "ml_models";
+    "permissions";
+    "plans";
+    "publishers";
+    "role_flags_default";
+    "roles";
+    "subscribers";
+    "system_logs";
+    "system_settings";
+    "user_flags";
+    "users";
+    "webhook_configs";
+    "webhooks";
+  }
+
+  subgraph "cluster_part3-tables-dependent" {
+    label="part3-tables-dependent"; style=filled; color="#e8eef7"; fontname="Helvetica Bold";
+    "campaigns";
+    "locals";
+    "medias";
+    "playlist_items";
+    "playlists";
+    "smart_tvs";
+    "totems";
+  }
+
+  subgraph "cluster_part4-billing-contracts" {
+    label="part4-billing-contracts"; style=filled; color="#e8eef7"; fontname="Helvetica Bold";
+    "publisher_billing";
+    "publisher_contracts";
+    "subscriber_billing";
+    "subscriber_contracts";
+  }
+
+  subgraph "cluster_part5-tables-relationships" {
+    label="part5-tables-relationships"; style=filled; color="#e8eef7"; fontname="Helvetica Bold";
+    "campaign_locals";
+    "campaign_medias";
+    "campaign_playlists";
+    "campaign_publishers";
+    "campaign_totems";
+    "plan_publisher_access";
+    "role_permissions";
+    "subscriber_publisher_access";
+    "subscriptions";
+    "totem_playlist_generation_log";
+    "totem_playlist_items";
+    "totem_playlists";
+    "user_roles";
+  }
+
+  subgraph "cluster_part6-tables-other" {
+    label="part6-tables-other"; style=filled; color="#e8eef7"; fontname="Helvetica Bold";
+    "advanced_schedules";
+    "analytics_emotions";
+    "analytics_gestures";
+    "analytics_sessions";
+    "audit_logs";
+    "backups";
+    "behavior_data";
+    "dashboard_layouts";
+    "device_tokens";
+    "dispatcher_decision_campaigns";
+    "dispatcher_decision_items";
+    "dispatcher_decisions";
+    "dispatcher_events";
+    "dispatcher_log";
+    "emotion_data";
+    "event_logs";
+    "execution_logs";
+    "export_executions";
+    "export_queries";
+    "export_schedules";
+    "fx_sites";
+    "fx_telemetry";
+    "fx_totem_sites";
+    "gesture_data";
+    "interaction_logs";
+    "ota_updates";
+    "password_reset_tokens";
+    "qr_codes";
+    "recognized_persons";
+    "remote_commands";
+    "report_templates";
+    "reports";
+    "short_links";
+    "smart_playlists";
+    "stripe_customers";
+    "tags";
+    "totem_ml_config";
+    "totem_update_status";
+    "two_factor_attempts";
+    "user_two_factor";
+  }
+
+  "schema_version" -> "ai_context_data" [style=invis weight=100];
+  "ai_context_data" -> "reconcile_plan_publisher_jobs" [style=invis weight=100];
+  "reconcile_plan_publisher_jobs" -> "contract_change_audit" [style=invis weight=100];
+  "contract_change_audit" -> "ai_models" [style=invis weight=100];
+  "ai_models" -> "campaigns" [style=invis weight=100];
+  "campaigns" -> "publisher_billing" [style=invis weight=100];
+  "publisher_billing" -> "campaign_locals" [style=invis weight=100];
+  "campaign_locals" -> "advanced_schedules" [style=invis weight=100];
+  // FKs principais (subconjunto)
+  "publishers" -> "locals";
+  "locals" -> "totems";
+  "totems" -> "smart_tvs";
+  "subscribers" -> "medias";
+  "subscribers" -> "playlists";
+  "subscribers" -> "campaigns";
+  "subscribers" -> "subscriber_contracts";
+  "subscribers" -> "subscriber_billing";
+  "subscribers" -> "subscriber_publisher_access";
+  "publishers" -> "publisher_billing";
+  "publishers" -> "publisher_contracts";
+  "publishers" -> "subscriptions";
+  "plans" -> "plan_publisher_access";
+  "plans" -> "subscriber_contracts";
+  "campaigns" -> "campaign_playlists";
+  "campaigns" -> "campaign_medias";
+  "campaigns" -> "campaign_totems";
+  "campaigns" -> "campaign_publishers";
+  "campaigns" -> "campaign_locals";
+  "playlists" -> "playlist_items";
+  "playlist_items" -> "medias";
+  "campaign_playlists" -> "playlists";
+  "campaign_medias" -> "medias";
+  "campaign_totems" -> "totems";
+  "campaign_publishers" -> "publishers";
+  "subscriber_publisher_access" -> "publishers";
+  "subscriber_publisher_access" -> "subscribers";
+  "totems" -> "totem_playlists";
+  "totem_playlists" -> "totem_playlist_items";
+  "totem_playlist_items" -> "medias";
+  "users" -> "user_roles";
+  "user_roles" -> "roles";
+  "roles" -> "role_permissions";
+  "role_permissions" -> "permissions";
+  "dispatcher_decisions" -> "dispatcher_decision_campaigns";
+  "dispatcher_decisions" -> "dispatcher_decision_items";
+  "dispatcher_log" -> "dispatcher_decisions";
+  "export_schedules" -> "export_executions";
+  "reports" -> "report_templates";
+}
