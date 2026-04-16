@@ -283,3 +283,8 @@ vinhetas/*.mp4
 /node
 /smart-signage-frontend@2.1.0
 
+# Pacotes / extrações locais na raiz (não versionar)
+/TotemDigital-v1.zip
+/TotemDigital-v1/
+/SmartSignage-Pro-*.zip
+
