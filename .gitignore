@@ -288,3 +288,6 @@ vinhetas/*.mp4
 /TotemDigital-v1/
 /SmartSignage-Pro-*.zip
 
+# Extração local do pacote ER (manter só o .zip versionado em docs/)
+/docs/ModeloERparaGerenciarMídiasEmTvsSmart/
+

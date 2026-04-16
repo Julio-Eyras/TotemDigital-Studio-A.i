@@ -1,5 +1,7 @@
 # Plano de Implementação para Sistema de Publicidade em Smart TV
 
+> **Atualização (abril de 2026):** o backend atual expõe rotas de player sob **`/api/player/...`** (ex.: `GET /api/player/dispatch`, `POST /api/player/heartbeat`, `GET /api/player/token`), implementadas em `backend/src/routes/player.ts`. Os exemplos abaixo com prefixo `/api/v1/totem/...` refletem um **plano antigo**; use o código e a documentação de API real como referência. O **modelo de dados** (mídias, campanhas, totens, Smart TVs, `campaign_medias`) está descrito em [`MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md`](./MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md).
+
 Este documento descreve um plano de implementação para integrar o sistema de backend de gerenciamento de publicidade com as plataformas de Smart TV: webOS (LG), Tizen (Samsung) e Android TV. O foco é garantir a comunicação eficiente, a reprodução confiável de mídias e o gerenciamento remoto dos dispositivos.
 
 ## 1. Arquitetura de Comunicação Backend-Player

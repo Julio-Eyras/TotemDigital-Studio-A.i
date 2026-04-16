@@ -1,44 +1,66 @@
-# SmartSignage Pro - Documentação Completa
+# SmartSignage Pro — Documentação (`docs/`)
 
-Bem-vindo à documentação completa do SmartSignage Pro, sistema de gerenciamento de sinalização digital.
-
-## 📚 Índice da Documentação
-
-### 1. Documentação do Usuário
-- [Guia de Introdução](./user/01-introducao.md) - Visão geral do sistema
-- [Manual do Usuário](./user/02-manual-usuario.md) - Guia completo de uso
-- [FAQ - Perguntas Frequentes](./user/03-faq.md) - Respostas para dúvidas comuns
-- [Tutoriais](./user/04-tutoriais.md) - Passo a passo detalhado
-
-### 2. Documentação Técnica
-- [Documentação da API](./technical/01-api.md) - Endpoints e integração
-- [Guia de Desenvolvimento](./technical/02-desenvolvimento.md) - Código e algoritmos
-- [Guia de Migração](./technical/03-migracao.md) - Migração de dados e versões
-- [Guia de Instalação](./technical/04-instalacao.md) - Instalação e deploy
-- [Changelog](./technical/05-changelog.md) - Histórico de versões
-
-### 3. Documentação da Plataforma
-- [Arquitetura do Sistema](./platform/01-arquitetura.md) - Visão geral da arquitetura
-- [Requisitos do Sistema](./platform/02-requisitos.md) - Hardware e software
-- [Configuração](./platform/03-configuracao.md) - Configuração e personalização
-- [Workflows e Processos](./platform/04-workflows.md) - Fluxos de trabalho
-- [Recursos e Regras](./platform/05-recursos-regras.md) - Recursos disponíveis e regras de negócio
-
-## 🚀 Início Rápido
-
-Para começar rapidamente:
-1. Leia o [Guia de Introdução](./user/01-introducao.md)
-2. Siga o [Guia de Instalação](./technical/04-instalacao.md)
-3. Consulte o [Manual do Usuário](./user/02-manual-usuario.md) para operação
-
-## 📞 Suporte
-
-Para dúvidas ou problemas:
-- Consulte o [FAQ](./user/03-faq.md)
-- Verifique os [Tutoriais](./user/04-tutoriais.md)
-- Acesse a [Documentação da API](./technical/01-api.md) para integração
+Índice curado para operação, schema e players. Muitos análises históricas permanecem como ficheiros soltos nesta pasta; para **modelo de dados atual** e **limpeza**, use primeiro os links abaixo.
 
 ---
 
-**Versão da Documentação:** 2.1.0  
-**Última Atualização:** Janeiro 2026
+## Modelo de dados e Smart TV / totens
+
+| Documento | Descrição |
+|-----------|-----------|
+| [**MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md**](./MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md) | **Modelo ER** atual: `medias`, `campaigns`, `campaign_medias`, `campaign_playlists`, `totems`, `smart_tvs`, dispatch consolidado. |
+| [**duas-formas-propaganda-chegar-ao-totem.md**](./duas-formas-propaganda-chegar-ao-totem.md) | Elegibilidade campanha ↔ totem (contrato/plano vs `campaign_totems`). |
+| [**cadastro-atrelar-campanha-totem.md**](./cadastro-atrelar-campanha-totem.md) | UI: abas Publicadores e Totens. |
+| [**analise-dispatcher-midias-vazias-e-duplicados.md**](./analise-dispatcher-midias-vazias-e-duplicados.md) | Mix, listas vazias e duplicados. |
+| [Plano de Implementação para Sistema de Publicidade em Smart TV.md](./Plano%20de%20Implementação%20para%20Sistema%20de%20Publicidade%20em%20Smart%20TV.md) | Plano por plataforma (LG/Tizen/Android); ver aviso no topo do ficheiro sobre endpoints atuais. |
+| ZIP legado (diagrama estático): `ModeloERparaGerenciarMídiasEmTvsSmart.zip` | Opcional; preferir o **Markdown** linkado acima + SQL em `database/`. |
+
+---
+
+## Schema, instalação e validação (v6)
+
+| Recurso | Caminho |
+|---------|---------|
+| Schema SQL (fonte de verdade) | `database/smartchannel-db-v2-refactored-part*.sql` |
+| Seed / demo v6 | `database/carga-inicial-v6.sql` |
+| Validação | `database/validate-v6.js` (requer `pg`) |
+| Política “sem migrations paliativas” | [INTEGRACAO_SCHEMA_PRINCIPAL.md](./INTEGRACAO_SCHEMA_PRINCIPAL.md) |
+| Instalação servidor | [README_INSTALACAO_SERVIDOR.md](./README_INSTALACAO_SERVIDOR.md) |
+| Portas | [PORTAS_E_SERVICOS_EXCLUSIVOS.md](./PORTAS_E_SERVICOS_EXCLUSIVOS.md) |
+
+---
+
+## Limpeza do repositório
+
+| Documento | Descrição |
+|-----------|-----------|
+| [**LIMPEZA_E_ARQUIVOS_CANDIDATOS_EXCLUSAO.md**](./LIMPEZA_E_ARQUIVOS_CANDIDATOS_EXCLUSAO.md) | Lista de pastas/ficheiros **candidatos** a arquivo ou exclusão (com riscos). |
+
+---
+
+## Documentação de utilizador e técnica (estrutura clássica)
+
+### Utilizador
+- [Introdução](./user/01-introducao.md)
+- [Manual do utilizador](./user/02-manual-usuario.md)
+- [FAQ](./user/03-faq.md)
+- [Tutoriais](./user/04-tutoriais.md)
+
+### Técnica
+- [API](./technical/01-api.md)
+- [Desenvolvimento](./technical/02-desenvolvimento.md)
+- [Migração](./technical/03-migracao.md)
+- [Instalação](./technical/04-instalacao.md)
+- [Changelog](./technical/05-changelog.md)
+
+### Plataforma
+- [Arquitetura](./platform/01-arquitetura.md)
+- [Requisitos](./platform/02-requisitos.md)
+- [Configuração](./platform/03-configuracao.md)
+- [Workflows](./platform/04-workflows.md)
+- [Recursos e regras](./platform/05-recursos-regras.md)
+
+---
+
+**Versão da documentação (índice):** 2.1.x  
+**Última atualização deste índice:** abril de 2026

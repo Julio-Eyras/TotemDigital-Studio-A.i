@@ -1,5 +1,7 @@
 # Integração no Schema Principal - Sem Migrations
 
+> **Estado atual (abril de 2026):** a carga de demonstração e verificação pós-instalação seguem o fluxo **v6** (`database/carga-inicial-v6.sql`, `database/validate-v6.js`). Referências antigas a `carga-inicial-2025.sql` ou a cópias paralelas do projeto estão **obsoletas**. O modelo ER resumido para mídias, campanhas, totens e Smart TVs está em [`MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md`](./MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md).
+
 ## ✅ MUDANÇAS IMPLEMENTADAS
 
 ### 1. Schema Principal Atualizado
@@ -17,15 +19,15 @@
 #### `database/smartchannel-db-v2-refactored-part9-triggers-functions.sql`
 - ✅ Função `get_user_effective_flags()` adicionada
 
-#### `database/carga-inicial-2025.sql`
-- ✅ Seed principal do projeto (dados de exemplo + módulos novos: dispatcher/device_tokens/mix/etc.)
-- ✅ Roles/flags/dados correlacionados mantidos em um único arquivo de carga inicial
+#### `database/carga-inicial-v6.sql`
+- ✅ Seed principal atual (dados de exemplo + módulos alinhados ao schema v2 aplicado pelo instalador)
+- ✅ Validação: `database/validate-v6.js`
 
 ---
 
 ### 2. Script de Instalação Atualizado
 
-#### `install-smartsignage.sh`
+#### `scripts/install-smartsignage.sh`
 - ✅ Função `setup_nginx()` atualizada
 - ✅ Configuração de subdomínios integrada:
   - Server block para `publisher.*` (porta 8080)
@@ -87,7 +89,7 @@
 
 ### Instalação do Zero
 
-Ao executar `install-smartsignage.sh`, tudo será criado automaticamente:
+Ao executar `scripts/install-smartsignage.sh`, tudo será criado automaticamente:
 
 1. Schema completo será aplicado (partes 1-12)
 2. Dados iniciais serão inseridos (incluindo roles e flags)
