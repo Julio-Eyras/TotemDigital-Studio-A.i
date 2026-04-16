@@ -27,10 +27,10 @@ Gerados localmente — **não commitar**:
 - **Sugestão:** mover para um pacote `docs-arquivo-YYYY.zip` fora do Git **ou** para branch `docs-archive`, mantendo no `main` apenas um `README` com link.
 - **Risco se apagar:** baixo se ninguém referencia caminhos `_moved/` na operação diária.
 
-### 2.2 `docs/ModeloERparaGerenciarMídiasEmTvsSmart.zip` (~44 KB)
+### 2.2 `docs/ModeloERparaGerenciarMídiasEmTvsSmart.zip`
 
-- Diagrama **estático**; o modelo atual está em SQL + [`MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md`](./MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md).
-- **Sugestão:** remover do Git após equipa validar o Markdown (reduz binários no clone).
+- Diagrama / export **estático**; o modelo em texto atual está em [`MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md`](./MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md).
+- **Sugestão:** manter até a equipa validar o Markdown; depois pode sair do Git **se** não precisarem do anexo (reduz binários no clone). A pasta de extração local com o mesmo nome fica **ignorada** (`.gitignore`).
 
 ---
 
