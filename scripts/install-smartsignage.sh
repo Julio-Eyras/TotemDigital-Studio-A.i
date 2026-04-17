@@ -6080,9 +6080,22 @@ WantedBy=multi-user.target
 EOF
 
         sudo systemctl daemon-reload
-        sudo systemctl enable smart-signage
+        if ! sudo systemctl enable smart-signage.service; then
+            error "❌ systemctl enable smart-signage falhou (verifique permissões e journalctl -xe)."
+            exit 1
+        fi
+        if [[ ! -f "$SERVICE_FILE" ]]; then
+            error "❌ Unit systemd não foi gravado em $SERVICE_FILE"
+            exit 1
+        fi
+        local _svc_state
+        _svc_state=$(systemctl is-enabled smart-signage.service 2>/dev/null || echo "not-found")
+        if [[ "$_svc_state" != "enabled" ]]; then
+            error "❌ smart-signage.service deveria estar enabled após instalação; estado: $_svc_state"
+            exit 1
+        fi
         
-        log "✅ Serviço systemd criado e habilitado"
+        log "✅ Serviço systemd criado e habilitado (enabled)"
         log "⚠️  O serviço será iniciado após configurar o banco de dados"
     fi
 }
@@ -9287,8 +9300,19 @@ PYTHON_FIX_PLUGIN_UPDATE_EOF
         ;;
 esac
 EOF
+    elif [[ "$INSTALL_MODE" == "single-server" ]]; then
+        log "Criando manage.sh para single-server (systemd; autostart não substitui o unit Node)."
+        local mgss_template="$INSTALL_DIR/scripts/manage-single-server.sh"
+        if [[ ! -f "$mgss_template" && -n "${SOURCE_DIR:-}" && -f "$SOURCE_DIR/scripts/manage-single-server.sh" ]]; then
+            mgss_template="$SOURCE_DIR/scripts/manage-single-server.sh"
+        fi
+        if [[ ! -f "$mgss_template" ]]; then
+            error "❌ Template em falta: scripts/manage-single-server.sh (esperado em $INSTALL_DIR/scripts/ ou SOURCE_DIR)."
+            exit 1
+        fi
+        cp -f "$mgss_template" "$MANAGEMENT_SCRIPT"
     else
-        # Script para Docker e Single-Server
+        # Script apenas para Docker (Compose; autostart usa unit oneshot + Docker)
         cat > $MANAGEMENT_SCRIPT << 'EOF'
 #!/bin/bash
 
@@ -9460,7 +9484,7 @@ TimeoutStartSec=0
 
 [Install]
 WantedBy=multi-user.target
-'SERVICE_EOF'
+SERVICE_EOF
         
         # Recarregar systemd e habilitar serviço
         sudo systemctl daemon-reload
@@ -9938,8 +9962,12 @@ rebuild_and_restart() {
     log "1️⃣  PARANDO SERVIÇOS..."
     log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
-    # Parar serviços systemd
+    # Parar serviços systemd (instalação atual usa smart-signage; nomes legados mantidos)
     if command -v systemctl &> /dev/null; then
+        if sudo systemctl is-active --quiet smart-signage 2>/dev/null; then
+            log "Parando serviço smart-signage..."
+            sudo systemctl stop smart-signage 2>/dev/null || true
+        fi
         if sudo systemctl is-active --quiet smart-signage-backend 2>/dev/null; then
             log "Parando serviço smart-signage-backend..."
             sudo systemctl stop smart-signage-backend 2>/dev/null || true
@@ -10063,19 +10091,31 @@ rebuild_and_restart() {
     log "4️⃣  REINICIANDO SERVIÇOS..."
     log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
-    # Reiniciar serviços systemd
+    # Reiniciar serviços systemd (unit principal do install: smart-signage.service)
     if command -v systemctl &> /dev/null; then
-        if sudo systemctl list-unit-files | grep -q "smart-signage-backend"; then
+        if sudo systemctl list-unit-files 2>/dev/null | grep -qE '^smart-signage\.service'; then
+            log "Reiniciando serviço smart-signage..."
+            sudo systemctl daemon-reload 2>/dev/null || true
+            sudo systemctl enable smart-signage 2>/dev/null || true
+            sudo systemctl restart smart-signage 2>/dev/null || {
+                warn "⚠️  Falha ao reiniciar smart-signage via systemd"
+            }
+        fi
+        if sudo systemctl list-unit-files 2>/dev/null | grep -q "smart-signage-backend"; then
             log "Reiniciando serviço smart-signage-backend..."
             sudo systemctl restart smart-signage-backend 2>/dev/null || {
                 warn "⚠️  Falha ao reiniciar smart-signage-backend via systemd"
             }
         fi
-        if sudo systemctl list-unit-files | grep -q "smart-signage-frontend"; then
+        if sudo systemctl list-unit-files 2>/dev/null | grep -q "smart-signage-frontend"; then
             log "Reiniciando serviço smart-signage-frontend..."
             sudo systemctl restart smart-signage-frontend 2>/dev/null || {
                 warn "⚠️  Falha ao reiniciar smart-signage-frontend via systemd"
             }
+        fi
+        if sudo systemctl is-active --quiet nginx 2>/dev/null; then
+            log "Recarregando Nginx..."
+            sudo systemctl reload nginx 2>/dev/null || sudo systemctl restart nginx 2>/dev/null || true
         fi
     fi
     
@@ -11449,6 +11489,23 @@ main() {
     setup_assets_and_db
     setup_letsencrypt  # Configurar Let's Encrypt se escolhido
     create_systemd_service
+    # Garantia explícita: single-server sem unit em /etc/systemd não é instalação válida
+    if [[ "$INSTALL_MODE" == "single-server" ]]; then
+        if [[ ! -f /etc/systemd/system/smart-signage.service ]]; then
+            error "❌ Em modo single-server falta /etc/systemd/system/smart-signage.service após create_systemd_service."
+            error "   Corra de novo o install em single-server ou: sudo bash $INSTALL_DIR/scripts/create-smart-signage-service.sh $INSTALL_DIR"
+            exit 1
+        fi
+        sudo systemctl daemon-reload 2>/dev/null || true
+        if [[ "$(systemctl is-enabled smart-signage.service 2>/dev/null || echo disabled)" != "enabled" ]]; then
+            warning "smart-signage não estava enabled; a corrigir..."
+            sudo systemctl enable smart-signage.service || {
+                error "❌ Não foi possível habilitar smart-signage.service para o boot."
+                exit 1
+            }
+        fi
+        log "✅ systemd: smart-signage.service presente e $(systemctl is-enabled smart-signage.service 2>/dev/null || echo enabled)"
+    fi
     
     # Para Docker: setup_docker_compose
     if [[ "$INSTALL_MODE" == "docker" ]]; then
@@ -11618,13 +11675,26 @@ main() {
         fi
     fi
     
-    # Verificar serviços systemd (single-server)
+    # Verificar serviços systemd (single-server) — unit oficial: smart-signage.service
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
         log "Verificando serviços systemd..."
-        if systemctl is-active --quiet smartsignage-backend; then
-            log "✅ Backend: Serviço ativo"
+        if [[ -f /etc/systemd/system/smart-signage.service ]]; then
+            local _en_state
+            _en_state=$(systemctl is-enabled smart-signage.service 2>/dev/null || echo "not-found")
+            if [[ "$_en_state" == "enabled" ]]; then
+                log "✅ Backend: smart-signage.service enabled (arranque automático no boot)"
+            else
+                warning "⚠️  Backend: smart-signage.service não está enabled (estado: $_en_state). Execute: sudo systemctl enable smart-signage.service"
+            fi
         else
-            warning "⚠️  Backend: Serviço não está ativo"
+            warning "⚠️  Backend: ficheiro /etc/systemd/system/smart-signage.service em falta"
+        fi
+        if systemctl is-active --quiet smart-signage.service 2>/dev/null; then
+            log "✅ Backend: smart-signage ativo"
+        elif systemctl is-active --quiet smartsignage-backend 2>/dev/null; then
+            log "✅ Backend: smartsignage-backend ativo (nome legado)"
+        else
+            warning "⚠️  Backend: smart-signage não está ativo"
         fi
         
         if systemctl is-active --quiet nginx; then

@@ -363,7 +363,7 @@ Assim, a playlist enviada ao player contém apenas mídias cujo ficheiro existe 
   Não existe hoje uma função que converta `file_path` (BD) em path absoluto no disco. Criar um helper (ex.: em `pathHelper` ou junto de `getStoragePath()`): dado `file_path` (ex.: `/assets/uploads/subscriber-11/medias/ficheiro.jpg`), devolver `path.join(getStoragePath(), parteRelativa)`, onde a parte relativa é o que vem após `/assets/uploads/` (ou equivalente). Tratar caminhos já absolutos que estejam sob `getStoragePath()` e evitar path traversal (não permitir `..` fora da base).
 
 - **Onde aplicar o filtro**  
-  Aplicar a verificação de existência e o descarte em **três** pontos: (1) `convertMixToDispatchPlan`, (2) `generateDispatchPlan`, (3) `getFallbackPlanFromTotemPlaylist`. Em (1) e (2) o `file_path` vem da BD; em (3) também. O `getDefaultAdPlan` já usa ficheiros listados do disco, logo não precisa de filtro por existência.
+  Aplicar a verificação de existência e o descarte em **três** pontos: (1) `convertMixToDispatchPlan`, (2) `generateDispatchPlan`, (3) `getFallbackPlanFromTotemPlaylist`. Em (1) a (3) o `file_path` vem da BD. **Nota:** o dispatcher **já não** monta plano a partir de listas em disco (`propagandas`/`vinhetas` no servidor); o fallback de servidor é apenas a playlist consolidada do totem.
 
 - **URL enviada ao player**  
   Para cada item que **permaneça** no plano, a `url` do `mediaItem` deve ser a URL normalizada para download (ex.: `normalizeDownloadUrl(file_path)`) para o player poder fazer GET; a verificação de existência usa apenas o path absoluto no servidor (helper acima).
@@ -377,7 +377,7 @@ Assim, a playlist enviada ao player contém apenas mídias cujo ficheiro existe 
   Depois de remover itens, reindexar o campo `order` dos `mediaItems` (1, 2, 3, …) e recalcular `totalDuration` como a soma das durações dos itens restantes.
 
 - **Plano vazio**  
-  Se, após filtrar, `mediaItems.length === 0`, o método que gera o plano deve devolver `null` (ou o equivalente) para o caller poder usar o próximo nível de fallback (ex.: playlist consolidada ou propaganda padrão), em vez de devolver um plano com playlist vazia.
+  Se, após filtrar, `mediaItems.length === 0`, o método que gera o plano deve devolver `null` (ou o equivalente) para o caller poder usar o próximo nível de fallback no servidor (**playlist consolidada** `totem_playlists`), em vez de devolver um plano com playlist vazia. **Não** há nível seguinte no servidor baseado em ficheiros locais de `propagandas`/`vinhetas`.
 
 - **Sanitização do identificador**  
   Implementar `sanitizeForStorage(id: number | string): string` (ex.: número → `String(id)`; string → apenas `[a-zA-Z0-9_-]`, resto → `_`, truncar se necessário). Usar ao montar cada `mediaItem` no DispatchPlan (e, no futuro, ao criar/atualizar mídias). Se a API expuser um campo tipo `storageKey` ou o nome do ficheiro, esse valor deve ser já sanitizado; caso contrário, garantir que o valor de `mediaId` usado para construir o nome do ficheiro no player (ex.: `{mediaId}.{ext}`) seja sempre o resultado de `sanitizeForStorage(mediaId)`.

@@ -95,6 +95,10 @@ Este documento descreve os principais workflows e processos do sistema SmartSign
    └── Adiciona metadados (campanha, validade)
    └── Ordena itens por order_index
 
+9b. Fallback sem campanha válida (TotemDigital / dispatcher atual)
+   └── Se não houver candidatos ou plano vazio após validações: tenta **playlist consolidada** do totem (`totem_playlists` ativa, com itens válidos)
+   └── Se ainda assim não houver plano: devolve **plano vazio** — **não** monta plano a partir de pastas `propagandas`/`vinhetas` no servidor
+
 10. Cache e Log
     └── Salva plano no cache (60s TTL)
     └── Registra decisão em dispatcher_log
@@ -120,8 +124,8 @@ Este documento descreve os principais workflows e processos do sistema SmartSign
 
 2. Obtenção de Plano
    └── GET /api/player/dispatch
-   └── Se sucesso → usa plano
-   └── Se erro → usa cache offline ou vinheta padrão
+   └── Se sucesso → usa plano (campanha ou playlist consolidada devolvida pelo servidor)
+   └── Se erro ou plano vazio → **cache offline** do último plano / mídias já descarregadas; **vinheta ou assets locais** do player são **comportamento do cliente**, não um terceiro nível gerado pelo dispatcher no servidor
 
 3. Reprodução
    └── Para cada item do plano:
@@ -307,4 +311,5 @@ Este documento descreve os principais workflows e processos do sistema SmartSign
 ## Próximos Passos
 
 - [Recursos e Regras](./05-recursos-regras.md) - Detalhes de recursos e regras
+- [TotemDigital monousuário: E.R. e fluxo](./06-totemdigital-monousuario-er-e-fluxo.md) - Diagramas antes/depois e cadeia de fallback
 - [Arquitetura](./01-arquitetura.md) - Arquitetura técnica do sistema

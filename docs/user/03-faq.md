@@ -94,10 +94,12 @@ O Dispatcher considera:
 4. Prioridade da campanha
 5. Score calculado (em caso de empate)
 
-### Por que aparece a vinheta padrão SmartSignage?
-A vinheta padrão é exibida quando:
-- Não há campanhas ativas para o totem
-- Todas as campanhas foram rejeitadas nas validações
+### Por que aparece a vinheta padrão (ou tela sem conteúdo do servidor)?
+O **servidor** envia conteúdo nesta ordem: plano de **campanha** válida; se não houver, plano a partir da **playlist consolidada** do totem (`totem_playlists`). Se ambos falharem ou estiverem vazios, o **DispatchPlan** pode vir **sem itens** — nesse caso o **player** pode mostrar **vinheta local**, **cache** do último plano ou outro comportamento configurado no cliente; isso **não** é um terceiro nível montado pelo dispatcher a partir de pastas no servidor.
+
+Situações típicas em que só sobra vinheta/cache no cliente:
+- Não há campanhas ativas para o totem (ou todas falharam nas validações)
+- Não há playlist consolidada ativa com itens válidos
 - Período de exibição não está válido
 
 ### Com que frequência o totem atualiza o conteúdo?

@@ -41,6 +41,7 @@ SmartSignage Pro é uma arquitetura distribuída baseada em microserviços, com 
 **Tabelas Principais:**
 - `campaigns`, `playlists`, `medias`
 - `totems`, `locals`, `publishers`
+- `totem_playlists`, `totem_playlist_items` (playlist consolidada por totem; fallback do dispatcher quando não há campanha válida)
 - `event_logs`, `dispatcher_log`
 - `users`, `roles`, `permissions`
 
@@ -238,3 +239,4 @@ Player → POST /api/player/event
 - [Requisitos](./02-requisitos.md) - Requisitos detalhados
 - [Configuração](./03-configuracao.md) - Configurações avançadas
 - [Workflows](./04-workflows.md) - Fluxos de trabalho
+- [TotemDigital monousuário: E.R. e fluxo](./06-totemdigital-monousuario-er-e-fluxo.md) - Núcleo físico vs operação compacta e cadeia de fallback do dispatch

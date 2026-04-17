@@ -80,7 +80,7 @@ Na tabela “Campanhas Elegíveis” aparecem duas linhas idênticas (ex.: “ca
 
 **Opção C – Cache e mix vazio**  
 - Quando o mix gerado tiver `mix_items.length === 0`, **não** gravar em `totem_playlist_mix` como “current” e **não** colocar no cache (ou invalidar cache nesse caso).  
-- Opcionalmente: se já existir mix “current” no BD com `mix_items` vazio, ao servir o plano considerar “sem mix” e cair em fallback (ex.: playlist consolidada do totem ou outra estratégia).  
+- Opcionalmente: se já existir mix “current” no BD com `mix_items` vazio, ao servir o plano considerar “sem mix” e cair em fallback no servidor (**playlist consolidada** `totem_playlists`; sem plano montado a partir de pastas locais no servidor).  
 - Isso evita que o player fique preso a um mix vazio, mas **não** resolve sozinho o caso em que a geração sempre resulta em 0 itens por causa da regra restritiva do Mix (por isso A ou B são mais estruturais).
 
 ### 4.2. Duplicados em “Campanhas Elegíveis”

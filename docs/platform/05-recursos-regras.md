@@ -55,7 +55,7 @@
 #### Regras de Totem
 - Totem deve estar ativo (`is_active=true`) para receber conteúdo
 - Totem deve estar online para exibir conteúdo
-- Totem sem campanhas válidas exibe vinheta padrão SmartSignage
+- Totem **sem campanhas válidas** recebe do servidor, quando existir, o plano montado a partir da **playlist consolidada** (`totem_playlists`); se não houver playlist utilizável, o servidor pode devolver **plano vazio** — o player pode então usar **cache** ou **vinheta/asset local** conforme implementação do cliente
 
 ### 5. Dispatcher (Motor de Decisão)
 
@@ -71,7 +71,7 @@
 - Valida acesso subscriber → publisher antes de considerar campanha
 - Respeita timezone do totem/local
 - Cache por totem + timestamp (arredondado ao minuto)
-- Retorna plano vazio (vinheta padrão) se nenhum candidato válido
+- Se nenhum candidato de campanha produzir plano válido: tenta **playlist consolidada do totem** (`totem_playlists`); se ainda assim não houver plano, devolve **plano vazio** (sem montar lista a partir de pastas `propagandas`/`vinhetas` no servidor)
 
 ### 6. Player (Reprodutor)
 
@@ -84,7 +84,7 @@
 
 #### Regras do Player
 - Player solicita plano via `/api/player/dispatch`
-- Se erro na API → usa cache offline ou vinheta padrão
+- Se erro na API ou plano vazio → **cache offline** do último plano / mídias já em disco local; **vinheta local** é política do player, não fallback gerado pelo servidor
 - Mídias são baixadas em background para cache
 - Player detecta mudanças de playlist e envia evento `playlist_end`
 
@@ -253,5 +253,6 @@ dia_da_semana IN campaign.days_of_week
 ## Próximos Passos
 
 - [Workflows](./04-workflows.md) - Fluxos de trabalho detalhados
+- [TotemDigital monousuário: E.R. e fluxo](./06-totemdigital-monousuario-er-e-fluxo.md) - Modelo e fluxo antes/depois
 - [Arquitetura](./01-arquitetura.md) - Arquitetura técnica
 - [API](./../technical/01-api.md) - Documentação da API

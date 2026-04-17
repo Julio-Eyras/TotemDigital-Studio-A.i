@@ -1,8 +1,12 @@
-# Guia de Introdução - SmartSignage Pro
+# Guia de Introdução — SmartSignage Pro / TotemDigital
 
 ## O que é o SmartSignage Pro?
 
 O SmartSignage Pro é uma plataforma completa de gerenciamento de sinalização digital (Digital Signage) que permite criar, gerenciar e distribuir conteúdo multimídia para totens digitais em tempo real.
+
+## O que é o TotemDigital?
+
+O **TotemDigital** é a **variante monousuária** do mesmo produto: **um núcleo físico** no PostgreSQL (totens, mídias, playlists, dispatch), com **menos entidades na operação diária** e seed típico para um único publisher/subscriber. Diagramas **antes/depois** (E.R. e fluxo de dispatch) estão em **[TotemDigital monousuário: E.R. e fluxo](../platform/06-totemdigital-monousuario-er-e-fluxo.md)**. O **diagrama ER completo** do schema está em **[diagramas PNG](../diagrams/SmartSignage-ER-sistema-completo.png)** (visão geral) e **[variante com detalhe](../diagrams/SmartSignage-ER-sistema-completo-detalhe.png)** — use zoom nos nós `totems`, `totem_playlists`, `campaigns`, `medias`, `locals` e `publishers` para cruzar com esse guia.
 
 ## Principais Funcionalidades
 
@@ -70,3 +74,4 @@ Publisher (Empresa/Organização)
 1. **[Manual do Usuário](./02-manual-usuario.md)** - Aprenda a usar todas as funcionalidades
 2. **[Tutoriais](./04-tutoriais.md)** - Passo a passo para tarefas comuns
 3. **[FAQ](./03-faq.md)** - Respostas para dúvidas frequentes
+

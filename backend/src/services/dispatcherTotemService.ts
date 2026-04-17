@@ -10,10 +10,7 @@
  * - Auditoria de decisões
  */
 
-import fs from 'fs';
-import path from 'path';
 import { getDatabase } from '../config/database';
-import { config } from '../config/env';
 import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../config/featureFlags';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { normalizeDownloadUrl } from '../utils/pathHelper';
@@ -124,18 +121,7 @@ export class DispatcherTotemService {
             executionTimeMs: Date.now() - startTime,
           };
         }
-        // 3º nível: propaganda padrão (propagandas/vinhetas da configuração do player)
-        const defaultAdPlan = await this.getDefaultAdPlan(totemId, targetTimestamp);
-        if (defaultAdPlan) {
-          await logDebug('[DispatcherTotem] Usando propaganda padrão (configuração)', { totemId, items: defaultAdPlan.mediaItems.length });
-          return {
-            success: true,
-            plan: defaultAdPlan,
-            candidates: includeCandidates ? [] : undefined,
-            fromCache: false,
-            executionTimeMs: Date.now() - startTime,
-          };
-        }
+        await logDebug('[DispatcherTotem] Sem candidatos e sem playlist consolidada ativa para o totem', { totemId });
         return {
           success: true,
           plan: undefined,
@@ -176,16 +162,6 @@ export class DispatcherTotemService {
           return {
             success: true,
             plan: fallbackPlan,
-            candidates: includeCandidates ? candidates : undefined,
-            fromCache: false,
-            executionTimeMs: Date.now() - startTime,
-          };
-        }
-        const defaultAdPlan = await this.getDefaultAdPlan(totemId, targetTimestamp);
-        if (defaultAdPlan) {
-          return {
-            success: true,
-            plan: defaultAdPlan,
             candidates: includeCandidates ? candidates : undefined,
             fromCache: false,
             executionTimeMs: Date.now() - startTime,
@@ -251,16 +227,6 @@ export class DispatcherTotemService {
             return {
               success: true,
               plan: fallbackPlan,
-              candidates: includeCandidates ? validatedCandidates : undefined,
-              fromCache: false,
-              executionTimeMs: Date.now() - startTime,
-            };
-          }
-          const defaultAdPlan = await this.getDefaultAdPlan(totemId, targetTimestamp);
-          if (defaultAdPlan) {
-            return {
-              success: true,
-              plan: defaultAdPlan,
               candidates: includeCandidates ? validatedCandidates : undefined,
               fromCache: false,
               executionTimeMs: Date.now() - startTime,
@@ -816,95 +782,6 @@ export class DispatcherTotemService {
       };
     } catch (error: any) {
       await logError('[DispatcherTotem] Erro ao obter fallback totem_playlists', error, { totemId });
-      return null;
-    }
-  }
-
-  /** Extensões de mídia para propaganda padrão (igual ao player). */
-  private static readonly DEFAULT_AD_VIDEO_EXT = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v', '.ogv'];
-  private static readonly DEFAULT_AD_IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-  private listDefaultAdMediaFiles(dir: string): string[] {
-    if (!dir || !fs.existsSync(dir)) return [];
-    const files = fs.readdirSync(dir, { withFileTypes: true });
-    const ext = [...DispatcherTotemService.DEFAULT_AD_VIDEO_EXT, ...DispatcherTotemService.DEFAULT_AD_IMAGE_EXT];
-    return files
-      .filter((f) => f.isFile() && ext.includes(path.extname(f.name).toLowerCase()))
-      .map((f) => f.name)
-      .sort((a, b) => path.basename(a, path.extname(a)).localeCompare(path.basename(b, path.extname(b)), undefined, { numeric: true }));
-  }
-
-  /**
-   * 3º nível de fallback: propaganda padrão configurada (propagandas/vinhetas do player).
-   * Usado quando não há candidatos e não há playlist consolidada (totem_playlists).
-   */
-  async getDefaultAdPlan(totemId: number, timestamp: Date): Promise<DispatchPlan | null> {
-    try {
-      const playerDir = process.env.PLAYER_DIR || config.player?.dir || '/opt/smart-signage/player-web';
-      const propagandasDir = path.join(playerDir, 'propagandas');
-      const vinhetasDir = path.join(playerDir, 'vinhetas');
-
-      const propagandas = this.listDefaultAdMediaFiles(propagandasDir);
-      const vinhetas = this.listDefaultAdMediaFiles(vinhetasDir);
-
-      const imageExt = DispatcherTotemService.DEFAULT_AD_IMAGE_EXT;
-      const defaultImageDuration = 20; // segundos, igual ao player
-      const mediaItems: DispatchMediaItem[] = [];
-      let order = 0;
-
-      const toItem = (file: string, folder: string, durationSec?: number) => {
-        const ext = path.extname(file).toLowerCase();
-        const isImage = imageExt.includes(ext);
-        const duration = durationSec ?? (isImage ? defaultImageDuration : 10);
-        return {
-          mediaId: 0,
-          order: ++order,
-          duration,
-          url: `/api/player-static/${folder}/${encodeURIComponent(file)}`,
-          mediaType: isImage ? 'image' : 'video',
-          cacheBucket: folder === 'vinhetas' ? 'vinhetas' : 'propagandas',
-          metadata: { source: 'default_ad' },
-        } as DispatchMediaItem;
-      };
-
-      // Intercalar: N propagandas, 1 vinheta (como no player)
-      const n = 5;
-      let pi = 0, vi = 0;
-      while (pi < propagandas.length || vi < vinhetas.length) {
-        for (let k = 0; k < n && pi < propagandas.length; k++) {
-          mediaItems.push(toItem(propagandas[pi++], 'propagandas'));
-        }
-        if (vi < vinhetas.length) {
-          mediaItems.push(toItem(vinhetas[vi++], 'vinhetas'));
-        }
-      }
-
-      if (mediaItems.length === 0) return null;
-
-      const totalDuration = mediaItems.reduce((sum, i) => sum + (i.duration || 10), 0);
-      const now = timestamp || new Date();
-      const validityEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-      return {
-        totemId,
-        timestamp: now,
-        playlistId: 0,
-        playlistName: 'Propaganda padrão',
-        mediaItems,
-        totalDuration,
-        priority: 0,
-        source: 'mix',
-        sourceId: 0,
-        sourceName: 'Propaganda padrão (configuração)',
-        validityStart: now,
-        validityEnd,
-        metadata: {
-          mixStrategy: 'default_ad',
-          defaultAd: true,
-        },
-      };
-    } catch (error: any) {
-      await logError('[DispatcherTotem] Erro ao obter plano de propaganda padrão', error, { totemId });
       return null;
     }
   }

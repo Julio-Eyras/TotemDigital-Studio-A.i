@@ -485,7 +485,7 @@ Quando a Internet cai:
    - Carrega último `DispatchPlan` do cache (`dispatch_plan.json`)
    - Verifica mídias no cache local
    - Se todas disponíveis → continua reprodução normal
-   - Se faltam mídias → usa playlist de fallback
+   - Se faltam mídias → reutiliza itens já em cache ou último plano válido (não depende de um “fallback de playlist” gerado pelo servidor além da cadeia campanha → `totem_playlists`)
    - Continua servindo TVs via HTTP local
 
 2. **Smart TV**:
