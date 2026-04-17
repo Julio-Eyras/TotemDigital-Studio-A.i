@@ -866,6 +866,9 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 async function startServer() {
   try {
     await logInfo('Iniciando Smart Signage v2.1...');
+    if (TOTEMDIGITAL_COMPACT) {
+      await logInfo('Modo TotemDigital compacto ativo (superfície Pro reduzida)');
+    }
     
     // Inicializar database PRIMEIRO (necessário para carregar configurações de mídia)
     await logInfo('Conectando ao database...');
@@ -923,38 +926,42 @@ async function startServer() {
       await logInfo('Redis desabilitado (CACHE_ENABLED=false), continuando sem cache e filas');
     }
     
-    // Inicializar Invoice Worker
-    await logInfo('Inicializando Invoice Worker...');
-    const invoiceWorker = new InvoiceWorker();
-    invoiceWorker.start();
-    (global as any).invoiceWorker = invoiceWorker; // Salvar para graceful shutdown
-    
-    // Inicializar Subscriber Access Notification Worker
-    await logInfo('Inicializando Subscriber Access Notification Worker...');
-    const subscriberAccessNotificationWorker = new SubscriberAccessNotificationWorker();
-    subscriberAccessNotificationWorker.start();
-    (global as any).subscriberAccessNotificationWorker = subscriberAccessNotificationWorker; // Salvar para graceful shutdown
-    
-    // Inicializar Playlist Mix Worker
-    await logInfo('Inicializando Playlist Mix Worker...');
-    const { getPlaylistMixWorker } = await import('./workers/playlistMixWorker');
-    const playlistMixWorker = getPlaylistMixWorker();
-    
-    // Inicializar Playlist Engine Worker
-    await logInfo('Inicializando Playlist Engine Worker...');
-    const playlistEngineWorker = getPlaylistEngineWorkerInstance();
-    playlistEngineWorker.start();
-    (global as any).playlistEngineWorker = playlistEngineWorker; // Salvar para graceful shutdown
-    playlistMixWorker.start();
-    (global as any).playlistMixWorker = playlistMixWorker; // Salvar para graceful shutdown
-    
-    // Carregar agendamentos ativos (não crítico se falhar)
-    try {
-      await logInfo('Carregando agendamentos ativos...');
-      await exportScheduleService.loadAllActiveSchedules();
-    } catch (error: any) {
-      // Não crítico - servidor pode iniciar sem agendamentos
-      await logWarn('Não foi possível carregar agendamentos (continuando): ' + (error.message || error));
+    if (!TOTEMDIGITAL_COMPACT) {
+      // Inicializar Invoice Worker
+      await logInfo('Inicializando Invoice Worker...');
+      const invoiceWorker = new InvoiceWorker();
+      invoiceWorker.start();
+      (global as any).invoiceWorker = invoiceWorker; // Salvar para graceful shutdown
+      
+      // Inicializar Subscriber Access Notification Worker
+      await logInfo('Inicializando Subscriber Access Notification Worker...');
+      const subscriberAccessNotificationWorker = new SubscriberAccessNotificationWorker();
+      subscriberAccessNotificationWorker.start();
+      (global as any).subscriberAccessNotificationWorker = subscriberAccessNotificationWorker; // Salvar para graceful shutdown
+      
+      // Inicializar Playlist Mix Worker
+      await logInfo('Inicializando Playlist Mix Worker...');
+      const { getPlaylistMixWorker } = await import('./workers/playlistMixWorker');
+      const playlistMixWorker = getPlaylistMixWorker();
+      
+      // Inicializar Playlist Engine Worker
+      await logInfo('Inicializando Playlist Engine Worker...');
+      const playlistEngineWorker = getPlaylistEngineWorkerInstance();
+      playlistEngineWorker.start();
+      (global as any).playlistEngineWorker = playlistEngineWorker; // Salvar para graceful shutdown
+      playlistMixWorker.start();
+      (global as any).playlistMixWorker = playlistMixWorker; // Salvar para graceful shutdown
+      
+      // Carregar agendamentos ativos (não crítico se falhar)
+      try {
+        await logInfo('Carregando agendamentos ativos...');
+        await exportScheduleService.loadAllActiveSchedules();
+      } catch (error: any) {
+        // Não crítico - servidor pode iniciar sem agendamentos
+        await logWarn('Não foi possível carregar agendamentos (continuando): ' + (error.message || error));
+      }
+    } else {
+      await logInfo('Modo compacto: workers Pro e agendamentos avançados não serão inicializados');
     }
     
     // Inicializar logger
@@ -996,28 +1003,30 @@ async function startServer() {
     
     // AuditService será inicializado lazy quando necessário
     
-    // Inicializar verificação automática de alertas (a cada 5 minutos)
-    await logInfo('Inicializando verificação automática de alertas...');
-    cron.schedule('*/5 * * * *', async () => {
-      try {
-        const alertService = getAlertService();
-        const alerts = await alertService.checkAllAlerts();
-        
-        // Enviar alertas pelos canais configurados
-        for (const alert of alerts) {
-          const rule = (alertService as any).alertRules?.find((r: any) => r.id === alert.ruleId);
-          if (rule && rule.enabled && rule.channels.length > 0) {
-            await alertService.sendAlert(alert, rule.channels);
+    if (!TOTEMDIGITAL_COMPACT) {
+      // Inicializar verificação automática de alertas (a cada 5 minutos)
+      await logInfo('Inicializando verificação automática de alertas...');
+      cron.schedule('*/5 * * * *', async () => {
+        try {
+          const alertService = getAlertService();
+          const alerts = await alertService.checkAllAlerts();
+          
+          // Enviar alertas pelos canais configurados
+          for (const alert of alerts) {
+            const rule = (alertService as any).alertRules?.find((r: any) => r.id === alert.ruleId);
+            if (rule && rule.enabled && rule.channels.length > 0) {
+              await alertService.sendAlert(alert, rule.channels);
+            }
           }
+          
+          if (alerts.length > 0) {
+            await logInfo(`Verificação de alertas: ${alerts.length} alerta(s) encontrado(s)`, { count: alerts.length });
+          }
+        } catch (error: any) {
+          await logError('Erro na verificação automática de alertas', error, {});
         }
-        
-        if (alerts.length > 0) {
-          await logInfo(`Verificação de alertas: ${alerts.length} alerta(s) encontrado(s)`, { count: alerts.length });
-        }
-      } catch (error: any) {
-        await logError('Erro na verificação automática de alertas', error, {});
-      }
-    });
+      });
+    }
     
     // Criar servidor HTTP para WebSocket
     const server = http.createServer(app);

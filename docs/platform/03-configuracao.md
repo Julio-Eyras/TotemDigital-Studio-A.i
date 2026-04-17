@@ -78,6 +78,8 @@ Para operar na variante monousuário com superfície reduzida:
 
 Com as flags ativas, o sistema prioriza operação compacta (Totens, Mídias, Playlists, Campanhas, Monitor) e desativa módulos Pro/multiagência na API e navegação.
 
+No backend, o modo compacto também evita inicializar workers e rotinas Pro (faturamento, notificação de acesso subscriber/publisher, mix/engine avançado e cron de alertas), reduzindo consumo e dependências em operação monousuária.
+
 ### Nginx
 
 Localização: `/etc/nginx/sites-available/smart-signage`
