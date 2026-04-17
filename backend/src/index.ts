@@ -13,9 +13,7 @@ import { apiLimiter, validatePayloadSize, sanitizeQueryParams, validateOrigin } 
 import { config } from './config/env';
 import { initializeDatabase, closeDatabase } from './config/database';
 import { initializeRedis, closeRedis, testRedisConnection } from './config/redis';
-import { initializeExportQueue, closeExportQueue, initializeAdvancedScheduleQueue, closeAdvancedScheduleQueue } from './config/queue';
-import { registerExportWorker } from './workers/exportWorker';
-import { registerAdvancedScheduleWorker } from './workers/advancedScheduleWorker';
+import { closeExportQueue, closeAdvancedScheduleQueue } from './config/queue';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
 import { responseFormatMiddleware } from './middleware/responseFormat.middleware';
@@ -904,67 +902,16 @@ async function startServer() {
         await logWarn('Erro ao conectar ao Redis, continuando sem cache', { error: error.message });
       }
       
-      // Inicializar Bull Queue (requer Redis) apenas no modo Pro
-      if (!TOTEMDIGITAL_COMPACT) {
-        try {
-          await logInfo('Inicializando Bull Queue...');
-          initializeExportQueue();
-          registerExportWorker();
-          
-          await logInfo('Inicializando Bull Queue de Agendamento Avançado...');
-          initializeAdvancedScheduleQueue();
-          registerAdvancedScheduleWorker();
-        } catch (error: any) {
-          await logWarn('Erro ao inicializar Bull Queue, continuando sem filas', { error: error.message });
-        }
-      } else {
-        await logInfo('Modo compacto: Bull Queue e workers de fila não serão inicializados');
-      }
     } else {
       await logInfo('Redis desabilitado (CACHE_ENABLED=false), continuando sem cache e filas');
     }
-    
-    if (!TOTEMDIGITAL_COMPACT) {
-      const { InvoiceWorker } = await import('./workers/invoiceWorker');
-      const { SubscriberAccessNotificationWorker } = await import('./workers/subscriberAccessNotificationWorker');
-      const { getPlaylistEngineWorkerInstance } = await import('./workers/playlistEngineWorker');
-      const { exportScheduleService } = await import('./services/exportScheduleService');
 
-      // Inicializar Invoice Worker
-      await logInfo('Inicializando Invoice Worker...');
-      const invoiceWorker = new InvoiceWorker();
-      invoiceWorker.start();
-      (global as any).invoiceWorker = invoiceWorker; // Salvar para graceful shutdown
-      
-      // Inicializar Subscriber Access Notification Worker
-      await logInfo('Inicializando Subscriber Access Notification Worker...');
-      const subscriberAccessNotificationWorker = new SubscriberAccessNotificationWorker();
-      subscriberAccessNotificationWorker.start();
-      (global as any).subscriberAccessNotificationWorker = subscriberAccessNotificationWorker; // Salvar para graceful shutdown
-      
-      // Inicializar Playlist Mix Worker
-      await logInfo('Inicializando Playlist Mix Worker...');
-      const { getPlaylistMixWorker } = await import('./workers/playlistMixWorker');
-      const playlistMixWorker = getPlaylistMixWorker();
-      
-      // Inicializar Playlist Engine Worker
-      await logInfo('Inicializando Playlist Engine Worker...');
-      const playlistEngineWorker = getPlaylistEngineWorkerInstance();
-      playlistEngineWorker.start();
-      (global as any).playlistEngineWorker = playlistEngineWorker; // Salvar para graceful shutdown
-      playlistMixWorker.start();
-      (global as any).playlistMixWorker = playlistMixWorker; // Salvar para graceful shutdown
-      
-      // Carregar agendamentos ativos (não crítico se falhar)
-      try {
-        await logInfo('Carregando agendamentos ativos...');
-        await exportScheduleService.loadAllActiveSchedules();
-      } catch (error: any) {
-        // Não crítico - servidor pode iniciar sem agendamentos
-        await logWarn('Não foi possível carregar agendamentos (continuando): ' + (error.message || error));
-      }
+    if (TOTEMDIGITAL_COMPACT) {
+      const { initializeCompactStartup } = await import('./startup/startupCompact');
+      await initializeCompactStartup({ redisEnabled: config.redis.enabled });
     } else {
-      await logInfo('Modo compacto: workers Pro e agendamentos avançados não serão inicializados');
+      const { initializeProStartup } = await import('./startup/startupPro');
+      await initializeProStartup({ redisEnabled: config.redis.enabled });
     }
     
     // Inicializar logger
@@ -1005,33 +952,6 @@ async function startServer() {
     // NotificationService será inicializado lazy quando necessário
     
     // AuditService será inicializado lazy quando necessário
-    
-    if (!TOTEMDIGITAL_COMPACT) {
-      // Inicializar verificação automática de alertas (a cada 5 minutos)
-      const { getAlertService } = await import('./services/alertService');
-      const cronModule = await import('node-cron');
-      await logInfo('Inicializando verificação automática de alertas...');
-      cronModule.default.schedule('*/5 * * * *', async () => {
-        try {
-          const alertService = getAlertService();
-          const alerts = await alertService.checkAllAlerts();
-          
-          // Enviar alertas pelos canais configurados
-          for (const alert of alerts) {
-            const rule = (alertService as any).alertRules?.find((r: any) => r.id === alert.ruleId);
-            if (rule && rule.enabled && rule.channels.length > 0) {
-              await alertService.sendAlert(alert, rule.channels);
-            }
-          }
-          
-          if (alerts.length > 0) {
-            await logInfo(`Verificação de alertas: ${alerts.length} alerta(s) encontrado(s)`, { count: alerts.length });
-          }
-        } catch (error: any) {
-          await logError('Erro na verificação automática de alertas', error, {});
-        }
-      });
-    }
     
     // Criar servidor HTTP para WebSocket
     const server = http.createServer(app);
