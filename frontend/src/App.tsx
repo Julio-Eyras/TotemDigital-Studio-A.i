@@ -84,34 +84,6 @@ const detectSubdomainType = (): 'publisher' | 'subscriber' | 'main' => {
   return 'main';
 };
 
-const COMPACT_BLOCKED_PATH_PREFIXES = [
-  '/clients',
-  '/subscriber',
-  '/publishers',
-  '/subscribers',
-  '/contracts',
-  '/subscriber-contracts',
-  '/publisher-contracts',
-  '/plan-publisher-access',
-  '/subscriber-publisher-access',
-  '/billing',
-  '/reports',
-  '/analytics',
-  '/ai',
-  '/smart-playlist',
-  '/ai-context',
-  '/playlist-mix',
-  '/dispatcher-debug',
-  '/dispatcher-manager',
-  '/network-topology',
-  '/smartdisplayfx',
-  '/admin-tools',
-  '/tags',
-  '/ota-updates',
-  '/vinhetas',
-  '/players',
-];
-
 const AppContent: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -194,16 +166,6 @@ const AppContent: React.FC = () => {
       return <Navigate to="/login" />;
     }
 
-    if (TOTEMDIGITAL_COMPACT) {
-      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-      const blockedPath = COMPACT_BLOCKED_PATH_PREFIXES.some((prefix) =>
-        currentPath.startsWith(prefix)
-      );
-      if (blockedPath) {
-        return <Navigate to="/dashboard" replace />;
-      }
-    }
-
     // Validar acesso por subdomínio
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     
@@ -266,6 +228,120 @@ const AppContent: React.FC = () => {
     
     return <Layout>{children}</Layout>;
   };
+
+  if (TOTEMDIGITAL_COMPACT) {
+    return (
+      <Router
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <Suspense
+          fallback={
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                minHeight: '100vh',
+              }}
+            >
+              <CircularProgress />
+            </Box>
+          }
+        >
+          <Routes>
+            <Route
+              path="/login"
+              element={
+                isAuthenticated ? (
+                  <Navigate to="/dashboard" />
+                ) : (
+                  <LoginPage onLoginSuccess={handleLoginSuccess} />
+                )
+              }
+            />
+            <Route
+              path="/forgot-password"
+              element={
+                isAuthenticated ? (
+                  <Navigate to="/dashboard" />
+                ) : (
+                  <ForgotPassword />
+                )
+              }
+            />
+            <Route
+              path="/reset-password"
+              element={
+                isAuthenticated ? (
+                  <Navigate to="/dashboard" />
+                ) : (
+                  <ResetPassword />
+                )
+              }
+            />
+
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/media" element={<ProtectedRoute><Media /></ProtectedRoute>} />
+            <Route path="/playlists" element={<ProtectedRoute><Playlists /></ProtectedRoute>} />
+            <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
+            <Route
+              path="/totems"
+              element={<ProtectedRoute><Totems /></ProtectedRoute>}
+            />
+            <Route
+              path="/totem-playlists"
+              element={<ProtectedRoute><TotemPlayList /></ProtectedRoute>}
+            />
+            <Route
+              path="/dispatcher-monitor"
+              element={<ProtectedRoute><DispatcherMonitor /></ProtectedRoute>}
+            />
+            <Route
+              path="/settings"
+              element={<ProtectedRoute><Settings /></ProtectedRoute>}
+            />
+            <Route
+              path="/locals"
+              element={
+                <ProtectedRoute>
+                  <Suspense fallback={<CircularProgress />}>
+                    <Locals />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/smart-tvs"
+              element={
+                <ProtectedRoute>
+                  <Suspense fallback={<CircularProgress />}>
+                    <SmartTvs />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/users"
+              element={<ProtectedRoute><Users /></ProtectedRoute>}
+            />
+            <Route
+              path="/qr-codes"
+              element={<ProtectedRoute><QRCodes /></ProtectedRoute>}
+            />
+            <Route path="/" element={<Navigate to="/dashboard" />} />
+            <Route path="*" element={<Navigate to="/dashboard" />} />
+          </Routes>
+        </Suspense>
+        <CommandPaletteWrapper
+          open={commandPalette.open}
+          onClose={commandPalette.closeDialog}
+        />
+      </Router>
+    );
+  }
 
   return (
     <Router
