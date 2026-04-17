@@ -140,6 +140,7 @@ Recovery/
 # Backup files
 backups/
 *.backup
+*.backup.*
 *.bak
 
 # Upload directories
