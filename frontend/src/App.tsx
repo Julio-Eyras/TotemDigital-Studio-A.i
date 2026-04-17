@@ -11,6 +11,7 @@ import CommandPaletteWrapper from './components/Navigation/CommandPalette/Comman
 import { useRateLimit } from './hooks/useRateLimit';
 import { useCommandPalette } from './hooks/useCommandPalette';
 import { useAppSelector } from './store/hooks';
+import { TOTEMDIGITAL_COMPACT } from './config/featureFlags';
 
 // Pages
 import LoginPage from './pages/Auth/LoginPage';
@@ -67,6 +68,7 @@ const PublisherContracts = React.lazy(() => import('./pages/PublisherContracts/P
  * Detecta o tipo de subdomínio da requisição
  */
 const detectSubdomainType = (): 'publisher' | 'subscriber' | 'main' => {
+  if (TOTEMDIGITAL_COMPACT) return 'main';
   if (typeof window === 'undefined') return 'main';
   
   const hostname = window.location.hostname;
@@ -81,6 +83,29 @@ const detectSubdomainType = (): 'publisher' | 'subscriber' | 'main' => {
   
   return 'main';
 };
+
+const COMPACT_BLOCKED_PATH_PREFIXES = [
+  '/subscriber',
+  '/publishers',
+  '/subscribers',
+  '/contracts',
+  '/subscriber-contracts',
+  '/publisher-contracts',
+  '/plan-publisher-access',
+  '/subscriber-publisher-access',
+  '/billing',
+  '/reports',
+  '/analytics',
+  '/ai',
+  '/smart-playlist',
+  '/ai-context',
+  '/playlist-mix',
+  '/network-topology',
+  '/smartdisplayfx',
+  '/admin-tools',
+  '/tags',
+  '/ota-updates',
+];
 
 const AppContent: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -117,6 +142,8 @@ const AppContent: React.FC = () => {
    * Seleciona o layout apropriado baseado no subdomínio e tipo de usuário
    */
   const getLayout = (children: React.ReactNode) => {
+    if (TOTEMDIGITAL_COMPACT) return <Layout>{children}</Layout>;
+
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const userType = user.user_type || user.userType;
     
@@ -162,10 +189,20 @@ const AppContent: React.FC = () => {
       return <Navigate to="/login" />;
     }
 
+    if (TOTEMDIGITAL_COMPACT) {
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      const blockedPath = COMPACT_BLOCKED_PATH_PREFIXES.some((prefix) =>
+        currentPath.startsWith(prefix)
+      );
+      if (blockedPath) {
+        return <Navigate to="/dashboard" replace />;
+      }
+    }
+
     // Validar acesso por subdomínio
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     
-    if (subdomainType === 'publisher') {
+    if (!TOTEMDIGITAL_COMPACT && subdomainType === 'publisher') {
       // Publisher subdomain: apenas publisher_user ou admins
       if (user.user_type !== 'publisher_user' && 
           user.role !== 'owner_system' && 
@@ -176,7 +213,7 @@ const AppContent: React.FC = () => {
       }
     }
     
-    if (subdomainType === 'subscriber') {
+    if (!TOTEMDIGITAL_COMPACT && subdomainType === 'subscriber') {
       // Subscriber subdomain: apenas subscriber_user ou admins
       if (user.user_type !== 'subscriber_user' && 
           user.role !== 'owner_system' && 
@@ -191,6 +228,10 @@ const AppContent: React.FC = () => {
   };
 
   const SubscriberProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    if (TOTEMDIGITAL_COMPACT) {
+      return <Navigate to="/dashboard" />;
+    }
+
     if (loading) {
       return (
         <Box
@@ -277,7 +318,9 @@ const AppContent: React.FC = () => {
           <Route
             path="/subscriber-login"
             element={
-              isAuthenticated ? (
+              TOTEMDIGITAL_COMPACT ? (
+                <Navigate to="/login" />
+              ) : isAuthenticated ? (
                 <Navigate to="/subscriber/dashboard" />
               ) : (
                 <SubscriberLogin />
@@ -286,22 +329,26 @@ const AppContent: React.FC = () => {
           />
 
           {/* Subscriber Routes */}
-          <Route
-            path="/subscriber/dashboard"
-            element={
-              <SubscriberProtectedRoute>
-                <SubscriberDashboard />
-              </SubscriberProtectedRoute>
-            }
-          />
-          <Route
-            path="/subscriber/media"
-            element={
-              <SubscriberProtectedRoute>
-                <Media />
-              </SubscriberProtectedRoute>
-            }
-          />
+          {!TOTEMDIGITAL_COMPACT && (
+            <>
+              <Route
+                path="/subscriber/dashboard"
+                element={
+                  <SubscriberProtectedRoute>
+                    <SubscriberDashboard />
+                  </SubscriberProtectedRoute>
+                }
+              />
+              <Route
+                path="/subscriber/media"
+                element={
+                  <SubscriberProtectedRoute>
+                    <Media />
+                  </SubscriberProtectedRoute>
+                }
+              />
+            </>
+          )}
 
           {/* Protected Routes */}
           <Route

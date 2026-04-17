@@ -179,6 +179,7 @@ sequenceDiagram
 | Fallback servidor | `backend/src/services/dispatcherTotemService.ts` — campanha → `getFallbackPlanFromTotemPlaylist` (ou equivalente) — **sem** `getDefaultAdPlan` por disco |
 | Playlist por totem | Tabelas `totem_playlists`, `totem_playlist_items` |
 | Seed monousuário | `database/carga-inicial-v6.sql` |
+| Modo compacto | Flags `TOTEMDIGITAL_COMPACT` (backend) e `REACT_APP_TOTEMDIGITAL_COMPACT` (frontend) para esconder superfície Pro e manter operação essencial |
 
 ---
 

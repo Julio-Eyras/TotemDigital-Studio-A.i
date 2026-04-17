@@ -36,6 +36,7 @@ import {
 } from '@mui/icons-material';
 import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 
 export interface HierarchicalMenuItem {
   text: string;
@@ -100,6 +101,10 @@ export const getMenuHierarchyByRole = (
   role: UserRole,
   userFlags?: UserFlags | null
 ): HierarchicalMenuItem[] => {
+  if (TOTEMDIGITAL_COMPACT) {
+    return getSystemAdminMenu();
+  }
+
   let menu: HierarchicalMenuItem[] = [];
   
   switch (role) {
@@ -162,6 +167,19 @@ export const getMenuHierarchyByRole = (
  * - "Exibidores" substitui "Veículos de Mídia" na interface
  */
 function getSystemAdminMenu(): HierarchicalMenuItem[] {
+  if (TOTEMDIGITAL_COMPACT) {
+    return [
+      { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+      { text: 'Totens', icon: <Computer />, path: '/totems' },
+      { text: 'Playlists por Totem', icon: <QueueMusic />, path: '/totem-playlists' },
+      { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
+      { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
+      { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
+      { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
+      { text: 'Configurações', icon: <Settings />, path: '/settings' },
+    ];
+  }
+
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
 

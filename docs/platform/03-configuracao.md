@@ -46,13 +46,37 @@ SMTP_PASSWORD=senha_aqui
 # Logs
 LOG_LEVEL=info
 LOG_FILE=/var/log/smart-signage/backend.log
+
+# TotemDigital compacto (monousuário)
+# true = reduz superfície Pro (subdomínio, billing multiagência, smartdisplayfx etc.)
+TOTEMDIGITAL_COMPACT=true
 ```
 
 ### Frontend
 
-Configurações no código (não há arquivo .env separado):
+Configurações de ambiente suportadas pelo build:
+
+```env
+# Base da API (opcional)
+REACT_APP_API_URL=/api
+
+# TotemDigital compacto (monousuário)
+REACT_APP_TOTEMDIGITAL_COMPACT=true
+```
+
+Além disso, há configurações no código:
 - `frontend/src/config/api.ts`: URL da API
 - `frontend/src/config/constants.ts`: Constantes da aplicação
+
+### Modo TotemDigital compacto (recomendado)
+
+Para operar na variante monousuário com superfície reduzida:
+
+1. Defina no backend: `TOTEMDIGITAL_COMPACT=true`
+2. Defina no frontend: `REACT_APP_TOTEMDIGITAL_COMPACT=true`
+3. Rebuild backend e frontend para aplicar as flags
+
+Com as flags ativas, o sistema prioriza operação compacta (Totens, Mídias, Playlists, Campanhas, Monitor) e desativa módulos Pro/multiagência na API e navegação.
 
 ### Nginx
 
