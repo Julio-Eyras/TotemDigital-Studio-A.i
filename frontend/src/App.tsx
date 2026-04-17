@@ -85,6 +85,7 @@ const detectSubdomainType = (): 'publisher' | 'subscriber' | 'main' => {
 };
 
 const COMPACT_BLOCKED_PATH_PREFIXES = [
+  '/clients',
   '/subscriber',
   '/publishers',
   '/subscribers',
@@ -100,11 +101,15 @@ const COMPACT_BLOCKED_PATH_PREFIXES = [
   '/smart-playlist',
   '/ai-context',
   '/playlist-mix',
+  '/dispatcher-debug',
+  '/dispatcher-manager',
   '/network-topology',
   '/smartdisplayfx',
   '/admin-tools',
   '/tags',
   '/ota-updates',
+  '/vinhetas',
+  '/players',
 ];
 
 const AppContent: React.FC = () => {

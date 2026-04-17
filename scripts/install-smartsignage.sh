@@ -4811,6 +4811,10 @@ LOG_FILE=/opt/smart-signage/Logs/app.log
 # CORS
 CORS_ORIGIN=http://localhost:3000,http://localhost:3001
 
+# TotemDigital compacto (monousuário)
+TOTEMDIGITAL_COMPACT=true
+REACT_APP_TOTEMDIGITAL_COMPACT=true
+
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
@@ -4879,6 +4883,10 @@ LOG_FILE=/opt/smart-signage/Logs/app.log
 
 # CORS
 CORS_ORIGIN=http://localhost:3000,http://localhost:3001
+
+# TotemDigital compacto (monousuário)
+TOTEMDIGITAL_COMPACT=true
+REACT_APP_TOTEMDIGITAL_COMPACT=true
 
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
@@ -5180,6 +5188,10 @@ export_frontend_build_env() {
         if grep -qE '^REACT_APP_API_URL=' "$env_file" 2>/dev/null; then
             export REACT_APP_API_URL=$(grep -E '^REACT_APP_API_URL=' "$env_file" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
             [[ -n "$REACT_APP_API_URL" ]] && log "Build do frontend: REACT_APP_API_URL=$REACT_APP_API_URL (WebSocket usará este host/porta)"
+        fi
+        if grep -qE '^REACT_APP_TOTEMDIGITAL_COMPACT=' "$env_file" 2>/dev/null; then
+            export REACT_APP_TOTEMDIGITAL_COMPACT=$(grep -E '^REACT_APP_TOTEMDIGITAL_COMPACT=' "$env_file" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
+            [[ -n "$REACT_APP_TOTEMDIGITAL_COMPACT" ]] && log "Build do frontend: REACT_APP_TOTEMDIGITAL_COMPACT=$REACT_APP_TOTEMDIGITAL_COMPACT"
         fi
     fi
 }
