@@ -63,6 +63,7 @@ Regenerar: `python3 scripts/generate-er-system-png.py` ou com detalhe: `python3 
 - [Migração](./technical/03-migracao.md)
 - [Instalação](./technical/04-instalacao.md)
 - [Changelog](./technical/05-changelog.md)
+- [Plano de teste unitário compacto](./technical/06-plano-teste-unitario-compacto.md)
 
 ### Plataforma
 - [Arquitetura](./platform/01-arquitetura.md)
@@ -71,6 +72,7 @@ Regenerar: `python3 scripts/generate-er-system-png.py` ou com detalhe: `python3 
 - [Workflows](./platform/04-workflows.md)
 - [Recursos e regras](./platform/05-recursos-regras.md)
 - [TotemDigital monousuário: E.R. e fluxo](./platform/06-totemdigital-monousuario-er-e-fluxo.md)
+- [Teste rápido modo compacto](./platform/07-teste-modo-compacto.md)
 
 ---
 

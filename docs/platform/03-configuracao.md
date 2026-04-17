@@ -80,6 +80,8 @@ Com as flags ativas, o sistema prioriza operação compacta (Totens, Mídias, Pl
 
 No backend, o modo compacto também evita inicializar filas Bull, workers e rotinas Pro (faturamento, notificação de acesso subscriber/publisher, mix/engine avançado e cron de alertas), reduzindo consumo e dependências em operação monousuária.
 
+Após configurar, valide com o checklist em [Teste rápido — modo compacto TotemDigital](./07-teste-modo-compacto.md).
+
 ### Nginx
 
 Localização: `/etc/nginx/sites-available/smart-signage`

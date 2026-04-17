@@ -18,7 +18,6 @@ import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
 import { responseFormatMiddleware } from './middleware/responseFormat.middleware';
 import { authMiddleware } from './middleware/auth.middleware';
-import { blockClientDataAccess } from './middleware/operatorProtection.middleware';
 import { auditSystemUsers } from './middleware/auditSystemUsers.middleware';
 import { detectSubdomain, validateSubdomainAccess } from './middleware/subdomain.middleware';
 import { getLogger } from './config/logger';
@@ -30,69 +29,14 @@ import fs from 'fs';
 import path from 'path';
 
 // Routes
-import authRoutes from './routes/auth';
-import userRoutes from './routes/users';
-import clientRoutes from './routes/clients'; // TODO: Deprecar - usar subscribers
-import subscriberRoutes from './routes/subscribers'; // NOVO: Subscribers (anunciantes)
-import publisherRoutes from './routes/publishers'; // NOVO: Publishers (publicadores)
-import localRoutes from './routes/locals'; // NOVO: Locals (locais físicos dos publishers)
-import smartTvRoutes from './routes/smart-tvs'; // NOVO: Smart TVs (controladas pelos totens)
-import subscriberAccessRoutes from './routes/subscriber-access'; // NOVO: Controle de acesso Subscriber → Publisher
-import contractRoutes from './routes/contracts'; // NOVO: Contratos de Subscribers
-import dashboardRoutes from './routes/dashboard';
-import playerRoutes from './routes/players'; // API de gerenciamento de players
-import totemRoutes from './routes/totems';
-import mediaRoutes from './routes/media';
-import playlistRoutes from './routes/playlists';
-import playlistMixRoutes from './routes/playlist-mix';
-import playlistEngineRoutes from './routes/playlist-engine';
-import campaignRoutes from './routes/campaigns';
-import qrcodeRoutes from './routes/qrcodes';
-import analyticsRoutes from './routes/analytics';
-import billingRoutes from './routes/billing'; // TODO: Deprecar - usar subscriber-billing e publisher-billing
-import subscriberBillingRoutes from './routes/subscriber-billing'; // NOVO: Billing de subscribers
-import publisherBillingRoutes from './routes/publisher-billing'; // NOVO: Billing de publishers
-import plansRoutes from './routes/plans';
-import subscriptionsRoutes from './routes/subscriptions';
-import settingsRoutes from './routes/settings';
-import reportsRoutes from './routes/reports';
-import aiRoutes from './routes/ai';
-import smartPlaylistRoutes from './routes/smart-playlist';
-import debugRoutes from './routes/debug';
-import exportQueriesRoutes from './routes/export-queries';
-import exportSchedulesRoutes from './routes/export-schedules';
-import exportExecutionsRoutes from './routes/export-executions';
-import logsRoutes from './routes/logs';
-import playerDebugRoutes from './routes/player-debug';
-import advancedSchedulesRoutes from './routes/advanced-schedules';
-import emailRoutes from './routes/email';
-import otaUpdatesRoutes from './routes/ota-updates';
-import tagsRoutes from './routes/tags';
-import facialRecognitionRoutes from './routes/facial-recognition';
-import networkRoutes from './routes/network';
-import smartDisplayFxRoutes from './routes/smartdisplayfx';
-import smartDisplayFxEffectsRoutes from './routes/smartdisplayfx-effects';
-import smartDisplayFxRulesRoutes from './routes/smartdisplayfx-rules';
-import smartDisplayFxTimelinesRoutes from './routes/smartdisplayfx-timelines';
-import smartDisplayFxSitesRoutes from './routes/smartdisplayfx-sites';
-import smartDisplayFxTelemetryRoutes from './routes/smartdisplayfx-telemetry';
-import smartDisplayFxAnalyticsRoutes from './routes/smartdisplayfx-analytics';
-import alertsRoutes from './routes/alerts';
-import rolesRoutes from './routes/roles';
-import permissionsRoutes from './routes/permissions';
-import webhooksRoutes from './routes/webhooks';
-import dashboardLayoutsRoutes from './routes/dashboard-layouts';
-import backupsRoutes from './routes/backups';
-import healthRoutes from './routes/health';
-import notificationsRoutes from './routes/notifications';
-import dispatcherTotemRoutes from './routes/dispatcher-totem';
-import dispatcherDebugRoutes from './routes/dispatcher-debug';
 import { dispatcherDebugService } from './services/dispatcherDebugService';
 import { createDatabaseWrapper } from './config/database-pg';
-import { rateLimitHeavyOperations } from './middleware/rateLimitUser.middleware';
 import { openApiSpec } from './config/swagger';
 import { getExpressLimit, getStoragePath } from './config/mediaConfig';
 import { TOTEMDIGITAL_COMPACT } from './config/featureFlags';
+import { registerCompactRoutes } from './startup/registerCompactRoutes';
+import debugRoutes from './routes/debug';
+import playerDebugRoutes from './routes/player-debug';
 
 // Services
 import { SystemService } from './services/systemService';
@@ -100,6 +44,7 @@ import { SystemService } from './services/systemService';
 const app = express();
 const PORT = config.server.port;
 const HOST = config.server.host;
+const APP_PROFILE = TOTEMDIGITAL_COMPACT ? 'totemdigital-compact' : 'smartsignage-pro';
 
 // Evitar ruído no console do navegador (favicon.ico 404)
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
@@ -295,24 +240,44 @@ if (assetsBase) {
 
 // Root route - API information
 app.get('/', (_req, res) => {
+  const endpoints = TOTEMDIGITAL_COMPACT
+    ? {
+        health: '/health',
+        api: '/api',
+        authentication: '/api/auth',
+        dashboard: '/api/dashboard',
+        users: '/api/users',
+        locals: '/api/locals',
+        smartTvs: '/api/smart-tvs',
+        totems: '/api/totems',
+        dispatcherTotem: '/api/dispatcher-totem',
+        media: '/api/media',
+        playlists: '/api/playlists',
+        campaigns: '/api/campaigns',
+        player: '/player',
+      }
+    : {
+        health: '/health',
+        api: '/api',
+        authentication: '/api/auth',
+        dashboard: '/api/dashboard',
+        users: '/api/users',
+        clients: '/api/clients',
+        players: '/api/players',
+        media: '/api/media',
+        playlists: '/api/playlists',
+        player: '/player',
+        admin: '/admin',
+      };
+
   res.json({
     name: APP_NAME,
     version: APP_VERSION,
     type: 'REST API',
     description: APP_DESCRIPTION,
-    endpoints: {
-      health: '/health',
-      api: '/api',
-      authentication: '/api/auth',
-      dashboard: '/api/dashboard',
-      users: '/api/users',
-      clients: '/api/clients',
-      players: '/api/players',
-      media: '/api/media',
-      playlists: '/api/playlists',
-      player: '/player',
-      admin: '/admin'
-    },
+    profile: APP_PROFILE,
+    compactMode: TOTEMDIGITAL_COMPACT,
+    endpoints,
     documentation: config.server.isDevelopment ? '/api-docs' : 'Not available in production',
     timestamp: new Date().toISOString()
   });
@@ -330,6 +295,8 @@ app.get('/health', async (_req, res) => {
       status: isDbHealthy ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
       version: APP_VERSION,
+      profile: APP_PROFILE,
+      compactMode: TOTEMDIGITAL_COMPACT,
       database: health.database,
       memory: health.memory,
       disk: health.disk,
@@ -349,7 +316,11 @@ app.get('/api/system/info', async (_req, res) => {
   try {
     const systemService = new SystemService();
     const info = await systemService.getSystemInfo();
-    res.json(info);
+    res.json({
+      ...info,
+      profile: APP_PROFILE,
+      compactMode: TOTEMDIGITAL_COMPACT,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -367,6 +338,8 @@ app.get('/api/health', async (_req, res) => {
       status: isDbHealthy ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
       version: APP_VERSION,
+      profile: APP_PROFILE,
+      compactMode: TOTEMDIGITAL_COMPACT,
       database: health.database,
       memory: health.memory,
       disk: health.disk,
@@ -387,81 +360,6 @@ app.use('/api', auditSystemUsers as any);
 // Validação de acesso por subdomínio (aplicar antes das rotas autenticadas)
 if (!TOTEMDIGITAL_COMPACT) {
   app.use('/api', validateSubdomainAccess);
-}
-
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', authMiddleware as any, userRoutes);
-app.use('/api/locals', authMiddleware as any, localRoutes); // NOVO: Locals (locais físicos dos publishers)
-app.use('/api/smart-tvs', authMiddleware as any, smartTvRoutes); // NOVO: Smart TVs (controladas pelos totens)
-app.use('/api/totems', totemRoutes);
-app.use('/api/dispatcher-totem', dispatcherTotemRoutes); // NOVO: Dispatcher-Totem (motor de decisão)
-app.use('/api/dispatcher-debug', dispatcherDebugRoutes); // Debug online do dispatcher, Redis, queries e mensagens
-app.use('/api/players', authMiddleware as any, playerRoutes);
-app.use('/api/media', blockClientDataAccess as any, mediaRoutes);
-app.use('/api/playlists', blockClientDataAccess as any, playlistRoutes);
-app.use('/api/campaigns', blockClientDataAccess as any, campaignRoutes);
-app.use('/api/qrcodes', blockClientDataAccess as any, qrcodeRoutes);
-app.use('/api/qr-codes', blockClientDataAccess as any, qrcodeRoutes); // Alias para compatibilidade com frontend
-app.use('/api/settings', settingsRoutes);
-app.use('/api/dashboard', authMiddleware as any, dashboardRoutes);
-app.use('/api/health', healthRoutes);
-app.use('/api/notifications', notificationsRoutes);
-
-if (!TOTEMDIGITAL_COMPACT) {
-  // ⚠️ DEPRECATED: Esta rota está deprecated. Use /api/subscribers em vez de /api/clients
-  // Será removida em versão futura. Migre para /api/subscribers
-  app.use('/api/clients', authMiddleware as any, blockClientDataAccess as any, (_req, res, next) => {
-    // Adicionar header de deprecação
-    res.setHeader('X-Deprecated-Route', 'true');
-    res.setHeader('X-Deprecated-Message', 'Esta rota está deprecated. Use /api/subscribers');
-    next();
-  }, clientRoutes);
-  app.use('/api/subscribers', authMiddleware as any, blockClientDataAccess as any, subscriberRoutes); // NOVO: Subscribers (anunciantes)
-  app.use('/api/publishers', authMiddleware as any, publisherRoutes); // NOVO: Publishers (publicadores)
-  app.use('/api/subscriber-access', subscriberAccessRoutes); // NOVO: Controle de acesso Subscriber → Publisher
-  app.use('/api/contracts', contractRoutes); // NOVO: Contratos de Subscribers
-  app.use('/api/playlist-mix', authMiddleware as any, playlistMixRoutes);
-  app.use('/api/playlist-engine', playlistEngineRoutes);
-  app.use('/api/analytics', blockClientDataAccess as any, analyticsRoutes);
-  // ⚠️ DEPRECATED: Esta rota está deprecated. Use /api/subscriber-billing e /api/publisher-billing
-  // Será removida em versão futura
-  app.use('/api/billing', authMiddleware as any, blockClientDataAccess as any, (_req, res, next) => {
-    // Adicionar header de deprecação
-    res.setHeader('X-Deprecated-Route', 'true');
-    res.setHeader('X-Deprecated-Message', 'Esta rota está deprecated. Use /api/subscriber-billing ou /api/publisher-billing');
-    next();
-  }, billingRoutes);
-  app.use('/api/subscriber-billing', authMiddleware as any, blockClientDataAccess as any, subscriberBillingRoutes); // NOVO: Billing de subscribers
-  app.use('/api/publisher-billing', authMiddleware as any, publisherBillingRoutes); // NOVO: Billing de publishers
-  app.use('/api/plans', plansRoutes);
-  app.use('/api/subscriptions', subscriptionsRoutes);
-  app.use('/api/reports', blockClientDataAccess as any, reportsRoutes);
-  app.use('/api/ai', aiRoutes);
-  app.use('/api/smart-playlist', blockClientDataAccess as any, smartPlaylistRoutes);
-  app.use('/api/export-queries', exportQueriesRoutes);
-  app.use('/api/export-schedules', exportSchedulesRoutes);
-  app.use('/api/export-executions', exportExecutionsRoutes);
-  app.use('/api/logs', logsRoutes);
-  app.use('/api/advanced-schedules', advancedSchedulesRoutes);
-  app.use('/api/email', emailRoutes);
-  app.use('/api/ota-updates', otaUpdatesRoutes);
-  app.use('/api/tags', blockClientDataAccess as any, tagsRoutes);
-  app.use('/api/facial-recognition', blockClientDataAccess as any, facialRecognitionRoutes);
-  app.use('/api/network', networkRoutes);
-  app.use('/api/smartdisplayfx', smartDisplayFxRoutes);
-  app.use('/api/smartdisplayfx/effects', smartDisplayFxEffectsRoutes);
-  app.use('/api/smartdisplayfx/rules', smartDisplayFxRulesRoutes);
-  app.use('/api/smartdisplayfx/timelines', smartDisplayFxTimelinesRoutes);
-  app.use('/api/smartdisplayfx/sites', smartDisplayFxSitesRoutes);
-  app.use('/api/smartdisplayfx/telemetry', smartDisplayFxTelemetryRoutes);
-  app.use('/api/smartdisplayfx/analytics', smartDisplayFxAnalyticsRoutes);
-  app.use('/api/alerts', alertsRoutes);
-  app.use('/api/roles', rolesRoutes);
-  app.use('/api/permissions', permissionsRoutes);
-  app.use('/api/webhooks', webhooksRoutes);
-  app.use('/api/dashboard-layouts', dashboardLayoutsRoutes);
-  app.use('/api/backups', rateLimitHeavyOperations, backupsRoutes);
 }
 
 // Docs JSON (Swagger OpenAPI)
@@ -885,6 +783,14 @@ async function startServer() {
       await logInfo('Configurações de mídia carregadas do banco de dados');
     } catch (err: any) {
       await logWarn('Erro ao carregar configurações de mídia (usando padrões)', { error: err.message });
+    }
+
+    // Registrar rotas da API conforme perfil (compacto/pro)
+    await logInfo('Registrando rotas da API...');
+    registerCompactRoutes(app);
+    if (!TOTEMDIGITAL_COMPACT) {
+      const { registerProRoutes } = await import('./startup/registerProRoutes');
+      registerProRoutes(app);
     }
     
     // Inicializar Redis (opcional)

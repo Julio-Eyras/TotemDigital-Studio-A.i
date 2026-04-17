@@ -17,6 +17,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - **Modo compacto TotemDigital:** novas flags `TOTEMDIGITAL_COMPACT` (backend) e `REACT_APP_TOTEMDIGITAL_COMPACT` (frontend) para reduzir superfície Pro (subdomínios, billing/acessos multiagência, módulos avançados) e manter foco operacional monousuário.
 - **Startup backend no modo compacto:** filas Bull e workers/tarefas Pro (Invoice, Subscriber Access Notification, Playlist Mix/Engine, carga de agendamentos avançados e cron de alertas) não são inicializados.
 - **Bootstrap de perfis separado:** inicialização Pro e Compact extraídas para módulos dedicados (`startupPro` e `startupCompact`), reduzindo acoplamento no `index.ts`.
+- **Registro de rotas por perfil:** rotas Compact e Pro extraídas para registradores dedicados (`registerCompactRoutes` e `registerProRoutes`), com carregamento condicional do bloco Pro.
 
 ## [2.1.0] - 2026-01-26
 
