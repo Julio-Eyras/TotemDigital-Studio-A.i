@@ -16,12 +16,6 @@ import { initializeRedis, closeRedis, testRedisConnection } from './config/redis
 import { initializeExportQueue, closeExportQueue, initializeAdvancedScheduleQueue, closeAdvancedScheduleQueue } from './config/queue';
 import { registerExportWorker } from './workers/exportWorker';
 import { registerAdvancedScheduleWorker } from './workers/advancedScheduleWorker';
-import { exportScheduleService } from './services/exportScheduleService';
-import { InvoiceWorker } from './workers/invoiceWorker';
-import { SubscriberAccessNotificationWorker } from './workers/subscriberAccessNotificationWorker';
-import { getPlaylistEngineWorkerInstance } from './workers/playlistEngineWorker';
-import cron from 'node-cron';
-import { getAlertService } from './services/alertService';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
 import { responseFormatMiddleware } from './middleware/responseFormat.middleware';
@@ -910,23 +904,32 @@ async function startServer() {
         await logWarn('Erro ao conectar ao Redis, continuando sem cache', { error: error.message });
       }
       
-      // Inicializar Bull Queue (requer Redis)
-      try {
-        await logInfo('Inicializando Bull Queue...');
-        initializeExportQueue();
-        registerExportWorker();
-        
-        await logInfo('Inicializando Bull Queue de Agendamento Avançado...');
-        initializeAdvancedScheduleQueue();
-        registerAdvancedScheduleWorker();
-      } catch (error: any) {
-        await logWarn('Erro ao inicializar Bull Queue, continuando sem filas', { error: error.message });
+      // Inicializar Bull Queue (requer Redis) apenas no modo Pro
+      if (!TOTEMDIGITAL_COMPACT) {
+        try {
+          await logInfo('Inicializando Bull Queue...');
+          initializeExportQueue();
+          registerExportWorker();
+          
+          await logInfo('Inicializando Bull Queue de Agendamento Avançado...');
+          initializeAdvancedScheduleQueue();
+          registerAdvancedScheduleWorker();
+        } catch (error: any) {
+          await logWarn('Erro ao inicializar Bull Queue, continuando sem filas', { error: error.message });
+        }
+      } else {
+        await logInfo('Modo compacto: Bull Queue e workers de fila não serão inicializados');
       }
     } else {
       await logInfo('Redis desabilitado (CACHE_ENABLED=false), continuando sem cache e filas');
     }
     
     if (!TOTEMDIGITAL_COMPACT) {
+      const { InvoiceWorker } = await import('./workers/invoiceWorker');
+      const { SubscriberAccessNotificationWorker } = await import('./workers/subscriberAccessNotificationWorker');
+      const { getPlaylistEngineWorkerInstance } = await import('./workers/playlistEngineWorker');
+      const { exportScheduleService } = await import('./services/exportScheduleService');
+
       // Inicializar Invoice Worker
       await logInfo('Inicializando Invoice Worker...');
       const invoiceWorker = new InvoiceWorker();
@@ -1005,8 +1008,10 @@ async function startServer() {
     
     if (!TOTEMDIGITAL_COMPACT) {
       // Inicializar verificação automática de alertas (a cada 5 minutos)
+      const { getAlertService } = await import('./services/alertService');
+      const cronModule = await import('node-cron');
       await logInfo('Inicializando verificação automática de alertas...');
-      cron.schedule('*/5 * * * *', async () => {
+      cronModule.default.schedule('*/5 * * * *', async () => {
         try {
           const alertService = getAlertService();
           const alerts = await alertService.checkAllAlerts();

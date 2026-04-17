@@ -15,7 +15,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ### Alterado
 - **Dispatcher:** removida a montagem de plano de fallback a partir de ficheiros locais `propagandas`/`vinhetas` no servidor; mantém-se apenas o fallback por **playlist consolidada** do totem.
 - **Modo compacto TotemDigital:** novas flags `TOTEMDIGITAL_COMPACT` (backend) e `REACT_APP_TOTEMDIGITAL_COMPACT` (frontend) para reduzir superfície Pro (subdomínios, billing/acessos multiagência, módulos avançados) e manter foco operacional monousuário.
-- **Startup backend no modo compacto:** workers e tarefas Pro (Invoice, Subscriber Access Notification, Playlist Mix/Engine, carga de agendamentos avançados e cron de alertas) não são inicializados.
+- **Startup backend no modo compacto:** filas Bull e workers/tarefas Pro (Invoice, Subscriber Access Notification, Playlist Mix/Engine, carga de agendamentos avançados e cron de alertas) não são inicializados.
 
 ## [2.1.0] - 2026-01-26
 
