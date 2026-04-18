@@ -64,6 +64,8 @@ REACT_APP_API_URL=/api
 REACT_APP_TOTEMDIGITAL_COMPACT=true
 ```
 
+O repositório inclui `frontend/.env.production` e `frontend/.env.development` com `REACT_APP_TOTEMDIGITAL_COMPACT=true`, para que `npm run build` e `npm start` gerem a marca **Smart Signage Compact** sem export manual (alinhado ao `.env` da raiz / instalador).
+
 Além disso, há configurações no código:
 - `frontend/src/config/api.ts`: URL da API
 - `frontend/src/config/constants.ts`: Constantes da aplicação
