@@ -38,6 +38,9 @@ Resultado esperado:
 - `/api/dispatcher-totem`
 - `/api/dispatcher-debug`
 - `/api/settings`
+- `/api/alerts`
+- `/api/logs`
+- `/api/playlist-engine` (ex.: `totem-playlists`)
 
 ### Rotas Pro (devem ficar indisponíveis no compacto)
 
@@ -116,4 +119,24 @@ Nos logs de inicialização, conferir mensagens indicando que no compacto **não
 - Login com usuário admin funcional
 - Dispatcher responde para totem de teste
 - Sem erros críticos no console backend/frontend
+
+## 7) Erros **502 Bad Gateway** ou WebSocket **Unexpected response code: 200**
+
+**502 em quase todos os `/api/...`:** o Nginx está a fazer proxy mas o **Node (backend) não responde** na porta esperada (por defeito `3000`) — serviço parado, crash em loop, ou `proxy_pass` para IP/porta errados.
+
+No servidor:
+
+```bash
+sudo systemctl status smart-signage --no-pager
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000/api/health
+sudo journalctl -u smart-signage -n 80 --no-pager
+```
+
+Se `health` não for 200, recompilar e reiniciar a partir do diretório do projeto (ajusta o caminho se a instalação for em `/opt/smart-signage`):
+
+```bash
+cd ~/TotemDigital/backend && npm run build && sudo systemctl restart smart-signage
+```
+
+**WebSocket `/ws` com código 200:** o pedido não está a ser enviado ao Node com **upgrade** HTTP; o bloco `location /ws` em falta ou a ficar **atrás** de um `try_files` que devolve o `index.html` da SPA. O instalador gera `location /ws { proxy_pass http://localhost:3000; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; ... }`. Comparar com `/etc/nginx/sites-enabled/smart-signage` e recarregar: `sudo nginx -t && sudo systemctl reload nginx`. Script de apoio: `scripts/fix-nginx-websocket.sh`.
 

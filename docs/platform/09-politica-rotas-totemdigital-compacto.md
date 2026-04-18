@@ -16,6 +16,9 @@ Objetivo: a variante **monousuária** expõe apenas o necessário para operar to
 | `/api/players` | Players (ex.: campanhas) |
 | `/api/media`, `/api/playlists`, `/api/campaigns` | Conteúdo e regras |
 | `/api/settings`, `/api/dashboard`, `/api/health` | Sistema |
+| `/api/alerts` | Alertas na barra superior / dashboard |
+| `/api/logs` | Configuração e ficheiros de log (Configurações) |
+| `/api/playlist-engine` | Playlists consolidadas por totem (`totem-playlists`, etc.) |
 
 **Não montado no compacto:** `/api/users`, `/api/smart-tvs`, `/api/qrcodes`, `/api/notifications`, e toda a API Pro (subscribers, publishers, billing, etc.).
 
