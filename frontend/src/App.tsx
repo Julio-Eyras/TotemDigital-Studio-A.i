@@ -294,6 +294,16 @@ const AppContent: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/plan-publisher-access"
+              element={
+                <ProtectedRoute>
+                  <Suspense fallback={<CircularProgress />}>
+                    <PlanPublisherAccess />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
             <Route path="/media" element={<ProtectedRoute><Media /></ProtectedRoute>} />
             <Route path="/playlists" element={<ProtectedRoute><Playlists /></ProtectedRoute>} />
             <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />

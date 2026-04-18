@@ -171,6 +171,7 @@ function getSystemAdminMenu(): HierarchicalMenuItem[] {
     return [
       { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
       { text: 'Assinantes', icon: <People />, path: '/subscribers' },
+      { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
       { text: 'Totens', icon: <Computer />, path: '/totems' },
       { text: 'Playlists por Totem', icon: <QueueMusic />, path: '/totem-playlists' },
       { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },

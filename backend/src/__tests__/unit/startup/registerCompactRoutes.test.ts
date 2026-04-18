@@ -12,6 +12,8 @@ describe('registerCompactRoutes', () => {
     expect(registeredPaths).toEqual(
       expect.arrayContaining([
         '/api/auth',
+        '/api/plans',
+        '/api/contracts',
         '/api/subscribers',
         '/api/locals',
         '/api/totems',

@@ -29,6 +29,7 @@ Resultado esperado:
 
 - `/api/auth`
 - `/api/subscribers`
+- `/api/plans` e `/api/contracts`
 - `/api/dashboard`
 - `/api/locals` (utilizada pela UI de totens)
 - `/api/totems`
@@ -66,6 +67,7 @@ No menu principal, validar presença de:
 
 - Dashboard
 - Assinantes
+- Planos (CRUD em `/plan-publisher-access`; alimenta `/api/plans` para selects)
 - Totens
 - Playlists por Totem
 - Mídias

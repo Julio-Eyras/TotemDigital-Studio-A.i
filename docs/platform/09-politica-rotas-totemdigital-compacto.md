@@ -10,6 +10,8 @@ Objetivo: a variante **compacta** expõe operação de totens, mídias, playlist
 |---------|-----|
 | `/api/auth` | Autenticação |
 | `/api/subscribers` | Assinantes (CRUD) |
+| `/api/plans` | Planos (lista/CRUD; select no formulário de assinante) |
+| `/api/contracts` | Contratos (ex.: rascunhos ao criar assinante) |
 | `/api/locals` | Locais (filtros e vínculo na UI de totens) |
 | `/api/totems` | Totens |
 | `/api/dispatcher-totem` | Dispatcher |
@@ -25,7 +27,7 @@ Objetivo: a variante **compacta** expõe operação de totens, mídias, playlist
 
 ## Frontend (rotas React)
 
-Com `REACT_APP_TOTEMDIGITAL_COMPACT=true`, o menu inclui também **Assinantes** (`/subscribers`), além de dashboard, totens, playlists por totem, mídias, playlists, campanhas, monitor dispatcher, configurações. Não há rotas dedicadas a Locais, Smart TVs, Utilizadores ou QR codes (a gestão de locais continua **dentro do fluxo de totens** via API `/api/locals`).
+Com `REACT_APP_TOTEMDIGITAL_COMPACT=true`, o menu inclui **Assinantes** (`/subscribers`), **Planos** (`/plan-publisher-access` — CRUD de planos na UI), além de dashboard, totens, playlists por totem, mídias, playlists, campanhas, monitor dispatcher, configurações. Não há rotas dedicadas a Locais, Smart TVs, Utilizadores ou QR codes (a gestão de locais continua **dentro do fluxo de totens** via API `/api/locals`).
 
 A página **Campanhas** foi adaptada: sem cliente/subscriber/publishers na criação; edição usa abas Principal → Totens → Mídias → Playlists → Agendamento; totens carregam-se via `/api/totems`; detalhes da campanha não chamam `publisherApi` no compacto. Roteiro de validação manual: secção **4) Campanhas** em [07-teste-modo-compacto.md](./07-teste-modo-compacto.md).
 

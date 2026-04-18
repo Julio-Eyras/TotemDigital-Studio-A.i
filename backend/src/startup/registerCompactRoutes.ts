@@ -15,16 +15,20 @@ import alertsRoutes from '../routes/alerts';
 import logsRoutes from '../routes/logs';
 import playlistEngineRoutes from '../routes/playlist-engine';
 import subscriberRoutes from '../routes/subscribers';
+import plansRoutes from '../routes/plans';
+import contractRoutes from '../routes/contracts';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 
 /**
  * Rotas expostas no perfil TotemDigital compacto (monousuário).
  * Exclui a maior parte da superfície Pro (billing, smartdisplayfx, publishers UI massiva, etc.)
- * mas mantém CRUD de assinantes (anunciantes) e operação de totens/mídia/dispatcher.
+ * mas mantém assinantes, planos/contratos (formulários e selects) e operação de totens/mídia/dispatcher.
  */
 export function registerCompactRoutes(app: Express): void {
   app.use('/api/auth', authRoutes);
+  app.use('/api/plans', plansRoutes);
+  app.use('/api/contracts', contractRoutes);
   app.use('/api/subscribers', authMiddleware as any, blockClientDataAccess as any, subscriberRoutes);
   app.use('/api/locals', authMiddleware as any, localRoutes);
   app.use('/api/totems', totemRoutes);

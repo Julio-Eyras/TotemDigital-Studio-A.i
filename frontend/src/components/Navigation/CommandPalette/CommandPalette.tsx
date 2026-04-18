@@ -148,6 +148,15 @@ const compactCommandItems: CommandItem[] = [
     keywords: ['assinantes', 'subscribers', 'anunciantes', 'clientes'],
   },
   {
+    id: 'plans',
+    label: 'Planos',
+    description: 'CRUD de planos e vínculo a exibidores',
+    icon: <Business />,
+    type: 'page',
+    path: '/plan-publisher-access',
+    keywords: ['planos', 'plans', 'acesso', 'publishers'],
+  },
+  {
     id: 'totems',
     label: 'Totens',
     description: 'Gerenciar totens',
