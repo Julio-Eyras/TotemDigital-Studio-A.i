@@ -12,6 +12,8 @@ Objetivo: a variante **compacta** expõe operação de totens, mídias, playlist
 | `/api/subscribers` | Assinantes (CRUD) |
 | `/api/plans` | Planos (lista/CRUD; select no formulário de assinante) |
 | `/api/contracts` | Contratos (ex.: rascunhos ao criar assinante) |
+| `/api/publishers` | Exibidores (página Planos / vínculos) |
+| `/api/subscriber-access` | Plano ↔ publisher (`plan-publisher`, etc.) |
 | `/api/locals` | Locais (filtros e vínculo na UI de totens) |
 | `/api/totems` | Totens |
 | `/api/dispatcher-totem` | Dispatcher |

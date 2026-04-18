@@ -29,7 +29,7 @@ Resultado esperado:
 
 - `/api/auth`
 - `/api/subscribers`
-- `/api/plans` e `/api/contracts`
+- `/api/plans`, `/api/contracts`, `/api/publishers`, `/api/subscriber-access`
 - `/api/dashboard`
 - `/api/locals` (utilizada pela UI de totens)
 - `/api/totems`

@@ -17,6 +17,8 @@ import playlistEngineRoutes from '../routes/playlist-engine';
 import subscriberRoutes from '../routes/subscribers';
 import plansRoutes from '../routes/plans';
 import contractRoutes from '../routes/contracts';
+import publisherRoutes from '../routes/publishers';
+import subscriberAccessRoutes from '../routes/subscriber-access';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 
@@ -29,6 +31,8 @@ export function registerCompactRoutes(app: Express): void {
   app.use('/api/auth', authRoutes);
   app.use('/api/plans', plansRoutes);
   app.use('/api/contracts', contractRoutes);
+  app.use('/api/publishers', authMiddleware as any, publisherRoutes);
+  app.use('/api/subscriber-access', subscriberAccessRoutes);
   app.use('/api/subscribers', authMiddleware as any, blockClientDataAccess as any, subscriberRoutes);
   app.use('/api/locals', authMiddleware as any, localRoutes);
   app.use('/api/totems', totemRoutes);
