@@ -34,6 +34,7 @@ import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteC
 import { useAppSelector } from '../../store';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -54,7 +55,14 @@ const Totems: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
   const theme = useTheme();
   const breadcrumbs = useBreadcrumbs();
-  const canAdministerTotems = ['admin', 'admin_sql', 'owner_system'].includes(user?.role || '');
+  const canAdministerTotems = useMemo(() => {
+    const role = user?.role || '';
+    if (['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'].includes(role)) {
+      return true;
+    }
+    // No compacto, permitir operação direta do owner operacional (publisher_user).
+    return TOTEMDIGITAL_COMPACT && role === 'publisher_user';
+  }, [user?.role]);
   const userPublisherId = user?.publisherId;
 
   const [totems, setTotems] = useState<Player[]>([]);

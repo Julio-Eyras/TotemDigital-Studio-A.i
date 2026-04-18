@@ -6,6 +6,7 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
+import { assertCompactOwnerPublisher } from '../utils/compactOwnerPublisher';
 
 export interface SmartTv {
   smart_tv_id: number;
@@ -292,6 +293,8 @@ export class SmartTvService {
         throw new Error('Totem não encontrado');
       }
 
+      await assertCompactOwnerPublisher(this.db, Number(totem.publisher_id), 'Smart TV');
+
       // Validação de ownership: não-admin só pode criar Smart TVs em totens do seu publisher
       // Se requestPublisherId não estiver definido (admin criando publisher novo), permitir
       if (!isAdmin && requestPublisherId && totem.publisher_id !== requestPublisherId) {
@@ -422,6 +425,10 @@ export class SmartTvService {
       const existingSmartTv = await this.getSmartTvById(id, requestPublisherId, isAdmin);
       if (!existingSmartTv) {
         throw new Error('Smart TV não encontrada');
+      }
+
+      if (existingSmartTv.publisher_id) {
+        await assertCompactOwnerPublisher(this.db, Number(existingSmartTv.publisher_id), 'Smart TV');
       }
 
       // Verificar se identifier já existe (se mudou)

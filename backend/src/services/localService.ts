@@ -6,6 +6,8 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 
 export interface Local {
   local_id: number;
@@ -281,30 +283,39 @@ export class LocalService {
   ): Promise<Local> {
     try {
       const { publisher_id, contract_id, name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description } = data;
+      let targetPublisherId = publisher_id;
 
       // Validar que tem publisher_id (obrigatório)
-      if (!publisher_id) {
+      if (!targetPublisherId) {
         throw new Error('publisher_id é obrigatório. Locais pertencem apenas a publishers.');
+      }
+
+      if (TOTEMDIGITAL_COMPACT) {
+        const ownerPublisherId = await resolveCompactOwnerPublisherId(this.db);
+        if (!ownerPublisherId) {
+          throw new Error('Modo compacto: publisher do owner não encontrado.');
+        }
+        targetPublisherId = ownerPublisherId;
       }
 
       // Validar se publisher existe
       const publisher = await this.db.findFirst(`
         SELECT publisher_id, name FROM publishers WHERE publisher_id = $1
-      `, [publisher_id]);
+      `, [targetPublisherId]);
 
       if (!publisher) {
         throw new Error('Publisher não encontrado');
       }
 
       // Validação de ownership: não-admin só pode criar locals do seu publisher
-      if (!isAdmin && requestPublisherId && publisher_id !== requestPublisherId) {
+      if (!isAdmin && requestPublisherId && targetPublisherId !== requestPublisherId) {
         throw new Error('Acesso negado: Você só pode criar locals para o seu próprio publisher');
       }
 
       // Verificar se local com mesmo nome já existe para este publisher
       const existingLocal = await this.db.findFirst(`
         SELECT local_id FROM locals WHERE name = $1 AND publisher_id = $2
-      `, [name, publisher_id]);
+      `, [name, targetPublisherId]);
 
       if (existingLocal) {
         throw new Error('Local com este nome já existe para este publisher');
@@ -350,7 +361,7 @@ export class LocalService {
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING local_id
-      `, [publisher_id, contract_id || null, name, category_segment || null, address || null, city || null, state || null, zip_code || null, country || 'BR', latitude || null, longitude || null, timezone || 'America/Sao_Paulo', description || null]);
+      `, [targetPublisherId, contract_id || null, name, category_segment || null, address || null, city || null, state || null, zip_code || null, country || 'BR', latitude || null, longitude || null, timezone || 'America/Sao_Paulo', description || null]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar local');
@@ -367,7 +378,7 @@ export class LocalService {
       await this.getAuditService().log('local', 'created', createdBy, {
         localId,
         name,
-        publisher_id,
+        publisher_id: targetPublisherId,
       });
 
       return newLocal;

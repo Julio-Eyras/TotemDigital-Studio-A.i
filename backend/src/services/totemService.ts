@@ -11,6 +11,7 @@ import { getEventLogService, EventType } from './eventLogService';
 import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService } from './totemPlaylistMixService';
 import type { PoolClient } from 'pg';
+import { assertCompactOwnerPublisher } from '../utils/compactOwnerPublisher';
 
 export interface CreateTotemRequest {
   name?: string;
@@ -585,6 +586,8 @@ export class TotemService {
       throw new Error('Local não encontrado');
     }
 
+    await assertCompactOwnerPublisher(this.db, Number(local.publisher_id), 'Totem');
+
     // Validação de ownership: não-admin só pode criar totens em locals do seu publisher
     if (!isAdmin && requestPublisherId && local.publisher_id !== requestPublisherId) {
       throw new Error('Acesso negado: Você só pode criar totens em locals do seu próprio publisher');
@@ -745,6 +748,10 @@ export class TotemService {
         throw new Error('Totem não encontrado');
       }
 
+      if (existingTotem.publisherId) {
+        await assertCompactOwnerPublisher(this.db, Number(existingTotem.publisherId), 'Totem');
+      }
+
       // Se localId está sendo alterado, validar ownership
       const existingLocalId = typeof existingTotem.localId === 'string' ? parseInt(existingTotem.localId) : existingTotem.localId;
       if (data.localId !== undefined && data.localId !== existingLocalId) {
@@ -760,6 +767,8 @@ export class TotemService {
         if (!local) {
           throw new Error('Local não encontrado');
         }
+
+        await assertCompactOwnerPublisher(this.db, Number(local.publisher_id), 'Totem');
 
         // Validação de ownership: não-admin só pode mover totem para local do seu publisher
         if (!isAdmin && requestPublisherId && local.publisher_id !== requestPublisherId) {

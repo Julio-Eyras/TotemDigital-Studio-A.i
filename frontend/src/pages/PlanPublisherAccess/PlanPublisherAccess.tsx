@@ -56,6 +56,7 @@ import {
 import { planApi, Plan, CreatePlanRequest, UpdatePlanRequest } from '../../services/api';
 import { publisherApi, Publisher } from '../../services/api';
 import { subscriberAccessApi, PlanPublisherAccess } from '../../services/api';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -74,6 +75,10 @@ function TabPanel(props: TabPanelProps) {
 
 const PlanPublisherAccessPage: React.FC = () => {
   const theme = useTheme();
+  const publisherEntityLabel = TOTEMDIGITAL_COMPACT ? 'Totem' : 'Publisher';
+  const publishersOfPlanLabel = TOTEMDIGITAL_COMPACT ? 'Totens do Plano' : 'Publishers do Plano';
+  const maintenanceTabLabel = TOTEMDIGITAL_COMPACT ? 'Manutenção de Totens' : 'Manutenção de Publicadores';
+  const addPublisherLabel = TOTEMDIGITAL_COMPACT ? 'Adicionar Totem ao Plano' : 'Adicionar Publisher ao Plano';
   const [tabValue, setTabValue] = useState(0);
   
   // Estados comuns
@@ -537,7 +542,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       <Card>
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
           <Tab label="Planos (CRUD)" />
-          <Tab label="Manutenção de Publicadores" />
+          <Tab label={maintenanceTabLabel} />
         </Tabs>
 
         {/* Loading */}
@@ -663,11 +668,11 @@ const PlanPublisherAccessPage: React.FC = () => {
                 </Grid>
                 <Grid item xs={12} md={5}>
                   <FormControl fullWidth>
-                    <InputLabel>Filtrar por Publisher</InputLabel>
+                    <InputLabel>{`Filtrar por ${publisherEntityLabel}`}</InputLabel>
                     <Select
                       value={accessFilters.publisherId}
                       onChange={(e) => setAccessFilters({ ...accessFilters, publisherId: e.target.value })}
-                      label="Filtrar por Publisher"
+                      label={`Filtrar por ${publisherEntityLabel}`}
                     >
                       <MenuItem value="">Todos</MenuItem>
                       {publishers.map((publisher) => (
@@ -694,7 +699,7 @@ const PlanPublisherAccessPage: React.FC = () => {
               <TableHead>
                 <TableRow>
                   <TableCell><strong>Plano</strong></TableCell>
-                  <TableCell><strong>Publisher</strong></TableCell>
+                  <TableCell><strong>{publisherEntityLabel}</strong></TableCell>
                   <TableCell><strong>Acesso Permitido</strong></TableCell>
                   <TableCell><strong>Restrições</strong></TableCell>
                   <TableCell><strong>Notas</strong></TableCell>
@@ -786,7 +791,7 @@ const PlanPublisherAccessPage: React.FC = () => {
           <Tabs value={planDialogTab} onChange={(_, newValue) => setPlanDialogTab(newValue)} sx={{ mb: 3 }}>
             <Tab label="Dados do Plano" />
             <Tab 
-              label="Publishers do Plano" 
+              label={publishersOfPlanLabel}
               icon={planPublishers.length > 0 ? <Chip label={planPublishers.length} size="small" color="primary" /> : undefined} 
               iconPosition="end" 
             />
@@ -969,21 +974,21 @@ const PlanPublisherAccessPage: React.FC = () => {
           {planDialogTab === 1 && (
             <Box sx={{ pt: 2 }}>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                Publishers do Plano
+                {publishersOfPlanLabel}
               </Typography>
               
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Publisher ao Plano</Typography>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>{addPublisherLabel}</Typography>
                 <Grid container spacing={2} alignItems="center">
                   <Grid item xs={12} md={8}>
                     <FormControl fullWidth>
-                      <InputLabel>Publisher</InputLabel>
+                      <InputLabel>{publisherEntityLabel}</InputLabel>
                       <Select
                         value={selectedPublisherForPlan}
                         onChange={(e) => setSelectedPublisherForPlan(e.target.value)}
-                        label="Publisher"
+                        label={publisherEntityLabel}
                       >
-                        <MenuItem value="">Selecione um publisher</MenuItem>
+                        <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
                         {publishers
                           .filter(p => !planPublishers.some(pp => pp.publisherId === p.publisher_id))
                           .map((publisher) => (
@@ -1019,7 +1024,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                       >
                         <ListItemIcon><Business /></ListItemIcon>
                         <ListItemText
-                          primary={publisher?.name || `Publisher ID: ${planPublisher.publisherId}`}
+                          primary={publisher?.name || `${publisherEntityLabel} ID: ${planPublisher.publisherId}`}
                           secondary={
                             <Box sx={{ mt: 1 }}>
                               <Chip
@@ -1050,7 +1055,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                 </List>
               ) : (
                 <Alert severity="info">
-                  Nenhum publisher associado a este plano. Você pode adicionar publishers através do campo acima.
+                  {`Nenhum ${publisherEntityLabel.toLowerCase()} associado a este plano. Você pode adicionar ${publisherEntityLabel.toLowerCase()}s através do campo acima.`}
                 </Alert>
               )}
             </Box>
@@ -1068,7 +1073,7 @@ const PlanPublisherAccessPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Dialog: Manutenção de Publishers */}
+      {/* Dialog: Manutenção de entidade de acesso (publisher/totem) */}
       <Dialog open={accessDialogOpen} onClose={handleCloseAccessDialog} maxWidth="md" fullWidth>
         <DialogTitle>
           {accessEditMode ? 'Editar Configuração' : 'Nova Configuração'}
@@ -1093,14 +1098,14 @@ const PlanPublisherAccessPage: React.FC = () => {
             </FormControl>
 
             <FormControl fullWidth margin="normal">
-              <InputLabel>Publisher *</InputLabel>
+              <InputLabel>{`${publisherEntityLabel} *`}</InputLabel>
               <Select
                 value={accessFormData.publisherId}
                 onChange={(e) => setAccessFormData({ ...accessFormData, publisherId: e.target.value })}
-                label="Publisher *"
+                label={`${publisherEntityLabel} *`}
                 disabled={accessEditMode}
               >
-                <MenuItem value="">Selecione um publisher</MenuItem>
+                <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
                 {publishers.map((publisher) => (
                   <MenuItem key={publisher.publisher_id} value={publisher.publisher_id.toString()}>
                     {publisher.name}

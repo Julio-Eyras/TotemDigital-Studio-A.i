@@ -76,6 +76,15 @@ MQTT_WS_URL_DEFAULT="ws://localhost:9001"
 INSTALL_TOTEMDIGITAL_COMPACT="${INSTALL_TOTEMDIGITAL_COMPACT:-true}"
 TOTEMDIGITAL_PROFILE_CLI_SET=false
 
+# Dados do proprietário (owner) usados no seed compacto (sem hardcode fixo de "totem digital")
+SYSTEM_OWNER_NAME="${SYSTEM_OWNER_NAME:-Totem Digital}"
+SYSTEM_OWNER_CONTACT_NAME="${SYSTEM_OWNER_CONTACT_NAME:-}"
+SYSTEM_OWNER_EMAIL="${SYSTEM_OWNER_EMAIL:-}"
+SYSTEM_OWNER_CITY="${SYSTEM_OWNER_CITY:-Encruzilhada}"
+SYSTEM_OWNER_ADMIN_USERNAME="${SYSTEM_OWNER_ADMIN_USERNAME:-}"
+SYSTEM_OWNER_PLAN_NAME="${SYSTEM_OWNER_PLAN_NAME:-}"
+SYSTEM_OWNER_PLAN_SLUG="${SYSTEM_OWNER_PLAN_SLUG:-}"
+
 # Modos especiais (operações focadas)
 DB_ONLY_MODE=false                # Reinstala apenas o banco (drop + schema + seeds), sem rebuild de backend/frontend
 BACKEND_BUILD_ONLY=false          # Faz apenas build do backend (sem mexer em banco/Nginx/etc.)
@@ -130,6 +139,117 @@ log_progress() {
 # Função de log de status
 log_status() {
     echo -e "${PURPLE}[STATUS $(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
+}
+
+to_kebab_case() {
+    local input="$1"
+    echo "$input" \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//; s/-+/-/g'
+}
+
+escape_sed_replacement() {
+    printf '%s' "$1" | sed -e 's/[\/&]/\\&/g'
+}
+
+escape_sql_literal() {
+    # Escapa aspas simples para uso seguro em literais SQL: ' -> ''
+    printf '%s' "$1" | sed "s/'/''/g"
+}
+
+sanitize_owner_profile_defaults() {
+    local owner_name
+    owner_name="$(echo "${SYSTEM_OWNER_NAME:-Totem Digital}" | xargs)"
+    [[ -z "$owner_name" ]] && owner_name="Totem Digital"
+
+    local owner_slug
+    owner_slug="$(to_kebab_case "$owner_name")"
+    [[ -z "$owner_slug" ]] && owner_slug="totem-digital"
+
+    local owner_compact="${owner_slug//-/}"
+    [[ -z "$owner_compact" ]] && owner_compact="totemdigital"
+
+    SYSTEM_OWNER_NAME="$owner_name"
+    SYSTEM_OWNER_CONTACT_NAME="$(echo "${SYSTEM_OWNER_CONTACT_NAME:-Contato $owner_name}" | xargs)"
+    SYSTEM_OWNER_EMAIL="$(echo "${SYSTEM_OWNER_EMAIL:-contato@${owner_compact}.local}" | xargs)"
+    SYSTEM_OWNER_CITY="$(echo "${SYSTEM_OWNER_CITY:-Encruzilhada}" | xargs)"
+    SYSTEM_OWNER_ADMIN_USERNAME="$(echo "${SYSTEM_OWNER_ADMIN_USERNAME:-${owner_compact}.admin}" | xargs)"
+    SYSTEM_OWNER_PLAN_NAME="$(echo "${SYSTEM_OWNER_PLAN_NAME:-Plano $owner_name}" | xargs)"
+    SYSTEM_OWNER_PLAN_SLUG="$(echo "${SYSTEM_OWNER_PLAN_SLUG:-$(to_kebab_case "${SYSTEM_OWNER_PLAN_NAME:-Plano $owner_name}")}" | xargs)"
+}
+
+ask_owner_profile() {
+    sanitize_owner_profile_defaults
+
+    if [[ "$SKIP_MENU" == "true" ]]; then
+        log "Dados do owner (skip-menu): ${SYSTEM_OWNER_NAME} <${SYSTEM_OWNER_EMAIL}> | admin=${SYSTEM_OWNER_ADMIN_USERNAME}"
+        return 0
+    fi
+
+    echo
+    echo -e "${CYAN}Dados do proprietário do sistema (owner) — primeira etapa${NC}"
+    echo -e "${YELLOW}Esses dados serão usados para gerar seed dinâmico (publisher/plano/admin) no modo compacto.${NC}"
+
+    local input=""
+    read -p "Nome do proprietário/empresa [${SYSTEM_OWNER_NAME}]: " input
+    [[ -n "${input// }" ]] && SYSTEM_OWNER_NAME="$input"
+    sanitize_owner_profile_defaults
+
+    read -p "Nome do contato [${SYSTEM_OWNER_CONTACT_NAME}]: " input
+    [[ -n "${input// }" ]] && SYSTEM_OWNER_CONTACT_NAME="$input"
+
+    read -p "E-mail principal [${SYSTEM_OWNER_EMAIL}]: " input
+    [[ -n "${input// }" ]] && SYSTEM_OWNER_EMAIL="$input"
+
+    read -p "Cidade base [${SYSTEM_OWNER_CITY}]: " input
+    [[ -n "${input// }" ]] && SYSTEM_OWNER_CITY="$input"
+
+    read -p "Usuário admin publisher [${SYSTEM_OWNER_ADMIN_USERNAME}]: " input
+    [[ -n "${input// }" ]] && SYSTEM_OWNER_ADMIN_USERNAME="$input"
+
+    read -p "Nome do plano inicial [${SYSTEM_OWNER_PLAN_NAME}]: " input
+    [[ -n "${input// }" ]] && SYSTEM_OWNER_PLAN_NAME="$input"
+    SYSTEM_OWNER_PLAN_SLUG="$(to_kebab_case "$SYSTEM_OWNER_PLAN_NAME")"
+    [[ -z "$SYSTEM_OWNER_PLAN_SLUG" ]] && SYSTEM_OWNER_PLAN_SLUG="plano-${SYSTEM_OWNER_NAME// /-}"
+    SYSTEM_OWNER_PLAN_SLUG="$(to_kebab_case "$SYSTEM_OWNER_PLAN_SLUG")"
+
+    sanitize_owner_profile_defaults
+}
+
+prepare_seed_with_owner_profile() {
+    local input_seed_file="$1"
+    local output_seed_file="$2"
+
+    sanitize_owner_profile_defaults
+    cp "$input_seed_file" "$output_seed_file"
+
+    local owner_name="$SYSTEM_OWNER_NAME"
+    local owner_name_lower
+    owner_name_lower="$(echo "$owner_name" | tr '[:upper:]' '[:lower:]')"
+    local owner_city="$SYSTEM_OWNER_CITY"
+    local owner_city_lower
+    owner_city_lower="$(echo "$owner_city" | tr '[:upper:]' '[:lower:]')"
+
+    local rep_owner_name rep_owner_name_lower rep_contact rep_email rep_city rep_city_lower rep_admin rep_plan_name rep_plan_slug
+    rep_owner_name="$(escape_sed_replacement "$(escape_sql_literal "$owner_name")")"
+    rep_owner_name_lower="$(escape_sed_replacement "$(escape_sql_literal "$owner_name_lower")")"
+    rep_contact="$(escape_sed_replacement "$(escape_sql_literal "$SYSTEM_OWNER_CONTACT_NAME")")"
+    rep_email="$(escape_sed_replacement "$(escape_sql_literal "$SYSTEM_OWNER_EMAIL")")"
+    rep_city="$(escape_sed_replacement "$(escape_sql_literal "$owner_city")")"
+    rep_city_lower="$(escape_sed_replacement "$(escape_sql_literal "$owner_city_lower")")"
+    rep_admin="$(escape_sed_replacement "$(escape_sql_literal "$SYSTEM_OWNER_ADMIN_USERNAME")")"
+    rep_plan_name="$(escape_sed_replacement "$(escape_sql_literal "$SYSTEM_OWNER_PLAN_NAME")")"
+    rep_plan_slug="$(escape_sed_replacement "$(escape_sql_literal "$SYSTEM_OWNER_PLAN_SLUG")")"
+
+    sed -i "s/contato@totemdigital.local/${rep_email}/g" "$output_seed_file"
+    sed -i "s/totemdigital.admin/${rep_admin}/g" "$output_seed_file"
+    sed -i "s/Contato Totem Digital/${rep_contact}/g" "$output_seed_file"
+    sed -i "s/plano-totem-digital/${rep_plan_slug}/g" "$output_seed_file"
+    sed -i "s/Plano Totem Digital/${rep_plan_name}/g" "$output_seed_file"
+    sed -i "s/totem digital/${rep_owner_name_lower}/g" "$output_seed_file"
+    sed -i "s/Totem Digital/${rep_owner_name}/g" "$output_seed_file"
+    sed -i "s/Encruzilhada/${rep_city}/g" "$output_seed_file"
+    sed -i "s/encruzilhada/${rep_city_lower}/g" "$output_seed_file"
 }
 
 # Copiar mídias de demonstração de player-web/propagandas para o diretório de uploads de cada subscriber.
@@ -480,6 +600,15 @@ BACKEND_PORT=3000
 
 # Porta do frontend (Nginx)
 FRONTEND_PORT=80
+
+# Dados do proprietário (owner) para seed inicial dinâmica
+SYSTEM_OWNER_NAME=Totem Digital
+SYSTEM_OWNER_CONTACT_NAME=Contato Totem Digital
+SYSTEM_OWNER_EMAIL=contato@totemdigital.local
+SYSTEM_OWNER_CITY=Encruzilhada
+SYSTEM_OWNER_ADMIN_USERNAME=totemdigital.admin
+SYSTEM_OWNER_PLAN_NAME=Plano Totem Digital
+SYSTEM_OWNER_PLAN_SLUG=plano-totem-digital
 EOF
     
     chmod 600 "$config_file"
@@ -708,7 +837,7 @@ execute_psql_file() {
 
     if [[ ! -f "$schema_file" ]]; then
         error "❌ Arquivo SQL não encontrado: $schema_file"
-        exit 1
+        return 1
     fi
 
     # Garantir que o usuário postgres consiga ler o arquivo
@@ -722,7 +851,7 @@ execute_psql_file() {
 
     if [[ ! -r "$schema_file" ]]; then
         error "❌ Permissão de leitura negada para $schema_file"
-        exit 1
+        return 1
     fi
 
     log_detailed "Executando ${description}: $schema_file"
@@ -731,13 +860,13 @@ execute_psql_file() {
     local temp_schema
     temp_schema=$(mktemp /tmp/smartchannel-schema-XXXX.sql) || {
         error "❌ Falha ao criar arquivo temporário para ${description}"
-        exit 1
+        return 1
     }
 
     if ! cp "$schema_file" "$temp_schema"; then
         rm -f "$temp_schema" 2>/dev/null || true
         error "❌ Falha ao copiar ${schema_file} para ${temp_schema}"
-        exit 1
+        return 1
     fi
 
     # Substituir caminhos relativos \i por caminhos absolutos; se em dir inacessível ao postgres, copiar .sql para /tmp
@@ -771,7 +900,7 @@ execute_psql_file() {
         [[ -n "$cleanup_schema_dir" ]] && rm -rf "$cleanup_schema_dir" 2>/dev/null || true
         error "❌ Falha ao aplicar ${description}"
         echo "$psql_output"
-        exit 1
+        return 1
     fi
 
     rm -f "$schema_to_use" 2>/dev/null || true
@@ -4757,6 +4886,7 @@ SQL
 # Configurar variáveis de ambiente
 setup_environment() {
     log "Configurando variáveis de ambiente..."
+    sanitize_owner_profile_defaults
     
     # Criar diretório de logs se não existir
     LOGS_DIR="/opt/smart-signage/Logs"
@@ -4841,6 +4971,15 @@ CORS_ORIGIN=http://localhost:3000,http://localhost:3001
 TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
 REACT_APP_TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
 
+# Dados do proprietário (owner) para seed dinâmico no modo compacto
+SYSTEM_OWNER_NAME=$SYSTEM_OWNER_NAME
+SYSTEM_OWNER_CONTACT_NAME=$SYSTEM_OWNER_CONTACT_NAME
+SYSTEM_OWNER_EMAIL=$SYSTEM_OWNER_EMAIL
+SYSTEM_OWNER_CITY=$SYSTEM_OWNER_CITY
+SYSTEM_OWNER_ADMIN_USERNAME=$SYSTEM_OWNER_ADMIN_USERNAME
+SYSTEM_OWNER_PLAN_NAME=$SYSTEM_OWNER_PLAN_NAME
+SYSTEM_OWNER_PLAN_SLUG=$SYSTEM_OWNER_PLAN_SLUG
+
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
@@ -4913,6 +5052,15 @@ CORS_ORIGIN=http://localhost:3000,http://localhost:3001
 # TotemDigital modo compacto (= mono) vs Pro — menu de instalação ou --totemdigital-compact / --smartsignage-pro
 TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
 REACT_APP_TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
+
+# Dados do proprietário (owner) para seed dinâmico no modo compacto
+SYSTEM_OWNER_NAME=$SYSTEM_OWNER_NAME
+SYSTEM_OWNER_CONTACT_NAME=$SYSTEM_OWNER_CONTACT_NAME
+SYSTEM_OWNER_EMAIL=$SYSTEM_OWNER_EMAIL
+SYSTEM_OWNER_CITY=$SYSTEM_OWNER_CITY
+SYSTEM_OWNER_ADMIN_USERNAME=$SYSTEM_OWNER_ADMIN_USERNAME
+SYSTEM_OWNER_PLAN_NAME=$SYSTEM_OWNER_PLAN_NAME
+SYSTEM_OWNER_PLAN_SLUG=$SYSTEM_OWNER_PLAN_SLUG
 
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
@@ -9010,7 +9158,28 @@ setup_first_boot() {
 
         if [[ -f "$INITIAL_LOAD_SQL_FILE" ]]; then
             log "✅ Arquivo de seeds encontrado: $(basename "$INITIAL_LOAD_SQL_FILE")"
-            execute_psql_file "$TARGET_DB" "$INITIAL_LOAD_SQL_FILE" "Carga inicial (seeds) ($(basename "$INITIAL_LOAD_SQL_FILE"))"
+            local RUNTIME_SEED_FILE="$INITIAL_LOAD_SQL_FILE"
+            local TEMP_DYNAMIC_SEED_FILE=""
+
+            # Aplicar dados do owner como parâmetros dinâmicos para evitar hardcode no tenant inicial.
+            TEMP_DYNAMIC_SEED_FILE=$(mktemp /tmp/carga-inicial-v6.owner.XXXX.sql 2>/dev/null || true)
+            if [[ -n "$TEMP_DYNAMIC_SEED_FILE" ]]; then
+                prepare_seed_with_owner_profile "$INITIAL_LOAD_SQL_FILE" "$TEMP_DYNAMIC_SEED_FILE"
+                RUNTIME_SEED_FILE="$TEMP_DYNAMIC_SEED_FILE"
+                log "Seed dinâmico aplicado com owner='${SYSTEM_OWNER_NAME}', admin='${SYSTEM_OWNER_ADMIN_USERNAME}', plano='${SYSTEM_OWNER_PLAN_NAME}'."
+            else
+                warn "⚠️ Não foi possível criar arquivo temporário para seed dinâmico. Usando seed padrão."
+            fi
+
+            if ! execute_psql_file "$TARGET_DB" "$RUNTIME_SEED_FILE" "Carga inicial (seeds) ($(basename "$INITIAL_LOAD_SQL_FILE"))"; then
+                if [[ "$RUNTIME_SEED_FILE" != "$INITIAL_LOAD_SQL_FILE" ]]; then
+                    warn "⚠️ Seed dinâmico do owner falhou. Reaplicando seed padrão para não interromper a instalação..."
+                    execute_psql_file "$TARGET_DB" "$INITIAL_LOAD_SQL_FILE" "Carga inicial (seeds) fallback ($(basename "$INITIAL_LOAD_SQL_FILE"))"
+                else
+                    return 1
+                fi
+            fi
+            [[ -n "$TEMP_DYNAMIC_SEED_FILE" ]] && rm -f "$TEMP_DYNAMIC_SEED_FILE" 2>/dev/null || true
 
             # Copiar mídias demo para que `medias.file_path` aponte para arquivos reais em /opt
             install_demo_media_files || true
@@ -10539,6 +10708,9 @@ rebuild_fresh() {
 
 # Menu principal
 show_menu() {
+    # Primeira etapa do menu: dados do proprietário (owner) para seed dinâmico.
+    ask_owner_profile
+
     # Se SKIP_MENU está ativo, usar defaults sem prompt (padrão do menu é Single-Server)
     if [[ "$SKIP_MENU" == "true" ]]; then
         if [[ -z "$INSTALL_MODE" ]]; then

@@ -71,7 +71,10 @@ const Playlists: React.FC = () => {
   // Somente owner/admin/admin_sql podem escolher subscriber (multi-tenant)
   const canSelectSubscriber = useMemo(() => {
     const u: any = user;
-    return ['owner_system', 'admin', 'admin_sql'].includes(u?.role || '');
+    const role = u?.role || '';
+    // Alinhar com regras de negócio da API de playlists:
+    // perfis administrativos/comerciais podem escolher o subscriber ativo no create.
+    return ['owner_system', 'admin', 'admin_sql', 'gerente_marketing', 'manager'].includes(role);
   }, [user]);
 
   const userSubscriberId = useMemo(() => {
@@ -110,7 +113,7 @@ const Playlists: React.FC = () => {
   const [implicitSubscriberId, setImplicitSubscriberId] = useState<number | undefined>();
 
   useEffect(() => {
-    if (canSelectSubscriber && !TOTEMDIGITAL_COMPACT) void loadSubscribers();
+    if (canSelectSubscriber) void loadSubscribers();
     void loadPlaylists();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canSelectSubscriber, selectedSubscriberId, searchTerm]);
@@ -155,10 +158,9 @@ const Playlists: React.FC = () => {
   }, [canSelectSubscriber, userSubscriberId]);
 
   const loadSubscribers = async () => {
-    if (TOTEMDIGITAL_COMPACT) return;
     try {
       // Backend limita paginação; manter compatível para evitar 400/429
-      const response = await subscriberApi.getAll({ limit: 100, active_only: false });
+      const response = await subscriberApi.getAll({ limit: 100, active_only: true });
       setSubscribers(response.data || []);
     } catch (e) {
       console.error('Erro ao carregar subscribers:', e);
@@ -481,7 +483,7 @@ const Playlists: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            {canSelectSubscriber && !TOTEMDIGITAL_COMPACT && (
+            {canSelectSubscriber && (
               <Grid item xs={12} md={4}>
                 <FormControl fullWidth>
                   <InputLabel>Subscriber (Anunciante)</InputLabel>
@@ -500,7 +502,7 @@ const Playlists: React.FC = () => {
                 </FormControl>
               </Grid>
             )}
-            <Grid item xs={12} md={canSelectSubscriber && !TOTEMDIGITAL_COMPACT ? 6 : 8}>
+            <Grid item xs={12} md={canSelectSubscriber ? 6 : 8}>
               <TextField
                 fullWidth
                 placeholder="Buscar playlists..."
@@ -509,7 +511,7 @@ const Playlists: React.FC = () => {
                 InputProps={{ startAdornment: <QueueMusic sx={{ mr: 1, color: theme.palette.text.secondary }} /> }}
               />
             </Grid>
-            <Grid item xs={12} md={canSelectSubscriber && !TOTEMDIGITAL_COMPACT ? 2 : 4}>
+            <Grid item xs={12} md={canSelectSubscriber ? 2 : 4}>
               <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={loadPlaylists}>
                 Atualizar
               </Button>
@@ -586,20 +588,7 @@ const Playlists: React.FC = () => {
                 Campanhas apontam para playlists via <strong>campaign_playlists</strong>.
               </Alert>
 
-              {canSelectSubscriber && TOTEMDIGITAL_COMPACT ? (
-                <TextField
-                  fullWidth
-                  margin="normal"
-                  label="Subscriber (modelo de dados)"
-                  value={
-                    editorMode === 'create'
-                      ? String(draft.subscriberId ?? implicitSubscriberId ?? userSubscriberId ?? '—')
-                      : String(selectedPlaylist?.subscriber_id ?? selectedPlaylist?.client_id ?? '—')
-                  }
-                  disabled
-                  helperText="No TotemDigital compacto o ID vem das playlists/mídias existentes (sem API de assinantes)."
-                />
-              ) : canSelectSubscriber ? (
+              {canSelectSubscriber ? (
                 <FormControl fullWidth margin="normal">
                   <InputLabel>Subscriber (Anunciante)</InputLabel>
                   <Select
