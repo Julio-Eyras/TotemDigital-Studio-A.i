@@ -305,12 +305,14 @@ const TotemPlayListPage: React.FC = () => {
               iconPosition="start"
               disabled={!selectedPlaylist}
             />
-            <Tab
-              label="Validações"
-              icon={<CheckCircle />}
-              iconPosition="start"
-              disabled={!selectedPlaylist || TOTEMDIGITAL_COMPACT}
-            />
+            {!TOTEMDIGITAL_COMPACT && (
+              <Tab
+                label="Validações"
+                icon={<CheckCircle />}
+                iconPosition="start"
+                disabled={!selectedPlaylist}
+              />
+            )}
           </Tabs>
         </Box>
 
@@ -320,7 +322,13 @@ const TotemPlayListPage: React.FC = () => {
           ) : playlists.length === 0 ? (
             <Alert severity="info">
               <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Nenhuma playlist encontrada</Typography>
-              <Typography variant="body2" component="span">Para as playlists aparecerem: contrato do assinante com plano que tenha acesso a este publisher; campanha ativa com este publisher em PUBLICADORES e com playlists ou mídias diretas; depois use &quot;Regenerar&quot; ou aguarde o totem solicitar o plano. Consulte docs/FLUXO_PLAYLIST_POR_TOTEM.md para o fluxo completo.</Typography>
+              {TOTEMDIGITAL_COMPACT ? (
+                <Typography variant="body2" component="div">
+                  No TotemDigital, a <strong>playlist consolidada</strong> do totem é criada quando há conteúdo para o motor processar: por exemplo <strong>campanha ativa</strong> com este totem associado (e mídias/playlists válidas), ou após usar <strong>Regenerar</strong> quando já existir dados para esse totem. Se ainda não configurou campanhas, comece em <strong>Campanhas</strong> ou associe mídias/playlists ao fluxo do totem. O dispatcher usa esta lista como fallback quando não há plano só de campanha.
+                </Typography>
+              ) : (
+                <Typography variant="body2" component="span">Para as playlists aparecerem: contrato do assinante com plano que tenha acesso a este publisher; campanha ativa com este publisher em PUBLICADORES e com playlists ou mídias diretas; depois use &quot;Regenerar&quot; ou aguarde o totem solicitar o plano. Consulte docs/FLUXO_PLAYLIST_POR_TOTEM.md para o fluxo completo.</Typography>
+              )}
             </Alert>
           ) : (
             <Grid container spacing={2}>
@@ -342,9 +350,11 @@ const TotemPlayListPage: React.FC = () => {
                             <Tv fontSize="small" />
                             {playlist.totem_name || `Totem #${playlist.totem_id}`}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {playlist.publisher_name || `Publisher #${playlist.publisher_id}`}
-                          </Typography>
+                          {!TOTEMDIGITAL_COMPACT && (
+                            <Typography variant="body2" color="text.secondary">
+                              {playlist.publisher_name || `Publisher #${playlist.publisher_id}`}
+                            </Typography>
+                          )}
                         </Box>
                         <Chip label={`v${playlist.version}`} size="small" />
                       </Box>
@@ -437,31 +447,39 @@ const TotemPlayListPage: React.FC = () => {
           {selectedPlaylist ? (
             <Box>
               <Typography variant="h6" gutterBottom>
-                Detalhes por Subscriber
+                {TOTEMDIGITAL_COMPACT ? 'Detalhes da playlist' : 'Detalhes por Subscriber'}
               </Typography>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Em desenvolvimento: Agrupar itens por subscriber e mostrar estatísticas
-              </Alert>
+              {TOTEMDIGITAL_COMPACT ? (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Lista técnica dos itens consolidados neste totem (origem campanha, mídias, etc.). Use o separador <strong>Timeline/Grade</strong> para a ordem de exibição.
+                </Alert>
+              ) : (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Em desenvolvimento: Agrupar itens por subscriber e mostrar estatísticas
+                </Alert>
+              )}
             </Box>
           ) : (
             <Alert severity="info">Selecione uma playlist para visualizar os detalhes</Alert>
           )}
         </TabPanel>
 
-        <TabPanel value={tabValue} index={3}>
-          {selectedPlaylist ? (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Validações
-              </Typography>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Em desenvolvimento: Mostrar validações de contratos, planos e acessos
-              </Alert>
-            </Box>
-          ) : (
-            <Alert severity="info">Selecione uma playlist para visualizar as validações</Alert>
-          )}
-        </TabPanel>
+        {!TOTEMDIGITAL_COMPACT && (
+          <TabPanel value={tabValue} index={3}>
+            {selectedPlaylist ? (
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Validações
+                </Typography>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Em desenvolvimento: Mostrar validações de contratos, planos e acessos
+                </Alert>
+              </Box>
+            ) : (
+              <Alert severity="info">Selecione uma playlist para visualizar as validações</Alert>
+            )}
+          </TabPanel>
+        )}
       </Card>
 
       {/* Dialog para visualizar playlist completa */}
