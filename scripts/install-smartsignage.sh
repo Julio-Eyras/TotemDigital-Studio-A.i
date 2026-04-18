@@ -35,8 +35,54 @@ SCRIPT_VERSION="2.1.8"
 set -e  # Parar em caso de erro
 set -o pipefail
 
-# Trap de erro para diagnóstico rápido
-trap 'echo -e "\033[0;31m[ERRO]\033[0m Falha na execução (linha $LINENO)."' ERR
+# Trap de erro com recuperação best-effort do backend em single-server
+on_install_error() {
+    local failed_line="${1:-$LINENO}"
+    echo -e "\033[0;31m[ERRO]\033[0m Falha na execução (linha ${failed_line})."
+
+    # Evitar loops de recuperação
+    if [[ "${INSTALL_RECOVERY_ATTEMPTED:-false}" == "true" ]]; then
+        return
+    fi
+    INSTALL_RECOVERY_ATTEMPTED=true
+
+    # Em Docker não tentamos recuperação via systemd local
+    if [[ "${INSTALL_MODE:-single-server}" == "docker" ]]; then
+        return
+    fi
+
+    echo -e "\033[1;33m[WARNING]\033[0m Tentando recuperação automática do backend (single-server)..."
+
+    local candidate_dir=""
+    local d=""
+    for d in "${INSTALL_DIR:-}" "${SOURCE_DIR:-}" "$(pwd)" "/home/${USER}/TotemDigital"; do
+        [[ -z "$d" ]] && continue
+        if [[ -f "$d/backend/dist/index.js" ]]; then
+            candidate_dir="$d"
+            break
+        fi
+    done
+
+    if [[ -z "$candidate_dir" ]]; then
+        return
+    fi
+
+    local helper_script="$candidate_dir/scripts/create-smart-signage-service.sh"
+    if [[ ! -f /etc/systemd/system/smart-signage.service ]] && [[ -x "$helper_script" ]]; then
+        sudo bash "$helper_script" "$candidate_dir" 2>/dev/null || true
+    fi
+
+    sudo systemctl daemon-reload 2>/dev/null || true
+    sudo systemctl enable smart-signage.service 2>/dev/null || true
+    sudo systemctl start smart-signage.service 2>/dev/null || true
+    sleep 2
+
+    if command -v ss >/dev/null 2>&1 && ss -tlnp 2>/dev/null | grep -q ":3000 "; then
+        echo -e "\033[0;32m[INFO]\033[0m Recuperação automática: backend voltou a escutar na porta 3000."
+    fi
+}
+
+trap 'on_install_error $LINENO' ERR
 
 # =============================================================================
 # VARIÁVEIS GLOBAIS E FLAGS
