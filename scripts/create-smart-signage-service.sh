@@ -39,7 +39,8 @@ Type=simple
 User=$USER
 Group=$USER
 WorkingDirectory=$INSTALL_DIR/backend
-ExecStartPre=/bin/sh -c 'PGPASSWORD=smartsignage123 pg_isready -h 127.0.0.1 -p 5432 -U smartsignage -d smartsignage -t 10 || exit 0'
+# Verifica apenas disponibilidade do PostgreSQL para não acoplar credenciais no unit.
+ExecStartPre=/bin/sh -c 'pg_isready -h 127.0.0.1 -p 5432 -t 10 || exit 0'
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=5

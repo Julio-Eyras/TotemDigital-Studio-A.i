@@ -6097,8 +6097,8 @@ Type=simple
 User=$USER
 Group=$USER
 WorkingDirectory=$INSTALL_DIR/backend
-# Verificar se PostgreSQL está pronto (sem usar bash -lc que pode falhar)
-ExecStartPre=/bin/sh -c 'PGPASSWORD=smartsignage123 pg_isready -h 127.0.0.1 -p 5432 -U smartsignage -d smartsignage -t 10 || exit 0'
+# Verificar apenas disponibilidade do PostgreSQL (sem credenciais hardcoded)
+ExecStartPre=/bin/sh -c 'pg_isready -h 127.0.0.1 -p 5432 -t 10 || exit 0'
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=5
@@ -7332,8 +7332,37 @@ EOF
         
         # Garantir que o banco de dados existe antes de iniciar o serviço
         log "Verificando se banco de dados existe..."
-        if ! PGPASSWORD=smartsignage123 psql -h 127.0.0.1 -p 5432 -U smartsignage -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'smartsignage'" | grep -q 1; then
-            error "❌ Banco de dados 'smartsignage' não existe! Execute setup_first_boot primeiro."
+        local _db_name="${DB_NAME:-smartsignage}"
+        local _db_user="${DB_USER:-smartsignage}"
+        local _db_host="${DB_HOST:-127.0.0.1}"
+        local _db_port="${DB_PORT:-5432}"
+        local _db_password="${DB_PASSWORD:-}"
+
+        # Priorizar credenciais da instalação persistidas no .env (quando disponível)
+        if [[ -f "$INSTALL_DIR/.env" ]]; then
+            _db_name=$(grep "^DB_NAME=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "$_db_name")
+            _db_user=$(grep "^DB_USER=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "$_db_user")
+            _db_host=$(grep "^DB_HOST=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "$_db_host")
+            _db_port=$(grep "^DB_PORT=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "$_db_port")
+            _db_password=$(grep "^DB_PASSWORD=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "$_db_password")
+        fi
+
+        local _db_exists=""
+        if [[ -n "$_db_password" ]]; then
+            _db_exists=$(PGPASSWORD="$_db_password" psql -h "$_db_host" -p "$_db_port" -U "$_db_user" -d postgres -tAc "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$_db_name');" 2>/dev/null || true)
+        else
+            _db_exists=$(psql -h "$_db_host" -p "$_db_port" -U "$_db_user" -d postgres -tAc "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$_db_name');" 2>/dev/null || true)
+        fi
+        _db_exists=$(echo "$_db_exists" | tr -d '[:space:]')
+
+        # Fallback por peer auth (postgres), útil quando DB_PASSWORD diverge do padrão.
+        if [[ "$_db_exists" != "t" ]]; then
+            _db_exists=$(sudo -u "${POSTGRES_USER:-postgres}" psql -d postgres -tAc "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$_db_name');" 2>/dev/null | tr -d '[:space:]' || true)
+        fi
+
+        if [[ "$_db_exists" != "t" ]]; then
+            error "❌ Banco de dados '$_db_name' não encontrado (ou sem credenciais de acesso)."
+            error "   Confirme DB_* no .env e execute setup_first_boot antes de iniciar serviços."
             exit 1
         fi
         
