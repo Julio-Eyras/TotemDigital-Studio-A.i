@@ -232,7 +232,7 @@ router.get('/uin/:uin',
  * @access Private (Apenas roles administrativos - baseado em contrato)
  */
 router.post('/',
-  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user']),
+  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user', 'subscriber_user', 'gerente_marketing']),
   body('identifier').optional().isString().isLength({ min: 2, max: 100 }),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
   body('uin').optional().isString(),

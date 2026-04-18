@@ -63,6 +63,14 @@ const Totems: React.FC = () => {
     // No compacto, permitir operação direta do owner operacional (publisher_user).
     return TOTEMDIGITAL_COMPACT && role === 'publisher_user';
   }, [user?.role]);
+  const canCreateTotem = useMemo(() => {
+    const role = user?.role || '';
+    if (['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user'].includes(role)) {
+      return true;
+    }
+    // No compacto, liberar criação no fluxo operacional; ownership é validado no backend.
+    return TOTEMDIGITAL_COMPACT && ['subscriber_user', 'gerente_marketing', 'manager', 'operator'].includes(role);
+  }, [user?.role]);
   const userPublisherId = user?.publisherId;
 
   const [totems, setTotems] = useState<Player[]>([]);
@@ -272,7 +280,7 @@ const Totems: React.FC = () => {
         subtitle="Gerencie totens, aprovações e controle remoto"
         breadcrumbs={breadcrumbs}
         actions={[
-          ...(canAdministerTotems ? [{
+          ...(canCreateTotem ? [{
             label: 'Adicionar Totem',
             icon: <Add />,
             onClick: () => setCreateOpen(true),
