@@ -8,9 +8,11 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [Unreleased]
 
 ### Documentação
+- `scripts/post-deploy-compact-check.sh`: validação pós-deploy do modo compacto (systemd, health, build frontend, cópia em `/opt/smart-signage/frontend/build`, `nginx -t`, HTTP local); referenciado em `docs/technical/04-instalacao.md`.
 - `docs/platform/06-totemdigital-monousuario-er-e-fluxo.md`: E.R. e fluxo **antes (Pro)** vs **depois (TotemDigital operacional)**; cadeia de fallback do dispatcher alinhada ao código; ligação aos PNG do ER completo (`docs/diagrams/`) e dica de zoom para o núcleo TotemDigital.
 - `docs/user/01-introducao.md`: título e secção **TotemDigital** com os mesmos links (Markdown + PNG).
 - Workflows, recursos-regras, FAQ, design de player e arquitetura: texto alinhado à política **campanha → `totem_playlists` → plano vazio** (sem plano gerado pelo servidor a partir de `propagandas`/`vinhetas` em disco).
+- `docs/technical/04-instalacao.md`: verificação visual da marca no modo compacto (login/menu/título com **Smart Signage Compact**) + bloco de comandos de validação pós-deploy (health, build frontend compacto e reload do Nginx).
 
 ### Alterado
 - **Dispatcher:** removida a montagem de plano de fallback a partir de ficheiros locais `propagandas`/`vinhetas` no servidor; mantém-se apenas o fallback por **playlist consolidada** do totem.

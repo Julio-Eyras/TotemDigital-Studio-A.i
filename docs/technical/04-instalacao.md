@@ -52,6 +52,37 @@ sudo bash scripts/install-smartsignage.sh --rebuild
 sudo bash scripts/install-smartsignage.sh --mode single-server --skip-menu
 ```
 
+### Verificação visual da marca (modo compacto)
+
+Após o build do frontend em modo compacto, valide no navegador:
+
+1. Tela de login exibindo **Smart Signage Compact** (no card e no cabeçalho do menu lateral após login)
+2. Aba do browser (título) com **Smart Signage Compact**
+
+Se ainda aparecer **Smart Signage Pro**, confirme que o frontend foi reconstruído com `REACT_APP_TOTEMDIGITAL_COMPACT=true` e que o Nginx está servindo o build atualizado.
+
+### Comandos de validação pós-deploy (compacto)
+
+Na raiz do repositório no servidor, pode executar o script que agrupa estas verificações: `./scripts/post-deploy-compact-check.sh` (variáveis opcionais: `BACKEND_PORT`, `FRONTEND_BUILD`, `DEPLOY_FRONTEND`). O bloco seguinte é o equivalente manual.
+
+```bash
+# 1) Confirmar serviço backend ativo e health local
+sudo systemctl status smart-signage --no-pager
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000/api/health
+
+# 2) Rebuild frontend em modo compacto (na pasta frontend)
+cd frontend
+REACT_APP_TOTEMDIGITAL_COMPACT=true npm run build
+
+# 3) Publicar build no diretório servido pelo Nginx (ajuste se necessário)
+sudo mkdir -p /opt/smart-signage/frontend/build
+sudo cp -a build/* /opt/smart-signage/frontend/build/
+
+# 4) Recarregar Nginx e verificar API pelo endpoint público
+sudo nginx -t && sudo systemctl reload nginx
+curl -I http://127.0.0.1/
+```
+
 ## Instalação Manual
 
 ### 1. Preparar Sistema
