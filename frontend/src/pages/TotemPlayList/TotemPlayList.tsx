@@ -50,7 +50,8 @@ import {
 } from '@mui/icons-material';
 import { totemPlaylistApi, TotemPlaylist, TotemPlaylistListItem, TotemPlaylistItem } from '../../services/api';
 import { totemApi, Player } from '../../services/api';
-import { publisherApi, Publisher } from '../../services/api';
+import { Publisher } from '../../services/api';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -106,11 +107,7 @@ const TotemPlayListPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const [totemsRes, publishersRes] = await Promise.all([
-        // Backend limita paginação; manter compatível para evitar 400/429
-        totemApi.getAll({ limit: 100 }),
-        publisherApi.getAll({ active_only: true }),
-      ]);
+      const totemsRes = await totemApi.getAll({ limit: 100 });
 
       // Blindagem: algumas APIs retornam formatos diferentes; garantir arrays sempre
       const totemsData = Array.isArray((totemsRes as any)?.data)
@@ -118,14 +115,20 @@ const TotemPlayListPage: React.FC = () => {
         : Array.isArray((totemsRes as any)?.data?.data)
           ? (totemsRes as any).data.data
           : [];
-      const publishersData = Array.isArray((publishersRes as any)?.data)
-        ? (publishersRes as any).data
-        : Array.isArray((publishersRes as any)?.data?.data)
-          ? (publishersRes as any).data.data
-          : [];
 
       setTotems(totemsData);
-      setPublishers(publishersData);
+      if (!TOTEMDIGITAL_COMPACT) {
+        const { publisherApi } = await import('../../services/api');
+        const publishersRes = await publisherApi.getAll({ active_only: true });
+        const publishersData = Array.isArray((publishersRes as any)?.data)
+          ? (publishersRes as any).data
+          : Array.isArray((publishersRes as any)?.data?.data)
+            ? (publishersRes as any).data.data
+            : [];
+        setPublishers(publishersData);
+      } else {
+        setPublishers([]);
+      }
     } catch (e: any) {
       setError('Erro ao carregar dados: ' + (e.message || 'Erro desconhecido'));
     } finally {
@@ -233,6 +236,7 @@ const TotemPlayListPage: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2}>
+            {!TOTEMDIGITAL_COMPACT && (
             <Grid item xs={12} sm={6} md={4}>
               <FormControl fullWidth>
                 <InputLabel id="totem-playlists-filter-publisher-label">Publisher</InputLabel>
@@ -259,6 +263,7 @@ const TotemPlayListPage: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
+            )}
             <Grid item xs={12} sm={6} md={4}>
               <FormControl fullWidth>
                 <InputLabel id="totem-playlists-filter-totem-label">Totem</InputLabel>
@@ -294,8 +299,18 @@ const TotemPlayListPage: React.FC = () => {
           <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
             <Tab label="Lista de Totens" icon={<Tv />} iconPosition="start" />
             <Tab label="Timeline/Grade" icon={<Schedule />} iconPosition="start" disabled={!selectedPlaylist} />
-            <Tab label="Detalhes Subscribers" icon={<Business />} iconPosition="start" disabled={!selectedPlaylist} />
-            <Tab label="Validações" icon={<CheckCircle />} iconPosition="start" disabled={!selectedPlaylist} />
+            <Tab
+              label={TOTEMDIGITAL_COMPACT ? 'Detalhes' : 'Detalhes Subscribers'}
+              icon={<Business />}
+              iconPosition="start"
+              disabled={!selectedPlaylist}
+            />
+            <Tab
+              label="Validações"
+              icon={<CheckCircle />}
+              iconPosition="start"
+              disabled={!selectedPlaylist || TOTEMDIGITAL_COMPACT}
+            />
           </Tabs>
         </Box>
 

@@ -246,14 +246,15 @@ app.get('/', (_req, res) => {
         api: '/api',
         authentication: '/api/auth',
         dashboard: '/api/dashboard',
-        users: '/api/users',
         locals: '/api/locals',
-        smartTvs: '/api/smart-tvs',
         totems: '/api/totems',
+        players: '/api/players',
         dispatcherTotem: '/api/dispatcher-totem',
+        dispatcherDebug: '/api/dispatcher-debug',
         media: '/api/media',
         playlists: '/api/playlists',
         campaigns: '/api/campaigns',
+        settings: '/api/settings',
         player: '/player',
       }
     : {
@@ -636,18 +637,8 @@ if (fs.existsSync(frontendBuildPath) && fs.existsSync(frontendIndexPath)) {
   });
 }
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    error: 'Endpoint não encontrado',
-    path: req.originalUrl,
-    method: req.method,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Error handler
-app.use(errorHandler);
+// 404 e errorHandler: registados em startServer() APÓS registerCompactRoutes/registerProRoutes.
+// Se ficarem aqui no topo do ficheiro, capturam POST /api/* antes das rotas async e devolvem 404 no login.
 
 // =============================================
 // GRACEFUL SHUTDOWN
@@ -792,6 +783,17 @@ async function startServer() {
       const { registerProRoutes } = await import('./startup/registerProRoutes');
       registerProRoutes(app);
     }
+
+    // Handlers finais: obrigatório depois das rotas API (registradas acima de forma assíncrona).
+    app.use('*', (req, res) => {
+      res.status(404).json({
+        error: 'Endpoint não encontrado',
+        path: req.originalUrl,
+        method: req.method,
+        timestamp: new Date().toISOString()
+      });
+    });
+    app.use(errorHandler);
     
     // Inicializar Redis (opcional)
     if (config.redis.enabled) {

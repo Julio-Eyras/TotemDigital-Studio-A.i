@@ -70,11 +70,15 @@ Além disso, há configurações no código:
 
 ### Modo TotemDigital compacto (recomendado)
 
+Nesta documentação, **modo compacto**, **mono** e **monousuário** referem-se ao mesmo perfil (`TOTEMDIGITAL_COMPACT=true`).
+
 Para operar na variante monousuário com superfície reduzida:
 
 1. Defina no backend: `TOTEMDIGITAL_COMPACT=true`
 2. Defina no frontend: `REACT_APP_TOTEMDIGITAL_COMPACT=true`
 3. Rebuild backend e frontend para aplicar as flags
+
+**Instalador (`scripts/install-smartsignage.sh`):** no fluxo interativo, após escolher o modo de instalação, o script pergunta o perfil (**1 = compacto/mono**, **2 = Pro completo**) e grava o mesmo valor em `TOTEMDIGITAL_COMPACT` e `REACT_APP_TOTEMDIGITAL_COMPACT` no `.env` (raiz e `backend/.env`). Com `--skip-menu`, o padrão é compacto (`true`). Em modo não interativo pode usar a variável de ambiente `INSTALL_TOTEMDIGITAL_COMPACT=true|false`, ou as flags `--totemdigital-compact` / `--smartsignage-pro` (forçam compacto ou Pro e saltam essa pergunta no menu). No menu interativo, a pergunta compacto (mono) vs Pro só é omitida se passares uma destas flags na linha de comando.
 
 Com as flags ativas, o sistema prioriza operação compacta (Totens, Mídias, Playlists, Campanhas, Monitor) e desativa módulos Pro/multiagência na API e navegação.
 

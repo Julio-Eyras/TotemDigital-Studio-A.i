@@ -30,6 +30,7 @@ import {
   Close,
 } from '@mui/icons-material';
 import { mediaApi, CreateMediaRequest, Client, subscriberApi, Subscriber } from '../../services/api';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { validateFileSize, validateFileType, VALIDATION_CONSTANTS } from '../../utils/validation';
 import { useNotification } from '../../hooks/useNotification';
 
@@ -44,6 +45,8 @@ interface UploadDialogProps {
   dialogTitle?: string;
   defaultTags?: string[];
   lockDefaultTags?: boolean;
+  /** TotemDigital compacto: sem /api/subscribers; usar ID inferido de mídias existentes se necessário */
+  fallbackSubscriberId?: number;
 }
 
 const MediaUploadDialog: React.FC<UploadDialogProps> = ({
@@ -57,6 +60,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   dialogTitle,
   defaultTags = [],
   lockDefaultTags = false,
+  fallbackSubscriberId,
 }) => {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -84,7 +88,10 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     name: '',
     description: '',
     tags: defaultTags.join(', '),
-    subscriberId: userSubscriberId || ((canSelectSubscriber ?? isAdmin) && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined),
+    subscriberId:
+      userSubscriberId ||
+      fallbackSubscriberId ||
+      ((canSelectSubscriber ?? isAdmin) && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined),
   });
 
   const canPickSubscriber = canSelectSubscriber !== undefined ? canSelectSubscriber : isAdmin;
@@ -94,12 +101,15 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     if (!open) return;
     setFormData((prev) => {
       const nextTags = lockDefaultTags ? defaultTags.join(', ') : (prev.tags || defaultTags.join(', '));
-      const fallback = userSubscriberId || (canPickSubscriber && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined);
+      const fallback =
+        userSubscriberId ||
+        fallbackSubscriberId ||
+        (canPickSubscriber && subscribers.length > 0 ? getSubscriberId(subscribers[0]) : undefined);
       if (prev.subscriberId) return { ...prev, tags: nextTags };
       return { ...prev, subscriberId: fallback, tags: nextTags };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, userSubscriberId, canPickSubscriber, subscribers?.length, lockDefaultTags, defaultTags.join(',')]);
+  }, [open, userSubscriberId, canPickSubscriber, subscribers?.length, lockDefaultTags, defaultTags.join(','), fallbackSubscriberId]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showError } = useNotification();
@@ -136,8 +146,8 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     
     setFiles(prev => [...prev, ...validFiles]);
     
-    // Validar limites e storage se subscriberId estiver definido
-    if (formData.subscriberId && validFiles.length > 0) {
+    // Validar limites e storage se subscriberId estiver definido (API Pro)
+    if (!TOTEMDIGITAL_COMPACT && formData.subscriberId && validFiles.length > 0) {
       try {
         // Validar storage (soma de todos os arquivos)
         const totalSize = validFiles.reduce((sum, file) => sum + file.size, 0);
@@ -186,32 +196,29 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
       return;
     }
 
-    // Validar subscriberId
-    if (!formData.subscriberId) {
+    // Validar subscriberId (Pro); no compacto o backend pode aceitar só contexto admin
+    if (!formData.subscriberId && !TOTEMDIGITAL_COMPACT) {
       setError('É necessário selecionar um subscriber (anunciante)');
       return;
     }
 
-    // Validações prévias
-    try {
-      const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-      
-      // Validar storage
-      const storageValidation = await subscriberApi.validateStorage(formData.subscriberId, totalSize);
-      if (!storageValidation.valid) {
-        setError(storageValidation.message);
-        return;
+    // Validações prévias (API subscriber — não disponível no perfil compacto)
+    if (!TOTEMDIGITAL_COMPACT && formData.subscriberId) {
+      try {
+        const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+        const storageValidation = await subscriberApi.validateStorage(formData.subscriberId, totalSize);
+        if (!storageValidation.valid) {
+          setError(storageValidation.message);
+          return;
+        }
+        const limitsValidation = await subscriberApi.validatePlanLimits(formData.subscriberId, 'media');
+        if (!limitsValidation.valid) {
+          setError(limitsValidation.message);
+          return;
+        }
+      } catch (err: any) {
+        console.error('Erro na validação prévia:', err);
       }
-      
-      // Validar limite de mídias
-      const limitsValidation = await subscriberApi.validatePlanLimits(formData.subscriberId, 'media');
-      if (!limitsValidation.valid) {
-        setError(limitsValidation.message);
-        return;
-      }
-    } catch (err: any) {
-      console.error('Erro na validação prévia:', err);
-      // Continuar mesmo se validação falhar (backend vai validar de qualquer forma)
     }
 
     try {
@@ -230,8 +237,8 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
               ...(formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : []),
             ])
           ),
-          subscriberId: formData.subscriberId,
-        };
+          ...(formData.subscriberId != null ? { subscriberId: formData.subscriberId } : {}),
+        } as CreateMediaRequest;
 
         const result = await mediaApi.upload(file, mediaData);
         

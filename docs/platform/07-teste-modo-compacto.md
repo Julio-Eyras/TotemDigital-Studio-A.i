@@ -29,11 +29,15 @@ Resultado esperado:
 
 - `/api/auth`
 - `/api/dashboard`
+- `/api/locals` (utilizada pela UI de totens)
 - `/api/totems`
+- `/api/players` (ex.: campanhas)
 - `/api/media`
 - `/api/playlists`
 - `/api/campaigns`
 - `/api/dispatcher-totem`
+- `/api/dispatcher-debug`
+- `/api/settings`
 
 ### Rotas Pro (devem ficar indisponíveis no compacto)
 
@@ -43,7 +47,14 @@ Resultado esperado:
 - `/api/billing`
 - `/api/smartdisplayfx`
 
-Critério: no compacto, essas rotas não devem estar ativas como fluxo operacional.
+### Rotas Pro / consola que o compacto **não monta** no backend
+
+- `/api/users` (gestão de utilizadores)
+- `/api/smart-tvs`
+- `/api/qrcodes` e `/api/qr-codes`
+- `/api/notifications`
+
+Critério: no compacto, as rotas Pro não devem estar ativas; as da segunda lista também não existem neste perfil (ver [política detalhada](./09-politica-rotas-totemdigital-compacto.md)).
 
 ## 3) Verificar frontend compacto
 
@@ -60,7 +71,39 @@ No menu principal, validar presença de:
 
 E validar ausência de módulos Pro (billing, smartdisplayfx, planos/acessos, subscriber/publisher portal).
 
-## 4) Verificar startup enxuto do backend
+### Command Palette (Ctrl+K)
+
+No compacto, só devem aparecer destinos alinhados ao menu (sem Subscribers/Publishers).
+
+### Mídias, Playlists e Playlists por totem
+
+No separador **Rede** (DevTools), ao navegar nestas páginas, **não** devem aparecer pedidos a `/api/subscribers` nem a `/api/publishers` (o upload de mídia também não deve chamar validações de plano/storage do subscriber). Em **Playlists por totem**, o filtro por publisher não deve aparecer.
+
+## 4) Campanhas (fluxo UI compacto)
+
+Validar que a página **Campanhas** não depende de cliente/subscriber/publishers e não dispara chamadas a rotas Pro removidas.
+
+### Criar campanha
+
+- Abrir **Criar** e confirmar que **não** aparecem campos "Cliente (Subscriber)" nem "Publishers".
+- Preencher título, datas opcionais, playlists e/ou mídias e/ou totens (lista alinhada a `/api/players` ou seleção de totem).
+- Guardar e verificar que a campanha aparece na grelha **sem** erros 404/500 na rede para `/api/publishers`, `/api/subscriber-access`, etc.
+
+### Editar campanha
+
+- Abrir **Editar** e confirmar **5 abas**: Principal, Totens, Mídias, Playlists, Agendamento (sem Publicadores nem Smart TVs).
+- Na aba **Totens**, confirmar que a lista de totens carrega (via `/api/totems`) e que é possível associar/remover totens.
+- Na aba **Agendamento**, o texto deve referir TotemDigital/dispatcher (sem validação de publishers).
+
+### Detalhes (ver campanha)
+
+- Abrir **Ver detalhes** e confirmar que **não** existe aba "Publishers"; a aba **Totens** deve mostrar nomes reais quando há `totemIds` (resolução via `/api/totems/:id`).
+
+### Consola do browser
+
+- Durante criar/editar/ver campanhas, não devem aparecer falhas repetidas por chamadas a APIs Pro desligadas no backend compacto.
+
+## 5) Verificar startup enxuto do backend
 
 Nos logs de inicialização, conferir mensagens indicando que no compacto **não** foram inicializados:
 
@@ -68,7 +111,7 @@ Nos logs de inicialização, conferir mensagens indicando que no compacto **não
 - workers Pro
 - rotinas avançadas de mix/engine/alertas
 
-## 5) Sanidade final
+## 6) Sanidade final
 
 - Login com usuário admin funcional
 - Dispatcher responde para totem de teste

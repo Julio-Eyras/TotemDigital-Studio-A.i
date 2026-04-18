@@ -73,6 +73,8 @@ Regenerar: `python3 scripts/generate-er-system-png.py` ou com detalhe: `python3 
 - [Recursos e regras](./platform/05-recursos-regras.md)
 - [TotemDigital monousuário: E.R. e fluxo](./platform/06-totemdigital-monousuario-er-e-fluxo.md)
 - [Teste rápido modo compacto](./platform/07-teste-modo-compacto.md)
+- [Go-live checklist compacto](./platform/08-go-live-checklist-compacto.md)
+- [Política de rotas TotemDigital compacto](./platform/09-politica-rotas-totemdigital-compacto.md)
 
 ---
 

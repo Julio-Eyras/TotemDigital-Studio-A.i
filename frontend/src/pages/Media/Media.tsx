@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -46,6 +46,7 @@ import {
   Refresh,
 } from '@mui/icons-material';
 import { mediaApi, MediaItem, CreateMediaRequest, clientApi, Client, subscriberApi, Subscriber } from '../../services/api';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
@@ -72,6 +73,15 @@ const Media: React.FC = () => {
   const [thumbVersion, setThumbVersion] = useState(0); // força rerender quando adicionamos um blob url
   const [videoLoadFailed, setVideoLoadFailed] = useState<Set<number>>(new Set());
 
+  /** TotemDigital compacto: inferir subscriber para upload quando não há lista /api/subscribers */
+  const uploadFallbackSubscriberId = useMemo(() => {
+    if (!TOTEMDIGITAL_COMPACT) return undefined;
+    if (userSubscriberId) return userSubscriberId;
+    const m = mediaItems.find((x: any) => x.subscriberId ?? x.subscriber_id ?? x.clientId);
+    if (!m) return undefined;
+    return (m as any).subscriberId ?? (m as any).subscriber_id ?? (m as any).clientId;
+  }, [userSubscriberId, mediaItems]);
+
   useEffect(() => {
     // Verificar se é admin e carregar subscribers
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -84,7 +94,7 @@ const Media: React.FC = () => {
     // Compat: user no localStorage pode vir em snake_case ou camelCase
     setUserSubscriberId(user?.subscriberId ?? user?.subscriber_id ?? user?.clientId);
 
-    if (canSelect) {
+    if (canSelect && !TOTEMDIGITAL_COMPACT) {
       loadSubscribers();
     }
     loadMediaItems();
@@ -180,6 +190,7 @@ const Media: React.FC = () => {
   }, [mediaItems]);
 
   const loadSubscribers = async () => {
+    if (TOTEMDIGITAL_COMPACT) return;
     try {
       // "aptos": apenas subscribers ativos
       const response = await subscriberApi.getAll({ limit: 1000, active_only: true });
@@ -202,7 +213,14 @@ const Media: React.FC = () => {
       
       // Determinar subscriberId para filtro
       let subscriberId: number | undefined = undefined;
-      if (userSubscriberId) {
+      if (TOTEMDIGITAL_COMPACT) {
+        if (userSubscriberId) {
+          subscriberId = userSubscriberId;
+        } else if (canSelectSubscriber && subscriberFilter !== 'all' && typeof subscriberFilter === 'number') {
+          subscriberId = subscriberFilter;
+        }
+        // Admin monousuário: sem subscriber no token → lista global (subscriberId indefinido)
+      } else if (userSubscriberId) {
         // Usuário "travado" em um subscriber (ex.: subscriber_user)
         subscriberId = userSubscriberId;
       } else if (canSelectSubscriber) {
@@ -379,7 +397,7 @@ const Media: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={canSelectSubscriber ? 4 : 6}>
+            <Grid item xs={12} md={canSelectSubscriber && !TOTEMDIGITAL_COMPACT ? 4 : 6}>
               <TextField
                 fullWidth
                 placeholder="Buscar mídia..."
@@ -390,7 +408,7 @@ const Media: React.FC = () => {
                 }}
               />
             </Grid>
-            {canSelectSubscriber && (
+            {canSelectSubscriber && !TOTEMDIGITAL_COMPACT && (
               <Grid item xs={12} md={3}>
                 <FormControl fullWidth>
                   <InputLabel>Subscriber (Anunciante)</InputLabel>
@@ -409,7 +427,7 @@ const Media: React.FC = () => {
                 </FormControl>
               </Grid>
             )}
-            <Grid item xs={12} md={isAdmin ? 2 : 3}>
+            <Grid item xs={12} md={isAdmin && !TOTEMDIGITAL_COMPACT ? 2 : 3}>
               <FormControl fullWidth>
                 <InputLabel>Tipo de Mídia</InputLabel>
                 <Select
@@ -424,7 +442,7 @@ const Media: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={isAdmin ? 3 : 3}>
+            <Grid item xs={12} md={3}>
               <Button
                 fullWidth
                 variant="outlined"
@@ -784,6 +802,7 @@ const Media: React.FC = () => {
         canSelectSubscriber={canSelectSubscriber}
         subscribers={subscribers}
         userSubscriberId={userSubscriberId}
+        fallbackSubscriberId={uploadFallbackSubscriberId}
       />
 
       {/* Edit Dialog */}

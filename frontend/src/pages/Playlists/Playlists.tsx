@@ -53,6 +53,7 @@ import {
 } from '../../services/api';
 import { useAppSelector } from '../../store/hooks';
 import { useLocation } from 'react-router-dom';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { PlaylistCard, PlaylistDetails } from './components';
@@ -105,12 +106,23 @@ const Playlists: React.FC = () => {
   const [playlistMedia, setPlaylistMedia] = useState<PlaylistMediaItem[]>([]);
   const [playlistCampaigns, setPlaylistCampaigns] = useState<PlaylistCampaignInfo[]>([]);
   const [playlistExposure, setPlaylistExposure] = useState<PlaylistExposureResponse | null>(null);
+  /** Sem /api/subscribers no compacto: usar subscriber da primeira playlist listada */
+  const [implicitSubscriberId, setImplicitSubscriberId] = useState<number | undefined>();
 
   useEffect(() => {
-    if (canSelectSubscriber) void loadSubscribers();
+    if (canSelectSubscriber && !TOTEMDIGITAL_COMPACT) void loadSubscribers();
     void loadPlaylists();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canSelectSubscriber, selectedSubscriberId, searchTerm]);
+
+  useEffect(() => {
+    if (!TOTEMDIGITAL_COMPACT || !playlists.length) return;
+    const first = playlists.find((p) => p.subscriber_id ?? p.client_id);
+    const sid = first?.subscriber_id ?? first?.client_id;
+    if (typeof sid === 'number' && !Number.isNaN(sid)) {
+      setImplicitSubscriberId(sid);
+    }
+  }, [playlists]);
 
   useEffect(() => {
     if (location.state?.highlightId) {
@@ -143,6 +155,7 @@ const Playlists: React.FC = () => {
   }, [canSelectSubscriber, userSubscriberId]);
 
   const loadSubscribers = async () => {
+    if (TOTEMDIGITAL_COMPACT) return;
     try {
       // Backend limita paginação; manter compatível para evitar 400/429
       const response = await subscriberApi.getAll({ limit: 100, active_only: false });
@@ -180,8 +193,10 @@ const Playlists: React.FC = () => {
 
   const getTargetSubscriberIdForMedia = (): number | undefined => {
     if (editorMode === 'edit' && selectedPlaylist) return selectedPlaylist.subscriber_id || selectedPlaylist.client_id;
-    if (editorMode === 'create') return draft.subscriberId || userSubscriberId;
-    return userSubscriberId;
+    if (editorMode === 'create') {
+      return draft.subscriberId || userSubscriberId || (TOTEMDIGITAL_COMPACT ? implicitSubscriberId : undefined);
+    }
+    return userSubscriberId || (TOTEMDIGITAL_COMPACT ? implicitSubscriberId : undefined);
   };
 
   const loadMediaItems = async () => {
@@ -233,7 +248,12 @@ const Playlists: React.FC = () => {
     setPlaylistMedia([]);
     setPlaylistCampaigns([]);
     setPlaylistExposure(null);
-    setDraft({ subscriberId: userSubscriberId, clientId: userSubscriberId, name: '', description: '' });
+    setDraft({
+      subscriberId: userSubscriberId ?? (TOTEMDIGITAL_COMPACT ? implicitSubscriberId : undefined),
+      clientId: userSubscriberId ?? (TOTEMDIGITAL_COMPACT ? implicitSubscriberId : undefined),
+      name: '',
+      description: '',
+    });
     setEditorOpen(true);
   };
 
@@ -264,9 +284,17 @@ const Playlists: React.FC = () => {
   const handleCreatePlaylist = async () => {
     try {
       setError(null);
-      const targetSubscriberId = canSelectSubscriber ? (draft.subscriberId || userSubscriberId) : userSubscriberId;
+      const targetSubscriberId = TOTEMDIGITAL_COMPACT
+        ? draft.subscriberId || userSubscriberId || implicitSubscriberId
+        : canSelectSubscriber
+          ? draft.subscriberId || userSubscriberId
+          : userSubscriberId;
       if (!targetSubscriberId) {
-        setError('É necessário selecionar um subscriber (anunciante) para criar a playlist.');
+        setError(
+          TOTEMDIGITAL_COMPACT
+            ? 'Não foi possível inferir o subscriber. Crie uma playlist ou mídia associada a um subscriber no banco (seed) ou defina subscriber no utilizador.'
+            : 'É necessário selecionar um subscriber (anunciante) para criar a playlist.'
+        );
         return;
       }
       const playlistData: CreatePlaylistRequest = {
@@ -294,8 +322,11 @@ const Playlists: React.FC = () => {
     if (!selectedPlaylist) return;
     try {
       setError(null);
-      const targetSubscriberId =
-        canSelectSubscriber ? (selectedPlaylist.subscriber_id || selectedPlaylist.client_id || userSubscriberId) : userSubscriberId;
+      const targetSubscriberId = TOTEMDIGITAL_COMPACT
+        ? selectedPlaylist.subscriber_id || selectedPlaylist.client_id || userSubscriberId || implicitSubscriberId
+        : canSelectSubscriber
+          ? selectedPlaylist.subscriber_id || selectedPlaylist.client_id || userSubscriberId
+          : userSubscriberId;
       if (!targetSubscriberId) {
         setError('É necessário um subscriber (anunciante) válido para salvar a playlist.');
         return;
@@ -429,7 +460,11 @@ const Playlists: React.FC = () => {
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
       <PageHeader
         title="Playlists"
-        subtitle="Playlists pertencem a um subscriber e contêm mídias; campanhas apontam para playlists."
+        subtitle={
+          TOTEMDIGITAL_COMPACT
+            ? 'Playlists consolidadas por subscriber no modelo de dados; no TotemDigital o filtro multi-subscriber não usa a API de assinantes.'
+            : 'Playlists pertencem a um subscriber e contêm mídias; campanhas apontam para playlists.'
+        }
         breadcrumbs={breadcrumbs}
         actions={[
           {
@@ -446,7 +481,7 @@ const Playlists: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            {canSelectSubscriber && (
+            {canSelectSubscriber && !TOTEMDIGITAL_COMPACT && (
               <Grid item xs={12} md={4}>
                 <FormControl fullWidth>
                   <InputLabel>Subscriber (Anunciante)</InputLabel>
@@ -465,7 +500,7 @@ const Playlists: React.FC = () => {
                 </FormControl>
               </Grid>
             )}
-            <Grid item xs={12} md={canSelectSubscriber ? 6 : 8}>
+            <Grid item xs={12} md={canSelectSubscriber && !TOTEMDIGITAL_COMPACT ? 6 : 8}>
               <TextField
                 fullWidth
                 placeholder="Buscar playlists..."
@@ -474,7 +509,7 @@ const Playlists: React.FC = () => {
                 InputProps={{ startAdornment: <QueueMusic sx={{ mr: 1, color: theme.palette.text.secondary }} /> }}
               />
             </Grid>
-            <Grid item xs={12} md={canSelectSubscriber ? 2 : 4}>
+            <Grid item xs={12} md={canSelectSubscriber && !TOTEMDIGITAL_COMPACT ? 2 : 4}>
               <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={loadPlaylists}>
                 Atualizar
               </Button>
@@ -551,7 +586,20 @@ const Playlists: React.FC = () => {
                 Campanhas apontam para playlists via <strong>campaign_playlists</strong>.
               </Alert>
 
-              {canSelectSubscriber ? (
+              {canSelectSubscriber && TOTEMDIGITAL_COMPACT ? (
+                <TextField
+                  fullWidth
+                  margin="normal"
+                  label="Subscriber (modelo de dados)"
+                  value={
+                    editorMode === 'create'
+                      ? String(draft.subscriberId ?? implicitSubscriberId ?? userSubscriberId ?? '—')
+                      : String(selectedPlaylist?.subscriber_id ?? selectedPlaylist?.client_id ?? '—')
+                  }
+                  disabled
+                  helperText="No TotemDigital compacto o ID vem das playlists/mídias existentes (sem API de assinantes)."
+                />
+              ) : canSelectSubscriber ? (
                 <FormControl fullWidth margin="normal">
                   <InputLabel>Subscriber (Anunciante)</InputLabel>
                   <Select

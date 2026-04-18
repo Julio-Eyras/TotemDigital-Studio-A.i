@@ -44,7 +44,8 @@ import {
   Stop,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { Campaign, campaignApi, PlaylistItem, MediaItem, Publisher, playlistApi, mediaApi, publisherApi } from '../../../services/api';
+import { Campaign, campaignApi, PlaylistItem, MediaItem, Publisher, playlistApi, mediaApi, publisherApi, totemApi } from '../../../services/api';
+import { TOTEMDIGITAL_COMPACT } from '../../../config/featureFlags';
 
 export interface CampaignDetailsProps {
   open: boolean;
@@ -165,8 +166,12 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
         promises.push(Promise.resolve([]));
       }
 
-      // Publishers
-      if ((campaign as any).publisherIds && (campaign as any).publisherIds.length > 0) {
+      // Publishers (Pro)
+      if (
+        !TOTEMDIGITAL_COMPACT &&
+        (campaign as any).publisherIds &&
+        (campaign as any).publisherIds.length > 0
+      ) {
         promises.push(
           Promise.all(
             ((campaign as any).publisherIds as number[]).map((id) =>
@@ -179,20 +184,30 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
       }
 
       // Totens impactados:
-      // - Se houver totemIds explícitos, usamos esses IDs
-      // - Caso contrário, derivamos a lista a partir dos publishers vinculados (publisherApi.getTotems)
+      // - TotemDigital compacto: totemApi.getById para IDs explícitos
+      // - Pro: totemIds placeholder ou derivação via publisherApi.getTotems
       if ((campaign as any).totemIds && (campaign as any).totemIds.length > 0) {
         const explicitTotemIds = ((campaign as any).totemIds as number[]).filter((id) => typeof id === 'number');
-        promises.push(
-          Promise.all(
-            explicitTotemIds.map((id) =>
-              // Não temos totemApi.getById aqui; usar publisherApi.getTotems por publisher seria custoso.
-              // Como fallback, retornamos apenas os IDs; os nomes serão exibidos como "Totem <id>".
-              Promise.resolve({ totem_id: id, name: `Totem ${id}` })
+        if (TOTEMDIGITAL_COMPACT) {
+          promises.push(
+            Promise.all(
+              explicitTotemIds.map((id) => totemApi.getById(id).catch(() => ({ totem_id: id, name: `Totem ${id}` })))
             )
-          )
-        );
-      } else if ((campaign as any).publisherIds && (campaign as any).publisherIds.length > 0) {
+          );
+        } else {
+          promises.push(
+            Promise.all(
+              explicitTotemIds.map((id) =>
+                Promise.resolve({ totem_id: id, name: `Totem ${id}` })
+              )
+            )
+          );
+        }
+      } else if (
+        !TOTEMDIGITAL_COMPACT &&
+        (campaign as any).publisherIds &&
+        (campaign as any).publisherIds.length > 0
+      ) {
         const publisherIds = ((campaign as any).publisherIds as number[]).filter((id) => typeof id === 'number');
         promises.push(
           Promise.all(
@@ -260,7 +275,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
             }
             iconPosition="end"
           />
-          <Tab label="Publishers" />
+          {!TOTEMDIGITAL_COMPACT && <Tab label="Publishers" />}
           <Tab label="Totens" />
         </Tabs>
 
@@ -432,7 +447,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
         )}
 
         {/* Aba Publishers */}
-        {activeTab === 3 && (
+        {!TOTEMDIGITAL_COMPACT && activeTab === 3 && (
           <Box>
             <Typography variant="h6" sx={{ mb: 2 }}>
               Publishers ({(campaign as any).publisherIds?.length || 0})
@@ -462,14 +477,16 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
         )}
 
         {/* Aba Totens */}
-        {activeTab === 4 && (
+        {activeTab === (TOTEMDIGITAL_COMPACT ? 3 : 4) && (
           <Box>
             <Typography variant="h6" sx={{ mb: 2 }}>
               Totens ({totems.length || (campaign as any).totemIds?.length || 0})
             </Typography>
             {totems.length === 0 && (!(campaign as any).totemIds || (campaign as any).totemIds.length === 0) ? (
               <Alert severity="info">
-                Nenhum totem associado explicitamente. Totens impactados serão derivados dos publishers selecionados na aba "Publishers".
+                {TOTEMDIGITAL_COMPACT
+                  ? 'Nenhum totem associado explicitamente a esta campanha.'
+                  : 'Nenhum totem associado explicitamente. Totens impactados serão derivados dos publishers selecionados na aba "Publishers".'}
               </Alert>
             ) : totems.length > 0 ? (
               <List>

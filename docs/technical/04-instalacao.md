@@ -30,11 +30,16 @@ sudo bash scripts/install-smartsignage.sh
 
 O script oferece menu interativo para:
 - Modo de instalação (Single-Server ou Docker)
+- **Perfil da aplicação:** modo **compacto** (= **mono** / monousuário TotemDigital) ou Smart Signage Pro completo — define `TOTEMDIGITAL_COMPACT` e `REACT_APP_TOTEMDIGITAL_COMPACT` no `.env` gerado
 - Configuração de banco de dados
 - Configuração de Nginx
 - Seleção de players a instalar
 
+Com `--skip-menu`, o perfil compacto é o padrão. Para instalação não interativa em modo Pro, use `INSTALL_TOTEMDIGITAL_COMPACT=false` no ambiente antes de executar o script, ou a flag `--smartsignage-pro` (ou `--totemdigital-compact` para forçar compacto). Ver também [Configuração — modo compacto](../platform/03-configuracao.md#modo-totemdigital-compacto-recomendado).
+
 ### Opções do Script
+
+Lista completa de parâmetros e exemplos: [COMANDOS_INSTALL_SMARTSIGNAGE.md](../COMANDOS_INSTALL_SMARTSIGNAGE.md).
 
 ```bash
 # Instalação completa do zero

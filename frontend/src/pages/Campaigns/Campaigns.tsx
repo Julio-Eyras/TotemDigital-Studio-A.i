@@ -45,8 +45,9 @@ import {
   Error,
   VideoLibrary,
 } from '@mui/icons-material';
-import { campaignApi, Campaign, CreateCampaignRequest, UpdateCampaignRequest, clientApi, Client, subscriberApi, Subscriber, playlistApi, PlaylistItem, playerApi, Player, publisherApi, Publisher, subscriberAccessApi, AccessiblePublisher, mediaApi, MediaItem } from '../../services/api';
+import { campaignApi, Campaign, CreateCampaignRequest, UpdateCampaignRequest, clientApi, Client, playlistApi, PlaylistItem, playerApi, Player, publisherApi, Publisher, subscriberAccessApi, AccessiblePublisher, mediaApi, MediaItem, totemApi } from '../../services/api';
 import { useAppSelector } from '../../store/hooks';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { useLocation } from 'react-router-dom';
 import { SortableList } from '../../components/SortableList/SortableList';
 import { PageHeader } from '../../components/DataDisplay';
@@ -75,8 +76,18 @@ const Campaigns: React.FC = () => {
   const [loading, setLoading] = useState(true);
   
   const user = useAppSelector((state) => state.auth.user);
-  const isAdmin = user?.role === 'admin' || user?.role === 'admin_sql';
+  const isAdmin =
+    user?.role === 'admin' ||
+    user?.role === 'admin_sql' ||
+    user?.role === 'owner_system';
   const userSubscriberId = user?.subscriberId;
+
+  const compactMode = TOTEMDIGITAL_COMPACT;
+  const tabTotems = compactMode ? 1 : 2;
+  const tabSmartTvs = 3;
+  const tabMedias = compactMode ? 2 : 4;
+  const tabPlaylists = compactMode ? 3 : 5;
+  const tabSchedule = compactMode ? 4 : 6;
 
   // Converter publishers para formato comum
   const getPublisherOptions = (): PublisherOption[] => {
@@ -133,7 +144,7 @@ const Campaigns: React.FC = () => {
 
   useEffect(() => {
     loadCampaigns();
-    loadClients();
+    if (!compactMode) loadClients();
     loadPlaylists();
     loadMediaItems(); // NOVO: Carregar mídias
   }, []);
@@ -231,10 +242,29 @@ const Campaigns: React.FC = () => {
     }
   };
 
-  // Carregar devices derivados quando entrar nas abas Totens/Smart TVs
+  const loadCompactTotemOptions = async () => {
+    try {
+      setDerivedDevicesLoading(true);
+      const res = await totemApi.getAll({ limit: 500 });
+      setDerivedTotems(res.data || []);
+      setDerivedSmartTvs([]);
+    } catch (e) {
+      console.error('Erro ao carregar totens (modo compacto):', e);
+      setDerivedTotems([]);
+    } finally {
+      setDerivedDevicesLoading(false);
+    }
+  };
+
+  // Carregar devices derivados quando entrar nas abas Totens/Smart TVs (Pro) ou Totens (compacto)
   useEffect(() => {
     if (!editDialogOpen) return;
-    // 2 = Totens, 3 = Smart TVs (ordem das abas: Principal, Publicadores, Totens, Smart TVs, Mídias, Playlists, Agendamento)
+    if (compactMode) {
+      if (editTab === tabTotems) {
+        loadCompactTotemOptions();
+      }
+      return;
+    }
     if (editTab === 2 || editTab === 3) {
       loadDerivedDevices();
     }
@@ -243,9 +273,11 @@ const Campaigns: React.FC = () => {
 
   useEffect(() => {
     loadPlayers();
-    loadPublishers();
-    if (userSubscriberId) {
-      loadAccessiblePublishers(userSubscriberId);
+    if (!compactMode) {
+      loadPublishers();
+      if (userSubscriberId) {
+        loadAccessiblePublishers(userSubscriberId);
+      }
     }
   }, [userSubscriberId]);
 
@@ -378,8 +410,14 @@ const Campaigns: React.FC = () => {
     try {
       setError(null); // Limpar erro anterior
       
-      // Validar acesso a publishers antes de criar (para não-admins)
-      if (!isAdmin && newCampaign.publisherIds && newCampaign.publisherIds.length > 0 && newCampaign.subscriberId) {
+      // Validar acesso a publishers antes de criar (para não-admins) — não aplicável no TotemDigital compacto
+      if (
+        !compactMode &&
+        !isAdmin &&
+        newCampaign.publisherIds &&
+        newCampaign.publisherIds.length > 0 &&
+        newCampaign.subscriberId
+      ) {
         const accessiblePublisherIds = accessiblePublishers.map(ap => ap.publisher_id);
         const invalidPublishers = newCampaign.publisherIds.filter(id => !accessiblePublisherIds.includes(id));
         
@@ -389,7 +427,10 @@ const Campaigns: React.FC = () => {
         }
       }
       
-      const createdCampaign = await campaignApi.create(newCampaign as any);
+      const payload = compactMode
+        ? ({ ...newCampaign, publisherIds: [], subscriberId: undefined } as typeof newCampaign)
+        : newCampaign;
+      const createdCampaign = await campaignApi.create(payload as any);
       // Fechar diálogo e limpar formulário
       setCreateDialogOpen(false);
       setSnackbar({ open: true, message: 'Campanha criada com sucesso!', severity: 'success' });
@@ -470,7 +511,9 @@ const Campaigns: React.FC = () => {
     // (2) Payload abaixo envia publisherIds e totemIds; backend faz DELETE+INSERT em campaign_publishers e campaign_totems.
     // (3) Se não gravar, conferir: Network tab (PUT 200?), backend atualizado (associatePublishers com DELETE), cache do navegador.
     try {
-      const publisherIds = ((selectedCampaign as any).publisherIds || []) as number[];
+      const publisherIds = compactMode
+        ? []
+        : (((selectedCampaign as any).publisherIds || []) as number[]);
       const totemIds = getSelectedTotemIds();
       const updateData: UpdateCampaignRequest = {
         title: selectedCampaign.title,
@@ -693,7 +736,7 @@ const Campaigns: React.FC = () => {
                     const normalized = normalizeCampaign(full);
                     setSelectedCampaign(normalized);
                     const subscriberId = normalized.subscriber_id || (normalized as any).subscriberId;
-                    if (subscriberId && !isAdmin) {
+                    if (!compactMode && subscriberId && !isAdmin) {
                       await loadAccessiblePublishers(subscriberId);
                     }
                     setEditDialogOpen(true);
@@ -701,7 +744,7 @@ const Campaigns: React.FC = () => {
                     console.error('Erro ao carregar campanha para edição', e);
                     setSelectedCampaign(normalizeCampaign(campaign));
                     const subscriberId = campaign.subscriber_id || (campaign as any).subscriberId;
-                    if (subscriberId && !isAdmin) await loadAccessiblePublishers(subscriberId);
+                    if (!compactMode && subscriberId && !isAdmin) await loadAccessiblePublishers(subscriberId);
                     setEditDialogOpen(true);
                   }
                 }}
@@ -799,6 +842,8 @@ const Campaigns: React.FC = () => {
               <MenuItem value="completed">Concluída</MenuItem>
             </Select>
           </FormControl>
+          {!compactMode && (
+            <>
           <FormControl fullWidth margin="normal">
             <InputLabel>Cliente</InputLabel>
             <Select
@@ -876,6 +921,8 @@ const Campaigns: React.FC = () => {
               />
             </FormControl>
           )}
+            </>
+          )}
           <TextField
             fullWidth
             label="Data de Início"
@@ -906,7 +953,11 @@ const Campaigns: React.FC = () => {
             onChange={(_, newValue) => {
               setNewCampaign({ ...newCampaign, playlistIds: newValue.map(p => p.playlist_id) });
             }}
-            noOptionsText="Nenhuma playlist cadastrada. Crie em Assinantes > Playlists, adicione mídias e depois selecione aqui."
+            noOptionsText={
+              compactMode
+                ? 'Nenhuma playlist cadastrada. Crie em Playlists e adicione mídias.'
+                : 'Nenhuma playlist cadastrada. Crie em Assinantes > Playlists, adicione mídias e depois selecione aqui.'
+            }
             renderInput={(params) => (
               <TextField {...params} label="Playlists" margin="normal" />
             )}
@@ -1020,9 +1071,15 @@ const Campaigns: React.FC = () => {
             sx={{ mb: 2 }}
           >
             <Tab label="Principal" />
-            <Tab label="Publicadores" />
-            <Tab label="Totens" />
-            <Tab label="Smart TVs" />
+            {compactMode ? (
+              <Tab label="Totens" />
+            ) : (
+              <>
+                <Tab label="Publicadores" />
+                <Tab label="Totens" />
+                <Tab label="Smart TVs" />
+              </>
+            )}
             <Tab label="Mídias" />
             <Tab label="Playlists" />
             <Tab label="Agendamento" />
@@ -1115,7 +1172,7 @@ const Campaigns: React.FC = () => {
           )}
           
           {/* Seleção de Publishers */}
-          {editTab === 1 && selectedCampaign && (
+          {!compactMode && editTab === 1 && selectedCampaign && (
             <FormControl fullWidth margin="normal">
               <InputLabel>Publishers (Onde a campanha será exibida)</InputLabel>
               <Autocomplete
@@ -1220,7 +1277,7 @@ const Campaigns: React.FC = () => {
           )}
           
           {/* Seleção de Playlists */}
-          {editTab === 5 && (
+          {editTab === tabPlaylists && (
           <Box sx={{ mt: 2 }}>
             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
               Playlists
@@ -1287,7 +1344,11 @@ const Campaigns: React.FC = () => {
                     playlistIds: newIds
                   });
                 }}
-                noOptionsText="Nenhuma playlist cadastrada. Crie em Assinantes > Playlists, adicione mídias e depois selecione aqui."
+                noOptionsText={
+              compactMode
+                ? 'Nenhuma playlist cadastrada. Crie em Playlists e adicione mídias.'
+                : 'Nenhuma playlist cadastrada. Crie em Assinantes > Playlists, adicione mídias e depois selecione aqui.'
+            }
                 renderInput={(params) => (
                   <TextField {...params} label="Playlists" margin="normal" helperText="Selecione playlists e depois arraste para reordenar" />
                 )}
@@ -1297,7 +1358,7 @@ const Campaigns: React.FC = () => {
           )}
           
           {/* Seleção de Mídias Diretas */}
-          {editTab === 4 && (
+          {editTab === tabMedias && (
           <Box sx={{ mt: 2 }}>
             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
               Mídias Diretas (sem playlist)
@@ -1373,7 +1434,7 @@ const Campaigns: React.FC = () => {
           )}
 
           {/* Aba Totens (igual à aba Publishers: Autocomplete múltiplo, chips com X, dropdown para adicionar) */}
-          {editTab === 2 && selectedCampaign && (
+          {editTab === tabTotems && selectedCampaign && (
             <FormControl fullWidth margin="normal">
               <InputLabel>Totens (Onde a campanha será exibida)</InputLabel>
               {derivedDevicesLoading ? (
@@ -1407,20 +1468,28 @@ const Campaigns: React.FC = () => {
                       margin="normal"
                       helperText={
                         derivedTotems.length === 0
-                          ? 'Nenhum totem nos publishers selecionados. Selecione publishers na aba Publicadores.'
-                          : 'Selecione os totens onde a campanha será exibida. Se nenhum for selecionado, a campanha vale para todos os totens dos publishers.'
+                          ? compactMode
+                            ? 'Nenhum totem encontrado. Verifique a lista de totens no sistema.'
+                            : 'Nenhum totem nos publishers selecionados. Selecione publishers na aba Publicadores.'
+                          : compactMode
+                            ? 'Selecione os totens onde a campanha será exibida.'
+                            : 'Selecione os totens onde a campanha será exibida. Se nenhum for selecionado, a campanha vale para todos os totens dos publishers.'
                       }
                     />
                   )}
                   disabled={derivedTotems.length === 0}
-                  noOptionsText="Nenhum totem nos publishers selecionados. Selecione publishers na aba Publicadores."
+                  noOptionsText={
+                    compactMode
+                      ? 'Nenhum totem disponível.'
+                      : 'Nenhum totem nos publishers selecionados. Selecione publishers na aba Publicadores.'
+                  }
                 />
               )}
             </FormControl>
           )}
 
           {/* Aba Smart TVs (derivadas dos publishers selecionados) */}
-          {editTab === 3 && (
+          {!compactMode && editTab === tabSmartTvs && (
             <Box sx={{ mt: 2 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
                 Smart TVs impactadas (derivado dos publishers selecionados)
@@ -1449,34 +1518,40 @@ const Campaigns: React.FC = () => {
           )}
 
           {/* Aba Agendamento / Execução */}
-          {editTab === 6 && (
+          {editTab === tabSchedule && (
             <Box sx={{ mt: 2 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
                 Validade / Execução (política A)
               </Typography>
-              {(() => {
-                const selectedIds = (((selectedCampaign as any)?.publisherIds || []) as number[]);
-                const accessibleIds = accessiblePublishers.map(ap => ap.publisher_id);
-                const invalidIds = !isAdmin ? selectedIds.filter(id => !accessibleIds.includes(id)) : [];
-                const invalidLabels = invalidIds.map((publisherId) => {
-                  const fromAll = (publishers || []).find((p: any) => p.publisher_id === publisherId);
-                  return `${fromAll?.name || `Publisher ${publisherId}`} (#${publisherId})`;
-                });
-                return (
-                  <>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      A campanha pode manter associações históricas. A execução (dispatcher/mix) filtra apenas o que estiver válido no momento atual.
-                    </Typography>
-                    {invalidLabels.length > 0 ? (
-                      <Alert severity="warning">
-                        Publishers bloqueados agora (não serão executados): {invalidLabels.join(', ')}
-                      </Alert>
-                    ) : (
-                      <Alert severity="success">Todos os publishers selecionados estão válidos no momento.</Alert>
-                    )}
-                  </>
-                );
-              })()}
+              {compactMode ? (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  No TotemDigital, a execução segue o dispatcher e as regras de campanha/totem. Ajuste datas na aba Principal e totens na aba Totens.
+                </Typography>
+              ) : (
+                (() => {
+                  const selectedIds = (((selectedCampaign as any)?.publisherIds || []) as number[]);
+                  const accessibleIds = accessiblePublishers.map(ap => ap.publisher_id);
+                  const invalidIds = !isAdmin ? selectedIds.filter(id => !accessibleIds.includes(id)) : [];
+                  const invalidLabels = invalidIds.map((publisherId) => {
+                    const fromAll = (publishers || []).find((p: any) => p.publisher_id === publisherId);
+                    return `${fromAll?.name || `Publisher ${publisherId}`} (#${publisherId})`;
+                  });
+                  return (
+                    <>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        A campanha pode manter associações históricas. A execução (dispatcher/mix) filtra apenas o que estiver válido no momento atual.
+                      </Typography>
+                      {invalidLabels.length > 0 ? (
+                        <Alert severity="warning">
+                          Publishers bloqueados agora (não serão executados): {invalidLabels.join(', ')}
+                        </Alert>
+                      ) : (
+                        <Alert severity="success">Todos os publishers selecionados estão válidos no momento.</Alert>
+                      )}
+                    </>
+                  );
+                })()
+              )}
             </Box>
           )}
           
@@ -1548,7 +1623,7 @@ const Campaigns: React.FC = () => {
           setDetailsDialogOpen(false);
           setSelectedCampaign(campaign);
           const subscriberId = campaign.subscriber_id || (campaign as any).subscriberId;
-          if (subscriberId && !isAdmin) {
+          if (!compactMode && subscriberId && !isAdmin) {
             await loadAccessiblePublishers(subscriberId);
           }
           setEditDialogOpen(true);

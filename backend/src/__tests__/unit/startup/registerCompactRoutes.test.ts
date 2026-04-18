@@ -12,9 +12,7 @@ describe('registerCompactRoutes', () => {
     expect(registeredPaths).toEqual(
       expect.arrayContaining([
         '/api/auth',
-        '/api/users',
         '/api/locals',
-        '/api/smart-tvs',
         '/api/totems',
         '/api/dispatcher-totem',
         '/api/dispatcher-debug',
@@ -22,18 +20,24 @@ describe('registerCompactRoutes', () => {
         '/api/media',
         '/api/playlists',
         '/api/campaigns',
-        '/api/qrcodes',
-        '/api/qr-codes',
         '/api/settings',
         '/api/dashboard',
         '/api/health',
-        '/api/notifications',
       ])
     );
 
-    expect(registeredPaths).not.toEqual(
-      expect.arrayContaining(['/api/subscribers', '/api/publishers', '/api/billing'])
-    );
+    const excluded = [
+      '/api/subscribers',
+      '/api/publishers',
+      '/api/billing',
+      '/api/users',
+      '/api/smart-tvs',
+      '/api/qrcodes',
+      '/api/notifications',
+    ];
+    for (const path of excluded) {
+      expect(registeredPaths).not.toContain(path);
+    }
   });
 });
 

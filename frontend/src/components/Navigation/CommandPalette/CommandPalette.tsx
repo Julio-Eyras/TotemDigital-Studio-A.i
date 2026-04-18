@@ -30,8 +30,10 @@ import {
   Computer,
   Settings,
   ArrowForward,
+  MonitorHeart,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { TOTEMDIGITAL_COMPACT } from '../../../config/featureFlags';
 
 export interface CommandItem {
   id: string;
@@ -125,28 +127,109 @@ const defaultItems: CommandItem[] = [
   },
 ];
 
+/** Alinhado ao menu compacto em menuHierarchy (TotemDigital monousuário). */
+const compactCommandItems: CommandItem[] = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    description: 'Visão geral do sistema',
+    icon: <Dashboard />,
+    type: 'page',
+    path: '/dashboard',
+    keywords: ['dashboard', 'home', 'inicio', 'visao geral'],
+  },
+  {
+    id: 'totems',
+    label: 'Totens',
+    description: 'Gerenciar totens',
+    icon: <Computer />,
+    type: 'page',
+    path: '/totems',
+    keywords: ['totems', 'totens', 'dispositivos'],
+  },
+  {
+    id: 'totem-playlists',
+    label: 'Playlists por Totem',
+    description: 'Playlists associadas a totens',
+    icon: <QueueMusic />,
+    type: 'page',
+    path: '/totem-playlists',
+    keywords: ['totem', 'playlist', 'por totem'],
+  },
+  {
+    id: 'media',
+    label: 'Mídias',
+    description: 'Gerenciar mídias',
+    icon: <VideoLibrary />,
+    type: 'page',
+    path: '/media',
+    keywords: ['media', 'midias', 'arquivos'],
+  },
+  {
+    id: 'playlists',
+    label: 'Playlists',
+    description: 'Gerenciar playlists',
+    icon: <QueueMusic />,
+    type: 'page',
+    path: '/playlists',
+    keywords: ['playlists', 'listas'],
+  },
+  {
+    id: 'campaigns',
+    label: 'Campanhas',
+    description: 'Gerenciar campanhas',
+    icon: <Campaign />,
+    type: 'page',
+    path: '/campaigns',
+    keywords: ['campaigns', 'campanhas'],
+  },
+  {
+    id: 'dispatcher-monitor',
+    label: 'Monitor Dispatcher',
+    description: 'Monitor do dispatcher',
+    icon: <MonitorHeart />,
+    type: 'page',
+    path: '/dispatcher-monitor',
+    keywords: ['dispatcher', 'monitor', 'dispatch'],
+  },
+  {
+    id: 'settings',
+    label: 'Configurações',
+    description: 'Configurações do sistema',
+    icon: <Settings />,
+    type: 'page',
+    path: '/settings',
+    keywords: ['settings', 'configuracoes', 'config'],
+  },
+];
+
 const CommandPalette: React.FC<CommandPaletteProps> = ({
   open,
   onClose,
-  items = defaultItems,
+  items,
 }) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
+  const commandItems = useMemo(
+    () => items ?? (TOTEMDIGITAL_COMPACT ? compactCommandItems : defaultItems),
+    [items]
+  );
+
   const filteredItems = useMemo(() => {
     if (!searchTerm.trim()) {
-      return items.slice(0, 8); // Mostrar apenas os primeiros 8 quando sem busca
+      return commandItems.slice(0, 12);
     }
 
     const term = searchTerm.toLowerCase();
-    return items.filter((item) => {
+    return commandItems.filter((item) => {
       const labelMatch = item.label.toLowerCase().includes(term);
       const descMatch = item.description?.toLowerCase().includes(term);
       const keywordMatch = item.keywords?.some((kw) => kw.toLowerCase().includes(term));
       return labelMatch || descMatch || keywordMatch;
     });
-  }, [items, searchTerm]);
+  }, [commandItems, searchTerm]);
 
   useEffect(() => {
     setSelectedIndex(0);

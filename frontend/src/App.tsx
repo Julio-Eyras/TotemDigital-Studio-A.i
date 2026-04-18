@@ -303,34 +303,6 @@ const AppContent: React.FC = () => {
               path="/settings"
               element={<ProtectedRoute><Settings /></ProtectedRoute>}
             />
-            <Route
-              path="/locals"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<CircularProgress />}>
-                    <Locals />
-                  </Suspense>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/smart-tvs"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<CircularProgress />}>
-                    <SmartTvs />
-                  </Suspense>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/users"
-              element={<ProtectedRoute><Users /></ProtectedRoute>}
-            />
-            <Route
-              path="/qr-codes"
-              element={<ProtectedRoute><QRCodes /></ProtectedRoute>}
-            />
             <Route path="/" element={<Navigate to="/dashboard" />} />
             <Route path="*" element={<Navigate to="/dashboard" />} />
           </Routes>

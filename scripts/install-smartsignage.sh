@@ -59,6 +59,8 @@ PRESERVE_DB=false
 LOAD_SEEDS=false
 SEEDS_OPTION_FORCED=false
 START_TOTEM=false
+# Com --skip-players / --totemdigital-install: não copia players cliente (só servidor + build)
+SKIP_PLAYERS_INSTALL=false
 CONFIGURE_DNS_LOCAL=false
 DB_WAS_CREATED_OR_RESET=false
 SINGLE_SERVER_MQTT_MODE="dev"       # dev | production
@@ -68,6 +70,11 @@ MQTT_BACKEND_PASSWORD=""
 MQTT_PLAYER_USERNAME="player"
 MQTT_PLAYER_PASSWORD=""
 MQTT_WS_URL_DEFAULT="ws://localhost:9001"
+
+# TotemDigital modo compacto (= mono / monousuário) vs Pro — gravado em .env como TOTEMDIGITAL_COMPACT / REACT_APP_TOTEMDIGITAL_COMPACT
+# Menu interativo pergunta sempre 1/2 (exceto --totemdigital-compact / --smartsignage-pro). Com --skip-menu, usa esta variável ou o default true.
+INSTALL_TOTEMDIGITAL_COMPACT="${INSTALL_TOTEMDIGITAL_COMPACT:-true}"
+TOTEMDIGITAL_PROFILE_CLI_SET=false
 
 # Modos especiais (operações focadas)
 DB_ONLY_MODE=false                # Reinstala apenas o banco (drop + schema + seeds), sem rebuild de backend/frontend
@@ -926,6 +933,20 @@ parse_arguments() {
                 START_TOTEM=true
                 shift
                 ;;
+            --skip-players|--totemdigital-install)
+                SKIP_PLAYERS_INSTALL=true
+                shift
+                ;;
+            --totemdigital-compact|--compact-profile)
+                INSTALL_TOTEMDIGITAL_COMPACT=true
+                TOTEMDIGITAL_PROFILE_CLI_SET=true
+                shift
+                ;;
+            --smartsignage-pro|--pro-profile)
+                INSTALL_TOTEMDIGITAL_COMPACT=false
+                TOTEMDIGITAL_PROFILE_CLI_SET=true
+                shift
+                ;;
             --help|-h)
                 echo "Smart Signage Pro v2.0 - Script de Instalação"
                 echo ""
@@ -951,6 +972,11 @@ parse_arguments() {
                 echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt). Usa database/carga-inicial-v6.sql"
                 echo "  --no-seeds           Não carrega dados de demonstração"
                 echo "  --starttotem         Após instalar, abre 2 players web (/player) com UINs de totens demo para laboratório"
+                echo "  --skip-players       Com --skip-menu: não copia players (webOS, Android, Tizen, etc.); só servidor + build"
+                echo "  --totemdigital-install  Alias de --skip-players (perfil TotemDigital sem clientes player no disco)"
+                echo "  --totemdigital-compact  Gera .env com TOTEMDIGITAL_COMPACT=true (modo compacto = mono; padrão neste repositório)"
+                echo "  --smartsignage-pro   Gera .env com TOTEMDIGITAL_COMPACT=false (multi-agência / Pro completo)"
+                echo "                       Também pode definir INSTALL_TOTEMDIGITAL_COMPACT=true|false no ambiente antes de executar o script."
                 echo "  --help               Mostra esta ajuda"
                 exit 0
                 ;;
@@ -4811,9 +4837,9 @@ LOG_FILE=/opt/smart-signage/Logs/app.log
 # CORS
 CORS_ORIGIN=http://localhost:3000,http://localhost:3001
 
-# TotemDigital compacto (monousuário)
-TOTEMDIGITAL_COMPACT=true
-REACT_APP_TOTEMDIGITAL_COMPACT=true
+# TotemDigital modo compacto (= mono) vs Pro — menu de instalação ou --totemdigital-compact / --smartsignage-pro
+TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
+REACT_APP_TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
 
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
@@ -4884,9 +4910,9 @@ LOG_FILE=/opt/smart-signage/Logs/app.log
 # CORS
 CORS_ORIGIN=http://localhost:3000,http://localhost:3001
 
-# TotemDigital compacto (monousuário)
-TOTEMDIGITAL_COMPACT=true
-REACT_APP_TOTEMDIGITAL_COMPACT=true
+# TotemDigital modo compacto (= mono) vs Pro — menu de instalação ou --totemdigital-compact / --smartsignage-pro
+TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
+REACT_APP_TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
 
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
@@ -10489,10 +10515,12 @@ show_menu() {
         if [[ -z "$INSTALL_MODE" ]]; then
             INSTALL_MODE="single-server"
         fi
+        INSTALL_TOTEMDIGITAL_COMPACT="${INSTALL_TOTEMDIGITAL_COMPACT:-true}"
 
         apply_single_server_mqtt_profile
 
         log "Modo selecionado: $INSTALL_MODE (skip-menu)"
+        log "Perfil .env (skip-menu): INSTALL_TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT"
         case "$INSTALL_MODE" in
             docker)
                 DB_DRIVER="postgresql"
@@ -10551,6 +10579,26 @@ show_menu() {
             exit 1
             ;;
     esac
+
+    if [[ "$TOTEMDIGITAL_PROFILE_CLI_SET" == "true" ]]; then
+        log "Perfil .env (opções de linha de comando): INSTALL_TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT"
+    else
+        echo
+        echo -e "${CYAN}Perfil da aplicação — compacto (= mono) vs Pro (TOTEMDIGITAL_COMPACT / REACT_APP_TOTEMDIGITAL_COMPACT):${NC}"
+        echo -e "${GREEN}1)${NC} Modo compacto / mono (TotemDigital; menos rotas Pro; recomendado neste repositório)"
+        echo -e "${GREEN}2)${NC} Smart Signage Pro completo (multi-agência; mais API e UI)"
+        read -p "Escolha (1-2) [padrão: 1]: " profile_choice
+        profile_choice=${profile_choice:-1}
+        case $profile_choice in
+            2)
+                INSTALL_TOTEMDIGITAL_COMPACT=false
+                ;;
+            *)
+                INSTALL_TOTEMDIGITAL_COMPACT=true
+                ;;
+        esac
+        log "Perfil .env: INSTALL_TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT"
+    fi
     
     apply_single_server_mqtt_profile
 
@@ -10566,6 +10614,20 @@ show_menu() {
 show_players_menu() {
     # Em modo não interativo, aplicar default do menu de players (10 = todos)
     if [[ "$SKIP_MENU" == "true" ]]; then
+        if [[ "$SKIP_PLAYERS_INSTALL" == "true" ]]; then
+            INSTALL_ALL_PLAYERS=false
+            INSTALL_PLAYER_WEBOS=false
+            INSTALL_PLAYER_ANDROID=false
+            INSTALL_PLAYER_LINUX_ELECTRON=false
+            INSTALL_PLAYER_LINUX_CPP=false
+            INSTALL_PLAYER_WINDOWS_ELECTRON=false
+            INSTALL_PLAYER_TIZEN=false
+            INSTALL_PLAYER_SMARTDISPLAYFX=false
+            INSTALL_PLAYER_FX_INTERFACE=false
+            INSTALL_PLAYER_WEB_CACHE=false
+            log "✅ TotemDigital/servidor: nenhum player cliente será copiado (--skip-players)"
+            return 0
+        fi
         INSTALL_ALL_PLAYERS=true
         INSTALL_PLAYER_WEBOS=true
         INSTALL_PLAYER_ANDROID=true
