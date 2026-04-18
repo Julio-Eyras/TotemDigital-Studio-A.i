@@ -139,6 +139,15 @@ const compactCommandItems: CommandItem[] = [
     keywords: ['dashboard', 'home', 'inicio', 'visao geral'],
   },
   {
+    id: 'subscribers',
+    label: 'Assinantes',
+    description: 'CRUD de assinantes (anunciantes)',
+    icon: <People />,
+    type: 'page',
+    path: '/subscribers',
+    keywords: ['assinantes', 'subscribers', 'anunciantes', 'clientes'],
+  },
+  {
     id: 'totems',
     label: 'Totens',
     description: 'Gerenciar totens',

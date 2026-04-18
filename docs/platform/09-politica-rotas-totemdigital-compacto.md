@@ -1,6 +1,6 @@
 # Política de rotas — TotemDigital compacto
 
-Objetivo: a variante **monousuária** expõe apenas o necessário para operar totens, mídias, playlists, campanhas e dispatcher, sem superfície Pro (multi-agência, smart TV dedicada, gestão de utilizadores via API, QR codes, notificações servidor).
+Objetivo: a variante **compacta** expõe operação de totens, mídias, playlists, campanhas e dispatcher, com **CRUD de assinantes** (anunciantes), sem a maior parte da superfície Pro (billing pesado, smartdisplayfx, multi-portal, etc.).
 
 ## Backend (`registerCompactRoutes`)
 
@@ -9,6 +9,7 @@ Objetivo: a variante **monousuária** expõe apenas o necessário para operar to
 | Prefixo | Uso |
 |---------|-----|
 | `/api/auth` | Autenticação |
+| `/api/subscribers` | Assinantes (CRUD) |
 | `/api/locals` | Locais (filtros e vínculo na UI de totens) |
 | `/api/totems` | Totens |
 | `/api/dispatcher-totem` | Dispatcher |
@@ -20,11 +21,11 @@ Objetivo: a variante **monousuária** expõe apenas o necessário para operar to
 | `/api/logs` | Configuração e ficheiros de log (Configurações) |
 | `/api/playlist-engine` | Playlists consolidadas por totem (`totem-playlists`, etc.) |
 
-**Não montado no compacto:** `/api/users`, `/api/smart-tvs`, `/api/qrcodes`, `/api/notifications`, e toda a API Pro (subscribers, publishers, billing, etc.).
+**Não montado no compacto:** `/api/users`, `/api/smart-tvs`, `/api/qrcodes`, `/api/notifications`, `/api/publishers` (lista completa Pro), billing, smartdisplayfx, etc.
 
 ## Frontend (rotas React)
 
-Com `REACT_APP_TOTEMDIGITAL_COMPACT=true`, as rotas autenticadas limitam-se ao mesmo conjunto do menu: dashboard, totens, playlists por totem, mídias, playlists, campanhas, monitor dispatcher, configurações. Não há rotas dedicadas a Locais, Smart TVs, Utilizadores ou QR codes (a gestão de locais continua **dentro do fluxo de totens** via API `/api/locals`).
+Com `REACT_APP_TOTEMDIGITAL_COMPACT=true`, o menu inclui também **Assinantes** (`/subscribers`), além de dashboard, totens, playlists por totem, mídias, playlists, campanhas, monitor dispatcher, configurações. Não há rotas dedicadas a Locais, Smart TVs, Utilizadores ou QR codes (a gestão de locais continua **dentro do fluxo de totens** via API `/api/locals`).
 
 A página **Campanhas** foi adaptada: sem cliente/subscriber/publishers na criação; edição usa abas Principal → Totens → Mídias → Playlists → Agendamento; totens carregam-se via `/api/totems`; detalhes da campanha não chamam `publisherApi` no compacto. Roteiro de validação manual: secção **4) Campanhas** em [07-teste-modo-compacto.md](./07-teste-modo-compacto.md).
 

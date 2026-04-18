@@ -28,6 +28,7 @@ Resultado esperado:
 ### Rotas essenciais (devem responder normalmente)
 
 - `/api/auth`
+- `/api/subscribers`
 - `/api/dashboard`
 - `/api/locals` (utilizada pela UI de totens)
 - `/api/totems`
@@ -64,6 +65,7 @@ Critério: no compacto, as rotas Pro não devem estar ativas; as da segunda list
 No menu principal, validar presença de:
 
 - Dashboard
+- Assinantes
 - Totens
 - Playlists por Totem
 - Mídias
@@ -121,6 +123,8 @@ Nos logs de inicialização, conferir mensagens indicando que no compacto **não
 - Sem erros críticos no console backend/frontend
 
 ## 7) Erros **502 Bad Gateway** ou WebSocket **Unexpected response code: 200**
+
+Script de apoio no repositório: `scripts/diagnose-502.sh` (porta 3000, systemd, `curl` health, últimas linhas do Nginx).
 
 **502 em quase todos os `/api/...`:** o Nginx está a fazer proxy mas o **Node (backend) não responde** na porta esperada (por defeito `3000`) — serviço parado, crash em loop, ou `proxy_pass` para IP/porta errados.
 

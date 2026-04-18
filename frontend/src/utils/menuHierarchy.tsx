@@ -170,6 +170,7 @@ function getSystemAdminMenu(): HierarchicalMenuItem[] {
   if (TOTEMDIGITAL_COMPACT) {
     return [
       { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+      { text: 'Assinantes', icon: <People />, path: '/subscribers' },
       { text: 'Totens', icon: <Computer />, path: '/totems' },
       { text: 'Playlists por Totem', icon: <QueueMusic />, path: '/totem-playlists' },
       { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },

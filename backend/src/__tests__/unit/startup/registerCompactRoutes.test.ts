@@ -12,6 +12,7 @@ describe('registerCompactRoutes', () => {
     expect(registeredPaths).toEqual(
       expect.arrayContaining([
         '/api/auth',
+        '/api/subscribers',
         '/api/locals',
         '/api/totems',
         '/api/dispatcher-totem',
@@ -30,7 +31,6 @@ describe('registerCompactRoutes', () => {
     );
 
     const excluded = [
-      '/api/subscribers',
       '/api/publishers',
       '/api/billing',
       '/api/users',
