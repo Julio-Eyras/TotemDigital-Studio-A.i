@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import { authApi } from '../../services/api';
 import { twoFactorApi } from '../../services/api/twoFactorApi';
+import { APP_DISPLAY_NAME } from '../../config/featureFlags';
 
 interface LoginFormData {
   username: string;
@@ -47,6 +48,10 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [pendingUser, setPendingUser] = useState<any>(null);
+
+  useEffect(() => {
+    document.title = APP_DISPLAY_NAME;
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -195,7 +200,7 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         >
           <Business sx={{ fontSize: 48, mb: 2 }} />
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mb: 1 }}>
-            Smart Signage Pro
+            {APP_DISPLAY_NAME}
           </Typography>
           <Typography variant="body2" sx={{ opacity: 0.9 }}>
             Sistema de Sinalização Digital
@@ -408,7 +413,7 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           {/* Footer */}
           <Box sx={{ textAlign: 'center', mt: 4 }}>
             <Typography variant="body2" color="text.secondary">
-              Smart Signage Pro v2.0
+              {APP_DISPLAY_NAME} v2.0
             </Typography>
             <Typography variant="caption" color="text.secondary">
               © 2024 - Sistema de Sinalização Digital

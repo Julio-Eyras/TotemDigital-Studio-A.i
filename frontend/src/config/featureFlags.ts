@@ -9,3 +9,8 @@ export const TOTEMDIGITAL_COMPACT = parseBoolean(
   process.env.REACT_APP_TOTEMDIGITAL_COMPACT
 );
 
+/** Nome exibido no cabeçalho, login e separador do browser (build compacto vs Pro). */
+export const APP_DISPLAY_NAME = TOTEMDIGITAL_COMPACT
+  ? 'Smart Signage Compact'
+  : 'Smart Signage Pro';
+

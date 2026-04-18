@@ -62,6 +62,7 @@ import { setTheme } from '../../store/slices/uiSlice';
 import { useSystemAlerts } from '../../services/api/queries';
 import { useFlags } from '../../hooks/useFlags';
 import NotificationCenter from '../Notification/NotificationCenter';
+import { APP_DISPLAY_NAME } from '../../config/featureFlags';
 
 const drawerWidth = 280;
 
@@ -95,6 +96,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [openMenus, setOpenMenus] = useState<OpenMenusState>({});
   const { data: alerts = [] } = useSystemAlerts(10);
   const { flags } = useFlags(); // Hook para acessar flags do usuário
+
+  useEffect(() => {
+    document.title = APP_DISPLAY_NAME;
+  }, []);
 
   useEffect(() => {
     // Load user from localStorage
@@ -277,7 +282,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <Business sx={{ fontSize: 32 }} />
         </Avatar>
         <Typography variant="h6" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-          Smart Signage Pro
+          {APP_DISPLAY_NAME}
         </Typography>
         <Typography variant="caption" color="text.secondary">
           Sistema de Sinalização Digital
