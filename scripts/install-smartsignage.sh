@@ -7666,9 +7666,38 @@ EOF
             _db_exists=$(sudo -u "${POSTGRES_USER:-postgres}" psql -d postgres -tAc "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$_db_name');" 2>/dev/null | tr -d '[:space:]' || true)
         fi
 
+        # PostgreSQL local: criar role + database se ainda não existirem (ordem de passos pode não ter corrido configure_postgresql antes)
+        local _db_local=false
+        case "${_db_host:-}" in ''|127.0.0.1|localhost|::1) _db_local=true ;; esac
+        if [[ "$_db_exists" != "t" ]] && [[ "$_db_local" == true ]]; then
+            local _pg_sys="${POSTGRES_SYSTEM_USER:-postgres}"
+            log "Banco '$_db_name' inexistente ou inacessível; tentando CREATE ROLE/DATABASE via sudo -u ${_pg_sys} (socket local)..."
+            if ! sudo -u "$_pg_sys" psql -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$_db_user'" 2>/dev/null | grep -q 1; then
+                if [[ -n "$_db_password" ]]; then
+                    local _pw_esc="${_db_password//\'/\'\'}"
+                    sudo -u "$_pg_sys" psql -d postgres -c "CREATE USER \"$_db_user\" WITH PASSWORD '${_pw_esc}' CREATEDB CREATEROLE;" 2>/tmp/ss-create-user.log || true
+                else
+                    sudo -u "$_pg_sys" psql -d postgres -c "CREATE USER \"$_db_user\" CREATEDB CREATEROLE;" 2>/tmp/ss-create-user.log || true
+                fi
+            elif [[ -n "$_db_password" ]]; then
+                local _pw_esc="${_db_password//\'/\'\'}"
+                sudo -u "$_pg_sys" psql -d postgres -c "ALTER USER \"$_db_user\" WITH PASSWORD '${_pw_esc}';" 2>/dev/null || true
+            fi
+            if sudo -u "$_pg_sys" psql -d postgres -c "CREATE DATABASE \"$_db_name\" OWNER \"$_db_user\";" 2>/tmp/ss-create-db.log; then
+                _db_exists=t
+                log "✅ Banco '$_db_name' criado (OWNER $_db_user)."
+            fi
+            # Revalidar existência (peer)
+            if [[ "$_db_exists" != "t" ]]; then
+                _db_exists=$(sudo -u "$_pg_sys" psql -d postgres -tAc "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$_db_name');" 2>/dev/null | tr -d '[:space:]' || true)
+            fi
+        fi
+
         if [[ "$_db_exists" != "t" ]]; then
             error "❌ Banco de dados '$_db_name' não encontrado (ou sem credenciais de acesso)."
-            error "   Confirme DB_* no .env e execute setup_first_boot antes de iniciar serviços."
+            error "   Confirme DB_* em $INSTALL_DIR/.env (host local: pode ver /tmp/ss-create-db.log)."
+            [[ -f /tmp/ss-create-db.log ]] && error "   Último erro CREATE DATABASE: $(head -3 /tmp/ss-create-db.log | tr '\n' ' ')"
+            error "   Alternativa: executar setup_first_boot ou criar manualmente o banco e o utilizador PostgreSQL."
             exit 1
         fi
         
