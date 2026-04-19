@@ -30,6 +30,13 @@ import {
   reorderCampaignPlaylistsValidators
 } from '../validators/campaign.validators';
 import { validateRequest } from '../middleware/validation.middleware';
+import {
+  assertTenantClientParamAccess,
+  isSubscriberTenantRole,
+  resolvePublisherIdFromRequest
+} from '../utils/tenantClientAccess';
+import { assertTotemReadAccess } from '../utils/totemReadAccess';
+import { isAdminRole } from '../utils/tenantScope';
 
 const router = Router();
 
@@ -70,13 +77,15 @@ router.get('/',
       createdTo
     } = req.query;
 
-    // Aplicar filtro de subscriber - garantir isolamento de dados
-    // Se usuário é subscriber/client, só pode ver suas próprias campanhas
     let finalSubscriberId: number | undefined;
-    if (req.user.role === 'client' || req.user.role === 'subscriber') {
-      // Usar subscriberId do middleware de isolamento
-      finalSubscriberId = req.subscriberId || req.user.subscriberId;
-      if (!finalSubscriberId) {
+    let scopedPublisherId: number | undefined;
+
+    if (isAdminRole(req.user?.role)) {
+      const raw = subscriberId ? parseInt(String(subscriberId), 10) : NaN;
+      finalSubscriberId = !Number.isNaN(raw) && raw > 0 ? raw : undefined;
+    } else if (isSubscriberTenantRole(req)) {
+      finalSubscriberId = req.subscriberId ?? req.user?.subscriberId ?? req.user?.clientId;
+      if (finalSubscriberId == null || Number.isNaN(Number(finalSubscriberId))) {
         return res.status(403).json({
           success: false,
           error: 'Acesso negado',
@@ -84,12 +93,25 @@ router.get('/',
         });
       }
     } else {
-      // Admin pode ver todas ou filtrar por subscriberId fornecido
-      finalSubscriberId = subscriberId ? parseInt(subscriberId as string) : undefined;
+      const pubId = await resolvePublisherIdFromRequest(req);
+      if (pubId != null) {
+        scopedPublisherId = pubId;
+        if (subscriberId) {
+          const raw = parseInt(String(subscriberId), 10);
+          if (!Number.isNaN(raw) && raw > 0) {
+            await assertTenantClientParamAccess(req, raw);
+            finalSubscriberId = raw;
+          }
+        }
+      } else {
+        const raw = subscriberId ? parseInt(String(subscriberId), 10) : NaN;
+        finalSubscriberId = !Number.isNaN(raw) && raw > 0 ? raw : undefined;
+      }
     }
-    
+
     const filters: any = {
       subscriberId: finalSubscriberId,
+      scopedPublisherId,
       status: status as string,
       campaignType: campaignType as string,
       isActive: isActive !== undefined ? isActive === 'true' : undefined,
@@ -114,6 +136,12 @@ router.get('/',
     }));
 
   } catch (error: any) {
+    if (error?.statusCode === 403) {
+      return res.status(403).json({
+        success: false,
+        message: error.message || 'Acesso negado'
+      });
+    }
     await logError('Erro ao listar campanhas', error, { filters: req.query });
     return res.status(500).json({
       success: false,
@@ -157,17 +185,19 @@ router.get('/client/:clientId', async (req: any, res) => {
   try {
     const { limit = 50 } = req.query;
 
-    // Verificar permissão (legado para role 'client')
-    if (req.user.role === 'client' && req.user.subscriberId !== parseInt(clientId)) {
-      return res.status(403).json({
+    const sid = parseInt(clientId, 10);
+    if (Number.isNaN(sid) || sid < 1) {
+      return res.status(400).json({
         success: false,
-        message: 'Acesso negado: Você só pode ver suas próprias campanhas'
+        message: 'ID de assinante inválido'
       });
     }
 
+    await assertTenantClientParamAccess(req, sid);
+
     const campaigns = await getCampaignService().getCampaignsByClient(
-      parseInt(clientId),
-      parseInt(limit as string)
+      sid,
+      parseInt(limit as string, 10)
     );
 
     return res.json({
@@ -176,7 +206,13 @@ router.get('/client/:clientId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    await logError('Erro ao buscar campanhas do cliente', error, { clientId: parseInt(clientId) });
+    if (error?.statusCode === 403) {
+      return res.status(403).json({
+        success: false,
+        message: error.message || 'Acesso negado'
+      });
+    }
+    await logError('Erro ao buscar campanhas do cliente', error, { clientId: parseInt(clientId, 10) });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -193,7 +229,17 @@ router.get('/client/:clientId', async (req: any, res) => {
 router.get('/totem/:totemId', async (req: any, res) => {
   const { totemId } = req.params;
   try {
-    const campaigns = await getCampaignService().getActiveCampaignsForTotem(parseInt(totemId));
+    const tid = parseInt(totemId, 10);
+    if (Number.isNaN(tid) || tid < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de totem inválido'
+      });
+    }
+
+    await assertTotemReadAccess(req, tid);
+
+    const campaigns = await getCampaignService().getActiveCampaignsForTotem(tid);
 
     return res.json({
       success: true,
@@ -201,7 +247,19 @@ router.get('/totem/:totemId', async (req: any, res) => {
     });
 
   } catch (error: any) {
-    await logError('Erro ao buscar campanhas do totem', error, { totemId: parseInt(totemId) });
+    if (error?.statusCode === 403) {
+      return res.status(403).json({
+        success: false,
+        message: error.message || 'Acesso negado'
+      });
+    }
+    if (error?.statusCode === 404) {
+      return res.status(404).json({
+        success: false,
+        message: error.message || 'Não encontrado'
+      });
+    }
+    await logError('Erro ao buscar campanhas do totem', error, { totemId: parseInt(totemId, 10) });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',

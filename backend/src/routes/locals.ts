@@ -9,6 +9,7 @@ import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middlewa
 import { param, query, body, validationResult } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
 import { errorResponse } from '../utils/apiResponse';
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 
 const router = Router();
 
@@ -18,10 +19,15 @@ router.use(authMiddleware);
 const isAdminRole = (role?: string) =>
   ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(role || '');
 
+const getLocalsWriteRoles = () =>
+  TOTEMDIGITAL_COMPACT
+    ? ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user', 'subscriber_user', 'gerente_marketing', 'manager', 'operator']
+    : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'];
+
 // Validações
 const createLocalValidator = [
-  // publisher_id é obrigatório - locais pertencem apenas a publishers
-  body('publisher_id').notEmpty().isInt({ min: 1 }).withMessage('publisher_id é obrigatório'),
+  // Em modo compacto o backend resolve publisher_id pelo owner.
+  body('publisher_id').optional().isInt({ min: 1 }).withMessage('publisher_id inválido'),
   body('contract_id').optional().isInt({ min: 1 }).withMessage('Contract ID inválido (opcional, para rastreabilidade)'),
   body('name').notEmpty().isString().withMessage('Nome é obrigatório'),
   body('category_segment').optional().isString(),
@@ -94,6 +100,9 @@ router.get('/',
       return res.json(result);
     } catch (error: any) {
       await logError('Erro ao listar locals', error);
+      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
+        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
+      }
       return res.status(500).json(errorResponse('Erro interno do servidor', error.message));
     }
   }
@@ -111,10 +120,15 @@ router.get('/stats',
       const localIdsStr = req.query.localIds as string;
       const localIds = localIdsStr.split(',').map((id) => parseInt(id.trim(), 10)).filter((n) => !isNaN(n));
       if (localIds.length === 0) return res.json({});
-      const stats = await getLocalService().getLocalStats(localIds);
+      const isAdmin = isAdminRole(req.user?.role);
+      const requestPublisherId = req.user?.publisherId || undefined;
+      const stats = await getLocalService().getLocalStats(localIds, requestPublisherId, isAdmin);
       return res.json(stats);
     } catch (error: any) {
       logError('Erro ao buscar stats dos locais', error);
+      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
+        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
+      }
       return res.status(500).json(errorResponse('Erro ao buscar estatísticas', error.message));
     }
   }
@@ -158,15 +172,15 @@ router.get('/:id',
  * @access Private (Apenas roles administrativos - baseado em contrato)
  */
 router.post('/',
-  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
+  authorizeRole(getLocalsWriteRoles()),
   createLocalValidator,
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { publisher_id, contract_id, name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description } = req.body;
       
-      // publisher_id é obrigatório - locais pertencem apenas a publishers
-      if (!publisher_id) {
+      // Fora do compacto, publisher_id é obrigatório.
+      if (!TOTEMDIGITAL_COMPACT && !publisher_id) {
         return res.status(400).json({
           error: 'Dados inválidos',
           details: [{ msg: 'publisher_id é obrigatório. Locais pertencem apenas a publishers.' }]
@@ -213,7 +227,7 @@ router.post('/',
  * @access Private (Admin only)
  */
 router.put('/:id',
-  authorizeRole(['admin']),
+  authorizeRole(getLocalsWriteRoles()),
   param('id').isInt({ min: 1 }),
   updateLocalValidator,
   validateRequest,
@@ -226,7 +240,7 @@ router.put('/:id',
         return res.status(401).json(errorResponse('Usuário não autenticado'));
       }
 
-      const isAdmin = req.user.role === 'admin';
+      const isAdmin = isAdminRole(req.user?.role);
       const requestPublisherId = req.user?.publisherId || undefined;
 
       const updatedLocal = await getLocalService().updateLocal(
@@ -267,7 +281,7 @@ router.put('/:id',
  * @access Private (Admin only)
  */
 router.delete('/:id',
-  authorizeRole(['admin']),
+  authorizeRole(getLocalsWriteRoles()),
   param('id').isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -278,7 +292,7 @@ router.delete('/:id',
         return res.status(401).json(errorResponse('Usuário não autenticado'));
       }
 
-      const isAdmin = req.user.role === 'admin';
+      const isAdmin = isAdminRole(req.user?.role);
       const requestPublisherId = req.user?.publisherId || undefined;
 
       await getLocalService().deleteLocal(parseInt(id), req.user.id, requestPublisherId, isAdmin);
@@ -306,7 +320,7 @@ router.get('/:id/totems',
     try {
       const { id } = req.params;
       
-      const isAdmin = req.user?.role === 'admin';
+      const isAdmin = isAdminRole(req.user?.role);
       const requestPublisherId = req.user?.publisherId || undefined;
 
       const totems = await getLocalService().getTotemsByLocal(parseInt(id), requestPublisherId, isAdmin);

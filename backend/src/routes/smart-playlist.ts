@@ -8,6 +8,9 @@ import { SmartPlaylistService } from '../services/smartPlaylistService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { logError, logDebug } from '../utils/loggerHelper';
+import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
+import { assertCampaignReadAccess } from '../utils/campaignReadAccess';
+import { assertTotemReadAccess } from '../utils/totemReadAccess';
 
 const router = Router();
 
@@ -442,18 +445,20 @@ router.get('/client/:clientId', async (req: any, res) => {
     const { clientId } = req.params;
     const { limit = 50 } = req.query;
 
-    // Verificar permissão
-    if (req.user.role === 'client' && req.user.clientId !== parseInt(clientId)) {
-      return res.status(403).json({
+    const sid = parseInt(clientId, 10);
+    if (Number.isNaN(sid) || sid < 1) {
+      return res.status(400).json({
         success: false,
-        message: 'Acesso negado: Você só pode ver suas próprias smart playlists'
+        message: 'ID de assinante inválido'
       });
     }
 
+    await assertTenantClientParamAccess(req, sid);
+
     const result = await getSmartPlaylistService().getSmartPlaylists(
       1,
-      parseInt(limit as string),
-      { subscriberId: parseInt(clientId) }
+      parseInt(String(limit), 10),
+      { subscriberId: sid }
     );
 
     return res.json({
@@ -462,6 +467,12 @@ router.get('/client/:clientId', async (req: any, res) => {
     });
 
   } catch (error: any) {
+    if (error?.statusCode === 403) {
+      return res.status(403).json({
+        success: false,
+        message: error.message || 'Acesso negado'
+      });
+    }
     await logError('Erro ao buscar smart playlists do cliente', error);
     return res.status(500).json({
       success: false,
@@ -481,10 +492,20 @@ router.get('/campaign/:campaignId', async (req: any, res) => {
     const { campaignId } = req.params;
     const { limit = 50 } = req.query;
 
+    const cid = parseInt(campaignId, 10);
+    if (Number.isNaN(cid) || cid < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de campanha inválido'
+      });
+    }
+
+    await assertCampaignReadAccess(req, cid);
+
     const result = await getSmartPlaylistService().getSmartPlaylists(
       1,
-      parseInt(limit as string),
-      { campaignId: parseInt(campaignId) }
+      parseInt(String(limit), 10),
+      { campaignId: cid }
     );
 
     return res.json({
@@ -493,6 +514,18 @@ router.get('/campaign/:campaignId', async (req: any, res) => {
     });
 
   } catch (error: any) {
+    if (error?.statusCode === 403) {
+      return res.status(403).json({
+        success: false,
+        message: error.message || 'Acesso negado'
+      });
+    }
+    if (error?.statusCode === 404) {
+      return res.status(404).json({
+        success: false,
+        message: error.message || 'Não encontrado'
+      });
+    }
     await logError('Erro ao buscar smart playlists da campanha', error);
     return res.status(500).json({
       success: false,
@@ -512,10 +545,20 @@ router.get('/totem/:totemId', async (req: any, res) => {
     const { totemId } = req.params;
     const { limit = 50 } = req.query;
 
+    const tid = parseInt(totemId, 10);
+    if (Number.isNaN(tid) || tid < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de totem inválido'
+      });
+    }
+
+    await assertTotemReadAccess(req, tid);
+
     const result = await getSmartPlaylistService().getSmartPlaylists(
       1,
-      parseInt(limit as string),
-      { totemId: parseInt(totemId) }
+      parseInt(String(limit), 10),
+      { totemId: tid }
     );
 
     return res.json({
@@ -524,6 +567,18 @@ router.get('/totem/:totemId', async (req: any, res) => {
     });
 
   } catch (error: any) {
+    if (error?.statusCode === 403) {
+      return res.status(403).json({
+        success: false,
+        message: error.message || 'Acesso negado'
+      });
+    }
+    if (error?.statusCode === 404) {
+      return res.status(404).json({
+        success: false,
+        message: error.message || 'Não encontrado'
+      });
+    }
     await logError('Erro ao buscar smart playlists do totem', error);
     return res.status(500).json({
       success: false,

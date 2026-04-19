@@ -145,6 +145,12 @@ export class CampaignService {
     filters: {
       clientId?: number; // DEPRECATED
       subscriberId?: number;
+      /**
+       * Restringe a campanhas que o publisher enxerga: `campaign_publishers` ativo;
+       * ou, com `campaigns.contract_id`, o contrato dessa campanha com plano que inclui o publisher;
+       * ou, sem `contract_id` (legado), qualquer contrato ativo do assinante com plano que inclua o publisher.
+       */
+      scopedPublisherId?: number;
       status?: string;
       campaignType?: string;
       isActive?: boolean;
@@ -172,6 +178,51 @@ export class CampaignService {
         whereClause += ` AND c.subscriber_id = $${paramIndex}`;
         params.push(filters.clientId);
         paramIndex++;
+      }
+
+      if (filters.scopedPublisherId != null) {
+        const pid = filters.scopedPublisherId;
+        whereClause += ` AND (
+          EXISTS (
+            SELECT 1 FROM campaign_publishers cp
+            WHERE cp.campaign_id = c.campaign_id
+              AND cp.publisher_id = $${paramIndex}
+              AND COALESCE(cp.is_active, true) = true
+          )
+          OR (
+            c.contract_id IS NOT NULL
+            AND EXISTS (
+              SELECT 1
+              FROM subscriber_contracts sc
+              INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+                AND ppa.publisher_id = $${paramIndex + 1}
+                AND ppa.is_allowed = true
+                AND COALESCE(ppa.is_active, true) = true
+              WHERE sc.contract_id = c.contract_id
+                AND sc.subscriber_id = c.subscriber_id
+                AND sc.status = 'active'
+                AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+                AND (sc.start_date IS NULL OR sc.start_date <= CURRENT_DATE)
+            )
+          )
+          OR (
+            c.contract_id IS NULL
+            AND EXISTS (
+              SELECT 1
+              FROM subscriber_contracts sc
+              INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+                AND ppa.publisher_id = $${paramIndex + 2}
+                AND ppa.is_allowed = true
+                AND COALESCE(ppa.is_active, true) = true
+              WHERE sc.subscriber_id = c.subscriber_id
+                AND sc.status = 'active'
+                AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+                AND (sc.start_date IS NULL OR sc.start_date <= CURRENT_DATE)
+            )
+          )
+        )`;
+        params.push(pid, pid, pid);
+        paramIndex += 3;
       }
 
       if (filters.status) {
@@ -482,6 +533,66 @@ export class CampaignService {
       })),
       ...scheduleInfo
     };
+  }
+
+  /**
+   * Mesmas regras de `getCampaigns` com `scopedPublisherId`: publishers, contrato da campanha, ou legado sem `contract_id`.
+   */
+  async isCampaignVisibleToPublisher(campaignId: number, publisherId: number): Promise<boolean> {
+    try {
+      const row = await this.db.findFirst(
+        `
+        SELECT 1 AS ok
+        FROM campaigns c
+        WHERE c.campaign_id = $1
+        AND (
+          EXISTS (
+            SELECT 1 FROM campaign_publishers cp
+            WHERE cp.campaign_id = c.campaign_id
+              AND cp.publisher_id = $2
+              AND COALESCE(cp.is_active, true) = true
+          )
+          OR (
+            c.contract_id IS NOT NULL
+            AND EXISTS (
+              SELECT 1
+              FROM subscriber_contracts sc
+              INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+                AND ppa.publisher_id = $2
+                AND ppa.is_allowed = true
+                AND COALESCE(ppa.is_active, true) = true
+              WHERE sc.contract_id = c.contract_id
+                AND sc.subscriber_id = c.subscriber_id
+                AND sc.status = 'active'
+                AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+                AND (sc.start_date IS NULL OR sc.start_date <= CURRENT_DATE)
+            )
+          )
+          OR (
+            c.contract_id IS NULL
+            AND EXISTS (
+              SELECT 1
+              FROM subscriber_contracts sc
+              INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+                AND ppa.publisher_id = $2
+                AND ppa.is_allowed = true
+                AND COALESCE(ppa.is_active, true) = true
+              WHERE sc.subscriber_id = c.subscriber_id
+                AND sc.status = 'active'
+                AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+                AND (sc.start_date IS NULL OR sc.start_date <= CURRENT_DATE)
+            )
+          )
+        )
+        LIMIT 1
+      `,
+        [campaignId, publisherId]
+      );
+      return Boolean(row);
+    } catch (error: any) {
+      await logError('isCampaignVisibleToPublisher', error, { campaignId, publisherId });
+      return false;
+    }
   }
 
   /**

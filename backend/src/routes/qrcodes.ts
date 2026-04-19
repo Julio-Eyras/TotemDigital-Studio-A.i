@@ -7,6 +7,8 @@ import { Router } from 'express';
 import { QRCodeService } from '../services/qrcodeService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { logError } from '../utils/loggerHelper';
+import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
+import { assertTotemReadAccess } from '../utils/totemReadAccess';
 
 const router = Router();
 
@@ -104,17 +106,19 @@ router.get('/client/:clientId', async (req: any, res) => {
     const { clientId } = req.params;
     const { limit = 50 } = req.query;
 
-    // Verificar permissão
-    if (req.user.role === 'client' && req.user.clientId !== parseInt(clientId)) {
-      return res.status(403).json({
+    const sid = parseInt(clientId, 10);
+    if (Number.isNaN(sid) || sid < 1) {
+      return res.status(400).json({
         success: false,
-        message: 'Acesso negado: Você só pode ver seus próprios QR Codes'
+        message: 'ID de assinante inválido'
       });
     }
 
+    await assertTenantClientParamAccess(req, sid);
+
     const qrCodes = await getQRCodeService().getQRCodesByClient(
-      parseInt(clientId),
-      parseInt(limit as string)
+      sid,
+      parseInt(String(limit), 10)
     );
 
     return res.json({
@@ -123,6 +127,12 @@ router.get('/client/:clientId', async (req: any, res) => {
     });
 
   } catch (error: any) {
+    if (error?.statusCode === 403) {
+      return res.status(403).json({
+        success: false,
+        message: error.message || 'Acesso negado'
+      });
+    }
     await logError('Erro ao buscar QR Codes do cliente', error);
     return res.status(500).json({
       success: false,
@@ -142,9 +152,19 @@ router.get('/totem/:totemId', async (req: any, res) => {
     const { totemId } = req.params;
     const { limit = 50 } = req.query;
 
+    const tid = parseInt(totemId, 10);
+    if (Number.isNaN(tid) || tid < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de totem inválido'
+      });
+    }
+
+    await assertTotemReadAccess(req, tid);
+
     const qrCodes = await getQRCodeService().getQRCodesByTotem(
-      parseInt(totemId),
-      parseInt(limit as string)
+      tid,
+      parseInt(String(limit), 10)
     );
 
     return res.json({
@@ -153,6 +173,18 @@ router.get('/totem/:totemId', async (req: any, res) => {
     });
 
   } catch (error: any) {
+    if (error?.statusCode === 403) {
+      return res.status(403).json({
+        success: false,
+        message: error.message || 'Acesso negado'
+      });
+    }
+    if (error?.statusCode === 404) {
+      return res.status(404).json({
+        success: false,
+        message: error.message || 'Não encontrado'
+      });
+    }
     await logError('Erro ao buscar QR Codes do totem', error);
     return res.status(500).json({
       success: false,

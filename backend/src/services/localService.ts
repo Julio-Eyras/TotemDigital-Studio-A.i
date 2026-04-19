@@ -74,6 +74,24 @@ export class LocalService {
     return getDatabase();
   }
 
+  private async resolveScopedPublisherId(
+    requestPublisherId?: number,
+    isAdmin: boolean = false
+  ): Promise<number | undefined> {
+    if (isAdmin) return undefined;
+    if (TOTEMDIGITAL_COMPACT) {
+      const ownerPublisherId = await resolveCompactOwnerPublisherId(this.db);
+      if (!ownerPublisherId) {
+        throw new Error('Modo compacto: publisher do owner não encontrado para aplicar escopo.');
+      }
+      return ownerPublisherId;
+    }
+    if (!requestPublisherId) {
+      throw new Error('Acesso negado: escopo de publisher ausente para o usuário autenticado.');
+    }
+    return requestPublisherId;
+  }
+
   private getAuditService(): AuditService {
     if (!(global as any).auditServiceInstance) {
       (global as any).auditServiceInstance = new AuditService();
@@ -106,13 +124,16 @@ export class LocalService {
       const queryParams: any[] = [];
       let paramIndex = 1;
 
-      // Validação de ownership: não-admin só vê locals do seu publisher
-      if (!isAdmin && requestPublisherId) {
+      // Escopo obrigatório para não-admin:
+      // - compacto: publisher owner
+      // - pro: publisher do token
+      const scopedPublisherId = await this.resolveScopedPublisherId(requestPublisherId, isAdmin);
+
+      if (scopedPublisherId) {
         whereClause += ` AND l.publisher_id = $${paramIndex}`;
-        queryParams.push(requestPublisherId);
+        queryParams.push(scopedPublisherId);
         paramIndex++;
-      } else if (publisherId) {
-        // Admin pode filtrar por publisher específico
+      } else if (publisherId && isAdmin) {
         whereClause += ` AND l.publisher_id = $${paramIndex}`;
         queryParams.push(publisherId);
         paramIndex++;
@@ -187,36 +208,10 @@ export class LocalService {
       };
     } catch (error: any) {
       await logError('Erro ao listar locals', error, { params });
+      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
+        throw error;
+      }
       throw new Error('Erro interno do servidor');
-    }
-  }
-
-  /**
-   * Obter contagem de totens e Smart TVs por local (para cards)
-   */
-  async getLocalStats(localIds: number[]): Promise<Record<number, { totens: number; smartTvs: number }>> {
-    if (localIds.length === 0) return {};
-    try {
-      const totemRows = await this.db.findMany(`
-        SELECT local_id, COUNT(*)::int AS cnt FROM totems
-        WHERE local_id = ANY($1) AND COALESCE(is_active, true) = true
-        GROUP BY local_id
-      `, [localIds]);
-      const tvRows = await this.db.findMany(`
-        SELECT t.local_id, COUNT(*)::int AS cnt
-        FROM smart_tvs st
-        JOIN totems t ON st.totem_id = t.totem_id
-        WHERE t.local_id = ANY($1) AND COALESCE(st.is_active, true) = true
-        GROUP BY t.local_id
-      `, [localIds]);
-      const result: Record<number, { totens: number; smartTvs: number }> = {};
-      for (const id of localIds) result[id] = { totens: 0, smartTvs: 0 };
-      for (const r of totemRows) result[r.local_id].totens = r.cnt;
-      for (const r of tvRows) result[r.local_id].smartTvs = r.cnt;
-      return result;
-    } catch (error: any) {
-      await logError('Erro ao buscar stats dos locais', error, { localIds });
-      return {};
     }
   }
 
@@ -256,8 +251,9 @@ export class LocalService {
         return null;
       }
 
+      const scopedPublisherId = await this.resolveScopedPublisherId(requestPublisherId, isAdmin);
       // Validação de ownership
-      if (!isAdmin && requestPublisherId && local.publisher_id !== requestPublisherId) {
+      if (scopedPublisherId && local.publisher_id !== scopedPublisherId) {
         throw new Error('Acesso negado: Local não pertence ao seu publisher');
       }
 
@@ -285,17 +281,15 @@ export class LocalService {
       const { publisher_id, contract_id, name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description } = data;
       let targetPublisherId = publisher_id;
 
-      // Validar que tem publisher_id (obrigatório)
-      if (!targetPublisherId) {
-        throw new Error('publisher_id é obrigatório. Locais pertencem apenas a publishers.');
-      }
-
+      const scopedPublisherId = await this.resolveScopedPublisherId(requestPublisherId, isAdmin);
       if (TOTEMDIGITAL_COMPACT) {
         const ownerPublisherId = await resolveCompactOwnerPublisherId(this.db);
         if (!ownerPublisherId) {
           throw new Error('Modo compacto: publisher do owner não encontrado.');
         }
         targetPublisherId = ownerPublisherId;
+      } else if (!targetPublisherId) {
+        throw new Error('publisher_id é obrigatório. Locais pertencem apenas a publishers.');
       }
 
       // Validar se publisher existe
@@ -308,7 +302,7 @@ export class LocalService {
       }
 
       // Validação de ownership: não-admin só pode criar locals do seu publisher
-      if (!isAdmin && requestPublisherId && targetPublisherId !== requestPublisherId) {
+      if (scopedPublisherId && targetPublisherId !== scopedPublisherId) {
         throw new Error('Acesso negado: Você só pode criar locals para o seu próprio publisher');
       }
 
@@ -545,15 +539,31 @@ export class LocalService {
         throw new Error('Local não encontrado');
       }
 
-      // Verificar se local tem totens ativos
+      if (TOTEMDIGITAL_COMPACT) {
+        const activeLocalsCount = await this.db.findFirst(`
+          SELECT COUNT(*) as count
+          FROM locals
+          WHERE publisher_id = $1 AND is_active = true
+        `, [existingLocal.publisher_id]);
+
+        if (parseInt(activeLocalsCount?.count || '0') <= 1) {
+          throw new Error(
+            'Modo compacto: não é permitido deletar o último local ativo do publisher owner.'
+          );
+        }
+      }
+
+      // Não apagar local enquanto existir qualquer totem apontando para ele (ativo ou inativo)
       const totemsCount = await this.db.findFirst(`
         SELECT COUNT(*) as count
         FROM totems
-        WHERE local_id = $1 AND is_active = true
+        WHERE local_id = $1
       `, [id]);
 
       if (parseInt(totemsCount?.count || '0') > 0) {
-        throw new Error('Não é possível deletar local com totens ativos. Desative os totens primeiro.');
+        throw new Error(
+          'Não é possível deletar este local: ainda existem totens vinculados a ele. Remova ou mova os totens para outro local antes.'
+        );
       }
 
       // Soft delete
@@ -614,6 +624,52 @@ export class LocalService {
     } catch (error: any) {
       await logError('Erro ao buscar totens do local', error, { localId });
       throw error;
+    }
+  }
+
+  async getLocalStats(
+    localIds: number[],
+    requestPublisherId?: number,
+    isAdmin: boolean = false
+  ): Promise<Record<number, { totens: number; smartTvs: number }>> {
+    if (localIds.length === 0) return {};
+    try {
+      const scopedPublisherId = await this.resolveScopedPublisherId(requestPublisherId, isAdmin);
+      const scopedLocals = await this.db.findMany(
+        `
+        SELECT local_id
+        FROM locals
+        WHERE local_id = ANY($1)
+          ${scopedPublisherId ? 'AND publisher_id = $2' : ''}
+      `,
+        scopedPublisherId ? [localIds, scopedPublisherId] : [localIds]
+      );
+      const allowedIds = scopedLocals.map((l: any) => Number(l.local_id));
+      if (allowedIds.length === 0) return {};
+
+      const totemRows = await this.db.findMany(`
+        SELECT local_id, COUNT(*)::int AS cnt FROM totems
+        WHERE local_id = ANY($1) AND COALESCE(is_active, true) = true
+        GROUP BY local_id
+      `, [allowedIds]);
+      const tvRows = await this.db.findMany(`
+        SELECT t.local_id, COUNT(*)::int AS cnt
+        FROM smart_tvs st
+        JOIN totems t ON st.totem_id = t.totem_id
+        WHERE t.local_id = ANY($1) AND COALESCE(st.is_active, true) = true
+        GROUP BY t.local_id
+      `, [allowedIds]);
+      const result: Record<number, { totens: number; smartTvs: number }> = {};
+      for (const id of allowedIds) result[id] = { totens: 0, smartTvs: 0 };
+      for (const r of totemRows) result[r.local_id].totens = r.cnt;
+      for (const r of tvRows) result[r.local_id].smartTvs = r.cnt;
+      return result;
+    } catch (error: any) {
+      await logError('Erro ao buscar stats dos locais', error, { localIds });
+      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
+        throw error;
+      }
+      return {};
     }
   }
 }

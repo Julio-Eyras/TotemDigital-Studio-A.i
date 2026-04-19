@@ -12,6 +12,8 @@ import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService } from './totemPlaylistMixService';
 import type { PoolClient } from 'pg';
 import { assertCompactOwnerPublisher } from '../utils/compactOwnerPublisher';
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 
 export interface CreateTotemRequest {
   name?: string;
@@ -152,6 +154,24 @@ export class TotemService {
     return t;
   }
 
+  private async resolveScopedPublisherId(
+    requestPublisherId?: number,
+    isAdmin: boolean = false
+  ): Promise<number | undefined> {
+    if (isAdmin) return undefined;
+    if (TOTEMDIGITAL_COMPACT) {
+      const ownerPublisherId = await resolveCompactOwnerPublisherId(this.db);
+      if (!ownerPublisherId) {
+        throw new Error('Modo compacto: publisher do owner não encontrado para aplicar escopo.');
+      }
+      return ownerPublisherId;
+    }
+    if (!requestPublisherId) {
+      throw new Error('Acesso negado: escopo de publisher ausente para o usuário autenticado.');
+    }
+    return requestPublisherId;
+  }
+
   /**
    * Lista todos os totems (alias para getTotems)
    */
@@ -162,14 +182,21 @@ export class TotemService {
     status?: string;
     // REMOVIDO: clientId - totem não pertence a subscriber
     publisherId?: number; // Filtrar por publisher via local_id
+    requestPublisherId?: number;
+    isAdmin?: boolean;
   }): Promise<any> {
+    const scopedPublisherId = await this.resolveScopedPublisherId(
+      filters.requestPublisherId,
+      Boolean(filters.isAdmin)
+    );
     const result = await this.getTotems(
       filters.page || 1,
       filters.limit || 1000,
       {
         status: filters.status,
         isActive: filters.status === 'active' ? true : filters.status === 'inactive' ? false : undefined,
-        search: filters.search
+        search: filters.search,
+        publisherId: scopedPublisherId ?? filters.publisherId
       }
     );
     return result;
@@ -186,6 +213,7 @@ export class TotemService {
       isActive?: boolean;
       localId?: string;
       search?: string;
+      publisherId?: number;
     } = {}
   ): Promise<{ totems: TotemResponse[]; total: number; page: number; limit: number }> {
     try {
@@ -217,6 +245,17 @@ export class TotemService {
         whereClause += ` AND (t.identifier LIKE $${paramIndex} OR t.description LIKE $${paramIndex + 1} OR t.device_id LIKE $${paramIndex + 2})`;
         params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
         paramIndex += 3;
+      }
+
+      if (filters.publisherId) {
+        whereClause += ` AND EXISTS (
+          SELECT 1
+          FROM locals l_scope
+          WHERE l_scope.local_id = t.local_id
+            AND l_scope.publisher_id = $${paramIndex}
+        )`;
+        params.push(filters.publisherId);
+        paramIndex++;
       }
 
       // Buscar totems (schema v2 - colunas ajustadas)
@@ -340,6 +379,22 @@ export class TotemService {
     }
   }
 
+  async getTotemByUinScoped(
+    uin: string,
+    requestPublisherId?: number,
+    isAdmin: boolean = false
+  ): Promise<TotemResponse | null> {
+    const scopedPublisherId = await this.resolveScopedPublisherId(requestPublisherId, isAdmin);
+    const totem = await this.getTotemByUin(uin);
+    if (!totem) return null;
+    if (scopedPublisherId != null) {
+      if (!totem.publisherId || Number(totem.publisherId) !== Number(scopedPublisherId)) {
+        throw new Error('Acesso negado: Totem não pertence ao seu publisher');
+      }
+    }
+    return totem;
+  }
+
   /**
    * Busca totem por ID usando client específico (para transações)
    */
@@ -432,6 +487,52 @@ export class TotemService {
     } catch (error: any) {
       await logError('Erro ao buscar totem', error);
       throw new Error('Erro interno do servidor');
+    }
+  }
+
+  async getTotemByIdScoped(
+    totemId: number,
+    requestPublisherId?: number,
+    isAdmin: boolean = false
+  ): Promise<TotemResponse | null> {
+    const scopedPublisherId = await this.resolveScopedPublisherId(requestPublisherId, isAdmin);
+    const totem = await this.getTotemById(totemId);
+    if (!totem) return null;
+    if (scopedPublisherId != null) {
+      if (!totem.publisherId || Number(totem.publisherId) !== Number(scopedPublisherId)) {
+        throw new Error('Acesso negado: Totem não pertence ao seu publisher');
+      }
+    }
+    return totem;
+  }
+
+  /**
+   * Verifica se o assinante tem acesso ao totem via contrato ativo + plan_publisher_access ao publisher do local.
+   */
+  async isTotemAccessibleToSubscriber(totemId: number, subscriberId: number): Promise<boolean> {
+    try {
+      const row = await this.db.findFirst(
+        `
+        SELECT 1 AS ok
+        FROM totems t
+        INNER JOIN locals l ON t.local_id = l.local_id
+        INNER JOIN subscriber_contracts sc ON sc.subscriber_id = ?
+          AND sc.status = 'active'
+          AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+          AND (sc.start_date IS NULL OR sc.start_date <= CURRENT_DATE)
+        INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+          AND ppa.publisher_id = l.publisher_id
+          AND ppa.is_allowed = true
+          AND COALESCE(ppa.is_active, true) = true
+        WHERE t.totem_id = ?
+        LIMIT 1
+      `,
+        [subscriberId, totemId]
+      );
+      return Boolean(row);
+    } catch (error: any) {
+      await logError('isTotemAccessibleToSubscriber', error);
+      return false;
     }
   }
 
@@ -1682,3 +1783,9 @@ export class TotemService {
   }
 }
 
+export function getTotemService(): TotemService {
+  if (!(global as any).totemServiceInstance) {
+    (global as any).totemServiceInstance = new TotemService();
+  }
+  return (global as any).totemServiceInstance;
+}

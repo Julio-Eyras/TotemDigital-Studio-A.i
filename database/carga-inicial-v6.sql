@@ -1,7 +1,7 @@
 -- =============================================
 -- CARGA INICIAL V6 - Seed enxuto (Totem Digital)
 -- Data: 2026-03-07
--- Descrição: 1 publisher (totem digital), 3 locais, 1 totem (tot001), 1 plano, 1 assinante com contrato
+-- Descrição: 1 publisher (totem digital), 3 locais (vários totens podem se distribuir por cidade/local), 1 totem (tot001), 1 plano, 1 assinante com contrato
 -- =============================================
 
 -- =============================================
@@ -114,8 +114,7 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES
 ON CONFLICT DO NOTHING;
 
 -- =============================================
--- 3 LOCAIS do publisher totem digital
--- (1) academia, encruzilhada | (2) moveis, encruzilhada | (3) super, pantano
+-- 3 LOCAIS do publisher owner (modo compacto: um publisher; vários locais como no Pro)
 -- =============================================
 INSERT INTO locals (local_id, publisher_id, name, category_segment, address, city, state, zip_code, country, timezone, description, is_active) VALUES
 (1, 1, 'academia', 'Academia', NULL, 'encruzilhada', NULL, NULL, 'BR', 'America/Sao_Paulo', 'Local Academia - Encruzilhada', true),
@@ -123,7 +122,7 @@ INSERT INTO locals (local_id, publisher_id, name, category_segment, address, cit
 (3, 1, 'super', 'Supermercado', NULL, 'pantano', NULL, NULL, 'BR', 'America/Sao_Paulo', 'Local Super - Pantano', true);
 
 -- =============================================
--- 1 TOTEM: identifier=tot001, UIN=tot001 (no local academia)
+-- 1 TOTEM: identifier=tot001, UIN=tot001 (ex.: local academia)
 -- =============================================
 INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, name, description, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active) VALUES
 (1, 'tot001', 'tot001', 'tot001', 1, 'Totem Digital 001', 'Totem principal - Academia Encruzilhada', 'online', NOW() - INTERVAL '2 minutes', 60, '{"ip": "192.168.1.10"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true);

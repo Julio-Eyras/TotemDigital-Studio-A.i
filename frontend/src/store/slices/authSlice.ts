@@ -42,11 +42,28 @@ export interface AuthState {
   error: string | null;
 }
 
+/** Hidrata Redux após F5: o layout já usa localStorage, mas páginas como Totems usam state.auth.user. */
+function parseStoredUser(): User | null {
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return null;
+    const u = JSON.parse(raw) as Partial<User>;
+    if (!u || typeof u !== 'object' || typeof u.role !== 'string') return null;
+    return u as User;
+  } catch {
+    return null;
+  }
+}
+
+const storedToken = localStorage.getItem('token');
+const storedRefreshToken = localStorage.getItem('refreshToken');
+const storedUser = parseStoredUser();
+
 const initialState: AuthState = {
-  user: null,
-  token: localStorage.getItem('token'),
-  refreshToken: localStorage.getItem('refreshToken'),
-  isAuthenticated: false,
+  user: storedUser,
+  token: storedToken,
+  refreshToken: storedRefreshToken,
+  isAuthenticated: Boolean(storedToken && storedUser),
   isLoading: false,
   error: null,
 };
@@ -162,6 +179,7 @@ const authSlice = createSlice({
       state.error = null;
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
     },
   },
   extraReducers: (builder) => {
@@ -262,6 +280,7 @@ const authSlice = createSlice({
         // Remover tokens do localStorage
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
       })
       .addCase(logout.rejected, (state, action) => {
         state.isLoading = false;
@@ -274,6 +293,7 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
       })
       
       // Refresh Token
@@ -293,6 +313,7 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
       })
       
       // Check Auth Status
@@ -339,10 +360,12 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         
         // Limpar tokens inválidos
+        state.user = null;
         state.token = null;
         state.refreshToken = null;
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
       })
       
       // Update Profile

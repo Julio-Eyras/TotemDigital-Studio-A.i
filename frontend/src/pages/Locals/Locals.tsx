@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -67,6 +67,7 @@ import {
   PublisherContract,
 } from '../../services/api';
 import { useAppSelector } from '../../store';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 
 const Locals: React.FC = () => {
   const theme = useTheme();
@@ -75,6 +76,14 @@ const Locals: React.FC = () => {
     (user?.isTenantUser ?? user?.is_tenant_user) ||
     ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(user?.role || '')
   );
+  const canManageLocals = useMemo(() => {
+    const role = user?.role || '';
+    if (isAdmin) return true;
+    return (
+      TOTEMDIGITAL_COMPACT &&
+      ['publisher_user', 'subscriber_user', 'gerente_marketing', 'manager', 'operator'].includes(role)
+    );
+  }, [user?.role, isAdmin]);
   const userPublisherId = user?.publisherId;
 
   const [locals, setLocals] = useState<Local[]>([]);
@@ -113,7 +122,7 @@ const Locals: React.FC = () => {
 
   useEffect(() => {
     loadLocals();
-    if (isAdmin) {
+    if (canManageLocals) {
       loadPublishers();
     }
   }, [publisherFilter, activeOnlyFilter]);
@@ -174,9 +183,20 @@ const Locals: React.FC = () => {
     }
   };
 
+  const openCreateLocalDialog = () => {
+    const pid = isAdmin
+      ? newLocal.publisher_id || userPublisherId || publishers[0]?.publisher_id || 0
+      : userPublisherId || publishers[0]?.publisher_id || 0;
+    setNewLocal((prev) => ({
+      ...prev,
+      publisher_id: pid,
+    }));
+    setCreateDialogOpen(true);
+  };
+
   const handleCreateLocal = async () => {
     try {
-      if (!newLocal.publisher_id) {
+      if (!TOTEMDIGITAL_COMPACT && !newLocal.publisher_id) {
         setError('Selecione um publisher');
         return;
       }
@@ -339,11 +359,11 @@ const Locals: React.FC = () => {
             Gerencie locais vinculados aos Veículos de Mídia (Publicadores)
           </Typography>
         </Box>
-        {isAdmin && (
+        {canManageLocals && (
           <Button
             variant="contained"
             startIcon={<Add />}
-            onClick={() => setCreateDialogOpen(true)}
+            onClick={openCreateLocalDialog}
             sx={{
               backgroundColor: theme.palette.primary.main,
               '&:hover': { backgroundColor: theme.palette.primary.dark },
@@ -497,7 +517,7 @@ const Locals: React.FC = () => {
                             <Visibility />
                           </IconButton>
                         </Tooltip>
-                        {isAdmin && (
+                        {canManageLocals && (
                           <Box sx={{ display: 'flex', gap: 1 }}>
                             <Tooltip title="Editar">
                               <IconButton size="small" onClick={() => handleOpenEditDialog(local)}>
@@ -535,6 +555,11 @@ const Locals: React.FC = () => {
         <DialogTitle>Criar Novo Local</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+            {!isAdmin && canManageLocals && TOTEMDIGITAL_COMPACT && (
+              <Alert severity="info">
+                No modo compacto, o local será vinculado ao publisher da instalação (owner).
+              </Alert>
+            )}
             {isAdmin && (
               <FormControl fullWidth>
                 <InputLabel>Publisher *</InputLabel>

@@ -91,9 +91,21 @@ export class AnalyticsCacheService {
   /**
    * Gera chave de cache para analytics overview
    */
-  getOverviewKey(subscriberId?: number, startDate?: string, endDate?: string): string {
+  getOverviewKey(
+    subscriberId?: number,
+    startDate?: string,
+    endDate?: string,
+    scopedPublisherId?: number,
+    scopedSubscriberId?: number
+  ): string {
     const parts = ['analytics', 'overview'];
     if (subscriberId) parts.push(`subscriber:${subscriberId}`);
+    if (scopedPublisherId !== undefined && scopedPublisherId !== null) {
+      parts.push(`pubScope:${scopedPublisherId}`);
+    }
+    if (scopedSubscriberId !== undefined && scopedSubscriberId !== null) {
+      parts.push(`subScope:${scopedSubscriberId}`);
+    }
     if (startDate) parts.push(`start:${startDate}`);
     if (endDate) parts.push(`end:${endDate}`);
     return parts.join(':');

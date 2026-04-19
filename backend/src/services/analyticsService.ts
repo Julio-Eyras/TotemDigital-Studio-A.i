@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { logError, logWarn } from '../utils/loggerHelper';
+import type { TenantScope } from '../utils/tenantScope';
 import { getAnalyticsCacheService } from './analyticsCacheService';
 
 export interface AnalyticsFilters {
@@ -15,7 +16,19 @@ export interface AnalyticsFilters {
   endDate?: string;
   groupBy?: 'day' | 'week' | 'month' | 'year';
   timezone?: string;
+  /**
+   * Escopo de tenant em agregações (execution_logs.publisher_id / locals).
+   * Não enviar para visão global (admin).
+   */
+  scopedPublisherId?: number;
+  /**
+   * Escopo de assinante em agregações (execution_logs.subscriber_id / campaigns.subscriber_id).
+   */
+  scopedSubscriberId?: number;
 }
+
+/** @deprecated use TenantScope from utils/tenantScope */
+export type DashboardStatsScope = TenantScope;
 
 export interface AnalyticsResponse {
   totalViews: number;
@@ -165,13 +178,19 @@ export class AnalyticsService {
   /**
    * Busca estatísticas gerais do dashboard (com cache de 5 minutos)
    */
-  async getDashboardStats(clientId?: number): Promise<DashboardStats> {
-    const cacheKey = this.analyticsCache.getOverviewKey(clientId);
-    
+  async getDashboardStats(clientId?: number, scope?: DashboardStatsScope): Promise<DashboardStats> {
+    const cacheKey = this.analyticsCache.getOverviewKey(
+      clientId,
+      undefined,
+      undefined,
+      scope?.scopedPublisherId,
+      scope?.scopedSubscriberId
+    );
+
     return this.analyticsCache.getOrSet(
       cacheKey,
       async () => {
-        return this.fetchDashboardStats();
+        return this.fetchDashboardStats(scope);
       },
       300 // Cache por 5 minutos
     );
@@ -180,162 +199,633 @@ export class AnalyticsService {
   /**
    * Busca estatísticas gerais do dashboard (sem cache)
    */
-  private async fetchDashboardStats(): Promise<DashboardStats> {
+  private async fetchDashboardStats(scope?: DashboardStatsScope): Promise<DashboardStats> {
     try {
-      const totalClients = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM subscribers WHERE is_active = true
-      `);
+      const pub = scope?.scopedPublisherId;
+      const sub = scope?.scopedSubscriberId;
 
-      const totalTotems = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM totems WHERE is_active = true
-      `);
+      if (pub != null && pub < 0) {
+        return this.emptyScopedDashboard();
+      }
+      if (sub != null && sub < 0) {
+        return this.emptyScopedDashboard();
+      }
 
-      const totalCampaigns = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM campaigns WHERE is_active = true
-      `);
+      if (pub != null) {
+        return await this.fetchDashboardStatsForPublisher(pub);
+      }
+      if (sub != null) {
+        return await this.fetchDashboardStatsForSubscriber(sub);
+      }
 
-      const totalMedia = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM medias
-      `);
-
-      const totalViews = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count
-        FROM execution_logs el
-        WHERE el.event_type = 'play_end'
-      `);
-
-      // Removido: totalDuration não é usado no retorno
-
-      const activeUsers = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM users WHERE is_active = true
-      `);
-
-      const onlineTotems = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM totems WHERE is_active = true AND status = 'online'
-      `);
-
-      const systemUptime =
-        totalTotems?.count && totalTotems.count > 0
-          ? Math.round(((onlineTotems?.count || 0) / totalTotems.count) * 100)
-          : 0;
-
-      const recentWindow = `
-        CURRENT_TIMESTAMP - INTERVAL '7 days'
-      `;
-
-      const newClients = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM subscribers WHERE created_at >= ${recentWindow}
-      `);
-
-      const newCampaigns = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM campaigns WHERE created_at >= ${recentWindow}
-      `);
-
-      const newMedia = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count FROM medias WHERE created_at >= ${recentWindow}
-      `);
-
-      const newViews = await this.db.findFirst(`
-        SELECT COUNT(*)::int AS count
-        FROM execution_logs
-        WHERE event_type = 'play_end' AND timestamp >= ${recentWindow}
-      `);
-
-      const topCampaigns = await this.db.findMany(`
-        SELECT 
-          c.campaign_id AS "campaignId",
-          c.title,
-          COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
-          COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS duration
-        FROM campaigns c
-        LEFT JOIN execution_logs el ON el.campaign_id = c.campaign_id AND el.event_type = 'play_end'
-        GROUP BY c.campaign_id, c.title
-        ORDER BY views DESC
-        LIMIT 5
-      `);
-
-      const topTotems = await this.db.findMany(`
-        SELECT 
-          t.totem_id AS "totemId",
-          t.name,
-          t.location,
-          COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
-          CASE 
-            WHEN COUNT(el.log_id) > 0 THEN 
-              (COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::float / COUNT(el.log_id) * 100)
-            ELSE 0
-          END AS effectiveness
-        FROM totems t
-        LEFT JOIN execution_logs el ON el.totem_id = t.totem_id
-        WHERE t.is_active = true
-        GROUP BY t.totem_id, t.name, t.location
-        ORDER BY views DESC
-        LIMIT 5
-      `);
-
-      const topMedia = await this.db.findMany(`
-        SELECT 
-          m.media_id AS "mediaId",
-          m.title,
-          COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
-          COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS duration
-        FROM medias m
-        LEFT JOIN execution_logs el ON el.media_id = m.media_id AND el.event_type = 'play_end'
-        GROUP BY m.media_id, m.title
-        ORDER BY views DESC
-        LIMIT 5
-      `);
-
-      const alerts = await this.getSystemAlerts();
-
-      return {
-        overview: {
-          totalClients: totalClients?.count || 0,
-          totalTotems: totalTotems?.count || 0,
-          totalCampaigns: totalCampaigns?.count || 0,
-          totalMedia: totalMedia?.count || 0,
-          totalViews: totalViews?.count || 0,
-          totalRevenue: 0,
-          activeUsers: activeUsers?.count || 0,
-          systemUptime
-        },
-        recentActivity: {
-          newClients: newClients?.count || 0,
-          newCampaigns: newCampaigns?.count || 0,
-          newMedia: newMedia?.count || 0,
-          newViews: newViews?.count || 0,
-          newRevenue: 0
-        },
-        performance: {
-          topCampaigns: topCampaigns.map(c => ({
-            campaignId: c.campaignId,
-            title: c.title,
-            views: c.views,
-            effectiveness: c.views > 0
-              ? Math.min(100, Math.round((c.duration / Math.max(c.views, 1)) || 0))
-              : 0
-          })),
-          topTotems: topTotems.map(t => ({
-            totemId: t.totemId,
-            name: t.name,
-            location: t.location,
-            views: t.views,
-            uptime: Math.round(t.effectiveness || 0)
-          })),
-          topMedia: topMedia.map(m => ({
-            mediaId: m.mediaId,
-            title: m.title,
-            views: m.views,
-            duration: m.duration
-          }))
-        },
-        alerts
-      };
-
+      return await this.fetchDashboardStatsGlobal();
     } catch (error: any) {
       await logError('Erro ao buscar estatísticas do dashboard', error);
       throw new Error('Erro interno do servidor');
     }
+  }
+
+  private emptyScopedDashboard(): DashboardStats {
+    return {
+      overview: {
+        totalClients: 0,
+        totalTotems: 0,
+        totalCampaigns: 0,
+        totalMedia: 0,
+        totalViews: 0,
+        totalRevenue: 0,
+        activeUsers: 0,
+        systemUptime: 0
+      },
+      recentActivity: {
+        newClients: 0,
+        newCampaigns: 0,
+        newMedia: 0,
+        newViews: 0,
+        newRevenue: 0
+      },
+      performance: {
+        topCampaigns: [],
+        topTotems: [],
+        topMedia: []
+      },
+      alerts: []
+    };
+  }
+
+  private async fetchDashboardStatsForPublisher(publisherId: number): Promise<DashboardStats> {
+    const pid = publisherId;
+    const recentWindow = `CURRENT_TIMESTAMP - INTERVAL '7 days'`;
+
+    const totalClients = await this.db.findFirst(
+      `
+      SELECT COUNT(DISTINCT sc.subscriber_id)::int AS count
+      FROM subscriber_contracts sc
+      INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+        AND ppa.publisher_id = ?
+        AND ppa.is_allowed = true
+        AND COALESCE(ppa.is_active, true) = true
+      WHERE sc.status = 'active'
+        AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+        AND (sc.start_date IS NULL OR sc.start_date <= CURRENT_DATE)
+    `,
+      [pid]
+    );
+
+    const totalTotems = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS count FROM totems t
+      INNER JOIN locals l ON l.local_id = t.local_id
+      WHERE t.is_active = true AND l.publisher_id = ?
+    `,
+      [pid]
+    );
+
+    const totalCampaigns = await this.db.findFirst(
+      `
+      SELECT COUNT(DISTINCT cp.campaign_id)::int AS count
+      FROM campaign_publishers cp
+      WHERE cp.publisher_id = ? AND COALESCE(cp.is_active, true) = true
+    `,
+      [pid]
+    );
+
+    const totalMedia = await this.db.findFirst(
+      `
+      SELECT COUNT(DISTINCT el.media_id)::int AS count
+      FROM execution_logs el
+      WHERE el.publisher_id = ? AND el.media_id IS NOT NULL
+    `,
+      [pid]
+    );
+
+    const totalViews = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM execution_logs el
+      WHERE el.event_type = 'play_end' AND el.publisher_id = ?
+    `,
+      [pid]
+    );
+
+    const activeUsers = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count FROM users WHERE is_active = true
+    `);
+
+    const onlineTotems = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS count FROM totems t
+      INNER JOIN locals l ON l.local_id = t.local_id
+      WHERE t.is_active = true AND t.status = 'online' AND l.publisher_id = ?
+    `,
+      [pid]
+    );
+
+    const systemUptime =
+      totalTotems?.count && totalTotems.count > 0
+        ? Math.round(((onlineTotems?.count || 0) / totalTotems.count) * 100)
+        : 0;
+
+    const newClients = await this.db.findFirst(
+      `
+      SELECT COUNT(DISTINCT s.subscriber_id)::int AS count
+      FROM subscribers s
+      INNER JOIN subscriber_contracts sc ON sc.subscriber_id = s.subscriber_id
+      INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+        AND ppa.publisher_id = ?
+        AND ppa.is_allowed = true
+        AND COALESCE(ppa.is_active, true) = true
+      WHERE s.created_at >= ${recentWindow}
+    `,
+      [pid]
+    );
+
+    const newCampaigns = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM campaigns c
+      INNER JOIN campaign_publishers cp ON cp.campaign_id = c.campaign_id AND cp.publisher_id = ?
+      WHERE c.created_at >= ${recentWindow}
+    `,
+      [pid]
+    );
+
+    const newMedia = await this.db.findFirst(
+      `
+      SELECT COUNT(DISTINCT el.media_id)::int AS count
+      FROM execution_logs el
+      WHERE el.publisher_id = ? AND el.media_id IS NOT NULL AND el.timestamp >= ${recentWindow}
+    `,
+      [pid]
+    );
+
+    const newViews = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM execution_logs el
+      WHERE el.event_type = 'play_end' AND el.publisher_id = ? AND el.timestamp >= ${recentWindow}
+    `,
+      [pid]
+    );
+
+    const topCampaigns = await this.db.findMany(
+      `
+      SELECT 
+        c.campaign_id AS "campaignId",
+        c.title,
+        COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+        COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS duration
+      FROM campaigns c
+      INNER JOIN campaign_publishers cp ON cp.campaign_id = c.campaign_id AND cp.publisher_id = ?
+      LEFT JOIN execution_logs el ON el.campaign_id = c.campaign_id AND el.event_type = 'play_end'
+      GROUP BY c.campaign_id, c.title
+      ORDER BY views DESC
+      LIMIT 5
+    `,
+      [pid]
+    );
+
+    const topTotems = await this.db.findMany(
+      `
+      SELECT 
+        t.totem_id AS "totemId",
+        t.name,
+        t.location,
+        COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+        CASE 
+          WHEN COUNT(el.log_id) > 0 THEN 
+            (COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::float / COUNT(el.log_id) * 100)
+          ELSE 0
+        END AS effectiveness
+      FROM totems t
+      INNER JOIN locals l ON l.local_id = t.local_id AND l.publisher_id = ?
+      LEFT JOIN execution_logs el ON el.totem_id = t.totem_id
+      WHERE t.is_active = true
+      GROUP BY t.totem_id, t.name, t.location
+      ORDER BY views DESC
+      LIMIT 5
+    `,
+      [pid]
+    );
+
+    const topMedia = await this.db.findMany(
+      `
+      SELECT 
+        m.media_id AS "mediaId",
+        m.title,
+        COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+        COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS duration
+      FROM execution_logs el
+      INNER JOIN medias m ON m.media_id = el.media_id
+      WHERE el.publisher_id = ? AND el.event_type = 'play_end'
+      GROUP BY m.media_id, m.title
+      ORDER BY views DESC
+      LIMIT 5
+    `,
+      [pid]
+    );
+
+    const alerts = await this.getSystemAlerts({ scopedPublisherId: pid });
+
+    return {
+      overview: {
+        totalClients: totalClients?.count || 0,
+        totalTotems: totalTotems?.count || 0,
+        totalCampaigns: totalCampaigns?.count || 0,
+        totalMedia: totalMedia?.count || 0,
+        totalViews: totalViews?.count || 0,
+        totalRevenue: 0,
+        activeUsers: activeUsers?.count || 0,
+        systemUptime
+      },
+      recentActivity: {
+        newClients: newClients?.count || 0,
+        newCampaigns: newCampaigns?.count || 0,
+        newMedia: newMedia?.count || 0,
+        newViews: newViews?.count || 0,
+        newRevenue: 0
+      },
+      performance: {
+        topCampaigns: topCampaigns.map(c => ({
+          campaignId: c.campaignId,
+          title: c.title,
+          views: c.views,
+          effectiveness: c.views > 0
+            ? Math.min(100, Math.round((c.duration / Math.max(c.views, 1)) || 0))
+            : 0
+        })),
+        topTotems: topTotems.map(t => ({
+          totemId: t.totemId,
+          name: t.name,
+          location: t.location,
+          views: t.views,
+          uptime: Math.round(t.effectiveness || 0)
+        })),
+        topMedia: topMedia.map(m => ({
+          mediaId: m.mediaId,
+          title: m.title,
+          views: m.views,
+          duration: m.duration
+        }))
+      },
+      alerts
+    };
+  }
+
+  private async fetchDashboardStatsForSubscriber(subscriberId: number): Promise<DashboardStats> {
+    const sid = subscriberId;
+    const recentWindow = `CURRENT_TIMESTAMP - INTERVAL '7 days'`;
+
+    const totalClients = await this.db.findFirst(
+      `
+      SELECT CASE WHEN EXISTS(SELECT 1 FROM subscribers WHERE subscriber_id = ? AND is_active = true) THEN 1 ELSE 0 END::int AS count
+    `,
+      [sid]
+    );
+
+    const totalTotems = await this.db.findFirst(
+      `
+      SELECT COUNT(DISTINCT t.totem_id)::int AS count
+      FROM totems t
+      INNER JOIN locals l ON l.local_id = t.local_id
+      INNER JOIN subscriber_contracts sc ON sc.subscriber_id = ?
+        AND sc.status = 'active'
+        AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+        AND (sc.start_date IS NULL OR sc.start_date <= CURRENT_DATE)
+      INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+        AND ppa.publisher_id = l.publisher_id
+        AND ppa.is_allowed = true
+        AND COALESCE(ppa.is_active, true) = true
+    `,
+      [sid]
+    );
+
+    const totalCampaigns = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS count FROM campaigns WHERE subscriber_id = ? AND is_active = true
+    `,
+      [sid]
+    );
+
+    const totalMedia = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS count FROM medias WHERE subscriber_id = ?
+    `,
+      [sid]
+    );
+
+    const totalViews = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM execution_logs el
+      WHERE el.event_type = 'play_end' AND el.subscriber_id = ?
+    `,
+      [sid]
+    );
+
+    const activeUsers = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count FROM users WHERE is_active = true
+    `);
+
+    const onlineTotems = await this.db.findFirst(
+      `
+      SELECT COUNT(DISTINCT t.totem_id)::int AS count
+      FROM totems t
+      INNER JOIN locals l ON l.local_id = t.local_id
+      INNER JOIN subscriber_contracts sc ON sc.subscriber_id = ?
+        AND sc.status = 'active'
+      INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id AND ppa.publisher_id = l.publisher_id
+      WHERE t.is_active = true AND t.status = 'online'
+    `,
+      [sid]
+    );
+
+    const systemUptime =
+      totalTotems?.count && totalTotems.count > 0
+        ? Math.round(((onlineTotems?.count || 0) / totalTotems.count) * 100)
+        : 0;
+
+    const newClients = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS count FROM subscribers WHERE subscriber_id = ? AND created_at >= ${recentWindow}
+    `,
+      [sid]
+    );
+
+    const newCampaigns = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS count FROM campaigns WHERE subscriber_id = ? AND created_at >= ${recentWindow}
+    `,
+      [sid]
+    );
+
+    const newMedia = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS count FROM medias WHERE subscriber_id = ? AND created_at >= ${recentWindow}
+    `,
+      [sid]
+    );
+
+    const newViews = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM execution_logs el
+      WHERE el.event_type = 'play_end' AND el.subscriber_id = ? AND el.timestamp >= ${recentWindow}
+    `,
+      [sid]
+    );
+
+    const topCampaigns = await this.db.findMany(
+      `
+      SELECT 
+        c.campaign_id AS "campaignId",
+        c.title,
+        COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+        COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS duration
+      FROM campaigns c
+      LEFT JOIN execution_logs el ON el.campaign_id = c.campaign_id AND el.event_type = 'play_end'
+      WHERE c.subscriber_id = ?
+      GROUP BY c.campaign_id, c.title
+      ORDER BY views DESC
+      LIMIT 5
+    `,
+      [sid]
+    );
+
+    const topTotems = await this.db.findMany(
+      `
+      SELECT 
+        t.totem_id AS "totemId",
+        t.name,
+        t.location,
+        COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+        CASE 
+          WHEN COUNT(el.log_id) > 0 THEN 
+            (COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::float / COUNT(el.log_id) * 100)
+          ELSE 0
+        END AS effectiveness
+      FROM execution_logs el
+      INNER JOIN totems t ON t.totem_id = el.totem_id
+      WHERE el.subscriber_id = ? AND el.event_type = 'play_end'
+      GROUP BY t.totem_id, t.name, t.location
+      ORDER BY views DESC
+      LIMIT 5
+    `,
+      [sid]
+    );
+
+    const topMedia = await this.db.findMany(
+      `
+      SELECT 
+        m.media_id AS "mediaId",
+        m.title,
+        COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+        COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS duration
+      FROM medias m
+      LEFT JOIN execution_logs el ON el.media_id = m.media_id AND el.event_type = 'play_end' AND el.subscriber_id = ?
+      WHERE m.subscriber_id = ?
+      GROUP BY m.media_id, m.title
+      ORDER BY views DESC
+      LIMIT 5
+    `,
+      [sid, sid]
+    );
+
+    const alerts = await this.getSystemAlerts({ scopedSubscriberId: sid });
+
+    return {
+      overview: {
+        totalClients: totalClients?.count || 0,
+        totalTotems: totalTotems?.count || 0,
+        totalCampaigns: totalCampaigns?.count || 0,
+        totalMedia: totalMedia?.count || 0,
+        totalViews: totalViews?.count || 0,
+        totalRevenue: 0,
+        activeUsers: activeUsers?.count || 0,
+        systemUptime
+      },
+      recentActivity: {
+        newClients: newClients?.count || 0,
+        newCampaigns: newCampaigns?.count || 0,
+        newMedia: newMedia?.count || 0,
+        newViews: newViews?.count || 0,
+        newRevenue: 0
+      },
+      performance: {
+        topCampaigns: topCampaigns.map(c => ({
+          campaignId: c.campaignId,
+          title: c.title,
+          views: c.views,
+          effectiveness: c.views > 0
+            ? Math.min(100, Math.round((c.duration / Math.max(c.views, 1)) || 0))
+            : 0
+        })),
+        topTotems: topTotems.map(t => ({
+          totemId: t.totemId,
+          name: t.name,
+          location: t.location,
+          views: t.views,
+          uptime: Math.round(t.effectiveness || 0)
+        })),
+        topMedia: topMedia.map(m => ({
+          mediaId: m.mediaId,
+          title: m.title,
+          views: m.views,
+          duration: m.duration
+        }))
+      },
+      alerts
+    };
+  }
+
+  private async fetchDashboardStatsGlobal(): Promise<DashboardStats> {
+    const totalClients = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count FROM subscribers WHERE is_active = true
+    `);
+
+    const totalTotems = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count FROM totems WHERE is_active = true
+    `);
+
+    const totalCampaigns = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count FROM campaigns WHERE is_active = true
+    `);
+
+    const totalMedia = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count FROM medias
+    `);
+
+    const totalViews = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count
+      FROM execution_logs el
+      WHERE el.event_type = 'play_end'
+    `);
+
+    const activeUsers = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count FROM users WHERE is_active = true
+    `);
+
+    const onlineTotems = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count FROM totems WHERE is_active = true AND status = 'online'
+    `);
+
+    const systemUptime =
+      totalTotems?.count && totalTotems.count > 0
+        ? Math.round(((onlineTotems?.count || 0) / totalTotems.count) * 100)
+        : 0;
+
+    const recentWindow = `
+      CURRENT_TIMESTAMP - INTERVAL '7 days'
+    `;
+
+    const newClients = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count FROM subscribers WHERE created_at >= ${recentWindow}
+    `);
+
+    const newCampaigns = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count FROM campaigns WHERE created_at >= ${recentWindow}
+    `);
+
+    const newMedia = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count FROM medias WHERE created_at >= ${recentWindow}
+    `);
+
+    const newViews = await this.db.findFirst(`
+      SELECT COUNT(*)::int AS count
+      FROM execution_logs
+      WHERE event_type = 'play_end' AND timestamp >= ${recentWindow}
+    `);
+
+    const topCampaigns = await this.db.findMany(`
+      SELECT 
+        c.campaign_id AS "campaignId",
+        c.title,
+        COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+        COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS duration
+      FROM campaigns c
+      LEFT JOIN execution_logs el ON el.campaign_id = c.campaign_id AND el.event_type = 'play_end'
+      GROUP BY c.campaign_id, c.title
+      ORDER BY views DESC
+      LIMIT 5
+    `);
+
+    const topTotems = await this.db.findMany(`
+      SELECT 
+        t.totem_id AS "totemId",
+        t.name,
+        t.location,
+        COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+        CASE 
+          WHEN COUNT(el.log_id) > 0 THEN 
+            (COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::float / COUNT(el.log_id) * 100)
+          ELSE 0
+        END AS effectiveness
+      FROM totems t
+      LEFT JOIN execution_logs el ON el.totem_id = t.totem_id
+      WHERE t.is_active = true
+      GROUP BY t.totem_id, t.name, t.location
+      ORDER BY views DESC
+      LIMIT 5
+    `);
+
+    const topMedia = await this.db.findMany(`
+      SELECT 
+        m.media_id AS "mediaId",
+        m.title,
+        COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+        COALESCE(SUM((el.event_data->>'duration')::int), 0)::int AS duration
+      FROM medias m
+      LEFT JOIN execution_logs el ON el.media_id = m.media_id AND el.event_type = 'play_end'
+      GROUP BY m.media_id, m.title
+      ORDER BY views DESC
+      LIMIT 5
+    `);
+
+    const alerts = await this.getSystemAlerts();
+
+    return {
+      overview: {
+        totalClients: totalClients?.count || 0,
+        totalTotems: totalTotems?.count || 0,
+        totalCampaigns: totalCampaigns?.count || 0,
+        totalMedia: totalMedia?.count || 0,
+        totalViews: totalViews?.count || 0,
+        totalRevenue: 0,
+        activeUsers: activeUsers?.count || 0,
+        systemUptime
+      },
+      recentActivity: {
+        newClients: newClients?.count || 0,
+        newCampaigns: newCampaigns?.count || 0,
+        newMedia: newMedia?.count || 0,
+        newViews: newViews?.count || 0,
+        newRevenue: 0
+      },
+      performance: {
+        topCampaigns: topCampaigns.map(c => ({
+          campaignId: c.campaignId,
+          title: c.title,
+          views: c.views,
+          effectiveness: c.views > 0
+            ? Math.min(100, Math.round((c.duration / Math.max(c.views, 1)) || 0))
+            : 0
+        })),
+        topTotems: topTotems.map(t => ({
+          totemId: t.totemId,
+          name: t.name,
+          location: t.location,
+          views: t.views,
+          uptime: Math.round(t.effectiveness || 0)
+        })),
+        topMedia: topMedia.map(m => ({
+          mediaId: m.mediaId,
+          title: m.title,
+          views: m.views,
+          duration: m.duration
+        }))
+      },
+      alerts
+    };
   }
 
   /**
@@ -361,6 +851,12 @@ export class AnalyticsService {
   private generateAnalyticsCacheKey(filters: AnalyticsFilters): string {
     const parts = ['analytics', 'detailed'];
     if (filters.subscriberId) parts.push(`subscriber:${filters.subscriberId}`);
+    if (filters.scopedPublisherId !== undefined && filters.scopedPublisherId !== null) {
+      parts.push(`pubScope:${filters.scopedPublisherId}`);
+    }
+    if (filters.scopedSubscriberId !== undefined && filters.scopedSubscriberId !== null) {
+      parts.push(`subScope:${filters.scopedSubscriberId}`);
+    }
     if (filters.totemId) parts.push(`totem:${filters.totemId}`);
     if (filters.campaignId) parts.push(`campaign:${filters.campaignId}`);
     if (filters.startDate) parts.push(`start:${filters.startDate}`);
@@ -375,18 +871,18 @@ export class AnalyticsService {
   private async fetchAnalytics(filters: AnalyticsFilters): Promise<AnalyticsResponse> {
     try {
       const {
-        // clientId removido - usar subscriberId
         totemId,
         campaignId,
         startDate,
         endDate,
-        groupBy = 'day'
+        groupBy = 'day',
+        scopedPublisherId,
+        scopedSubscriberId
       } = filters;
 
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      // clientId removido - usar subscriberId do filtro se necessário
       if (totemId) {
         whereClause += ' AND el.totem_id = ?';
         params.push(totemId);
@@ -395,9 +891,8 @@ export class AnalyticsService {
         whereClause += ' AND el.campaign_id = ?';
         params.push(campaignId);
       }
-      // Adicionar filtro para event_type = 'play_end' na cláusula WHERE
       whereClause += ' AND el.event_type = \'play_end\'';
-      
+
       if (startDate) {
         whereClause += ' AND el.timestamp >= ?';
         params.push(startDate);
@@ -405,6 +900,15 @@ export class AnalyticsService {
       if (endDate) {
         whereClause += ' AND el.timestamp <= ?';
         params.push(endDate);
+      }
+
+      if (scopedPublisherId != null && scopedPublisherId !== undefined) {
+        whereClause += ' AND el.publisher_id = ?';
+        params.push(scopedPublisherId);
+      }
+      if (scopedSubscriberId != null && scopedSubscriberId !== undefined) {
+        whereClause += ' AND el.subscriber_id = ?';
+        params.push(scopedSubscriberId);
       }
 
       const totalViewsResult = await this.db.findFirst(`
@@ -502,24 +1006,55 @@ export class AnalyticsService {
         percentage: Math.round((row.views / totalLocationViews) * 100)
       }));
 
-      // Construir whereClause sem o filtro de event_type para LEFT JOIN
       const campaignWhereClause = whereClause.replace(' AND el.event_type = \'play_end\'', '');
-      const campaignPerformance = await this.db.findMany(`
+      let campaignWhereForJoin = campaignWhereClause;
+      let campaignParams = [...params];
+      if (scopedSubscriberId != null && scopedSubscriberId !== undefined) {
+        campaignWhereForJoin += ' AND c.subscriber_id = ?';
+        campaignParams.push(scopedSubscriberId);
+      }
+
+      let campaignPerformance: any[];
+      if (scopedPublisherId != null && scopedPublisherId !== undefined) {
+        campaignPerformance = await this.db.findMany(
+          `
         SELECT 
           c.campaign_id AS "campaignId",
           c.title,
           COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
           COALESCE(SUM(CASE WHEN el.event_type = 'play_end' THEN (el.event_data->>'duration')::int ELSE 0 END), 0)::int AS duration
         FROM campaigns c
-        LEFT JOIN execution_logs el ON el.campaign_id = c.campaign_id ${campaignWhereClause}
+        INNER JOIN campaign_publishers cp ON cp.campaign_id = c.campaign_id AND cp.publisher_id = ? AND COALESCE(cp.is_active, true) = true
+        LEFT JOIN execution_logs el ON el.campaign_id = c.campaign_id ${campaignWhereForJoin}
         GROUP BY c.campaign_id, c.title
         ORDER BY views DESC
         LIMIT 10
-      `, params);
+      `,
+          [scopedPublisherId, ...campaignParams]
+        );
+      } else {
+        campaignPerformance = await this.db.findMany(
+          `
+        SELECT 
+          c.campaign_id AS "campaignId",
+          c.title,
+          COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+          COALESCE(SUM(CASE WHEN el.event_type = 'play_end' THEN (el.event_data->>'duration')::int ELSE 0 END), 0)::int AS duration
+        FROM campaigns c
+        LEFT JOIN execution_logs el ON el.campaign_id = c.campaign_id ${campaignWhereForJoin}
+        GROUP BY c.campaign_id, c.title
+        ORDER BY views DESC
+        LIMIT 10
+      `,
+          campaignParams
+        );
+      }
 
-      // Remover filtro de event_type da whereClause para LEFT JOIN funcionar corretamente
       const totemWhereClause = whereClause.replace(' AND el.event_type = \'play_end\'', '');
-      const totemPerformance = await this.db.findMany(`
+      let totemPerformance: any[];
+      if (scopedPublisherId != null && scopedPublisherId !== undefined) {
+        totemPerformance = await this.db.findMany(
+          `
         SELECT 
           t.totem_id AS "totemId",
           COALESCE(t.name, CONCAT('Totem ', t.totem_id::text)) AS name,
@@ -532,39 +1067,126 @@ export class AnalyticsService {
             ELSE 0
           END AS effectiveness
         FROM totems t
-        LEFT JOIN execution_logs el ON el.totem_id = t.totem_id ${totemWhereClause.replace('el.', 'el.')}
+        INNER JOIN locals loc ON loc.local_id = t.local_id AND loc.publisher_id = ?
+        LEFT JOIN execution_logs el ON el.totem_id = t.totem_id ${totemWhereClause}
         GROUP BY t.totem_id, t.name, t.location
         ORDER BY views DESC
         LIMIT 10
-      `, params);
+      `,
+          [scopedPublisherId, ...params]
+        );
+      } else if (scopedSubscriberId != null && scopedSubscriberId !== undefined) {
+        totemPerformance = await this.db.findMany(
+          `
+        SELECT 
+          t.totem_id AS "totemId",
+          COALESCE(t.name, CONCAT('Totem ', t.totem_id::text)) AS name,
+          COALESCE(t.location, 'Não informado') AS location,
+          COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+          COALESCE(SUM(CASE WHEN el.event_type = 'play_end' THEN (el.event_data->>'duration')::int ELSE 0 END), 0)::int AS duration,
+          CASE 
+            WHEN COUNT(el.log_id) > 0 THEN 
+              (COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::float / COUNT(el.log_id) * 100)
+            ELSE 0
+          END AS effectiveness
+        FROM execution_logs el
+        INNER JOIN totems t ON t.totem_id = el.totem_id
+        ${whereClause}
+        GROUP BY t.totem_id, t.name, t.location
+        ORDER BY views DESC
+        LIMIT 10
+      `,
+          params
+        );
+      } else {
+        totemPerformance = await this.db.findMany(
+          `
+        SELECT 
+          t.totem_id AS "totemId",
+          COALESCE(t.name, CONCAT('Totem ', t.totem_id::text)) AS name,
+          COALESCE(t.location, 'Não informado') AS location,
+          COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
+          COALESCE(SUM(CASE WHEN el.event_type = 'play_end' THEN (el.event_data->>'duration')::int ELSE 0 END), 0)::int AS duration,
+          CASE 
+            WHEN COUNT(el.log_id) > 0 THEN 
+              (COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::float / COUNT(el.log_id) * 100)
+            ELSE 0
+          END AS effectiveness
+        FROM totems t
+        LEFT JOIN execution_logs el ON el.totem_id = t.totem_id ${totemWhereClause}
+        GROUP BY t.totem_id, t.name, t.location
+        ORDER BY views DESC
+        LIMIT 10
+      `,
+          params
+        );
+      }
 
-      // NOTA: Tabela analytics_qr_scans pode não existir no schema v2
-      // Usar dados de qr_codes diretamente (scan_count, last_scan_at)
-      let qrWhere = 'WHERE 1=1';
-      const qrParams: any[] = [];
-      
-      // clientId removido - usar subscriberId do filtro se necessário
+      // qr_codes.campaign_id → escopo por publisher (campaign_publishers) ou assinante (campaigns.subscriber_id)
+      const qrExtra: string[] = [];
+      const qrBaseParams: any[] = [];
       if (startDate) {
-        qrWhere += ' AND q.last_scan_at >= $' + (qrParams.length + 1);
-        qrParams.push(startDate);
+        qrExtra.push('q.last_scan_at >= ?');
+        qrBaseParams.push(startDate);
       }
       if (endDate) {
-        qrWhere += ' AND q.last_scan_at <= $' + (qrParams.length + 1);
-        qrParams.push(endDate);
+        qrExtra.push('q.last_scan_at <= ?');
+        qrBaseParams.push(endDate);
       }
+      if (campaignId) {
+        qrExtra.push('q.campaign_id = ?');
+        qrBaseParams.push(campaignId);
+      }
+      const qrExtraSql = qrExtra.length ? ` AND ${qrExtra.join(' AND ')}` : '';
 
-      // Buscar QR codes com scan_count > 0
-      const qrCodeStatsRows = await this.db.findMany(`
+      let qrCodeStatsRows: any[];
+      if (scopedPublisherId != null && scopedPublisherId !== undefined) {
+        qrCodeStatsRows = await this.db.findMany(
+          `
         SELECT 
           q.qr_id AS "qrCodeId",
           COALESCE(q.title, q.content, 'QR Code') AS title,
           q.scan_count::int AS scans
         FROM qr_codes q
-        ${qrWhere}
-        AND q.scan_count > 0
+        INNER JOIN campaign_publishers cp ON cp.campaign_id = q.campaign_id
+          AND cp.publisher_id = ?
+          AND COALESCE(cp.is_active, true) = true
+        WHERE q.scan_count > 0${qrExtraSql}
         ORDER BY q.scan_count DESC
         LIMIT 10
-      `, qrParams);
+      `,
+          [scopedPublisherId, ...qrBaseParams]
+        );
+      } else if (scopedSubscriberId != null && scopedSubscriberId !== undefined) {
+        qrCodeStatsRows = await this.db.findMany(
+          `
+        SELECT 
+          q.qr_id AS "qrCodeId",
+          COALESCE(q.title, q.content, 'QR Code') AS title,
+          q.scan_count::int AS scans
+        FROM qr_codes q
+        INNER JOIN campaigns c ON c.campaign_id = q.campaign_id AND c.subscriber_id = ?
+        WHERE q.scan_count > 0${qrExtraSql}
+        ORDER BY q.scan_count DESC
+        LIMIT 10
+      `,
+          [scopedSubscriberId, ...qrBaseParams]
+        );
+      } else {
+        qrCodeStatsRows = await this.db.findMany(
+          `
+        SELECT 
+          q.qr_id AS "qrCodeId",
+          COALESCE(q.title, q.content, 'QR Code') AS title,
+          q.scan_count::int AS scans
+        FROM qr_codes q
+        WHERE q.scan_count > 0${qrExtraSql}
+        ORDER BY q.scan_count DESC
+        LIMIT 10
+      `,
+          qrBaseParams
+        );
+      }
 
       const revenue = await this.getRevenueStats(filters);
 
@@ -741,7 +1363,7 @@ export class AnalyticsService {
   /**
    * Busca alertas do sistema
    */
-  private async getSystemAlerts(): Promise<{
+  private async getSystemAlerts(scope?: DashboardStatsScope): Promise<{
     type: 'warning' | 'error' | 'info';
     message: string;
     timestamp: string;
@@ -749,8 +1371,43 @@ export class AnalyticsService {
     try {
       const alerts = [];
 
-      // Verificar totems offline
-      const offlineTotems = await this.db.findFirst(`
+      let offlineTotems: { count?: number } | null;
+      if (scope?.scopedPublisherId != null && scope.scopedPublisherId > 0) {
+        offlineTotems = await this.db.findFirst(
+          `
+        SELECT COUNT(*)::int AS count 
+        FROM totems t
+        INNER JOIN locals l ON l.local_id = t.local_id
+        WHERE l.publisher_id = ? AND t.is_active = true 
+          AND (
+            t.last_heartbeat IS NULL 
+            OR t.last_heartbeat < NOW() - INTERVAL '5 minutes'
+          )
+      `,
+          [scope.scopedPublisherId]
+        );
+      } else if (scope?.scopedSubscriberId != null && scope.scopedSubscriberId > 0) {
+        offlineTotems = await this.db.findFirst(
+          `
+        SELECT COUNT(DISTINCT t.totem_id)::int AS count
+        FROM totems t
+        INNER JOIN locals l ON l.local_id = t.local_id
+        INNER JOIN subscriber_contracts sc ON sc.subscriber_id = ?
+          AND sc.status = 'active'
+        INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+          AND ppa.publisher_id = l.publisher_id
+          AND ppa.is_allowed = true
+          AND COALESCE(ppa.is_active, true) = true
+        WHERE t.is_active = true 
+          AND (
+            t.last_heartbeat IS NULL 
+            OR t.last_heartbeat < NOW() - INTERVAL '5 minutes'
+          )
+      `,
+          [scope.scopedSubscriberId]
+        );
+      } else {
+        offlineTotems = await this.db.findFirst(`
         SELECT COUNT(*)::int AS count 
         FROM totems 
         WHERE is_active = true 
@@ -759,8 +1416,9 @@ export class AnalyticsService {
             OR last_heartbeat < NOW() - INTERVAL '5 minutes'
           )
       `);
+      }
 
-      if (offlineTotems?.count > 0) {
+      if (offlineTotems?.count && offlineTotems.count > 0) {
         alerts.push({
           type: 'warning' as const,
           message: `${offlineTotems.count} totem(s) offline`,
@@ -768,16 +1426,35 @@ export class AnalyticsService {
         });
       }
 
-      // Verificar campanhas expiradas
-      const expiredCampaigns = await this.db.findFirst(`
+      let expiredCampaigns: { count?: number | string } | null;
+      if (scope?.scopedPublisherId != null && scope.scopedPublisherId > 0) {
+        expiredCampaigns = await this.db.findFirst(
+          `
+        SELECT COUNT(DISTINCT c.campaign_id) as count FROM campaigns c
+        INNER JOIN campaign_publishers cp ON cp.campaign_id = c.campaign_id AND cp.publisher_id = ?
+        WHERE c.is_active = true AND c.end_date < CURRENT_TIMESTAMP
+      `,
+          [scope.scopedPublisherId]
+        );
+      } else if (scope?.scopedSubscriberId != null && scope.scopedSubscriberId > 0) {
+        expiredCampaigns = await this.db.findFirst(
+          `
         SELECT COUNT(*) as count FROM campaigns 
-        WHERE is_active = 1 AND end_date < CURRENT_TIMESTAMP
+        WHERE subscriber_id = ? AND is_active = true AND end_date < CURRENT_TIMESTAMP
+      `,
+          [scope.scopedSubscriberId]
+        );
+      } else {
+        expiredCampaigns = await this.db.findFirst(`
+        SELECT COUNT(*) as count FROM campaigns 
+        WHERE is_active = true AND end_date < CURRENT_TIMESTAMP
       `);
+      }
 
-      if (expiredCampaigns?.count > 0) {
+      if (Number(expiredCampaigns?.count) > 0) {
         alerts.push({
           type: 'info' as const,
-          message: `${expiredCampaigns.count} campanha(s) expirada(s)`,
+          message: `${expiredCampaigns?.count} campanha(s) expirada(s)`,
           timestamp: new Date().toISOString()
         });
       }

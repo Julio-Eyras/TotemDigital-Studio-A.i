@@ -82,7 +82,50 @@ on_install_error() {
     fi
 }
 
+on_install_exit() {
+    local exit_code=$?
+    # Só atuar em falhas
+    if [[ $exit_code -eq 0 ]]; then
+        return
+    fi
+
+    # Evitar recuperação em modos especiais ou docker
+    if [[ "${INSTALL_MODE:-single-server}" == "docker" ]] || [[ "${DB_ONLY_MODE:-false}" == "true" ]]; then
+        return
+    fi
+
+    # Se já tentamos no trap ERR, não repetir
+    if [[ "${INSTALL_RECOVERY_ATTEMPTED:-false}" == "true" ]]; then
+        return
+    fi
+
+    INSTALL_RECOVERY_ATTEMPTED=true
+    echo -e "\033[1;33m[WARNING]\033[0m Saída com falha detectada. Tentando recuperação final do smart-signage..."
+
+    local candidate_dir=""
+    local d=""
+    for d in "${INSTALL_DIR:-}" "${SOURCE_DIR:-}" "$(pwd)" "/home/${USER}/TotemDigital"; do
+        [[ -z "$d" ]] && continue
+        if [[ -f "$d/backend/dist/index.js" ]]; then
+            candidate_dir="$d"
+            break
+        fi
+    done
+    if [[ -z "$candidate_dir" ]]; then
+        return
+    fi
+
+    local helper_script="$candidate_dir/scripts/create-smart-signage-service.sh"
+    if [[ ! -f /etc/systemd/system/smart-signage.service ]] && [[ -x "$helper_script" ]]; then
+        sudo bash "$helper_script" "$candidate_dir" 2>/dev/null || true
+    fi
+    sudo systemctl daemon-reload 2>/dev/null || true
+    sudo systemctl enable smart-signage.service 2>/dev/null || true
+    sudo systemctl start smart-signage.service 2>/dev/null || true
+}
+
 trap 'on_install_error $LINENO' ERR
+trap 'on_install_exit' EXIT
 
 # =============================================================================
 # VARIÁVEIS GLOBAIS E FLAGS
@@ -104,6 +147,8 @@ RESET_DATABASE=false
 PRESERVE_DB=false
 LOAD_SEEDS=false
 SEEDS_OPTION_FORCED=false
+# Migração opcional: um local por publisher (modo compacto / legado com 3 locais no seed antigo)
+COMPACT_MERGE_LOCALS="${COMPACT_MERGE_LOCALS:-false}"
 START_TOTEM=false
 # Com --skip-players / --totemdigital-install: não copia players cliente (só servidor + build)
 SKIP_PLAYERS_INSTALL=false
@@ -417,6 +462,7 @@ setup_assets_and_db() {
 
     # Criar snippet com location (idempotente)
     sudo mkdir -p /etc/nginx/snippets
+    # bash -c "..." envolve heredoc: escapar \" e \$ para não quebrar a string nem expandir \$uri no script pai.
     sudo bash -c "cat > '$NGINX_SNIPPET' <<'NG_SNIP'
 # SmartSignage - assets snippet (auto-generated)
 location ^~ /assets/ {
@@ -447,7 +493,20 @@ NG_SNIP"
             # Inserir depois da linha que define root /opt/smart-signage/frontend/build;
             if sudo grep -q "root /opt/smart-signage/frontend/build;" "$SITE_CONF" 2>/dev/null; then
                 log "Inserindo include do snippet em $SITE_CONF (após root /opt/smart-signage/frontend/build;)"
-                sudo awk '/root \/opt\/smart-signage\/frontend\/build;/{print; print \"    include /etc/nginx/snippets/smart-signage-assets.conf;\"; next}1' "$SITE_CONF" > /tmp/smart-signage.conf.tmp && sudo mv /tmp/smart-signage.conf.tmp "$SITE_CONF"
+                # Só uma linha include (várias linhas "root ..." duplicariam location /assets/ e quebrariam nginx -t).
+                sudo cp -a "$SITE_CONF" "${SITE_CONF}.bak.assets.$(date +%s)" 2>/dev/null || true
+                sudo awk '
+                  BEGIN { ins=0 }
+                  /root \/opt\/smart-signage\/frontend\/build;/ {
+                    print
+                    if (ins == 0) {
+                      print "    include /etc/nginx/snippets/smart-signage-assets.conf;"
+                      ins = 1
+                    }
+                    next
+                  }
+                  { print }
+                ' "$SITE_CONF" > /tmp/smart-signage.conf.tmp && sudo mv /tmp/smart-signage.conf.tmp "$SITE_CONF"
             else
                 log "root /opt/smart-signage/frontend/build; não encontrado em $SITE_CONF — adicionando include no final do server block se possível"
                 # tentativa simples: append include at end of file (best-effort)
@@ -469,11 +528,21 @@ NG_SRV"
     fi
 
     # Testar e recarregar nginx
-    if sudo nginx -t >/dev/null 2>&1; then
+    if sudo nginx -t > /tmp/nginx-assets-test.txt 2>&1; then
         sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || true
         log "✅ Nginx recarregado (assets alias configurado)"
     else
-        warn "⚠️  Configuração Nginx inválida após alterações — verifique manualmente"
+        warn "⚠️  Configuração Nginx inválida após alterações — saída de nginx -t:"
+        while IFS= read -r _nline; do warn "   $_nline"; done < /tmp/nginx-assets-test.txt
+        _lastbak=$(ls -1t /etc/nginx/sites-enabled/smart-signage.bak.assets.* 2>/dev/null | head -1)
+        if [[ -n "$_lastbak" && -f "$_lastbak" ]]; then
+            warn "⚠️  Restaurando site de backup: $_lastbak"
+            sudo cp -a "$_lastbak" "$SITE_CONF" 2>/dev/null || true
+            if sudo nginx -t >/dev/null 2>&1; then
+                sudo systemctl reload nginx 2>/dev/null || true
+                warn "⚠️  Nginx voltou à config anterior; ajuste manual do include de assets pode ser necessário."
+            fi
+        fi
     fi
 
     # =============================================================================
@@ -1104,6 +1173,10 @@ parse_arguments() {
                 SEEDS_OPTION_FORCED=true
                 shift
                 ;;
+            --compact-merge-locals)
+                COMPACT_MERGE_LOCALS=true
+                shift
+                ;;
             --starttotem)
                 START_TOTEM=true
                 shift
@@ -1146,6 +1219,7 @@ parse_arguments() {
                 echo "  --backfront-build    Build backend + frontend (deps + TypeScript + React), depois iniciar backend e Nginx (sem banco)"
                 echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt). Usa database/carga-inicial-v6.sql"
                 echo "  --no-seeds           Não carrega dados de demonstração"
+                echo "  --compact-merge-locals Opcional: colapsa vários locais num único (SQL: database/compact-merge-locals-to-single.sql). O compacto admite vários locais; use só se quiser essa limpeza. Backup; se houver >1 publisher ativo, edite target_publisher_id no SQL."
                 echo "  --starttotem         Após instalar, abre 2 players web (/player) com UINs de totens demo para laboratório"
                 echo "  --skip-players       Com --skip-menu: não copia players (webOS, Android, Tizen, etc.); só servidor + build"
                 echo "  --totemdigital-install  Alias de --skip-players (perfil TotemDigital sem clientes player no disco)"
@@ -5268,7 +5342,10 @@ setup_letsencrypt() {
     # Criar configuração Nginx temporária (HTTP) para validação
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
     _backend_port=""
-    [[ -f "$INSTALL_DIR/.env" ]] && _backend_port=$(grep -E '^BACKEND_PORT=' "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
+    [[ -f "$INSTALL_DIR/.env" ]] && _backend_port=$(awk -F= '/^BACKEND_PORT=/{print $2; exit}' "$INSTALL_DIR/.env" 2>/dev/null | tr -d '"' | tr -d "'" | xargs || true)
+    if [[ -z "${_backend_port:-}" ]]; then
+        log "ℹ️ BACKEND_PORT não definido no .env. Usando padrão: 3000"
+    fi
     BACKEND_PORT=${_backend_port:-3000}
     
     # Configurar primeiro com HTTP apenas
@@ -5430,7 +5507,13 @@ verify_nginx_ws_config() {
 # Configurar Nginx apenas HTTP (sem SSL)
 setup_nginx_http_only() {
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
-    [[ -f "$INSTALL_DIR/.env" ]] && grep -qE '^BACKEND_PORT=' "$INSTALL_DIR/.env" && BACKEND_PORT=$(grep -E '^BACKEND_PORT=' "$INSTALL_DIR/.env" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
+    local _backend_port=""
+    [[ -f "$INSTALL_DIR/.env" ]] && _backend_port=$(awk -F= '/^BACKEND_PORT=/{print $2; exit}' "$INSTALL_DIR/.env" 2>/dev/null | tr -d '"' | tr -d "'" | xargs || true)
+    if [[ -z "${_backend_port:-}" ]]; then
+        log "ℹ️ BACKEND_PORT não definido no .env. Usando padrão: 3000"
+    else
+        BACKEND_PORT="$_backend_port"
+    fi
     BACKEND_PORT=${BACKEND_PORT:-3000}
     
     sudo tee $NGINX_CONFIG > /dev/null << EOF
@@ -5688,8 +5771,13 @@ setup_nginx() {
     
     # Porta do backend (do .env ou padrão 3000) – usada em location /ws e pode ser reutilizada noutros proxy_pass
     if [[ -f "$INSTALL_DIR/.env" ]]; then
-        _backend_port=$(grep -E '^BACKEND_PORT=' "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
+        _backend_port=$(awk -F= '/^BACKEND_PORT=/{print $2; exit}' "$INSTALL_DIR/.env" 2>/dev/null | tr -d '"' | tr -d "'" | xargs || true)
+        if [[ -z "${_backend_port:-}" ]]; then
+            log "ℹ️ BACKEND_PORT não definido no .env. Usando padrão: 3000"
+        fi
         [[ -n "$_backend_port" ]] && BACKEND_PORT="$_backend_port"
+    else
+        log "ℹ️ Arquivo .env não encontrado para leitura de BACKEND_PORT. Usando padrão: 3000"
     fi
     BACKEND_PORT=${BACKEND_PORT:-3000}
     
@@ -7534,11 +7622,16 @@ EOF
 
         # Priorizar credenciais da instalação persistidas no .env (quando disponível)
         if [[ -f "$INSTALL_DIR/.env" ]]; then
-            _db_name=$(grep "^DB_NAME=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "$_db_name")
-            _db_user=$(grep "^DB_USER=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "$_db_user")
-            _db_host=$(grep "^DB_HOST=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "$_db_host")
-            _db_port=$(grep "^DB_PORT=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "$_db_port")
-            _db_password=$(grep "^DB_PASSWORD=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "$_db_password")
+            # head -1 + cut -f2- evita valor quebrado; tr -d '\r' evita CRLF; trim seguro sem xargs na senha
+            _db_name=$(grep "^DB_NAME=" "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            _db_user=$(grep "^DB_USER=" "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            _db_host=$(grep "^DB_HOST=" "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            _db_port=$(grep "^DB_PORT=" "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            _db_password=$(grep "^DB_PASSWORD=" "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r')
+            [[ -z "$_db_name" ]] && _db_name="${DB_NAME:-smartsignage}"
+            [[ -z "$_db_user" ]] && _db_user="${DB_USER:-smartsignage}"
+            [[ -z "$_db_host" ]] && _db_host="${DB_HOST:-127.0.0.1}"
+            [[ -z "$_db_port" ]] && _db_port="${DB_PORT:-5432}"
         fi
 
         local _db_exists=""
@@ -9253,6 +9346,18 @@ setup_first_boot() {
         fi
     else
         log "Seeds de demonstração foram ignorados (opção selecionada)."
+    fi
+
+    if [[ "${COMPACT_MERGE_LOCALS:-false}" == "true" ]]; then
+        local MERGE_SQL="$INSTALL_DIR/database/compact-merge-locals-to-single.sql"
+        if [[ -f "$MERGE_SQL" ]]; then
+            log "Migração opcional: consolidar locais num único por publisher (modo compacto)..."
+            if ! execute_psql_file "$TARGET_DB" "$MERGE_SQL" "compact-merge-locals-to-single.sql"; then
+                warn "⚠️ compact-merge-locals falhou (ex.: vários publishers ativos — defina target_publisher_id em database/compact-merge-locals-to-single.sql e execute manualmente)."
+            fi
+        else
+            warn "⚠️ Arquivo não encontrado: $MERGE_SQL (compact-merge-locals ignorado)"
+        fi
     fi
     
     # Usuário admin já é garantido pelo ensure_admin_user() após a aplicação do schema e opções de seed

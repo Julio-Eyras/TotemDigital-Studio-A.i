@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { TotemService } from '../services/totemService';
+import { getTotemService } from '../services/totemService';
 import { getRemoteCommandService } from '../services/remoteCommandService';
 import { getTotemLogService } from '../services/totemLogService';
 import { getSmartTvService } from '../services/smartTvService';
@@ -10,6 +10,7 @@ import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import { logError, logWarn, logInfo } from '../utils/loggerHelper';
 import { getDatabase } from '../config/database';
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 
 const router = Router();
 
@@ -17,13 +18,18 @@ const router = Router();
 // OPERATOR pode acessar apenas dados técnicos (restart, screenshot, logs, status)
 router.use(blockClientDataAccess);
 
-// Lazy initialization - só criar quando necessário
-function getTotemService(): TotemService {
-  if (!(global as any).totemServiceInstance) {
-    (global as any).totemServiceInstance = new TotemService();
-  }
-  return (global as any).totemServiceInstance;
-}
+const isAdminRole = (role?: string) =>
+  ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(role || '');
+
+const getTotemCreateRoles = () =>
+  TOTEMDIGITAL_COMPACT
+    ? ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user', 'subscriber_user', 'gerente_marketing', 'manager', 'operator']
+    : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user', 'subscriber_user', 'gerente_marketing'];
+
+const getTotemApproveRoles = () =>
+  TOTEMDIGITAL_COMPACT
+    ? ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user']
+    : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'];
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
@@ -45,12 +51,16 @@ router.get('/',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { page = 1, limit = 10, search, status } = req.query;
+      const isAdmin = isAdminRole(req.user?.role);
+      const requestPublisherId = req.user?.publisherId || undefined;
       // REMOVIDO: clientId - totem não pertence a subscriber, pertence a publisher via local_id
       const result = await getTotemService().getAllTotems({
         page: parseInt(page as string) || 1,
         limit: parseInt(limit as string) || 10,
         search: search as string | undefined,
-        status: status as string | undefined
+        status: status as string | undefined,
+        requestPublisherId,
+        isAdmin
       });
       // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
       return res.json({
@@ -61,6 +71,12 @@ router.get('/',
       });
     } catch (error: any) {
       await logError('Erro ao listar totems', error);
+      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
+        return res.status(403).json({
+          success: false,
+          error: error.message || 'Acesso negado'
+        });
+      }
       return res.status(500).json({ 
         success: false,
         error: 'Erro ao listar totems',
@@ -82,10 +98,14 @@ router.get('/pending',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { page = 1, limit = 10 } = req.query;
+      const isAdmin = isAdminRole(req.user?.role);
+      const requestPublisherId = req.user?.publisherId || undefined;
       const result = await getTotemService().getAllTotems({
         page: parseInt(page as string) || 1,
         limit: parseInt(limit as string) || 10,
-        status: 'pending_approval'
+        status: 'pending_approval',
+        requestPublisherId,
+        isAdmin
       });
       // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
       return res.json({
@@ -96,6 +116,12 @@ router.get('/pending',
       });
     } catch (error: any) {
       await logError('Erro ao listar totems pendentes', error);
+      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
+        return res.status(403).json({
+          success: false,
+          error: error.message || 'Acesso negado'
+        });
+      }
       return res.status(500).json({ 
         success: false,
         error: 'Erro ao listar totems pendentes',
@@ -158,13 +184,18 @@ router.get('/:id',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id);
-      const totem = await getTotemService().getTotemById(totemId);
+      const isAdmin = isAdminRole(req.user?.role);
+      const requestPublisherId = req.user?.publisherId || undefined;
+      const totem = await getTotemService().getTotemByIdScoped(totemId, requestPublisherId, isAdmin);
       if (!totem) {
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
       return res.json(totem);
     } catch (error: any) {
       await logError('Erro ao obter totem', error);
+      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
+        return res.status(403).json({ error: error.message || 'Acesso negado' });
+      }
       return res.status(500).json({ error: 'Erro ao obter totem', message: error.message });
     }
   }
@@ -215,13 +246,19 @@ router.get('/uin/:uin',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const uin = req.params.uin;
-      const totem = await getTotemService().getTotemByUin(uin);
+      const isAdmin = isAdminRole(req.user?.role);
+      const requestPublisherId = req.user?.publisherId || undefined;
+      const totem = await getTotemService().getTotemByUinScoped(uin, requestPublisherId, isAdmin);
       if (!totem) {
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
       return res.json(totem);
-    } catch (error) {
-      return res.status(500).json({ error: 'Erro ao obter totem' });
+    } catch (error: any) {
+      await logError('Erro ao obter totem por UIN', error);
+      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
+        return res.status(403).json({ error: error.message || 'Acesso negado' });
+      }
+      return res.status(500).json({ error: 'Erro ao obter totem', message: error?.message });
     }
   }
 );
@@ -232,7 +269,7 @@ router.get('/uin/:uin',
  * @access Private (Apenas roles administrativos - baseado em contrato)
  */
 router.post('/',
-  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user', 'subscriber_user', 'gerente_marketing']),
+  authorizeRole(getTotemCreateRoles()),
   body('identifier').optional().isString().isLength({ min: 2, max: 100 }),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
   body('uin').optional().isString(),
@@ -563,6 +600,7 @@ router.get('/:id/analytics',
  * @access Private (Admin)
  */
 router.put('/:id/approve',
+  authorizeRole(getTotemApproveRoles()),
   param('id').isInt({ min: 1 }),
   body('generateEncryptedConfig').optional().isBoolean(),
   validateRequest,
@@ -576,7 +614,9 @@ router.put('/:id/approve',
       }
 
       // Buscar totem
-      const totem = await getTotemService().getTotemById(totemId);
+      const isAdmin = isAdminRole(req.user?.role);
+      const requestPublisherId = req.user?.publisherId || undefined;
+      const totem = await getTotemService().getTotemByIdScoped(totemId, requestPublisherId, isAdmin);
       if (!totem) {
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
@@ -652,7 +692,7 @@ router.put('/:id/approve',
       }
 
       // Buscar totem atualizado
-      const approvedTotem = await getTotemService().getTotemById(totemId);
+      const approvedTotem = await getTotemService().getTotemByIdScoped(totemId, requestPublisherId, isAdmin);
 
       return res.json({
         success: true,
@@ -662,6 +702,9 @@ router.put('/:id/approve',
       });
     } catch (error: any) {
       await logError('Erro ao aprovar totem', error);
+      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
+        return res.status(403).json({ error: error.message || 'Acesso negado' });
+      }
       return res.status(500).json({ error: 'Erro ao aprovar totem', details: error.message });
     }
   }

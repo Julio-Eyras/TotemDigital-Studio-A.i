@@ -1,4 +1,5 @@
 import { getDatabase } from '../config/database';
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 import { logError } from '../utils/loggerHelper';
 
 export interface Publisher {
@@ -232,6 +233,17 @@ export class PublisherService {
         description
       } = data;
 
+      if (TOTEMDIGITAL_COMPACT) {
+        const pubCount = await this.db.findFirst(`
+          SELECT COUNT(*)::int AS c FROM publishers WHERE COALESCE(is_active, true) = true
+        `);
+        if (pubCount && Number(pubCount.c) >= 1) {
+          throw new Error(
+            'Modo compacto: já existe um publisher (owner). Não é permitido cadastrar outro.'
+          );
+        }
+      }
+
       // Normalizar email vazio para null (evita violação de UNIQUE quando vários publishers sem email)
       const emailNorm = (email != null && String(email).trim() !== '') ? String(email).trim() : null;
 
@@ -339,6 +351,16 @@ export class PublisherService {
     contracts?: Array<any>;
   }): Promise<Publisher> {
     const db = getDatabase();
+    if (TOTEMDIGITAL_COMPACT) {
+      const pubCount = await db.findFirst(`
+        SELECT COUNT(*)::int AS c FROM publishers WHERE COALESCE(is_active, true) = true
+      `);
+      if (pubCount && Number(pubCount.c) >= 1) {
+        throw new Error(
+          'Modo compacto: já existe um publisher (owner). Não é permitido cadastrar outro.'
+        );
+      }
+    }
     // Normalizar email vazio para null (evita UNIQUE constraint quando procedure/BD não normaliza)
     const publisher = { ...payload.publisher };
     if (publisher.email != null && String(publisher.email).trim() === '') {
