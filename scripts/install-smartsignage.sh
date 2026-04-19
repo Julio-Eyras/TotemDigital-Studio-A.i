@@ -433,8 +433,18 @@ setup_assets_and_db() {
     local NGINX_CONF_OLD="/etc/nginx/conf.d/smart-signage-assets.conf"
     local NGINX_SNIPPET="/etc/nginx/snippets/smart-signage-assets.conf"
     local SITE_CONF="/etc/nginx/sites-enabled/smart-signage"
+    # NUNCA gravar backups dentro de sites-enabled: o Nginx inclui todos os arquivos e gera "duplicate default server".
+    local NGINX_SITE_BACKUP_DIR="/var/lib/smart-signage/nginx-site-backups"
     local NGINX_USER="www-data"
     local APP_USER="smartchannel"
+
+    sudo mkdir -p "$NGINX_SITE_BACKUP_DIR" 2>/dev/null || true
+    # Migrar/remover backups antigos erroneamente criados em sites-enabled
+    for _stray in /etc/nginx/sites-enabled/smart-signage.bak.assets.*; do
+        [[ -e "$_stray" ]] || continue
+        log "Movendo backup órfão fora de sites-enabled (evita default_server duplicado): $_stray"
+        sudo mv "$_stray" "$NGINX_SITE_BACKUP_DIR/orphan-$(basename "$_stray")" 2>/dev/null || sudo rm -f "$_stray" 2>/dev/null || true
+    done
 
     # Criar diretório persistente de assets e uploads
     sudo mkdir -p "$PUBLIC_ASSETS/uploads" 2>/dev/null || true
@@ -494,7 +504,7 @@ NG_SNIP"
             if sudo grep -q "root /opt/smart-signage/frontend/build;" "$SITE_CONF" 2>/dev/null; then
                 log "Inserindo include do snippet em $SITE_CONF (após root /opt/smart-signage/frontend/build;)"
                 # Só uma linha include (várias linhas "root ..." duplicariam location /assets/ e quebrariam nginx -t).
-                sudo cp -a "$SITE_CONF" "${SITE_CONF}.bak.assets.$(date +%s)" 2>/dev/null || true
+                sudo cp -a "$SITE_CONF" "${NGINX_SITE_BACKUP_DIR}/smart-signage.site.$(date +%s).conf" 2>/dev/null || true
                 sudo awk '
                   BEGIN { ins=0 }
                   /root \/opt\/smart-signage\/frontend\/build;/ {
@@ -534,7 +544,7 @@ NG_SRV"
     else
         warn "⚠️  Configuração Nginx inválida após alterações — saída de nginx -t:"
         while IFS= read -r _nline; do warn "   $_nline"; done < /tmp/nginx-assets-test.txt
-        _lastbak=$(ls -1t /etc/nginx/sites-enabled/smart-signage.bak.assets.* 2>/dev/null | head -1)
+        _lastbak=$(ls -1t "$NGINX_SITE_BACKUP_DIR"/smart-signage.site.*.conf 2>/dev/null | head -1)
         if [[ -n "$_lastbak" && -f "$_lastbak" ]]; then
             warn "⚠️  Restaurando site de backup: $_lastbak"
             sudo cp -a "$_lastbak" "$SITE_CONF" 2>/dev/null || true
