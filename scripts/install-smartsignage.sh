@@ -496,9 +496,15 @@ NG_SNIP"
     fi
 
     # Inserir include do snippet dentro do server block do site principal (idempotente)
+    # O snippet define "location ^~ /assets/" — não incluir se já existir location para /assets/ (duplicate location).
+    _site_has_assets_location() {
+        sudo grep -qE '^[[:space:]]*location[[:space:]]+.*\/assets' "$1" 2>/dev/null
+    }
     if [[ -f "$SITE_CONF" ]]; then
         if sudo grep -q "include /etc/nginx/snippets/smart-signage-assets.conf;" "$SITE_CONF" 2>/dev/null; then
             log "Include do snippet já presente em $SITE_CONF"
+        elif _site_has_assets_location "$SITE_CONF"; then
+            log "location /assets/ já definido em $SITE_CONF — não incluindo snippet (evita duplicate location)."
         else
             # Inserir depois da linha que define root /opt/smart-signage/frontend/build;
             if sudo grep -q "root /opt/smart-signage/frontend/build;" "$SITE_CONF" 2>/dev/null; then
@@ -519,8 +525,11 @@ NG_SNIP"
                 ' "$SITE_CONF" > /tmp/smart-signage.conf.tmp && sudo mv /tmp/smart-signage.conf.tmp "$SITE_CONF"
             else
                 log "root /opt/smart-signage/frontend/build; não encontrado em $SITE_CONF — adicionando include no final do server block se possível"
-                # tentativa simples: append include at end of file (best-effort)
-                sudo bash -c "echo \"    include /etc/nginx/snippets/smart-signage-assets.conf;\" >> '$SITE_CONF'"
+                if _site_has_assets_location "$SITE_CONF"; then
+                    log "location /assets/ já presente — não acrescentando include."
+                else
+                    sudo bash -c "echo \"    include /etc/nginx/snippets/smart-signage-assets.conf;\" >> '$SITE_CONF'"
+                fi
             fi
         fi
     else
