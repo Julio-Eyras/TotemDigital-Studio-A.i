@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Oracle Linux wrapper for install-smartsignage.sh
+# - Keeps original script untouched
+# - Generates an Oracle-compatible copy and executes it
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE_SCRIPT="${SCRIPT_DIR}/install-smartsignage.sh"
+TARGET_SCRIPT="${SCRIPT_DIR}/install-smartsignage-oracle.generated.sh"
+
+if [[ ! -f "${SOURCE_SCRIPT}" ]]; then
+  echo "Erro: script base não encontrado em ${SOURCE_SCRIPT}" >&2
+  exit 1
+fi
+
+python3 - "${SOURCE_SCRIPT}" "${TARGET_SCRIPT}" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+text = src.read_text(encoding="utf-8")
+
+compat_block = r'''
+# ================================
+# Oracle Linux compatibility layer
+# ================================
+is_oracle_linux() {
+    local _id="${ID:-}"
+    local _like="${ID_LIKE:-}"
+    [[ "$_id" == "ol" || "$_id" == "oracle" || "$_id" == "oraclelinux" || "$_id" == "rhel" || "$_id" == "rocky" || "$_id" == "almalinux" || "$_like" == *"rhel"* || "$_like" == *"fedora"* ]]
+}
+
+pkg_update() {
+    if is_oracle_linux; then
+        sudo dnf -y makecache
+    else
+        sudo apt update
+    fi
+}
+
+pkg_upgrade() {
+    if is_oracle_linux; then
+        sudo dnf -y upgrade
+    else
+        sudo apt upgrade -y
+    fi
+}
+
+pkg_install() {
+    local pkgs=("$@")
+    if is_oracle_linux; then
+        local out=()
+        for p in "${pkgs[@]}"; do
+            case "$p" in
+                apt-transport-https|software-properties-common|ufw) continue ;;
+                build-essential) out+=("gcc" "gcc-c++" "make") ;;
+                postgresql-client) out+=("postgresql") ;;
+                postgresql-contrib) out+=("postgresql-contrib") ;;
+                lsb-release) out+=("redhat-lsb-core") ;;
+                python3-pip) out+=("python3-pip") ;;
+                *) out+=("$p") ;;
+            esac
+        done
+        if [[ ${#out[@]} -gt 0 ]]; then
+            sudo dnf -y install "${out[@]}"
+        fi
+    else
+        sudo apt install -y "${pkgs[@]}"
+    fi
+}
+
+firewall_cmd_compat() {
+    if ! is_oracle_linux; then
+        sudo ufw "$@"
+        return
+    fi
+
+    local args=("$@")
+    local first="${args[0]:-}"
+    local second="${args[1]:-}"
+
+    sudo systemctl enable --now firewalld >/dev/null 2>&1 || true
+
+    if [[ "$first" == "--force" && "$second" == "enable" ]]; then
+        sudo systemctl enable --now firewalld >/dev/null 2>&1 || true
+        return
+    fi
+    if [[ "$first" == "--force" && "$second" == "reset" ]]; then
+        sudo firewall-cmd --reload >/dev/null 2>&1 || true
+        return
+    fi
+    if [[ "$first" == "reset" ]]; then
+        sudo firewall-cmd --reload >/dev/null 2>&1 || true
+        return
+    fi
+    if [[ "$first" == "default" ]]; then
+        # firewalld não usa default deny/allow como ufw; ignorar com sucesso.
+        return
+    fi
+
+    # ufw allow 22/tcp
+    if [[ "$first" == "allow" && "${args[1]:-}" =~ ^[0-9]+/(tcp|udp)$ ]]; then
+        sudo firewall-cmd --permanent --add-port="${args[1]}" >/dev/null
+        sudo firewall-cmd --reload >/dev/null
+        return
+    fi
+
+    # ufw allow from 192.168.0.0/16 to any port 5432
+    if [[ "$first" == "allow" && "${args[1]:-}" == "from" ]]; then
+        local net="${args[2]:-}"
+        local port=""
+        for i in "${!args[@]}"; do
+            if [[ "${args[$i]}" == "port" ]]; then
+                port="${args[$((i+1))]:-}"
+                break
+            fi
+        done
+        if [[ -n "$net" && -n "$port" ]]; then
+            sudo firewall-cmd --permanent --add-rich-rule="rule family='ipv4' source address='${net}' port protocol='tcp' port='${port}' accept" >/dev/null
+            sudo firewall-cmd --reload >/dev/null
+            return
+        fi
+    fi
+
+    # fallback silencioso para sintaxes não tratadas
+    return 0
+}
+
+if is_oracle_linux && ! command -v dpkg >/dev/null 2>&1; then
+    dpkg() {
+        if [[ "${1:-}" == "-l" ]]; then
+            rpm -qa --qf "ii %-40{NAME} %{VERSION}-%{RELEASE}\n"
+            return 0
+        fi
+        return 1
+    }
+fi
+'''
+
+if text.startswith("#!/"):
+    nl = text.find("\n")
+    text = text[: nl + 1] + compat_block + text[nl + 1 :]
+else:
+    text = compat_block + text
+
+# aceitar Oracle Linux no check_os()
+text = text.replace(
+    'if [[ "$ID" != "ubuntu" ]]; then',
+    'if [[ "$ID" != "ubuntu" && "$ID" != "ol" && "$ID" != "oracle" && "$ID" != "oraclelinux" && "$ID" != "rhel" ]]; then'
+)
+
+# detectar Oracle Linux explicitamente
+text = text.replace(
+    "        debian)\n            DISTRO_TYPE=\"debian\"\n            ;;\n        *)",
+    "        debian)\n            DISTRO_TYPE=\"debian\"\n            ;;\n        ol|oracle|oraclelinux|rhel|rocky|almalinux)\n            DISTRO_TYPE=\"oracle\"\n            ;;\n        *)"
+)
+
+# apt -> pkg_* (somente formas usadas no script)
+text = text.replace("sudo apt-get update -y", "pkg_update")
+text = text.replace("sudo apt-get update", "pkg_update")
+text = text.replace("sudo apt update -y", "pkg_update")
+text = text.replace("sudo apt update", "pkg_update")
+text = text.replace("sudo apt upgrade -y", "pkg_upgrade")
+text = text.replace("sudo apt-get upgrade -y", "pkg_upgrade")
+text = text.replace("sudo apt-get install -y", "pkg_install")
+text = text.replace("sudo apt install -y", "pkg_install")
+
+# ufw -> firewall compat
+text = text.replace("sudo ufw", "firewall_cmd_compat")
+
+# paths mais comuns no Oracle Linux
+text = text.replace("/var/lib/postgresql", "/var/lib/pgsql")
+
+# referência textual de ajuda
+text = text.replace("sudo apt install -y python3 python3-pip", "sudo dnf install -y python3 python3-pip")
+text = text.replace("sudo apt install -y nodejs", "sudo dnf install -y nodejs")
+
+dst.write_text(text, encoding="utf-8")
+PY
+
+chmod +x "${TARGET_SCRIPT}"
+echo "Script Oracle gerado em: ${TARGET_SCRIPT}"
+exec "${TARGET_SCRIPT}" "$@"
+
