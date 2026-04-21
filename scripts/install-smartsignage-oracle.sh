@@ -49,23 +49,89 @@ pkg_upgrade() {
     fi
 }
 
+ensure_ffmpeg_oracle() {
+    # 1) tentar dnf direto (caso repo já tenha ffmpeg)
+    if sudo dnf -y install ffmpeg >/dev/null 2>&1; then
+        return 0
+    fi
+
+    # 2) habilitar EPEL + RPM Fusion Free (EL9) e tentar novamente
+    sudo dnf -y install oracle-epel-release-el9 >/dev/null 2>&1 || true
+    sudo dnf -y install epel-release >/dev/null 2>&1 || true
+    sudo dnf -y install "https://mirrors.rpmfusion.org/free/el/rpmfusion-free-release-9.noarch.rpm" >/dev/null 2>&1 || true
+    if sudo dnf -y install ffmpeg >/dev/null 2>&1; then
+        return 0
+    fi
+
+    # 3) fallback: binário estático (johnvansickle)
+    local tmpdir
+    tmpdir="$(mktemp -d /tmp/ffmpeg-static.XXXXXX)"
+    if curl -fsSL "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz" -o "${tmpdir}/ffmpeg.tar.xz"; then
+        if tar -xJf "${tmpdir}/ffmpeg.tar.xz" -C "${tmpdir}" >/dev/null 2>&1; then
+            local bindir
+            bindir="$(find "${tmpdir}" -maxdepth 2 -type f -name ffmpeg -printf '%h\n' | head -1)"
+            if [[ -n "$bindir" && -x "${bindir}/ffmpeg" ]]; then
+                sudo install -m 0755 "${bindir}/ffmpeg" /usr/local/bin/ffmpeg
+                if [[ -x "${bindir}/ffprobe" ]]; then
+                    sudo install -m 0755 "${bindir}/ffprobe" /usr/local/bin/ffprobe
+                fi
+                rm -rf "${tmpdir}" >/dev/null 2>&1 || true
+                return 0
+            fi
+        fi
+    fi
+
+    rm -rf "${tmpdir}" >/dev/null 2>&1 || true
+    return 1
+}
+
 pkg_install() {
     local pkgs=("$@")
     if is_oracle_linux; then
         local out=()
+        local optional_missing=("redhat-lsb-core" "htop")
         for p in "${pkgs[@]}"; do
             case "$p" in
                 apt-transport-https|software-properties-common|ufw) continue ;;
                 build-essential) out+=("gcc" "gcc-c++" "make") ;;
                 postgresql-client) out+=("postgresql") ;;
                 postgresql-contrib) out+=("postgresql-contrib") ;;
-                lsb-release) out+=("redhat-lsb-core") ;;
+                lsb-release) continue ;;
                 python3-pip) out+=("python3-pip") ;;
                 *) out+=("$p") ;;
             esac
         done
         if [[ ${#out[@]} -gt 0 ]]; then
-            sudo dnf -y install "${out[@]}"
+            local failed_required=()
+            for pkg in "${out[@]}"; do
+                if ! sudo dnf -y install "$pkg"; then
+                    if [[ "$pkg" == "ffmpeg" ]]; then
+                        if ensure_ffmpeg_oracle; then
+                            echo "[oracle-compat] ffmpeg instalado com fallback."
+                            continue
+                        fi
+                        echo "[oracle-compat] Erro: ffmpeg é obrigatório e não pôde ser instalado." >&2
+                        failed_required+=("$pkg")
+                        continue
+                    fi
+                    local is_optional=false
+                    for opt in "${optional_missing[@]}"; do
+                        if [[ "$pkg" == "$opt" ]]; then
+                            is_optional=true
+                            break
+                        fi
+                    done
+                    if [[ "$is_optional" == true ]]; then
+                        echo "[oracle-compat] Aviso: pacote opcional não encontrado: $pkg"
+                    else
+                        failed_required+=("$pkg")
+                    fi
+                fi
+            done
+            if [[ ${#failed_required[@]} -gt 0 ]]; then
+                echo "[oracle-compat] Erro: falha ao instalar pacotes obrigatórios: ${failed_required[*]}" >&2
+                return 1
+            fi
         fi
     else
         sudo apt install -y "${pkgs[@]}"
