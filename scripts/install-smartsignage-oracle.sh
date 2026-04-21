@@ -49,6 +49,20 @@ pkg_upgrade() {
     fi
 }
 
+ensure_oracle_postgres_service() {
+    if ! is_oracle_linux; then
+        return 0
+    fi
+
+    # Oracle/RHEL usa data dir padrão em /var/lib/pgsql/data
+    if [[ ! -f "/var/lib/pgsql/data/PG_VERSION" ]] && command -v postgresql-setup >/dev/null 2>&1; then
+        sudo postgresql-setup --initdb >/dev/null 2>&1 || true
+    fi
+
+    sudo systemctl enable postgresql >/dev/null 2>&1 || true
+    sudo systemctl start postgresql >/dev/null 2>&1 || true
+}
+
 ensure_ffmpeg_oracle() {
     # 1) tentar dnf direto (caso repo já tenha ffmpeg)
     if sudo dnf -y install ffmpeg >/dev/null 2>&1; then
@@ -90,11 +104,14 @@ pkg_install() {
     if is_oracle_linux; then
         local out=()
         local optional_missing=("redhat-lsb-core" "htop")
+        local includes_postgres_server=false
         for p in "${pkgs[@]}"; do
             case "$p" in
                 apt-transport-https|software-properties-common|ufw) continue ;;
                 build-essential) out+=("gcc" "gcc-c++" "make") ;;
                 postgresql-client) out+=("postgresql") ;;
+                postgresql) out+=("postgresql" "postgresql-server") ; includes_postgres_server=true ;;
+                postgresql-[0-9]*) out+=("postgresql" "postgresql-server") ; includes_postgres_server=true ;;
                 postgresql-contrib) out+=("postgresql-contrib") ;;
                 lsb-release) continue ;;
                 python3-pip) out+=("python3-pip") ;;
@@ -132,6 +149,9 @@ pkg_install() {
                 echo "[oracle-compat] Erro: falha ao instalar pacotes obrigatórios: ${failed_required[*]}" >&2
                 return 1
             fi
+        fi
+        if [[ "$includes_postgres_server" == true ]]; then
+            ensure_oracle_postgres_service || true
         fi
     else
         sudo apt install -y "${pkgs[@]}"
@@ -195,7 +215,7 @@ firewall_cmd_compat() {
     return 0
 }
 
-if is_oracle_linux && ! command -v dpkg >/dev/null 2>&1; then
+if ! command -v dpkg >/dev/null 2>&1; then
     dpkg() {
         if [[ "${1:-}" == "-l" ]]; then
             rpm -qa --qf "ii %-40{NAME} %{VERSION}-%{RELEASE}\n"
@@ -239,6 +259,9 @@ text = text.replace("sudo ufw", "firewall_cmd_compat")
 
 # paths mais comuns no Oracle Linux
 text = text.replace("/var/lib/postgresql", "/var/lib/pgsql")
+text = text.replace("/var/lib/pgsql/${PG_VERSION}/main", "/var/lib/pgsql/data")
+text = text.replace("/var/lib/pgsql/${PG_VERSION}", "/var/lib/pgsql")
+text = text.replace("if command -v adduser &> /dev/null; then", "if command -v adduser &> /dev/null && ! is_oracle_linux; then")
 
 # referência textual de ajuda
 text = text.replace("sudo apt install -y python3 python3-pip", "sudo dnf install -y python3 python3-pip")
