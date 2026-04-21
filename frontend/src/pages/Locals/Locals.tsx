@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -71,6 +72,7 @@ import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 
 const Locals: React.FC = () => {
   const theme = useTheme();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAppSelector((state) => state.auth);
   const isAdmin = Boolean(
     (user?.isTenantUser ?? user?.is_tenant_user) ||
@@ -78,11 +80,10 @@ const Locals: React.FC = () => {
   );
   const canManageLocals = useMemo(() => {
     const role = user?.role || '';
-    if (isAdmin) return true;
-    return (
-      TOTEMDIGITAL_COMPACT &&
-      ['publisher_user', 'subscriber_user', 'gerente_marketing', 'manager', 'operator'].includes(role)
-    );
+    if (TOTEMDIGITAL_COMPACT) {
+      return ['owner_system', 'admin', 'admin_sql'].includes(role);
+    }
+    return isAdmin;
   }, [user?.role, isAdmin]);
   const userPublisherId = user?.publisherId;
 
@@ -122,10 +123,30 @@ const Locals: React.FC = () => {
 
   useEffect(() => {
     loadLocals();
-    if (canManageLocals) {
+    if (isAdmin && !TOTEMDIGITAL_COMPACT) {
       loadPublishers();
     }
-  }, [publisherFilter, activeOnlyFilter]);
+  }, [publisherFilter, activeOnlyFilter, isAdmin]);
+
+  const openCreateLocalDialog = useCallback(() => {
+    const pid = isAdmin
+      ? newLocal.publisher_id || userPublisherId || publishers[0]?.publisher_id || 0
+      : userPublisherId || publishers[0]?.publisher_id || 0;
+    setNewLocal((prev) => ({
+      ...prev,
+      publisher_id: pid,
+    }));
+    setCreateDialogOpen(true);
+  }, [isAdmin, newLocal.publisher_id, userPublisherId, publishers]);
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1') return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('create');
+    setSearchParams(next, { replace: true });
+    if (!canManageLocals) return;
+    openCreateLocalDialog();
+  }, [searchParams, setSearchParams, canManageLocals, openCreateLocalDialog]);
 
   const loadPublishers = async () => {
     try {
@@ -149,8 +170,11 @@ const Locals: React.FC = () => {
         limit: 100,
       });
       
-      // Ordenar por publisher_name e depois por name
+      // Em modo compacto há publisher único; ordenar apenas por nome.
       const sortedLocals = [...response.data].sort((a, b) => {
+        if (TOTEMDIGITAL_COMPACT) {
+          return (a.name || '').localeCompare(b.name || '');
+        }
         const publisherCompare = (a.publisher_name || '').localeCompare(b.publisher_name || '');
         if (publisherCompare !== 0) return publisherCompare;
         return (a.name || '').localeCompare(b.name || '');
@@ -183,24 +207,19 @@ const Locals: React.FC = () => {
     }
   };
 
-  const openCreateLocalDialog = () => {
-    const pid = isAdmin
-      ? newLocal.publisher_id || userPublisherId || publishers[0]?.publisher_id || 0
-      : userPublisherId || publishers[0]?.publisher_id || 0;
-    setNewLocal((prev) => ({
-      ...prev,
-      publisher_id: pid,
-    }));
-    setCreateDialogOpen(true);
-  };
-
   const handleCreateLocal = async () => {
     try {
       if (!TOTEMDIGITAL_COMPACT && !newLocal.publisher_id) {
         setError('Selecione um publisher');
         return;
       }
-      await localApi.create(newLocal);
+      const payload: CreateLocalRequest = TOTEMDIGITAL_COMPACT
+        ? {
+            ...newLocal,
+            publisher_id: undefined,
+          }
+        : newLocal;
+      await localApi.create(payload);
       setCreateDialogOpen(false);
       setNewLocal({
         publisher_id: userPublisherId || 0,
@@ -271,12 +290,12 @@ const Locals: React.FC = () => {
   const handleOpenDetailsDialog = async (local: Local) => {
     setSelectedLocal(local);
     setDetailsDialogOpen(true);
-    setDetailsTab(0);
+    setDetailsTab(TOTEMDIGITAL_COMPACT ? 0 : 1);
     setLoadingDetails(true);
     
     try {
       // Carregar dados do Publisher
-      if (local.publisher_id) {
+      if (!TOTEMDIGITAL_COMPACT && local.publisher_id) {
         try {
           const publisher = await publisherApi.getById(local.publisher_id);
           setSelectedPublisher(publisher);
@@ -338,6 +357,13 @@ const Locals: React.FC = () => {
     acc[publisherName].push(local);
     return acc;
   }, {} as Record<string, Local[]>);
+  const showPublisherFilter = isAdmin && !TOTEMDIGITAL_COMPACT;
+  const localSections: Array<[string, Local[]]> = TOTEMDIGITAL_COMPACT
+    ? [['Locais', locals]]
+    : Object.entries(groupedLocals);
+  const detailsTabIndex = TOTEMDIGITAL_COMPACT
+    ? { local: 0, totems: 1, smartTvs: 2, contracts: 3 }
+    : { publisher: 0, local: 1, totems: 2, smartTvs: 3, contracts: 4 };
 
   if (loading && locals.length === 0) {
     return (
@@ -356,7 +382,9 @@ const Locals: React.FC = () => {
             📍 Locais
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie locais vinculados aos Veículos de Mídia (Publicadores)
+            {TOTEMDIGITAL_COMPACT
+              ? 'Gerencie os locais da instalação'
+              : 'Gerencie locais vinculados aos Veículos de Mídia (Publicadores)'}
           </Typography>
         </Box>
         {canManageLocals && (
@@ -405,7 +433,7 @@ const Locals: React.FC = () => {
                 }}
               />
             </Grid>
-            {isAdmin && (
+            {showPublisherFilter && (
               <Grid item xs={12} md={3}>
                 <FormControl fullWidth>
                   <InputLabel>Publisher</InputLabel>
@@ -424,7 +452,7 @@ const Locals: React.FC = () => {
                 </FormControl>
               </Grid>
             )}
-            <Grid item xs={12} md={isAdmin ? 1.5 : 3}>
+            <Grid item xs={12} md={showPublisherFilter ? 1.5 : 3}>
               <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
                 <Select
@@ -437,7 +465,7 @@ const Locals: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={isAdmin ? 1.5 : 3}>
+            <Grid item xs={12} md={showPublisherFilter ? 1.5 : 3}>
               <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={loadLocals}>
                 Atualizar
               </Button>
@@ -446,16 +474,18 @@ const Locals: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Listagem (Card Grid) agrupada por Publisher */}
-      {Object.entries(groupedLocals).map(([publisherName, publisherLocals]) => (
+      {/* Listagem (modo compacto: lista plana; modo Pro: agrupada por Publisher) */}
+      {localSections.map(([publisherName, publisherLocals]) => (
         <Box key={publisherName} sx={{ mb: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-            <Business color="primary" />
-            <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
-              {publisherName}
-            </Typography>
-            <Chip label={`${publisherLocals.length} local(is)`} size="small" color="primary" variant="outlined" />
-          </Box>
+          {!TOTEMDIGITAL_COMPACT && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+              <Business color="primary" />
+              <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
+                {publisherName}
+              </Typography>
+              <Chip label={`${publisherLocals.length} local(is)`} size="small" color="primary" variant="outlined" />
+            </Box>
+          )}
 
           <Grid container spacing={3}>
             {publisherLocals.map((local) => {
@@ -555,12 +585,12 @@ const Locals: React.FC = () => {
         <DialogTitle>Criar Novo Local</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-            {!isAdmin && canManageLocals && TOTEMDIGITAL_COMPACT && (
+            {canManageLocals && TOTEMDIGITAL_COMPACT && (
               <Alert severity="info">
                 No modo compacto, o local será vinculado ao publisher da instalação (owner).
               </Alert>
             )}
-            {isAdmin && (
+            {isAdmin && !TOTEMDIGITAL_COMPACT && (
               <FormControl fullWidth>
                 <InputLabel>Publisher *</InputLabel>
                 <Select
@@ -677,7 +707,7 @@ const Locals: React.FC = () => {
           ) : (
             <>
               <Tabs value={detailsTab} onChange={(_, newValue) => setDetailsTab(newValue)} sx={{ mb: 2 }}>
-                <Tab label="Publisher" icon={<Business />} iconPosition="start" />
+                {!TOTEMDIGITAL_COMPACT && <Tab label="Publisher" icon={<Business />} iconPosition="start" />}
                 <Tab label="Local" icon={<Store />} iconPosition="start" />
                 <Tab label="Totens" icon={selectedTotems.length > 0 ? <Chip label={selectedTotems.length} size="small" color="primary" /> : <Computer />} iconPosition="end" />
                 <Tab label="Smart TVs" icon={selectedSmartTvs.length > 0 ? <Chip label={selectedSmartTvs.length} size="small" color="primary" /> : <Tv />} iconPosition="end" />
@@ -685,7 +715,7 @@ const Locals: React.FC = () => {
               </Tabs>
 
               {/* Aba Publisher */}
-              {detailsTab === 0 && selectedPublisher && (
+              {!TOTEMDIGITAL_COMPACT && detailsTab === detailsTabIndex.publisher && selectedPublisher && (
                 <TableContainer component={Paper}>
                   <Table size="small">
                     <TableBody>
@@ -727,7 +757,7 @@ const Locals: React.FC = () => {
               )}
 
               {/* Aba Local */}
-              {detailsTab === 1 && selectedLocal && (
+              {detailsTab === detailsTabIndex.local && selectedLocal && (
                 <TableContainer component={Paper}>
                   <Table size="small">
                     <TableBody>
@@ -805,7 +835,7 @@ const Locals: React.FC = () => {
               )}
 
               {/* Aba Totens */}
-              {detailsTab === 2 && (
+              {detailsTab === detailsTabIndex.totems && (
                 <Box>
                   {selectedTotems.length === 0 ? (
                     <Alert severity="info">Nenhum totem encontrado para este local</Alert>
@@ -860,7 +890,7 @@ const Locals: React.FC = () => {
               )}
 
               {/* Aba Smart TVs */}
-              {detailsTab === 3 && (
+              {detailsTab === detailsTabIndex.smartTvs && (
                 <Box>
                   {selectedSmartTvs.length === 0 ? (
                     <Alert severity="info">Nenhuma Smart TV encontrada para este local</Alert>
@@ -883,10 +913,14 @@ const Locals: React.FC = () => {
               )}
 
               {/* Aba Contratos */}
-              {detailsTab === 4 && (
+              {detailsTab === detailsTabIndex.contracts && (
                 <Box>
                   {selectedContracts.length === 0 ? (
-                    <Alert severity="info">Nenhum contrato encontrado para este publisher</Alert>
+                    <Alert severity="info">
+                      {TOTEMDIGITAL_COMPACT
+                        ? 'Nenhum contrato encontrado para esta instalação'
+                        : 'Nenhum contrato encontrado para este publisher'}
+                    </Alert>
                   ) : (
                     <List>
                       {selectedContracts.map((contract) => (

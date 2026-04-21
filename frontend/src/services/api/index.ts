@@ -1087,7 +1087,7 @@ export const authApi = {
   },
 
   changePassword: async (token: string, passwordData: { currentPassword: string; newPassword: string }): Promise<{ data: { success: boolean; message?: string } }> => {
-    const response = await api.put('/auth/change-password', passwordData, {
+    const response = await api.post('/auth/change-password', passwordData, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -3567,7 +3567,7 @@ export interface Local {
 }
 
 export interface CreateLocalRequest {
-  publisher_id: number; // Obrigatório: locais pertencem apenas a publishers
+  publisher_id?: number; // Opcional no modo compacto (resolvido pelo owner no backend)
   contract_id?: number; // Opcional: contrato que gerou a criação (rastreabilidade)
   name: string;
   category_segment?: string;

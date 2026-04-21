@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, useMemo } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline, Box, CircularProgress } from '@mui/material';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -12,6 +12,7 @@ import { useRateLimit } from './hooks/useRateLimit';
 import { useCommandPalette } from './hooks/useCommandPalette';
 import { useAppSelector } from './store/hooks';
 import { TOTEMDIGITAL_COMPACT } from './config/featureFlags';
+import { canAccess } from './utils/rolePermissions';
 
 // Pages
 import LoginPage from './pages/Auth/LoginPage';
@@ -147,6 +148,8 @@ const AppContent: React.FC = () => {
   };
 
   const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const location = useLocation();
+
     if (loading) {
       return (
         <Box
@@ -168,6 +171,14 @@ const AppContent: React.FC = () => {
 
     // Validar acesso por subdomínio
     const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const currentPath = location.pathname || '/';
+
+    if (user?.role && !canAccess(user.role, currentPath, user.flags)) {
+      if (currentPath === '/dashboard') {
+        return <Navigate to="/login" replace />;
+      }
+      return <Navigate to="/dashboard" replace />;
+    }
     
     if (!TOTEMDIGITAL_COMPACT && subdomainType === 'publisher') {
       // Publisher subdomain: apenas publisher_user ou admins
@@ -229,112 +240,7 @@ const AppContent: React.FC = () => {
     return <Layout>{children}</Layout>;
   };
 
-  if (TOTEMDIGITAL_COMPACT) {
-    return (
-      <Router
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
-        <Suspense
-          fallback={
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                minHeight: '100vh',
-              }}
-            >
-              <CircularProgress />
-            </Box>
-          }
-        >
-          <Routes>
-            <Route
-              path="/login"
-              element={
-                isAuthenticated ? (
-                  <Navigate to="/dashboard" />
-                ) : (
-                  <LoginPage onLoginSuccess={handleLoginSuccess} />
-                )
-              }
-            />
-            <Route
-              path="/forgot-password"
-              element={
-                isAuthenticated ? (
-                  <Navigate to="/dashboard" />
-                ) : (
-                  <ForgotPassword />
-                )
-              }
-            />
-            <Route
-              path="/reset-password"
-              element={
-                isAuthenticated ? (
-                  <Navigate to="/dashboard" />
-                ) : (
-                  <ResetPassword />
-                )
-              }
-            />
-
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route
-              path="/subscribers"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<CircularProgress />}>
-                    <Subscribers />
-                  </Suspense>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/plan-publisher-access"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<CircularProgress />}>
-                    <PlanPublisherAccess />
-                  </Suspense>
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/media" element={<ProtectedRoute><Media /></ProtectedRoute>} />
-            <Route path="/playlists" element={<ProtectedRoute><Playlists /></ProtectedRoute>} />
-            <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
-            <Route
-              path="/totems"
-              element={<ProtectedRoute><Totems /></ProtectedRoute>}
-            />
-            <Route
-              path="/totem-playlists"
-              element={<ProtectedRoute><TotemPlayList /></ProtectedRoute>}
-            />
-            <Route
-              path="/dispatcher-monitor"
-              element={<ProtectedRoute><DispatcherMonitor /></ProtectedRoute>}
-            />
-            <Route
-              path="/settings"
-              element={<ProtectedRoute><Settings /></ProtectedRoute>}
-            />
-            <Route path="/" element={<Navigate to="/dashboard" />} />
-            <Route path="*" element={<Navigate to="/dashboard" />} />
-          </Routes>
-        </Suspense>
-        <CommandPaletteWrapper
-          open={commandPalette.open}
-          onClose={commandPalette.closeDialog}
-        />
-      </Router>
-    );
-  }
-
+  // Um único Router para compact e Pro: evita rotas em falta (ex.: /locals) no modo compacto.
   return (
     <Router
       future={{

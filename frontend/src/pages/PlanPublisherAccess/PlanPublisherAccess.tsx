@@ -3,7 +3,7 @@
  * Página com abas para gerenciar Planos (CRUD) e Publishers associados
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
@@ -52,10 +52,12 @@ import {
   Star,
   StarBorder,
   Business,
+  Tv,
 } from '@mui/icons-material';
 import { planApi, Plan, CreatePlanRequest, UpdatePlanRequest } from '../../services/api';
 import { publisherApi, Publisher } from '../../services/api';
 import { subscriberAccessApi, PlanPublisherAccess } from '../../services/api';
+import { totemApi, Player } from '../../services/api';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 
 interface TabPanelProps {
@@ -71,6 +73,26 @@ function TabPanel(props: TabPanelProps) {
       {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
     </div>
   );
+}
+
+/** API /totems retorna publisherId (camelCase) a partir do local. */
+function getTotemPublisherId(t: Record<string, unknown>): number | undefined {
+  const v = (t.publisherId ?? t.publisher_id) as number | undefined;
+  return typeof v === 'number' && !Number.isNaN(v) ? v : undefined;
+}
+
+function formatTotemLabel(t: { totem_id: number; name?: string; identifier?: string; uin?: string }): string {
+  const parts = [t.name, t.identifier, t.uin].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : `Totem #${t.totem_id}`;
+}
+
+interface PlanAssociationEntry {
+  publisherId: number;
+  isAllowed: boolean;
+  restrictions?: any;
+  notes?: string;
+  /** Modo compact: totem usado na UI; persistência continua sendo publisher_id em plan_publisher_access */
+  displayLabel?: string;
 }
 
 const PlanPublisherAccessPage: React.FC = () => {
@@ -94,8 +116,15 @@ const PlanPublisherAccessPage: React.FC = () => {
   const [planEditMode, setPlanEditMode] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [planDialogTab, setPlanDialogTab] = useState(0); // Aba do dialog do plano (0: Dados, 1: Publishers)
-  const [planPublishers, setPlanPublishers] = useState<{ publisherId: number; isAllowed: boolean; restrictions?: any; notes?: string }[]>([]); // Publishers associados ao plano
-  const [selectedPublisherForPlan, setSelectedPublisherForPlan] = useState<string>(''); // Publisher selecionado para adicionar ao plano
+  const [planPublishers, setPlanPublishers] = useState<PlanAssociationEntry[]>([]);
+  const [selectedPublisherForPlan, setSelectedPublisherForPlan] = useState<string>('');
+  /** Modo compact: seleção por totem_id (lista vem de GET /api/totems) */
+  const [selectedTotemIdForPlan, setSelectedTotemIdForPlan] = useState<string>('');
+  const [totemsCatalog, setTotemsCatalog] = useState<Player[]>([]);
+  const totemsCatalogRef = useRef<Player[]>([]);
+  useEffect(() => {
+    totemsCatalogRef.current = totemsCatalog;
+  }, [totemsCatalog]);
   const [planFormData, setPlanFormData] = useState<CreatePlanRequest>({
     name: '',
     slug: '',
@@ -155,6 +184,18 @@ const PlanPublisherAccessPage: React.FC = () => {
 
       setPlans(plansRes || []);
       setPublishers(publishersRes.data || []);
+
+      if (TOTEMDIGITAL_COMPACT) {
+        try {
+          const totemRes = await totemApi.getAll({ limit: 2000, page: 1 });
+          setTotemsCatalog(totemRes.data || []);
+        } catch (e) {
+          console.error('Erro ao carregar totens para planos:', e);
+          setTotemsCatalog([]);
+        }
+      } else {
+        setTotemsCatalog([]);
+      }
     } catch (error: any) {
       console.error('Erro ao carregar dados:', error);
       setError(error?.response?.data?.error || 'Erro ao carregar dados');
@@ -211,12 +252,24 @@ const PlanPublisherAccessPage: React.FC = () => {
   const loadPlanPublishers = async (planId: number) => {
     try {
       const accessRes = await subscriberAccessApi.getPlanPublisherAccess({ planId });
-      const publishersData = accessRes.map(access => ({
-        publisherId: access.publisher_id,
-        isAllowed: access.is_allowed,
-        restrictions: access.restrictions,
-        notes: access.notes,
-      }));
+      const publishersData: PlanAssociationEntry[] = accessRes.map((access) => {
+        const base: PlanAssociationEntry = {
+          publisherId: access.publisher_id,
+          isAllowed: access.is_allowed,
+          restrictions: access.restrictions,
+          notes: access.notes,
+        };
+        if (TOTEMDIGITAL_COMPACT) {
+          const t = totemsCatalogRef.current.find(
+            (tt) => getTotemPublisherId(tt as Record<string, unknown>) === access.publisher_id
+          );
+          return {
+            ...base,
+            displayLabel: t ? formatTotemLabel(t) : access.publisher_name,
+          };
+        }
+        return base;
+      });
       setPlanPublishers(publishersData);
     } catch (error: any) {
       console.error('Erro ao carregar publishers do plano:', error);
@@ -227,6 +280,7 @@ const PlanPublisherAccessPage: React.FC = () => {
   const handleOpenPlanDialog = async (plan?: Plan) => {
     setPlanDialogTab(0); // Resetar para a primeira aba
     setSelectedPublisherForPlan('');
+    setSelectedTotemIdForPlan('');
     if (plan) {
       setPlanEditMode(true);
       setSelectedPlan(plan);
@@ -281,6 +335,7 @@ const PlanPublisherAccessPage: React.FC = () => {
     setPlanDialogTab(0);
     setPlanPublishers([]);
     setSelectedPublisherForPlan('');
+    setSelectedTotemIdForPlan('');
   };
 
   const generateSlug = (name: string): string => {
@@ -297,9 +352,36 @@ const PlanPublisherAccessPage: React.FC = () => {
   };
 
   const handleAddPublisherToPlan = () => {
+    if (TOTEMDIGITAL_COMPACT) {
+      if (!selectedTotemIdForPlan) return;
+      const totemId = parseInt(selectedTotemIdForPlan, 10);
+      const totem = totemsCatalog.find((t) => t.totem_id === totemId);
+      if (!totem) return;
+      const publisherId = getTotemPublisherId(totem as Record<string, unknown>);
+      if (publisherId == null) {
+        setError('Totem sem exibidor (publisher) associado. Verifique o local do totem.');
+        return;
+      }
+      if (planPublishers.some((p) => p.publisherId === publisherId)) {
+        setError('O exibidor deste totem já está associado ao plano (um vínculo por exibidor).');
+        return;
+      }
+      setPlanPublishers([
+        ...planPublishers,
+        {
+          publisherId,
+          isAllowed: true,
+          displayLabel: formatTotemLabel(totem),
+        },
+      ]);
+      setSelectedTotemIdForPlan('');
+      setError(null);
+      return;
+    }
+
     if (!selectedPublisherForPlan) return;
-    const publisherId = parseInt(selectedPublisherForPlan);
-    if (planPublishers.some(p => p.publisherId === publisherId)) {
+    const publisherId = parseInt(selectedPublisherForPlan, 10);
+    if (planPublishers.some((p) => p.publisherId === publisherId)) {
       setError('Este publisher já está associado ao plano');
       return;
     }
@@ -524,7 +606,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-          Planos e Publicadores
+          {TOTEMDIGITAL_COMPACT ? 'Planos' : 'Planos e Publicadores'}
         </Typography>
         <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
           Gerencie planos e configure quais publishers cada plano permite acessar
@@ -979,24 +1061,58 @@ const PlanPublisherAccessPage: React.FC = () => {
               
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>{addPublisherLabel}</Typography>
+                {TOTEMDIGITAL_COMPACT && (
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                    A lista vem dos totens cadastrados (GET /api/totems). O plano continua vinculado ao exibidor
+                    (publisher) do local do totem — o mesmo modelo de dados de antes.
+                  </Typography>
+                )}
+                {TOTEMDIGITAL_COMPACT && totemsCatalog.length === 0 && !loading && (
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    Nenhum totem encontrado. Cadastre totens em <strong>Totens</strong> e associe-os a um local.
+                  </Alert>
+                )}
                 <Grid container spacing={2} alignItems="center">
                   <Grid item xs={12} md={8}>
                     <FormControl fullWidth>
                       <InputLabel>{publisherEntityLabel}</InputLabel>
-                      <Select
-                        value={selectedPublisherForPlan}
-                        onChange={(e) => setSelectedPublisherForPlan(e.target.value)}
-                        label={publisherEntityLabel}
-                      >
-                        <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
-                        {publishers
-                          .filter(p => !planPublishers.some(pp => pp.publisherId === p.publisher_id))
-                          .map((publisher) => (
-                            <MenuItem key={publisher.publisher_id} value={publisher.publisher_id.toString()}>
-                              {publisher.name}
-                            </MenuItem>
-                          ))}
-                      </Select>
+                      {TOTEMDIGITAL_COMPACT ? (
+                        <Select
+                          value={selectedTotemIdForPlan}
+                          onChange={(e) => setSelectedTotemIdForPlan(e.target.value)}
+                          label={publisherEntityLabel}
+                        >
+                          <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
+                          {totemsCatalog
+                            .filter((t) => {
+                              const pid = getTotemPublisherId(t as Record<string, unknown>);
+                              return (
+                                pid != null &&
+                                !planPublishers.some((pp) => pp.publisherId === pid)
+                              );
+                            })
+                            .map((t) => (
+                              <MenuItem key={t.totem_id} value={String(t.totem_id)}>
+                                {formatTotemLabel(t)}
+                              </MenuItem>
+                            ))}
+                        </Select>
+                      ) : (
+                        <Select
+                          value={selectedPublisherForPlan}
+                          onChange={(e) => setSelectedPublisherForPlan(e.target.value)}
+                          label={publisherEntityLabel}
+                        >
+                          <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
+                          {publishers
+                            .filter((p) => !planPublishers.some((pp) => pp.publisherId === p.publisher_id))
+                            .map((publisher) => (
+                              <MenuItem key={publisher.publisher_id} value={publisher.publisher_id.toString()}>
+                                {publisher.name}
+                              </MenuItem>
+                            ))}
+                        </Select>
+                      )}
                     </FormControl>
                   </Grid>
                   <Grid item xs={12} md={4}>
@@ -1004,7 +1120,9 @@ const PlanPublisherAccessPage: React.FC = () => {
                       variant="contained"
                       startIcon={<Add />}
                       onClick={handleAddPublisherToPlan}
-                      disabled={!selectedPublisherForPlan}
+                      disabled={
+                        TOTEMDIGITAL_COMPACT ? !selectedTotemIdForPlan : !selectedPublisherForPlan
+                      }
                       fullWidth
                     >
                       Adicionar
@@ -1016,29 +1134,40 @@ const PlanPublisherAccessPage: React.FC = () => {
               {planPublishers.length > 0 ? (
                 <List>
                   {planPublishers.map((planPublisher) => {
-                    const publisher = publishers.find(p => p.publisher_id === planPublisher.publisherId);
+                    const publisher = publishers.find((p) => p.publisher_id === planPublisher.publisherId);
+                    const primaryLabel =
+                      TOTEMDIGITAL_COMPACT && planPublisher.displayLabel
+                        ? planPublisher.displayLabel
+                        : publisher?.name || `${publisherEntityLabel} ID: ${planPublisher.publisherId}`;
                     return (
                       <ListItem 
                         key={planPublisher.publisherId} 
                         sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}
                       >
-                        <ListItemIcon><Business /></ListItemIcon>
+                        <ListItemIcon>{TOTEMDIGITAL_COMPACT ? <Tv /> : <Business />}</ListItemIcon>
                         <ListItemText
-                          primary={publisher?.name || `${publisherEntityLabel} ID: ${planPublisher.publisherId}`}
+                          primary={primaryLabel}
                           secondary={
-                            <Box sx={{ mt: 1 }}>
-                              <Chip
-                                icon={planPublisher.isAllowed ? <CheckCircle /> : <Cancel />}
-                                label={planPublisher.isAllowed ? 'Acesso Permitido' : 'Acesso Bloqueado'}
-                                color={planPublisher.isAllowed ? 'success' : 'error'}
-                                size="small"
-                                sx={{ mr: 1 }}
-                              />
-                              {planPublisher.notes && (
-                                <Typography variant="caption" color="text.secondary">
-                                  {planPublisher.notes}
+                            <Box sx={{ mt: 0.5 }}>
+                              {TOTEMDIGITAL_COMPACT && publisher?.name && (
+                                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                                  Exibidor: {publisher.name}
                                 </Typography>
                               )}
+                              <Box sx={{ mt: 1 }}>
+                                <Chip
+                                  icon={planPublisher.isAllowed ? <CheckCircle /> : <Cancel />}
+                                  label={planPublisher.isAllowed ? 'Acesso Permitido' : 'Acesso Bloqueado'}
+                                  color={planPublisher.isAllowed ? 'success' : 'error'}
+                                  size="small"
+                                  sx={{ mr: 1 }}
+                                />
+                                {planPublisher.notes && (
+                                  <Typography variant="caption" color="text.secondary">
+                                    {planPublisher.notes}
+                                  </Typography>
+                                )}
+                              </Box>
                             </Box>
                           }
                         />

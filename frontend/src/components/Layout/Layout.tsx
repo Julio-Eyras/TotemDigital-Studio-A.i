@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Drawer,
@@ -62,7 +62,7 @@ import { setTheme } from '../../store/slices/uiSlice';
 import { useSystemAlerts } from '../../services/api/queries';
 import { useFlags } from '../../hooks/useFlags';
 import NotificationCenter from '../Notification/NotificationCenter';
-import { APP_DISPLAY_NAME } from '../../config/featureFlags';
+import { APP_DISPLAY_NAME, TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 
 const drawerWidth = 280;
 
@@ -94,7 +94,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [user, setUser] = useState<any>(null);
   const [alertsAnchorEl, setAlertsAnchorEl] = useState<null | HTMLElement>(null);
   const [openMenus, setOpenMenus] = useState<OpenMenusState>({});
-  const { data: alerts = [] } = useSystemAlerts(10);
+  const canReadAlerts = ['admin', 'admin_sql', 'owner_system'].includes(user?.role || '');
+  const { data: alerts = [] } = useSystemAlerts(10, canReadAlerts);
   const { flags } = useFlags(); // Hook para acessar flags do usuário
 
   useEffect(() => {
@@ -141,6 +142,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const menuItems = getMenuItems();
+  const compactOwnerDisplayName = useMemo(() => {
+    if (!TOTEMDIGITAL_COMPACT) return APP_DISPLAY_NAME;
+    if (user?.role !== 'owner_system') return APP_DISPLAY_NAME;
+
+    const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim();
+    return user?.name || fullName || user?.username || APP_DISPLAY_NAME;
+  }, [user]);
 
   const handleToggleMenu = (menuKey: string) => {
     setOpenMenus((prev) => ({
@@ -282,7 +290,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <Business sx={{ fontSize: 32 }} />
         </Avatar>
         <Typography variant="h6" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-          {APP_DISPLAY_NAME}
+          {compactOwnerDisplayName}
         </Typography>
         <Typography variant="caption" color="text.secondary">
           Sistema de Sinalização Digital

@@ -23,7 +23,7 @@ const isAdminRole = (role?: string) =>
 
 const getTotemCreateRoles = () =>
   TOTEMDIGITAL_COMPACT
-    ? ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user', 'subscriber_user', 'gerente_marketing', 'manager', 'operator']
+    ? ['admin', 'admin_sql', 'owner_system']
     : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user', 'subscriber_user', 'gerente_marketing'];
 
 const getTotemApproveRoles = () =>

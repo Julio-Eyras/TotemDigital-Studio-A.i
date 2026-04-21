@@ -33,6 +33,7 @@ import {
   ViewTimeline,
   BugReport,
   Traffic,
+  Add,
 } from '@mui/icons-material';
 import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
@@ -102,20 +103,20 @@ export const getMenuHierarchyByRole = (
   userFlags?: UserFlags | null
 ): HierarchicalMenuItem[] => {
   if (TOTEMDIGITAL_COMPACT) {
-    return getSystemAdminMenu();
+    return getSystemAdminMenu(role);
   }
 
   let menu: HierarchicalMenuItem[] = [];
   
   switch (role) {
     case 'owner_system':
-      menu = getSystemAdminMenu();
+      menu = getSystemAdminMenu(role);
       break;
     case 'admin_sql':
-      menu = getSystemAdminMenu();
+      menu = getSystemAdminMenu(role);
       break;
     case 'admin':
-      menu = getSystemAdminMenu();
+      menu = getSystemAdminMenu(role);
       break;
     case 'operador_tecnico':
       menu = getOperadorTecnicoMenu();
@@ -166,14 +167,38 @@ export const getMenuHierarchyByRole = (
  * Terminologia:
  * - "Exibidores" substitui "Veículos de Mídia" na interface
  */
-function getSystemAdminMenu(): HierarchicalMenuItem[] {
+function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
   if (TOTEMDIGITAL_COMPACT) {
+    const isCompactSysAdmin = ['owner_system', 'admin', 'admin_sql'].includes(String(role || ''));
+    const locaisItem: HierarchicalMenuItem = isCompactSysAdmin
+      ? {
+          text: 'Locais',
+          icon: <LocationOn />,
+          path: '/locals',
+          children: [
+            { text: 'Listar locais', icon: <LocationOn />, path: '/locals' },
+            { text: 'Adicionar local', icon: <Add />, path: '/locals?create=1' },
+          ],
+        }
+      : { text: 'Locais', icon: <LocationOn />, path: '/locals' };
+    const totensItem: HierarchicalMenuItem = isCompactSysAdmin
+      ? {
+          text: 'Totens',
+          icon: <Computer />,
+          path: '/totems',
+          children: [
+            { text: 'Listar totens', icon: <Computer />, path: '/totems' },
+            { text: 'Adicionar totem', icon: <Add />, path: '/totems?create=1' },
+          ],
+        }
+      : { text: 'Totens', icon: <Computer />, path: '/totems' };
+
     return [
       { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
       { text: 'Assinantes', icon: <People />, path: '/subscribers' },
       { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
-      { text: 'Locais', icon: <LocationOn />, path: '/locals' },
-      { text: 'Totens', icon: <Computer />, path: '/totems' },
+      locaisItem,
+      totensItem,
       { text: 'Playlists por Totem', icon: <QueueMusic />, path: '/totem-playlists' },
       { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
       { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -55,6 +56,7 @@ const Totems: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
   const theme = useTheme();
   const breadcrumbs = useBreadcrumbs();
+  const [searchParams, setSearchParams] = useSearchParams();
   const canAdministerTotems = useMemo(() => {
     const role = user?.role || '';
     if (['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'].includes(role)) {
@@ -65,11 +67,13 @@ const Totems: React.FC = () => {
   }, [user?.role]);
   const canCreateTotem = useMemo(() => {
     const role = user?.role || '';
+    if (TOTEMDIGITAL_COMPACT) {
+      return ['owner_system', 'admin', 'admin_sql'].includes(role);
+    }
     if (['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user'].includes(role)) {
       return true;
     }
-    // No compacto, liberar criação no fluxo operacional; ownership é validado no backend.
-    return TOTEMDIGITAL_COMPACT && ['subscriber_user', 'gerente_marketing', 'manager', 'operator'].includes(role);
+    return false;
   }, [user?.role]);
   const userPublisherId = user?.publisherId;
 
@@ -104,6 +108,19 @@ const Totems: React.FC = () => {
     loadAll();
     loadLocals();
   }, []);
+
+  const openCreateTotemDialog = useCallback(() => {
+    setCreateOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1') return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('create');
+    setSearchParams(next, { replace: true });
+    if (!canCreateTotem) return;
+    openCreateTotemDialog();
+  }, [searchParams, setSearchParams, canCreateTotem, openCreateTotemDialog]);
 
   const loadLocals = async () => {
     try {
@@ -277,13 +294,17 @@ const Totems: React.FC = () => {
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
       <PageHeader
         title="Totens"
-        subtitle="Gerencie totens, aprovações e controle remoto"
+        subtitle={
+          TOTEMDIGITAL_COMPACT
+            ? 'Gerencie totens da instalação'
+            : 'Gerencie totens, aprovações e controle remoto'
+        }
         breadcrumbs={breadcrumbs}
         actions={[
           ...(canCreateTotem ? [{
             label: 'Adicionar Totem',
             icon: <Add />,
-            onClick: () => setCreateOpen(true),
+            onClick: () => openCreateTotemDialog(),
             variant: 'contained' as const,
           }] : []),
         ]}

@@ -172,7 +172,7 @@ export const authApi = {
   },
 
   changePassword: async (token: string, passwordData: ChangePasswordRequest) => {
-    const response = await api.put('/auth/change-password', passwordData, {
+    const response = await api.post('/auth/change-password', passwordData, {
       headers: { Authorization: `Bearer ${token}` }
     });
     return response;

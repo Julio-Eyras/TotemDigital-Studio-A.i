@@ -35,7 +35,7 @@ import {
   Build,
   Security
 } from '@mui/icons-material';
-import { settingsApi, SystemSetting, logsApi, LogRotationConfig, LogFileInfo, DiskSpaceInfo, RotationStatus } from '../../services/api';
+import { settingsApi, SystemSetting, logsApi, LogRotationConfig, LogFileInfo, DiskSpaceInfo, RotationStatus, authApi } from '../../services/api';
 import TwoFactor from './TwoFactor';
 
 interface TabPanelProps {
@@ -76,6 +76,13 @@ const Settings: React.FC = () => {
   
   // Media config
   const [applyingMediaConfig, setApplyingMediaConfig] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
 
   useEffect(() => {
     loadSettings();
@@ -252,6 +259,55 @@ const Settings: React.FC = () => {
     }
   };
 
+  const handlePasswordFieldChange = (field: keyof typeof passwordForm, value: string) => {
+    setPasswordForm((prev) => ({ ...prev, [field]: value }));
+    if (error) setError(null);
+    if (passwordSuccess) setPasswordSuccess(null);
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      setError(null);
+      setPasswordSuccess(null);
+
+      if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+        setError('Preencha todos os campos de senha.');
+        return;
+      }
+      if (passwordForm.newPassword.length < 6) {
+        setError('A nova senha deve ter pelo menos 6 caracteres.');
+        return;
+      }
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        setError('A confirmação da nova senha não confere.');
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Sessão inválida. Faça login novamente.');
+        return;
+      }
+
+      setChangingPassword(true);
+      await authApi.changePassword(token, {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+
+      setPasswordSuccess('Senha alterada com sucesso.');
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    } catch (e: any) {
+      setError(e?.response?.data?.error || e?.response?.data?.message || 'Erro ao alterar senha.');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: 4 }}>
@@ -275,6 +331,7 @@ const Settings: React.FC = () => {
           <Tab label="Logs" icon={<Storage />} iconPosition="start" />
           <Tab label="Mídias" icon={<VideoLibrary />} iconPosition="start" />
           <Tab label="2FA" icon={<Security />} iconPosition="start" />
+          <Tab label="Senha" icon={<Security />} iconPosition="start" />
         </Tabs>
       </Paper>
 
@@ -574,6 +631,60 @@ const Settings: React.FC = () => {
 
       <TabPanel value={tabValue} index={3}>
         <TwoFactor />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={4}>
+        {passwordSuccess && (
+          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setPasswordSuccess(null)}>
+            {passwordSuccess}
+          </Alert>
+        )}
+        <Card>
+          <CardContent>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+              Alterar senha
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  type="password"
+                  label="Senha atual"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => handlePasswordFieldChange('currentPassword', e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  type="password"
+                  label="Nova senha"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => handlePasswordFieldChange('newPassword', e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  type="password"
+                  label="Confirmar nova senha"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => handlePasswordFieldChange('confirmPassword', e.target.value)}
+                />
+              </Grid>
+            </Grid>
+            <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+              <Button
+                variant="contained"
+                startIcon={changingPassword ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                disabled={changingPassword}
+                onClick={handleChangePassword}
+              >
+                {changingPassword ? 'Salvando...' : 'Atualizar senha'}
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
       </TabPanel>
     </Box>
   );

@@ -443,10 +443,11 @@ export const useResumeSubscription = () => {
 // ALERTS QUERIES
 // =============================================
 
-export const useSystemAlerts = (limit: number = 20) => {
+export const useSystemAlerts = (limit: number = 20, enabled: boolean = true) => {
   return useQuery<SystemAlert[]>({
     queryKey: ['alerts', 'active', limit],
     queryFn: () => alertsApi.getActive(limit),
+    enabled,
     // Evitar spam/429 em ambiente local (rate limit) + evitar retry automático
     retry: false,
     refetchInterval: 60 * 1000, // 60 segundos

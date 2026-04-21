@@ -25,15 +25,18 @@ END $$;
 
 -- =============================================
 -- 1 PUBLISHER: totem digital (cidade Encruzilhada)
+-- Obrigatório antes de publisher_contracts (FK fk_publisher_contracts_publisher).
+-- prepare_seed_with_owner_profile (install) substitui totemdigital.* / Totem Digital / Encruzilhada.
 -- =============================================
 INSERT INTO publishers (publisher_id, name, contact_name, email, phone, whatsapp, category_segment, description, is_subscriber, is_publisher, client_type, is_active) VALUES
-(1, 'totem digital', 'Contato Totem Digital', 'contato@totemdigital.local', NULL, NULL, 'Totens', 'Publisher Totem Digital - Encruzilhada', false, true, 'publisher', true);
+(1, 'totem digital', 'Contato Totem Digital', 'contato@totemdigital.local', NULL, NULL, 'Totens', 'Publisher Totem Digital - Encruzilhada', false, true, 'publisher', true)
+ON CONFLICT (publisher_id) DO NOTHING;
 
 -- =============================================
 -- 1 SUBSCRIBER (assinante com contrato no plano do publisher)
 -- =============================================
-INSERT INTO subscribers (subscriber_id, name, contact_name, email, phone, whatsapp, address, category_segment, description, is_active) VALUES
-(1, 'Assinante Demo', 'Contato Demo', 'assinante@demo.local', NULL, NULL, 'Encruzilhada', 'Demo', 'Assinante de demonstração', true);
+--INSERT INTO subscribers (subscriber_id, name, contact_name, email, phone, whatsapp, address, category_segment, description, is_active) VALUES
+--(1, 'Assinante Demo', 'Contato Demo', 'assinante@demo.local', NULL, NULL, 'Encruzilhada', 'Demo', 'Assinante de demonstração', true);
 
 -- =============================================
 -- ROLES, PERMISSIONS, PLANS, SYSTEM_SETTINGS
@@ -62,12 +65,12 @@ INSERT INTO permissions (permission_id, name, resource, action, description) VAL
 ON CONFLICT DO NOTHING;
 
 -- Plano atrelado ao publisher "totem digital"
-INSERT INTO plans (plan_id, name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order) VALUES
-(1, 'Plano Totem Digital', 'plano-totem-digital', 'Plano para assinantes do publisher Totem Digital', 199.00, 1990.00, 'BRL', 'month', '{"campaigns":20,"storage_gb":50}'::jsonb, '{"totems":10,"campaigns":20,"storage_gb":50}'::jsonb, true, true, true, 1)
-ON CONFLICT (slug) DO NOTHING;
+--INSERT INTO plans (plan_id, name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order) VALUES
+--(1, 'Plano Totem Digital', 'plano-totem-digital', 'Plano para assinantes do publisher Totem Digital', 199.00, 1990.00, 'BRL', 'month', '{"campaigns":20,"storage_gb":50}'::jsonb, '{"totems":10,"campaigns":20,"storage_gb":50}'::jsonb, true, true, true, 1)
+--ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description) VALUES
-('app.name', 'SmartSignage Pro', 'string', 'system', 'Nome da aplicação'),
+('app.name', 'SmartSignage', 'string', 'system', 'Nome da aplicação'),
 ('app.version', '2.0.0', 'string', 'system', 'Versão'),
 ('dispatcher.cache_ttl_seconds', '300', 'number', 'dispatcher', 'TTL cache dispatcher'),
 ('dispatcher.cache_enabled', 'true', 'boolean', 'dispatcher', 'Cache dispatcher'),
@@ -76,17 +79,17 @@ ON CONFLICT (setting_key) DO NOTHING;
 
 -- =============================================
 -- USERS: admin + usuário publisher + usuário subscriber
+-- OBS: username "totemdigital.admin" é placeholder dinâmico e será substituído no install
+--      por SYSTEM_OWNER_ADMIN_USERNAME (scripts/install-smartsignage.sh).
 -- =============================================
-INSERT INTO users (id, username, email, password_hash, first_name, last_name, name, phone, role, user_type, is_tenant_user, publisher_id, subscriber_id, is_active, email_verified) VALUES
-(1, 'admin', 'admin@smartsignage.local', '$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2', 'Admin', 'Sistema', 'Admin Sistema', NULL, 'admin', 'system_user', true, NULL, NULL, true, true),
-(2, 'totemdigital.admin', 'contato@totemdigital.local', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Admin', 'Totem Digital', 'Admin Totem Digital', NULL, 'publisher_user', 'publisher_user', false, 1, NULL, true, true),
-(3, 'assinante.demo', 'assinante@demo.local', '$2a$12$MpO5mGy6mXdtmvKiv14QYOyuF.5TI72E.iS8oTRaCcAi8JQ3i7r8y', 'Assinante', 'Demo', 'Assinante Demo', NULL, 'subscriber_user', 'subscriber_user', false, NULL, 1, true, true)
+INSERT INTO users (username, email, password_hash, first_name, last_name, name, phone, role, user_type, is_tenant_user, publisher_id, subscriber_id, is_active, email_verified) VALUES
+('totemdigital.admin', 'admin@smartsignage.local', '$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2', 'Admin', 'Sistema', 'Admin Sistema', NULL, 'admin', 'system_user', true, NULL, NULL, true, true)
+
 ON CONFLICT (username) DO NOTHING;
 
 INSERT INTO user_flags (user_id, flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4, flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9) VALUES
-(1, true, true, true, true, true, true, true, true, true, true),
-(2, true, false, false, true, false, true, true, false, true, false),
-(3, false, false, false, false, false, false, true, false, false, true)
+((SELECT id FROM users WHERE username = 'totemdigital.admin'), true, true, true, true, true, true, true, true, true, true)
+
 ON CONFLICT (user_id) DO UPDATE SET
   flag_smart_0 = EXCLUDED.flag_smart_0, flag_smart_1 = EXCLUDED.flag_smart_1, flag_smart_2 = EXCLUDED.flag_smart_2,
   flag_smart_3 = EXCLUDED.flag_smart_3, flag_smart_4 = EXCLUDED.flag_smart_4, flag_smart_5 = EXCLUDED.flag_smart_5,
@@ -100,42 +103,38 @@ INSERT INTO role_flags_default (role, flag_smart_0, flag_smart_1, flag_smart_2, 
 ON CONFLICT (role) DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id, assigned_by) VALUES
-(1, 1, 1),
-(2, 4, 1),
-(3, 5, 1)
+((SELECT id FROM users WHERE username = 'totemdigital.admin'), 1, (SELECT id FROM users WHERE username = 'totemdigital.admin'))
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_id) VALUES
 (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10),
 (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9), (2, 10),
-(3, 1), (3, 2), (3, 3), (3, 4), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9), (3, 10),
-(4, 2), (4, 6), (4, 9),
-(5, 2), (5, 5), (5, 6)
+(3, 1), (3, 2), (3, 3), (3, 4), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9), (3, 10)
+
 ON CONFLICT DO NOTHING;
 
 -- =============================================
 -- 3 LOCAIS do publisher owner (modo compacto: um publisher; vários locais como no Pro)
 -- =============================================
-INSERT INTO locals (local_id, publisher_id, name, category_segment, address, city, state, zip_code, country, timezone, description, is_active) VALUES
-(1, 1, 'academia', 'Academia', NULL, 'encruzilhada', NULL, NULL, 'BR', 'America/Sao_Paulo', 'Local Academia - Encruzilhada', true),
-(2, 1, 'moveis', 'Móveis', NULL, 'encruzilhada', NULL, NULL, 'BR', 'America/Sao_Paulo', 'Local Móveis - Encruzilhada', true),
-(3, 1, 'super', 'Supermercado', NULL, 'pantano', NULL, NULL, 'BR', 'America/Sao_Paulo', 'Local Super - Pantano', true);
+--INSERT INTO locals (local_id, publisher_id, name, category_segment, address, city, state, zip_code, country, timezone, description, is_active) VALUES
+--(1, 1, 'academia', 'Academia', NULL, 'encruzilhada', NULL, NULL, 'BR', 'America/Sao_Paulo', 'Local Academia - Encruzilhada', true)
+
 
 -- =============================================
 -- 1 TOTEM: identifier=tot001, UIN=tot001 (ex.: local academia)
 -- =============================================
-INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, name, description, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active) VALUES
-(1, 'tot001', 'tot001', 'tot001', 1, 'Totem Digital 001', 'Totem principal - Academia Encruzilhada', 'online', NOW() - INTERVAL '2 minutes', 60, '{"ip": "192.168.1.10"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true);
+--INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, name, description, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active) VALUES
+--(1, 'tot001', 'tot001', 'tot001', 1, 'Totem Digital 001', 'Totem principal - Academia Encruzilhada', 'online', NOW() - INTERVAL '2 minutes', 60, '{"ip": "192.168.1.10"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true);
 
 -- =============================================
 -- CONTRATO DO SUBSCRIBER (plano Plano Totem Digital)
 -- =============================================
-INSERT INTO subscriber_contracts (
-    contract_id, subscriber_id, plan_id, contract_number, contract_type, title, description,
-    start_date, end_date, total_amount, currency, payment_terms, status,
-    signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata, is_active
-) VALUES
-(1, 1, 1, 'SUB-1.000001', 'advertising', 'Contrato Assinante Demo', 'Contrato no Plano Totem Digital', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 2388.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '7 days', NOW() - INTERVAL '7 days', 1, '{}'::jsonb, true);
+--INSERT INTO subscriber_contracts (
+--    contract_id, subscriber_id, plan_id, contract_number, contract_type, title, description,
+--    start_date, end_date, total_amount, currency, payment_terms, status,
+--    signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata, is_active
+--) VALUES
+--(1, 1, 1, 'SUB-1.000001', 'advertising', 'Contrato Assinante Demo', 'Contrato no Plano Totem Digital', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 2388.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '7 days', NOW() - INTERVAL '7 days', 1, '{}'::jsonb, true);
 
 -- Contrato do publisher (opcional - rastreabilidade)
 INSERT INTO publisher_contracts (
@@ -143,19 +142,20 @@ INSERT INTO publisher_contracts (
     start_date, revenue_share_percentage, revenue_share_rules, minimum_payout_amount,
     currency, payment_terms, status, signed_by_publisher_at, signed_by_tenant_at, created_by, metadata, is_active
 ) VALUES
-(1, 1, 'PUB-1.000001', 'revenue_share', 'Contrato Totem Digital', 'Contrato publisher Totem Digital', CURRENT_DATE, 70.00, '{}'::jsonb, 200.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', 1, '{}'::jsonb, true);
+(1, 1, 'PUB-1.000001', 'revenue_share', 'Contrato ', 'Contrato publisher Totem Digital', CURRENT_DATE, 70.00, '{}'::jsonb, 200.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', (SELECT id FROM users WHERE username = 'totemdigital.admin'), '{}'::jsonb, true)
+ON CONFLICT (publisher_id, contract_number) DO NOTHING;
 
 -- =============================================
 -- PLAN_PUBLISHER_ACCESS: plano 1 (Plano Totem Digital) atrelado ao publisher 1 (totem digital)
 -- =============================================
-INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictions, notes, is_active) VALUES
-(1, 1, true, '{}'::jsonb, 'Plano Totem Digital - acesso aos totens do publisher totem digital', true);
+--INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictions, notes, is_active) VALUES
+--(1, 1, true, '{}'::jsonb, 'Plano Totem Digital - acesso aos totens do publisher totem digital', true);
 
 -- =============================================
 -- SUBSCRIBER_PUBLISHER_ACCESS: assinante 1 com acesso ao publisher 1 via contrato/plano
 -- =============================================
-INSERT INTO subscriber_publisher_access (access_id, subscriber_id, publisher_id, contract_id, plan_id, access_type, granted_at, expires_at, is_active, granted_by, notes, metadata) VALUES
-(1, 1, 1, 1, 1, 'contract', NOW() - INTERVAL '7 days', CURRENT_DATE + INTERVAL '1 year', true, 1, 'Acesso Assinante Demo ao publisher Totem Digital (Plano Totem Digital)', '{}'::jsonb);
+--INSERT INTO subscriber_publisher_access (access_id, subscriber_id, publisher_id, contract_id, plan_id, access_type, granted_at, expires_at, is_active, granted_by, notes, metadata) VALUES
+--(1, 1, 1, 1, 1, 'contract', NOW() - INTERVAL '7 days', CURRENT_DATE + INTERVAL '1 year', true, 1, 'Acesso Assinante Demo ao publisher Totem Digital (Plano Totem Digital)', '{}'::jsonb);
 
 -- =============================================
 -- Migração de paths de mídia (idempotente; sem mídias nesta carga)

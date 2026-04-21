@@ -7638,15 +7638,27 @@ EOF
         local _db_host="${DB_HOST:-127.0.0.1}"
         local _db_port="${DB_PORT:-5432}"
         local _db_password="${DB_PASSWORD:-}"
+        # Utilizador UNIX do cluster PostgreSQL (nunca confundir com DB_USER / variável POSTGRES_USER do Docker)
+        local _pg_unix="${POSTGRES_SYSTEM_USER:-postgres}"
 
-        # Priorizar credenciais da instalação persistidas no .env (quando disponível)
-        if [[ -f "$INSTALL_DIR/.env" ]]; then
-            # head -1 + cut -f2- evita valor quebrado; tr -d '\r' evita CRLF; trim seguro sem xargs na senha
-            _db_name=$(grep "^DB_NAME=" "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-            _db_user=$(grep "^DB_USER=" "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-            _db_host=$(grep "^DB_HOST=" "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-            _db_port=$(grep "^DB_PORT=" "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-            _db_password=$(grep "^DB_PASSWORD=" "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r')
+        # .env: INSTALL_DIR (repo), deploy em /opt/smart-signage, ou cwd (instalação a partir do clone)
+        local _env_file=""
+        for cand in "$INSTALL_DIR/.env" "/opt/smart-signage/.env" "$(pwd)/.env"; do
+            [[ -z "$cand" ]] && continue
+            if [[ -f "$cand" ]]; then
+                _env_file="$cand"
+                break
+            fi
+        done
+        if [[ -n "$_env_file" ]]; then
+            log "Lendo DB_* de: $_env_file"
+            # head -1 + cut -f2-; remover comentário estilo shell (#...) no fim do valor
+            # Com pipefail, grep sem match (exit 1) não pode derrubar o script — usar || true no pipeline
+            _db_name=$(grep "^DB_NAME=" "$_env_file" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' | sed -e 's/#.*$//' -e 's/^["'\'']//' -e 's/["'\'']$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' || true)
+            _db_user=$(grep "^DB_USER=" "$_env_file" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' | sed -e 's/#.*$//' -e 's/^["'\'']//' -e 's/["'\'']$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' || true)
+            _db_host=$(grep "^DB_HOST=" "$_env_file" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' | sed -e 's/#.*$//' -e 's/^["'\'']//' -e 's/["'\'']$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' || true)
+            _db_port=$(grep "^DB_PORT=" "$_env_file" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' | sed -e 's/#.*$//' -e 's/^["'\'']//' -e 's/["'\'']$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' || true)
+            _db_password=$(grep "^DB_PASSWORD=" "$_env_file" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r' || true)
             [[ -z "$_db_name" ]] && _db_name="${DB_NAME:-smartsignage}"
             [[ -z "$_db_user" ]] && _db_user="${DB_USER:-smartsignage}"
             [[ -z "$_db_host" ]] && _db_host="${DB_HOST:-127.0.0.1}"
@@ -7661,45 +7673,45 @@ EOF
         fi
         _db_exists=$(echo "$_db_exists" | tr -d '[:space:]')
 
-        # Fallback por peer auth (postgres), útil quando DB_PASSWORD diverge do padrão.
+        # Fallback por peer auth (utilizador UNIX do cluster — nunca ${POSTGRES_USER} do Docker)
         if [[ "$_db_exists" != "t" ]]; then
-            _db_exists=$(sudo -u "${POSTGRES_USER:-postgres}" psql -d postgres -tAc "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$_db_name');" 2>/dev/null | tr -d '[:space:]' || true)
+            _db_exists=$(sudo -u "$_pg_unix" psql -d postgres -tAc "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$_db_name');" 2>/dev/null | tr -d '[:space:]' || true)
         fi
 
-        # Cluster PostgreSQL no mesmo host (socket): criar role + DB se TCP (.env com IP LAN, etc.) ainda não vê o banco.
-        # Não depender de DB_HOST=127.0.0.1 — muitos .env usam o IP da máquina (ex.: 192.168.x.x).
+        # Cluster no mesmo host (socket): criar role + DB se TCP ainda não confirmou
         if [[ "$_db_exists" != "t" ]]; then
-            local _pg_sys="${POSTGRES_SYSTEM_USER:-postgres}"
-            if sudo -u "$_pg_sys" psql -d postgres -c "SELECT 1" >/dev/null 2>&1; then
-                log "Banco '$_db_name' ainda não confirmado; tentando CREATE ROLE/DATABASE via sudo -u ${_pg_sys} (cluster local, ignorando DB_HOST=${_db_host:-?})..."
-                if ! sudo -u "$_pg_sys" psql -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$_db_user'" 2>/dev/null | grep -q 1; then
+            if sudo -u "$_pg_unix" psql -d postgres -c "SELECT 1" >/dev/null 2>&1; then
+                log "Banco '$_db_name' ainda não confirmado; tentando CREATE ROLE/DATABASE via sudo -u ${_pg_unix} (socket local; DB_HOST=${_db_host:-?})..."
+                if ! sudo -u "$_pg_unix" psql -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$_db_user'" 2>/dev/null | grep -q 1; then
                     if [[ -n "$_db_password" ]]; then
                         local _pw_esc="${_db_password//\'/\'\'}"
-                        sudo -u "$_pg_sys" psql -d postgres -c "CREATE USER \"$_db_user\" WITH PASSWORD '${_pw_esc}' CREATEDB CREATEROLE;" 2>/tmp/ss-create-user.log || true
+                        sudo -u "$_pg_unix" psql -d postgres -c "CREATE USER \"$_db_user\" WITH PASSWORD '${_pw_esc}' CREATEDB CREATEROLE;" 2>/tmp/ss-create-user.log || true
                     else
-                        sudo -u "$_pg_sys" psql -d postgres -c "CREATE USER \"$_db_user\" CREATEDB CREATEROLE;" 2>/tmp/ss-create-user.log || true
+                        sudo -u "$_pg_unix" psql -d postgres -c "CREATE USER \"$_db_user\" CREATEDB CREATEROLE;" 2>/tmp/ss-create-user.log || true
                     fi
                 elif [[ -n "$_db_password" ]]; then
                     local _pw_esc="${_db_password//\'/\'\'}"
-                    sudo -u "$_pg_sys" psql -d postgres -c "ALTER USER \"$_db_user\" WITH PASSWORD '${_pw_esc}';" 2>/dev/null || true
+                    sudo -u "$_pg_unix" psql -d postgres -c "ALTER USER \"$_db_user\" WITH PASSWORD '${_pw_esc}';" 2>/dev/null || true
                 fi
-                if sudo -u "$_pg_sys" psql -d postgres -c "CREATE DATABASE \"$_db_name\" OWNER \"$_db_user\";" 2>/tmp/ss-create-db.log; then
+                if sudo -u "$_pg_unix" psql -d postgres -c "CREATE DATABASE \"$_db_name\" OWNER \"$_db_user\";" 2>/tmp/ss-create-db.log; then
                     _db_exists=t
                     log "✅ Banco '$_db_name' criado (OWNER $_db_user)."
                 fi
                 if [[ "$_db_exists" != "t" ]]; then
-                    _db_exists=$(sudo -u "$_pg_sys" psql -d postgres -tAc "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$_db_name');" 2>/dev/null | tr -d '[:space:]' || true)
+                    _db_exists=$(sudo -u "$_pg_unix" psql -d postgres -tAc "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$_db_name');" 2>/dev/null | tr -d '[:space:]' || true)
                 fi
             else
-                warn "⚠️  Cluster PostgreSQL local (sudo -u ${_pg_sys}) inacessível — não é possível criar o banco automaticamente."
+                warn "⚠️  Cluster PostgreSQL local (sudo -u ${_pg_unix}) inacessível — não é possível criar o banco automaticamente."
             fi
         fi
 
         if [[ "$_db_exists" != "t" ]]; then
             error "❌ Banco de dados '$_db_name' não encontrado (ou sem credenciais de acesso)."
-            error "   Confirme DB_* em $INSTALL_DIR/.env (logs: /tmp/ss-create-db.log, /tmp/ss-create-user.log)."
-            [[ -f /tmp/ss-create-db.log ]] && error "   Último erro CREATE DATABASE: $(head -3 /tmp/ss-create-db.log | tr '\n' ' ')"
-            error "   Alternativa: executar setup_first_boot ou criar manualmente o banco e o utilizador PostgreSQL."
+            error "   Confirme DB_* no .env (tentado: ${_env_file:-$INSTALL_DIR/.env}) — logs: /tmp/ss-create-db.log, /tmp/ss-create-user.log"
+            if [[ -f /tmp/ss-create-db.log ]]; then
+                error "   Último erro CREATE DATABASE: $(head -3 /tmp/ss-create-db.log 2>/dev/null | tr '\n' ' ')"
+            fi
+            error "   Alternativa: executar setup_first_boot ou: sudo -u ${_pg_unix} createuser/createdb manualmente."
             exit 1
         fi
         
