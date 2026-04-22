@@ -263,6 +263,7 @@ text = text.replace("/var/lib/postgresql", "/var/lib/pgsql")
 text = text.replace("/var/lib/pgsql/${PG_VERSION}/main", "/var/lib/pgsql/data")
 text = text.replace("/var/lib/pgsql/${PG_VERSION}", "/var/lib/pgsql")
 text = text.replace("if command -v adduser &> /dev/null; then", "if command -v adduser &> /dev/null && ! is_oracle_linux; then")
+text = text.replace("    manage_demo_seed_strategy", "    manage_demo_seed_strategy || warn \"⚠️  manage_demo_seed_strategy falhou (compat Oracle). Continuando...\"")
 
 # Redis: pacote/serviço em Oracle Linux é "redis" (não redis-server)
 text = text.replace("sudo systemctl enable redis-server", "sudo systemctl enable redis")
