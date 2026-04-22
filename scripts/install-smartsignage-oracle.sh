@@ -109,6 +109,7 @@ pkg_install() {
             case "$p" in
                 apt-transport-https|software-properties-common|ufw) continue ;;
                 build-essential) out+=("gcc" "gcc-c++" "make") ;;
+                redis-server) out+=("redis") ;;
                 postgresql-client) out+=("postgresql") ;;
                 postgresql) out+=("postgresql" "postgresql-server") ; includes_postgres_server=true ;;
                 postgresql-[0-9]*) out+=("postgresql" "postgresql-server") ; includes_postgres_server=true ;;
@@ -262,6 +263,12 @@ text = text.replace("/var/lib/postgresql", "/var/lib/pgsql")
 text = text.replace("/var/lib/pgsql/${PG_VERSION}/main", "/var/lib/pgsql/data")
 text = text.replace("/var/lib/pgsql/${PG_VERSION}", "/var/lib/pgsql")
 text = text.replace("if command -v adduser &> /dev/null; then", "if command -v adduser &> /dev/null && ! is_oracle_linux; then")
+
+# Redis: pacote/serviço em Oracle Linux é "redis" (não redis-server)
+text = text.replace("sudo systemctl enable redis-server", "sudo systemctl enable redis")
+text = text.replace("systemctl is-active --quiet redis-server", "systemctl is-active --quiet redis")
+text = text.replace("sudo systemctl start redis-server", "sudo systemctl start redis")
+text = text.replace("sudo systemctl status redis-server", "sudo systemctl status redis")
 
 # referência textual de ajuda
 text = text.replace("sudo apt install -y python3 python3-pip", "sudo dnf install -y python3 python3-pip")
