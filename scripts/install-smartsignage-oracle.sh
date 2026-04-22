@@ -271,6 +271,15 @@ text = text.replace("systemctl is-active --quiet redis-server", "systemctl is-ac
 text = text.replace("sudo systemctl start redis-server", "sudo systemctl start redis")
 text = text.replace("sudo systemctl status redis-server", "sudo systemctl status redis")
 
+# Oracle Linux: alguns trechos ainda usam path Debian de configuração
+text = text.replace("/etc/postgresql/${PG_VERSION}/main", "/var/lib/pgsql/data")
+
+# ensure_admin_user: forçar TCP+senha no Oracle para evitar auth ident
+text = text.replace(
+    "    if [[ -n \"${DATABASE_URL:-}\" && \"${DATABASE_URL}\" == postgresql://* ]]; then\n        psql_cmd=\"psql \\\"${DATABASE_URL}\\\"\"\n    elif command -v sudo >/dev/null 2>&1; then\n        psql_cmd=\"sudo -u postgres psql -d \\\"${target_db}\\\"\"\n    else\n        psql_cmd=\"psql -d \\\"${target_db}\\\"\"\n    fi\n",
+    "    if is_oracle_linux; then\n        local _db_host=\"${DB_HOST:-localhost}\"\n        local _db_port=\"${DB_PORT:-5432}\"\n        local _db_user=\"${PRIMARY_DB_USER:-${DB_USER:-smartsignage}}\"\n        local _db_pass=\"${DB_PASSWORD:-smartsignage123}\"\n        psql_cmd=\"PGPASSWORD=\\\"${_db_pass}\\\" psql -h \\\"${_db_host}\\\" -p \\\"${_db_port}\\\" -U \\\"${_db_user}\\\" -d \\\"${target_db}\\\"\"\n    elif [[ -n \"${DATABASE_URL:-}\" && \"${DATABASE_URL}\" == postgresql://* ]]; then\n        psql_cmd=\"psql \\\"${DATABASE_URL}\\\"\"\n    elif command -v sudo >/dev/null 2>&1; then\n        psql_cmd=\"sudo -u postgres psql -d \\\"${target_db}\\\"\"\n    else\n        psql_cmd=\"psql -d \\\"${target_db}\\\"\"\n    fi\n"
+)
+
 # Node.js no Oracle Linux: forçar Node 20+ (evitar Node 16 do repo padrão)
 text = text.replace(
     "install_nodejs() {\n    log \"Instalando Node.js...\"\n    \n    # Detectar distribuição se ainda não foi detectada\n    if [[ -z \"$DISTRO_TYPE\" ]]; then\n        detect_distribution\n    fi\n",
