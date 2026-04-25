@@ -122,8 +122,8 @@ install_nodejs() {
         fi
     fi
     
-    # Instalar Node.js 18.x
-    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    # Instalar Node.js 20.x (Node 18 deixou de ser suportado no NodeSource)
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
     sudo apt install -y nodejs
     
     # Instalar Yarn (opcional)

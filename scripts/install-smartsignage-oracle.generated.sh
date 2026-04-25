@@ -1541,6 +1541,7 @@ install_dependencies() {
         curl \
         wget \
         git \
+        rsync \
         unzip \
         software-properties-common \
         apt-transport-https \
@@ -2098,12 +2099,12 @@ install_nodejs() {
     fi
     
     # Método 1: Tentar NodeSource (funciona para Ubuntu e Debian)
-    log "Tentando instalar Node.js 18.x do NodeSource (compatível com $DISTRO_TYPE)..."
+    log "Tentando instalar Node.js 20.x do NodeSource (compatível com $DISTRO_TYPE)..."
     
     # Verificar conectividade primeiro
-    if curl -fsSL --connect-timeout 5 --max-time 10 https://deb.nodesource.com/setup_18.x > /dev/null 2>&1; then
+    if curl -fsSL --connect-timeout 5 --max-time 10 https://deb.nodesource.com/setup_20.x > /dev/null 2>&1; then
         # Conectividade OK - tentar instalar do NodeSource
-        if curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - 2>&1 | tee /tmp/nodesource-install.log; then
+        if curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - 2>&1 | tee /tmp/nodesource-install.log; then
             if pkg_install nodejs 2>&1 | tee -a /tmp/nodesource-install.log; then
                 if command -v node &> /dev/null; then
                     log "✅ Node.js $(node --version) instalado com sucesso do NodeSource!"
@@ -2126,11 +2127,11 @@ install_nodejs() {
             
             # Verificar versão
             NODE_MAJOR=$(echo "$NODE_VER" | cut -d'v' -f2 | cut -d'.' -f1)
-            if [[ $NODE_MAJOR -lt 18 ]]; then
-                warn "⚠️  Versão do Node.js ($NODE_VER) é anterior à 18.x"
-                warn "⚠️  Algumas funcionalidades podem não funcionar corretamente"
-                warn "⚠️  Para instalar Node.js 18.x, resolva o problema de rede e execute:"
-                warn "⚠️    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -"
+            if [[ $NODE_MAJOR -lt 20 ]]; then
+                warn "⚠️  Versão do Node.js ($NODE_VER) é anterior à 20.x (recomendado)"
+                warn "⚠️  Algumas funcionalidades podem não funcionar corretamente a longo prazo"
+                warn "⚠️  Para instalar Node.js 20.x, resolva o problema de rede e execute:"
+                warn "⚠️    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
                 warn "⚠️    pkg_install nodejs"
             else
                 log "✅ Versão adequada do Node.js instalada!"
@@ -2166,7 +2167,7 @@ install_nodejs() {
     error "❌"
     error "❌ Tente instalar Node.js manualmente:"
     error "❌   1. Verifique sua conexão de rede"
-    error "❌   2. Execute: curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -"
+    error "❌   2. Execute: curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
     error "❌   3. Execute: pkg_install nodejs"
     exit 1
 }
@@ -2933,14 +2934,27 @@ install_project_dependencies() {
                 
                 log "Sincronizando build do backend para $backend_deploy_dir..."
                 sudo mkdir -p "$backend_deploy_dir/dist"
-                sudo rsync -a --delete "$backend_dist_dir/" "$backend_deploy_dir/dist/" || {
-                    error "❌ Falha ao copiar build do backend para $backend_deploy_dir/dist"
-                    exit 1
-                }
-                sudo rsync -a "$(pwd)/package.json" "$backend_deploy_dir/" || {
-                    error "❌ Falha ao atualizar package.json em $backend_deploy_dir"
-                    exit 1
-                }
+                if command -v rsync &> /dev/null; then
+                    sudo rsync -a --delete "$backend_dist_dir/" "$backend_deploy_dir/dist/" || {
+                        error "❌ Falha ao copiar build do backend para $backend_deploy_dir/dist"
+                        exit 1
+                    }
+                    sudo rsync -a "$(pwd)/package.json" "$backend_deploy_dir/" || {
+                        error "❌ Falha ao atualizar package.json em $backend_deploy_dir"
+                        exit 1
+                    }
+                else
+                    warn "⚠️ rsync não encontrado. Usando fallback com cp -a."
+                    sudo rm -rf "$backend_deploy_dir/dist"/*
+                    sudo cp -a "$backend_dist_dir/." "$backend_deploy_dir/dist/" || {
+                        error "❌ Falha ao copiar build do backend para $backend_deploy_dir/dist (fallback cp)"
+                        exit 1
+                    }
+                    sudo cp -a "$(pwd)/package.json" "$backend_deploy_dir/" || {
+                        error "❌ Falha ao atualizar package.json em $backend_deploy_dir (fallback cp)"
+                        exit 1
+                    }
+                fi
                 sudo chmod -R 755 "$backend_deploy_dir/dist" 2>/dev/null || true
                 log "✅ Build do backend sincronizado em $backend_deploy_dir"
             fi
@@ -4238,7 +4252,11 @@ PYTHON_FIX_PLUGIN_EOF
         
         export_frontend_build_env
         log "Compilando frontend..."
-        npm run build
+        if ! run_frontend_build; then
+            log_error "❌ Falha na compilação do frontend!"
+            log "Verifique os logs de erro acima."
+            exit 1
+        fi
         
         # Verificar se o build foi bem-sucedido
         if [[ -d "build" && -f "build/index.html" ]]; then
@@ -4817,7 +4835,9 @@ setup_database() {
                     export_frontend_build_env
                     # Compilar React
                     log "Compilando frontend (React)..."
-                    npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-build.log"
+                    if ! run_frontend_build "$INSTALL_DIR/logs/frontend-build.log"; then
+                        warn "⚠️  Build do frontend falhou. Verifique os logs em $INSTALL_DIR/logs/frontend-build.log"
+                    fi
                     
                     # Verificar se o build foi bem-sucedido (verificando se o diretório build existe)
                     if [[ -d "build" && -f "build/index.html" ]]; then
@@ -4922,10 +4942,10 @@ setup_database() {
             # Tentar detectar versão do PostgreSQL
             PG_VERSION=$(sudo -u postgres psql -tAc "SELECT version();" 2>/dev/null | grep -oE '[0-9]+' | head -1)
             if [[ -n "$PG_VERSION" ]]; then
-                PG_CONFIG_DIR="/var/lib/pgsql/data"
+                PG_CONFIG_DIR=$(find /var/lib/pgsql -maxdepth 3 -type f -name postgresql.conf 2>/dev/null | head -1 | xargs dirname 2>/dev/null || echo "/var/lib/pgsql/data")
             else
                 # Tentar encontrar diretório padrão
-                PG_CONFIG_DIR=$(find /etc/postgresql -name "postgresql.conf" 2>/dev/null | head -1 | xargs dirname 2>/dev/null || echo "")
+                PG_CONFIG_DIR=$(find /var/lib/pgsql /etc/postgresql -maxdepth 4 -type f -name "postgresql.conf" 2>/dev/null | head -1 | xargs dirname 2>/dev/null || echo "")
             fi
         fi
         
@@ -5762,6 +5782,51 @@ export_frontend_build_env() {
             [[ -n "$REACT_APP_TOTEMDIGITAL_COMPACT" ]] && log "Build do frontend: REACT_APP_TOTEMDIGITAL_COMPACT=$REACT_APP_TOTEMDIGITAL_COMPACT"
         fi
     fi
+}
+
+# Executa build do frontend com limite de memória ajustável para evitar OOM.
+# Uso:
+#   run_frontend_build
+#   run_frontend_build "/caminho/do/log.log"
+run_frontend_build() {
+    local log_file="${1:-}"
+    local initial_heap_mb="${FRONTEND_NODE_MAX_OLD_SPACE_SIZE:-4096}"
+    local retry_heap_mb="${FRONTEND_NODE_MAX_OLD_SPACE_SIZE_RETRY:-6144}"
+    local base_node_opts="${NODE_OPTIONS:-}"
+    local build_status=0
+
+    if [[ "$initial_heap_mb" -lt 1024 ]]; then
+        initial_heap_mb=4096
+    fi
+    if [[ "$retry_heap_mb" -lt "$initial_heap_mb" ]]; then
+        retry_heap_mb="$initial_heap_mb"
+    fi
+
+    log "Compilando frontend com NODE_OPTIONS=--max-old-space-size=${initial_heap_mb}"
+    if [[ -n "$log_file" ]]; then
+        NODE_OPTIONS="--max-old-space-size=${initial_heap_mb} ${base_node_opts}" npm run build 2>&1 | tee -a "$log_file"
+        build_status=${PIPESTATUS[0]}
+    else
+        NODE_OPTIONS="--max-old-space-size=${initial_heap_mb} ${base_node_opts}" npm run build
+        build_status=$?
+    fi
+
+    if [[ $build_status -eq 0 ]]; then
+        return 0
+    fi
+
+    if [[ "$retry_heap_mb" -gt "$initial_heap_mb" ]]; then
+        warn "⚠️ Build do frontend falhou. Tentando novamente com mais memória (${retry_heap_mb}MB)..."
+        if [[ -n "$log_file" ]]; then
+            NODE_OPTIONS="--max-old-space-size=${retry_heap_mb} ${base_node_opts}" npm run build 2>&1 | tee -a "$log_file"
+            build_status=${PIPESTATUS[0]}
+        else
+            NODE_OPTIONS="--max-old-space-size=${retry_heap_mb} ${base_node_opts}" npm run build
+            build_status=$?
+        fi
+    fi
+
+    return $build_status
 }
 
 # Verifica se o config Nginx ativo inclui proxy WebSocket /ws (evita handshake 200)
@@ -10777,7 +10842,10 @@ rebuild_and_restart() {
         export_frontend_build_env
         # Compilar React
         log "Compilando frontend (React)..."
-        npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-build.log"
+        if ! run_frontend_build "$INSTALL_DIR/logs/frontend-build.log"; then
+            error "❌ Erro ao compilar frontend. Verifique os logs em $INSTALL_DIR/logs/frontend-build.log"
+            return 1
+        fi
         
         # Verificar se o build foi bem-sucedido (verificando se o diretório build existe)
         if [[ -d "build" && -f "build/index.html" ]]; then
