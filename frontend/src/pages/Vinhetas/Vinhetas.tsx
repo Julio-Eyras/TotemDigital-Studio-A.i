@@ -149,7 +149,7 @@ const Vinhetas: React.FC = () => {
         onRefresh={loadVinhetas}
         loading={loading}
         actions={[{
-          label: 'Adicionar Vinheta',
+          label: 'Criar Vinheta',
           icon: <Add />,
           onClick: () => setUploadDialogOpen(true),
           variant: 'contained',

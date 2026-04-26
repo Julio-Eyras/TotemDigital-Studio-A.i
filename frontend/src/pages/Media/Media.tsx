@@ -383,7 +383,7 @@ const Media: React.FC = () => {
         breadcrumbs={breadcrumbs}
         actions={[
           {
-            label: 'Adicionar Mídia',
+            label: 'Criar Mídia',
             icon: <Add />,
             onClick: () => setUploadDialogOpen(true),
             variant: 'contained',

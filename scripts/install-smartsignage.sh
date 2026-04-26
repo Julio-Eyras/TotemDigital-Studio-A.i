@@ -173,6 +173,7 @@ SYSTEM_OWNER_CONTACT_NAME="${SYSTEM_OWNER_CONTACT_NAME:-}"
 SYSTEM_OWNER_EMAIL="${SYSTEM_OWNER_EMAIL:-}"
 SYSTEM_OWNER_CITY="${SYSTEM_OWNER_CITY:-Encruzilhada}"
 SYSTEM_OWNER_ADMIN_USERNAME="${SYSTEM_OWNER_ADMIN_USERNAME:-}"
+SYSTEM_OWNER_PUBLISHER_USERNAME="${SYSTEM_OWNER_PUBLISHER_USERNAME:-}"
 SYSTEM_OWNER_PLAN_NAME="${SYSTEM_OWNER_PLAN_NAME:-}"
 SYSTEM_OWNER_PLAN_SLUG="${SYSTEM_OWNER_PLAN_SLUG:-}"
 
@@ -265,6 +266,7 @@ sanitize_owner_profile_defaults() {
     SYSTEM_OWNER_EMAIL="$(echo "${SYSTEM_OWNER_EMAIL:-contato@${owner_compact}.local}" | xargs)"
     SYSTEM_OWNER_CITY="$(echo "${SYSTEM_OWNER_CITY:-Encruzilhada}" | xargs)"
     SYSTEM_OWNER_ADMIN_USERNAME="$(echo "${SYSTEM_OWNER_ADMIN_USERNAME:-${owner_compact}.admin}" | xargs)"
+    SYSTEM_OWNER_PUBLISHER_USERNAME="$(echo "${SYSTEM_OWNER_PUBLISHER_USERNAME:-${owner_compact}.publisher}" | xargs)"
     SYSTEM_OWNER_PLAN_NAME="$(echo "${SYSTEM_OWNER_PLAN_NAME:-Plano $owner_name}" | xargs)"
     SYSTEM_OWNER_PLAN_SLUG="$(echo "${SYSTEM_OWNER_PLAN_SLUG:-$(to_kebab_case "${SYSTEM_OWNER_PLAN_NAME:-Plano $owner_name}")}" | xargs)"
 }
@@ -1339,6 +1341,7 @@ install_dependencies() {
         curl \
         wget \
         git \
+        rsync \
         unzip \
         software-properties-common \
         apt-transport-https \
@@ -1850,12 +1853,12 @@ install_nodejs() {
     fi
     
     # Método 1: Tentar NodeSource (funciona para Ubuntu e Debian)
-    log "Tentando instalar Node.js 18.x do NodeSource (compatível com $DISTRO_TYPE)..."
+    log "Tentando instalar Node.js 20.x do NodeSource (compatível com $DISTRO_TYPE)..."
     
     # Verificar conectividade primeiro
-    if curl -fsSL --connect-timeout 5 --max-time 10 https://deb.nodesource.com/setup_18.x > /dev/null 2>&1; then
+    if curl -fsSL --connect-timeout 5 --max-time 10 https://deb.nodesource.com/setup_20.x > /dev/null 2>&1; then
         # Conectividade OK - tentar instalar do NodeSource
-        if curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - 2>&1 | tee /tmp/nodesource-install.log; then
+        if curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - 2>&1 | tee /tmp/nodesource-install.log; then
             if sudo apt install -y nodejs 2>&1 | tee -a /tmp/nodesource-install.log; then
                 if command -v node &> /dev/null; then
                     log "✅ Node.js $(node --version) instalado com sucesso do NodeSource!"
@@ -1878,11 +1881,11 @@ install_nodejs() {
             
             # Verificar versão
             NODE_MAJOR=$(echo "$NODE_VER" | cut -d'v' -f2 | cut -d'.' -f1)
-            if [[ $NODE_MAJOR -lt 18 ]]; then
-                warn "⚠️  Versão do Node.js ($NODE_VER) é anterior à 18.x"
-                warn "⚠️  Algumas funcionalidades podem não funcionar corretamente"
-                warn "⚠️  Para instalar Node.js 18.x, resolva o problema de rede e execute:"
-                warn "⚠️    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -"
+            if [[ $NODE_MAJOR -lt 20 ]]; then
+                warn "⚠️  Versão do Node.js ($NODE_VER) é anterior à 20.x (recomendado)"
+                warn "⚠️  Algumas funcionalidades podem não funcionar corretamente a longo prazo"
+                warn "⚠️  Para instalar Node.js 20.x, resolva o problema de rede e execute:"
+                warn "⚠️    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
                 warn "⚠️    sudo apt install -y nodejs"
             else
                 log "✅ Versão adequada do Node.js instalada!"
@@ -1918,7 +1921,7 @@ install_nodejs() {
     error "❌"
     error "❌ Tente instalar Node.js manualmente:"
     error "❌   1. Verifique sua conexão de rede"
-    error "❌   2. Execute: curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -"
+    error "❌   2. Execute: curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
     error "❌   3. Execute: sudo apt install -y nodejs"
     exit 1
 }
@@ -2685,14 +2688,27 @@ install_project_dependencies() {
                 
                 log "Sincronizando build do backend para $backend_deploy_dir..."
                 sudo mkdir -p "$backend_deploy_dir/dist"
-                sudo rsync -a --delete "$backend_dist_dir/" "$backend_deploy_dir/dist/" || {
-                    error "❌ Falha ao copiar build do backend para $backend_deploy_dir/dist"
-                    exit 1
-                }
-                sudo rsync -a "$(pwd)/package.json" "$backend_deploy_dir/" || {
-                    error "❌ Falha ao atualizar package.json em $backend_deploy_dir"
-                    exit 1
-                }
+                if command -v rsync &> /dev/null; then
+                    sudo rsync -a --delete "$backend_dist_dir/" "$backend_deploy_dir/dist/" || {
+                        error "❌ Falha ao copiar build do backend para $backend_deploy_dir/dist"
+                        exit 1
+                    }
+                    sudo rsync -a "$(pwd)/package.json" "$backend_deploy_dir/" || {
+                        error "❌ Falha ao atualizar package.json em $backend_deploy_dir"
+                        exit 1
+                    }
+                else
+                    warn "⚠️ rsync não encontrado. Usando fallback com cp -a."
+                    sudo rm -rf "$backend_deploy_dir/dist"/*
+                    sudo cp -a "$backend_dist_dir/." "$backend_deploy_dir/dist/" || {
+                        error "❌ Falha ao copiar build do backend para $backend_deploy_dir/dist (fallback cp)"
+                        exit 1
+                    }
+                    sudo cp -a "$(pwd)/package.json" "$backend_deploy_dir/" || {
+                        error "❌ Falha ao atualizar package.json em $backend_deploy_dir (fallback cp)"
+                        exit 1
+                    }
+                fi
                 sudo chmod -R 755 "$backend_deploy_dir/dist" 2>/dev/null || true
                 log "✅ Build do backend sincronizado em $backend_deploy_dir"
             fi
@@ -3990,7 +4006,11 @@ PYTHON_FIX_PLUGIN_EOF
         
         export_frontend_build_env
         log "Compilando frontend..."
-        npm run build
+        if ! run_frontend_build; then
+            log_error "❌ Falha na compilação do frontend!"
+            log "Verifique os logs de erro acima."
+            exit 1
+        fi
         
         # Verificar se o build foi bem-sucedido
         if [[ -d "build" && -f "build/index.html" ]]; then
@@ -4569,7 +4589,9 @@ setup_database() {
                     export_frontend_build_env
                     # Compilar React
                     log "Compilando frontend (React)..."
-                    npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-build.log"
+                    if ! run_frontend_build "$INSTALL_DIR/logs/frontend-build.log"; then
+                        warn "⚠️  Build do frontend falhou. Verifique os logs em $INSTALL_DIR/logs/frontend-build.log"
+                    fi
                     
                     # Verificar se o build foi bem-sucedido (verificando se o diretório build existe)
                     if [[ -d "build" && -f "build/index.html" ]]; then
@@ -5021,6 +5043,155 @@ SQL
     return 1
 }
 
+# Garantir usuário publisher_user vinculado ao publisher owner no modo compacto
+ensure_owner_publisher_user() {
+    if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" != "true" ]]; then
+        return 0
+    fi
+
+    sanitize_owner_profile_defaults
+    log "Garantindo usuário publisher do owner no modo compacto..."
+
+    local target_db="${PRIMARY_DB_NAME:-smartsignage}"
+    local owner_name_escaped owner_email_escaped
+    local publisher_username publisher_email
+    local publisher_password="admin123"
+    local publisher_hash=""
+
+    owner_name_escaped="$(escape_sql_literal "${SYSTEM_OWNER_NAME}")"
+    owner_email_escaped="$(escape_sql_literal "${SYSTEM_OWNER_EMAIL}")"
+    publisher_username="$(echo "${SYSTEM_OWNER_PUBLISHER_USERNAME}" | xargs)"
+    [[ -z "${publisher_username}" ]] && publisher_username="$(echo "${SYSTEM_OWNER_ADMIN_USERNAME}.publisher" | xargs)"
+    publisher_email="${publisher_username}@smart-signage.com"
+
+    if command -v node >/dev/null 2>&1; then
+        publisher_hash=$(node - <<NODE 2>/dev/null
+const password = 'admin123';
+let hash = '';
+try {
+  const path = require('path');
+  const backendBcrypt = path.resolve(process.env.INSTALL_DIR || process.cwd(), 'backend', 'node_modules', 'bcryptjs');
+  let bcrypt;
+  try {
+    bcrypt = require(backendBcrypt);
+  } catch (e) {
+    bcrypt = require('bcryptjs');
+  }
+  hash = bcrypt.hashSync(password, 12);
+} catch (err) {
+  process.stderr.write(err?.message || String(err));
+}
+if (hash) process.stdout.write(hash);
+NODE
+)
+        publisher_hash=$(echo -n "$publisher_hash" | tr -d '\r')
+    fi
+    if [[ -z "$publisher_hash" || ${#publisher_hash} -ne 60 ]]; then
+        publisher_hash='$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2'
+    fi
+    if [[ "$publisher_hash" == \$2y\$* ]]; then
+        publisher_hash="\$2b\$${publisher_hash:4}"
+    fi
+
+    local psql_cmd=""
+    if [[ -n "${DATABASE_URL:-}" && "${DATABASE_URL}" == postgresql://* ]]; then
+        psql_cmd="psql \"${DATABASE_URL}\""
+    elif command -v sudo >/dev/null 2>&1; then
+        psql_cmd="sudo -u postgres psql -d \"${target_db}\""
+    else
+        psql_cmd="psql -d \"${target_db}\""
+    fi
+
+    local safe_username safe_email
+    safe_username="$(escape_sql_literal "${publisher_username}")"
+    safe_email="$(escape_sql_literal "${publisher_email}")"
+
+    local tmp_sql
+    tmp_sql="$(mktemp)"
+    cat >"$tmp_sql" <<SQL
+WITH owner_publisher AS (
+  SELECT p.publisher_id
+  FROM publishers p
+  WHERE p.is_active = true
+    AND (
+      LOWER(p.name) = LOWER('${owner_name_escaped}')
+      OR LOWER(COALESCE(p.email, '')) = LOWER('${owner_email_escaped}')
+    )
+  ORDER BY p.publisher_id ASC
+  LIMIT 1
+), role_pub AS (
+  SELECT role_id FROM roles WHERE name = 'publisher_user' LIMIT 1
+), upsert_user AS (
+  INSERT INTO users (
+    username, email, password_hash,
+    first_name, last_name, name, phone,
+    role, user_type, is_tenant_user,
+    publisher_id, subscriber_id,
+    is_active, email_verified,
+    last_login, created_at, updated_at
+  )
+  SELECT
+    '${safe_username}', '${safe_email}', '${publisher_hash}',
+    'Owner', 'Publisher', 'Owner Publisher', NULL,
+    'publisher_user', 'publisher_user', true,
+    op.publisher_id, NULL,
+    true, true,
+    NOW(), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  FROM owner_publisher op
+  ON CONFLICT (username)
+  DO UPDATE SET
+    email = EXCLUDED.email,
+    password_hash = EXCLUDED.password_hash,
+    role = EXCLUDED.role,
+    user_type = EXCLUDED.user_type,
+    is_tenant_user = EXCLUDED.is_tenant_user,
+    publisher_id = EXCLUDED.publisher_id,
+    subscriber_id = EXCLUDED.subscriber_id,
+    is_active = EXCLUDED.is_active,
+    email_verified = EXCLUDED.email_verified,
+    updated_at = CURRENT_TIMESTAMP
+  RETURNING id
+), role_link AS (
+  INSERT INTO user_roles (user_id, role_id, assigned_by)
+  SELECT uu.id, rp.role_id, uu.id
+  FROM upsert_user uu
+  CROSS JOIN role_pub rp
+  ON CONFLICT DO NOTHING
+), flag_upsert AS (
+  INSERT INTO user_flags (
+    user_id,
+    flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4,
+    flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9
+  )
+  SELECT
+    uu.id,
+    true, false, false, true, false,
+    true, true, false, true, false
+  FROM upsert_user uu
+  ON CONFLICT (user_id) DO NOTHING
+)
+SELECT
+  (SELECT publisher_id FROM owner_publisher) AS owner_publisher_id,
+  (SELECT id FROM upsert_user LIMIT 1) AS owner_user_id;
+SQL
+
+    local ensure_out
+    if ! ensure_out=$(eval "$psql_cmd -v ON_ERROR_STOP=1 -f \"$tmp_sql\"" 2>&1); then
+        rm -f "$tmp_sql"
+        error "❌ Falha ao garantir usuário publisher do owner: $ensure_out"
+        return 1
+    fi
+    rm -f "$tmp_sql"
+
+    if ! eval "$psql_cmd -tAc \"SELECT 1 FROM users WHERE username='${safe_username}' AND role='publisher_user' AND is_active=true\"" | tr -d ' \r\n' | grep -q "^1$"; then
+        error "❌ Usuário publisher do owner não foi encontrado após tentativa de criação"
+        return 1
+    fi
+
+    log "✅ Usuário publisher do owner garantido: ${publisher_username} (senha padrão: ${publisher_password})"
+    return 0
+}
+
 # Aplicar schemas adicionais (export/export views)
 # Configurar variáveis de ambiente
 setup_environment() {
@@ -5116,6 +5287,7 @@ SYSTEM_OWNER_CONTACT_NAME=$SYSTEM_OWNER_CONTACT_NAME
 SYSTEM_OWNER_EMAIL=$SYSTEM_OWNER_EMAIL
 SYSTEM_OWNER_CITY=$SYSTEM_OWNER_CITY
 SYSTEM_OWNER_ADMIN_USERNAME=$SYSTEM_OWNER_ADMIN_USERNAME
+SYSTEM_OWNER_PUBLISHER_USERNAME=$SYSTEM_OWNER_PUBLISHER_USERNAME
 SYSTEM_OWNER_PLAN_NAME=$SYSTEM_OWNER_PLAN_NAME
 SYSTEM_OWNER_PLAN_SLUG=$SYSTEM_OWNER_PLAN_SLUG
 
@@ -5198,6 +5370,7 @@ SYSTEM_OWNER_CONTACT_NAME=$SYSTEM_OWNER_CONTACT_NAME
 SYSTEM_OWNER_EMAIL=$SYSTEM_OWNER_EMAIL
 SYSTEM_OWNER_CITY=$SYSTEM_OWNER_CITY
 SYSTEM_OWNER_ADMIN_USERNAME=$SYSTEM_OWNER_ADMIN_USERNAME
+SYSTEM_OWNER_PUBLISHER_USERNAME=$SYSTEM_OWNER_PUBLISHER_USERNAME
 SYSTEM_OWNER_PLAN_NAME=$SYSTEM_OWNER_PLAN_NAME
 SYSTEM_OWNER_PLAN_SLUG=$SYSTEM_OWNER_PLAN_SLUG
 
@@ -5510,6 +5683,51 @@ export_frontend_build_env() {
             [[ -n "$REACT_APP_TOTEMDIGITAL_COMPACT" ]] && log "Build do frontend: REACT_APP_TOTEMDIGITAL_COMPACT=$REACT_APP_TOTEMDIGITAL_COMPACT"
         fi
     fi
+}
+
+# Executa build do frontend com limite de memória ajustável para evitar OOM.
+# Uso:
+#   run_frontend_build
+#   run_frontend_build "/caminho/do/log.log"
+run_frontend_build() {
+    local log_file="${1:-}"
+    local initial_heap_mb="${FRONTEND_NODE_MAX_OLD_SPACE_SIZE:-4096}"
+    local retry_heap_mb="${FRONTEND_NODE_MAX_OLD_SPACE_SIZE_RETRY:-6144}"
+    local base_node_opts="${NODE_OPTIONS:-}"
+    local build_status=0
+
+    if [[ "$initial_heap_mb" -lt 1024 ]]; then
+        initial_heap_mb=4096
+    fi
+    if [[ "$retry_heap_mb" -lt "$initial_heap_mb" ]]; then
+        retry_heap_mb="$initial_heap_mb"
+    fi
+
+    log "Compilando frontend com NODE_OPTIONS=--max-old-space-size=${initial_heap_mb}"
+    if [[ -n "$log_file" ]]; then
+        NODE_OPTIONS="--max-old-space-size=${initial_heap_mb} ${base_node_opts}" npm run build 2>&1 | tee -a "$log_file"
+        build_status=${PIPESTATUS[0]}
+    else
+        NODE_OPTIONS="--max-old-space-size=${initial_heap_mb} ${base_node_opts}" npm run build
+        build_status=$?
+    fi
+
+    if [[ $build_status -eq 0 ]]; then
+        return 0
+    fi
+
+    if [[ "$retry_heap_mb" -gt "$initial_heap_mb" ]]; then
+        warn "⚠️ Build do frontend falhou. Tentando novamente com mais memória (${retry_heap_mb}MB)..."
+        if [[ -n "$log_file" ]]; then
+            NODE_OPTIONS="--max-old-space-size=${retry_heap_mb} ${base_node_opts}" npm run build 2>&1 | tee -a "$log_file"
+            build_status=${PIPESTATUS[0]}
+        else
+            NODE_OPTIONS="--max-old-space-size=${retry_heap_mb} ${base_node_opts}" npm run build
+            build_status=$?
+        fi
+    fi
+
+    return $build_status
 }
 
 # Verifica se o config Nginx ativo inclui proxy WebSocket /ws (evita handshake 200)
@@ -9065,6 +9283,12 @@ setup_first_boot() {
         error "❌ Não foi possível garantir usuário admin após aplicação do schema"
         exit 1
     fi
+    if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" == "true" ]]; then
+        if ! ensure_owner_publisher_user; then
+            error "❌ Não foi possível garantir usuário publisher do owner no modo compacto"
+            exit 1
+        fi
+    fi
     
     # Verificar se TODAS as tabelas do schema foram criadas corretamente
     log "Verificando se TODAS as tabelas do schema foram criadas..."
@@ -10525,7 +10749,10 @@ rebuild_and_restart() {
         export_frontend_build_env
         # Compilar React
         log "Compilando frontend (React)..."
-        npm run build 2>&1 | tee -a "$INSTALL_DIR/logs/frontend-build.log"
+        if ! run_frontend_build "$INSTALL_DIR/logs/frontend-build.log"; then
+            error "❌ Erro ao compilar frontend. Verifique os logs em $INSTALL_DIR/logs/frontend-build.log"
+            return 1
+        fi
         
         # Verificar se o build foi bem-sucedido (verificando se o diretório build existe)
         if [[ -d "build" && -f "build/index.html" ]]; then

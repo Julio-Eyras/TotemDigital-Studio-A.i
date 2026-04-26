@@ -59,6 +59,7 @@ import { publisherApi, Publisher } from '../../services/api';
 import { subscriberAccessApi, PlanPublisherAccess } from '../../services/api';
 import { totemApi, Player } from '../../services/api';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import { PageHeader } from '../../components/DataDisplay';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -93,6 +94,11 @@ interface PlanAssociationEntry {
   notes?: string;
   /** Modo compact: totem usado na UI; persistência continua sendo publisher_id em plan_publisher_access */
   displayLabel?: string;
+}
+
+interface CompactTotemOption {
+  totem: Player;
+  publisherId?: number;
 }
 
 const PlanPublisherAccessPage: React.FC = () => {
@@ -601,17 +607,37 @@ const PlanPublisherAccessPage: React.FC = () => {
     }
   };
 
+  const compactTotemOptions: CompactTotemOption[] = TOTEMDIGITAL_COMPACT
+    ? totemsCatalog.map((totem) => ({
+        totem,
+        publisherId: getTotemPublisherId(totem as Record<string, unknown>),
+      }))
+    : [];
+
+  const compactTotemsWithoutPublisher = compactTotemOptions.filter((entry) => entry.publisherId == null);
+  const compactTotemsBlockedByPublisher = compactTotemOptions.filter(
+    (entry) => entry.publisherId != null && planPublishers.some((pp) => pp.publisherId === entry.publisherId)
+  );
+  const compactAvailableTotems = compactTotemOptions.filter(
+    (entry) => entry.publisherId != null && !planPublishers.some((pp) => pp.publisherId === entry.publisherId)
+  );
+
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
-      {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-          {TOTEMDIGITAL_COMPACT ? 'Planos' : 'Planos e Publicadores'}
-        </Typography>
-        <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-          Gerencie planos e configure quais publishers cada plano permite acessar
-        </Typography>
-      </Box>
+      <PageHeader
+        title={TOTEMDIGITAL_COMPACT ? 'Planos' : 'Planos e Publicadores'}
+        subtitle="Gerencie planos e configure quais publishers cada plano permite acessar"
+        actions={[
+          ...(tabValue === 0
+            ? [{
+                label: 'Criar Plano',
+                icon: <Add />,
+                onClick: () => handleOpenPlanDialog(),
+                variant: 'contained' as const,
+              }]
+            : []),
+        ]}
+      />
 
       {/* Error Alert */}
       {error && (
@@ -632,16 +658,6 @@ const PlanPublisherAccessPage: React.FC = () => {
 
         {/* ABA 1: CRUD DE PLANOS */}
         <TabPanel value={tabValue} index={0}>
-          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => handleOpenPlanDialog()}
-            >
-              Criar Plano
-            </Button>
-          </Box>
-
           <TableContainer component={Paper} variant="outlined">
             <Table>
               <TableHead>
@@ -1072,6 +1088,24 @@ const PlanPublisherAccessPage: React.FC = () => {
                     Nenhum totem encontrado. Cadastre totens em <strong>Totens</strong> e associe-os a um local.
                   </Alert>
                 )}
+                {TOTEMDIGITAL_COMPACT && totemsCatalog.length > 0 && compactAvailableTotems.length === 0 && (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Não há totems disponíveis para adicionar neste plano. Todos os totems encontrados estão sem exibidor
+                    associado ao local ou já pertencem a exibidores vinculados ao plano.
+                  </Alert>
+                )}
+                {TOTEMDIGITAL_COMPACT && compactTotemsWithoutPublisher.length > 0 && (
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    {compactTotemsWithoutPublisher.length} totem(ns) não aparecem na seleção porque estão sem exibidor
+                    associado ao local.
+                  </Alert>
+                )}
+                {TOTEMDIGITAL_COMPACT && compactTotemsBlockedByPublisher.length > 0 && (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    {compactTotemsBlockedByPublisher.length} totem(ns) foram ocultados porque o exibidor correspondente já
+                    está vinculado ao plano.
+                  </Alert>
+                )}
                 <Grid container spacing={2} alignItems="center">
                   <Grid item xs={12} md={8}>
                     <FormControl fullWidth>
@@ -1083,19 +1117,16 @@ const PlanPublisherAccessPage: React.FC = () => {
                           label={publisherEntityLabel}
                         >
                           <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
-                          {totemsCatalog
-                            .filter((t) => {
-                              const pid = getTotemPublisherId(t as Record<string, unknown>);
+                          {compactAvailableTotems
+                            .map(({ totem, publisherId }) => {
+                              const publisher = publishers.find((p) => p.publisher_id === publisherId);
+                              const publisherLabel = publisher?.name || `Exibidor ${publisherId}`;
                               return (
-                                pid != null &&
-                                !planPublishers.some((pp) => pp.publisherId === pid)
-                              );
-                            })
-                            .map((t) => (
-                              <MenuItem key={t.totem_id} value={String(t.totem_id)}>
-                                {formatTotemLabel(t)}
+                              <MenuItem key={totem.totem_id} value={String(totem.totem_id)}>
+                                {`${formatTotemLabel(totem)} (${publisherLabel})`}
                               </MenuItem>
-                            ))}
+                              );
+                            })}
                         </Select>
                       ) : (
                         <Select

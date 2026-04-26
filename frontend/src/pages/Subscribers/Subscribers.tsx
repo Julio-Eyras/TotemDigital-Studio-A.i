@@ -104,6 +104,7 @@ import {
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import { SortableList } from '../../components/SortableList/SortableList';
 import { SubscriberCard, SubscriberDetails, SubscriberForm } from './components';
+import { PageHeader } from '../../components/DataDisplay';
 
 const Subscribers: React.FC = () => {
   const theme = useTheme();
@@ -1839,28 +1840,18 @@ const Subscribers: React.FC = () => {
 
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
-      {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            📢 Anunciantes
-          </Typography>
-          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie anunciantes e suas informações, mídias, playlists, campanhas e contratos
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setCreateDialogOpen(true)}
-          sx={{ 
-            backgroundColor: theme.palette.primary.main,
-            '&:hover': { backgroundColor: theme.palette.primary.dark }
-          }}
-        >
-          Adicionar Anunciante
-        </Button>
-      </Box>
+      <PageHeader
+        title="Anunciantes"
+        subtitle="Gerencie anunciantes e suas informações, mídias, playlists, campanhas e contratos"
+        actions={[
+          {
+            label: 'Criar Anunciante',
+            icon: <Add />,
+            onClick: () => setCreateDialogOpen(true),
+            variant: 'contained',
+          },
+        ]}
+      />
 
       {/* Resumo */}
       {overallStats && (

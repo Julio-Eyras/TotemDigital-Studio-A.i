@@ -69,6 +69,7 @@ import {
 } from '../../services/api';
 import { useAppSelector } from '../../store';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import { PageHeader } from '../../components/DataDisplay';
 
 const Locals: React.FC = () => {
   const theme = useTheme();
@@ -375,32 +376,24 @@ const Locals: React.FC = () => {
 
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
-      {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-        <Box>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            📍 Locais
-          </Typography>
-          <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            {TOTEMDIGITAL_COMPACT
-              ? 'Gerencie os locais da instalação'
-              : 'Gerencie locais vinculados aos Veículos de Mídia (Publicadores)'}
-          </Typography>
-        </Box>
-        {canManageLocals && (
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={openCreateLocalDialog}
-            sx={{
-              backgroundColor: theme.palette.primary.main,
-              '&:hover': { backgroundColor: theme.palette.primary.dark },
-            }}
-          >
-            Novo Local
-          </Button>
-        )}
-      </Box>
+      <PageHeader
+        title="Locais"
+        subtitle={
+          TOTEMDIGITAL_COMPACT
+            ? 'Gerencie os locais da instalação'
+            : 'Gerencie locais vinculados aos Veículos de Mídia (Publicadores)'
+        }
+        actions={[
+          ...(canManageLocals
+            ? [{
+                label: 'Criar Local',
+                icon: <Add />,
+                onClick: openCreateLocalDialog,
+                variant: 'contained' as const,
+              }]
+            : []),
+        ]}
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>

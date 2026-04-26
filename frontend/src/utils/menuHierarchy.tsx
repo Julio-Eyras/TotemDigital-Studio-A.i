@@ -169,36 +169,12 @@ export const getMenuHierarchyByRole = (
  */
 function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
   if (TOTEMDIGITAL_COMPACT) {
-    const isCompactSysAdmin = ['owner_system', 'admin', 'admin_sql'].includes(String(role || ''));
-    const locaisItem: HierarchicalMenuItem = isCompactSysAdmin
-      ? {
-          text: 'Locais',
-          icon: <LocationOn />,
-          path: '/locals',
-          children: [
-            { text: 'Listar locais', icon: <LocationOn />, path: '/locals' },
-            { text: 'Adicionar local', icon: <Add />, path: '/locals?create=1' },
-          ],
-        }
-      : { text: 'Locais', icon: <LocationOn />, path: '/locals' };
-    const totensItem: HierarchicalMenuItem = isCompactSysAdmin
-      ? {
-          text: 'Totens',
-          icon: <Computer />,
-          path: '/totems',
-          children: [
-            { text: 'Listar totens', icon: <Computer />, path: '/totems' },
-            { text: 'Adicionar totem', icon: <Add />, path: '/totems?create=1' },
-          ],
-        }
-      : { text: 'Totens', icon: <Computer />, path: '/totems' };
-
     return [
       { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
       { text: 'Assinantes', icon: <People />, path: '/subscribers' },
       { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
-      locaisItem,
-      totensItem,
+      { text: 'Locais', icon: <LocationOn />, path: '/locals' },
+      { text: 'Totens', icon: <Computer />, path: '/totems' },
       { text: 'Playlists por Totem', icon: <QueueMusic />, path: '/totem-playlists' },
       { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
       { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },

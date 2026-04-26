@@ -29,8 +29,8 @@ import {
   MenuItem,
   useTheme,
 } from '@mui/material';
-import { Tv, Add, Refresh, LocationOn, CheckCircle, Pending, Warning, Settings } from '@mui/icons-material';
-import { totemApi, Player, CreatePlayerRequest, localApi, Local } from '../../services/api';
+import { Tv, Add, Refresh, LocationOn, CheckCircle, Pending, Warning, Settings, Edit } from '@mui/icons-material';
+import { totemApi, Player, CreatePlayerRequest, UpdatePlayerRequest, localApi, Local } from '../../services/api';
 import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteControl';
 import { useAppSelector } from '../../store';
 import { PageHeader } from '../../components/DataDisplay';
@@ -100,6 +100,18 @@ const Totems: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [remoteControlOpen, setRemoteControlOpen] = useState(false);
   const [selectedTotemForControl, setSelectedTotemForControl] = useState<Player | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingTotem, setEditingTotem] = useState<Player | null>(null);
+  const [editTotem, setEditTotem] = useState<UpdatePlayerRequest>({
+    identifier: '',
+    localId: 0,
+    uin: '',
+    deviceId: '',
+    name: '',
+    description: '',
+    firmwareVersion: '',
+    isActive: true,
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [localFilter, setLocalFilter] = useState<number | 'all'>('all');
@@ -197,6 +209,43 @@ const Totems: React.FC = () => {
       setError('Erro ao aprovar totem: ' + (e.message || 'Erro desconhecido'));
     } finally {
       setApproving(false);
+    }
+  };
+
+  const openEditTotemDialog = (totem: Player) => {
+    setEditingTotem(totem);
+    setEditTotem({
+      identifier: totem.identifier || '',
+      localId: Number((totem as any).localId ?? (totem as any).local_id ?? 0),
+      uin: totem.uin || '',
+      deviceId: (totem as any).deviceId || '',
+      name: totem.name || '',
+      description: (totem as any).description || '',
+      firmwareVersion: (totem as any).firmwareVersion || '',
+      isActive: (totem as any).is_active !== false,
+    });
+    setEditOpen(true);
+  };
+
+  const handleEdit = async () => {
+    const totemId = Number((editingTotem as any)?.totem_id);
+    if (!totemId) {
+      setError('Totem inválido para edição');
+      return;
+    }
+    if (!editTotem.identifier || !editTotem.localId) {
+      setError('Identifier e local são obrigatórios para edição');
+      return;
+    }
+
+    try {
+      await totemApi.update(totemId, editTotem);
+      setSuccess('Totem atualizado com sucesso');
+      setEditOpen(false);
+      setEditingTotem(null);
+      await loadAll();
+    } catch (e: any) {
+      setError('Erro ao editar totem: ' + (e?.response?.data?.error || e?.message || 'Erro desconhecido'));
     }
   };
 
@@ -302,7 +351,7 @@ const Totems: React.FC = () => {
         breadcrumbs={breadcrumbs}
         actions={[
           ...(canCreateTotem ? [{
-            label: 'Adicionar Totem',
+            label: 'Criar Totem',
             icon: <Add />,
             onClick: () => openCreateTotemDialog(),
             variant: 'contained' as const,
@@ -445,6 +494,16 @@ const Totems: React.FC = () => {
                         </span>
                       </Tooltip>
                       <Box sx={{ display: 'flex', gap: 1 }}>
+                        {canAdministerTotems && totemId && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<Edit />}
+                            onClick={() => openEditTotemDialog(t)}
+                          >
+                            Editar
+                          </Button>
+                        )}
                         {canAdministerTotems && totemId && (
                           <Button
                             size="small"
@@ -634,6 +693,106 @@ const Totems: React.FC = () => {
         <DialogActions>
           <Button onClick={() => setCreateOpen(false)}>Cancelar</Button>
           <Button variant="contained" onClick={handleCreate} disabled={!newTotem.identifier || !newTotem.localId}>Criar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={editOpen}
+        onClose={() => {
+          setEditOpen(false);
+          setEditingTotem(null);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Editar Totem</DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth margin="normal" required>
+            <InputLabel>Local *</InputLabel>
+            <Select
+              value={editTotem.localId || ''}
+              label="Local *"
+              onChange={(e) => setEditTotem({ ...editTotem, localId: Number(e.target.value) })}
+            >
+              {locals.map((local) => (
+                <MenuItem key={local.local_id} value={local.local_id}>
+                  {local.name} {local.publisher_name && `(${local.publisher_name})`}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            fullWidth
+            label="Identifier *"
+            margin="normal"
+            value={editTotem.identifier || ''}
+            onChange={(e) => setEditTotem({ ...editTotem, identifier: e.target.value })}
+            required
+          />
+          <TextField
+            fullWidth
+            label="UIN (Unique Identifier Number)"
+            margin="normal"
+            value={editTotem.uin || ''}
+            onChange={(e) => setEditTotem({ ...editTotem, uin: e.target.value })}
+          />
+          <TextField
+            fullWidth
+            label="Device ID"
+            margin="normal"
+            value={editTotem.deviceId || ''}
+            onChange={(e) => setEditTotem({ ...editTotem, deviceId: e.target.value })}
+          />
+          <TextField
+            fullWidth
+            label="Nome"
+            margin="normal"
+            value={editTotem.name || ''}
+            onChange={(e) => setEditTotem({ ...editTotem, name: e.target.value })}
+          />
+          <TextField
+            fullWidth
+            label="Descrição"
+            margin="normal"
+            value={editTotem.description || ''}
+            onChange={(e) => setEditTotem({ ...editTotem, description: e.target.value })}
+            multiline
+            rows={2}
+          />
+          <TextField
+            fullWidth
+            label="Versão do Firmware"
+            margin="normal"
+            value={editTotem.firmwareVersion || ''}
+            onChange={(e) => setEditTotem({ ...editTotem, firmwareVersion: e.target.value })}
+          />
+          <FormControlLabel
+            sx={{ mt: 1 }}
+            control={
+              <Switch
+                checked={editTotem.isActive !== false}
+                onChange={(e) => setEditTotem({ ...editTotem, isActive: e.target.checked })}
+              />
+            }
+            label="Totem ativo"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setEditOpen(false);
+              setEditingTotem(null);
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleEdit}
+            disabled={!editTotem.identifier || !editTotem.localId}
+          >
+            Salvar
+          </Button>
         </DialogActions>
       </Dialog>
 

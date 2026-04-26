@@ -256,7 +256,7 @@ const Users: React.FC = () => {
         breadcrumbs={breadcrumbs}
         actions={[
           {
-            label: 'Adicionar Usuário',
+            label: 'Criar Usuário',
             icon: <Add />,
             onClick: () => setCreateDialogOpen(true),
             variant: 'contained',
