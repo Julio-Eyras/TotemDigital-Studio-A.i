@@ -24,6 +24,7 @@ import {
   IconButton,
   LinearProgress,
   FormControl,
+  FormHelperText,
   InputLabel,
   Select,
   MenuItem,
@@ -212,11 +213,30 @@ const Totems: React.FC = () => {
     }
   };
 
+  const resolveLocalIdFromTotem = (totem: any): number => {
+    const directLocalId = Number(
+      (totem as any).localId ??
+      (totem as any).local_id ??
+      (totem as any).local?.local_id ??
+      (totem as any).local?.id ??
+      0
+    );
+    if (directLocalId > 0) return directLocalId;
+
+    // Fallback por nome exibido do local no card/lista.
+    const locationName = String((totem as any).location ?? (totem as any).localName ?? '').trim().toLowerCase();
+    if (!locationName) return 0;
+    const matchedLocal = locals.find((l) => String(l.name || '').trim().toLowerCase() === locationName);
+    return matchedLocal?.local_id || 0;
+  };
+
   const openEditTotemDialog = (totem: Player) => {
+    const resolvedLocalId = resolveLocalIdFromTotem(totem);
+
     setEditingTotem(totem);
     setEditTotem({
       identifier: totem.identifier || '',
-      localId: Number((totem as any).localId ?? (totem as any).local_id ?? 0),
+      localId: resolvedLocalId,
       uin: totem.uin || '',
       deviceId: (totem as any).deviceId || '',
       name: totem.name || '',
@@ -224,6 +244,48 @@ const Totems: React.FC = () => {
       firmwareVersion: (totem as any).firmwareVersion || '',
       isActive: (totem as any).is_active !== false,
     });
+
+    // Garante que o local atual do totem apareça no Select mesmo se não vier na lista carregada.
+    if (resolvedLocalId > 0 && !locals.some((l) => l.local_id === resolvedLocalId)) {
+      localApi.getById(resolvedLocalId)
+        .then((local) => {
+          if (!local?.local_id) return;
+          setLocals((prev) => (prev.some((l) => l.local_id === local.local_id) ? prev : [...prev, local]));
+        })
+        .catch(() => {
+          // Silencioso: mantém diálogo aberto mesmo se o local não puder ser carregado.
+        });
+    }
+
+    // Em alguns cenários o endpoint de listagem não traz localId de forma consistente.
+    // Fazemos fallback no endpoint de detalhe para pré-selecionar corretamente.
+    if (resolvedLocalId <= 0) {
+      const totemId = Number((totem as any).totem_id ?? (totem as any).id ?? 0);
+      if (totemId > 0) {
+        totemApi.getById(totemId)
+          .then((fullTotem) => {
+            const fallbackLocalId = resolveLocalIdFromTotem(fullTotem as any);
+            if (fallbackLocalId <= 0) return;
+
+            setEditTotem((prev) => ({ ...prev, localId: fallbackLocalId }));
+
+            if (!locals.some((l) => l.local_id === fallbackLocalId)) {
+              localApi.getById(fallbackLocalId)
+                .then((local) => {
+                  if (!local?.local_id) return;
+                  setLocals((prev) => (prev.some((l) => l.local_id === local.local_id) ? prev : [...prev, local]));
+                })
+                .catch(() => {
+                  // Silencioso: não bloqueia edição.
+                });
+            }
+          })
+          .catch(() => {
+            // Silencioso: mantém fluxo de edição com dados já disponíveis.
+          });
+      }
+    }
+
     setEditOpen(true);
   };
 
@@ -482,28 +544,30 @@ const Totems: React.FC = () => {
                       />
                     </Box>
                     <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Tooltip title="Controle remoto">
-                        <span>
-                          <IconButton
-                            size="small"
-                            onClick={() => openRemoteControl(t)}
-                            disabled={!totemId}
-                          >
-                            <Settings />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                         {canAdministerTotems && totemId && (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<Edit />}
-                            onClick={() => openEditTotemDialog(t)}
-                          >
-                            Editar
-                          </Button>
+                          <Tooltip title="Editar totem">
+                            <IconButton
+                              size="small"
+                              onClick={() => openEditTotemDialog(t)}
+                            >
+                              <Edit />
+                            </IconButton>
+                          </Tooltip>
                         )}
+                        <Tooltip title="Controle remoto">
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => openRemoteControl(t)}
+                              disabled={!totemId}
+                            >
+                              <Settings />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
                         {canAdministerTotems && totemId && (
                           <Button
                             size="small"
@@ -720,6 +784,11 @@ const Totems: React.FC = () => {
                 </MenuItem>
               ))}
             </Select>
+            {!editTotem.localId && (
+              <FormHelperText error>
+                Nao foi possivel identificar automaticamente o local deste totem no escopo atual. Selecione o local manualmente.
+              </FormHelperText>
+            )}
           </FormControl>
           <TextField
             fullWidth

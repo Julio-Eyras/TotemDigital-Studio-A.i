@@ -2157,14 +2157,18 @@ detect_and_remove_previous_installation() {
                     
                     log "✅ Instalação anterior removida com sucesso!"
                     
-                    # Limpar também node_modules globais se existirem em locais comuns
+                    # Limpar também node_modules residuais em paths comuns de instalações antigas.
+                    # Importante: evitar pipeline com `while read` sob `set -e -o pipefail`,
+                    # pois o EOF do `read` pode retornar status 1 e abortar a instalação.
                     log "Limpando node_modules residuais..."
-                    find "$HOME" -maxdepth 3 -type d -name "node_modules" -path "*/smart-signage/*" -o -path "*/smartsignage-pro/*" 2>/dev/null | while read nm_dir; do
-                        if [[ -n "$nm_dir" ]]; then
-                            log "Removendo node_modules residual: $nm_dir"
-                            rm -rf "$nm_dir" 2>/dev/null || true
-                        fi
-                    done
+                    while IFS= read -r nm_dir; do
+                        [[ -z "$nm_dir" ]] && continue
+                        log "Removendo node_modules residual: $nm_dir"
+                        rm -rf "$nm_dir" 2>/dev/null || true
+                    done < <(
+                        find "$HOME" -maxdepth 3 -type d -name "node_modules" \
+                            \( -path "*/smart-signage/*" -o -path "*/smartsignage-pro/*" \) 2>/dev/null || true
+                    )
                     
                     # Limpar cache npm relacionado
                     log "Limpando cache npm..."
@@ -5054,12 +5058,15 @@ ensure_owner_publisher_user() {
 
     local target_db="${PRIMARY_DB_NAME:-smartsignage}"
     local owner_name_escaped owner_email_escaped
+    local owner_contact_escaped owner_description_escaped
     local publisher_username publisher_email
     local publisher_password="admin123"
     local publisher_hash=""
 
     owner_name_escaped="$(escape_sql_literal "${SYSTEM_OWNER_NAME}")"
     owner_email_escaped="$(escape_sql_literal "${SYSTEM_OWNER_EMAIL}")"
+    owner_contact_escaped="$(escape_sql_literal "${SYSTEM_OWNER_CONTACT_NAME:-Contato ${SYSTEM_OWNER_NAME}}")"
+    owner_description_escaped="$(escape_sql_literal "Publisher owner ${SYSTEM_OWNER_NAME} (modo compacto)")"
     publisher_username="$(echo "${SYSTEM_OWNER_PUBLISHER_USERNAME}" | xargs)"
     [[ -z "${publisher_username}" ]] && publisher_username="$(echo "${SYSTEM_OWNER_ADMIN_USERNAME}.publisher" | xargs)"
     publisher_email="${publisher_username}@smart-signage.com"
@@ -5109,7 +5116,7 @@ NODE
     local tmp_sql
     tmp_sql="$(mktemp)"
     cat >"$tmp_sql" <<SQL
-WITH owner_publisher AS (
+WITH existing_owner_publisher AS (
   SELECT p.publisher_id
   FROM publishers p
   WHERE p.is_active = true
@@ -5118,6 +5125,29 @@ WITH owner_publisher AS (
       OR LOWER(COALESCE(p.email, '')) = LOWER('${owner_email_escaped}')
     )
   ORDER BY p.publisher_id ASC
+  LIMIT 1
+), inserted_owner_publisher AS (
+  INSERT INTO publishers (
+    name, contact_name, email, phone, whatsapp,
+    category_segment, description, is_subscriber, is_publisher, client_type, is_active
+  )
+  SELECT
+    '${owner_name_escaped}',
+    '${owner_contact_escaped}',
+    '${owner_email_escaped}',
+    NULL, NULL,
+    'Totens',
+    '${owner_description_escaped}',
+    false,
+    true,
+    'publisher',
+    true
+  WHERE NOT EXISTS (SELECT 1 FROM existing_owner_publisher)
+  RETURNING publisher_id
+), owner_publisher AS (
+  SELECT publisher_id FROM existing_owner_publisher
+  UNION ALL
+  SELECT publisher_id FROM inserted_owner_publisher
   LIMIT 1
 ), role_pub AS (
   SELECT role_id FROM roles WHERE name = 'publisher_user' LIMIT 1
@@ -5133,7 +5163,7 @@ WITH owner_publisher AS (
   SELECT
     '${safe_username}', '${safe_email}', '${publisher_hash}',
     'Owner', 'Publisher', 'Owner Publisher', NULL,
-    'publisher_user', 'publisher_user', true,
+    'publisher_user', 'publisher_user', false,
     op.publisher_id, NULL,
     true, true,
     NOW(), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
@@ -5630,6 +5660,7 @@ EOF
     
     sudo ln -sf $NGINX_CONFIG /etc/nginx/sites-enabled/
     sudo rm -f /etc/nginx/sites-enabled/default
+    sanitize_nginx_default_server_conflicts "$NGINX_CONFIG"
     verify_nginx_ws_config "$NGINX_CONFIG"
     
     # Recarregar Nginx
@@ -5739,6 +5770,33 @@ verify_nginx_ws_config() {
         warning "Config Nginx pode não ter proxy /ws - WebSocket pode falhar (handshake 200)"
         warning "Se o monitor mostrar 'Unexpected response code: 200', recarregue o config deste script ou adicione manualmente: location /ws { proxy_pass http://localhost:3000; proxy_http_version 1.1; proxy_set_header Upgrade \$http_upgrade; proxy_set_header Connection \"upgrade\"; ... }"
     fi
+}
+
+# Evita conflito "duplicate default server" no Nginx quando existe
+# outro arquivo ativo com listen 80 default_server (ex.: fallback antigo).
+sanitize_nginx_default_server_conflicts() {
+    local primary_cfg="${1:-/etc/nginx/sites-available/smart-signage}"
+    local backup_dir="/var/lib/smart-signage/nginx-conflicts"
+    sudo mkdir -p "$backup_dir" 2>/dev/null || true
+
+    # Conflito conhecido criado por scripts de fallback.
+    if [[ -f "/etc/nginx/conf.d/smart-signage-port80.conf" ]]; then
+        log "Desativando config conflitante: /etc/nginx/conf.d/smart-signage-port80.conf"
+        sudo mv "/etc/nginx/conf.d/smart-signage-port80.conf" "$backup_dir/smart-signage-port80.conf.$(date +%s).bak" 2>/dev/null || true
+    fi
+
+    local cfg target
+    for cfg in /etc/nginx/conf.d/*.conf /etc/nginx/sites-enabled/*; do
+        [[ -e "$cfg" ]] || continue
+        target="$(readlink -f "$cfg" 2>/dev/null || echo "$cfg")"
+        if [[ "$target" == "$primary_cfg" ]]; then
+            continue
+        fi
+        if sudo grep -Eq "listen[[:space:]]+80[[:space:]]+default_server|listen[[:space:]]+\\[::\\]:80[[:space:]]+default_server" "$cfg" 2>/dev/null; then
+            log "Desativando arquivo Nginx com default_server duplicado: $cfg"
+            sudo mv "$cfg" "$backup_dir/$(basename "$cfg").$(date +%s).bak" 2>/dev/null || true
+        fi
+    done
 }
 
 # Configurar Nginx apenas HTTP (sem SSL)
@@ -6464,6 +6522,7 @@ EOF
 
     sudo ln -sf $NGINX_CONFIG /etc/nginx/sites-enabled/
     sudo rm -f /etc/nginx/sites-enabled/default
+    sanitize_nginx_default_server_conflicts "$NGINX_CONFIG"
     verify_nginx_ws_config "$NGINX_CONFIG"
     
     # Se Let's Encrypt está ativo, não configurar aqui (será feito em setup_letsencrypt)
@@ -8471,7 +8530,7 @@ validate_complete_installation() {
             log "Criando diretório: $dir"
             sudo mkdir -p "$dir" 2>/dev/null || mkdir -p "$dir" 2>/dev/null || {
                 error "Falha ao criar diretório: $dir"
-                ((ERRORS++))
+                ((ERRORS+=1))
                 continue
             }
         fi
@@ -8481,7 +8540,7 @@ validate_complete_installation() {
             warn "⚠️  Diretório não é acessível: $dir - corrigindo permissões..."
             sudo chmod 755 "$dir" 2>/dev/null || chmod 755 "$dir" 2>/dev/null || {
                 error "Falha ao corrigir permissões: $dir"
-                ((ERRORS++))
+                ((ERRORS+=1))
             }
         fi
     done
@@ -8514,14 +8573,14 @@ validate_complete_installation() {
                         WHERE setting_key = 'media.storage.path';
                     " >/dev/null 2>&1 && log "✅ media.storage.path corrigido" || {
                         warn "⚠️  Não foi possível corrigir media.storage.path automaticamente"
-                        ((WARNINGS++))
+                        ((WARNINGS+=1))
                     }
                 else
                     log "✅ media.storage.path está correto no banco: $EXPECTED_PATH"
                 fi
             else
                 warn "⚠️  Não foi possível verificar media.storage.path no banco"
-                ((WARNINGS++))
+                ((WARNINGS+=1))
             fi
         fi
     fi
@@ -8535,7 +8594,7 @@ validate_complete_installation() {
             log "✅ Nginx configurado corretamente para assets"
         else
             warn "⚠️  Nginx pode não estar configurado corretamente para assets"
-            ((WARNINGS++))
+            ((WARNINGS+=1))
         fi
     fi
     
@@ -8551,7 +8610,7 @@ validate_complete_installation() {
                 warn "    Valor atual: $CURRENT_PATH"
                 warn "    Esperado: /opt/smart-signage/public/assets/uploads"
             fi
-            ((WARNINGS++))
+            ((WARNINGS+=1))
         fi
     fi
     
@@ -8562,7 +8621,7 @@ validate_complete_installation() {
             log "✅ UPLOAD_PATH está correto no backend/.env"
         else
             warn "⚠️  UPLOAD_PATH no backend/.env pode estar incorreto"
-            ((WARNINGS++))
+            ((WARNINGS+=1))
         fi
     fi
     

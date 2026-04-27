@@ -273,6 +273,14 @@ text = text.replace("sudo systemctl status redis-server", "sudo systemctl status
 
 # Oracle Linux: alguns trechos ainda usam path Debian de configuração
 text = text.replace("/etc/postgresql/${PG_VERSION}/main", "/var/lib/pgsql/data")
+text = text.replace(
+    "PG_CONFIG_DIR=\"/var/lib/pgsql/data\"",
+    "PG_CONFIG_DIR=$(find /var/lib/pgsql -maxdepth 3 -type f -name postgresql.conf 2>/dev/null | head -1 | xargs dirname 2>/dev/null || echo \"/var/lib/pgsql/data\")"
+)
+text = text.replace(
+    "PG_CONFIG_DIR=$(find /etc/postgresql -name \"postgresql.conf\" 2>/dev/null | head -1 | xargs dirname 2>/dev/null || echo \"\")",
+    "PG_CONFIG_DIR=$(find /var/lib/pgsql /etc/postgresql -maxdepth 4 -type f -name \"postgresql.conf\" 2>/dev/null | head -1 | xargs dirname 2>/dev/null || echo \"\")"
+)
 
 # ensure_admin_user: forçar TCP+senha no Oracle para evitar auth ident
 text = text.replace(

@@ -47,6 +47,8 @@ interface UploadDialogProps {
   lockDefaultTags?: boolean;
   /** TotemDigital compacto: sem /api/subscribers; usar ID inferido de mídias existentes se necessário */
   fallbackSubscriberId?: number;
+  /** Nome exibido quando o subscriber é fixo (ex.: edição de anunciante) e `subscribers` não é passado */
+  subscriberLabel?: string;
 }
 
 const MediaUploadDialog: React.FC<UploadDialogProps> = ({
@@ -61,6 +63,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   defaultTags = [],
   lockDefaultTags = false,
   fallbackSubscriberId,
+  subscriberLabel,
 }) => {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -339,8 +342,12 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
               <Grid item xs={12}>
                 <TextField
                   fullWidth
-                  label="Subscriber"
-                  value={subscribers.find(s => getSubscriberId(s) === userSubscriberId)?.name || 'Seu Subscriber'}
+                  label="Subscriber (Anunciante)"
+                  value={
+                    subscriberLabel ||
+                    subscribers.find((s) => getSubscriberId(s) === userSubscriberId)?.name ||
+                    'Anunciante'
+                  }
                   disabled
                   margin="normal"
                 />

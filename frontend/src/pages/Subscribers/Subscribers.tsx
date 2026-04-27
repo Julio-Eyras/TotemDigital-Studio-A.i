@@ -3457,6 +3457,8 @@ const Subscribers: React.FC = () => {
                 onSuccess={handleUploadMediaSuccess}
                 isAdmin={false}
                 userSubscriberId={selectedSubscriber.subscriber_id}
+                subscriberLabel={selectedSubscriber.name}
+                subscribers={selectedSubscriber ? [selectedSubscriber] : []}
               />
             </Box>
           )}
