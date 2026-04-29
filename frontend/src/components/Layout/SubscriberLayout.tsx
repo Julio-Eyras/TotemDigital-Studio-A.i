@@ -36,7 +36,6 @@ import {
   Logout,
   AccountCircle,
   Settings,
-  Business,
   ExpandLess,
   ExpandMore,
 } from '@mui/icons-material';
@@ -188,17 +187,20 @@ const SubscriberLayout: React.FC<SubscriberLayoutProps> = ({ children }) => {
     <Box>
       {/* Logo Section */}
       <Box sx={{ p: 3, textAlign: 'center', borderBottom: `1px solid ${theme.palette.divider}` }}>
-        <Avatar
+        <Box
+          component="img"
+          src="/logo-smart-signage.png"
+          alt="Smart Signage"
           sx={{
-            width: 60,
-            height: 60,
+            width: 72,
+            height: 72,
             mx: 'auto',
             mb: 2,
-            background: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
+            objectFit: 'cover',
+            borderRadius: 2,
+            border: `1px solid ${theme.palette.divider}`,
           }}
-        >
-          <Business sx={{ fontSize: 32 }} />
-        </Avatar>
+        />
         <Typography variant="h6" sx={{ fontWeight: 'bold', color: theme.palette.secondary.main }}>
           Smart Signage Pro
         </Typography>

@@ -75,6 +75,21 @@ export const createAppTheme = (mode: 'light' | 'dark' = 'light', darkTone: DarkT
         secondary: mode === 'dark' && t ? t.textSecondary : designTokens.neutral.textSecondary,
       },
       divider: mode === 'dark' && t ? t.divider : designTokens.neutral.divider,
+      grey:
+        mode === 'dark' && t
+          ? {
+              50: t.backgroundDefault,
+              100: t.backgroundPaper,
+              200: '#2a2a2a',
+              300: '#3a3a3a',
+              400: '#525252',
+              500: '#6b7280',
+              600: '#8b949e',
+              700: '#a1a1aa',
+              800: '#c5c5d2',
+              900: '#e4e4ef',
+            }
+          : undefined,
     },
     typography: {
       fontFamily: designTokens.typography.fontFamily,

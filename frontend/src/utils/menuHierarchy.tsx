@@ -170,6 +170,7 @@ export const getMenuHierarchyByRole = (
 function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
   if (TOTEMDIGITAL_COMPACT) {
     return [
+      { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
       { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
       { text: 'Locais', icon: <LocationOn />, path: '/locals' },
       { text: 'Totens', icon: <Computer />, path: '/totems' },
