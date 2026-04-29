@@ -114,8 +114,8 @@ export const menuPermissions: MenuItemPermission[] = [
   // SmartDisplayFX - Todos exceto editoracao (operator só vê logs/config)
   { path: '/smartdisplayfx', roles: ['admin_sql', 'operator', 'admin', 'gerente_marketing', 'visualizador'] },
   
-  // Configurações - admin_sql, operator, admin
-  { path: '/settings', roles: ['admin_sql', 'operator', 'admin'] },
+  // Configurações - disponível para perfis de operação do produto
+  { path: '/settings', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'publisher_user', 'subscriber_user'] },
   
   // Planos → Publishers - admin_sql, admin
   { path: '/plan-publisher-access', roles: ['admin_sql', 'admin'] },
