@@ -19,7 +19,6 @@ import {
   Visibility,
   VisibilityOff,
   Login,
-  Business,
   Lock,
   Email,
 } from '@mui/icons-material';
@@ -198,7 +197,17 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             px: 3,
           }}
         >
-          <Business sx={{ fontSize: 48, mb: 2 }} />
+          <Box
+            component="img"
+            src="/logo-smart-signage.png"
+            alt="Totem Digital"
+            sx={{
+              width: 72,
+              height: 72,
+              objectFit: 'contain',
+              mb: 2,
+            }}
+          />
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mb: 1 }}>
             {APP_DISPLAY_NAME}
           </Typography>

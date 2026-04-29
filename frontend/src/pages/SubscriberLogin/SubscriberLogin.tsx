@@ -139,7 +139,18 @@ const SubscriberLogin: React.FC = () => {
         }}
       >
         <Box sx={{ textAlign: 'center', marginBottom: 4 }}>
-          <Business sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
+          <Box
+            component="img"
+            src="/logo-smart-signage.png"
+            alt="Totem Digital"
+            sx={{
+              width: 72,
+              height: 72,
+              objectFit: 'contain',
+              mb: 2,
+              borderRadius: 1,
+            }}
+          />
           <Typography
             variant="h4"
             component="h1"
