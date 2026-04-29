@@ -336,7 +336,7 @@ const Billing: React.FC = () => {
             }}
           >
             <MenuItem value="all">Todos</MenuItem>
-            <MenuItem value="subscriber">Assinantes</MenuItem>
+            <MenuItem value="subscriber">Anunciantes</MenuItem>
             <MenuItem value="publisher">Publicadores</MenuItem>
           </Select>
         </FormControl>
@@ -350,7 +350,7 @@ const Billing: React.FC = () => {
             <Tab label="Faturas" icon={<Payment />} iconPosition="start" />
           )}
           {billingType === 'subscriber' && (
-            <Tab label="Faturas Assinantes" icon={<Payment />} iconPosition="start" />
+            <Tab label="Faturas Anunciantes" icon={<Payment />} iconPosition="start" />
           )}
           {billingType === 'publisher' && (
             <Tab label="Faturas Publicadores" icon={<Payment />} iconPosition="start" />

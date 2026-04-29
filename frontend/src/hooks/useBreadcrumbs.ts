@@ -15,7 +15,7 @@ export interface BreadcrumbConfig {
 
 const breadcrumbConfig: BreadcrumbConfig[] = [
   { path: '/dashboard', label: 'Dashboard' },
-  { path: '/subscribers', label: 'Subscribers', parent: '/dashboard' },
+  { path: '/subscribers', label: 'Anunciantes', parent: '/dashboard' },
   { path: '/publishers', label: 'Publishers', parent: '/dashboard' },
   { path: '/campaigns', label: 'Campanhas', parent: '/dashboard' },
   { path: '/media', label: 'Mídias', parent: '/dashboard' },

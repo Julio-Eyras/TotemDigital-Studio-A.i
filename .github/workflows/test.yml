@@ -144,6 +144,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js (with cache)
+        id: setup_node_compact
         uses: actions/setup-node@v4
         continue-on-error: true
         with:
@@ -152,7 +153,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Setup Node.js fallback (without cache)
-        if: failure()
+        if: steps.setup_node_compact.outcome == 'failure'
         uses: actions/setup-node@v4
         with:
           node-version: '20'

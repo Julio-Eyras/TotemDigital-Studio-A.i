@@ -243,7 +243,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
             {mode === 'create' && (
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth margin="normal">
-                  <InputLabel>Cliente (Subscriber)</InputLabel>
+                  <InputLabel>Anunciante</InputLabel>
                   <Select
                     value={subscriberId || ''}
                     onChange={async (e) => {

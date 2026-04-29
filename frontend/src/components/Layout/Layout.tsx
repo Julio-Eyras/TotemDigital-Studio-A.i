@@ -58,7 +58,7 @@ import { authApi } from '../../services/api';
 import { filterMenuItemsByRole, UserRole } from '../../utils/rolePermissions';
 import { getMenuHierarchyByRole, HierarchicalMenuItem } from '../../utils/menuHierarchy';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { setTheme } from '../../store/slices/uiSlice';
+import { setDarkTone, setTheme } from '../../store/slices/uiSlice';
 import { useSystemAlerts } from '../../services/api/queries';
 import { useFlags } from '../../hooks/useFlags';
 import NotificationCenter from '../Notification/NotificationCenter';
@@ -88,11 +88,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const dispatch = useAppDispatch();
   const themeMode = useAppSelector((state) => state.ui.theme);
+  const darkTone = useAppSelector((state) => state.ui.darkTone);
   
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [user, setUser] = useState<any>(null);
   const [alertsAnchorEl, setAlertsAnchorEl] = useState<null | HTMLElement>(null);
+  const [themeAnchorEl, setThemeAnchorEl] = useState<null | HTMLElement>(null);
   const [openMenus, setOpenMenus] = useState<OpenMenusState>({});
   const canReadAlerts = ['admin', 'admin_sql', 'owner_system'].includes(user?.role || '');
   const { data: alerts = [] } = useSystemAlerts(10, canReadAlerts);
@@ -264,14 +266,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // Removido - usando NotificationCenter agora
 
-  const handleToggleTheme = () => {
-    const next = themeMode === 'light' ? 'dark' : 'light';
-    dispatch(setTheme(next));
+  const handleThemeMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setThemeAnchorEl(event.currentTarget);
+  };
+
+  const handleThemeMenuClose = () => {
+    setThemeAnchorEl(null);
+  };
+
+  const handleSetTheme = (nextMode: 'light' | 'dark', nextTone?: 'carvao' | 'grafite' | 'suave') => {
+    dispatch(setTheme(nextMode));
+    if (nextMode === 'dark' && nextTone) {
+      dispatch(setDarkTone(nextTone));
+      try {
+        localStorage.setItem('darkTone', nextTone);
+      } catch {
+        // ignore storage errors
+      }
+    }
     try {
-      localStorage.setItem('theme', next);
+      localStorage.setItem('theme', nextMode);
     } catch {
       // ignore storage errors
     }
+    handleThemeMenuClose();
   };
 
   const drawer = (
@@ -358,16 +376,69 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Theme Toggle */}
           <IconButton
             color="inherit"
-            onClick={handleToggleTheme}
+            onClick={handleThemeMenuOpen}
             sx={{ mr: 1 }}
-            aria-label="Alternar tema claro/escuro"
+            aria-label="Menu de tema"
           >
-            {themeMode === 'dark' ? (
-              <LightMode fontSize="small" />
-            ) : (
-              <DarkMode fontSize="small" />
-            )}
+            {themeMode === 'dark' ? <LightMode fontSize="small" /> : <DarkMode fontSize="small" />}
           </IconButton>
+
+          <Menu
+            anchorEl={themeAnchorEl}
+            open={Boolean(themeAnchorEl)}
+            onClose={handleThemeMenuClose}
+            anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            keepMounted
+          >
+            <MenuItem onClick={() => handleSetTheme('light')}>
+              <ListItemIcon>
+                <LightMode fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary={themeMode === 'light' ? 'Tema claro (selecionado)' : 'Tema claro'}
+              />
+            </MenuItem>
+
+            <MenuItem onClick={() => handleSetTheme('dark', 'carvao')}>
+              <ListItemIcon>
+                <DarkMode fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  themeMode === 'dark' && darkTone === 'carvao'
+                    ? 'Tema escuro: Carvão (selecionado)'
+                    : 'Tema escuro: Carvão'
+                }
+              />
+            </MenuItem>
+
+            <MenuItem onClick={() => handleSetTheme('dark', 'grafite')}>
+              <ListItemIcon>
+                <DarkMode fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  themeMode === 'dark' && darkTone === 'grafite'
+                    ? 'Tema escuro: Grafite (selecionado)'
+                    : 'Tema escuro: Grafite'
+                }
+              />
+            </MenuItem>
+
+            <MenuItem onClick={() => handleSetTheme('dark', 'suave')}>
+              <ListItemIcon>
+                <DarkMode fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  themeMode === 'dark' && darkTone === 'suave'
+                    ? 'Tema escuro: Suave (selecionado)'
+                    : 'Tema escuro: Suave'
+                }
+              />
+            </MenuItem>
+          </Menu>
 
           {/* User Menu */}
           <IconButton
@@ -473,7 +544,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           flexGrow: 1,
           width: { md: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
-          backgroundColor: theme.palette.grey[50],
+          backgroundColor: theme.palette.background.default,
         }}
       >
         <Toolbar />

@@ -202,10 +202,10 @@ const SubscriberPublisherAccessPage: React.FC = () => {
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            Gerenciamento Subscriber → Publisher
+            Gerenciamento Anunciante → Publisher
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie acessos de subscribers a publishers
+            Gerencie acessos de anunciantes a publishers
           </Typography>
         </Box>
         <Button
@@ -330,7 +330,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell><strong>Subscriber</strong></TableCell>
+                    <TableCell><strong>Anunciante</strong></TableCell>
                     <TableCell><strong>Publisher</strong></TableCell>
                     <TableCell><strong>Tipo</strong></TableCell>
                     <TableCell><strong>Contrato</strong></TableCell>
@@ -401,7 +401,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell><strong>Subscriber</strong></TableCell>
+                    <TableCell><strong>Anunciante</strong></TableCell>
                     <TableCell><strong>Publisher</strong></TableCell>
                     <TableCell><strong>Tipo</strong></TableCell>
                     <TableCell><strong>Concedido em</strong></TableCell>
@@ -459,7 +459,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
                 onChange={(e) => setGrantFormData({ ...grantFormData, subscriberId: e.target.value })}
                 label="Anunciante *"
               >
-                <MenuItem value="">Selecione um subscriber</MenuItem>
+                <MenuItem value="">Selecione um anunciante</MenuItem>
                 {subscribers.map((subscriber) => (
                   <MenuItem key={subscriber.client_id} value={subscriber.client_id.toString()}>
                     {subscriber.name}

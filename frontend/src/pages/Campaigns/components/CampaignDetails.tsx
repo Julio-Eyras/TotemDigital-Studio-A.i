@@ -359,7 +359,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
                 )}
                 {campaign.subscriber_id && (
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Subscriber ID</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Anunciante ID</TableCell>
                     <TableCell>{campaign.subscriber_id}</TableCell>
                   </TableRow>
                 )}

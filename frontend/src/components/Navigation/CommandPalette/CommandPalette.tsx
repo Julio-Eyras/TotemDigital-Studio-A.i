@@ -64,12 +64,12 @@ const defaultItems: CommandItem[] = [
   },
   {
     id: 'subscribers',
-    label: 'Subscribers',
-    description: 'Gerenciar assinantes',
+    label: 'Anunciantes',
+    description: 'Gerenciar anunciantes',
     icon: <People />,
     type: 'page',
     path: '/subscribers',
-    keywords: ['subscribers', 'assinantes', 'clientes'],
+    keywords: ['anunciantes', 'subscribers', 'assinantes', 'clientes'],
   },
   {
     id: 'publishers',
@@ -140,8 +140,8 @@ const compactCommandItems: CommandItem[] = [
   },
   {
     id: 'subscribers',
-    label: 'Assinantes',
-    description: 'CRUD de assinantes (anunciantes)',
+    label: 'Anunciantes',
+    description: 'CRUD de anunciantes',
     icon: <People />,
     type: 'page',
     path: '/subscribers',

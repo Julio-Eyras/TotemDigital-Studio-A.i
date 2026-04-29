@@ -10,9 +10,10 @@ import Notification from './components/Notification/Notification';
 import CommandPaletteWrapper from './components/Navigation/CommandPalette/CommandPaletteWrapper';
 import { useRateLimit } from './hooks/useRateLimit';
 import { useCommandPalette } from './hooks/useCommandPalette';
-import { useAppSelector } from './store/hooks';
+import { useAppDispatch, useAppSelector } from './store/hooks';
 import { TOTEMDIGITAL_COMPACT } from './config/featureFlags';
 import { canAccess } from './utils/rolePermissions';
+import { setTheme, setDarkTone } from './store/slices/uiSlice';
 
 // Pages
 import LoginPage from './pages/Auth/LoginPage';
@@ -714,11 +715,32 @@ const AppContent: React.FC = () => {
 import { createAppTheme } from './theme';
 
 const ThemedApp: React.FC = () => {
+  const dispatch = useAppDispatch();
   const themeMode = useAppSelector((state) => state.ui.theme);
+  const darkTone = useAppSelector((state) => state.ui.darkTone);
+
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'light' || savedTheme === 'dark') {
+        dispatch(setTheme(savedTheme));
+      }
+    } catch {
+      // ignore
+    }
+    try {
+      const savedTone = localStorage.getItem('darkTone');
+      if (savedTone === 'carvao' || savedTone === 'grafite' || savedTone === 'suave') {
+        dispatch(setDarkTone(savedTone));
+      }
+    } catch {
+      // ignore
+    }
+  }, [dispatch]);
 
   const theme = useMemo(
-    () => createAppTheme(themeMode),
-    [themeMode]
+    () => createAppTheme(themeMode, darkTone),
+    [themeMode, darkTone]
   );
 
   return (

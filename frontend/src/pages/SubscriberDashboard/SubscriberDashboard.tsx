@@ -133,7 +133,7 @@ const SubscriberDashboard: React.FC = () => {
         </Typography>
         {user?.subscriberId && (
           <Chip
-            label={`Subscriber ID: ${user.subscriberId}`}
+            label={`Anunciante ID: ${user.subscriberId}`}
             size="small"
             color="primary"
             sx={{ mt: 1 }}
@@ -394,12 +394,12 @@ const SubscriberDashboard: React.FC = () => {
       <Card>
         <CardContent>
           <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-            Informações do Subscriber
+            Informações do Anunciante
           </Typography>
           <Grid container spacing={2}>
             <Grid item xs={12} md={6}>
               <Typography variant="body2" color="text.secondary">
-                Nome do Subscriber
+                Nome do Anunciante
               </Typography>
               <Typography variant="body1" sx={{ fontWeight: 500 }}>
                 {user?.subscriberName || user?.name || 'N/A'}
@@ -407,7 +407,7 @@ const SubscriberDashboard: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <Typography variant="body2" color="text.secondary">
-                ID do Subscriber
+                ID do Anunciante
               </Typography>
               <Typography variant="body1" sx={{ fontWeight: 500 }}>
                 {user?.subscriberId || user?.clientId || 'N/A'}

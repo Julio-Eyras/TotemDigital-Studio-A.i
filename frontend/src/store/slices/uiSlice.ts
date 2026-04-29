@@ -3,6 +3,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 export interface UIState {
   sidebarOpen: boolean;
   theme: 'light' | 'dark';
+  darkTone: 'carvao' | 'grafite' | 'suave';
   language: 'pt' | 'en';
   loading: boolean;
   pageTitle: string;
@@ -15,6 +16,7 @@ export interface UIState {
 const initialState: UIState = {
   sidebarOpen: true,
   theme: 'light',
+  darkTone: 'carvao',
   language: 'pt',
   loading: false,
   pageTitle: 'Smart Signage v2.0',
@@ -33,6 +35,9 @@ const uiSlice = createSlice({
     },
     setTheme: (state, action: PayloadAction<'light' | 'dark'>) => {
       state.theme = action.payload;
+    },
+    setDarkTone: (state, action: PayloadAction<'carvao' | 'grafite' | 'suave'>) => {
+      state.darkTone = action.payload;
     },
     setLanguage: (state, action: PayloadAction<'pt' | 'en'>) => {
       state.language = action.payload;
@@ -59,6 +64,7 @@ export const {
   toggleSidebar,
   setSidebarOpen,
   setTheme,
+  setDarkTone,
   setLanguage,
   setLoading,
   setPageTitle,

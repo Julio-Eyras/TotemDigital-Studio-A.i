@@ -213,7 +213,7 @@ const PlaylistDetails: React.FC<PlaylistDetailsProps> = ({
                 </TableRow>
                 {playlist.subscriber_id && (
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Subscriber ID</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Anunciante ID</TableCell>
                     <TableCell>
                       {(playlist.subscriber_name ?? (playlist as any).subscribername) ? (
                         `${playlist.subscriber_name ?? (playlist as any).subscribername} (ID: ${playlist.subscriber_id})`

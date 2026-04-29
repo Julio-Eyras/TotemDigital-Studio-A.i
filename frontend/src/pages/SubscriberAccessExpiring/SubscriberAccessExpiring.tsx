@@ -328,7 +328,7 @@ const AccessTable: React.FC<AccessTableProps> = ({ access, getDaysUntilExpiry, g
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell><strong>Subscriber</strong></TableCell>
+            <TableCell><strong>Anunciante</strong></TableCell>
             <TableCell><strong>Publisher</strong></TableCell>
             <TableCell><strong>Tipo de Acesso</strong></TableCell>
             <TableCell><strong>Contrato</strong></TableCell>
@@ -347,7 +347,7 @@ const AccessTable: React.FC<AccessTableProps> = ({ access, getDaysUntilExpiry, g
                 <TableCell>
                   <Box>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {item.subscriberName || `Subscriber ${item.subscriberId}`}
+                      {item.subscriberName || `Anunciante ${item.subscriberId}`}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       ID: {item.subscriberId}

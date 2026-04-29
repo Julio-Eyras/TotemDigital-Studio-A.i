@@ -364,7 +364,7 @@ const SubscriberLayout: React.FC<SubscriberLayoutProps> = ({ children }) => {
           flexGrow: 1,
           width: { md: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
-          backgroundColor: theme.palette.grey[50],
+          backgroundColor: theme.palette.background.default,
         }}
       >
         <Toolbar />

@@ -6,7 +6,41 @@
 import { createTheme, ThemeOptions } from '@mui/material/styles';
 import { designTokens } from './designTokens';
 
-export const createAppTheme = (mode: 'light' | 'dark' = 'light') => {
+type DarkTone = 'carvao' | 'grafite' | 'suave';
+
+export const createAppTheme = (mode: 'light' | 'dark' = 'light', darkTone: DarkTone = 'carvao') => {
+  const darkTokens = {
+    carvao: {
+      backgroundDefault: '#121212',
+      backgroundPaper: '#1a1a1a',
+      textPrimary: '#ffffff',
+      textSecondary: '#b0b0b0',
+      divider: '#424242',
+      cardShadow: '0 2px 8px rgba(0,0,0,0.7)',
+      cardShadowHover: '0 4px 16px rgba(0,0,0,0.9)',
+    },
+    grafite: {
+      backgroundDefault: '#0F172A',
+      backgroundPaper: '#0B1220',
+      textPrimary: '#ffffff',
+      textSecondary: '#A7B0C0',
+      divider: '#334155',
+      cardShadow: '0 2px 8px rgba(0,0,0,0.55)',
+      cardShadowHover: '0 6px 18px rgba(2,6,23,0.85)',
+    },
+    suave: {
+      backgroundDefault: '#171717',
+      backgroundPaper: '#1f1f1f',
+      textPrimary: '#ffffff',
+      textSecondary: '#c0c0c0',
+      divider: '#3a3a3a',
+      cardShadow: '0 2px 8px rgba(0,0,0,0.6)',
+      cardShadowHover: '0 5px 16px rgba(0,0,0,0.85)',
+    },
+  } as const;
+
+  const t = mode === 'dark' ? darkTokens[darkTone] : null;
+
   const themeOptions: ThemeOptions = {
     palette: {
       mode,
@@ -33,14 +67,14 @@ export const createAppTheme = (mode: 'light' | 'dark' = 'light') => {
         main: designTokens.status.info,
       },
       background: {
-        default: mode === 'dark' ? '#121212' : designTokens.neutral.background,
-        paper: mode === 'dark' ? '#1e1e1e' : designTokens.neutral.surface,
+        default: mode === 'dark' && t ? t.backgroundDefault : designTokens.neutral.background,
+        paper: mode === 'dark' && t ? t.backgroundPaper : designTokens.neutral.surface,
       },
       text: {
-        primary: mode === 'dark' ? '#ffffff' : designTokens.neutral.textPrimary,
-        secondary: mode === 'dark' ? '#b0b0b0' : designTokens.neutral.textSecondary,
+        primary: mode === 'dark' && t ? t.textPrimary : designTokens.neutral.textPrimary,
+        secondary: mode === 'dark' && t ? t.textSecondary : designTokens.neutral.textSecondary,
       },
-      divider: mode === 'dark' ? '#424242' : designTokens.neutral.divider,
+      divider: mode === 'dark' && t ? t.divider : designTokens.neutral.divider,
     },
     typography: {
       fontFamily: designTokens.typography.fontFamily,
@@ -99,12 +133,12 @@ export const createAppTheme = (mode: 'light' | 'dark' = 'light') => {
           root: {
             borderRadius: designTokens.borderRadius.md,
             boxShadow: mode === 'dark' 
-              ? '0 2px 8px rgba(0,0,0,0.7)' 
+              ? (t?.cardShadow || '0 2px 8px rgba(0,0,0,0.7)') 
               : designTokens.shadows.md,
             transition: designTokens.transitions.short,
             '&:hover': {
               boxShadow: mode === 'dark'
-                ? '0 4px 16px rgba(0,0,0,0.9)'
+                ? (t?.cardShadowHover || '0 4px 16px rgba(0,0,0,0.9)')
                 : designTokens.shadows.lg,
             },
           },

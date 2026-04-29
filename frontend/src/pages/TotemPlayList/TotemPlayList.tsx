@@ -300,7 +300,7 @@ const TotemPlayListPage: React.FC = () => {
             <Tab label="Lista de Totens" icon={<Tv />} iconPosition="start" />
             <Tab label="Timeline/Grade" icon={<Schedule />} iconPosition="start" disabled={!selectedPlaylist} />
             <Tab
-              label={TOTEMDIGITAL_COMPACT ? 'Detalhes' : 'Detalhes Subscribers'}
+              label={TOTEMDIGITAL_COMPACT ? 'Detalhes' : 'Detalhes de Anunciantes'}
               icon={<Business />}
               iconPosition="start"
               disabled={!selectedPlaylist}
@@ -412,7 +412,7 @@ const TotemPlayListPage: React.FC = () => {
                       <TableCell>Ordem</TableCell>
                       <TableCell>Mídia ID</TableCell>
                       <TableCell>Campanha ID</TableCell>
-                      <TableCell>Subscriber ID</TableCell>
+                      <TableCell>Anunciante ID</TableCell>
                       <TableCell>Duração</TableCell>
                       <TableCell>Prioridade</TableCell>
                       <TableCell>Horário</TableCell>
@@ -447,7 +447,7 @@ const TotemPlayListPage: React.FC = () => {
           {selectedPlaylist ? (
             <Box>
               <Typography variant="h6" gutterBottom>
-                {TOTEMDIGITAL_COMPACT ? 'Detalhes da playlist' : 'Detalhes por Subscriber'}
+                {TOTEMDIGITAL_COMPACT ? 'Detalhes da playlist' : 'Detalhes por Anunciante'}
               </Typography>
               {TOTEMDIGITAL_COMPACT ? (
                 <Alert severity="info" sx={{ mb: 2 }}>
@@ -530,7 +530,7 @@ const TotemPlayListPage: React.FC = () => {
                       <TableCell>Ordem</TableCell>
                       <TableCell>Mídia ID</TableCell>
                       <TableCell>Campanha</TableCell>
-                      <TableCell>Subscriber</TableCell>
+                      <TableCell>Anunciante</TableCell>
                       <TableCell>Duração</TableCell>
                       <TableCell>Prioridade</TableCell>
                     </TableRow>

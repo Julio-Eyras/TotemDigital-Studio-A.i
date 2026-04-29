@@ -1105,8 +1105,8 @@ const PlanPublisherAccessPage: React.FC = () => {
                 )}
                 {TOTEMDIGITAL_COMPACT && compactTotemsBlockedByPublisher.length > 0 && (
                   <Alert severity="info" sx={{ mb: 2 }}>
-                    {compactTotemsBlockedByPublisher.length} totem(ns) foram ocultados porque o exibidor correspondente já
-                    está vinculado ao plano.
+                    {compactTotemsBlockedByPublisher.length} totem(ns) já vinculados aparecem na seleção como "já atrelado
+                    ao plano" e ficam desabilitados para evitar duplicidade.
                   </Alert>
                 )}
                 <Grid container spacing={2} alignItems="center">

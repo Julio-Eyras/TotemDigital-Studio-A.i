@@ -301,7 +301,7 @@ const Users: React.FC = () => {
                   <MenuItem value="visualizador">Visualizador</MenuItem>
                   <MenuItem value="user">Usuário</MenuItem>
                   <MenuItem value="publisher_user">Publisher</MenuItem>
-                  <MenuItem value="subscriber_user">Subscriber</MenuItem>
+                  <MenuItem value="subscriber_user">Anunciante</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -316,7 +316,7 @@ const Users: React.FC = () => {
                   <MenuItem value="all">Todos</MenuItem>
                   <MenuItem value="system_user">Sistema</MenuItem>
                   <MenuItem value="publisher_user">Publisher</MenuItem>
-                  <MenuItem value="subscriber_user">Subscriber</MenuItem>
+                  <MenuItem value="subscriber_user">Anunciante</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -351,7 +351,7 @@ const Users: React.FC = () => {
                 <TableCell>Email</TableCell>
                 <TableCell>Função</TableCell>
                 <TableCell>Tipo</TableCell>
-                <TableCell>Publisher/Subscriber</TableCell>
+                <TableCell>Publisher/Anunciante</TableCell>
                 <TableCell>Último Login</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
@@ -417,7 +417,7 @@ const Users: React.FC = () => {
                       )}
                       {user.subscriber_id && (
                         <Chip
-                          label={`Subscriber #${user.subscriber_id}`}
+                          label={`Anunciante #${user.subscriber_id}`}
                           size="small"
                           color="secondary"
                           variant="outlined"
@@ -563,7 +563,7 @@ const Users: React.FC = () => {
               <MenuItem value="visualizador">Visualizador</MenuItem>
               <MenuItem value="user">Usuário</MenuItem>
               <MenuItem value="publisher_user">Publisher</MenuItem>
-              <MenuItem value="subscriber_user">Subscriber</MenuItem>
+              <MenuItem value="subscriber_user">Anunciante</MenuItem>
             </Select>
           </FormControl>
           <FormControl fullWidth margin="normal">
@@ -584,7 +584,7 @@ const Users: React.FC = () => {
             >
               <MenuItem value="system_user">Sistema</MenuItem>
               <MenuItem value="publisher_user">Publisher</MenuItem>
-              <MenuItem value="subscriber_user">Subscriber</MenuItem>
+              <MenuItem value="subscriber_user">Anunciante</MenuItem>
             </Select>
           </FormControl>
           {newUser.userType === 'publisher_user' && (
@@ -624,7 +624,7 @@ const Users: React.FC = () => {
                 }}
                 label="Anunciante"
               >
-                <MenuItem value="">Selecione um Subscriber</MenuItem>
+                <MenuItem value="">Selecione um Anunciante</MenuItem>
                 {subscribers.map((subscriber) => (
                   <MenuItem key={subscriber.subscriber_id} value={subscriber.subscriber_id}>
                     {subscriber.name}
@@ -704,7 +704,7 @@ const Users: React.FC = () => {
               <MenuItem value="visualizador">Visualizador</MenuItem>
               <MenuItem value="user">Usuário</MenuItem>
               <MenuItem value="publisher_user">Publisher</MenuItem>
-              <MenuItem value="subscriber_user">Subscriber</MenuItem>
+              <MenuItem value="subscriber_user">Anunciante</MenuItem>
               {/* Removido: publisher_subscriber não existe no domínio */}
             </Select>
           </FormControl>
@@ -728,7 +728,7 @@ const Users: React.FC = () => {
             >
               <MenuItem value="system_user">Sistema</MenuItem>
               <MenuItem value="publisher_user">Publisher</MenuItem>
-              <MenuItem value="subscriber_user">Subscriber</MenuItem>
+              <MenuItem value="subscriber_user">Anunciante</MenuItem>
               {/* Removido: publisher_subscriber não existe no domínio */}
             </Select>
           </FormControl>
@@ -769,7 +769,7 @@ const Users: React.FC = () => {
                 }}
                 label="Anunciante"
               >
-                <MenuItem value="">Selecione um Subscriber</MenuItem>
+                <MenuItem value="">Selecione um Anunciante</MenuItem>
                 {subscribers.map((subscriber) => (
                   <MenuItem key={subscriber.subscriber_id} value={subscriber.subscriber_id}>
                     {subscriber.name}
