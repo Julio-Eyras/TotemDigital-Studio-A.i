@@ -170,12 +170,10 @@ export const getMenuHierarchyByRole = (
 function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
   if (TOTEMDIGITAL_COMPACT) {
     return [
-      { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-      { text: 'Assinantes', icon: <People />, path: '/subscribers' },
       { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
       { text: 'Locais', icon: <LocationOn />, path: '/locals' },
       { text: 'Totens', icon: <Computer />, path: '/totems' },
-      { text: 'Playlists por Totem', icon: <QueueMusic />, path: '/totem-playlists' },
+      { text: 'Anunciantes', icon: <People />, path: '/subscribers' },
       { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
       { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
       { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
@@ -185,110 +183,15 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
   }
 
   return [
-    { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-
-    // Exibidores (Publicadores + operação de displays)
-    {
-      text: 'Exibidores',
-      icon: <Tv />,
-      path: '/publishers',
-      children: [
-        { text: 'Publicadores', icon: <Business />, path: '/publishers' },
-        { text: 'Locais', icon: <LocationOn />, path: '/locals' },
-        { text: 'Totens', icon: <Computer />, path: '/totems' },
-        { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
-        { text: 'Playlists por Totem', icon: <QueueMusic />, path: '/totem-playlists' },
-        { text: 'Rede Visual', icon: <Link />, path: '/network-topology' },
-        { text: 'Contratos (Exibidores)', icon: <Description />, path: '/publisher-contracts' },
-        {
-          text: 'Playlist Mix',
-          icon: <Shuffle />,
-          path: '/playlist-mix',
-          children: [
-            { text: 'Visão Geral', icon: <Shuffle />, path: '/playlist-mix' },
-            { text: 'Grupos', icon: <Assignment />, path: '/playlist-mix/groups' },
-            { text: 'Regras', icon: <Build />, path: '/playlist-mix/rules' },
-            { text: 'Analytics', icon: <Analytics />, path: '/playlist-mix/analytics' },
-          ],
-        },
-        {
-          text: 'Dispatcher',
-          icon: <MonitorHeart />,
-          path: '/dispatcher-manager',
-          children: [
-            { 
-              text: 'Gerenciar', 
-              icon: <Shuffle />, 
-              path: '/dispatcher-manager',
-              // Planejamento: ver campanhas elegíveis, timeline, simular exibição
-            },
-            { 
-              text: 'Monitor', 
-              icon: <MonitorHeart />, 
-              path: '/dispatcher-monitor',
-              // Histórico: ver decisões passadas, auditoria, análise
-            },
-            { 
-              text: 'Debug Online', 
-              icon: <BugReport />, 
-              path: '/dispatcher-debug',
-              // Diagnóstico técnico: Redis, queries SQL, mensagens em tempo real
-            },
-            { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
-          ],
-        },
-      ],
-    },
-
-    // Assinantes (conteúdo + campanhas)
-    {
-      text: 'Assinantes',
-      icon: <Campaign />,
-      path: '/subscribers',
-      children: [
-        { text: 'Assinantes', icon: <People />, path: '/subscribers' },
-        { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
-        { text: 'Vinhetas', icon: <VideoLibrary />, path: '/vinhetas' },
-        { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
-        { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
-        { text: 'Rede Visual', icon: <Link />, path: '/network-topology?view=graph' },
-        { text: 'Contratos (Assinantes)', icon: <Description />, path: '/subscriber-contracts' },
-        { text: 'Smart Playlist', icon: <AutoAwesome />, path: '/smart-playlist' },
-        { text: 'IA', icon: <SmartToy />, path: '/ai' },
-      ],
-    },
-
-    // Financeiro / Planos / Acessos
-    {
-      text: 'Planos & Acessos',
-      icon: <Link />,
-      path: '/plan-publisher-access',
-      children: [
-        { text: 'Planos', icon: <Link />, path: '/plan-publisher-access' },
-        { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
-        { text: 'Acessos (Assinante → Exibidor)', icon: <Link />, path: '/subscriber-publisher-access' },
-        { text: 'Faturamento (Anunciantes)', icon: <Payment />, path: '/billing?type=subscriber' },
-        { text: 'Faturamento (Exibidores)', icon: <Payment />, path: '/billing?type=publisher' },
-      ],
-    },
-
-    // Operação / Administração
-    {
-      text: 'Administração',
-      icon: <AdminPanelSettings />,
-      path: '/users',
-      children: [
-        { text: 'Usuários', icon: <People />, path: '/users' },
-        { text: 'Tags', icon: <Assignment />, path: '/tags' },
-        { text: 'QR Codes', icon: <QrCode />, path: '/qr-codes' },
-        { text: 'OTA Updates', icon: <CloudUpload />, path: '/ota-updates' },
-        { text: 'SmartDisplayFX', icon: <AutoAwesome />, path: '/smartdisplayfx' },
-        { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
-        { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
-        { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
-        { text: 'Configurações', icon: <Settings />, path: '/settings' },
-      ],
-    },
+    { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
+    { text: 'Locais', icon: <LocationOn />, path: '/locals' },
+    { text: 'Totens', icon: <Computer />, path: '/totems' },
+    { text: 'Anunciantes', icon: <People />, path: '/subscribers' },
+    { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
+    { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
+    { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
+    { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
+    { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 }
 

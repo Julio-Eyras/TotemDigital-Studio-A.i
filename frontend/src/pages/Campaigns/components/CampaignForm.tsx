@@ -256,7 +256,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
                         await onSubscriberChange(newSubscriberId);
                       }
                     }}
-                    label="Cliente (Subscriber)"
+                    label="Anunciante"
                   >
                     <MenuItem value="">Nenhum</MenuItem>
                     {clients.map((client) => {
@@ -426,7 +426,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
             onChange={(_, newValue) => {
               handleFieldChange('playlistIds', newValue.map(p => p.playlist_id));
             }}
-            noOptionsText="Nenhuma playlist cadastrada. Crie em Assinantes > Playlists, adicione mídias e depois selecione aqui."
+            noOptionsText="Nenhuma playlist cadastrada. Crie em Anunciantes > Playlists, adicione mídias e depois selecione aqui."
             renderInput={(params) => (
               <TextField {...params} label="Playlists" margin="normal" helperText="Selecione playlists para associar à campanha" />
             )}
@@ -448,7 +448,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
             onChange={(_, newValue) => {
               handleFieldChange('playlistIds', newValue.map(p => p.playlist_id));
             }}
-            noOptionsText="Nenhuma playlist cadastrada. Crie em Assinantes > Playlists, adicione mídias e depois selecione aqui."
+            noOptionsText="Nenhuma playlist cadastrada. Crie em Anunciantes > Playlists, adicione mídias e depois selecione aqui."
             renderInput={(params) => (
               <TextField {...params} label="Playlists" margin="normal" />
             )}

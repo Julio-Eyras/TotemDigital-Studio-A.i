@@ -468,14 +468,18 @@ const Playlists: React.FC = () => {
             : 'Playlists pertencem a um subscriber e contêm mídias; campanhas apontam para playlists.'
         }
         breadcrumbs={breadcrumbs}
-        actions={[
-          {
-            label: 'Criar Playlist',
-            icon: <Add />,
-            onClick: openCreate,
-            variant: 'contained',
-          },
-        ]}
+        actions={
+          TOTEMDIGITAL_COMPACT
+            ? []
+            : [
+                {
+                  label: 'Criar Playlist',
+                  icon: <Add />,
+                  onClick: openCreate,
+                  variant: 'contained',
+                },
+              ]
+        }
         onRefresh={loadPlaylists}
         loading={loading}
       />
@@ -486,11 +490,11 @@ const Playlists: React.FC = () => {
             {canSelectSubscriber && (
               <Grid item xs={12} md={4}>
                 <FormControl fullWidth>
-                  <InputLabel>Subscriber (Anunciante)</InputLabel>
+                  <InputLabel>Anunciante</InputLabel>
                   <Select
                     value={selectedSubscriberId}
                     onChange={(e) => setSelectedSubscriberId(e.target.value as number | 'all')}
-                    label="Subscriber (Anunciante)"
+                    label="Anunciante"
                   >
                     <MenuItem value="all">Todos</MenuItem>
                     {subscribers.map((s) => (
@@ -564,9 +568,11 @@ const Playlists: React.FC = () => {
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
               Comece criando suas primeiras playlists
             </Typography>
-            <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-              Criar Primeira Playlist
-            </Button>
+            {!TOTEMDIGITAL_COMPACT && (
+              <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
+                Criar Primeira Playlist
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -590,7 +596,7 @@ const Playlists: React.FC = () => {
 
               {canSelectSubscriber ? (
                 <FormControl fullWidth margin="normal">
-                  <InputLabel>Subscriber (Anunciante)</InputLabel>
+                  <InputLabel>Anunciante</InputLabel>
                   <Select
                     value={editorMode === 'create' ? draft.subscriberId || '' : selectedPlaylist?.subscriber_id || selectedPlaylist?.client_id || ''}
                     onChange={(e) => {
@@ -598,7 +604,7 @@ const Playlists: React.FC = () => {
                       if (editorMode === 'create') setDraft({ ...draft, subscriberId: sid, clientId: sid });
                       else if (selectedPlaylist && sid) setSelectedPlaylist({ ...selectedPlaylist, subscriber_id: sid, client_id: sid });
                     }}
-                    label="Subscriber (Anunciante)"
+                    label="Anunciante"
                   >
                     {subscribers.map((s) => (
                       <MenuItem key={s.subscriber_id} value={s.subscriber_id}>
@@ -611,12 +617,12 @@ const Playlists: React.FC = () => {
                 <TextField
                   fullWidth
                   margin="normal"
-                  label="Subscriber (Anunciante)"
+                  label="Anunciante"
                   value={
                     (editorMode === 'edit' && (selectedPlaylist?.subscriber_name || (selectedPlaylist as any)?.subscribername))
                       ? `${(selectedPlaylist as any).subscriber_name || (selectedPlaylist as any).subscribername} (ID: ${selectedPlaylist?.subscriber_id ?? selectedPlaylist?.client_id ?? ''})`
                       : userSubscriberId
-                        ? `${(user as any)?.subscriberName || subscribers.find(s => s.subscriber_id === userSubscriberId)?.name || 'Subscriber'} (ID: ${userSubscriberId})`
+                        ? `${(user as any)?.subscriberName || subscribers.find(s => s.subscriber_id === userSubscriberId)?.name || 'Anunciante'} (ID: ${userSubscriberId})`
                         : '—'
                   }
                   disabled

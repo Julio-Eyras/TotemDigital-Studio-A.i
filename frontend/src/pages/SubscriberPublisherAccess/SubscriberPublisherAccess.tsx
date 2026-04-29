@@ -149,7 +149,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
       setError(null);
 
       if (!grantFormData.subscriberId || !grantFormData.publisherId || !grantFormData.contractId) {
-        setError('Subscriber, Publisher e Contrato são obrigatórios');
+        setError('Anunciante, Publisher e Contrato são obrigatórios');
         return;
       }
 
@@ -227,11 +227,11 @@ const SubscriberPublisherAccessPage: React.FC = () => {
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={3}>
               <FormControl fullWidth>
-                <InputLabel>Subscriber</InputLabel>
+                <InputLabel>Anunciante</InputLabel>
                 <Select
                   value={filters.subscriberId}
                   onChange={(e) => setFilters({ ...filters, subscriberId: e.target.value })}
-                  label="Subscriber"
+                  label="Anunciante"
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {subscribers.map((subscriber) => (
@@ -453,11 +453,11 @@ const SubscriberPublisherAccessPage: React.FC = () => {
         <DialogContent>
           <Box sx={{ pt: 2 }}>
             <FormControl fullWidth margin="normal">
-              <InputLabel>Subscriber *</InputLabel>
+              <InputLabel>Anunciante *</InputLabel>
               <Select
                 value={grantFormData.subscriberId}
                 onChange={(e) => setGrantFormData({ ...grantFormData, subscriberId: e.target.value })}
-                label="Subscriber *"
+                label="Anunciante *"
               >
                 <MenuItem value="">Selecione um subscriber</MenuItem>
                 {subscribers.map((subscriber) => (

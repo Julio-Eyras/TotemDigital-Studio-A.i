@@ -99,6 +99,7 @@ interface PlanAssociationEntry {
 interface CompactTotemOption {
   totem: Player;
   publisherId?: number;
+  isAlreadyLinked?: boolean;
 }
 
 const PlanPublisherAccessPage: React.FC = () => {
@@ -615,12 +616,14 @@ const PlanPublisherAccessPage: React.FC = () => {
     : [];
 
   const compactTotemsWithoutPublisher = compactTotemOptions.filter((entry) => entry.publisherId == null);
-  const compactTotemsBlockedByPublisher = compactTotemOptions.filter(
-    (entry) => entry.publisherId != null && planPublishers.some((pp) => pp.publisherId === entry.publisherId)
-  );
-  const compactAvailableTotems = compactTotemOptions.filter(
-    (entry) => entry.publisherId != null && !planPublishers.some((pp) => pp.publisherId === entry.publisherId)
-  );
+  const compactTotemsWithPublisher = compactTotemOptions
+    .filter((entry) => entry.publisherId != null)
+    .map((entry) => ({
+      ...entry,
+      isAlreadyLinked: planPublishers.some((pp) => pp.publisherId === entry.publisherId),
+    }));
+  const compactTotemsBlockedByPublisher = compactTotemsWithPublisher.filter((entry) => entry.isAlreadyLinked);
+  const compactAvailableTotems = compactTotemsWithPublisher.filter((entry) => !entry.isAlreadyLinked);
 
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
@@ -1090,8 +1093,8 @@ const PlanPublisherAccessPage: React.FC = () => {
                 )}
                 {TOTEMDIGITAL_COMPACT && totemsCatalog.length > 0 && compactAvailableTotems.length === 0 && (
                   <Alert severity="info" sx={{ mb: 2 }}>
-                    Não há totems disponíveis para adicionar neste plano. Todos os totems encontrados estão sem exibidor
-                    associado ao local ou já pertencem a exibidores vinculados ao plano.
+                    Não há totems disponíveis para adicionar neste plano. Os totems já vinculados continuam listados
+                    abaixo no seletor como "já atrelado", porém desabilitados.
                   </Alert>
                 )}
                 {TOTEMDIGITAL_COMPACT && compactTotemsWithoutPublisher.length > 0 && (
@@ -1117,13 +1120,14 @@ const PlanPublisherAccessPage: React.FC = () => {
                           label={publisherEntityLabel}
                         >
                           <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
-                          {compactAvailableTotems
-                            .map(({ totem, publisherId }) => {
+                          {compactTotemsWithPublisher
+                            .map(({ totem, publisherId, isAlreadyLinked }) => {
                               const publisher = publishers.find((p) => p.publisher_id === publisherId);
                               const publisherLabel = publisher?.name || `Exibidor ${publisherId}`;
+                              const linkedSuffix = isAlreadyLinked ? ' - já atrelado ao plano' : '';
                               return (
-                              <MenuItem key={totem.totem_id} value={String(totem.totem_id)}>
-                                {`${formatTotemLabel(totem)} (${publisherLabel})`}
+                              <MenuItem key={totem.totem_id} value={String(totem.totem_id)} disabled={Boolean(isAlreadyLinked)}>
+                                {`${formatTotemLabel(totem)} (${publisherLabel})${linkedSuffix}`}
                               </MenuItem>
                               );
                             })}

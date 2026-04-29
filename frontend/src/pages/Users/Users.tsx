@@ -612,7 +612,7 @@ const Users: React.FC = () => {
           )}
           {newUser.userType === 'subscriber_user' && (
             <FormControl fullWidth margin="normal">
-              <InputLabel>Subscriber</InputLabel>
+              <InputLabel>Anunciante</InputLabel>
               <Select
                 value={newUser.subscriberId || ''}
                 onChange={(e) => {
@@ -622,7 +622,7 @@ const Users: React.FC = () => {
                     subscriberId: value && value !== '' ? parseInt(String(value), 10) : undefined 
                   });
                 }}
-                label="Subscriber"
+                label="Anunciante"
               >
                 <MenuItem value="">Selecione um Subscriber</MenuItem>
                 {subscribers.map((subscriber) => (
@@ -757,7 +757,7 @@ const Users: React.FC = () => {
           )}
           {selectedUser?.user_type === 'subscriber_user' && (
             <FormControl fullWidth margin="normal">
-              <InputLabel>Subscriber</InputLabel>
+              <InputLabel>Anunciante</InputLabel>
               <Select
                 value={selectedUser?.subscriber_id || ''}
                 onChange={(e) => {
@@ -767,7 +767,7 @@ const Users: React.FC = () => {
                     subscriber_id: value && value !== '' ? parseInt(String(value), 10) : undefined 
                   });
                 }}
-                label="Subscriber"
+                label="Anunciante"
               >
                 <MenuItem value="">Selecione um Subscriber</MenuItem>
                 {subscribers.map((subscriber) => (

@@ -381,14 +381,18 @@ const Media: React.FC = () => {
         title="Biblioteca de Mídia"
         subtitle="Gerencie seus arquivos de mídia"
         breadcrumbs={breadcrumbs}
-        actions={[
-          {
-            label: 'Criar Mídia',
-            icon: <Add />,
-            onClick: () => setUploadDialogOpen(true),
-            variant: 'contained',
-          },
-        ]}
+        actions={
+          TOTEMDIGITAL_COMPACT
+            ? []
+            : [
+                {
+                  label: 'Criar Mídia',
+                  icon: <Add />,
+                  onClick: () => setUploadDialogOpen(true),
+                  variant: 'contained',
+                },
+              ]
+        }
         onRefresh={loadMediaItems}
         loading={loading}
       />
@@ -411,13 +415,13 @@ const Media: React.FC = () => {
             {canSelectSubscriber && !TOTEMDIGITAL_COMPACT && (
               <Grid item xs={12} md={3}>
                 <FormControl fullWidth>
-                  <InputLabel>Subscriber (Anunciante)</InputLabel>
+                  <InputLabel>Anunciante</InputLabel>
                   <Select
                     value={subscriberFilter}
                     onChange={(e) => setSubscriberFilter(e.target.value as number | 'all')}
-                    label="Subscriber (Anunciante)"
+                    label="Anunciante"
                   >
-                    {isAdmin && <MenuItem value="all">Todos os Subscribers</MenuItem>}
+                    {isAdmin && <MenuItem value="all">Todos os Anunciantes</MenuItem>}
                     {subscribers.map((subscriber) => (
                       <MenuItem key={subscriber.subscriber_id} value={subscriber.subscriber_id}>
                         {subscriber.name}
@@ -681,11 +685,11 @@ const Media: React.FC = () => {
                   </Typography>
                 )}
 
-                {/* Dados do Subscriber */}
+                {/* Dados do Anunciante */}
                 {media.subscriberName && (
                   <Box sx={{ mb: 1 }}>
                     <Chip
-                      label={`Subscriber: ${media.subscriberName}`}
+                      label={`Anunciante: ${media.subscriberName}`}
                       size="small"
                       color="primary"
                       variant="outlined"
@@ -782,13 +786,15 @@ const Media: React.FC = () => {
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
               Comece adicionando seus primeiros arquivos de mídia
         </Typography>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => setUploadDialogOpen(true)}
-            >
-              Adicionar Primeira Mídia
-            </Button>
+            {!TOTEMDIGITAL_COMPACT && (
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => setUploadDialogOpen(true)}
+              >
+                Adicionar Primeira Mídia
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -863,7 +869,7 @@ const Media: React.FC = () => {
                 </Select>
               </FormControl>
               {selectedMedia?.subscriberName && (
-                <TextField fullWidth label="Subscriber" value={selectedMedia.subscriberName} margin="normal" disabled />
+                <TextField fullWidth label="Anunciante" value={selectedMedia.subscriberName} margin="normal" disabled />
               )}
             </>
           )}

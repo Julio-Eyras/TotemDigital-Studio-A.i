@@ -187,7 +187,7 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
                 <TableRow>
                   <TableCell sx={{ fontWeight: 'bold' }}>Tipo de Cliente</TableCell>
                   <TableCell>
-                    <Chip label="Assinante" size="small" color="primary" />
+                    <Chip label="Anunciante" size="small" color="primary" />
                   </TableCell>
                 </TableRow>
                 <TableRow>

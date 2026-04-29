@@ -648,14 +648,18 @@ const Campaigns: React.FC = () => {
         title="Campanhas"
         subtitle="Gerencie campanhas, playlists, agendamentos e prioridades comerciais (tier, share de tempo)."
         breadcrumbs={breadcrumbs}
-        actions={[
-          {
-            label: 'Criar Campanha',
-            icon: <Add />,
-            onClick: () => setCreateDialogOpen(true),
-            variant: 'contained',
-          },
-        ]}
+        actions={
+          compactMode
+            ? []
+            : [
+                {
+                  label: 'Criar Campanha',
+                  icon: <Add />,
+                  onClick: () => setCreateDialogOpen(true),
+                  variant: 'contained',
+                },
+              ]
+        }
         onRefresh={loadCampaigns}
         loading={loading}
       />
@@ -770,13 +774,15 @@ const Campaigns: React.FC = () => {
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
               Comece criando suas primeiras campanhas
             </Typography>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => setCreateDialogOpen(true)}
-            >
-              Criar Primeira Campanha
-            </Button>
+            {!compactMode && (
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => setCreateDialogOpen(true)}
+              >
+                Criar Primeira Campanha
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -845,7 +851,7 @@ const Campaigns: React.FC = () => {
           {!compactMode && (
             <>
           <FormControl fullWidth margin="normal">
-            <InputLabel>Cliente</InputLabel>
+            <InputLabel>Anunciante</InputLabel>
             <Select
               value={newCampaign.subscriberId || ''}
               onChange={async (e) => {
@@ -872,7 +878,7 @@ const Campaigns: React.FC = () => {
                   setAccessiblePublishers([]);
                 }
               }}
-              label="Cliente (Subscriber)"
+              label="Anunciante"
             >
               <MenuItem value="">Nenhum</MenuItem>
               {clients.map((client) => {
@@ -956,7 +962,7 @@ const Campaigns: React.FC = () => {
             noOptionsText={
               compactMode
                 ? 'Nenhuma playlist cadastrada. Crie em Playlists e adicione mídias.'
-                : 'Nenhuma playlist cadastrada. Crie em Assinantes > Playlists, adicione mídias e depois selecione aqui.'
+                : 'Nenhuma playlist cadastrada. Crie em Anunciantes > Playlists, adicione mídias e depois selecione aqui.'
             }
             renderInput={(params) => (
               <TextField {...params} label="Playlists" margin="normal" />
@@ -1347,7 +1353,7 @@ const Campaigns: React.FC = () => {
                 noOptionsText={
               compactMode
                 ? 'Nenhuma playlist cadastrada. Crie em Playlists e adicione mídias.'
-                : 'Nenhuma playlist cadastrada. Crie em Assinantes > Playlists, adicione mídias e depois selecione aqui.'
+                : 'Nenhuma playlist cadastrada. Crie em Anunciantes > Playlists, adicione mídias e depois selecione aqui.'
             }
                 renderInput={(params) => (
                   <TextField {...params} label="Playlists" margin="normal" helperText="Selecione playlists e depois arraste para reordenar" />

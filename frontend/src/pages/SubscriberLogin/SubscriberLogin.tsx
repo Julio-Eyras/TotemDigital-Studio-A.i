@@ -171,7 +171,7 @@ const SubscriberLogin: React.FC = () => {
         <form onSubmit={handleSubmit}>
           <TextField
             fullWidth
-            label="Email do Subscriber"
+            label="Email do Anunciante"
             name="email"
             type="email"
             value={formData.email}

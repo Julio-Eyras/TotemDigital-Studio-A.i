@@ -85,7 +85,7 @@ const PlaylistForm: React.FC<PlaylistFormProps> = ({
         {mode === 'create' && canSelectSubscriber && (
           <Grid item xs={12}>
             <FormControl fullWidth margin="normal">
-              <InputLabel>Subscriber (Cliente)</InputLabel>
+              <InputLabel>Anunciante</InputLabel>
               <Select
                 value={getFieldValue('subscriberId') || ''}
                 onChange={(e) => {
@@ -93,7 +93,7 @@ const PlaylistForm: React.FC<PlaylistFormProps> = ({
                   handleFieldChange('subscriberId', subscriberId);
                   handleFieldChange('clientId', subscriberId); // Compatibilidade
                 }}
-                label="Subscriber (Cliente)"
+                label="Anunciante"
                 error={hasError('subscriberId')}
               >
                 <MenuItem value="">Selecione um subscriber</MenuItem>

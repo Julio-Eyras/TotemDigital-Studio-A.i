@@ -317,11 +317,11 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
             {canPickSubscriber && subscribers.length > 0 && (
               <Grid item xs={12}>
                 <FormControl fullWidth>
-                  <InputLabel>Subscriber (Anunciante) *</InputLabel>
+                  <InputLabel>Anunciante *</InputLabel>
                   <Select
                     value={formData.subscriberId || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, subscriberId: e.target.value as number }))}
-                    label="Subscriber (Anunciante) *"
+                    label="Anunciante *"
                     disabled={uploading}
                   >
                     {subscribers.map((subscriber) => {
@@ -342,7 +342,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
               <Grid item xs={12}>
                 <TextField
                   fullWidth
-                  label="Subscriber (Anunciante)"
+                  label="Anunciante"
                   value={
                     subscriberLabel ||
                     subscribers.find((s) => getSubscriberId(s) === userSubscriberId)?.name ||

@@ -165,8 +165,8 @@ const Vinhetas: React.FC = () => {
             {canSelectSubscriber && (
               <Grid item xs={12} md={4}>
                 <FormControl fullWidth>
-                  <InputLabel>Subscriber</InputLabel>
-                  <Select value={subscriberFilter} label="Subscriber" onChange={(e) => setSubscriberFilter(e.target.value as number | 'all')}>
+                  <InputLabel>Anunciante</InputLabel>
+                  <Select value={subscriberFilter} label="Anunciante" onChange={(e) => setSubscriberFilter(e.target.value as number | 'all')}>
                     {isAdmin && <MenuItem value="all">Todos</MenuItem>}
                     {subscribers.map((s) => (
                       <MenuItem key={s.subscriber_id} value={s.subscriber_id}>{s.name}</MenuItem>
