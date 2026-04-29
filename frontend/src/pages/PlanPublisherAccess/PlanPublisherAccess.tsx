@@ -87,6 +87,11 @@ function formatTotemLabel(t: { totem_id: number; name?: string; identifier?: str
   return parts.length > 0 ? parts.join(' · ') : `Totem #${t.totem_id}`;
 }
 
+function getTotemIsActive(t: Record<string, unknown>): boolean {
+  const v = t.isActive ?? t.is_active;
+  return v === undefined ? true : Boolean(v);
+}
+
 interface PlanAssociationEntry {
   publisherId: number;
   isAllowed: boolean;
@@ -168,6 +173,7 @@ const PlanPublisherAccessPage: React.FC = () => {
     restrictions: '',
     notes: '',
   });
+  const [accessSelectedTotemId, setAccessSelectedTotemId] = useState<string>('');
 
   useEffect(() => {
     loadAllData();
@@ -534,8 +540,12 @@ const PlanPublisherAccessPage: React.FC = () => {
 
   const handleOpenAccessDialog = (access?: PlanPublisherAccess) => {
     if (access) {
+      const matchedTotem = totemsCatalog.find(
+        (totem) => getTotemPublisherId(totem as Record<string, unknown>) === access.publisher_id
+      );
       setAccessEditMode(true);
       setSelectedAccess(access);
+      setAccessSelectedTotemId(matchedTotem ? String(matchedTotem.totem_id) : '');
       setAccessFormData({
         planId: access.plan_id.toString(),
         publisherId: access.publisher_id.toString(),
@@ -546,6 +556,7 @@ const PlanPublisherAccessPage: React.FC = () => {
     } else {
       setAccessEditMode(false);
       setSelectedAccess(null);
+      setAccessSelectedTotemId('');
       setAccessFormData({
         planId: '',
         publisherId: '',
@@ -622,6 +633,9 @@ const PlanPublisherAccessPage: React.FC = () => {
       ...entry,
       isAlreadyLinked: planPublishers.some((pp) => pp.publisherId === entry.publisherId),
     }));
+  const compactActiveTotemsWithPublisher = compactTotemsWithPublisher.filter((entry) =>
+    getTotemIsActive(entry.totem as Record<string, unknown>)
+  );
   const compactTotemsBlockedByPublisher = compactTotemsWithPublisher.filter((entry) => entry.isAlreadyLinked);
   const compactAvailableTotems = compactTotemsWithPublisher.filter((entry) => !entry.isAlreadyLinked);
 
@@ -1120,7 +1134,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                           label={publisherEntityLabel}
                         >
                           <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
-                          {compactTotemsWithPublisher
+                          {compactActiveTotemsWithPublisher
                             .map(({ totem, publisherId, isAlreadyLinked }) => {
                               const publisher = publishers.find((p) => p.publisher_id === publisherId);
                               const publisherLabel = publisher?.name || `Exibidor ${publisherId}`;
@@ -1263,19 +1277,48 @@ const PlanPublisherAccessPage: React.FC = () => {
 
             <FormControl fullWidth margin="normal">
               <InputLabel>{`${publisherEntityLabel} *`}</InputLabel>
-              <Select
-                value={accessFormData.publisherId}
-                onChange={(e) => setAccessFormData({ ...accessFormData, publisherId: e.target.value })}
-                label={`${publisherEntityLabel} *`}
-                disabled={accessEditMode}
-              >
-                <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
-                {publishers.map((publisher) => (
-                  <MenuItem key={publisher.publisher_id} value={publisher.publisher_id.toString()}>
-                    {publisher.name}
-                  </MenuItem>
-                ))}
-              </Select>
+              {TOTEMDIGITAL_COMPACT ? (
+                <Select
+                  value={accessSelectedTotemId}
+                  onChange={(e) => {
+                    const totemId = e.target.value;
+                    setAccessSelectedTotemId(totemId);
+                    const totem = totemsCatalog.find((t) => t.totem_id === parseInt(totemId, 10));
+                    const publisherId = totem ? getTotemPublisherId(totem as Record<string, unknown>) : undefined;
+                    setAccessFormData({
+                      ...accessFormData,
+                      publisherId: publisherId != null ? String(publisherId) : '',
+                    });
+                  }}
+                  label={`${publisherEntityLabel} *`}
+                  disabled={accessEditMode}
+                >
+                  <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
+                  {compactActiveTotemsWithPublisher.map(({ totem, publisherId }) => {
+                    const publisher = publishers.find((p) => p.publisher_id === publisherId);
+                    const publisherLabel = publisher?.name || `Exibidor ${publisherId}`;
+                    return (
+                      <MenuItem key={totem.totem_id} value={String(totem.totem_id)}>
+                        {`${formatTotemLabel(totem)} (${publisherLabel})`}
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              ) : (
+                <Select
+                  value={accessFormData.publisherId}
+                  onChange={(e) => setAccessFormData({ ...accessFormData, publisherId: e.target.value })}
+                  label={`${publisherEntityLabel} *`}
+                  disabled={accessEditMode}
+                >
+                  <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
+                  {publishers.map((publisher) => (
+                    <MenuItem key={publisher.publisher_id} value={publisher.publisher_id.toString()}>
+                      {publisher.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
             </FormControl>
 
             <FormControlLabel
