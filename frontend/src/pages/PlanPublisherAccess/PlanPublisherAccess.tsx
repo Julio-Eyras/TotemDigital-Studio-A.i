@@ -23,6 +23,7 @@ import {
   MenuItem,
   Chip,
   Alert,
+  Checkbox,
   Switch,
   FormControlLabel,
   Table,
@@ -91,6 +92,11 @@ function getTotemIsActive(t: Record<string, unknown>): boolean {
   return v === undefined ? true : Boolean(v);
 }
 
+function getTotemLocalId(t: Record<string, unknown>): number | undefined {
+  const v = (t.localId ?? t.local_id) as number | undefined;
+  return typeof v === 'number' && !Number.isNaN(v) ? v : undefined;
+}
+
 interface PlanAssociationEntry {
   publisherId: number;
   isAllowed: boolean;
@@ -110,6 +116,13 @@ interface CompactLocalOption {
   local: Local;
   publisherId?: number;
   isAlreadyLinked?: boolean;
+}
+
+interface CompactScopeRestrictions {
+  compact_scope?: {
+    local_ids?: number[];
+    enabled_totem_ids_by_local?: Record<string, number[]>;
+  };
 }
 
 const PlanPublisherAccessPage: React.FC = () => {
@@ -138,6 +151,8 @@ const PlanPublisherAccessPage: React.FC = () => {
   const [selectedPublisherForPlan, setSelectedPublisherForPlan] = useState<string>('');
   /** Modo compact: seleção por local_id */
   const [selectedLocalIdForPlan, setSelectedLocalIdForPlan] = useState<string>('');
+  const [compactSelectedLocalIds, setCompactSelectedLocalIds] = useState<number[]>([]);
+  const [compactEnabledTotemsByLocal, setCompactEnabledTotemsByLocal] = useState<Record<number, number[]>>({});
   const [localsCatalog, setLocalsCatalog] = useState<Local[]>([]);
   const [totemsCatalog, setTotemsCatalog] = useState<Player[]>([]);
   const [planFormData, setPlanFormData] = useState<CreatePlanRequest>({
@@ -291,9 +306,29 @@ const PlanPublisherAccessPage: React.FC = () => {
         return base;
       });
       setPlanPublishers(publishersData);
+      if (TOTEMDIGITAL_COMPACT && accessRes.length > 0) {
+        const restrictions = (accessRes[0].restrictions || {}) as CompactScopeRestrictions;
+        const localIds = Array.isArray(restrictions.compact_scope?.local_ids)
+          ? restrictions.compact_scope?.local_ids || []
+          : [];
+        const enabledByLocalRaw = restrictions.compact_scope?.enabled_totem_ids_by_local || {};
+        const enabledByLocal: Record<number, number[]> = {};
+        Object.entries(enabledByLocalRaw).forEach(([localId, totemIds]) => {
+          const parsedLocalId = Number(localId);
+          if (!Number.isNaN(parsedLocalId) && Array.isArray(totemIds)) {
+            enabledByLocal[parsedLocalId] = totemIds.filter((id) => typeof id === 'number');
+          }
+        });
+        setCompactSelectedLocalIds(localIds);
+        setCompactEnabledTotemsByLocal(enabledByLocal);
+      }
     } catch (error: any) {
       console.error('Erro ao carregar publishers do plano:', error);
       setPlanPublishers([]);
+      if (TOTEMDIGITAL_COMPACT) {
+        setCompactSelectedLocalIds([]);
+        setCompactEnabledTotemsByLocal({});
+      }
     }
   };
 
@@ -356,6 +391,8 @@ const PlanPublisherAccessPage: React.FC = () => {
     setPlanPublishers([]);
     setSelectedPublisherForPlan('');
     setSelectedLocalIdForPlan('');
+    setCompactSelectedLocalIds([]);
+    setCompactEnabledTotemsByLocal({});
   };
 
   const generateSlug = (name: string): string => {
@@ -382,8 +419,25 @@ const PlanPublisherAccessPage: React.FC = () => {
         setError('Local sem exibidor associado. Verifique o cadastro do local.');
         return;
       }
-      if (planPublishers.some((p) => p.publisherId === publisherId)) {
-        setError('Este local já está coberto pelo exibidor associado ao plano. Nenhuma ação adicional é necessária.');
+      const existingIndex = planPublishers.findIndex((p) => p.publisherId === publisherId);
+      const nextLabel = `${selectedLocal.name}${selectedLocal.totem_count != null ? ` · ${selectedLocal.totem_count} totem(ns)` : ''}`;
+      const totemsFromLocal = compactActiveTotemsWithPublisher
+        .filter(({ totem }) => getTotemLocalId(totem as Record<string, unknown>) === selectedLocal.local_id)
+        .map(({ totem }) => totem.totem_id);
+      setCompactSelectedLocalIds((prev) => (prev.includes(selectedLocal.local_id) ? prev : [...prev, selectedLocal.local_id]));
+      setCompactEnabledTotemsByLocal((prev) => ({
+        ...prev,
+        [selectedLocal.local_id]: prev[selectedLocal.local_id] || totemsFromLocal,
+      }));
+      if (existingIndex >= 0) {
+        // Em compact (publisher owner único), trocar o local de referência evita bloqueio/confusão de "já atrelado".
+        setPlanPublishers(planPublishers.map((entry, idx) => (
+          idx === existingIndex
+            ? { ...entry, displayLabel: nextLabel }
+            : entry
+        )));
+        setSelectedLocalIdForPlan('');
+        setError(null);
         return;
       }
       setPlanPublishers([
@@ -391,7 +445,12 @@ const PlanPublisherAccessPage: React.FC = () => {
         {
           publisherId,
           isAllowed: true,
-          displayLabel: `${selectedLocal.name}${selectedLocal.totem_count != null ? ` · ${selectedLocal.totem_count} totem(ns)` : ''}`,
+          displayLabel: nextLabel,
+          restrictions: {
+            compact_scope: {
+              local_ids: [selectedLocal.local_id],
+            },
+          },
         },
       ]);
       setSelectedLocalIdForPlan('');
@@ -494,11 +553,25 @@ const PlanPublisherAccessPage: React.FC = () => {
         // Adicionar/atualizar publishers
         for (const planPublisher of planPublishers) {
           try {
+            const compactRestrictions = TOTEMDIGITAL_COMPACT
+              ? {
+                  ...(planPublisher.restrictions || {}),
+                  compact_scope: {
+                    local_ids: compactSelectedLocalIds,
+                    enabled_totem_ids_by_local: Object.fromEntries(
+                      Object.entries(compactEnabledTotemsByLocal).map(([localId, totemIds]) => [
+                        String(localId),
+                        totemIds,
+                      ])
+                    ),
+                  },
+                }
+              : planPublisher.restrictions;
             await subscriberAccessApi.setPlanPublisherAccess({
               planId: Number(savedPlanId),
               publisherId: Number(planPublisher.publisherId),
               isAllowed: planPublisher.isAllowed === true,
-              restrictions: planPublisher.restrictions,
+              restrictions: compactRestrictions,
               notes: planPublisher.notes,
             });
           } catch (err) {
@@ -647,7 +720,7 @@ const PlanPublisherAccessPage: React.FC = () => {
     ? localsCatalog.map((local) => ({
         local,
         publisherId: local.publisher_id,
-        isAlreadyLinked: planPublishers.some((pp) => pp.publisherId === local.publisher_id),
+        isAlreadyLinked: false,
       }))
     : [];
   const compactActiveLocalsWithPublisher = compactLocalOptions.filter(
@@ -656,6 +729,23 @@ const PlanPublisherAccessPage: React.FC = () => {
   const compactLocalsWithoutTotems = compactActiveLocalsWithPublisher.filter(
     (entry) => (entry.local.totem_count || 0) <= 0
   );
+  const compactPlanLocals = localsCatalog.filter((local) => compactSelectedLocalIds.includes(local.local_id));
+  const compactTotemsBySelectedLocal = compactPlanLocals.map((local) => {
+    const localTotems = compactActiveTotemsWithPublisher
+      .filter(({ totem }) => getTotemLocalId(totem as Record<string, unknown>) === local.local_id)
+      .map(({ totem }) => totem);
+    return { local, totems: localTotems };
+  });
+
+  const toggleTotemForLocal = (localId: number, totemId: number) => {
+    setCompactEnabledTotemsByLocal((prev) => {
+      const current = prev[localId] || [];
+      const next = current.includes(totemId)
+        ? current.filter((id) => id !== totemId)
+        : [...current, totemId];
+      return { ...prev, [localId]: next };
+    });
+  };
 
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
@@ -1157,11 +1247,6 @@ const PlanPublisherAccessPage: React.FC = () => {
                     </List>
                   </Alert>
                 )}
-                {TOTEMDIGITAL_COMPACT && compactTotemsBlockedByPublisher.length > 0 && (
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    Locais com exibidor já vinculado aparecem na seleção como "já atrelado ao plano".
-                  </Alert>
-                )}
                 <Grid container spacing={2} alignItems="center">
                   <Grid item xs={12} md={8}>
                     <FormControl fullWidth>
@@ -1218,6 +1303,54 @@ const PlanPublisherAccessPage: React.FC = () => {
                   </Grid>
                 </Grid>
               </Box>
+
+              {TOTEMDIGITAL_COMPACT && compactPlanLocals.length > 0 && (
+                <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    Totens habilitados por local
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                    Selecione quais totems de cada local ficam habilitados para este plano.
+                  </Typography>
+                  {compactTotemsBySelectedLocal.map(({ local, totems }) => (
+                    <Box key={local.local_id} sx={{ mb: 2, pb: 1, borderBottom: `1px dashed ${theme.palette.divider}` }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                        {local.name}
+                      </Typography>
+                      {totems.length === 0 ? (
+                        <Typography variant="caption" color="text.secondary">
+                          Sem totems ativos neste local.
+                        </Typography>
+                      ) : (
+                        <List dense sx={{ pt: 0 }}>
+                          {totems.map((totem) => {
+                            const enabledTotems = compactEnabledTotemsByLocal[local.local_id] || [];
+                            const checked = enabledTotems.includes(totem.totem_id);
+                            return (
+                              <ListItem key={totem.totem_id} disableGutters sx={{ py: 0 }}>
+                                <FormControlLabel
+                                  control={
+                                    <Checkbox
+                                      checked={checked}
+                                      onChange={() => toggleTotemForLocal(local.local_id, totem.totem_id)}
+                                      size="small"
+                                    />
+                                  }
+                                  label={
+                                    <Typography variant="body2">
+                                      {formatTotemLabel(totem)}
+                                    </Typography>
+                                  }
+                                />
+                              </ListItem>
+                            );
+                          })}
+                        </List>
+                      )}
+                    </Box>
+                  ))}
+                </Box>
+              )}
 
               {planPublishers.length > 0 ? (
                 <List>
