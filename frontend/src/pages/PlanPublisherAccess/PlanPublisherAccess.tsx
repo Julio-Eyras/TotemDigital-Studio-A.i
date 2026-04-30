@@ -736,6 +736,31 @@ const PlanPublisherAccessPage: React.FC = () => {
       .map(({ totem }) => totem);
     return { local, totems: localTotems };
   });
+  const compactBadgeCount = TOTEMDIGITAL_COMPACT ? compactSelectedLocalIds.length : planPublishers.length;
+
+  const handleRemoveLocalFromPlan = (localId: number) => {
+    const nextLocalIds = compactSelectedLocalIds.filter((id) => id !== localId);
+    setCompactSelectedLocalIds(nextLocalIds);
+    setCompactEnabledTotemsByLocal((prev) => {
+      const next = { ...prev };
+      delete next[localId];
+      return next;
+    });
+
+    if (nextLocalIds.length === 0) {
+      setPlanPublishers([]);
+      return;
+    }
+
+    const referenceLocal = localsCatalog.find((local) => local.local_id === nextLocalIds[0]);
+    if (!referenceLocal) return;
+    const nextLabel = `${referenceLocal.name}${referenceLocal.totem_count != null ? ` · ${referenceLocal.totem_count} totem(ns) cadastrados` : ''}`;
+    setPlanPublishers((prev) => (
+      prev.length > 0
+        ? [{ ...prev[0], displayLabel: nextLabel }]
+        : prev
+    ));
+  };
 
   const toggleTotemForLocal = (localId: number, totemId: number) => {
     setCompactEnabledTotemsByLocal((prev) => {
@@ -1019,7 +1044,7 @@ const PlanPublisherAccessPage: React.FC = () => {
             <Tab label="Dados do Plano" />
             <Tab 
               label={publishersOfPlanLabel}
-              icon={planPublishers.length > 0 ? <Chip label={planPublishers.length} size="small" color="primary" /> : undefined} 
+              icon={compactBadgeCount > 0 ? <Chip label={compactBadgeCount} size="small" color="primary" /> : undefined}
               iconPosition="end" 
             />
           </Tabs>
@@ -1265,7 +1290,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                               const linkedSuffix = isAlreadyLinked ? ' - já atrelado ao plano' : '';
                               return (
                               <MenuItem key={local.local_id} value={String(local.local_id)}>
-                                {`${local.name} (${publisherLabel}) · ${local.totem_count || 0} totem(ns)${linkedSuffix}`}
+                                {`${local.name} (${publisherLabel}) · ${local.totem_count || 0} totem(ns) cadastrados${linkedSuffix}`}
                               </MenuItem>
                               );
                             })}
@@ -1352,9 +1377,65 @@ const PlanPublisherAccessPage: React.FC = () => {
                 </Box>
               )}
 
-              {planPublishers.length > 0 ? (
+              {(TOTEMDIGITAL_COMPACT ? compactPlanLocals.length > 0 : planPublishers.length > 0) ? (
                 <List>
-                  {planPublishers.map((planPublisher) => {
+                  {TOTEMDIGITAL_COMPACT
+                    ? compactPlanLocals.map((local) => {
+                        const publisher = publishers.find((p) => p.publisher_id === local.publisher_id);
+                        const activeTotems = compactActiveTotemsWithPublisher.filter(
+                          ({ totem }) => getTotemLocalId(totem as Record<string, unknown>) === local.local_id
+                        );
+                        const enabledTotems = compactEnabledTotemsByLocal[local.local_id] || [];
+                        const sharedNotes = planPublishers[0]?.notes;
+                        return (
+                          <ListItem
+                            key={local.local_id}
+                            sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}
+                          >
+                            <ListItemIcon><Business /></ListItemIcon>
+                            <ListItemText
+                              primary={`${local.name} · ${local.totem_count || 0} totem(ns) cadastrados`}
+                              secondary={
+                                <Box sx={{ mt: 0.5 }}>
+                                  {publisher?.name && (
+                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                                      Exibidor: {publisher.name}
+                                    </Typography>
+                                  )}
+                                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                                    Totens ativos: {activeTotems.length} · habilitados no plano: {enabledTotems.length}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                                    Escopo operacional: todos os totems do local selecionado.
+                                  </Typography>
+                                  <Box sx={{ mt: 1 }}>
+                                    <Chip
+                                      icon={<CheckCircle />}
+                                      label="Acesso Permitido"
+                                      color="success"
+                                      size="small"
+                                      sx={{ mr: 1 }}
+                                    />
+                                    {sharedNotes && (
+                                      <Typography variant="caption" color="text.secondary">
+                                        {sharedNotes}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                </Box>
+                              }
+                            />
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleRemoveLocalFromPlan(local.local_id)}
+                            >
+                              <Delete />
+                            </IconButton>
+                          </ListItem>
+                        );
+                      })
+                    : planPublishers.map((planPublisher) => {
                     const publisher = publishers.find((p) => p.publisher_id === planPublisher.publisherId);
                     const primaryLabel =
                       TOTEMDIGITAL_COMPACT && planPublisher.displayLabel

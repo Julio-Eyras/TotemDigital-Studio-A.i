@@ -18,7 +18,7 @@ EXP_SUBSCRIBERS="${EXP_SUBSCRIBERS:-5}"
 EXP_CONTRACTS_TOTAL="${EXP_CONTRACTS_TOTAL:-15}"
 EXP_CONTRACTS_ACTIVE="${EXP_CONTRACTS_ACTIVE:-5}"
 EXP_CONTRACTS_DRAFT="${EXP_CONTRACTS_DRAFT:-5}"
-EXP_CONTRACTS_PAUSED="${EXP_CONTRACTS_PAUSED:-5}"
+EXP_CONTRACTS_CANCELLED="${EXP_CONTRACTS_CANCELLED:-5}"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -49,7 +49,7 @@ SUBS="$(q "SELECT COUNT(*) FROM subscribers WHERE email LIKE 'subscriber.demo.%@
 CONTRACTS_TOTAL="$(q "SELECT COUNT(*) FROM subscriber_contracts WHERE contract_number LIKE 'SUB-%';")"
 CONTRACTS_ACTIVE="$(q "SELECT COUNT(*) FROM subscriber_contracts WHERE contract_number LIKE 'SUB-%' AND status='active';")"
 CONTRACTS_DRAFT="$(q "SELECT COUNT(*) FROM subscriber_contracts WHERE contract_number LIKE 'SUB-%' AND status='draft';")"
-CONTRACTS_PAUSED="$(q "SELECT COUNT(*) FROM subscriber_contracts WHERE contract_number LIKE 'SUB-%' AND status='paused';")"
+CONTRACTS_CANCELLED="$(q "SELECT COUNT(*) FROM subscriber_contracts WHERE contract_number LIKE 'SUB-%' AND status='cancelled';")"
 
 [[ "$PLANS" == "$EXP_PLANS" ]] && pass "planos bronze/silver/gold = $PLANS" || fail "planos esperado=$EXP_PLANS atual=${PLANS:-N/A}"
 [[ "$LOCALS" == "$EXP_LOCALS" ]] && pass "locais demo = $LOCALS" || fail "locais esperado=$EXP_LOCALS atual=${LOCALS:-N/A}"
@@ -59,7 +59,7 @@ CONTRACTS_PAUSED="$(q "SELECT COUNT(*) FROM subscriber_contracts WHERE contract_
 [[ "$CONTRACTS_TOTAL" == "$EXP_CONTRACTS_TOTAL" ]] && pass "contratos demo total = $CONTRACTS_TOTAL" || fail "contratos total esperado=$EXP_CONTRACTS_TOTAL atual=${CONTRACTS_TOTAL:-N/A}"
 [[ "$CONTRACTS_ACTIVE" == "$EXP_CONTRACTS_ACTIVE" ]] && pass "contratos active = $CONTRACTS_ACTIVE" || fail "active esperado=$EXP_CONTRACTS_ACTIVE atual=${CONTRACTS_ACTIVE:-N/A}"
 [[ "$CONTRACTS_DRAFT" == "$EXP_CONTRACTS_DRAFT" ]] && pass "contratos draft = $CONTRACTS_DRAFT" || fail "draft esperado=$EXP_CONTRACTS_DRAFT atual=${CONTRACTS_DRAFT:-N/A}"
-[[ "$CONTRACTS_PAUSED" == "$EXP_CONTRACTS_PAUSED" ]] && pass "contratos paused = $CONTRACTS_PAUSED" || fail "paused esperado=$EXP_CONTRACTS_PAUSED atual=${CONTRACTS_PAUSED:-N/A}"
+[[ "$CONTRACTS_CANCELLED" == "$EXP_CONTRACTS_CANCELLED" ]] && pass "contratos cancelled = $CONTRACTS_CANCELLED" || fail "cancelled esperado=$EXP_CONTRACTS_CANCELLED atual=${CONTRACTS_CANCELLED:-N/A}"
 
 echo
 echo "Resumo plan_publisher_access (demo):"

@@ -73,7 +73,7 @@ STATUSES="$(sudo -u postgres psql -d "$DB" -t -A -c \
   2>/dev/null || true)"
 if [[ -n "$STATUSES" ]]; then
   echo "$STATUSES"
-  if echo "$STATUSES" | rg -q "^paused:"; then
+  if echo "$STATUSES" | grep -q "^paused:"; then
     fail "Encontrado status inválido 'paused' em subscriber_contracts"
   else
     pass "Nenhum contrato demo com status 'paused'"
