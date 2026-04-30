@@ -266,6 +266,11 @@ CREATE TRIGGER trigger_validate_publisher_billing_revenue_share
 -- TRIGGERS: updated_at para tabelas de acesso
 -- =============================================
 
+DROP TRIGGER IF EXISTS trigger_plan_local_access_updated_at ON plan_local_access;
+CREATE TRIGGER trigger_plan_local_access_updated_at
+    BEFORE UPDATE ON plan_local_access
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 DROP TRIGGER IF EXISTS trigger_plan_publisher_access_updated_at ON plan_publisher_access;
 CREATE TRIGGER trigger_plan_publisher_access_updated_at 
     BEFORE UPDATE ON plan_publisher_access

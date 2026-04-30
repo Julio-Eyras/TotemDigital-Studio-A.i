@@ -11,11 +11,29 @@ import { param, query, body } from 'express-validator';
 import { getSubscriberAccessServiceInstance } from '../services/subscriberAccessService';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { getReconcileService } from '../services/reconcileService';
+import { getDatabase } from '../config/database';
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 
 const router = Router();
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
+
+export async function resolveCompactScopedPublisherId(requestedPublisherId: number): Promise<number> {
+  if (!TOTEMDIGITAL_COMPACT) return requestedPublisherId;
+
+  const ownerPublisherId = await resolveCompactOwnerPublisherId(getDatabase());
+  if (!ownerPublisherId) {
+    throw new Error('Modo compacto: publisher do owner não encontrado.');
+  }
+  if (Number(requestedPublisherId) !== Number(ownerPublisherId)) {
+    throw new Error(
+      `Modo compacto: publisher_id deve ser o publisher do owner (publisher_id=${ownerPublisherId}).`
+    );
+  }
+  return ownerPublisherId;
+}
 
 /**
  * @route GET /api/subscriber-access
@@ -67,10 +85,14 @@ router.get('/plan-publisher',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
+      const requestedPublisherId = req.query.publisherId ? parseInt(req.query.publisherId as string) : undefined;
+      const scopedPublisherId = requestedPublisherId !== undefined
+        ? await resolveCompactScopedPublisherId(requestedPublisherId)
+        : requestedPublisherId;
       const accessService = getSubscriberAccessServiceInstance();
       const access = await accessService.getPlanPublisherAccess({
         planId: req.query.planId ? parseInt(req.query.planId as string) : undefined,
-        publisherId: req.query.publisherId ? parseInt(req.query.publisherId as string) : undefined
+        publisherId: scopedPublisherId
       });
 
       return res.json({
@@ -130,7 +152,7 @@ router.post('/plan-publisher',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const planId = Number(req.body.planId);
-      const publisherId = Number(req.body.publisherId);
+      const publisherId = await resolveCompactScopedPublisherId(Number(req.body.publisherId));
       const isAllowed = req.body.isAllowed !== undefined ? Boolean(req.body.isAllowed) : true;
       const restrictions = req.body.restrictions != null && typeof req.body.restrictions === 'object' && !Array.isArray(req.body.restrictions) ? req.body.restrictions : undefined;
       const notes = req.body.notes;
@@ -225,7 +247,7 @@ router.delete('/plan-publisher/:planId/:publisherId',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const planId = parseInt(req.params.planId);
-      const publisherId = parseInt(req.params.publisherId);
+      const publisherId = await resolveCompactScopedPublisherId(parseInt(req.params.publisherId));
       const accessService = getSubscriberAccessServiceInstance();
       
       await accessService.removePlanPublisherAccess(planId, publisherId);

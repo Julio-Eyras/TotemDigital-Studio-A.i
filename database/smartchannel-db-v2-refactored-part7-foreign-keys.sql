@@ -1755,8 +1755,40 @@ BEGIN
 END $$;
 
 -- =============================================
--- FKs das tabelas PLAN_PUBLISHER_ACCESS e SUBSCRIBER_PUBLISHER_ACCESS
+-- FKs das tabelas PLAN_LOCAL_ACCESS, PLAN_PUBLISHER_ACCESS e SUBSCRIBER_PUBLISHER_ACCESS
 -- =============================================
+
+-- FK para plan_local_access.plan_id
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_plan_local_access_plan'
+        AND t.relname = 'plan_local_access'
+    ) THEN
+        ALTER TABLE plan_local_access
+            ADD CONSTRAINT fk_plan_local_access_plan
+            FOREIGN KEY (plan_id) REFERENCES plans(plan_id)
+            ON DELETE CASCADE;
+    END IF;
+END $$;
+
+-- FK para plan_local_access.local_id
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_plan_local_access_local'
+        AND t.relname = 'plan_local_access'
+    ) THEN
+        ALTER TABLE plan_local_access
+            ADD CONSTRAINT fk_plan_local_access_local
+            FOREIGN KEY (local_id) REFERENCES locals(local_id)
+            ON DELETE CASCADE;
+    END IF;
+END $$;
 
 -- FK para plan_publisher_access.plan_id
 DO $$ 

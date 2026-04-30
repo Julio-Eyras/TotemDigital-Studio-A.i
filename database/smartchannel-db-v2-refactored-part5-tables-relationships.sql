@@ -229,6 +229,40 @@ CREATE TABLE IF NOT EXISTS campaign_locals (
 COMMENT ON TABLE campaign_locals IS 'Relacionamento N:M entre campaigns e locals';
 
 -- =============================================
+-- PLAN_LOCAL_ACCESS (Escopo Compact: Plano ↔ Local)
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS plan_local_access (
+    plan_id INTEGER NOT NULL,
+    local_id INTEGER NOT NULL,
+
+    -- Controle de acesso
+    is_allowed BOOLEAN DEFAULT true,
+    is_active BOOLEAN DEFAULT true,
+
+    -- Restrições específicas do plano para este local
+    restrictions JSONB DEFAULT '{}'::jsonb,
+
+    -- Metadados
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (plan_id, local_id)
+);
+
+COMMENT ON TABLE plan_local_access IS
+    'Define quais locais um plano permite acessar no modo compact (escopo plano -> local)';
+COMMENT ON COLUMN plan_local_access.plan_id IS
+    'Plano que define o acesso ao local';
+COMMENT ON COLUMN plan_local_access.local_id IS
+    'Local que pode ser acessado por este plano no modo compact';
+COMMENT ON COLUMN plan_local_access.is_allowed IS
+    'Se false, bloqueia explicitamente o acesso ao local para o plano';
+COMMENT ON COLUMN plan_local_access.restrictions IS
+    'Restrições específicas por local: limites, janelas, regras comerciais, etc.';
+
+-- =============================================
 -- PLAN_PUBLISHER_ACCESS (Controle de acesso Plano → Publisher)
 -- =============================================
 

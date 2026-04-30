@@ -102,6 +102,15 @@ CREATE INDEX IF NOT EXISTS idx_publisher_contracts_status ON publisher_contracts
 -- ÍNDICES DE CONTROLE DE ACESSO SUBSCRIBER → PUBLISHER
 -- =============================================
 
+-- Plan Local Access (Compact)
+CREATE INDEX IF NOT EXISTS idx_plan_local_access_plan
+    ON plan_local_access(plan_id)
+    WHERE is_allowed = true;
+
+CREATE INDEX IF NOT EXISTS idx_plan_local_access_local
+    ON plan_local_access(local_id)
+    WHERE is_allowed = true;
+
 -- Plan Publisher Access
 CREATE INDEX IF NOT EXISTS idx_plan_publisher_access_plan 
     ON plan_publisher_access(plan_id) 
