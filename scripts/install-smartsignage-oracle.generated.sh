@@ -378,6 +378,13 @@ SYSTEM_OWNER_ADMIN_USERNAME="${SYSTEM_OWNER_ADMIN_USERNAME:-}"
 SYSTEM_OWNER_PUBLISHER_USERNAME="${SYSTEM_OWNER_PUBLISHER_USERNAME:-}"
 SYSTEM_OWNER_PLAN_NAME="${SYSTEM_OWNER_PLAN_NAME:-}"
 SYSTEM_OWNER_PLAN_SLUG="${SYSTEM_OWNER_PLAN_SLUG:-}"
+SYSTEM_DEMO_TARGET_PUBLISHER_ID="${SYSTEM_DEMO_TARGET_PUBLISHER_ID:-1}"
+
+# Carga demo dinâmica (PRO/Compact)
+DEMO_LOCALS_COUNT="${DEMO_LOCALS_COUNT:-6}"
+DEMO_TOTEMS_ACTIVE="${DEMO_TOTEMS_ACTIVE:-12}"
+DEMO_TOTEMS_STOCK="${DEMO_TOTEMS_STOCK:-1}"
+DEMO_SUBSCRIBERS_COUNT="${DEMO_SUBSCRIBERS_COUNT:-5}"
 
 # Modos especiais (operações focadas)
 DB_ONLY_MODE=false                # Reinstala apenas o banco (drop + schema + seeds), sem rebuild de backend/frontend
@@ -499,6 +506,11 @@ ask_owner_profile() {
     read -p "E-mail principal [${SYSTEM_OWNER_EMAIL}]: " input
     [[ -n "${input// }" ]] && SYSTEM_OWNER_EMAIL="$input"
 
+    if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" != "true" ]]; then
+        read -p "Publisher alvo da carga demo (ID) [${SYSTEM_DEMO_TARGET_PUBLISHER_ID}]: " input
+        [[ -n "${input// }" ]] && SYSTEM_DEMO_TARGET_PUBLISHER_ID="$input"
+    fi
+
     sanitize_owner_profile_defaults
 }
 
@@ -536,6 +548,244 @@ prepare_seed_with_owner_profile() {
     sed -i "s/Totem Digital/${rep_owner_name}/g" "$output_seed_file"
     sed -i "s/Encruzilhada/${rep_city}/g" "$output_seed_file"
     sed -i "s/encruzilhada/${rep_city_lower}/g" "$output_seed_file"
+
+    # Bloco demo dinâmico (funcional em PRO e Compact)
+    local owner_sql contact_sql city_sql email_sql admin_sql
+    owner_sql="$(escape_sql_literal "$SYSTEM_OWNER_NAME")"
+    contact_sql="$(escape_sql_literal "$SYSTEM_OWNER_CONTACT_NAME")"
+    city_sql="$(escape_sql_literal "$SYSTEM_OWNER_CITY")"
+    email_sql="$(escape_sql_literal "$SYSTEM_OWNER_EMAIL")"
+    admin_sql="$(escape_sql_literal "$SYSTEM_OWNER_ADMIN_USERNAME")"
+
+    local target_publisher_id="${SYSTEM_DEMO_TARGET_PUBLISHER_ID:-1}"
+    [[ "$target_publisher_id" =~ ^[0-9]+$ ]] || target_publisher_id=1
+    local is_compact_sql="false"
+    [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" == "true" ]] && is_compact_sql="true"
+
+    cat >> "$output_seed_file" <<EOF
+
+-- =============================================
+-- CARGA DEMO DINÂMICA (PRO/COMPACT)
+-- 3 planos (bronze/silver/gold), 6 locais, 13 totems (12 ativos + estoque inativo),
+-- 5 subscribers com 3 contratos por subscriber (active + draft + paused)
+-- =============================================
+DO \$\$
+DECLARE
+    v_target_publisher_id INTEGER := ${target_publisher_id};
+    v_is_compact BOOLEAN := ${is_compact_sql};
+    v_admin_id INTEGER;
+    v_stock_local_id INTEGER;
+    v_bronze_plan_id INTEGER;
+    v_silver_plan_id INTEGER;
+    v_gold_plan_id INTEGER;
+    v_subscriber_id INTEGER;
+    v_local_name TEXT;
+    v_local_id INTEGER;
+    v_local_ids INTEGER[] := ARRAY[]::INTEGER[];
+    i INTEGER;
+BEGIN
+    -- Garantir publisher alvo:
+    -- Compact: publisher owner (id mais baixo ativo, geralmente 1)
+    -- PRO: publisher informado no install; fallback para primeiro ativo.
+    IF v_is_compact THEN
+        SELECT publisher_id INTO v_target_publisher_id
+        FROM publishers
+        WHERE is_active = true
+        ORDER BY publisher_id ASC
+        LIMIT 1;
+    ELSE
+        IF NOT EXISTS (
+            SELECT 1 FROM publishers WHERE publisher_id = v_target_publisher_id AND is_active = true
+        ) THEN
+            SELECT publisher_id INTO v_target_publisher_id
+            FROM publishers
+            WHERE is_active = true
+            ORDER BY publisher_id ASC
+            LIMIT 1;
+        END IF;
+    END IF;
+
+    IF v_target_publisher_id IS NULL THEN
+        RAISE NOTICE 'Seed demo dinâmico: nenhum publisher ativo encontrado. Bloco ignorado.';
+        RETURN;
+    END IF;
+
+    -- Admin responsável pelos contratos
+    SELECT id INTO v_admin_id FROM users WHERE username = '${admin_sql}' LIMIT 1;
+    IF v_admin_id IS NULL THEN
+        SELECT id INTO v_admin_id FROM users ORDER BY id ASC LIMIT 1;
+    END IF;
+
+    -- Planos base
+    INSERT INTO plans (name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order)
+    VALUES
+      ('Plano Bronze', 'bronze', 'Plano Bronze demo dinâmico', 129.00, 1290.00, 'BRL', 'month', '{"tier":"bronze"}'::jsonb, '{"totems":4,"campaigns":20}'::jsonb, true, false, true, 1),
+      ('Plano Silver', 'silver', 'Plano Silver demo dinâmico', 199.00, 1990.00, 'BRL', 'month', '{"tier":"silver"}'::jsonb, '{"totems":8,"campaigns":50}'::jsonb, true, true, false, 2),
+      ('Plano Gold', 'gold', 'Plano Gold demo dinâmico', 299.00, 2990.00, 'BRL', 'month', '{"tier":"gold"}'::jsonb, '{"totems":20,"campaigns":120}'::jsonb, true, false, false, 3)
+    ON CONFLICT (slug) DO UPDATE
+      SET name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          price_monthly = EXCLUDED.price_monthly,
+          price_yearly = EXCLUDED.price_yearly,
+          billing_interval = EXCLUDED.billing_interval,
+          features = EXCLUDED.features,
+          limits = EXCLUDED.limits,
+          is_active = EXCLUDED.is_active,
+          updated_at = CURRENT_TIMESTAMP;
+
+    SELECT plan_id INTO v_bronze_plan_id FROM plans WHERE slug = 'bronze' LIMIT 1;
+    SELECT plan_id INTO v_silver_plan_id FROM plans WHERE slug = 'silver' LIMIT 1;
+    SELECT plan_id INTO v_gold_plan_id   FROM plans WHERE slug = 'gold' LIMIT 1;
+
+    -- Acesso plano -> publisher (3 linhas, conforme solicitado)
+    INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictions, notes, is_active)
+    VALUES
+      (v_bronze_plan_id, v_target_publisher_id, true, '{}'::jsonb, 'Demo dinâmica bronze', true),
+      (v_silver_plan_id, v_target_publisher_id, true, '{}'::jsonb, 'Demo dinâmica silver', true),
+      (v_gold_plan_id, v_target_publisher_id, true, '{}'::jsonb, 'Demo dinâmica gold', true)
+    ON CONFLICT (plan_id, publisher_id) DO UPDATE
+      SET is_allowed = EXCLUDED.is_allowed,
+          restrictions = EXCLUDED.restrictions,
+          notes = EXCLUDED.notes,
+          is_active = EXCLUDED.is_active,
+          updated_at = CURRENT_TIMESTAMP;
+
+    -- 6 locais ativos operacionais
+    FOR i IN 1..${DEMO_LOCALS_COUNT} LOOP
+        v_local_name := format('Local Demo %s - ${city_sql}', lpad(i::TEXT, 2, '0'));
+        IF NOT EXISTS (
+            SELECT 1 FROM locals WHERE publisher_id = v_target_publisher_id AND name = v_local_name
+        ) THEN
+            INSERT INTO locals (
+                publisher_id, created_via_contract_id, name, category_segment, address, city, state, zip_code, country, timezone, description, is_active
+            ) VALUES (
+                v_target_publisher_id, NULL, v_local_name, 'Demo', 'Endereço Demo ' || i, '${city_sql}', NULL, NULL, 'BR', 'America/Sao_Paulo',
+                'Local demo dinâmico', true
+            );
+        END IF;
+
+        SELECT local_id INTO v_local_id
+        FROM locals
+        WHERE publisher_id = v_target_publisher_id AND name = v_local_name
+        ORDER BY local_id ASC
+        LIMIT 1;
+
+        v_local_ids := array_append(v_local_ids, v_local_id);
+    END LOOP;
+
+    -- Local técnico de estoque (inativo) para totems sem operação
+    IF NOT EXISTS (
+        SELECT 1 FROM locals WHERE publisher_id = v_target_publisher_id AND name = 'ESTOQUE DEMO'
+    ) THEN
+        INSERT INTO locals (
+            publisher_id, name, category_segment, city, country, timezone, description, is_active
+        ) VALUES (
+            v_target_publisher_id, 'ESTOQUE DEMO', 'Estoque', '${city_sql}', 'BR', 'America/Sao_Paulo',
+            'Local técnico para totems de estoque inativos', false
+        );
+    END IF;
+
+    SELECT local_id INTO v_stock_local_id
+    FROM locals
+    WHERE publisher_id = v_target_publisher_id AND name = 'ESTOQUE DEMO'
+    ORDER BY local_id ASC
+    LIMIT 1;
+
+    -- 12 totems ativos: 2 por local (6 locais)
+    FOR i IN 1..${DEMO_TOTEMS_ACTIVE} LOOP
+        INSERT INTO totems (
+            identifier, uin, device_id, local_id, name, description, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active
+        ) VALUES (
+            format('demo-totem-%s', lpad(i::TEXT, 3, '0')),
+            format('DEMO-UIN-%s', lpad(i::TEXT, 3, '0')),
+            format('DEMO-DEV-%s', lpad(i::TEXT, 3, '0')),
+            v_local_ids[((i - 1) % ${DEMO_LOCALS_COUNT}) + 1],
+            format('Totem Demo %s', lpad(i::TEXT, 3, '0')),
+            'Totem demo dinâmico ativo',
+            'online',
+            NOW() - INTERVAL '2 minutes',
+            60,
+            '{}'::jsonb,
+            '{}'::jsonb,
+            true
+        )
+        ON CONFLICT (identifier) DO UPDATE
+          SET local_id = EXCLUDED.local_id,
+              name = EXCLUDED.name,
+              description = EXCLUDED.description,
+              status = EXCLUDED.status,
+              is_active = EXCLUDED.is_active,
+              updated_at = CURRENT_TIMESTAMP;
+    END LOOP;
+
+    -- Totens de estoque inativos
+    FOR i IN 1..${DEMO_TOTEMS_STOCK} LOOP
+        INSERT INTO totems (
+            identifier, uin, device_id, local_id, name, description, status, heartbeat_interval, network_info, capabilities, is_active
+        ) VALUES (
+            format('demo-stock-%s', lpad(i::TEXT, 3, '0')),
+            format('DEMO-STOCK-UIN-%s', lpad(i::TEXT, 3, '0')),
+            format('DEMO-STOCK-DEV-%s', lpad(i::TEXT, 3, '0')),
+            v_stock_local_id,
+            format('Totem Estoque %s', lpad(i::TEXT, 3, '0')),
+            'Totem de estoque (inativo)',
+            'offline',
+            60,
+            '{}'::jsonb,
+            '{}'::jsonb,
+            false
+        )
+        ON CONFLICT (identifier) DO UPDATE
+          SET local_id = EXCLUDED.local_id,
+              name = EXCLUDED.name,
+              description = EXCLUDED.description,
+              status = EXCLUDED.status,
+              is_active = EXCLUDED.is_active,
+              updated_at = CURRENT_TIMESTAMP;
+    END LOOP;
+
+    -- 5 subscribers + 3 contratos por subscriber (bronze active, silver draft, gold paused)
+    FOR i IN 1..${DEMO_SUBSCRIBERS_COUNT} LOOP
+        INSERT INTO subscribers (name, contact_name, email, address, category_segment, description, is_active)
+        VALUES (
+            format('Subscriber Demo %s', lpad(i::TEXT, 2, '0')),
+            '${contact_sql}',
+            format('subscriber.demo.%s@totemdigital.local', lpad(i::TEXT, 2, '0')),
+            '${city_sql}',
+            'Demo',
+            'Subscriber demo dinâmico',
+            true
+        )
+        ON CONFLICT (email) DO UPDATE
+          SET name = EXCLUDED.name,
+              contact_name = EXCLUDED.contact_name,
+              address = EXCLUDED.address,
+              is_active = EXCLUDED.is_active,
+              updated_at = CURRENT_TIMESTAMP;
+
+        SELECT subscriber_id INTO v_subscriber_id
+        FROM subscribers
+        WHERE email = format('subscriber.demo.%s@totemdigital.local', lpad(i::TEXT, 2, '0'))
+        LIMIT 1;
+
+        INSERT INTO subscriber_contracts (
+            subscriber_id, plan_id, contract_number, contract_type, title, description,
+            start_date, end_date, total_amount, currency, payment_terms, status,
+            signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata, is_active
+        ) VALUES
+        (v_subscriber_id, v_bronze_plan_id, format('SUB-%s-BRONZE', v_subscriber_id), 'subscription', 'Contrato Bronze Demo', 'Contrato demo bronze', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 1548.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days', v_admin_id, '{}'::jsonb, true),
+        (v_subscriber_id, v_silver_plan_id, format('SUB-%s-SILVER', v_subscriber_id), 'subscription', 'Contrato Silver Demo', 'Contrato demo silver', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 2388.00, 'BRL', 'Mensal', 'draft', NULL, NULL, v_admin_id, '{}'::jsonb, true),
+        (v_subscriber_id, v_gold_plan_id,   format('SUB-%s-GOLD', v_subscriber_id), 'subscription', 'Contrato Gold Demo',   'Contrato demo gold',   CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 3588.00, 'BRL', 'Mensal', 'paused', NULL, NULL, v_admin_id, '{}'::jsonb, true)
+        ON CONFLICT (subscriber_id, contract_number) DO UPDATE
+          SET plan_id = EXCLUDED.plan_id,
+              status = EXCLUDED.status,
+              total_amount = EXCLUDED.total_amount,
+              is_active = EXCLUDED.is_active,
+              updated_at = CURRENT_TIMESTAMP;
+    END LOOP;
+END
+\$\$;
+EOF
 }
 
 # Copiar mídias de demonstração de player-web/propagandas para o diretório de uploads de cada subscriber.
