@@ -301,7 +301,24 @@ const Totems: React.FC = () => {
     }
 
     try {
-      await totemApi.update(totemId, editTotem);
+      const normalizedIdentifier = String(editTotem.identifier || '').trim();
+      const normalizedLocalId = Number(editTotem.localId || 0);
+      const normalizedPayload: UpdatePlayerRequest = {
+        identifier: normalizedIdentifier,
+        localId: normalizedLocalId,
+        isActive: Boolean(editTotem.isActive),
+      };
+
+      const optionalFields: Array<keyof UpdatePlayerRequest> = ['uin', 'deviceId', 'name', 'description', 'firmwareVersion'];
+      optionalFields.forEach((field) => {
+        const raw = (editTotem as any)[field];
+        const value = typeof raw === 'string' ? raw.trim() : raw;
+        if (typeof value === 'string' && value.length > 0) {
+          (normalizedPayload as any)[field] = value;
+        }
+      });
+
+      await totemApi.update(totemId, normalizedPayload);
       setSuccess('Totem atualizado com sucesso');
       setEditOpen(false);
       setEditingTotem(null);

@@ -360,10 +360,13 @@ router.post('/',
  * @access Private (Admin only)
  */
 router.put('/:id',
-  authorizeRole(['admin']),
+  authorizeRole(['admin', 'admin_sql', 'owner_system']),
   param('id').isInt({ min: 1 }),
   body('identifier').optional().isString().isLength({ min: 2, max: 100 }),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
+  body('uin').optional().isString(),
+  body('deviceId').optional().isString(),
+  body('localId').optional().isInt({ min: 1 }),
   body('clientId').optional().isInt({ min: 1 }),
   body('location').optional().isString().isLength({ min: 2, max: 200 }),
   body('description').optional().isString(),
@@ -395,8 +398,12 @@ router.put('/:id',
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
       return res.json(totem);
-    } catch (error) {
-      return res.status(400).json({ error: 'Erro ao atualizar totem' });
+    } catch (error: any) {
+      await logError('Erro ao atualizar totem', error, {
+        totemId: req.params.id,
+        userId: req.user?.id || req.user?.userId,
+      });
+      return res.status(400).json({ error: error?.message || 'Erro ao atualizar totem' });
     }
   }
 );

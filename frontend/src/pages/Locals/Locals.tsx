@@ -99,6 +99,8 @@ const Locals: React.FC = () => {
   const [selectedTotems, setSelectedTotems] = useState<any[]>([]);
   const [selectedSmartTvs, setSelectedSmartTvs] = useState<any[]>([]);
   const [selectedContracts, setSelectedContracts] = useState<PublisherContract[]>([]);
+  const [editLocalTotems, setEditLocalTotems] = useState<any[]>([]);
+  const [loadingEditLocalTotems, setLoadingEditLocalTotems] = useState(false);
   const [detailsTab, setDetailsTab] = useState(0);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -262,6 +264,7 @@ const Locals: React.FC = () => {
       await localApi.update(selectedLocal.local_id, updateData);
       setEditDialogOpen(false);
       setSelectedLocal(null);
+      setEditLocalTotems([]);
       loadLocals();
     } catch (error: any) {
       console.error('Erro ao atualizar local:', error);
@@ -286,6 +289,18 @@ const Locals: React.FC = () => {
   const handleOpenEditDialog = (local: Local) => {
     setSelectedLocal(local);
     setEditDialogOpen(true);
+    setLoadingEditLocalTotems(true);
+    totemApi.getAll({ limit: 1000 })
+      .then((resp) => {
+        const totems = Array.isArray(resp.data) ? resp.data : [];
+        const linkedTotems = totems.filter((t: any) => t.localId === local.local_id || t.local_id === local.local_id);
+        setEditLocalTotems(linkedTotems);
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar totems do local para edição:', err);
+        setEditLocalTotems([]);
+      })
+      .finally(() => setLoadingEditLocalTotems(false));
   };
 
   const handleOpenDetailsDialog = async (local: Local) => {
@@ -317,19 +332,27 @@ const Locals: React.FC = () => {
         setSelectedTotems([]);
       }
       
-      // Carregar Smart TVs do local (via totens)
-      try {
-        // Backend de Smart TVs limita limit em 100 (validação). Manter compatível para evitar 400.
-        const smartTvsResponse = await smartTvApi.getAll({ limit: 100 });
-        const smartTvs = Array.isArray(smartTvsResponse.data) ? smartTvsResponse.data : [];
-        const totemIds = localTotems.map((t: any) => t.totem_id);
-        const localSmartTvs = smartTvs.filter((tv: any) => 
-          totemIds.includes(tv.totem_id) || tv.local_id === local.local_id
-        );
-        setSelectedSmartTvs(localSmartTvs);
-      } catch (err) {
-        console.error('Erro ao carregar Smart TVs:', err);
+      // Carregar Smart TVs do local (via totems)
+      // Em compact, este endpoint pode não estar exposto em alguns perfis de deploy.
+      if (TOTEMDIGITAL_COMPACT) {
         setSelectedSmartTvs([]);
+      } else {
+        try {
+          // Backend de Smart TVs limita limit em 100 (validação). Manter compatível para evitar 400.
+          const smartTvsResponse = await smartTvApi.getAll({ limit: 100 });
+          const smartTvs = Array.isArray(smartTvsResponse.data) ? smartTvsResponse.data : [];
+          const totemIds = localTotems.map((t: any) => t.totem_id);
+          const localSmartTvs = smartTvs.filter((tv: any) => 
+            totemIds.includes(tv.totem_id) || tv.local_id === local.local_id
+          );
+          setSelectedSmartTvs(localSmartTvs);
+        } catch (err) {
+          const status = (err as any)?.response?.status;
+          if (status !== 404) {
+            console.error('Erro ao carregar Smart TVs:', err);
+          }
+          setSelectedSmartTvs([]);
+        }
       }
       
       // Carregar Contratos do Publisher
@@ -1064,11 +1087,36 @@ const Locals: React.FC = () => {
                 multiline
                 rows={3}
               />
+              <Divider />
+              <Typography variant="subtitle2">Totens vinculados ao local (somente leitura)</Typography>
+              {loadingEditLocalTotems ? (
+                <Typography variant="body2" color="text.secondary">
+                  Carregando totems...
+                </Typography>
+              ) : editLocalTotems.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  Nenhum totem vinculado a este local.
+                </Typography>
+              ) : (
+                <List dense>
+                  {editLocalTotems.map((totem) => (
+                    <ListItem key={totem.totem_id || totem.id} disableGutters sx={{ py: 0.5 }}>
+                      <ListItemIcon>
+                        <Computer fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={totem.name || totem.identifier || `Totem #${totem.totem_id || totem.id}`}
+                        secondary={`UIN: ${totem.uin || '-'} · Status: ${totem.status || 'N/A'}`}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              )}
             </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+          <Button onClick={() => { setEditDialogOpen(false); setEditLocalTotems([]); }}>Cancelar</Button>
           <Button onClick={handleEditLocal} variant="contained">
             Salvar
           </Button>
