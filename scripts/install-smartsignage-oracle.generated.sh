@@ -775,7 +775,7 @@ BEGIN
         ) VALUES
         (v_subscriber_id, v_bronze_plan_id, format('SUB-%s-BRONZE', v_subscriber_id), 'subscription', 'Contrato Bronze Demo', 'Contrato demo bronze', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 1548.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days', v_admin_id, '{}'::jsonb, true),
         (v_subscriber_id, v_silver_plan_id, format('SUB-%s-SILVER', v_subscriber_id), 'subscription', 'Contrato Silver Demo', 'Contrato demo silver', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 2388.00, 'BRL', 'Mensal', 'draft', NULL, NULL, v_admin_id, '{}'::jsonb, true),
-        (v_subscriber_id, v_gold_plan_id,   format('SUB-%s-GOLD', v_subscriber_id), 'subscription', 'Contrato Gold Demo',   'Contrato demo gold',   CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 3588.00, 'BRL', 'Mensal', 'paused', NULL, NULL, v_admin_id, '{}'::jsonb, true)
+        (v_subscriber_id, v_gold_plan_id,   format('SUB-%s-GOLD', v_subscriber_id), 'subscription', 'Contrato Gold Demo',   'Contrato demo gold',   CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 3588.00, 'BRL', 'Mensal', 'cancelled', NULL, NULL, v_admin_id, '{}'::jsonb, true)
         ON CONFLICT (subscriber_id, contract_number) DO UPDATE
           SET plan_id = EXCLUDED.plan_id,
               status = EXCLUDED.status,
@@ -9835,17 +9835,6 @@ setup_first_boot() {
     fi
     # ========================================================================
 
-    if ! ensure_admin_user; then
-        error "❌ Não foi possível garantir usuário admin após aplicação do schema"
-        exit 1
-    fi
-    if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" == "true" ]]; then
-        if ! ensure_owner_publisher_user; then
-            error "❌ Não foi possível garantir usuário publisher do owner no modo compacto"
-            exit 1
-        fi
-    fi
-    
     # Verificar se TODAS as tabelas do schema foram criadas corretamente
     log "Verificando se TODAS as tabelas do schema foram criadas..."
     cd $INSTALL_DIR/backend
@@ -10202,7 +10191,18 @@ setup_first_boot() {
         fi
     fi
     
-    # Usuário admin já é garantido pelo ensure_admin_user() após a aplicação do schema e opções de seed
+    # Garantir usuários ao final (após schema + possíveis seeds/fallback)
+    # para evitar perda de contas quando a carga fallback executa TRUNCATE.
+    if ! ensure_admin_user; then
+        error "❌ Não foi possível garantir usuário admin após aplicação do schema e seeds"
+        exit 1
+    fi
+    if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" == "true" ]]; then
+        if ! ensure_owner_publisher_user; then
+            error "❌ Não foi possível garantir usuário publisher do owner no modo compacto"
+            exit 1
+        fi
+    fi
 }
 
 # Detectar e tratar dados demo já existentes
