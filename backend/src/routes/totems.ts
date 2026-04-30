@@ -31,6 +31,11 @@ const getTotemApproveRoles = () =>
     ? ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user']
     : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'];
 
+const getTotemUpdateRoles = () =>
+  TOTEMDIGITAL_COMPACT
+    ? ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user']
+    : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'];
+
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
 
@@ -360,7 +365,7 @@ router.post('/',
  * @access Private (Admin only)
  */
 router.put('/:id',
-  authorizeRole(['admin', 'admin_sql', 'owner_system']),
+  authorizeRole(getTotemUpdateRoles()),
   param('id').isInt({ min: 1 }),
   body('identifier').optional().isString().isLength({ min: 2, max: 100 }),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),

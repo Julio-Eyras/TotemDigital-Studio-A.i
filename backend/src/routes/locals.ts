@@ -24,6 +24,11 @@ const getLocalsWriteRoles = () =>
     ? ['admin', 'admin_sql', 'owner_system']
     : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'];
 
+const getLocalsUpdateRoles = () =>
+  TOTEMDIGITAL_COMPACT
+    ? ['admin', 'admin_sql', 'owner_system', 'publisher_user']
+    : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'];
+
 // Validações
 const createLocalValidator = [
   // Em modo compacto o backend resolve publisher_id pelo owner.
@@ -227,7 +232,7 @@ router.post('/',
  * @access Private (Admin only)
  */
 router.put('/:id',
-  authorizeRole(getLocalsWriteRoles()),
+  authorizeRole(getLocalsUpdateRoles()),
   param('id').isInt({ min: 1 }),
   updateLocalValidator,
   validateRequest,

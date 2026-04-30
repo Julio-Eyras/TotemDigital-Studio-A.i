@@ -86,6 +86,13 @@ const Locals: React.FC = () => {
     }
     return isAdmin;
   }, [user?.role, isAdmin]);
+  const canEditLocals = useMemo(() => {
+    const role = user?.role || '';
+    if (TOTEMDIGITAL_COMPACT) {
+      return ['owner_system', 'admin', 'admin_sql', 'publisher_user'].includes(role);
+    }
+    return isAdmin;
+  }, [user?.role, isAdmin]);
   const userPublisherId = user?.publisherId;
 
   const [locals, setLocals] = useState<Local[]>([]);
@@ -563,18 +570,22 @@ const Locals: React.FC = () => {
                             <Visibility />
                           </IconButton>
                         </Tooltip>
-                        {canManageLocals && (
+                        {(canEditLocals || canManageLocals) && (
                           <Box sx={{ display: 'flex', gap: 1 }}>
-                            <Tooltip title="Editar">
-                              <IconButton size="small" onClick={() => handleOpenEditDialog(local)}>
-                                <Edit />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Deletar">
-                              <IconButton size="small" color="error" onClick={() => handleDeleteLocal(local.local_id)}>
-                                <Delete />
-                              </IconButton>
-                            </Tooltip>
+                            {canEditLocals && (
+                              <Tooltip title="Editar">
+                                <IconButton size="small" onClick={() => handleOpenEditDialog(local)}>
+                                  <Edit />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canManageLocals && (
+                              <Tooltip title="Deletar">
+                                <IconButton size="small" color="error" onClick={() => handleDeleteLocal(local.local_id)}>
+                                  <Delete />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </Box>
                         )}
                       </Box>
