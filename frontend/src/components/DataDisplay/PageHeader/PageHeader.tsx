@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -14,6 +15,7 @@ import {
   Tooltip,
   Stack,
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import {
   NavigateNext,
   Refresh,
@@ -52,6 +54,35 @@ const PageHeader: React.FC<PageHeaderProps> = ({
   onRefresh,
   loading = false,
 }) => {
+  const navigate = useNavigate();
+
+  const normalizedBreadcrumbs = useMemo(() => {
+    const defaultBreadcrumbs: BreadcrumbItem[] = [
+      {
+        label: 'Home',
+        path: '/dashboard',
+        onClick: () => navigate('/dashboard'),
+      },
+      {
+        label: title,
+      },
+    ];
+
+    const source = breadcrumbs && breadcrumbs.length > 0 ? breadcrumbs : defaultBreadcrumbs;
+    const compacted = source.filter((item) => String(item?.label || '').trim().length > 0);
+
+    const deduped: BreadcrumbItem[] = [];
+    compacted.forEach((item) => {
+      const currentLabel = String(item.label).trim().toLowerCase();
+      const prevLabel = deduped.length > 0 ? String(deduped[deduped.length - 1].label).trim().toLowerCase() : '';
+      if (currentLabel !== prevLabel) {
+        deduped.push(item);
+      }
+    });
+
+    return deduped;
+  }, [breadcrumbs, title, navigate]);
+
   return (
     <Box
       sx={{
@@ -62,13 +93,13 @@ const PageHeader: React.FC<PageHeaderProps> = ({
       }}
     >
       {/* Breadcrumbs */}
-      {breadcrumbs && breadcrumbs.length > 0 && (
+      {normalizedBreadcrumbs.length > 0 && (
         <Breadcrumbs
           separator={<NavigateNext fontSize="small" />}
           sx={{ marginBottom: 1 }}
         >
-          {breadcrumbs.map((item, index) => {
-            const isLast = index === breadcrumbs.length - 1;
+          {normalizedBreadcrumbs.map((item, index) => {
+            const isLast = index === normalizedBreadcrumbs.length - 1;
             
             if (isLast || !item.path) {
               return (
