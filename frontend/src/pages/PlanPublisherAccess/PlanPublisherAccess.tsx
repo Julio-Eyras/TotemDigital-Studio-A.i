@@ -87,6 +87,10 @@ function formatTotemLabel(t: { totem_id: number; name?: string; identifier?: str
   return parts.length > 0 ? parts.join(' · ') : `Totem #${t.totem_id}`;
 }
 
+function compareByName(a: string, b: string): number {
+  return a.localeCompare(b, 'pt-BR', { sensitivity: 'base', numeric: true });
+}
+
 function getTotemIsActive(t: Record<string, unknown>): boolean {
   const v = t.isActive ?? t.is_active;
   return v === undefined ? true : Boolean(v);
@@ -730,17 +734,25 @@ const PlanPublisherAccessPage: React.FC = () => {
         isAlreadyLinked: false,
       }))
     : [];
-  const compactActiveLocalsWithPublisher = compactLocalOptions.filter(
-    (entry) => entry.publisherId != null && entry.local.is_active !== false
-  );
+  const compactActiveLocalsWithPublisher = compactLocalOptions
+    .filter((entry) => entry.publisherId != null && entry.local.is_active !== false)
+    .sort((a, b) => compareByName(String(a.local.name || ''), String(b.local.name || '')));
   const compactLocalsWithoutTotems = compactActiveLocalsWithPublisher.filter(
     (entry) => (entry.local.totem_count || 0) <= 0
   );
-  const compactPlanLocals = localsCatalog.filter((local) => compactSelectedLocalIds.includes(local.local_id));
+  const compactPlanLocals = localsCatalog
+    .filter((local) => compactSelectedLocalIds.includes(local.local_id))
+    .sort((a, b) => compareByName(String(a.name || ''), String(b.name || '')));
   const compactTotemsBySelectedLocal = compactPlanLocals.map((local) => {
     const localTotems = compactActiveTotemsWithPublisher
       .filter(({ totem }) => getTotemLocalId(totem as Record<string, unknown>) === local.local_id)
-      .map(({ totem }) => totem);
+      .map(({ totem }) => totem)
+      .sort((a, b) =>
+        compareByName(
+          formatTotemLabel(a as { totem_id: number; name?: string; identifier?: string; uin?: string }),
+          formatTotemLabel(b as { totem_id: number; name?: string; identifier?: string; uin?: string })
+        )
+      );
     return { local, totems: localTotems };
   });
   const compactBadgeCount = TOTEMDIGITAL_COMPACT ? compactSelectedLocalIds.length : planPublishers.length;
