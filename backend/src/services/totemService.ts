@@ -15,6 +15,20 @@ import { assertCompactOwnerPublisher } from '../utils/compactOwnerPublisher';
 import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 
+function normalizeStockText(value: unknown): string {
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function isStockLocalRecord(local: { local_name?: unknown; category_segment?: unknown }): boolean {
+  const localName = normalizeStockText(local.local_name);
+  const segment = normalizeStockText(local.category_segment);
+  return localName.includes('estoque') || segment === 'estoque';
+}
+
 export interface CreateTotemRequest {
   name?: string;
   identifier: string;
@@ -676,6 +690,7 @@ export class TotemService {
       SELECT 
         l.local_id,
         l.name as local_name,
+        l.category_segment,
         p.publisher_id,
         p.name as publisher_name
       FROM locals l
@@ -757,7 +772,9 @@ export class TotemService {
     }
 
     // Executar operações críticas dentro de transação
-    const initialStatus = TOTEMDIGITAL_COMPACT ? 'offline' : 'pending_approval';
+    const isStockLocal = isStockLocalRecord(local);
+    const initialStatus = isStockLocal ? 'offline' : (TOTEMDIGITAL_COMPACT ? 'offline' : 'pending_approval');
+    const initialIsActive = isStockLocal ? false : Boolean(isActive);
     return await transaction(async (client) => {
       // Criar totem (dentro da transação)
       const result = await client.query(`
@@ -788,7 +805,7 @@ export class TotemService {
         description || null,
         config ? JSON.stringify(config) : null,
         firmwareVersion || null,
-        isActive,
+        initialIsActive,
         initialStatus
       ]);
 
@@ -857,10 +874,13 @@ export class TotemService {
 
       // Se localId está sendo alterado, validar ownership
       const existingLocalId = typeof existingTotem.localId === 'string' ? parseInt(existingTotem.localId) : existingTotem.localId;
+      let targetLocalMeta: { local_name?: unknown; category_segment?: unknown } | undefined;
       if (data.localId !== undefined && data.localId !== existingLocalId) {
         const local = await this.db.findFirst(`
           SELECT 
             l.local_id,
+            l.name as local_name,
+            l.category_segment,
             p.publisher_id
           FROM locals l
           JOIN publishers p ON l.publisher_id = p.publisher_id
@@ -877,7 +897,20 @@ export class TotemService {
         if (!isAdmin && requestPublisherId && local.publisher_id !== requestPublisherId) {
           throw new Error('Acesso negado: Você só pode mover totem para locals do seu próprio publisher');
         }
+        targetLocalMeta = {
+          local_name: local.local_name,
+          category_segment: local.category_segment
+        };
       }
+
+      if (!targetLocalMeta) {
+        targetLocalMeta = await this.db.findFirst(`
+          SELECT l.name as local_name, l.category_segment
+          FROM locals l
+          WHERE l.local_id = $1
+        `, [existingLocalId]);
+      }
+      const shouldForceInoperative = Boolean(targetLocalMeta && isStockLocalRecord(targetLocalMeta));
 
       // Verificar se identifier já existe (se estiver sendo alterado)
       if (data.identifier && data.identifier !== existingTotem.identifier) {
@@ -977,6 +1010,13 @@ export class TotemService {
         const value = data.isActive ? true : false;
         updates.push(`is_active = $${paramIndex++}`);
         params.push(value);
+      }
+
+      if (shouldForceInoperative) {
+        updates.push(`is_active = $${paramIndex++}`);
+        params.push(false);
+        updates.push(`status = $${paramIndex++}`);
+        params.push('offline');
       }
 
       if (updates.length === 0) {

@@ -94,6 +94,18 @@ const Locals: React.FC = () => {
     return isAdmin;
   }, [user?.role, isAdmin]);
   const userPublisherId = user?.publisherId;
+  const normalizeStockText = (value?: unknown): string =>
+    String(value || '')
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+  const isStockLocal = (local?: Partial<Local> | null): boolean => {
+    if (!local) return false;
+    const name = normalizeStockText((local as any).name);
+    const segment = normalizeStockText((local as any).category_segment ?? (local as any).categorySegment);
+    return name.includes('estoque') || segment === 'estoque';
+  };
 
   const [locals, setLocals] = useState<Local[]>([]);
   const [publishers, setPublishers] = useState<Publisher[]>([]);
@@ -511,6 +523,7 @@ const Locals: React.FC = () => {
             {publisherLocals.map((local) => {
               const totens = local.totem_count ?? localStats[local.local_id]?.totens ?? 0;
               const smartTvs = local.smart_tv_count ?? localStats[local.local_id]?.smartTvs ?? 0;
+              const isStock = isStockLocal(local);
               return (
                 <Grid item xs={12} sm={6} md={4} lg={3} key={local.local_id}>
                   <Card
@@ -538,9 +551,10 @@ const Locals: React.FC = () => {
                           </Typography>
                         </Box>
                         <Chip
-                          label={local.is_active ? 'Ativo' : 'Inativo'}
-                          color={local.is_active ? 'success' : 'default'}
+                          label={isStock ? 'Inoperante' : (local.is_active ? 'Ativo' : 'Inativo')}
+                          color={isStock ? 'default' : (local.is_active ? 'success' : 'default')}
                           size="small"
+                          variant={isStock ? 'outlined' : 'filled'}
                         />
                       </Box>
 
@@ -548,14 +562,14 @@ const Locals: React.FC = () => {
                         <Chip
                           label={`${totens} Totens`}
                           size="small"
-                          color="info"
+                          color={isStock ? 'default' : 'info'}
                           variant="outlined"
                           icon={<Computer fontSize="small" />}
                         />
                         <Chip
                           label={`${smartTvs} Smart TVs`}
                           size="small"
-                          color="secondary"
+                          color={isStock ? 'default' : 'secondary'}
                           variant="outlined"
                           icon={<Tv fontSize="small" />}
                         />
@@ -847,9 +861,10 @@ const Locals: React.FC = () => {
                         <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
                         <TableCell>
                           <Chip
-                            label={selectedLocal.is_active ? 'Ativo' : 'Inativo'}
+                            label={isStockLocal(selectedLocal) ? 'Inoperante' : (selectedLocal.is_active ? 'Ativo' : 'Inativo')}
                             size="small"
-                            color={selectedLocal.is_active ? 'success' : 'error'}
+                            color={isStockLocal(selectedLocal) ? 'default' : (selectedLocal.is_active ? 'success' : 'error')}
+                            variant={isStockLocal(selectedLocal) ? 'outlined' : 'filled'}
                           />
                         </TableCell>
                       </TableRow>
