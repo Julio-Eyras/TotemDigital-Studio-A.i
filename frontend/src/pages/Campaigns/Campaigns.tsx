@@ -63,6 +63,29 @@ interface PublisherOption {
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
 
+/** Nome do local onde o totem está alocado (API publisher/totems, /totems ou /players). */
+function getTotemAllocatedLocalName(t: any): string {
+  const raw =
+    t?.local_name ??
+    t?.localName ??
+    t?.local?.name ??
+    '';
+  const s = String(raw || '').trim();
+  if (s) return s;
+  const loc = String(t?.location || '').trim();
+  return loc;
+}
+
+/** Rótulo do combo de totens na campanha: Nome (#id) (Local). */
+function campaignTotemOptionLabel(t: any): string {
+  const base = t?.name || t?.identifier || t?.uin || 'Totem';
+  const id = Number(t?.totem_id ?? t?.id ?? 0);
+  const idPart = id > 0 ? `(#${id})` : '';
+  const local = getTotemAllocatedLocalName(t);
+  const localPart = local ? `(${local})` : '';
+  return [base, idPart, localPart].filter(Boolean).join(' ');
+}
+
 const Campaigns: React.FC = () => {
   const theme = useTheme();
   const breadcrumbs = useBreadcrumbs();
@@ -1019,7 +1042,7 @@ const Campaigns: React.FC = () => {
           <Autocomplete
             multiple
             options={players}
-            getOptionLabel={(option) => option.name || option.identifier || option.uin || `Totem ${option.totem_id}`}
+            getOptionLabel={(option) => campaignTotemOptionLabel(option)}
             value={players.filter(p => newCampaign.totemIds?.includes(p.totem_id))}
             onChange={(_, newValue) => {
               setNewCampaign({ ...newCampaign, totemIds: newValue.map(p => p.totem_id) });
@@ -1464,7 +1487,7 @@ const Campaigns: React.FC = () => {
                 <Autocomplete
                   multiple
                   options={derivedTotems}
-                  getOptionLabel={(option) => `${option.name || option.identifier || 'Totem'} (#${option.totem_id})`}
+                  getOptionLabel={(option) => campaignTotemOptionLabel(option)}
                   isOptionEqualToValue={(option, value) => option.totem_id === value.totem_id}
                   // UI: mostrar apenas os totens realmente selecionados (chips com X para remover).
                   // Regra de negócio \"vazio = todos os totens dos publishers\" continua na camada de execução.

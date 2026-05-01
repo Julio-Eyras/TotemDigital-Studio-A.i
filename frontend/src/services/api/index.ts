@@ -457,6 +457,8 @@ export interface Player {
   name?: string;
   identifier?: string;
   uin?: string;
+  /** Nome do registro em `locals` (alocação atual); preferir a `location` legada quando presente. */
+  local_name?: string;
   location?: string;
   subscriber_id?: number; // client_id deprecated
   is_active: boolean;
