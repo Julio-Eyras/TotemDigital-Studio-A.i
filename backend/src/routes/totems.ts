@@ -618,6 +618,11 @@ router.put('/:id/approve',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
+      if (TOTEMDIGITAL_COMPACT) {
+        return res.status(400).json({
+          error: 'Modo compacto: aprovação manual de totem não é necessária.'
+        });
+      }
       const totemId = parseInt(req.params.id);
       const { generateEncryptedConfig = false } = req.body;
       const userId = req.user?.id || req.user?.userId;

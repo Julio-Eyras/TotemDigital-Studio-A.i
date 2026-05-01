@@ -122,6 +122,12 @@ const Totems: React.FC = () => {
     loadLocals();
   }, []);
 
+  useEffect(() => {
+    if (TOTEMDIGITAL_COMPACT && tabValue !== 0) {
+      setTabValue(0);
+    }
+  }, [tabValue]);
+
   const openCreateTotemDialog = useCallback(() => {
     setCreateOpen(true);
   }, []);
@@ -152,7 +158,7 @@ const Totems: React.FC = () => {
       setLoading(true);
       const [resp, pendingResp] = await Promise.all([
         totemApi.getAll(),
-        totemApi.getPending()
+        TOTEMDIGITAL_COMPACT ? Promise.resolve({ data: [] as Player[] } as any) : totemApi.getPending()
       ]);
       setTotems(resp.data || []);
       setPendingTotems(pendingResp.data || []);
@@ -489,7 +495,7 @@ const Totems: React.FC = () => {
                   <MenuItem value="online">Online</MenuItem>
                   <MenuItem value="offline">Offline</MenuItem>
                   <MenuItem value="error">Erro</MenuItem>
-                  <MenuItem value="pending_approval">Pendente</MenuItem>
+                  {!TOTEMDIGITAL_COMPACT && <MenuItem value="pending_approval">Pendente</MenuItem>}
                 </Select>
               </FormControl>
             </Grid>
@@ -500,13 +506,15 @@ const Totems: React.FC = () => {
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
           <Tab label="Todos os Totems" />
-          <Tab 
-            label={
-              <Badge badgeContent={pendingTotems.length} color="warning">
-                Pendentes de Aprovação
-              </Badge>
-            } 
-          />
+          {!TOTEMDIGITAL_COMPACT && (
+            <Tab 
+              label={
+                <Badge badgeContent={pendingTotems.length} color="warning">
+                  Pendentes de Aprovação
+                </Badge>
+              } 
+            />
+          )}
         </Tabs>
       </Box>
 
@@ -634,78 +642,80 @@ const Totems: React.FC = () => {
         </Grid>
       </TabPanel>
 
-      <TabPanel value={tabValue} index={1}>
-        <Alert severity="info" sx={{ mb: 3 }}>
-          Totens <strong>pré-cadastrados</strong> pelo publisher que já <strong>vincularam hardware</strong> (conectaram pela primeira vez) e aguardam sua aprovação para ficarem ativos. Após aprovar, o totem poderá receber playlists.
-        </Alert>
-        <Grid container spacing={3}>
-          {filteredPendingTotems.length === 0 && !loading ? (
-            <Grid item xs={12}>
-              <Alert severity="info">Nenhum totem pendente de aprovação. Totens aparecem aqui quando são pré-cadastrados e o hardware se conecta pela primeira vez.</Alert>
-            </Grid>
-          ) : (
-            filteredPendingTotems.map((t, idx) => {
-              const totemKey = String((t as any).totem_id ?? (t as any).identifier ?? `pending-${idx}`);
-              return (
-              <Grid item xs={12} sm={6} md={4} key={totemKey}>
-                <Card sx={{ border: '2px solid', borderColor: 'warning.main' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar sx={{ bgcolor: 'warning.main' }}>
-                        <Pending />
-                      </Avatar>
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                          {t.name || t.identifier || `Totem ${t.totem_id}`}
-                        </Typography>
-                        {t.uin && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            UIN: {t.uin}
-                          </Typography>
-                        )}
-                        {t.location && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                            <LocationOn fontSize="small" color="action" />
-                            <Typography variant="caption" color="text.secondary">{t.location}</Typography>
-                          </Box>
-                        )}
-                        {t.config?.hardware && (
-                          <Box sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
-                            <Typography variant="caption" color="text.secondary" component="div">
-                              <strong>Hardware vinculado:</strong> {t.config.hardware.mac || t.config.hardware.hostname || 'N/A'}
-                              {t.config.hardware.platform && ` • ${t.config.hardware.platform}`}
-                            </Typography>
-                            {t.config.hardware.linkedAt && (
-                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                                Vinculado em: {new Date(t.config.hardware.linkedAt).toLocaleString()}
-                              </Typography>
-                            )}
-                          </Box>
-                        )}
-                      </Box>
-                    </Box>
-                    {canAdministerTotems && (
-                      <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                        <Button
-                          variant="contained"
-                          color="success"
-                          size="small"
-                          startIcon={<CheckCircle />}
-                          onClick={() => openApproveDialog(t)}
-                          fullWidth
-                        >
-                          Aprovar
-                        </Button>
-                      </Box>
-                    )}
-                  </CardContent>
-                </Card>
+      {!TOTEMDIGITAL_COMPACT && (
+        <TabPanel value={tabValue} index={1}>
+          <Alert severity="info" sx={{ mb: 3 }}>
+            Totens <strong>pré-cadastrados</strong> pelo publisher que já <strong>vincularam hardware</strong> (conectaram pela primeira vez) e aguardam sua aprovação para ficarem ativos. Após aprovar, o totem poderá receber playlists.
+          </Alert>
+          <Grid container spacing={3}>
+            {filteredPendingTotems.length === 0 && !loading ? (
+              <Grid item xs={12}>
+                <Alert severity="info">Nenhum totem pendente de aprovação. Totens aparecem aqui quando são pré-cadastrados e o hardware se conecta pela primeira vez.</Alert>
               </Grid>
-            );
-            })
-          )}
-        </Grid>
-      </TabPanel>
+            ) : (
+              filteredPendingTotems.map((t, idx) => {
+                const totemKey = String((t as any).totem_id ?? (t as any).identifier ?? `pending-${idx}`);
+                return (
+                <Grid item xs={12} sm={6} md={4} key={totemKey}>
+                  <Card sx={{ border: '2px solid', borderColor: 'warning.main' }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Avatar sx={{ bgcolor: 'warning.main' }}>
+                          <Pending />
+                        </Avatar>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                            {t.name || t.identifier || `Totem ${t.totem_id}`}
+                          </Typography>
+                          {t.uin && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                              UIN: {t.uin}
+                            </Typography>
+                          )}
+                          {t.location && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                              <LocationOn fontSize="small" color="action" />
+                              <Typography variant="caption" color="text.secondary">{t.location}</Typography>
+                            </Box>
+                          )}
+                          {t.config?.hardware && (
+                            <Box sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
+                              <Typography variant="caption" color="text.secondary" component="div">
+                                <strong>Hardware vinculado:</strong> {t.config.hardware.mac || t.config.hardware.hostname || 'N/A'}
+                                {t.config.hardware.platform && ` • ${t.config.hardware.platform}`}
+                              </Typography>
+                              {t.config.hardware.linkedAt && (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                  Vinculado em: {new Date(t.config.hardware.linkedAt).toLocaleString()}
+                                </Typography>
+                              )}
+                            </Box>
+                          )}
+                        </Box>
+                      </Box>
+                      {canAdministerTotems && (
+                        <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                          <Button
+                            variant="contained"
+                            color="success"
+                            size="small"
+                            startIcon={<CheckCircle />}
+                            onClick={() => openApproveDialog(t)}
+                            fullWidth
+                          >
+                            Aprovar
+                          </Button>
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+              })
+            )}
+          </Grid>
+        </TabPanel>
+      )}
 
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Novo Totem</DialogTitle>

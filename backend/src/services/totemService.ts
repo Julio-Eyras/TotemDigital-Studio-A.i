@@ -757,6 +757,7 @@ export class TotemService {
     }
 
     // Executar operações críticas dentro de transação
+    const initialStatus = TOTEMDIGITAL_COMPACT ? 'offline' : 'pending_approval';
     return await transaction(async (client) => {
       // Criar totem (dentro da transação)
       const result = await client.query(`
@@ -775,7 +776,7 @@ export class TotemService {
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'offline', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING totem_id
       `, [
         name || identifier,
@@ -787,7 +788,8 @@ export class TotemService {
         description || null,
         config ? JSON.stringify(config) : null,
         firmwareVersion || null,
-        isActive
+        isActive,
+        initialStatus
       ]);
 
       const insertedId = result.rows[0]?.totem_id;

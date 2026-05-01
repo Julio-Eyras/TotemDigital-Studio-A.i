@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 
 export interface Player {
   totem_id: number;
@@ -191,6 +192,7 @@ export class PlayerService {
         }
       }
 
+      const initialStatus = TOTEMDIGITAL_COMPACT ? 'offline' : 'pending_approval';
       const result = await this.db.executeRaw(`
         INSERT INTO totems (
           name,
@@ -202,9 +204,9 @@ export class PlayerService {
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, true, 'pending_approval', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, true, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING totem_id
-      `, [name, identifier, location || null, localId]);
+      `, [name, identifier, location || null, localId, initialStatus]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar player');
