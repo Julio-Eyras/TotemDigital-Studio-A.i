@@ -56,6 +56,12 @@ function TabPanel(props: TabPanelProps) {
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
 
+const isStockLocal = (local: any): boolean => {
+  const name = String(local?.name || '').trim().toLowerCase();
+  const category = String(local?.category_segment || '').trim().toLowerCase();
+  return name === 'estoque' || category === 'estoque';
+};
+
 const Totems: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
   const theme = useTheme();
@@ -149,11 +155,12 @@ const Totems: React.FC = () => {
     try {
       const response = await localApi.getAll({
         publisherId: canAdministerTotems ? undefined : userPublisherId,
-        active_only: true,
+        active_only: false,
       });
       const localsData = Array.isArray(response.data) ? [...response.data] : [];
-      localsData.sort((a: any, b: any) => compareByDisplayName(a?.name, b?.name));
-      setLocals(localsData);
+      const visibleLocals = localsData.filter((local: any) => local?.is_active !== false || isStockLocal(local));
+      visibleLocals.sort((a: any, b: any) => compareByDisplayName(a?.name, b?.name));
+      setLocals(visibleLocals);
     } catch (error) {
       console.error('Erro ao carregar locals:', error);
     }
@@ -737,11 +744,19 @@ const Totems: React.FC = () => {
               label="Local *"
               onChange={(e) => setNewTotem({ ...newTotem, localId: Number(e.target.value) })}
             >
-              {locals.map((local) => (
-                <MenuItem key={local.local_id} value={local.local_id}>
-                  {local.name} {local.publisher_name && `(${local.publisher_name})`}
-                </MenuItem>
-              ))}
+              {locals.map((local) => {
+                const isSelected = Number(newTotem.localId || 0) === Number(local.local_id);
+                const label = `${local.name}${local.publisher_name ? ` (${local.publisher_name})` : ''}${isSelected ? ' · já selecionado' : ''}`;
+                return (
+                  <MenuItem
+                    key={local.local_id}
+                    value={local.local_id}
+                    sx={isSelected ? { color: 'success.main', fontWeight: 700 } : undefined}
+                  >
+                    {label}
+                  </MenuItem>
+                );
+              })}
             </Select>
           </FormControl>
           <TextField 
@@ -815,11 +830,19 @@ const Totems: React.FC = () => {
               label="Local *"
               onChange={(e) => setEditTotem({ ...editTotem, localId: Number(e.target.value) })}
             >
-              {locals.map((local) => (
-                <MenuItem key={local.local_id} value={local.local_id}>
-                  {local.name} {local.publisher_name && `(${local.publisher_name})`}
-                </MenuItem>
-              ))}
+              {locals.map((local) => {
+                const isSelected = Number(editTotem.localId || 0) === Number(local.local_id);
+                const label = `${local.name}${local.publisher_name ? ` (${local.publisher_name})` : ''}${isSelected ? ' · já selecionado' : ''}`;
+                return (
+                  <MenuItem
+                    key={local.local_id}
+                    value={local.local_id}
+                    sx={isSelected ? { color: 'success.main', fontWeight: 700 } : undefined}
+                  >
+                    {label}
+                  </MenuItem>
+                );
+              })}
             </Select>
             {!editTotem.localId && (
               <FormHelperText error>
