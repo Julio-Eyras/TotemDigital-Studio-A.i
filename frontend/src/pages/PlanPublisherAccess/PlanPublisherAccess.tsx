@@ -412,6 +412,13 @@ const PlanPublisherAccessPage: React.FC = () => {
     if (TOTEMDIGITAL_COMPACT) {
       if (!selectedLocalIdForPlan) return;
       const localId = parseInt(selectedLocalIdForPlan, 10);
+      const alreadySelected = compactSelectedLocalIds.includes(localId);
+      if (alreadySelected) {
+        handleRemoveLocalFromPlan(localId);
+        setSelectedLocalIdForPlan('');
+        setError(null);
+        return;
+      }
       const selectedLocal = localsCatalog.find((l) => l.local_id === localId);
       if (!selectedLocal) return;
       const publisherId = selectedLocal.publisher_id;
@@ -760,6 +767,58 @@ const PlanPublisherAccessPage: React.FC = () => {
         ? [{ ...prev[0], displayLabel: nextLabel }]
         : prev
     ));
+  };
+
+  const toggleCompactLocalSelection = (localId: number) => {
+    const alreadySelected = compactSelectedLocalIds.includes(localId);
+    if (alreadySelected) {
+      handleRemoveLocalFromPlan(localId);
+      setError(null);
+      return;
+    }
+
+    const selectedLocal = localsCatalog.find((l) => l.local_id === localId);
+    if (!selectedLocal) return;
+    const publisherId = selectedLocal.publisher_id;
+    if (publisherId == null) {
+      setError('Local sem exibidor associado. Verifique o cadastro do local.');
+      return;
+    }
+
+    const existingIndex = planPublishers.findIndex((p) => p.publisherId === publisherId);
+    const nextLabel = `${selectedLocal.name}${selectedLocal.totem_count != null ? ` · ${selectedLocal.totem_count} totem(ns)` : ''}`;
+    const totemsFromLocal = compactActiveTotemsWithPublisher
+      .filter(({ totem }) => getTotemLocalId(totem as Record<string, unknown>) === selectedLocal.local_id)
+      .map(({ totem }) => totem.totem_id);
+
+    setCompactSelectedLocalIds((prev) => (prev.includes(selectedLocal.local_id) ? prev : [...prev, selectedLocal.local_id]));
+    setCompactEnabledTotemsByLocal((prev) => ({
+      ...prev,
+      [selectedLocal.local_id]: prev[selectedLocal.local_id] || totemsFromLocal,
+    }));
+
+    if (existingIndex >= 0) {
+      setPlanPublishers(planPublishers.map((entry, idx) => (
+        idx === existingIndex
+          ? { ...entry, displayLabel: nextLabel }
+          : entry
+      )));
+    } else {
+      setPlanPublishers([
+        ...planPublishers,
+        {
+          publisherId,
+          isAllowed: true,
+          displayLabel: nextLabel,
+          restrictions: {
+            compact_scope: {
+              local_ids: [selectedLocal.local_id],
+            },
+          },
+        },
+      ]);
+    }
+    setError(null);
   };
 
   const toggleTotemForLocal = (localId: number, totemId: number) => {
@@ -1279,17 +1338,34 @@ const PlanPublisherAccessPage: React.FC = () => {
                       {TOTEMDIGITAL_COMPACT ? (
                         <Select
                           value={selectedLocalIdForPlan}
-                          onChange={(e) => setSelectedLocalIdForPlan(e.target.value)}
+                          onChange={(e) => {
+                            const value = String(e.target.value || '');
+                            setSelectedLocalIdForPlan(value);
+                            const localId = parseInt(value, 10);
+                            if (!Number.isNaN(localId)) {
+                              toggleCompactLocalSelection(localId);
+                            }
+                            setSelectedLocalIdForPlan('');
+                          }}
                           label={publisherEntityLabel}
                         >
                           <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
                           {compactActiveLocalsWithPublisher
-                            .map(({ local, publisherId, isAlreadyLinked }) => {
+                            .map(({ local, publisherId }) => {
                               const publisher = publishers.find((p) => p.publisher_id === publisherId);
                               const publisherLabel = publisher?.name || `Exibidor ${publisherId}`;
-                              const linkedSuffix = isAlreadyLinked ? ' - já atrelado ao plano' : '';
+                              const isAlreadySelected = compactSelectedLocalIds.includes(local.local_id);
+                              const linkedSuffix = isAlreadySelected ? ' · já selecionado' : '';
                               return (
-                              <MenuItem key={local.local_id} value={String(local.local_id)}>
+                              <MenuItem
+                                key={local.local_id}
+                                value={String(local.local_id)}
+                                sx={isAlreadySelected ? {
+                                  color: 'success.main',
+                                  fontWeight: 700,
+                                  opacity: 0.8,
+                                } : undefined}
+                              >
                                 {`${local.name} (${publisherLabel}) · ${local.totem_count || 0} totem(ns) cadastrados${linkedSuffix}`}
                               </MenuItem>
                               );
@@ -1313,19 +1389,19 @@ const PlanPublisherAccessPage: React.FC = () => {
                       )}
                     </FormControl>
                   </Grid>
-                  <Grid item xs={12} md={4}>
-                    <Button
-                      variant="contained"
-                      startIcon={<Add />}
-                      onClick={handleAddPublisherToPlan}
-                      disabled={
-                        TOTEMDIGITAL_COMPACT ? !selectedLocalIdForPlan : !selectedPublisherForPlan
-                      }
-                      fullWidth
-                    >
-                      Adicionar
-                    </Button>
-                  </Grid>
+                  {!TOTEMDIGITAL_COMPACT && (
+                    <Grid item xs={12} md={4}>
+                      <Button
+                        variant="contained"
+                        startIcon={<Add />}
+                        onClick={handleAddPublisherToPlan}
+                        disabled={!selectedPublisherForPlan}
+                        fullWidth
+                      >
+                        Adicionar
+                      </Button>
+                    </Grid>
+                  )}
                 </Grid>
               </Box>
 
