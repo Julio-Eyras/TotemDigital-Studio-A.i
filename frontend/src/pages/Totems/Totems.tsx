@@ -62,6 +62,13 @@ const isStockLocal = (local: any): boolean => {
   return name === 'estoque' || category === 'estoque';
 };
 
+/** ID numérico do totem independente de snake_case/camelCase na API. */
+function resolveTotemRecordId(t: any): number | null {
+  const raw = t?.totem_id ?? t?.totemId ?? t?.id ?? t?.player_id ?? t?.playerId;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 const Totems: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
   const theme = useTheme();
@@ -72,7 +79,17 @@ const Totems: React.FC = () => {
     [user?.role]
   );
   const canAdministerTotems = useMemo(() => {
-    if (['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user'].includes(normalizedRole)) {
+    if (
+      [
+        'admin',
+        'admin_sql',
+        'owner_system',
+        'operador_tecnico',
+        'operador_faturamento',
+        'operador_comercial',
+        'publisher_user',
+      ].includes(normalizedRole)
+    ) {
       return true;
     }
     return false;
@@ -81,7 +98,17 @@ const Totems: React.FC = () => {
     if (TOTEMDIGITAL_COMPACT) {
       return ['owner_system', 'admin', 'admin_sql'].includes(normalizedRole);
     }
-    if (['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user'].includes(normalizedRole)) {
+    if (
+      [
+        'admin',
+        'admin_sql',
+        'owner_system',
+        'operador_tecnico',
+        'operador_faturamento',
+        'operador_comercial',
+        'publisher_user',
+      ].includes(normalizedRole)
+    ) {
       return true;
     }
     return false;
@@ -216,7 +243,7 @@ const Totems: React.FC = () => {
 
   const handleApprove = async () => {
     if (!selectedTotem) return;
-    const totemId = (selectedTotem as any).totem_id;
+    const totemId = resolveTotemRecordId(selectedTotem);
     if (!totemId) return;
     
     try {
@@ -283,8 +310,8 @@ const Totems: React.FC = () => {
     // Em alguns cenários o endpoint de listagem não traz localId de forma consistente.
     // Fazemos fallback no endpoint de detalhe para pré-selecionar corretamente.
     if (resolvedLocalId <= 0) {
-      const totemId = Number((totem as any).totem_id ?? (totem as any).id ?? 0);
-      if (totemId > 0) {
+      const totemId = resolveTotemRecordId(totem);
+      if (totemId && totemId > 0) {
         totemApi.getById(totemId)
           .then((fullTotem) => {
             const fallbackLocalId = resolveLocalIdFromTotem(fullTotem as any);
@@ -313,7 +340,7 @@ const Totems: React.FC = () => {
   };
 
   const handleEdit = async () => {
-    const totemId = Number((editingTotem as any)?.totem_id);
+    const totemId = editingTotem ? resolveTotemRecordId(editingTotem) : null;
     if (!totemId) {
       setError('Totem inválido para edição');
       return;
@@ -545,9 +572,9 @@ const Totems: React.FC = () => {
             </Grid>
           ) : (
             filteredTotems.map((t, idx) => {
-              const totemKey = String((t as any).totem_id ?? (t as any).identifier ?? idx);
-              const totemId = Number((t as any).totem_id ?? (t as any).id ?? 0) || null;
-              const titleLine = t.name || t.identifier || `Totem ${t.totem_id}`;
+              const totemKey = String((t as any).totem_id ?? (t as any).id ?? (t as any).identifier ?? idx);
+              const totemId = resolveTotemRecordId(t);
+              const titleLine = t.name || t.identifier || (totemId ? `Totem ${totemId}` : 'Totem');
               const identStr = String(t.identifier || '').trim();
               const showIdentifierLine = Boolean(identStr && identStr !== String(titleLine).trim());
               return (
@@ -679,8 +706,9 @@ const Totems: React.FC = () => {
               </Grid>
             ) : (
               filteredPendingTotems.map((t, idx) => {
-                const totemKey = String((t as any).totem_id ?? (t as any).identifier ?? `pending-${idx}`);
-                const titleLinePending = t.name || t.identifier || `Totem ${t.totem_id}`;
+                const totemKey = String((t as any).totem_id ?? (t as any).id ?? (t as any).identifier ?? `pending-${idx}`);
+                const pendingRid = resolveTotemRecordId(t);
+                const titleLinePending = t.name || t.identifier || (pendingRid ? `Totem ${pendingRid}` : 'Totem');
                 const identStrPending = String(t.identifier || '').trim();
                 const showIdentifierLinePending = Boolean(
                   identStrPending && identStrPending !== String(titleLinePending).trim()
@@ -953,12 +981,15 @@ const Totems: React.FC = () => {
         fullWidth
       >
         <DialogTitle>
-          Controle remoto — {selectedTotemForControl?.name || selectedTotemForControl?.identifier || `Totem ${selectedTotemForControl?.totem_id || ''}`}
+          Controle remoto —{' '}
+          {selectedTotemForControl?.name ||
+            selectedTotemForControl?.identifier ||
+            (selectedTotemForControl ? `Totem ${resolveTotemRecordId(selectedTotemForControl) || ''}` : '')}
         </DialogTitle>
         <DialogContent>
-          {selectedTotemForControl?.totem_id ? (
+          {selectedTotemForControl && resolveTotemRecordId(selectedTotemForControl) ? (
             <TotemRemoteControl
-              totemId={selectedTotemForControl.totem_id}
+              totemId={resolveTotemRecordId(selectedTotemForControl)!}
               totemName={selectedTotemForControl.name || selectedTotemForControl.identifier}
               onClose={() => {
                 setRemoteControlOpen(false);
@@ -990,7 +1021,10 @@ const Totems: React.FC = () => {
                 Totem pré-cadastrado pelo publisher que vinculou hardware. Aprovar para ativar e permitir recebimento de playlists.
               </Typography>
                 <Typography variant="body1" gutterBottom sx={{ mt: 2 }}>
-                <strong>Nome:</strong> {selectedTotem.name || selectedTotem.identifier || `Totem ${(selectedTotem as any).totem_id}`}
+                <strong>Nome:</strong>{' '}
+                {selectedTotem.name ||
+                  selectedTotem.identifier ||
+                  (resolveTotemRecordId(selectedTotem) ? `Totem ${resolveTotemRecordId(selectedTotem)}` : 'Totem')}
               </Typography>
               {selectedTotem.uin && (
                 <Typography variant="body2" color="text.secondary" gutterBottom>

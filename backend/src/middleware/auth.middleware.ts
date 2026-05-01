@@ -255,22 +255,26 @@ export const authorizeRole = (roles: string[]) => {
       return;
     }
 
+    const norm = (r: string | undefined) => String(r || '').trim().toLowerCase();
+    const userRoleNorm = norm(req.user.role);
+    const normalizedRoles = roles.map((r) => norm(r));
+
     // owner_system tem acesso total a todos os recursos (bypass completo)
     // admin_sql tem acesso a recursos técnicos e administrativos, mas ainda precisa de flags para operações específicas
     // Para operações que requerem flags específicas, use requireFlag() em conjunto com authorizeRole()
-    if (req.user.role === 'owner_system') {
+    if (userRoleNorm === 'owner_system') {
       next();
       return;
     }
 
     // admin_sql pode acessar rotas de admin, mas ainda precisa verificar flags quando aplicável
     // Se a rota requer uma role específica e admin_sql não está na lista, verificar se é admin_sql
-    if (req.user.role === 'admin_sql' && (roles.includes('admin') || roles.includes('admin_sql'))) {
+    if (userRoleNorm === 'admin_sql' && (normalizedRoles.includes('admin') || normalizedRoles.includes('admin_sql'))) {
       next();
       return;
     }
 
-    if (!roles.includes(req.user.role)) {
+    if (!normalizedRoles.includes(userRoleNorm)) {
       res.status(403).json({
         error: 'Acesso negado. Permissões insuficientes',
         code: 'INSUFFICIENT_PERMISSIONS',

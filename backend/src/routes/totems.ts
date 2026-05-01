@@ -24,17 +24,27 @@ const isAdminRole = (role?: string) =>
 const getTotemCreateRoles = () =>
   TOTEMDIGITAL_COMPACT
     ? ['admin', 'admin_sql', 'owner_system']
-    : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user', 'subscriber_user', 'gerente_marketing'];
+    : [
+        'admin',
+        'admin_sql',
+        'owner_system',
+        'operador_tecnico',
+        'operador_faturamento',
+        'operador_comercial',
+        'publisher_user',
+        'subscriber_user',
+        'gerente_marketing',
+      ];
 
 const getTotemApproveRoles = () =>
   TOTEMDIGITAL_COMPACT
-    ? ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user']
-    : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'];
+    ? ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user']
+    : ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'];
 
 const getTotemUpdateRoles = () =>
   TOTEMDIGITAL_COMPACT
-    ? ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user']
-    : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user'];
+    ? ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user']
+    : ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user'];
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
