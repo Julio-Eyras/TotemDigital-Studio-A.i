@@ -567,7 +567,7 @@ prepare_seed_with_owner_profile() {
 -- =============================================
 -- CARGA DEMO DINÂMICA (PRO/COMPACT)
 -- 3 planos (bronze/silver/gold), 6 locais, 13 totems (12 ativos + estoque inativo),
--- 5 subscribers com 3 contratos por subscriber (active + draft + paused)
+-- 5 subscribers com 3 contratos por subscriber (active + draft + cancelled)
 -- =============================================
 DO \$\$
 DECLARE
@@ -580,8 +580,37 @@ DECLARE
     v_gold_plan_id INTEGER;
     v_subscriber_id INTEGER;
     v_local_name TEXT;
+    v_totem_name TEXT;
+    v_subscriber_name TEXT;
     v_local_id INTEGER;
     v_local_ids INTEGER[] := ARRAY[]::INTEGER[];
+    v_local_names TEXT[] := ARRAY[
+        'Bem-Fica Shoping',
+        'Fitness Fat - Academia',
+        'Galeria Centro',
+        'Galeria Cores-Viva',
+        'Running - Academia',
+        'Super Manoel-Legumes'
+    ];
+    v_totem_names TEXT[] := ARRAY[
+        'Totem 40 polegadas (nr002)',
+        'Totem 50 polegadas',
+        'Totem 40 polegadas',
+        'Totem 32 polegadas (branco)',
+        'Totem Painel Led',
+        'Totem 40 polegadas',
+        'Totem Exterminator T1000',
+        'Totem Madeira Wikia 50 polegadas',
+        'Totem 32 polegadas dupla face',
+        'Totem Coluna 3 Faces'
+    ];
+    v_subscriber_names TEXT[] := ARRAY[
+        'Papel Colorido',
+        'Boi na Brasa',
+        'Almoco Todo Dia',
+        'Roupas Academia',
+        'Rest. Grill bom apetiscos'
+    ];
     i INTEGER;
 BEGIN
     -- Garantir publisher alvo:
@@ -652,7 +681,7 @@ BEGIN
 
     -- 6 locais ativos operacionais
     FOR i IN 1..${DEMO_LOCALS_COUNT} LOOP
-        v_local_name := format('Local Demo %s - ${city_sql}', lpad(i::TEXT, 2, '0'));
+        v_local_name := COALESCE(v_local_names[i], format('Local Demo %s - ${city_sql}', lpad(i::TEXT, 2, '0')));
         IF NOT EXISTS (
             SELECT 1 FROM locals WHERE publisher_id = v_target_publisher_id AND name = v_local_name
         ) THEN
@@ -693,6 +722,10 @@ BEGIN
 
     -- 12 totems ativos: 2 por local (6 locais)
     FOR i IN 1..${DEMO_TOTEMS_ACTIVE} LOOP
+        v_totem_name := COALESCE(
+            v_totem_names[i],
+            format('%s #%s', v_totem_names[((i - 1) % array_length(v_totem_names, 1)) + 1], i)
+        );
         INSERT INTO totems (
             identifier, uin, device_id, local_id, name, description, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active
         ) VALUES (
@@ -700,7 +733,7 @@ BEGIN
             format('DEMO-UIN-%s', lpad(i::TEXT, 3, '0')),
             format('DEMO-DEV-%s', lpad(i::TEXT, 3, '0')),
             v_local_ids[((i - 1) % ${DEMO_LOCALS_COUNT}) + 1],
-            format('Totem Demo %s', lpad(i::TEXT, 3, '0')),
+            v_totem_name,
             'Totem demo dinâmico ativo',
             'online',
             NOW() - INTERVAL '2 minutes',
@@ -744,11 +777,12 @@ BEGIN
               updated_at = CURRENT_TIMESTAMP;
     END LOOP;
 
-    -- 5 subscribers + 3 contratos por subscriber (bronze active, silver draft, gold paused)
+    -- 5 subscribers + 3 contratos por subscriber (bronze active, silver draft, gold cancelled)
     FOR i IN 1..${DEMO_SUBSCRIBERS_COUNT} LOOP
+        v_subscriber_name := COALESCE(v_subscriber_names[i], format('Subscriber Demo %s', lpad(i::TEXT, 2, '0')));
         INSERT INTO subscribers (name, contact_name, email, address, category_segment, description, is_active)
         VALUES (
-            format('Subscriber Demo %s', lpad(i::TEXT, 2, '0')),
+            v_subscriber_name,
             '${contact_sql}',
             format('subscriber.demo.%s@totemdigital.local', lpad(i::TEXT, 2, '0')),
             '${city_sql}',
