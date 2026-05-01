@@ -547,6 +547,9 @@ const Totems: React.FC = () => {
             filteredTotems.map((t, idx) => {
               const totemKey = String((t as any).totem_id ?? (t as any).identifier ?? idx);
               const totemId = Number((t as any).totem_id ?? (t as any).id ?? 0) || null;
+              const titleLine = t.name || t.identifier || `Totem ${t.totem_id}`;
+              const identStr = String(t.identifier || '').trim();
+              const showIdentifierLine = Boolean(identStr && identStr !== String(titleLine).trim());
               return (
               <Grid item xs={12} sm={6} md={4} key={totemKey}>
                 <Card>
@@ -559,8 +562,13 @@ const Totems: React.FC = () => {
                       </Avatar>
                       <Box sx={{ flex: 1 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                          {t.name || t.identifier || `Totem ${t.totem_id}`}
+                          {titleLine}
                         </Typography>
+                        {showIdentifierLine && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            Identifier: {identStr}
+                          </Typography>
+                        )}
                         {t.uin && (
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                             UIN: {t.uin}
@@ -672,6 +680,11 @@ const Totems: React.FC = () => {
             ) : (
               filteredPendingTotems.map((t, idx) => {
                 const totemKey = String((t as any).totem_id ?? (t as any).identifier ?? `pending-${idx}`);
+                const titleLinePending = t.name || t.identifier || `Totem ${t.totem_id}`;
+                const identStrPending = String(t.identifier || '').trim();
+                const showIdentifierLinePending = Boolean(
+                  identStrPending && identStrPending !== String(titleLinePending).trim()
+                );
                 return (
                 <Grid item xs={12} sm={6} md={4} key={totemKey}>
                   <Card sx={{ border: '2px solid', borderColor: 'warning.main' }}>
@@ -682,8 +695,13 @@ const Totems: React.FC = () => {
                         </Avatar>
                         <Box sx={{ flex: 1 }}>
                           <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                            {t.name || t.identifier || `Totem ${t.totem_id}`}
+                            {titleLinePending}
                           </Typography>
+                          {showIdentifierLinePending && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                              Identifier: {identStrPending}
+                            </Typography>
+                          )}
                           {t.uin && (
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                               UIN: {t.uin}
