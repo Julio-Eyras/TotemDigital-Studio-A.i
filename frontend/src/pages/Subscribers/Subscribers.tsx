@@ -276,6 +276,8 @@ const Subscribers: React.FC = () => {
   // Estados para contratos
   // null = ainda não carregado do backend (evita gerar número antes da hora)
   const [activeContracts, setActiveContracts] = useState<any[] | null>(null);
+  const filterEditableContracts = (contracts: any[]): any[] =>
+    contracts.filter((c: any) => String(c?.status || '').toLowerCase() !== 'cancelled');
   /** Contratos com status "active" para vincular a campanhas (só estes podem ser usados nos totens) */
   const contractsActiveForCampaign = useMemo(
     () => (activeContracts || []).filter((c: any) => c.status === 'active'),
@@ -532,7 +534,9 @@ const Subscribers: React.FC = () => {
         sample: normalizedCampaigns[0] 
       });
       setEditCampaigns(normalizedCampaigns);
-      setActiveContracts(Array.isArray(contractsResponse) ? contractsResponse : []);
+      setActiveContracts(
+        Array.isArray(contractsResponse) ? filterEditableContracts(contractsResponse) : []
+      );
     } catch (error) {
       console.error('Erro ao carregar dados do Subscriber para edição:', error);
       setError('Erro ao carregar dados do Anunciante');
@@ -3132,8 +3136,13 @@ const Subscribers: React.FC = () => {
                             });
                           }
                           // Recarregar contratos
-                          const list = await subscriberApi.getContracts(selectedSubscriber.subscriber_id);
-                          setActiveContracts(Array.isArray(list) ? list : []);
+                          const list = await subscriberApi.getContracts(
+                            selectedSubscriber.subscriber_id,
+                            { activeOnly: false }
+                          );
+                          setActiveContracts(
+                            Array.isArray(list) ? filterEditableContracts(list) : []
+                          );
                           // Limpar formulário
                           setSubscriberContractFormEdit({
                             contract_number: '',
@@ -3243,8 +3252,13 @@ const Subscribers: React.FC = () => {
                               if (window.confirm(`Tem certeza que deseja excluir o contrato "${contract.contract_number}"?`)) {
                                 try {
                                   await contractApi.delete(contract.contract_id);
-                                  const list = await subscriberApi.getContracts(selectedSubscriber!.subscriber_id);
-                                  setActiveContracts(Array.isArray(list) ? list : []);
+                                  const list = await subscriberApi.getContracts(
+                                    selectedSubscriber!.subscriber_id,
+                                    { activeOnly: false }
+                                  );
+                                  setActiveContracts(
+                                    Array.isArray(list) ? filterEditableContracts(list) : []
+                                  );
                                   if (editingSubscriberContractIndexEdit === index) {
                                     setEditingSubscriberContractIndexEdit(null);
                                     setSubscriberContractFormEdit({
