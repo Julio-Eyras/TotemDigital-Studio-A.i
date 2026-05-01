@@ -58,6 +58,9 @@ import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { PlaylistCard, PlaylistDetails } from './components';
 
+const compareByDisplayName = (a?: string, b?: string) =>
+  String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+
 type EditorMode = 'create' | 'edit';
 
 const Playlists: React.FC = () => {
@@ -161,7 +164,9 @@ const Playlists: React.FC = () => {
     try {
       // Backend limita paginação; manter compatível para evitar 400/429
       const response = await subscriberApi.getAll({ limit: 100, active_only: true });
-      setSubscribers(response.data || []);
+      const subscribersData = Array.isArray(response.data) ? [...response.data] : [];
+      subscribersData.sort((a: any, b: any) => compareByDisplayName(a?.name, b?.name));
+      setSubscribers(subscribersData);
     } catch (e) {
       console.error('Erro ao carregar subscribers:', e);
     }
@@ -183,7 +188,9 @@ const Playlists: React.FC = () => {
         search: searchTerm || undefined,
         subscriberId,
       });
-      setPlaylists(Array.isArray(response.data) ? response.data : []);
+      const playlistsData = Array.isArray(response.data) ? [...response.data] : [];
+      playlistsData.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.title, b?.name || b?.title));
+      setPlaylists(playlistsData);
     } catch (e) {
       console.error('Erro ao carregar playlists:', e);
       setError('Erro ao carregar lista de playlists');
@@ -205,7 +212,9 @@ const Playlists: React.FC = () => {
     try {
       const subscriberId = getTargetSubscriberIdForMedia();
       const response = await mediaApi.getAll({ subscriberId });
-      setMediaItems(Array.isArray(response?.data) ? response.data : []);
+      const mediaData = Array.isArray(response?.data) ? [...response.data] : [];
+      mediaData.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.title || a?.file_name, b?.name || b?.title || b?.file_name));
+      setMediaItems(mediaData);
     } catch (e) {
       console.error('Erro ao carregar mídias:', e);
       setMediaItems([]);
@@ -215,7 +224,9 @@ const Playlists: React.FC = () => {
   const loadPlaylistMedia = async (playlistId: number) => {
     try {
       const media = await playlistApi.getMedia(playlistId);
-      setPlaylistMedia(Array.isArray(media) ? media : []);
+      const playlistMediaData = Array.isArray(media) ? [...media] : [];
+      playlistMediaData.sort((a: any, b: any) => compareByDisplayName(a?.media_name || a?.name, b?.media_name || b?.name));
+      setPlaylistMedia(playlistMediaData);
     } catch (e) {
       console.error('Erro ao carregar mídia da playlist:', e);
       setPlaylistMedia([]);
@@ -225,7 +236,9 @@ const Playlists: React.FC = () => {
   const loadPlaylistCampaigns = async (playlistId: number) => {
     try {
       const campaigns = await playlistApi.getCampaigns(playlistId);
-      setPlaylistCampaigns(Array.isArray(campaigns) ? campaigns : []);
+      const playlistCampaignsData = Array.isArray(campaigns) ? [...campaigns] : [];
+      playlistCampaignsData.sort((a: any, b: any) => compareByDisplayName(a?.title || a?.campaign_title || a?.name, b?.title || b?.campaign_title || b?.name));
+      setPlaylistCampaigns(playlistCampaignsData);
     } catch (e) {
       console.error('Erro ao carregar campanhas da playlist:', e);
       setPlaylistCampaigns([]);

@@ -51,6 +51,9 @@ import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDia
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 
+const compareByDisplayName = (a?: string, b?: string) =>
+  String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+
 const Media: React.FC = () => {
   const theme = useTheme();
   const breadcrumbs = useBreadcrumbs();
@@ -194,7 +197,8 @@ const Media: React.FC = () => {
     try {
       // "aptos": apenas subscribers ativos
       const response = await subscriberApi.getAll({ limit: 1000, active_only: true });
-      const subs = response.data || [];
+      const subs = Array.isArray(response.data) ? [...response.data] : [];
+      subs.sort((a: any, b: any) => compareByDisplayName(a?.name, b?.name));
       setSubscribers(subs);
 
       // Se o usuário não está "preso" a um subscriber e pode escolher, selecionar um padrão (evita erro no upload/listagem)
@@ -241,7 +245,9 @@ const Media: React.FC = () => {
         subscriberId: subscriberId,
       });
       // mediaApi.getAll já retorna { data: [...], total, page, limit }
-      setMediaItems(Array.isArray(response?.data) ? response.data : []);
+      const mediaData = Array.isArray(response?.data) ? [...response.data] : [];
+      mediaData.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.title || a?.file_name, b?.name || b?.title || b?.file_name));
+      setMediaItems(mediaData);
     } catch (error) {
       console.error('Erro ao carregar mídia:', error);
       setError('Erro ao carregar lista de mídia');

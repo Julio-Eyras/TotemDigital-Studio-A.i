@@ -106,6 +106,9 @@ import { SortableList } from '../../components/SortableList/SortableList';
 import { SubscriberCard, SubscriberDetails, SubscriberForm } from './components';
 import { PageHeader } from '../../components/DataDisplay';
 
+const compareByDisplayName = (a?: string, b?: string) =>
+  String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+
 const Subscribers: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -421,7 +424,9 @@ const Subscribers: React.FC = () => {
         page,
         limit,
       });
-      setSubscribers(response.data || []);
+      const subscribersData = Array.isArray(response.data) ? [...response.data] : [];
+      subscribersData.sort((a: any, b: any) => compareByDisplayName(a?.name, b?.name));
+      setSubscribers(subscribersData);
       setTotal(response.total || response.data?.length || 0);
     } catch (error) {
       console.error('Erro ao carregar Subscribers:', error);

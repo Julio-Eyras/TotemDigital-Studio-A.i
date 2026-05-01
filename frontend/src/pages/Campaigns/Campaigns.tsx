@@ -60,6 +60,9 @@ interface PublisherOption {
   email?: string;
 }
 
+const compareByDisplayName = (a?: string, b?: string) =>
+  String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+
 const Campaigns: React.FC = () => {
   const theme = useTheme();
   const breadcrumbs = useBreadcrumbs();
@@ -329,6 +332,7 @@ const Campaigns: React.FC = () => {
       // campaignApi.getAll retorna um array de Campaign já normalizado
       const campaignsArray = Array.isArray(response) ? response : [];
       const normalizedCampaigns = campaignsArray.map(normalizeCampaign);
+      normalizedCampaigns.sort((a, b) => compareByDisplayName(a.title || a.name, b.title || b.name));
       setCampaigns(normalizedCampaigns);
     } catch (error: any) {
       console.error('Erro ao carregar campanhas:', error);
@@ -344,7 +348,8 @@ const Campaigns: React.FC = () => {
   const loadClients = async () => {
     try {
       const response = await clientApi.getAll({ limit: 1000 });
-      const list = Array.isArray(response?.data) ? response.data : [];
+      const list = Array.isArray(response?.data) ? [...response.data] : [];
+      list.sort((a: any, b: any) => compareByDisplayName(a?.name, b?.name));
       setClients(list);
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
@@ -359,7 +364,9 @@ const Campaigns: React.FC = () => {
       const response = await playlistApi.getAll({
         subscriberId: subscriberId,
       });
-      setPlaylists(response.data || []);
+      const playlistsData = Array.isArray(response.data) ? [...response.data] : [];
+      playlistsData.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.title, b?.name || b?.title));
+      setPlaylists(playlistsData);
     } catch (error) {
       console.error('Erro ao carregar playlists:', error);
     }
@@ -372,7 +379,9 @@ const Campaigns: React.FC = () => {
       const response = await mediaApi.getAll({
         subscriberId: subscriberId,
       });
-      setMediaItems(Array.isArray(response?.data) ? response.data : []);
+      const mediaData = Array.isArray(response?.data) ? [...response.data] : [];
+      mediaData.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.title || a?.file_name, b?.name || b?.title || b?.file_name));
+      setMediaItems(mediaData);
     } catch (error) {
       console.error('Erro ao carregar mídias:', error);
       setMediaItems([]);
@@ -382,7 +391,9 @@ const Campaigns: React.FC = () => {
   const loadPlayers = async () => {
     try {
       const response = await playerApi.getAll();
-      setPlayers(response.data || []);
+      const playersData = Array.isArray(response.data) ? [...response.data] : [];
+      playersData.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.identifier, b?.name || b?.identifier));
+      setPlayers(playersData);
     } catch (error) {
       console.error('Erro ao carregar players:', error);
     }
@@ -391,7 +402,9 @@ const Campaigns: React.FC = () => {
   const loadPublishers = async () => {
     try {
       const response = await publisherApi.getAll({ active_only: true });
-      setPublishers(response.data || []);
+      const publishersData = Array.isArray(response.data) ? [...response.data] : [];
+      publishersData.sort((a: any, b: any) => compareByDisplayName(a?.name, b?.name));
+      setPublishers(publishersData);
     } catch (error) {
       console.error('Erro ao carregar publishers:', error);
     }
@@ -400,6 +413,7 @@ const Campaigns: React.FC = () => {
   const loadAccessiblePublishers = async (subscriberId: number) => {
     try {
       const accessible = await subscriberAccessApi.getAccessiblePublishers(subscriberId);
+      accessible.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.publisher_name, b?.name || b?.publisher_name));
       setAccessiblePublishers(accessible);
     } catch (error) {
       console.error('Erro ao carregar publishers acessíveis:', error);
@@ -869,6 +883,7 @@ const Campaigns: React.FC = () => {
                 if (subscriberId) {
                   try {
                     const accessible = await subscriberAccessApi.getAccessiblePublishers(subscriberId);
+                    accessible.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.publisher_name, b?.name || b?.publisher_name));
                     setAccessiblePublishers(accessible);
                   } catch (error) {
                     console.error('Erro ao carregar publishers acessíveis:', error);

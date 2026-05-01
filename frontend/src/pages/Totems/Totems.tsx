@@ -53,6 +53,9 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
+const compareByDisplayName = (a?: string, b?: string) =>
+  String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+
 const Totems: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
   const theme = useTheme();
@@ -146,7 +149,9 @@ const Totems: React.FC = () => {
         publisherId: canAdministerTotems ? undefined : userPublisherId,
         active_only: true,
       });
-      setLocals(response.data);
+      const localsData = Array.isArray(response.data) ? [...response.data] : [];
+      localsData.sort((a: any, b: any) => compareByDisplayName(a?.name, b?.name));
+      setLocals(localsData);
     } catch (error) {
       console.error('Erro ao carregar locals:', error);
     }
@@ -159,8 +164,12 @@ const Totems: React.FC = () => {
         totemApi.getAll(),
         TOTEMDIGITAL_COMPACT ? Promise.resolve({ data: [] as Player[] } as any) : totemApi.getPending()
       ]);
-      setTotems(resp.data || []);
-      setPendingTotems(pendingResp.data || []);
+      const totemsData = Array.isArray(resp.data) ? [...resp.data] : [];
+      totemsData.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.identifier, b?.name || b?.identifier));
+      const pendingData = Array.isArray(pendingResp.data) ? [...pendingResp.data] : [];
+      pendingData.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.identifier, b?.name || b?.identifier));
+      setTotems(totemsData);
+      setPendingTotems(pendingData);
     } catch (e: any) {
       setError('Erro ao carregar totems: ' + (e.message || 'Erro desconhecido'));
     } finally {
