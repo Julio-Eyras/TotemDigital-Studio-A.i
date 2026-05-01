@@ -702,21 +702,30 @@ BEGIN
         v_local_ids := array_append(v_local_ids, v_local_id);
     END LOOP;
 
+    -- Compatibilidade: padronizar nome legado de estoque
+    UPDATE locals
+       SET name = 'Estoque',
+           category_segment = COALESCE(category_segment, 'Estoque'),
+           description = COALESCE(description, 'Local técnico para totems de estoque inativos'),
+           updated_at = CURRENT_TIMESTAMP
+     WHERE publisher_id = v_target_publisher_id
+       AND name = 'ESTOQUE DEMO';
+
     -- Local técnico de estoque (inativo) para totems sem operação
     IF NOT EXISTS (
-        SELECT 1 FROM locals WHERE publisher_id = v_target_publisher_id AND name = 'ESTOQUE DEMO'
+        SELECT 1 FROM locals WHERE publisher_id = v_target_publisher_id AND name = 'Estoque'
     ) THEN
         INSERT INTO locals (
             publisher_id, name, category_segment, city, country, timezone, description, is_active
         ) VALUES (
-            v_target_publisher_id, 'ESTOQUE DEMO', 'Estoque', '${city_sql}', 'BR', 'America/Sao_Paulo',
+            v_target_publisher_id, 'Estoque', 'Estoque', '${city_sql}', 'BR', 'America/Sao_Paulo',
             'Local técnico para totems de estoque inativos', false
         );
     END IF;
 
     SELECT local_id INTO v_stock_local_id
     FROM locals
-    WHERE publisher_id = v_target_publisher_id AND name = 'ESTOQUE DEMO'
+    WHERE publisher_id = v_target_publisher_id AND name = 'Estoque'
     ORDER BY local_id ASC
     LIMIT 1;
 
