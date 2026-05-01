@@ -178,14 +178,13 @@ export class LocalService {
         LEFT JOIN (
           SELECT t.local_id, COUNT(*)::int as totem_count
           FROM totems t
-          WHERE COALESCE(t.is_active, true) = true
           GROUP BY t.local_id
         ) tot ON tot.local_id = l.local_id
         LEFT JOIN (
           SELECT t.local_id, COUNT(*)::int as smart_tv_count
           FROM smart_tvs st
           JOIN totems t ON st.totem_id = t.totem_id
-          WHERE COALESCE(st.is_active, true) = true AND COALESCE(t.is_active, true) = true
+          WHERE COALESCE(st.is_active, true) = true
           GROUP BY t.local_id
         ) stv ON stv.local_id = l.local_id
         ${whereClause}
@@ -616,7 +615,6 @@ export class LocalService {
           t.updated_at
         FROM totems t
         WHERE t.local_id = $1
-          AND t.is_active = true
         ORDER BY t.name, t.identifier
       `, [localId]);
 
@@ -649,7 +647,7 @@ export class LocalService {
 
       const totemRows = await this.db.findMany(`
         SELECT local_id, COUNT(*)::int AS cnt FROM totems
-        WHERE local_id = ANY($1) AND COALESCE(is_active, true) = true
+        WHERE local_id = ANY($1)
         GROUP BY local_id
       `, [allowedIds]);
       const tvRows = await this.db.findMany(`
