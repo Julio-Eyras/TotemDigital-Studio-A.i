@@ -60,11 +60,10 @@ const Totems: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const canAdministerTotems = useMemo(() => {
     const role = user?.role || '';
-    if (['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'].includes(role)) {
+    if (['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user'].includes(role)) {
       return true;
     }
-    // No compacto, permitir operação direta do owner operacional (publisher_user).
-    return TOTEMDIGITAL_COMPACT && role === 'publisher_user';
+    return false;
   }, [user?.role]);
   const canCreateTotem = useMemo(() => {
     const role = user?.role || '';
