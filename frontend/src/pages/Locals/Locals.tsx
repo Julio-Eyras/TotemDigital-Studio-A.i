@@ -105,6 +105,7 @@ const Locals: React.FC = () => {
   const [selectedPublisher, setSelectedPublisher] = useState<Publisher | null>(null);
   const [selectedTotems, setSelectedTotems] = useState<any[]>([]);
   const [selectedSmartTvs, setSelectedSmartTvs] = useState<any[]>([]);
+  const [smartTvDetailsAvailable, setSmartTvDetailsAvailable] = useState(true);
   const [selectedContracts, setSelectedContracts] = useState<PublisherContract[]>([]);
   const [editLocalTotems, setEditLocalTotems] = useState<any[]>([]);
   const [loadingEditLocalTotems, setLoadingEditLocalTotems] = useState(false);
@@ -297,11 +298,9 @@ const Locals: React.FC = () => {
     setSelectedLocal(local);
     setEditDialogOpen(true);
     setLoadingEditLocalTotems(true);
-    totemApi.getAll({ limit: 1000 })
-      .then((resp) => {
-        const totems = Array.isArray(resp.data) ? resp.data : [];
-        const linkedTotems = totems.filter((t: any) => t.localId === local.local_id || t.local_id === local.local_id);
-        setEditLocalTotems(linkedTotems);
+    localApi.getTotems(local.local_id)
+      .then((totems) => {
+        setEditLocalTotems(Array.isArray(totems) ? totems : []);
       })
       .catch((err) => {
         console.error('Erro ao carregar totems do local para edição:', err);
@@ -315,6 +314,7 @@ const Locals: React.FC = () => {
     setDetailsDialogOpen(true);
     setDetailsTab(TOTEMDIGITAL_COMPACT ? 0 : 1);
     setLoadingDetails(true);
+    setSmartTvDetailsAvailable(true);
     
     try {
       // Carregar dados do Publisher
@@ -327,39 +327,36 @@ const Locals: React.FC = () => {
         }
       }
       
-      // Carregar Totens do local primeiro
+      // Carregar Totens do local via rota dedicada (fonte única para este modal)
       let localTotems: any[] = [];
       try {
-        const totemsResponse = await totemApi.getAll({ limit: 1000 });
-        const totems = Array.isArray(totemsResponse.data) ? totemsResponse.data : [];
-        localTotems = totems.filter((t: any) => t.localId === local.local_id || t.local_id === local.local_id);
+        localTotems = await localApi.getTotems(local.local_id);
         setSelectedTotems(localTotems);
       } catch (err) {
         console.error('Erro ao carregar totens:', err);
         setSelectedTotems([]);
       }
       
-      // Carregar Smart TVs do local (via totems)
-      // Em compact, este endpoint pode não estar exposto em alguns perfis de deploy.
-      if (TOTEMDIGITAL_COMPACT) {
-        setSelectedSmartTvs([]);
-      } else {
-        try {
-          // Backend de Smart TVs limita limit em 100 (validação). Manter compatível para evitar 400.
-          const smartTvsResponse = await smartTvApi.getAll({ limit: 100 });
-          const smartTvs = Array.isArray(smartTvsResponse.data) ? smartTvsResponse.data : [];
-          const totemIds = localTotems.map((t: any) => t.totem_id);
-          const localSmartTvs = smartTvs.filter((tv: any) => 
-            totemIds.includes(tv.totem_id) || tv.local_id === local.local_id
-          );
-          setSelectedSmartTvs(localSmartTvs);
-        } catch (err) {
-          const status = (err as any)?.response?.status;
-          if (status !== 404) {
-            console.error('Erro ao carregar Smart TVs:', err);
-          }
-          setSelectedSmartTvs([]);
+      // Carregar Smart TVs do local (feature-detection por disponibilidade da API)
+      try {
+        // Backend de Smart TVs limita limit em 100 (validação). Manter compatível para evitar 400.
+        const smartTvsResponse = await smartTvApi.getAll({ limit: 100 });
+        const smartTvs = Array.isArray(smartTvsResponse.data) ? smartTvsResponse.data : [];
+        const totemIds = localTotems.map((t: any) => t.totem_id);
+        const localSmartTvs = smartTvs.filter((tv: any) => 
+          totemIds.includes(tv.totem_id) || tv.local_id === local.local_id
+        );
+        setSelectedSmartTvs(localSmartTvs);
+        setSmartTvDetailsAvailable(true);
+      } catch (err) {
+        const status = (err as any)?.response?.status;
+        if (status === 404) {
+          setSmartTvDetailsAvailable(false);
+        } else {
+          console.error('Erro ao carregar Smart TVs:', err);
+          setSmartTvDetailsAvailable(true);
         }
+        setSelectedSmartTvs([]);
       }
       
       // Carregar Contratos do Publisher
@@ -919,7 +916,11 @@ const Locals: React.FC = () => {
               {/* Aba Smart TVs */}
               {detailsTab === detailsTabIndex.smartTvs && (
                 <Box>
-                  {selectedSmartTvs.length === 0 ? (
+                  {!smartTvDetailsAvailable ? (
+                    <Alert severity="info">
+                      Endpoint de Smart TVs indisponível neste ambiente/perfil. Os dados de Smart TVs não puderam ser carregados para este local.
+                    </Alert>
+                  ) : selectedSmartTvs.length === 0 ? (
                     <Alert severity="info">Nenhuma Smart TV encontrada para este local</Alert>
                   ) : (
                     <List>
@@ -1006,6 +1007,7 @@ const Locals: React.FC = () => {
             setSelectedPublisher(null);
             setSelectedTotems([]);
             setSelectedSmartTvs([]);
+            setSmartTvDetailsAvailable(true);
             setSelectedContracts([]);
             setDetailsTab(0);
           }}>
