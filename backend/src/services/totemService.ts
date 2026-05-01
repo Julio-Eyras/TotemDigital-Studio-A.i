@@ -1000,21 +1000,22 @@ export class TotemService {
         params.push(JSON.stringify(updatedNetworkInfo));
       }
 
-      if (data.active !== undefined) {
-        const value = data.active ? true : false;
-        updates.push(`is_active = $${paramIndex++}`);
-        params.push(value);
+      // Uma única atribuição a is_active no UPDATE (PostgreSQL rejeita duplicatas).
+      // Totem em local de estoque fica inoperante: is_active=false prevalece sobre o payload.
+      let nextIsActive: boolean | undefined;
+      if (shouldForceInoperative) {
+        nextIsActive = false;
+      } else if (data.active !== undefined) {
+        nextIsActive = data.active ? true : false;
+      } else if (data.isActive !== undefined) {
+        nextIsActive = data.isActive ? true : false;
       }
-
-      if (data.isActive !== undefined) {
-        const value = data.isActive ? true : false;
+      if (nextIsActive !== undefined) {
         updates.push(`is_active = $${paramIndex++}`);
-        params.push(value);
+        params.push(nextIsActive);
       }
 
       if (shouldForceInoperative) {
-        updates.push(`is_active = $${paramIndex++}`);
-        params.push(false);
         updates.push(`status = $${paramIndex++}`);
         params.push('offline');
       }
