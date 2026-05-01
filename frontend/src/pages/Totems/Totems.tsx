@@ -61,23 +61,25 @@ const Totems: React.FC = () => {
   const theme = useTheme();
   const breadcrumbs = useBreadcrumbs();
   const [searchParams, setSearchParams] = useSearchParams();
+  const normalizedRole = useMemo(
+    () => String(user?.role || '').trim().toLowerCase(),
+    [user?.role]
+  );
   const canAdministerTotems = useMemo(() => {
-    const role = user?.role || '';
-    if (['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user'].includes(role)) {
+    if (['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user'].includes(normalizedRole)) {
       return true;
     }
     return false;
-  }, [user?.role]);
+  }, [normalizedRole]);
   const canCreateTotem = useMemo(() => {
-    const role = user?.role || '';
     if (TOTEMDIGITAL_COMPACT) {
-      return ['owner_system', 'admin', 'admin_sql'].includes(role);
+      return ['owner_system', 'admin', 'admin_sql'].includes(normalizedRole);
     }
-    if (['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user'].includes(role)) {
+    if (['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial', 'publisher_user'].includes(normalizedRole)) {
       return true;
     }
     return false;
-  }, [user?.role]);
+  }, [normalizedRole]);
   const userPublisherId = user?.publisherId;
 
   const [totems, setTotems] = useState<Player[]>([]);
@@ -537,7 +539,7 @@ const Totems: React.FC = () => {
           ) : (
             filteredTotems.map((t, idx) => {
               const totemKey = String((t as any).totem_id ?? (t as any).identifier ?? idx);
-              const totemId = (t as any).totem_id ?? null;
+              const totemId = Number((t as any).totem_id ?? (t as any).id ?? 0) || null;
               return (
               <Grid item xs={12} sm={6} md={4} key={totemKey}>
                 <Card>

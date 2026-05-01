@@ -75,24 +75,26 @@ const Locals: React.FC = () => {
   const theme = useTheme();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAppSelector((state) => state.auth);
+  const normalizedRole = useMemo(
+    () => String(user?.role || '').trim().toLowerCase(),
+    [user?.role]
+  );
   const isAdmin = Boolean(
     (user?.isTenantUser ?? user?.is_tenant_user) ||
-    ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(user?.role || '')
+    ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(normalizedRole)
   );
   const canManageLocals = useMemo(() => {
-    const role = user?.role || '';
     if (TOTEMDIGITAL_COMPACT) {
-      return ['owner_system', 'admin', 'admin_sql'].includes(role);
+      return ['owner_system', 'admin', 'admin_sql'].includes(normalizedRole);
     }
     return isAdmin;
-  }, [user?.role, isAdmin]);
+  }, [normalizedRole, isAdmin]);
   const canEditLocals = useMemo(() => {
-    const role = user?.role || '';
     if (TOTEMDIGITAL_COMPACT) {
-      return ['owner_system', 'admin', 'admin_sql', 'publisher_user'].includes(role);
+      return ['owner_system', 'admin', 'admin_sql', 'publisher_user'].includes(normalizedRole);
     }
     return isAdmin;
-  }, [user?.role, isAdmin]);
+  }, [normalizedRole, isAdmin]);
   const userPublisherId = user?.publisherId;
   const normalizeStockText = (value?: unknown): string =>
     String(value || '')
@@ -126,7 +128,7 @@ const Locals: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [publisherFilter, setPublisherFilter] = useState<number | undefined>(undefined);
-  const [activeOnlyFilter, setActiveOnlyFilter] = useState<boolean>(true);
+  const [activeOnlyFilter, setActiveOnlyFilter] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [localStats, setLocalStats] = useState<Record<number, { totens: number; smartTvs: number }>>({});
   const [newLocal, setNewLocal] = useState<CreateLocalRequest>({
