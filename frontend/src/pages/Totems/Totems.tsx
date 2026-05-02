@@ -97,6 +97,7 @@ const Totems: React.FC = () => {
         'operador_faturamento',
         'operador_comercial',
         'publisher_user',
+        'gerente_marketing',
       ].includes(normalizedRole)
     ) {
       return true;
@@ -105,7 +106,7 @@ const Totems: React.FC = () => {
   }, [normalizedRole]);
   const canCreateTotem = useMemo(() => {
     if (TOTEMDIGITAL_COMPACT) {
-      return ['owner_system', 'admin', 'admin_sql'].includes(normalizedRole);
+      return ['owner_system', 'admin', 'admin_sql', 'gerente_marketing'].includes(normalizedRole);
     }
     if (
       [

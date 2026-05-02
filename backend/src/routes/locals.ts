@@ -17,16 +17,41 @@ const router = Router();
 router.use(authMiddleware);
 
 const isAdminRole = (role?: string) =>
-  ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(role || '');
+  [
+    'admin',
+    'admin_sql',
+    'owner_system',
+    'operador_tecnico',
+    'operador_faturamento',
+    'operador_comercial',
+    'gerente_marketing',
+  ].includes(role || '');
 
 const getLocalsWriteRoles = () =>
   TOTEMDIGITAL_COMPACT
-    ? ['admin', 'admin_sql', 'owner_system']
+    ? [
+        'admin',
+        'admin_sql',
+        'owner_system',
+        'gerente_marketing',
+        'operador_tecnico',
+        'operador_faturamento',
+        'operador_comercial',
+      ]
     : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'];
 
 const getLocalsUpdateRoles = () =>
   TOTEMDIGITAL_COMPACT
-    ? ['admin', 'admin_sql', 'owner_system', 'publisher_user']
+    ? [
+        'admin',
+        'admin_sql',
+        'owner_system',
+        'publisher_user',
+        'gerente_marketing',
+        'operador_tecnico',
+        'operador_faturamento',
+        'operador_comercial',
+      ]
     : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'];
 
 // Validações

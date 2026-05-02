@@ -23,7 +23,7 @@ const isAdminRole = (role?: string) =>
 
 const getTotemCreateRoles = () =>
   TOTEMDIGITAL_COMPACT
-    ? ['admin', 'admin_sql', 'owner_system']
+    ? ['admin', 'admin_sql', 'owner_system', 'gerente_marketing']
     : [
         'admin',
         'admin_sql',
@@ -43,7 +43,16 @@ const getTotemApproveRoles = () =>
 
 const getTotemUpdateRoles = () =>
   TOTEMDIGITAL_COMPACT
-    ? ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user']
+    ? [
+        'admin',
+        'admin_sql',
+        'owner_system',
+        'operador_tecnico',
+        'operador_faturamento',
+        'operador_comercial',
+        'publisher_user',
+        'gerente_marketing',
+      ]
     : ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user'];
 
 // Middleware de autenticação para todas as rotas
@@ -351,7 +360,15 @@ router.post('/',
 
       // Determinar publisherId do usuário (se não for admin)
       const userRole = req.user?.role;
-      const isAdmin = ['admin', 'admin_sql', 'owner_system'].includes(userRole || '');
+      const isAdmin = [
+        'admin',
+        'admin_sql',
+        'owner_system',
+        'gerente_marketing',
+        'operador_tecnico',
+        'operador_faturamento',
+        'operador_comercial',
+      ].includes(userRole || '');
       const requestPublisherId = req.user?.publisherId || undefined;
       
       const totem = await getTotemService().createTotem(totemData, userId, requestPublisherId, isAdmin);

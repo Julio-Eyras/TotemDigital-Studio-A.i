@@ -81,17 +81,21 @@ const Locals: React.FC = () => {
   );
   const isAdmin = Boolean(
     (user?.isTenantUser ?? user?.is_tenant_user) ||
-    ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(normalizedRole)
+    [
+      'admin',
+      'admin_sql',
+      'owner_system',
+      'operador_tecnico',
+      'operador_faturamento',
+      'operador_comercial',
+      'gerente_marketing',
+    ].includes(normalizedRole)
   );
-  const canManageLocals = useMemo(() => {
-    if (TOTEMDIGITAL_COMPACT) {
-      return ['owner_system', 'admin', 'admin_sql'].includes(normalizedRole);
-    }
-    return isAdmin;
-  }, [normalizedRole, isAdmin]);
+  /** Criar/apagar local: mesmo conjunto que isAdmin (inclui gerente e operadores no compacto). */
+  const canManageLocals = useMemo(() => isAdmin, [isAdmin]);
   const canEditLocals = useMemo(() => {
     if (TOTEMDIGITAL_COMPACT) {
-      return ['owner_system', 'admin', 'admin_sql', 'publisher_user'].includes(normalizedRole);
+      return isAdmin || normalizedRole === 'publisher_user';
     }
     return isAdmin;
   }, [normalizedRole, isAdmin]);
