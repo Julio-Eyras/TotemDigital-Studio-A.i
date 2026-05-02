@@ -43,7 +43,6 @@ import {
   PlayArrow,
   Stop,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { Campaign, campaignApi, PlaylistItem, MediaItem, Publisher, playlistApi, mediaApi, publisherApi, totemApi } from '../../../services/api';
 import { TOTEMDIGITAL_COMPACT } from '../../../config/featureFlags';
 
@@ -52,6 +51,8 @@ export interface CampaignDetailsProps {
   campaign: Campaign | null;
   onClose: () => void;
   onEdit?: (campaign: Campaign) => void;
+  /** Preferido na lista global só leitura: abre Anunciantes com contexto da campanha. */
+  onManageInSubscriber?: () => void;
 }
 
 const formatDate = (date: string | Date): string => {
@@ -116,8 +117,8 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
   campaign,
   onClose,
   onEdit,
+  onManageInSubscriber,
 }) => {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -515,7 +516,12 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
         )}
       </DialogContent>
       <DialogActions>
-        {onEdit && (
+        {onManageInSubscriber && (
+          <Button onClick={() => onManageInSubscriber()} variant="contained" color="primary">
+            Gerir no anunciante
+          </Button>
+        )}
+        {onEdit && !onManageInSubscriber && (
           <Button onClick={() => onEdit(campaign)} variant="contained">
             Editar
           </Button>

@@ -29,6 +29,7 @@ import {
   QueueMusic,
   PlayArrow,
   Stop,
+  OpenInNew,
 } from '@mui/icons-material';
 import { Campaign } from '../../../services/api';
 
@@ -37,6 +38,10 @@ export interface CampaignCardProps {
   onEdit?: (campaign: Campaign) => void;
   onDelete?: (campaign: Campaign) => void;
   onView?: (campaign: Campaign) => void;
+  /** Quando true, não exibe editar/apagar (lista global só leitura). */
+  readOnly?: boolean;
+  /** Abre o fluxo de edição no anunciante (menu Anunciantes). */
+  onManageInSubscriber?: () => void;
   highlighted?: boolean;
 }
 
@@ -101,6 +106,8 @@ const CampaignCard: React.FC<CampaignCardProps> = ({
   onEdit,
   onDelete,
   onView,
+  readOnly = false,
+  onManageInSubscriber,
   highlighted = false,
 }) => {
   const theme = useTheme();
@@ -254,17 +261,24 @@ const CampaignCard: React.FC<CampaignCardProps> = ({
             </IconButton>
           </Tooltip>
         )}
-        {onEdit && (
+        {!readOnly && onEdit && (
           <Tooltip title="Editar">
             <IconButton size="small" onClick={() => onEdit(campaign)}>
               <Edit />
             </IconButton>
           </Tooltip>
         )}
-        {onDelete && (
+        {!readOnly && onDelete && (
           <Tooltip title="Deletar">
             <IconButton size="small" color="error" onClick={() => onDelete(campaign)}>
               <Delete />
+            </IconButton>
+          </Tooltip>
+        )}
+        {readOnly && onManageInSubscriber && (
+          <Tooltip title="Gerir no anunciante">
+            <IconButton size="small" color="primary" onClick={() => onManageInSubscriber()}>
+              <OpenInNew />
             </IconButton>
           </Tooltip>
         )}

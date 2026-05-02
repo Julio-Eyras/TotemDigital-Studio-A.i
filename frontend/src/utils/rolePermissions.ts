@@ -77,8 +77,8 @@ export const menuPermissions: MenuItemPermission[] = [
   // Publishers - admin_sql, admin, operador_comercial (visualização)
   { path: '/publishers', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
   
-  // Subscribers - admin_sql, admin, operador_comercial (visualização)
-  { path: '/subscribers', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
+  // Subscribers - admin_sql, admin, operador_comercial; gerente_marketing edita campanhas no contexto do anunciante
+  { path: '/subscribers', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial', 'gerente_marketing'] },
   
   // Analytics - Todos exceto operator, editoracao e client
   { path: '/analytics', roles: ['admin_sql', 'admin', 'gerente_marketing', 'visualizador'], requiresClientAccess: true },

@@ -502,6 +502,7 @@ function getDefaultMenu(): HierarchicalMenuItem[] {
     { text: 'Mídia', icon: <VideoLibrary />, path: '/media' },
     { text: 'Vinhetas', icon: <VideoLibrary />, path: '/vinhetas' },
     { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
+    { text: 'Anunciantes', icon: <People />, path: '/subscribers' },
     { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
     { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
   ];

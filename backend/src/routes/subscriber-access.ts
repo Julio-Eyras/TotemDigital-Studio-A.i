@@ -14,6 +14,14 @@ import { getReconcileService } from '../services/reconcileService';
 import { getDatabase } from '../config/database';
 import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
+import { isAdminRole } from '../utils/tenantScope';
+
+/** Pode consultar publishers acessíveis de qualquer anunciante (campanhas / backoffice). */
+function canInspectAnySubscriberPublisherAccess(role?: string): boolean {
+  const r = String(role || '').trim().toLowerCase();
+  if (isAdminRole(r)) return true;
+  return r === 'gerente_marketing';
+}
 
 const router = Router();
 
@@ -296,10 +304,9 @@ router.get('/:subscriberId/publishers',
       const subscriberId = parseInt(req.params.subscriberId);
       const userRole = req.user?.role;
       const userSubscriberId = req.user?.subscriberId;
-      const isAdmin = userRole === 'admin' || userRole === 'admin_sql';
 
-      // Validar acesso: subscriber só pode ver seus próprios publishers
-      if (!isAdmin && userSubscriberId !== subscriberId) {
+      // Validar acesso: tenant subscriber só no próprio id; papéis de gestão / marketing em qualquer anunciante
+      if (!canInspectAnySubscriberPublisherAccess(userRole) && userSubscriberId !== subscriberId) {
         return res.status(403).json({
           success: false,
           error: 'Acesso negado: Você só pode ver publishers do seu próprio subscriber'
@@ -340,10 +347,8 @@ router.get('/:subscriberId/publishers/:publisherId/check',
       const publisherId = parseInt(req.params.publisherId);
       const userRole = req.user?.role;
       const userSubscriberId = req.user?.subscriberId;
-      const isAdmin = userRole === 'admin' || userRole === 'admin_sql';
 
-      // Validar acesso
-      if (!isAdmin && userSubscriberId !== subscriberId) {
+      if (!canInspectAnySubscriberPublisherAccess(userRole) && userSubscriberId !== subscriberId) {
         return res.status(403).json({
           success: false,
           error: 'Acesso negado'

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -105,6 +105,8 @@ import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDia
 import { SortableList } from '../../components/SortableList/SortableList';
 import { SubscriberCard, SubscriberDetails, SubscriberForm } from './components';
 import { PageHeader } from '../../components/DataDisplay';
+import CampaignFullEditorDialog from '../Campaigns/CampaignFullEditorDialog';
+import { useAppSelector } from '../../store/hooks';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -112,6 +114,10 @@ const compareByDisplayName = (a?: string, b?: string) =>
 const Subscribers: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
+  const authUser = useAppSelector((state) => state.auth.user);
+  /** Comercial consulta campanhas no anunciante; não edita nem abre o editor completo. */
+  const isOperadorComercial = authUser?.role === 'operador_comercial';
 
   // Datas padrão para contratos: início = hoje, vencimento = 31/12 do ano corrente
   const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
@@ -177,6 +183,9 @@ const Subscribers: React.FC = () => {
   } | null>(null);
   const [createTab, setCreateTab] = useState(0); // NOVO: Aba do dialog de criação
   const [editTab, setEditTab] = useState(0); // NOVO: Aba do dialog de edição
+  /** Editor completo de campanha (mesmas abas que o menu global). */
+  const [campaignFullEditorOpen, setCampaignFullEditorOpen] = useState(false);
+  const [campaignFullEditorId, setCampaignFullEditorId] = useState<number | null>(null);
   const [newSubscriber, setNewSubscriber] = useState<CreateSubscriberRequest>({
     name: '',
     contract_ids: undefined,
@@ -1202,6 +1211,7 @@ const Subscribers: React.FC = () => {
   // ============================================================================
 
   const handleAddCampaign = async () => {
+    if (isOperadorComercial) return;
     // PROTEÇÃO INICIAL ABSOLUTA: Resetar editingEditCampaignIndex se inválido ANTES de qualquer processamento
     if (editingEditCampaignIndex !== null) {
       const checkCampaign = editCampaigns[editingEditCampaignIndex];
@@ -1380,6 +1390,7 @@ const Subscribers: React.FC = () => {
   };
 
   const handleStartEditCampaign = async (index: number) => {
+    if (isOperadorComercial) return;
     const campaign = editCampaigns[index];
     if (!campaign) {
       console.error('[Campanha] Erro: campanha não encontrada no índice', { index, editCampaignsLength: editCampaigns.length });
@@ -1390,11 +1401,48 @@ const Subscribers: React.FC = () => {
       console.error('[Campanha] Erro: campanha sem ID válido para navegação', { campaign });
       return;
     }
-    // Abrir a tela de Campanhas com a campanha destacada, usando o formulário completo (CampaignForm)
-    navigate('/campaigns', { state: { highlightId: campaignId } });
+    setCampaignFullEditorId(Number(campaignId));
+    setCampaignFullEditorOpen(true);
   };
 
+  useEffect(() => {
+    const st = (location.state || {}) as {
+      openEditForSubscriberId?: number;
+      focusCampaignTab?: boolean;
+      highlightCampaignId?: number;
+    };
+    if (st.openEditForSubscriberId == null) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const sub = await subscriberApi.getById(st.openEditForSubscriberId!);
+        if (cancelled) return;
+        setSelectedSubscriber(sub);
+        setEditDialogOpen(true);
+        await loadSubscriberDataForEdit(sub.subscriber_id);
+        if (cancelled) return;
+        if (st.focusCampaignTab) setEditTab(4);
+        if (!isOperadorComercial && st.highlightCampaignId != null) {
+          setCampaignFullEditorId(st.highlightCampaignId);
+          setCampaignFullEditorOpen(true);
+        }
+      } catch (e) {
+        console.error('Erro ao abrir anunciante a partir da navegação:', e);
+        setError('Não foi possível abrir o anunciante indicado.');
+      } finally {
+        navigate('.', { replace: true, state: {} });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, isOperadorComercial]);
+
   const handleDeleteCampaign = async (index: number) => {
+    if (isOperadorComercial) return;
     if (!selectedSubscriber || !window.confirm('Tem certeza que deseja excluir esta campanha?')) return;
     
     try {
@@ -3862,11 +3910,17 @@ const Subscribers: React.FC = () => {
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Campanhas ({editCampaigns.length})
               </Typography>
+              {isOperadorComercial && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Perfil comercial: pode consultar as campanhas deste anunciante. A criação e alteração de campanhas é feita por marketing ou administração.
+                </Alert>
+              )}
               {error && (
                 <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
                   {error}
                 </Alert>
               )}
+              {!isOperadorComercial && (
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingEditCampaignIndex !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>
                   {editingEditCampaignIndex !== null ? 'Editar Campanha' : 'Adicionar Campanha'}
@@ -4145,6 +4199,7 @@ const Subscribers: React.FC = () => {
                   </Grid>
                 </Grid>
               </Box>
+              )}
 
               {editCampaigns.length > 0 ? (
                 <List>
@@ -4201,19 +4256,25 @@ const Subscribers: React.FC = () => {
                         color={campaign.status === 'active' ? 'success' : campaign.status === 'approved' ? 'info' : 'default'}
                         sx={{ mr: 1 }}
                       />
-                      <IconButton size="small" onClick={() => handleStartEditCampaign(index)}>
-                        <Edit />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteCampaign(index)}>
-                        <Delete />
-                      </IconButton>
+                      {!isOperadorComercial && (
+                        <>
+                          <IconButton size="small" onClick={() => handleStartEditCampaign(index)}>
+                            <Edit />
+                          </IconButton>
+                          <IconButton size="small" onClick={() => handleDeleteCampaign(index)}>
+                            <Delete />
+                          </IconButton>
+                        </>
+                      )}
                     </ListItem>
                     );
                   })}
                 </List>
               ) : (
                 <Alert severity="info">
-                  Nenhuma campanha cadastrada ainda. Crie uma campanha para organizar suas mídias e playlists.
+                  {isOperadorComercial
+                    ? 'Nenhuma campanha cadastrada para este anunciante.'
+                    : 'Nenhuma campanha cadastrada ainda. Crie uma campanha para organizar suas mídias e playlists.'}
                 </Alert>
               )}
             </Box>
@@ -4250,6 +4311,20 @@ const Subscribers: React.FC = () => {
           setSelectedSubscriber(subscriber);
           setEditDialogOpen(true);
           await loadSubscriberDataForEdit(subscriber.subscriber_id);
+        }}
+      />
+
+      <CampaignFullEditorDialog
+        open={campaignFullEditorOpen}
+        campaignId={campaignFullEditorId}
+        onClose={() => {
+          setCampaignFullEditorOpen(false);
+          setCampaignFullEditorId(null);
+        }}
+        onSaved={async () => {
+          if (selectedSubscriber) {
+            await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+          }
         }}
       />
     </Box>
