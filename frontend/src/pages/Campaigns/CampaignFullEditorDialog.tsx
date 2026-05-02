@@ -2,7 +2,7 @@
  * Editor completo de campanha (mesmo fluxo de abas que o menu global tinha),
  * para uso a partir de Anunciantes — o menu Campanhas global fica só leitura.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Button,
@@ -105,7 +105,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
 
   const getSelectedTotemIds = (): number[] => {
     if (!selectedCampaign) return [];
-    return ((selectedCampaign as any).totemIds || []) as number[];
+    const raw = ((selectedCampaign as any).totemIds || []) as unknown[];
+    return raw.map((x) => Number(x)).filter((n) => !Number.isNaN(n) && n > 0);
   };
 
   const loadDerivedDevices = async () => {
@@ -316,7 +317,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   useEffect(() => {
     if (!open) return;
     if (compactMode) {
-      if (editTab === tabTotems) loadCompactTotemOptions();
+      if (selectedCampaign) void loadCompactTotemOptions();
       return;
     }
     if (editTab === 2 || editTab === 3) loadDerivedDevices();
@@ -330,6 +331,33 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     (selectedCampaign as any)?.contract_id,
     (selectedCampaign as any)?.contractId,
   ]);
+
+  /** Opções do combo + placeholders para totens já na campanha mas ainda fora da lista (API/tipos). */
+  const totemAutocompleteOptions = useMemo(() => {
+    const selectedIds = (((selectedCampaign as any)?.totemIds || []) as unknown[])
+      .map((x) => Number(x))
+      .filter((n) => !Number.isNaN(n) && n > 0);
+    const out: any[] = [];
+    const seen = new Set<number>();
+    for (const t of derivedTotems) {
+      const id = Number((t as any)?.totem_id);
+      if (Number.isNaN(id) || id <= 0 || seen.has(id)) continue;
+      seen.add(id);
+      out.push(t);
+    }
+    for (const id of selectedIds) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push({
+        totem_id: id,
+        name: `Totem #${id}`,
+        identifier: '',
+        local_name: 'Fora da lista atual do contrato (rever plano/locais ou aguarde o carregamento)',
+        __orphan: true,
+      });
+    }
+    return out;
+  }, [derivedTotems, selectedCampaign?.campaign_id, (selectedCampaign as any)?.totemIds]);
 
   /** Compacto: remove totens da campanha que deixaram de ser elegíveis (contrato/plano/locais ou inativos na lista). */
   useEffect(() => {
@@ -917,21 +945,28 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                   <Autocomplete
                     multiple
                     disableCloseOnSelect
-                    options={compactMode ? derivedTotems : derivedTotems}
+                    filterSelectedOptions={false}
+                    options={totemAutocompleteOptions}
                     getOptionLabel={(option) => campaignTotemOptionLabel(option)}
-                    isOptionEqualToValue={(option, value) => option.totem_id === value.totem_id}
-                    value={derivedTotems.filter((t) => getSelectedTotemIds().includes(t.totem_id))}
+                    isOptionEqualToValue={(option, value) =>
+                      Number((option as any).totem_id) === Number((value as any).totem_id)
+                    }
+                    value={totemAutocompleteOptions.filter((t) =>
+                      getSelectedTotemIds().includes(Number((t as any).totem_id))
+                    )}
                     onChange={(_, newValue, reason, details) => {
                       if (!selectedCampaign) return;
                       let nextIds: number[];
                       if (reason === 'selectOption' && details?.option) {
-                        const clickedId = (details.option as { totem_id: number }).totem_id;
+                        const clickedId = Number((details.option as { totem_id: number }).totem_id);
                         const cur = getSelectedTotemIds();
                         nextIds = cur.includes(clickedId)
                           ? cur.filter((id) => id !== clickedId)
                           : [...cur, clickedId];
                       } else {
-                        nextIds = (newValue as { totem_id: number }[]).map((t) => t.totem_id);
+                        nextIds = (newValue as { totem_id: number }[])
+                          .map((t) => Number((t as any).totem_id))
+                          .filter((n) => !Number.isNaN(n) && n > 0);
                       }
                       setSelectedCampaign({
                         ...selectedCampaign,
@@ -951,6 +986,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     }
                     renderOption={(props, option, { selected }) => {
                       const { key, ...liProps } = props as React.HTMLAttributes<HTMLLIElement> & { key?: string };
+                      const orphan = Boolean((option as any).__orphan);
                       return (
                         <Box
                           component="li"
@@ -965,6 +1001,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                                 bgcolor: alpha(theme.palette.success.main, 0.22),
                               },
                             }),
+                            ...(orphan && { opacity: 0.85, fontStyle: 'italic' }),
                           }}
                         >
                           {campaignTotemOptionLabel(option)}
@@ -984,6 +1021,9 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                             if (!compactMode) {
                               return 'Nenhum totem nos publishers selecionados. Selecione publishers na aba Publicadores.';
                             }
+                            if (totemAutocompleteOptions.some((o: any) => o.__orphan)) {
+                              return 'Totens guardados na campanha ainda não aparecem na lista do contrato (verifique plan_local_access / contrato ativo) ou aguarde o carregamento.';
+                            }
                             return compactContractId
                               ? 'Nenhum totem elegível: o contrato tem de estar ativo e no prazo; o plano tem de permitir o publisher de cada totem; e o plano tem de listar explicitamente cada local permitido (configuração «locais do plano» na base de dados). Se faltar a lista de locais do plano, não aparece nenhum totem.'
                               : 'Nenhum totem listado. Escolha um contrato ativo com plano na aba Principal (campo Contrato).';
@@ -994,7 +1034,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                         })()}
                       />
                     )}
-                    disabled={derivedTotems.length === 0}
+                    disabled={totemAutocompleteOptions.length === 0 && !derivedDevicesLoading}
                     noOptionsText={
                       compactMode
                         ? 'Nenhum totem disponível.'

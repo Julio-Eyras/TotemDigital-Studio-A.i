@@ -76,6 +76,13 @@ const Media: React.FC = () => {
   const [thumbVersion, setThumbVersion] = useState(0); // força rerender quando adicionamos um blob url
   const [videoLoadFailed, setVideoLoadFailed] = useState<Set<number>>(new Set());
 
+  /** Preview de vídeo ao passar o rato (Blob URL; só ficheiros até ~30 MB). */
+  const HOVER_PREVIEW_MAX_BYTES = 30 * 1024 * 1024;
+  const videoHoverBlobUrlsRef = useRef<Map<number, string>>(new Map());
+  const hoverGenRef = useRef(0);
+  const [videoHover, setVideoHover] = useState<{ id: number | null; url: string | null }>({ id: null, url: null });
+  const hoverVideoRef = useRef<HTMLVideoElement | null>(null);
+
   /** TotemDigital compacto: inferir subscriber para upload quando não há lista /api/subscribers */
   const uploadFallbackSubscriberId = useMemo(() => {
     if (!TOTEMDIGITAL_COMPACT) return undefined;
@@ -110,6 +117,10 @@ const Media: React.FC = () => {
         try { URL.revokeObjectURL(url); } catch { /* noop */ }
       });
       thumbObjectUrlsRef.current.clear();
+      videoHoverBlobUrlsRef.current.forEach((url) => {
+        try { URL.revokeObjectURL(url); } catch { /* noop */ }
+      });
+      videoHoverBlobUrlsRef.current.clear();
     };
   }, []);
 
@@ -292,11 +303,12 @@ const Media: React.FC = () => {
         tags: Array.isArray(editForm.tags) && editForm.tags.length > 0 
           ? editForm.tags.join(',') 
           : undefined,
-        status: editForm.status,
+        status: TOTEMDIGITAL_COMPACT ? 'approved' : editForm.status,
       };
-      
-      // Se o status for "approved", também atualizar approvalStatus
-      if (editForm.status === 'approved') {
+
+      if (TOTEMDIGITAL_COMPACT) {
+        updateData.approvalStatus = 'approved';
+      } else if (editForm.status === 'approved') {
         updateData.approvalStatus = 'approved';
       } else if (editForm.status === 'rejected') {
         updateData.approvalStatus = 'rejected';
@@ -369,6 +381,45 @@ const Media: React.FC = () => {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const handlePreviewMouseEnter = async (media: MediaItem) => {
+    const id = media.media_id;
+    if (!id || !/^video$/i.test(String(media.media_type || ''))) return;
+    const bytes = Number((media as any).size_bytes ?? (media as any).fileSizeBytes ?? 0);
+    if (bytes > HOVER_PREVIEW_MAX_BYTES) return;
+    const gen = ++hoverGenRef.current;
+    let url = videoHoverBlobUrlsRef.current.get(id);
+    if (!url) {
+      try {
+        const blob = await mediaApi.getFileBlob(id);
+        if (gen !== hoverGenRef.current) return;
+        url = URL.createObjectURL(blob);
+        videoHoverBlobUrlsRef.current.set(id, url);
+      } catch {
+        if (gen === hoverGenRef.current) setVideoHover({ id: null, url: null });
+        return;
+      }
+    }
+    if (gen !== hoverGenRef.current) return;
+    setVideoHover({ id, url: url! });
+  };
+
+  const handlePreviewMouseLeave = () => {
+    hoverGenRef.current += 1;
+    try {
+      hoverVideoRef.current?.pause();
+    } catch {
+      /* noop */
+    }
+    setVideoHover({ id: null, url: null });
+  };
+
+  useEffect(() => {
+    const el = hoverVideoRef.current;
+    if (!el || !videoHover.url) return;
+    el.currentTime = 0;
+    void el.play().catch(() => {});
+  }, [videoHover.id, videoHover.url]);
 
   if (loading) {
     return (
@@ -487,7 +538,11 @@ const Media: React.FC = () => {
                 boxShadow: theme.shadows[8],
               }
             }}>
-              <Box sx={{ position: 'relative', height: 200, backgroundColor: theme.palette.grey[100], overflow: 'hidden' }}>
+              <Box
+                sx={{ position: 'relative', height: 200, backgroundColor: theme.palette.grey[100], overflow: 'hidden' }}
+                onMouseEnter={() => handlePreviewMouseEnter(media)}
+                onMouseLeave={handlePreviewMouseLeave}
+              >
                 {/* Preview da Mídia */}
                 {(() => {
                   // Construir URL do preview/thumbnail
@@ -593,6 +648,30 @@ const Media: React.FC = () => {
                     </Box>
                   );
                 })()}
+
+                {/^video$/i.test(String(media.media_type || '')) &&
+                  videoHover.id === media.media_id &&
+                  videoHover.url && (
+                    <Box
+                      component="video"
+                      ref={hoverVideoRef}
+                      src={videoHover.url}
+                      muted
+                      loop
+                      playsInline
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        zIndex: 2,
+                        pointerEvents: 'none',
+                        backgroundColor: '#000',
+                      }}
+                    />
+                  )}
                 
                 {/* Overlay com informações */}
                 {(() => {
@@ -611,6 +690,8 @@ const Media: React.FC = () => {
                         left: 0,
                         right: 0,
                         bottom: 0,
+                        pointerEvents: 'none',
+                        zIndex: 3,
                         background: hasPreview
                           ? 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)'
                           : 'transparent',
@@ -860,20 +941,26 @@ const Media: React.FC = () => {
                 margin="normal"
                 placeholder="tag1, tag2, tag3"
               />
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={editForm.status}
-                  onChange={(e) => setEditForm((prev) => (prev ? { ...prev, status: e.target.value } : null))}
-                  label="Status"
-                >
-                  <MenuItem value="draft">Rascunho</MenuItem>
-                  <MenuItem value="pending_approval">Aguardando Aprovação</MenuItem>
-                  <MenuItem value="approved">Aprovado</MenuItem>
-                  <MenuItem value="rejected">Rejeitado</MenuItem>
-                  <MenuItem value="archived">Arquivado</MenuItem>
-                </Select>
-              </FormControl>
+              {!TOTEMDIGITAL_COMPACT ? (
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={editForm.status}
+                    onChange={(e) => setEditForm((prev) => (prev ? { ...prev, status: e.target.value } : null))}
+                    label="Status"
+                  >
+                    <MenuItem value="draft">Rascunho</MenuItem>
+                    <MenuItem value="pending_approval">Aguardando Aprovação</MenuItem>
+                    <MenuItem value="approved">Aprovado</MenuItem>
+                    <MenuItem value="rejected">Rejeitado</MenuItem>
+                    <MenuItem value="archived">Arquivado</MenuItem>
+                  </Select>
+                </FormControl>
+              ) : (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  Modo compacto: a mídia permanece <strong>aprovada</strong> (novos uploads já entram aprovados no servidor).
+                </Alert>
+              )}
               {selectedMedia?.subscriberName && (
                 <TextField fullWidth label="Anunciante" value={selectedMedia.subscriberName} margin="normal" disabled />
               )}

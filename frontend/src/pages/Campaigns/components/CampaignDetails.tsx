@@ -187,8 +187,11 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
       // Totens impactados:
       // - TotemDigital compacto: totemApi.getById para IDs explícitos
       // - Pro: totemIds placeholder ou derivação via publisherApi.getTotems
-      if ((campaign as any).totemIds && (campaign as any).totemIds.length > 0) {
-        const explicitTotemIds = ((campaign as any).totemIds as number[]).filter((id) => typeof id === 'number');
+      const rawTotemIds = (campaign as any).totemIds ?? (campaign as any).totem_ids ?? [];
+      const explicitTotemIds = (Array.isArray(rawTotemIds) ? rawTotemIds : [])
+        .map((x: any) => Number(x))
+        .filter((id: number) => !Number.isNaN(id) && id > 0);
+      if (explicitTotemIds.length > 0) {
         if (TOTEMDIGITAL_COMPACT) {
           promises.push(
             Promise.all(
@@ -209,7 +212,9 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
         (campaign as any).publisherIds &&
         (campaign as any).publisherIds.length > 0
       ) {
-        const publisherIds = ((campaign as any).publisherIds as number[]).filter((id) => typeof id === 'number');
+        const publisherIds = ((campaign as any).publisherIds as unknown[])
+          .map((x) => Number(x))
+          .filter((id) => !Number.isNaN(id) && id > 0);
         promises.push(
           Promise.all(
             publisherIds.map((publisherId) =>
@@ -277,7 +282,17 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
             iconPosition="end"
           />
           {!TOTEMDIGITAL_COMPACT && <Tab label="Publishers" />}
-          <Tab label="Totens" />
+          <Tab
+            label="Totens"
+            icon={
+              (() => {
+                const raw = (campaign as any).totemIds ?? (campaign as any).totem_ids ?? [];
+                const n = Array.isArray(raw) ? raw.map((x: any) => Number(x)).filter((id: number) => !Number.isNaN(id) && id > 0).length : 0;
+                return n > 0 ? <Chip label={n} size="small" color="primary" /> : undefined;
+              })()
+            }
+            iconPosition="end"
+          />
         </Tabs>
 
         {/* Aba Informações */}
@@ -481,9 +496,16 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
         {activeTab === (TOTEMDIGITAL_COMPACT ? 3 : 4) && (
           <Box>
             <Typography variant="h6" sx={{ mb: 2 }}>
-              Totens ({totems.length || (campaign as any).totemIds?.length || 0})
+              Totens (
+              {totems.length ||
+                (Array.isArray((campaign as any).totemIds) ? (campaign as any).totemIds.length : 0) ||
+                (Array.isArray((campaign as any).totem_ids) ? (campaign as any).totem_ids.length : 0) ||
+                0}
+              )
             </Typography>
-            {totems.length === 0 && (!(campaign as any).totemIds || (campaign as any).totemIds.length === 0) ? (
+            {totems.length === 0 &&
+            (!Array.isArray((campaign as any).totemIds) || (campaign as any).totemIds.length === 0) &&
+            (!Array.isArray((campaign as any).totem_ids) || (campaign as any).totem_ids.length === 0) ? (
               <Alert severity="info">
                 {TOTEMDIGITAL_COMPACT
                   ? 'Nenhum totem associado explicitamente a esta campanha.'

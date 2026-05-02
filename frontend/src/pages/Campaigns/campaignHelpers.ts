@@ -51,7 +51,11 @@ export function normalizeCampaign(campaign: any): Campaign {
     contractId: cid,
     start_date: campaign.start_date ?? campaign.startDate,
     end_date: campaign.end_date ?? campaign.endDate,
-    totemIds: campaign.totemIds ?? campaign.totem_ids ?? [],
+    totemIds: (() => {
+      const raw = campaign.totemIds ?? campaign.totem_ids ?? [];
+      const arr = Array.isArray(raw) ? raw : [];
+      return arr.map((x: any) => Number(x)).filter((n) => !Number.isNaN(n) && n > 0);
+    })(),
     campaign_type: normalizeCampaignType(campaign.campaign_type ?? campaign.campaignType),
     status: campaign.status ?? 'draft',
     is_active:

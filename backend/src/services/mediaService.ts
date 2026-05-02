@@ -15,6 +15,7 @@ import { StorageService } from './storageService';
 import { getCacheService } from './cacheService';
 import { logError, logWarn } from '../utils/loggerHelper';
 import { normalizeDownloadUrl, generateThumbnailUrl } from '../utils/pathHelper';
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 
 export interface CreateMediaRequest {
   name: string;
@@ -635,14 +636,18 @@ export class MediaService {
         processedTags = Array.isArray(tags) ? tags : [tags];
       }
 
-      // Criar registro no banco (schema v2)
+      // Modo TotemDigital compacto: mídia entra já aprovada (menos passos no PoC / instalação única).
+      const initialStatus = TOTEMDIGITAL_COMPACT ? 'approved' : 'draft';
+      const approvedByInitial = TOTEMDIGITAL_COMPACT ? createdBy : null;
+
+      // Criar registro no banco (schema v2). Trigger sync_media_approval_status preenche approval_status / approved_at.
       const result = await this.db.executeRaw(`
         INSERT INTO medias (
           subscriber_id, name, description, tags,
           preview_url, status, approved_by, file_path, file_name, media_type,
           duration_seconds, file_size_bytes, mime_type, width, height
         )
-        VALUES ($1, $2, $3, $4, $5, 'draft', $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING media_id
       `, [
         subscriberId,
@@ -650,7 +655,8 @@ export class MediaService {
         description || null,
         processedTags,
         metadata.previewUrl || null,
-        null, // approved_by inicialmente null
+        initialStatus,
+        approvedByInitial,
         filePath,
         file.originalname, // file_name
         mediaType,

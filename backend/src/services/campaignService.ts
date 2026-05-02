@@ -402,6 +402,24 @@ export class CampaignService {
         });
       });
 
+      // Totens explicitamente associados (lista global / modal só leitura)
+      const allCampaignTotems = await this.db.findMany(`
+        SELECT campaign_id, totem_id
+        FROM campaign_totems
+        WHERE campaign_id = ANY($1::int[])
+          AND COALESCE(is_active, true) = true
+        ORDER BY campaign_id, totem_id
+      `, [campaignIds]);
+
+      const totemIdsByCampaign = new Map<number, number[]>();
+      allCampaignTotems.forEach((row: any) => {
+        const cid = Number(row.campaign_id);
+        const tid = Number(row.totem_id);
+        if (Number.isNaN(cid) || Number.isNaN(tid)) return;
+        if (!totemIdsByCampaign.has(cid)) totemIdsByCampaign.set(cid, []);
+        totemIdsByCampaign.get(cid)!.push(tid);
+      });
+
       // Combinar dados das campanhas com relacionamentos (paralelo para stats)
       const campaignsWithStats = await Promise.all(
         campaigns.map(async (campaign) => {
@@ -421,7 +439,8 @@ export class CampaignService {
             playlistIds: playlists.map(p => p.playlist_id),
             playlistNames: playlists.map(p => p.playlist_name),
             mediaIds: directMedias.map(m => m.media_id),
-            mediaNames: directMedias.map(m => m.media_name || m.file_name)
+            mediaNames: directMedias.map(m => m.media_name || m.file_name),
+            totemIds: totemIdsByCampaign.get(campaign.id) || []
           };
         })
       );

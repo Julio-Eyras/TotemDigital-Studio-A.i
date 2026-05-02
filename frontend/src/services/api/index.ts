@@ -1029,6 +1029,12 @@ export const mediaApi = {
     const response = await api.get(`/media/${id}/thumbnail`, { responseType: 'blob' });
     return response.data as Blob;
   },
+
+  /** Arquivo original (com Authorization); para preview em <video> com Blob URL. */
+  getFileBlob: async (id: number): Promise<Blob> => {
+    const response = await api.get(`/media/${id}/download`, { responseType: 'blob' });
+    return response.data as Blob;
+  },
 };
 
 // =============================================
