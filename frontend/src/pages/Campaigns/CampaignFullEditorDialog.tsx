@@ -165,10 +165,12 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         setDerivedSmartTvs([]);
         return;
       }
-      const totems = await subscriberApi.getTotems(
-        Number(subId),
-        contractId !== undefined && !Number.isNaN(contractId) ? { contractId } : undefined
-      );
+      if (contractId === undefined || Number.isNaN(contractId)) {
+        setDerivedTotems([]);
+        setDerivedSmartTvs([]);
+        return;
+      }
+      const totems = await subscriberApi.getTotems(Number(subId), { contractId });
       setDerivedTotems(Array.isArray(totems) ? totems : []);
       setDerivedSmartTvs([]);
     } catch (e) {
@@ -301,6 +303,18 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     (selectedCampaign as any)?.contract_id,
     (selectedCampaign as any)?.contractId,
   ]);
+
+  /** Compacto: remove totens da campanha que deixaram de ser elegíveis (contrato/plano/locais ou inativos na lista). */
+  useEffect(() => {
+    if (!open || !compactMode || !selectedCampaign || derivedDevicesLoading) return;
+    const raw = ((selectedCampaign as any).totemIds || []) as number[];
+    const ids = raw.map(Number).filter((n) => !Number.isNaN(n) && n > 0);
+    if (ids.length === 0) return;
+    const allowed = new Set(derivedTotems.map((t) => Number((t as any).totem_id)));
+    const pruned = ids.filter((id) => allowed.has(id));
+    if (pruned.length === ids.length) return;
+    setSelectedCampaign((prev) => (prev ? ({ ...prev, totemIds: pruned } as any) : prev));
+  }, [open, compactMode, selectedCampaign?.campaign_id, derivedTotems, derivedDevicesLoading]);
 
   const handleReorderMedias = async (newOrder: number[]) => {
     if (!selectedCampaign) return;

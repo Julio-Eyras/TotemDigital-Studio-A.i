@@ -692,15 +692,16 @@ export class SubscriberService {
 
   /**
    * Totens elegíveis no modo compacto para uma campanha vinculada a um contrato:
-   * `plan_publisher_access` (plano do contrato → publisher do local) e, se existir
-   * configuração em `plan_local_access` para esse plano, apenas locais explicitamente permitidos.
-   * Sem `plan_id` no contrato, faz fallback para {@link getTotemsBySubscriber}.
+   * contrato **ativo** (status, is_active, vigência), com **plan_id**;
+   * `plan_publisher_access` (plano → publisher do local) e, se existir
+   * `plan_local_access` ativo para o plano, apenas locais explicitamente permitidos.
+   * Apenas totens e locais **ativos** (`t.is_active`, `l.is_active`).
    */
   async getTotemsBySubscriberContract(subscriberId: number, contractId: number): Promise<any[]> {
     try {
       const contract = await this.db.findFirst(
         `
-        SELECT contract_id, subscriber_id, plan_id
+        SELECT contract_id, subscriber_id, plan_id, status, is_active, start_date, end_date
         FROM subscriber_contracts
         WHERE contract_id = $1 AND subscriber_id = $2
       `,
@@ -712,7 +713,15 @@ export class SubscriberService {
       }
 
       if (!contract.plan_id) {
-        return this.getTotemsBySubscriber(subscriberId);
+        return [];
+      }
+
+      if (String(contract.status || '').toLowerCase() !== 'active') {
+        return [];
+      }
+
+      if (contract.is_active === false) {
+        return [];
       }
 
       const totems = await this.db.findMany(
@@ -750,6 +759,10 @@ export class SubscriberService {
           AND COALESCE(ppa.is_active, true) = true
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE sc.plan_id IS NOT NULL
+          AND sc.status = 'active'
+          AND COALESCE(sc.is_active, true) = true
+          AND sc.start_date <= CURRENT_DATE
+          AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
           AND t.is_active = true
           AND l.is_active = true
           AND (
