@@ -74,8 +74,19 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, category,
 ('app.version', '2.0.0', 'string', 'system', 'Versão'),
 ('dispatcher.cache_ttl_seconds', '300', 'number', 'dispatcher', 'TTL cache dispatcher'),
 ('dispatcher.cache_enabled', 'true', 'boolean', 'dispatcher', 'Cache dispatcher'),
-('media.storage.path', '/opt/smart-signage/public/assets/uploads', 'string', 'media', 'Caminho uploads')
+('media.upload.max_size', '500MB', 'string', 'media', 'Tamanho máximo por arquivo de mídia'),
+('media.upload.nginx_max_size', '500M', 'string', 'media', 'Limite Nginx (client_max_body_size)'),
+('media.upload.express_limit', '500mb', 'string', 'media', 'Limite de body Express/Multer'),
+('media.upload.proxy_timeout', '300', 'number', 'media', 'Timeout do proxy para upload (segundos)'),
+('media.upload.allowed_types', 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,audio/mp3,audio/wav,audio/ogg', 'string', 'media', 'Tipos MIME permitidos (separados por vírgula)'),
+('media.storage.path', '/opt/smart-signage/public/assets/uploads', 'string', 'media', 'Caminho base para armazenamento de mídias (uploads)'),
+('media.storage.quota_per_client', '5GB', 'string', 'media', 'Cota de armazenamento padrão por cliente (referência)'),
+('media.storage.auto_cleanup', 'false', 'boolean', 'media', 'Limpeza automática de arquivos antigos'),
+('media.storage.cleanup_days', '90', 'number', 'media', 'Dias de retenção para limpeza automática')
 ON CONFLICT (setting_key) DO NOTHING;
+
+-- Chave legada (JSON) substituída por media.upload.allowed_types (string) consumida pelo backend
+DELETE FROM system_settings WHERE setting_key = 'media.allowed_types';
 
 -- =============================================
 -- USERS: admin + usuário publisher + usuário subscriber

@@ -157,8 +157,24 @@ export async function loadMediaConfig(): Promise<void> {
     const nginxMaxSize = nginxMaxSizeSetting ? String(nginxMaxSizeSetting.value) : '500M';
     const expressLimit = expressLimitSetting ? String(expressLimitSetting.value) : '500mb';
     const proxyTimeout = proxyTimeoutSetting ? parseInt(String(proxyTimeoutSetting.value)) : 300;
-    const allowedTypes = allowedTypesSetting 
-      ? String(allowedTypesSetting.value).split(',').map(t => t.trim())
+
+    let effectiveAllowedTypes = allowedTypesSetting;
+    if (!effectiveAllowedTypes?.value || !String(effectiveAllowedTypes.value).trim()) {
+      const legacy = await settingsService.getSetting('media.allowed_types');
+      if (legacy?.value) {
+        try {
+          const parsed = JSON.parse(String(legacy.value));
+          if (Array.isArray(parsed)) {
+            effectiveAllowedTypes = { ...legacy, value: parsed.join(',') } as typeof legacy;
+          }
+        } catch {
+          // ignora JSON inválido
+        }
+      }
+    }
+
+    const allowedTypes = effectiveAllowedTypes
+      ? String(effectiveAllowedTypes.value).split(',').map((t) => t.trim()).filter(Boolean)
       : ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'audio/mp3', 'audio/wav', 'audio/ogg'];
     const storagePath = storagePathSetting ? String(storagePathSetting.value) : '/opt/smart-signage/public/assets/uploads';
     const quotaPerClient = quotaPerClientSetting ? parseSize(String(quotaPerClientSetting.value)) : 5 * 1024 * 1024 * 1024;

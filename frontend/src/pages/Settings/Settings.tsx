@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Typography,
@@ -42,6 +42,30 @@ interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
   value: number;
+}
+
+/** Ordem estável na aba Mídias (upload → armazenamento). */
+const MEDIA_SETTINGS_ORDER: string[] = [
+  'media.upload.max_size',
+  'media.upload.nginx_max_size',
+  'media.upload.express_limit',
+  'media.upload.proxy_timeout',
+  'media.upload.allowed_types',
+  'media.storage.path',
+  'media.storage.quota_per_client',
+  'media.storage.auto_cleanup',
+  'media.storage.cleanup_days',
+];
+
+function sortMediaSettings(list: SystemSetting[]): SystemSetting[] {
+  const rank = (k: string) => {
+    const i = MEDIA_SETTINGS_ORDER.indexOf(k);
+    return i === -1 ? MEDIA_SETTINGS_ORDER.length + 1 : i;
+  };
+  return [...list].sort((a, b) => {
+    const d = rank(a.key) - rank(b.key);
+    return d !== 0 ? d : a.key.localeCompare(b.key);
+  });
 }
 
 function TabPanel(props: TabPanelProps) {
@@ -258,6 +282,11 @@ const Settings: React.FC = () => {
       setMediaSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
     }
   };
+
+  const sortedMediaSettings = useMemo(
+    () => sortMediaSettings(Array.isArray(mediaSettings) ? mediaSettings : []),
+    [mediaSettings]
+  );
 
   const handlePasswordFieldChange = (field: keyof typeof passwordForm, value: string) => {
     setPasswordForm((prev) => ({ ...prev, [field]: value }));
@@ -572,7 +601,7 @@ const Settings: React.FC = () => {
         </Alert>
 
         <Grid container spacing={3}>
-          {Array.isArray(mediaSettings) && mediaSettings.map((s) => (
+          {sortedMediaSettings.map((s) => (
             <Grid item xs={12} md={6} key={s.key}>
               <Card>
                 <CardContent>
@@ -622,7 +651,7 @@ const Settings: React.FC = () => {
           ))}
         </Grid>
 
-        {mediaSettings.length === 0 && (
+        {sortedMediaSettings.length === 0 && (
           <Alert severity="warning">
             Nenhuma configuração de mídia encontrada. Certifique-se de que as configurações foram inseridas no banco de dados.
           </Alert>

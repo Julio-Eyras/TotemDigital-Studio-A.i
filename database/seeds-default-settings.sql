@@ -222,7 +222,6 @@ ON CONFLICT (setting_key) DO UPDATE SET
 
 INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options) 
 VALUES
-  -- Configurações de upload de mídia
   (
     'media.upload.max_size',
     '500MB',
@@ -248,6 +247,42 @@ VALUES
     NULL
   ),
   (
+    'media.upload.express_limit',
+    '500mb',
+    'string',
+    'media',
+    'Limite de body do Express/Multer para upload (alinhar ao max_size)',
+    false,
+    true,
+    '500mb',
+    NULL,
+    NULL
+  ),
+  (
+    'media.upload.proxy_timeout',
+    '300',
+    'number',
+    'media',
+    'Timeout do proxy para uploads longos (segundos)',
+    false,
+    true,
+    '300',
+    '^[0-9]+$',
+    NULL
+  ),
+  (
+    'media.upload.allowed_types',
+    'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,audio/mp3,audio/wav,audio/ogg',
+    'string',
+    'media',
+    'Tipos MIME permitidos (lista separada por vírgula; mesmo formato lido pelo backend em runtime)',
+    false,
+    true,
+    'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,audio/mp3,audio/wav,audio/ogg',
+    NULL,
+    NULL
+  ),
+  (
     'media.storage.path',
     '/opt/smart-signage/public/assets/uploads',
     'string',
@@ -260,15 +295,39 @@ VALUES
     NULL
   ),
   (
-    'media.allowed_types',
-    '["image/jpeg","image/png","image/gif","image/webp","video/mp4","video/webm"]',
-    'json',
+    'media.storage.quota_per_client',
+    '5GB',
+    'string',
     'media',
-    'Tipos MIME permitidos para upload de mídia',
+    'Cota de armazenamento padrão por cliente (referência operacional)',
     false,
     true,
-    '["image/jpeg","image/png","image/gif","image/webp","video/mp4","video/webm"]',
+    '5GB',
+    '^\d+(\.\d+)?\s*(B|KB|MB|GB|TB)$',
+    NULL
+  ),
+  (
+    'media.storage.auto_cleanup',
+    'false',
+    'boolean',
+    'media',
+    'Ativar limpeza automática de arquivos antigos no diretório de mídias',
+    false,
+    true,
+    'false',
     NULL,
+    NULL
+  ),
+  (
+    'media.storage.cleanup_days',
+    '90',
+    'number',
+    'media',
+    'Idade mínima (dias) para arquivos serem candidatos à limpeza automática',
+    false,
+    true,
+    '90',
+    '^[0-9]+$',
     NULL
   )
 ON CONFLICT (setting_key) DO UPDATE SET
@@ -277,4 +336,7 @@ ON CONFLICT (setting_key) DO UPDATE SET
   validation = EXCLUDED.validation,
   options = EXCLUDED.options,
   updated_at = CURRENT_TIMESTAMP;
+
+-- Chave legada (JSON); o runtime usa media.upload.allowed_types (string)
+DELETE FROM system_settings WHERE setting_key = 'media.allowed_types';
 
