@@ -9,6 +9,20 @@ export interface DispatchRequest {
   timezone?: string; // Timezone do totem (opcional, usa do totem se não fornecido)
 }
 
+/** Verificações explicativas quando o DispatchPlan vem sem mídias (UI / debug). */
+export interface DispatchEmptyCheck {
+  id: string;
+  label: string;
+  ok: boolean;
+  hint?: string;
+}
+
+export interface DispatchEmptyExplanation {
+  summary: string;
+  checks: DispatchEmptyCheck[];
+  diagnosticsPath?: string;
+}
+
 export interface DispatchPlan {
   totemId: number;
   timestamp: Date;
@@ -36,6 +50,12 @@ export interface DispatchPlan {
     mixStrategy?: string;
     /** true quando o plano veio do 3º nível (propaganda padrão). */
     defaultAd?: boolean;
+    /** Motivo legado (texto único). */
+    noCandidatesReason?: string;
+    diagnosticsUrl?: string;
+    /** Diagnóstico estruturado para o Monitor Dispatcher. */
+    emptyExplanation?: DispatchEmptyExplanation;
+    [key: string]: unknown;
   };
   cacheKey?: string;
   cacheExpiresAt?: Date;

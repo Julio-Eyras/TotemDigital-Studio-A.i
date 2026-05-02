@@ -26,6 +26,8 @@ import {
   CacheConfig,
   DispatchOptions,
   DispatchResponse,
+  DispatchEmptyCheck,
+  DispatchEmptyExplanation,
 } from '../types/dispatcherTotem.types';
 
 export class DispatcherTotemService {
@@ -940,6 +942,320 @@ export class DispatcherTotemService {
         'Se "directWithAccess" e "groupWithAccess" forem 0: associe publishers ou totens à campanha do assinante.',
       ],
     };
+  }
+
+  /**
+   * Explicação estruturada para UI (Monitor Dispatcher) quando o plano não tem itens.
+   * Usa a mesma descoberta de candidatos do motor + contagens por etapa (contrato, playlist, plano/local).
+   */
+  async buildEmptyPlanExplanation(
+    totemId: number,
+    timestamp: Date,
+    timezone?: string
+  ): Promise<DispatchEmptyExplanation> {
+    const checks: DispatchEmptyCheck[] = [];
+    const diagnosticsPath = `/api/dispatcher-totem/${totemId}/diagnostics`;
+
+    const totemRow = await this.db.findFirst(
+      `
+      SELECT
+        t.totem_id,
+        COALESCE(t.is_active, true) AS totem_active,
+        t.local_id,
+        COALESCE(l.is_active, true) AS local_active,
+        l.publisher_id
+      FROM totems t
+      LEFT JOIN locals l ON l.local_id = t.local_id
+      WHERE t.totem_id = $1
+    `,
+      [totemId]
+    );
+
+    checks.push({
+      id: 'totem_exists',
+      label: 'Totem existe na base',
+      ok: !!totemRow,
+    });
+    checks.push({
+      id: 'totem_active',
+      label: 'Totem ativo (is_active)',
+      ok: !!totemRow?.totem_active,
+      hint: !totemRow?.totem_active ? 'Ative o totem na gestão de Totens.' : undefined,
+    });
+    checks.push({
+      id: 'totem_local',
+      label: 'Totem associado a um local',
+      ok: !!totemRow?.local_id,
+      hint: !totemRow?.local_id ? 'Associe o totem a um local com publisher.' : undefined,
+    });
+    checks.push({
+      id: 'local_active',
+      label: 'Local ativo',
+      ok: totemRow?.local_id ? !!totemRow?.local_active : false,
+      hint: totemRow?.local_id && !totemRow?.local_active ? 'Ative o local.' : undefined,
+    });
+    checks.push({
+      id: 'local_publisher',
+      label: 'Local com publisher',
+      ok: !!totemRow?.publisher_id,
+      hint: !totemRow?.publisher_id ? 'O local do totem precisa de publisher para regras de plano/contrato.' : undefined,
+    });
+
+    const breakdown = await this.buildNoCandidateBreakdownChecks(totemId);
+    checks.push(...breakdown);
+
+    const candidates = await this.getCandidateSchedules(totemId, timestamp, timezone);
+    checks.push({
+      id: 'dispatcher_pipeline',
+      label:
+        'Motor do dispatcher: campanha candidata após todos os filtros (contrato/plano/publisher/playlist/mídia/tempo)',
+      ok: candidates.length > 0,
+      hint:
+        candidates.length === 0
+          ? 'Nenhuma campanha cumpre simultaneamente as regras do SQL do dispatcher para este totem. Revise os itens acima.'
+          : undefined,
+    });
+
+    let summary: string;
+
+    if (candidates.length === 0) {
+      summary =
+        'Não há plano com mídia: o dispatcher não encontrou nenhuma campanha elegível neste momento. Veja as verificações abaixo (falhou = precisa correção).';
+    } else {
+      const commercialFails: string[] = [];
+      let anyCommercialOk = false;
+      for (const c of candidates) {
+        const v = await this.validateCommercialRules(c, totemId, timestamp);
+        if (v.valid) anyCommercialOk = true;
+        else commercialFails.push(...(v.errors || []));
+      }
+      checks.push({
+        id: 'commercial_rules',
+        label: 'Regras comerciais (acesso subscriber↔publisher, contrato, limites)',
+        ok: anyCommercialOk,
+        hint:
+          !anyCommercialOk && commercialFails.length
+            ? [...new Set(commercialFails)].slice(0, 6).join(' · ')
+            : undefined,
+      });
+
+      const temporalOk = candidates.some((c) => c.temporalValid);
+      checks.push({
+        id: 'temporal_window',
+        label: 'Janela temporal (dia/hora) permite exibição agora',
+        ok: temporalOk,
+        hint: !temporalOk ? 'Ajuste datas/horários da campanha ou de campaign_totems.' : undefined,
+      });
+
+      if (!anyCommercialOk) {
+        summary =
+          'Há campanhas candidatas no motor, mas todas falharam na validação comercial (acesso/contrato/limites).';
+      } else if (!temporalOk) {
+        summary =
+          'Há campanhas válidas comercialmente, mas nenhuma está dentro da janela de tempo atual.';
+      } else {
+        summary =
+          'Há candidatos válidos, mas o plano final não foi gerado (mix, validação técnica ou integridade). Consulte os logs do servidor.';
+      }
+    }
+
+    return {
+      summary,
+      checks,
+      diagnosticsPath,
+    };
+  }
+
+  /**
+   * Contagens por etapa para campanhas ligadas a este totem (caminho direto campaign_totems).
+   */
+  private async buildNoCandidateBreakdownChecks(totemId: number): Promise<DispatchEmptyCheck[]> {
+    const checks: DispatchEmptyCheck[] = [];
+
+    const linkCt = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS c
+      FROM campaign_totems
+      WHERE totem_id = $1 AND COALESCE(is_active, true)
+    `,
+      [totemId]
+    );
+    checks.push({
+      id: 'campaign_totems_link',
+      label: 'Vínculo campanha ↔ totem (campaign_totems ativo)',
+      ok: (linkCt?.c ?? 0) > 0,
+      hint:
+        (linkCt?.c ?? 0) === 0
+          ? 'Associe o totem à campanha (aba Totens) ou um publisher que inclua o local deste totem.'
+          : undefined,
+    });
+
+    const campActive = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS c
+      FROM campaign_totems ct
+      INNER JOIN campaigns c ON c.campaign_id = ct.campaign_id
+      WHERE ct.totem_id = $1
+        AND COALESCE(ct.is_active, true)
+        AND COALESCE(c.is_active, true)
+        AND LOWER(COALESCE(c.status, '')) = 'active'
+    `,
+      [totemId]
+    );
+    checks.push({
+      id: 'campaign_status_active',
+      label: 'Campanha com status "active" e is_active',
+      ok: (campActive?.c ?? 0) > 0,
+      hint:
+        (campActive?.c ?? 0) === 0
+          ? 'Ative a campanha: status deve ser active e is_active verdadeiro.'
+          : undefined,
+    });
+
+    const withPlaylist = await this.db.findFirst(
+      `
+      SELECT COUNT(DISTINCT c.campaign_id)::int AS c
+      FROM campaign_totems ct
+      INNER JOIN campaigns c ON c.campaign_id = ct.campaign_id
+      INNER JOIN campaign_playlists cp ON cp.campaign_id = c.campaign_id AND COALESCE(cp.is_active, true)
+      INNER JOIN playlists p ON p.playlist_id = cp.playlist_id AND COALESCE(p.is_active, true)
+      WHERE ct.totem_id = $1
+        AND COALESCE(ct.is_active, true)
+        AND COALESCE(c.is_active, true)
+        AND LOWER(COALESCE(c.status, '')) = 'active'
+    `,
+      [totemId]
+    );
+    checks.push({
+      id: 'campaign_playlist',
+      label: 'Campanha com playlist ativa associada',
+      ok: (withPlaylist?.c ?? 0) > 0,
+      hint:
+        (withPlaylist?.c ?? 0) === 0
+          ? 'Associe uma playlist ativa à campanha.'
+          : undefined,
+    });
+
+    const withMedia = await this.db.findFirst(
+      `
+      SELECT COUNT(DISTINCT c.campaign_id)::int AS c
+      FROM campaign_totems ct
+      INNER JOIN campaigns c ON c.campaign_id = ct.campaign_id
+      INNER JOIN campaign_playlists cp ON cp.campaign_id = c.campaign_id AND COALESCE(cp.is_active, true)
+      INNER JOIN playlists p ON p.playlist_id = cp.playlist_id AND COALESCE(p.is_active, true)
+      INNER JOIN playlist_items pi ON pi.playlist_id = p.playlist_id AND COALESCE(pi.is_active, true)
+      INNER JOIN medias m ON m.media_id = pi.media_id AND COALESCE(m.is_active, true)
+      WHERE ct.totem_id = $1
+        AND COALESCE(ct.is_active, true)
+        AND COALESCE(c.is_active, true)
+        AND LOWER(COALESCE(c.status, '')) = 'active'
+    `,
+      [totemId]
+    );
+    checks.push({
+      id: 'playlist_media',
+      label: 'Playlist com pelo menos uma mídia ativa',
+      ok: (withMedia?.c ?? 0) > 0,
+      hint:
+        (withMedia?.c ?? 0) === 0
+          ? 'Adicione itens à playlist ou ative/aprove as mídias.'
+          : undefined,
+    });
+
+    const contractOk = await this.db.findFirst(
+      `
+      SELECT COUNT(DISTINCT c.campaign_id)::int AS c
+      FROM campaign_totems ct
+      INNER JOIN campaigns c ON c.campaign_id = ct.campaign_id
+      LEFT JOIN subscriber_contracts sc ON sc.contract_id = c.contract_id AND sc.subscriber_id = c.subscriber_id
+      WHERE ct.totem_id = $1
+        AND COALESCE(ct.is_active, true)
+        AND COALESCE(c.is_active, true)
+        AND LOWER(COALESCE(c.status, '')) = 'active'
+        AND (
+          c.contract_id IS NULL
+          OR (
+            sc.contract_id IS NOT NULL
+            AND LOWER(COALESCE(sc.status, '')) = 'active'
+            AND COALESCE(sc.is_active, true)
+            AND (sc.start_date IS NULL OR sc.start_date <= CURRENT_DATE)
+            AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+          )
+        )
+    `,
+      [totemId]
+    );
+    checks.push({
+      id: 'contract_active',
+      label: 'Contrato ativo e em vigência (quando a campanha tem contract_id)',
+      ok: (contractOk?.c ?? 0) > 0,
+      hint:
+        (contractOk?.c ?? 0) === 0
+          ? 'Vincule contrato ativo (datas válidas) ou ajuste o contract_id da campanha.'
+          : undefined,
+    });
+
+    const withContract = await this.db.findFirst(
+      `
+      SELECT COUNT(*)::int AS c
+      FROM campaign_totems ct
+      INNER JOIN campaigns c ON c.campaign_id = ct.campaign_id
+      WHERE ct.totem_id = $1
+        AND COALESCE(ct.is_active, true)
+        AND COALESCE(c.is_active, true)
+        AND LOWER(COALESCE(c.status, '')) = 'active'
+        AND c.contract_id IS NOT NULL
+    `,
+      [totemId]
+    );
+
+    if ((withContract?.c ?? 0) > 0) {
+      const planAccess = await this.db.findFirst(
+        `
+        SELECT COUNT(DISTINCT c.campaign_id)::int AS c
+        FROM campaign_totems ct
+        INNER JOIN campaigns c ON c.campaign_id = ct.campaign_id
+        INNER JOIN totems t ON t.totem_id = ct.totem_id
+        INNER JOIN locals l ON l.local_id = t.local_id
+        INNER JOIN subscriber_contracts sc ON sc.contract_id = c.contract_id AND sc.subscriber_id = c.subscriber_id
+        INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+          AND ppa.publisher_id = l.publisher_id
+          AND ppa.is_allowed = true
+          AND COALESCE(ppa.is_active, true) = true
+        INNER JOIN plan_local_access pla ON pla.plan_id = sc.plan_id
+          AND pla.local_id = l.local_id
+          AND pla.is_allowed = true
+          AND COALESCE(pla.is_active, true) = true
+        WHERE ct.totem_id = $1
+          AND COALESCE(ct.is_active, true)
+          AND COALESCE(c.is_active, true)
+          AND LOWER(COALESCE(c.status, '')) = 'active'
+          AND LOWER(COALESCE(sc.status, '')) = 'active'
+          AND COALESCE(sc.is_active, true)
+          AND (sc.start_date IS NULL OR sc.start_date <= CURRENT_DATE)
+          AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+      `,
+        [totemId]
+      );
+      checks.push({
+        id: 'plan_publisher_and_local',
+        label: 'Plano do contrato permite publisher do local E local na lista plan_local_access',
+        ok: (planAccess?.c ?? 0) > 0,
+        hint:
+          (planAccess?.c ?? 0) === 0
+            ? 'Configure plan_publisher_access (plano → publisher) e plan_local_access (plano → local do totem).'
+            : undefined,
+      });
+    } else {
+      checks.push({
+        id: 'plan_publisher_and_local',
+        label: 'Plano do contrato: publisher + local (plan_local_access)',
+        ok: true,
+        hint: 'Nenhuma campanha ligada a este totem tem contract_id; esta verificação não se aplica ao caminho direto.',
+      });
+    }
+
+    return checks;
   }
 
   /**

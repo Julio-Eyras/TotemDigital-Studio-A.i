@@ -388,24 +388,57 @@ class DispatcherRouter {
         };
       }
 
-      // Se não há plano (sem candidatos ou todos rejeitados), retornar plano vazio para o player tratar (onPlaybackEnded / "sem itens")
-      const plan = dispatchResponse.plan ?? {
-        totemId,
-        timestamp: new Date(),
-        playlistId: 0,
-        playlistName: '',
-        mediaItems: [],
-        totalDuration: 0,
-        priority: 0,
-        source: 'campaign' as const,
-        sourceId: 0,
-        validityStart: new Date(),
-        validityEnd: new Date(),
-        metadata: {
-          noCandidatesReason: 'Nenhuma campanha vinculada a este totem ou ao publisher deste totem. Na tela Campanhas, edite a campanha do assinante e associe "Publishers" (ou Totens) onde ela deve ser exibida.',
-          diagnosticsUrl: `/api/dispatcher-totem/${totemId}/diagnostics`,
-        },
+      const noPlan = !dispatchResponse.plan;
+      const planHasNoItems =
+        !!dispatchResponse.plan &&
+        (!dispatchResponse.plan.mediaItems || dispatchResponse.plan.mediaItems.length === 0);
+
+      let emptyExplanation: import('../types/dispatcherTotem.types').DispatchEmptyExplanation | undefined;
+      if (noPlan || planHasNoItems) {
+        try {
+          emptyExplanation = await dispatcher.buildEmptyPlanExplanation(totemId, timestamp, timezone);
+        } catch (ex: any) {
+          await logDebug('[DispatcherRouter] buildEmptyPlanExplanation falhou', {
+            totemId,
+            error: ex?.message,
+          });
+        }
+      }
+
+      const defaultMeta = {
+        noCandidatesReason:
+          emptyExplanation?.summary ??
+          'Nenhuma campanha elegível para este totem neste momento. Use o Monitor Dispatcher (abaixo) ou o endpoint de diagnóstico.',
+        diagnosticsUrl: `/api/dispatcher-totem/${totemId}/diagnostics`,
+        emptyExplanation,
       };
+
+      // Sem plano: resposta vazia compatível com o player; metadata explica o motivo na UI.
+      let plan = dispatchResponse.plan;
+      if (!plan) {
+        plan = {
+          totemId,
+          timestamp: new Date(),
+          playlistId: 0,
+          playlistName: '',
+          mediaItems: [],
+          totalDuration: 0,
+          priority: 0,
+          source: 'campaign' as const,
+          sourceId: 0,
+          validityStart: new Date(),
+          validityEnd: new Date(),
+          metadata: defaultMeta,
+        };
+      } else if (planHasNoItems && emptyExplanation) {
+        plan = {
+          ...dispatchResponse.plan,
+          metadata: {
+            ...(dispatchResponse.plan.metadata || {}),
+            ...defaultMeta,
+          },
+        };
+      }
 
       // Retornar plano em formato consumível pelo player
       return {

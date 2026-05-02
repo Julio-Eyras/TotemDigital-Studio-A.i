@@ -44,6 +44,10 @@ import {
   Switch,
   FormControlLabel,
   CircularProgress,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import {
   Refresh,
@@ -76,6 +80,27 @@ function TabPanel(props: TabPanelProps) {
       {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
     </div>
   );
+}
+
+function extractDispatchEmptyExplanation(response: unknown): {
+  summary: string;
+  checks: Array<{ id: string; label: string; ok: boolean; hint?: string }>;
+  diagnosticsPath?: string;
+} | null {
+  if (!response || typeof response !== 'object') return null;
+  const r = response as Record<string, unknown>;
+  const plan = (r.plan ?? (r.data as Record<string, unknown> | undefined)?.plan) as
+    | { metadata?: { emptyExplanation?: unknown } }
+    | undefined;
+  const ex = plan?.metadata?.emptyExplanation as
+    | { summary?: string; checks?: unknown; diagnosticsPath?: string }
+    | undefined;
+  if (!ex || !Array.isArray(ex.checks)) return null;
+  return {
+    summary: String(ex.summary || ''),
+    checks: ex.checks as Array<{ id: string; label: string; ok: boolean; hint?: string }>,
+    diagnosticsPath: ex.diagnosticsPath ? String(ex.diagnosticsPath) : undefined,
+  };
 }
 
 const DispatcherDebug: React.FC = () => {
@@ -530,6 +555,47 @@ const DispatcherDebug: React.FC = () => {
                       </Paper>
                     </Grid>
                   </Grid>
+                  {(() => {
+                    const ex = extractDispatchEmptyExplanation(selectedMessage.response);
+                    if (!ex || !ex.checks.length) return null;
+                    return (
+                      <Alert severity="warning" sx={{ mt: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom>
+                          Plano sem itens — o que falhou?
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          {ex.summary}
+                        </Typography>
+                        <List dense disablePadding>
+                          {ex.checks.map((c) => (
+                            <ListItem key={c.id} disableGutters sx={{ alignItems: 'flex-start', py: 0.5 }}>
+                              <ListItemIcon sx={{ minWidth: 32, mt: 0.25 }}>
+                                {c.ok ? (
+                                  <CheckCircle color="success" fontSize="small" />
+                                ) : (
+                                  <Error color="error" fontSize="small" />
+                                )}
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={c.label}
+                                secondary={
+                                  c.hint ||
+                                  (c.ok
+                                    ? 'Conforme nesta verificação.'
+                                    : 'Corrija este ponto e volte a testar o dispatch.')
+                                }
+                              />
+                            </ListItem>
+                          ))}
+                        </List>
+                        {ex.diagnosticsPath ? (
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                            Diagnóstico API (autenticado): <code>{ex.diagnosticsPath}</code>
+                          </Typography>
+                        ) : null}
+                      </Alert>
+                    );
+                  })()}
                   {selectedMessage.error && (
                     <Alert severity="error" sx={{ mt: 2 }}>
                       <strong>Erro:</strong> {selectedMessage.error}
