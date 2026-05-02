@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://yourdomain.com/SmarTotemTizenPlayer" version="1.0.0" viewmodes="fullscreen">
+    <tizen:application id="YOUR_APP_ID" package="YOUR_PACKAGE_ID" required_version="2.3" />
+    <feature name="http://tizen.org/feature/screen.size.all"/>
+    <feature name="http://tizen.org/feature/network.internet"/>
+    <feature name="http://tizen.org/feature/device.capability.display"/>
+    <feature name="http://tizen.org/feature/multimedia.player"/>
+    <feature name="http://tizen.org/feature/power"/>
+    <feature name="http://tizen.org/feature/system.info"/>
+    <access origin="*" subdomains="true"/>
+    <icon src="icon.png"/>
+    <name>SmarTotem Tizen Player</name>
+    <tizen:profile name="tv"/>
+    <content src="index.html"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/use.tizen.network.api" value="true"/>
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.power"/>
+    <tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
+    <tizen:privilege name="http://tizen.org/privilege/filesystem.write"/>
+    <tizen:privilege name="http://tizen.org/privilege/mediacapabilities"/>
+    <tizen:privilege name="http://tizen.org/privilege/externalstorage"/>
+    <tizen:privilege name="http://tizen.org/privilege/network.getmac"/>
+    <tizen:privilege name="http://tizen.org/privilege/systeminfo"/>
+    <tizen:privilege name="http://tizen.org/privilege/appmanager.launch"/>
+</widget>

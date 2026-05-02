@@ -1,0 +1,77 @@
+erDiagram
+    MIDIA ||--o{ PLAYLIST_MIDIA : "contida em"
+    TIPO_MIDIA ||--o{ MIDIA : "define formato de"
+    PLAYLIST ||--o{ PLAYLIST_MIDIA : "possui"
+    PLAYLIST ||--o{ AGENDAMENTO : "exibida em"
+    TOTEM ||--o{ AGENDAMENTO : "recebe"
+    GRUPO_TOTEM ||--o{ AGENDAMENTO : "recebe"
+    TOTEM ||--o{ TOTEM_GRUPO_TOTEM : "pertence a"
+    GRUPO_TOTEM ||--o{ TOTEM_GRUPO_TOTEM : "contém"
+    PLATAFORMA ||--o{ TOTEM : "roda em"
+
+    MIDIA {
+        int id_midia PK
+        string nome
+        string url_arquivo
+        int tipo_midia_id FK
+        int duracao_segundos
+        int resolucao_largura
+        int resolucao_altura
+    }
+
+    TIPO_MIDIA {
+        int id_tipo_midia PK
+        string nome_tipo
+    }
+
+    PLAYLIST {
+        int id_playlist PK
+        string nome
+        int duracao_total_segundos
+    }
+
+    PLAYLIST_MIDIA {
+        int id_playlist PK, FK
+        int id_midia PK, FK
+        int ordem_exibicao
+        int duracao_exibicao_override
+    }
+
+    TOTEM {
+        int id_totem PK
+        string nome
+        string localizacao
+        int plataforma_id FK
+        string status
+        datetime ultima_comunicacao
+        string orientacao_tela
+    }
+
+    PLATAFORMA {
+        int id_plataforma PK
+        string nome_plataforma
+    }
+
+    GRUPO_TOTEM {
+        int id_grupo_totem PK
+        string nome
+    }
+
+    TOTEM_GRUPO_TOTEM {
+        int id_totem PK, FK
+        int id_grupo_totem PK, FK
+    }
+
+    AGENDAMENTO {
+        int id_agendamento PK
+        string nome
+        date data_inicio
+        date data_fim
+        time hora_inicio
+        time hora_fim
+        string frequencia
+        int id_playlist FK
+        int id_totem FK
+        int id_grupo_totem FK
+        int prioridade
+    }
