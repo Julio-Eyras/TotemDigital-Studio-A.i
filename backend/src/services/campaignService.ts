@@ -1251,18 +1251,31 @@ export class CampaignService {
         paramIndex++;
       }
 
-      if (updates.length === 0) {
+      const hasAssociationWork =
+        data.publisherIds !== undefined ||
+        data.playlistIds !== undefined ||
+        data.mediaIds !== undefined ||
+        data.totemIds !== undefined;
+
+      if (updates.length === 0 && !hasAssociationWork) {
         return existingCampaign;
       }
 
-      updates.push('updated_at = CURRENT_TIMESTAMP');
-      params.push(campaignId);
-      const wherePlaceholder = `$${params.length}`;
+      if (updates.length > 0) {
+        updates.push('updated_at = CURRENT_TIMESTAMP');
+        params.push(campaignId);
+        const wherePlaceholder = `$${params.length}`;
 
-      await this.db.executeRaw(
-        `UPDATE campaigns SET ${updates.join(', ')} WHERE campaign_id = ${wherePlaceholder}`,
-        params
-      );
+        await this.db.executeRaw(
+          `UPDATE campaigns SET ${updates.join(', ')} WHERE campaign_id = ${wherePlaceholder}`,
+          params
+        );
+      } else {
+        await this.db.executeRaw(
+          `UPDATE campaigns SET updated_at = CURRENT_TIMESTAMP WHERE campaign_id = $1`,
+          [campaignId]
+        );
+      }
 
       // Atualizar publishers se fornecidos
       if (data.publisherIds !== undefined) {
@@ -1300,7 +1313,9 @@ export class CampaignService {
       // - Se vier array (inclusive vazio): sincroniza campaign_totems para bater exatamente com essa lista
       if (data.totemIds !== undefined) {
         const desiredTotemIds = Array.isArray(data.totemIds)
-          ? (data.totemIds as number[]).filter((id) => typeof id === 'number')
+          ? (data.totemIds as unknown[])
+              .map((id) => Number(id))
+              .filter((id) => Number.isInteger(id) && id > 0)
           : [];
 
         // Buscar associações atuais
@@ -1324,16 +1339,21 @@ export class CampaignService {
         }
 
         for (const totemId of toAdd) {
-          // Garantir que o totem existe e está ativo
           const totem = await this.db.findFirst(`
-            SELECT totem_id 
+            SELECT totem_id, COALESCE(is_active, true) AS is_active
             FROM totems 
-            WHERE totem_id = $1 
-              AND COALESCE(is_active, true) = true
+            WHERE totem_id = $1
           `, [totemId]);
 
           if (!totem) {
-            continue;
+            throw new Error(
+              `Totem ${totemId} não existe. Não foi possível associar à campanha.`
+            );
+          }
+          if (totem.is_active === false) {
+            throw new Error(
+              `Totem ${totemId} está inativo. Ative o totem ou remova-o da seleção.`
+            );
           }
 
           await this.db.executeRaw(`

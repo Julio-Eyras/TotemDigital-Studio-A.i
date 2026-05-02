@@ -116,7 +116,14 @@ export function normalizeCampaignData(data: any): {
     status: data.status || 'draft',
     isActive: data.isActive !== undefined ? data.isActive : (data.is_active !== undefined ? data.is_active : true),
     publisherIds: data.publisherIds !== undefined ? data.publisherIds : undefined,
-    totemIds: data.totemIds !== undefined ? data.totemIds : undefined,
+    totemIds: (() => {
+      const raw = data.totemIds !== undefined ? data.totemIds : data.totem_ids;
+      if (raw === undefined) return undefined;
+      if (!Array.isArray(raw)) return undefined;
+      return raw
+        .map((x: any) => Number(x))
+        .filter((n: number) => Number.isInteger(n) && n > 0);
+    })(),
     // Manter undefined quando não enviados, para não sobrescrever associações no update
     playlistIds: data.playlistIds !== undefined ? data.playlistIds : undefined,
     mediaIds: data.mediaIds !== undefined ? data.mediaIds : undefined,

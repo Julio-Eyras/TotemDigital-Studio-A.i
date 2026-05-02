@@ -359,7 +359,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     return out;
   }, [derivedTotems, selectedCampaign?.campaign_id, (selectedCampaign as any)?.totemIds]);
 
-  /** Compacto: remove totens da campanha que deixaram de ser elegíveis (contrato/plano/locais ou inativos na lista). */
+  /** Compacto: remove só totens que deixaram de ser elegíveis quando já temos lista elegível (>0).
+   * Se a lista vier vazia (sem contrato, API sem linhas, erro de rede), não apagar seleção no estado. */
   useEffect(() => {
     if (!open || !compactMode || !selectedCampaign || derivedDevicesLoading) return;
     const contractRaw =
@@ -372,6 +373,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     ) {
       return;
     }
+    if (derivedTotems.length === 0) return;
     const raw = ((selectedCampaign as any).totemIds || []) as number[];
     const ids = raw.map(Number).filter((n) => !Number.isNaN(n) && n > 0);
     if (ids.length === 0) return;

@@ -106,6 +106,7 @@ import { SortableList } from '../../components/SortableList/SortableList';
 import { SubscriberCard, SubscriberDetails, SubscriberForm } from './components';
 import { PageHeader } from '../../components/DataDisplay';
 import CampaignFullEditorDialog from '../Campaigns/CampaignFullEditorDialog';
+import { normalizeCampaign } from '../Campaigns/campaignHelpers';
 import { useAppSelector } from '../../store/hooks';
 
 const compareByDisplayName = (a?: string, b?: string) =>
@@ -1412,6 +1413,27 @@ const Subscribers: React.FC = () => {
       console.error('[Campanha] Erro: campanha sem ID válido para navegação', { campaign });
       return;
     }
+    const n = normalizeCampaign(campaign);
+    const cid = n.contract_id ?? (n as any).contractId;
+    setEditingEditCampaignIndex(index);
+    setEditCampaignForm((prev) => ({
+      ...prev,
+      title: n.title || prev.title || '',
+      description: n.description ?? prev.description,
+      campaign_type: n.campaign_type || prev.campaign_type || 'general',
+      priority: n.priority ?? prev.priority ?? 1,
+      contractId:
+        cid !== undefined && cid !== null && String(cid).trim() !== '' && !Number.isNaN(Number(cid))
+          ? Number(cid)
+          : undefined,
+      status: n.status || prev.status || 'draft',
+      isActive:
+        n.is_active !== undefined
+          ? n.is_active
+          : (n as any).isActive !== undefined
+            ? (n as any).isActive
+            : prev.isActive ?? true,
+    }));
     setCampaignFullEditorId(Number(campaignId));
     setCampaignFullEditorOpen(true);
   };
