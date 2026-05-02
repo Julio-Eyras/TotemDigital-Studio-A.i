@@ -157,10 +157,12 @@ INSERT INTO publisher_contracts (
 ON CONFLICT (publisher_id, contract_number) DO NOTHING;
 
 -- =============================================
--- PLAN_PUBLISHER_ACCESS: plano 1 (Plano Totem Digital) atrelado ao publisher 1 (totem digital)
+-- PLAN_PUBLISHER_ACCESS / PLAN_LOCAL_ACCESS (modo compacto)
 -- =============================================
 --INSERT INTO plan_publisher_access (plan_id, publisher_id, is_allowed, restrictions, notes, is_active) VALUES
 --(1, 1, true, '{}'::jsonb, 'Plano Totem Digital - acesso aos totens do publisher totem digital', true);
+-- plan_local_access: em instalações com demo dinâmica, o install-smartsignage.sh preenche
+-- plan_local_access para cada local demo + Estoque e para os planos bronze/silver/gold (ver bloco PL/pgSQL do seed).
 
 -- =============================================
 -- SUBSCRIBER_PUBLISHER_ACCESS: assinante 1 com acesso ao publisher 1 via contrato/plano

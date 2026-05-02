@@ -729,6 +729,34 @@ BEGIN
     ORDER BY local_id ASC
     LIMIT 1;
 
+    -- plan_local_access: obrigatório para API de totens por contrato/plano (modo compacto).
+    -- Um registo (plano, local) por cada local operacional + Estoque, para bronze/silver/gold.
+    FOREACH v_local_id IN ARRAY v_local_ids LOOP
+        INSERT INTO plan_local_access (plan_id, local_id, is_allowed, is_active, restrictions, created_at, updated_at)
+        VALUES
+          (v_bronze_plan_id, v_local_id, true, true, '{}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+          (v_silver_plan_id, v_local_id, true, true, '{}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+          (v_gold_plan_id, v_local_id, true, true, '{}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (plan_id, local_id) DO UPDATE
+          SET is_allowed = EXCLUDED.is_allowed,
+              is_active = EXCLUDED.is_active,
+              restrictions = EXCLUDED.restrictions,
+              updated_at = CURRENT_TIMESTAMP;
+    END LOOP;
+
+    IF v_stock_local_id IS NOT NULL THEN
+        INSERT INTO plan_local_access (plan_id, local_id, is_allowed, is_active, restrictions, created_at, updated_at)
+        VALUES
+          (v_bronze_plan_id, v_stock_local_id, true, true, '{}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+          (v_silver_plan_id, v_stock_local_id, true, true, '{}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+          (v_gold_plan_id, v_stock_local_id, true, true, '{}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (plan_id, local_id) DO UPDATE
+          SET is_allowed = EXCLUDED.is_allowed,
+              is_active = EXCLUDED.is_active,
+              restrictions = EXCLUDED.restrictions,
+              updated_at = CURRENT_TIMESTAMP;
+    END IF;
+
     -- 12 totems ativos: 2 por local (6 locais)
     FOR i IN 1..${DEMO_TOTEMS_ACTIVE} LOOP
         v_totem_name := COALESCE(

@@ -19,6 +19,8 @@ EXP_CONTRACTS_TOTAL="${EXP_CONTRACTS_TOTAL:-15}"
 EXP_CONTRACTS_ACTIVE="${EXP_CONTRACTS_ACTIVE:-5}"
 EXP_CONTRACTS_DRAFT="${EXP_CONTRACTS_DRAFT:-5}"
 EXP_CONTRACTS_CANCELLED="${EXP_CONTRACTS_CANCELLED:-5}"
+# 3 planos × (locais demo + local Estoque) = 3 × (EXP_LOCALS + 1)
+EXP_PLAN_LOCAL_ROWS="${EXP_PLAN_LOCAL_ROWS:-$(( (EXP_LOCALS + 1) * EXP_PLANS ))}"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -50,6 +52,7 @@ CONTRACTS_TOTAL="$(q "SELECT COUNT(*) FROM subscriber_contracts WHERE contract_n
 CONTRACTS_ACTIVE="$(q "SELECT COUNT(*) FROM subscriber_contracts WHERE contract_number LIKE 'SUB-%' AND status='active';")"
 CONTRACTS_DRAFT="$(q "SELECT COUNT(*) FROM subscriber_contracts WHERE contract_number LIKE 'SUB-%' AND status='draft';")"
 CONTRACTS_CANCELLED="$(q "SELECT COUNT(*) FROM subscriber_contracts WHERE contract_number LIKE 'SUB-%' AND status='cancelled';")"
+PLAN_LOCAL_ROWS="$(q "SELECT COUNT(*) FROM plan_local_access pla JOIN plans p ON p.plan_id = pla.plan_id WHERE p.slug IN ('bronze','silver','gold') AND COALESCE(pla.is_active,true) AND pla.is_allowed;")"
 
 [[ "$PLANS" == "$EXP_PLANS" ]] && pass "planos bronze/silver/gold = $PLANS" || fail "planos esperado=$EXP_PLANS atual=${PLANS:-N/A}"
 [[ "$LOCALS" == "$EXP_LOCALS" ]] && pass "locais demo = $LOCALS" || fail "locais esperado=$EXP_LOCALS atual=${LOCALS:-N/A}"
@@ -60,6 +63,7 @@ CONTRACTS_CANCELLED="$(q "SELECT COUNT(*) FROM subscriber_contracts WHERE contra
 [[ "$CONTRACTS_ACTIVE" == "$EXP_CONTRACTS_ACTIVE" ]] && pass "contratos active = $CONTRACTS_ACTIVE" || fail "active esperado=$EXP_CONTRACTS_ACTIVE atual=${CONTRACTS_ACTIVE:-N/A}"
 [[ "$CONTRACTS_DRAFT" == "$EXP_CONTRACTS_DRAFT" ]] && pass "contratos draft = $CONTRACTS_DRAFT" || fail "draft esperado=$EXP_CONTRACTS_DRAFT atual=${CONTRACTS_DRAFT:-N/A}"
 [[ "$CONTRACTS_CANCELLED" == "$EXP_CONTRACTS_CANCELLED" ]] && pass "contratos cancelled = $CONTRACTS_CANCELLED" || fail "cancelled esperado=$EXP_CONTRACTS_CANCELLED atual=${CONTRACTS_CANCELLED:-N/A}"
+[[ "$PLAN_LOCAL_ROWS" == "$EXP_PLAN_LOCAL_ROWS" ]] && pass "plan_local_access (bronze/silver/gold) = $PLAN_LOCAL_ROWS" || fail "plan_local_access esperado=$EXP_PLAN_LOCAL_ROWS atual=${PLAN_LOCAL_ROWS:-N/A}"
 
 echo
 echo "Resumo plan_publisher_access (demo):"
