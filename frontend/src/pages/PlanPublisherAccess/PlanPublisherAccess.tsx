@@ -129,6 +129,13 @@ interface CompactScopeRestrictions {
   };
 }
 
+const normalizePositiveIntArray = (value: unknown): number[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => Number(item))
+    .filter((n) => Number.isInteger(n) && n > 0);
+};
+
 const PlanPublisherAccessPage: React.FC = () => {
   const theme = useTheme();
   const publisherEntityLabel = TOTEMDIGITAL_COMPACT ? 'Local' : 'Publisher';
@@ -310,21 +317,36 @@ const PlanPublisherAccessPage: React.FC = () => {
         return base;
       });
       setPlanPublishers(publishersData);
-      if (TOTEMDIGITAL_COMPACT && accessRes.length > 0) {
-        const restrictions = (accessRes[0].restrictions || {}) as CompactScopeRestrictions;
-        const localIds = Array.isArray(restrictions.compact_scope?.local_ids)
-          ? restrictions.compact_scope?.local_ids || []
-          : [];
-        const enabledByLocalRaw = restrictions.compact_scope?.enabled_totem_ids_by_local || {};
-        const enabledByLocal: Record<number, number[]> = {};
-        Object.entries(enabledByLocalRaw).forEach(([localId, totemIds]) => {
-          const parsedLocalId = Number(localId);
-          if (!Number.isNaN(parsedLocalId) && Array.isArray(totemIds)) {
-            enabledByLocal[parsedLocalId] = totemIds.filter((id) => typeof id === 'number');
-          }
+      if (TOTEMDIGITAL_COMPACT) {
+        const localIdSet = new Set<number>();
+        const enabledByLocalMap = new Map<number, Set<number>>();
+
+        for (const access of accessRes) {
+          const restrictions = ((access.restrictions || {}) as CompactScopeRestrictions) || {};
+          const localIds = normalizePositiveIntArray(restrictions.compact_scope?.local_ids);
+          localIds.forEach((localId) => localIdSet.add(localId));
+
+          const enabledByLocalRaw = restrictions.compact_scope?.enabled_totem_ids_by_local || {};
+          Object.entries(enabledByLocalRaw).forEach(([localIdKey, totemIds]) => {
+            const localId = Number(localIdKey);
+            if (!Number.isInteger(localId) || localId <= 0) return;
+            const parsedTotemIds = normalizePositiveIntArray(totemIds);
+            if (!enabledByLocalMap.has(localId)) {
+              enabledByLocalMap.set(localId, new Set<number>());
+            }
+            const acc = enabledByLocalMap.get(localId)!;
+            parsedTotemIds.forEach((totemId) => acc.add(totemId));
+          });
+        }
+
+        const mergedLocalIds = [...localIdSet].sort((a, b) => a - b);
+        const mergedEnabledByLocal: Record<number, number[]> = {};
+        enabledByLocalMap.forEach((totemSet, localId) => {
+          mergedEnabledByLocal[localId] = [...totemSet].sort((a, b) => a - b);
         });
-        setCompactSelectedLocalIds(localIds);
-        setCompactEnabledTotemsByLocal(enabledByLocal);
+
+        setCompactSelectedLocalIds(mergedLocalIds);
+        setCompactEnabledTotemsByLocal(mergedEnabledByLocal);
       }
     } catch (error: any) {
       console.error('Erro ao carregar publishers do plano:', error);
@@ -839,7 +861,10 @@ const PlanPublisherAccessPage: React.FC = () => {
       const next = current.includes(totemId)
         ? current.filter((id) => id !== totemId)
         : [...current, totemId];
-      return { ...prev, [localId]: next };
+      return {
+        ...prev,
+        [localId]: [...new Set(next)].sort((a, b) => a - b),
+      };
     });
   };
 
