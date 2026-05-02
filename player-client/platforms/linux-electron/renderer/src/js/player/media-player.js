@@ -46,7 +46,10 @@ class MediaPlayer {
     const video = document.createElement('video');
     video.src = item.url;
     video.autoplay = true;
-    video.muted = false;
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', 'true');
     video.controls = false;
     video.style.width = '100%';
     video.style.height = '100%';
@@ -72,6 +75,16 @@ class MediaPlayer {
 
     this.container.appendChild(video);
     this.currentElement = video;
+
+    const unmuteOnHover = () => {
+      video.muted = false;
+      video.play().catch(() => {});
+    };
+    const muteOnLeave = () => {
+      video.muted = true;
+    };
+    video.addEventListener('mouseenter', unmuteOnHover);
+    video.addEventListener('mouseleave', muteOnLeave);
 
     try {
       await video.play();

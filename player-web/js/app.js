@@ -746,9 +746,22 @@ class MediaPlayerHTML5 {
         const v = document.createElement('video');
         v.src = url;
         v.autoplay = true;
+        v.playsInline = true;
+        v.setAttribute('playsinline', '');
+        v.setAttribute('webkit-playsinline', 'true');
         v.controls = false;
+        v.preload = 'auto';
         v.style.width = v.style.height = '100%';
         v.style.objectFit = 'contain';
+        // Autoplay com som costuma ser bloqueado; som só ao passar o rato sobre o vídeo (totem com rato / debug).
+        v.muted = true;
+        v.addEventListener('mouseenter', () => {
+            v.muted = false;
+            v.play().catch(() => {});
+        });
+        v.addEventListener('mouseleave', () => {
+            v.muted = true;
+        });
 
         v.onended = () => {
             const secs = durationSec != null ? durationSec : (Date.now() - this._startedAt) / 1000;
@@ -761,6 +774,25 @@ class MediaPlayerHTML5 {
 
         this.container.appendChild(v);
         this.currentElement = v;
+
+        let playbackStarted = false;
+        const startPlayback = () => {
+            if (playbackStarted) return;
+            playbackStarted = true;
+            v.muted = true;
+            v.play().catch((err) => {
+                console.error('[MediaPlayerHTML5] Falha ao iniciar vídeo:', err);
+                finish(new Error((err && err.message) || 'Falha ao iniciar vídeo'));
+            });
+        };
+
+        if (v.readyState >= 2) {
+            startPlayback();
+        } else {
+            v.addEventListener('loadeddata', startPlayback, { once: true });
+            v.addEventListener('canplay', startPlayback, { once: true });
+            setTimeout(startPlayback, 2500);
+        }
 
         if (durationSec) {
             setTimeout(() => {

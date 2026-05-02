@@ -79,6 +79,15 @@ class PlayerControllerLXN {
       this.video.addEventListener("ended", done);
       this.video.addEventListener("error", done);
       this.video.src = item.url;
+      this.video.playsInline = true;
+      this.video.muted = true;
+      this.video.onmouseenter = () => {
+        this.video.muted = false;
+        this.video.play().catch(() => {});
+      };
+      this.video.onmouseleave = () => {
+        this.video.muted = true;
+      };
       this.video.play().catch(done);
     });
     await this.eventsClient.sendEvent("video_playback_end", item, { playlistId: this.plan.playlistId, campaignId: this.plan.campaignId, durationSeconds: Math.floor(this.video.currentTime || 0), completed: true });

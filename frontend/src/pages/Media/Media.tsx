@@ -74,8 +74,6 @@ const Media: React.FC = () => {
   // Cache de thumbnails autorizados (Blob URLs) para evitar 401 em <img src="/api/...">
   const thumbObjectUrlsRef = useRef<Map<number, string>>(new Map());
   const [thumbVersion, setThumbVersion] = useState(0); // força rerender quando adicionamos um blob url
-  const [videoLoadFailed, setVideoLoadFailed] = useState<Set<number>>(new Set());
-
   /** Preview de vídeo ao passar o rato (Blob URL; só ficheiros até ~30 MB). */
   const HOVER_PREVIEW_MAX_BYTES = 30 * 1024 * 1024;
   const videoHoverBlobUrlsRef = useRef<Map<number, string>>(new Map());
@@ -563,42 +561,21 @@ const Media: React.FC = () => {
                   const isVideoUrl = isVideo && /\.(mp4|webm|ogg|mov)(\?|$)/i.test(finalPreviewUrl || '');
 
                   if (finalPreviewUrl) {
-                    const mediaId = media.media_id || media.id;
-                    const videoFailed = typeof mediaId === 'number' && videoLoadFailed.has(mediaId);
-                    // Vídeos com URL de arquivo: usar <video>; com blob (thumbnail): usar <img>
-                    // Se vídeo falhou ao carregar (404 em /assets/...), mostrar ícone
-                    if (isVideoUrl && videoFailed) {
-                      return (
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
-                          <Avatar sx={{ width: 80, height: 80, backgroundColor: alpha(getMediaTypeColor(media.media_type), 0.1), color: getMediaTypeColor(media.media_type) }}>
-                            {getMediaIcon(media.media_type)}
-                          </Avatar>
-                        </Box>
-                      );
-                    }
-                    if (isVideoUrl && !videoFailed) {
+                    // Vídeo com URL de ficheiro: não reproduzir no card — só ao passar o rato (camada hover abaixo).
+                    if (isVideoUrl) {
                       return (
                         <Box
-                          component="video"
-                          key={`${mediaId}-${thumbVersion}`}
-                          src={finalPreviewUrl}
-                          muted
-                          playsInline
-                          preload="metadata"
                           sx={{
-                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                             height: '100%',
-                            objectFit: 'cover',
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
+                            width: '100%',
+                            bgcolor: 'grey.900',
                           }}
-                          onError={() => {
-                            if (typeof mediaId === 'number') {
-                              setVideoLoadFailed((prev) => new Set(prev).add(mediaId));
-                            }
-                          }}
-                        />
+                        >
+                          <VideoLibrary sx={{ fontSize: 56, color: 'grey.500', opacity: 0.9 }} />
+                        </Box>
                       );
                     }
                     return (

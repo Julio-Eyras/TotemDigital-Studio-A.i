@@ -113,6 +113,15 @@ class PlayerControllerWOS {
       this.video.addEventListener("ended", onEnd);
       this.video.addEventListener("error", onEnd);
       this.video.src = item.url;
+      this.video.playsInline = true;
+      this.video.muted = true;
+      this.video.onmouseenter = () => {
+        this.video.muted = false;
+        this.video.play().catch(() => {});
+      };
+      this.video.onmouseleave = () => {
+        this.video.muted = true;
+      };
       this.video.play().catch(onEnd);
     });
     await this.eventsClient.sendEvent("video_playback_end", item, {
