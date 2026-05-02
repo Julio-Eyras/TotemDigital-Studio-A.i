@@ -356,7 +356,7 @@ class DispatcherRouter {
         };
       }
 
-      const totemId = (totem as any).id;
+      const totemId = totem.id;
       request.totemId = totemId;
 
       // Chamar dispatcher
@@ -431,10 +431,11 @@ class DispatcherRouter {
           metadata: defaultMeta,
         };
       } else if (planHasNoItems && emptyExplanation) {
+        // `plan` já estreito (ramo else de !plan); evita plan opcional no spread
         plan = {
-          ...dispatchResponse.plan,
+          ...plan,
           metadata: {
-            ...(dispatchResponse.plan.metadata || {}),
+            ...(plan.metadata || {}),
             ...defaultMeta,
           },
         };
