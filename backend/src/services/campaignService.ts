@@ -701,11 +701,12 @@ export class CampaignService {
       campaign.mediaIds = directMedias.map(m => m.media_id);
       campaign.mediaNames = directMedias.map(m => m.media_name || m.file_name);
 
-      // Totens explicitamente associados (campaign_totems)
+      // Totens explicitamente associados (campaign_totems) — todos os vínculos, para o editor não “esvaziar”
+      // após cascade (is_active=false). Execução/dispatcher continua filtrando ct.is_active nas queries próprias.
       const totemRows = await this.db.findMany(`
         SELECT totem_id
         FROM campaign_totems
-        WHERE campaign_id = $1 AND COALESCE(is_active, true) = true
+        WHERE campaign_id = $1
         ORDER BY totem_id
       `, [campaignId]);
       campaign.totemIds = totemRows.map((r: any) => Number(r.totem_id));
@@ -1318,6 +1319,12 @@ export class CampaignService {
               .filter((id) => Number.isInteger(id) && id > 0)
           : [];
 
+        const campRow = await this.db.findFirst(
+          `SELECT COALESCE(is_active, true) AS ia FROM campaigns WHERE campaign_id = $1`,
+          [campaignId]
+        );
+        const linkIsActive = campRow?.ia !== false;
+
         // Buscar associações atuais
         const existingRows = await this.db.findMany(`
           SELECT totem_id 
@@ -1328,7 +1335,7 @@ export class CampaignService {
         const existingIds = existingRows.map((r: any) => Number(r.totem_id)).filter((id) => !isNaN(id));
 
         const toRemove = existingIds.filter((id) => !desiredTotemIds.includes(id));
-        const toAdd = desiredTotemIds.filter((id) => !existingIds.includes(id));
+        const uniqueDesired = [...new Set(desiredTotemIds)];
 
         if (toRemove.length > 0) {
           await this.db.executeRaw(`
@@ -1338,7 +1345,9 @@ export class CampaignService {
           `, [campaignId, toRemove]);
         }
 
-        for (const totemId of toAdd) {
+        // Upsert cada totem desejado (não só os "novos"): linhas já existentes mas is_active=false
+        // (ex.: trigger cascade_campaign_deactivate ao desligar a campanha) voltam a ativas aqui.
+        for (const totemId of uniqueDesired) {
           const totem = await this.db.findFirst(`
             SELECT totem_id, COALESCE(is_active, true) AS is_active
             FROM totems 
@@ -1368,12 +1377,12 @@ export class CampaignService {
               priority,
               is_active
             )
-            VALUES ($1, $2, NULL, NULL, NULL, NULL, NULL, 1, true)
+            VALUES ($1, $2, NULL, NULL, NULL, NULL, NULL, 1, $3)
             ON CONFLICT (campaign_id, totem_id)
             DO UPDATE SET
               is_active = EXCLUDED.is_active,
               updated_at = CURRENT_TIMESTAMP
-          `, [campaignId, totemId]);
+          `, [campaignId, totemId, linkIsActive]);
         }
       }
 
@@ -1769,7 +1778,12 @@ export class CampaignService {
             SELECT COALESCE(SUM(duration), 0) as total
             FROM (
               -- Duração via playlists
-              SELECT COALESCE(pi.display_seconds, m.duration_seconds, 0) as duration
+              SELECT CASE
+                WHEN COALESCE(pi.display_seconds, 0) > 0 THEN pi.display_seconds
+                WHEN LOWER(COALESCE(m.media_type, '')) IN ('video', 'audio')
+                  THEN COALESCE(NULLIF(m.duration_seconds, 0), 10)
+                ELSE 10
+              END as duration
               FROM playlist_items pi
               JOIN campaign_playlists cp ON pi.playlist_id = cp.playlist_id
               JOIN playlists p ON cp.playlist_id = p.playlist_id
@@ -1777,7 +1791,12 @@ export class CampaignService {
               WHERE cp.campaign_id = $1 AND cp.is_active = true AND p.is_active = true
               UNION ALL
               -- Duração de mídias diretamente associadas
-              SELECT COALESCE(cm.display_seconds, m.duration_seconds, 0) as duration
+              SELECT CASE
+                WHEN COALESCE(cm.display_seconds, 0) > 0 THEN cm.display_seconds
+                WHEN LOWER(COALESCE(m.media_type, '')) IN ('video', 'audio')
+                  THEN COALESCE(NULLIF(m.duration_seconds, 0), 10)
+                ELSE 10
+              END as duration
               FROM campaign_medias cm
               JOIN medias m ON cm.media_id = m.media_id
               WHERE cm.campaign_id = $1 AND cm.is_active = true

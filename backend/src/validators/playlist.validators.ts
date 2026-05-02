@@ -32,14 +32,29 @@ export const updatePlaylistValidators = [
 export const addMediaToPlaylistValidators = [
   body('mediaId').isInt({ min: 1 }).withMessage('ID da mídia é obrigatório'),
   body('orderIndex').optional().isInt({ min: 0 }).withMessage('orderIndex deve ser um número inteiro maior ou igual a 0'),
-  body('duration').optional().isInt({ min: 1000 }).withMessage('Duração deve ser no mínimo 1000ms'),
+  body('duration')
+    .optional()
+    .isInt()
+    .withMessage('Duração deve ser um número inteiro (ms)')
+    .custom((v) => {
+      const n = Number(v);
+      return n === 0 || (n >= 1000 && n <= 300000);
+    })
+    .withMessage('Duração: 0 (automático para vídeo/áudio) ou entre 1000ms e 300000ms'),
 ];
 
 /**
  * Validadores para atualizar duração de item de playlist
  */
 export const updatePlaylistItemDurationValidators = [
-  body('duration').isInt({ min: 1000, max: 300000 }).withMessage('Duração deve estar entre 1000ms (1s) e 300000ms (300s)'),
+  body('duration')
+    .isInt()
+    .withMessage('Duração deve ser um número inteiro (ms)')
+    .custom((v) => {
+      const n = Number(v);
+      return n === 0 || (n >= 1000 && n <= 300000);
+    })
+    .withMessage('Duração: 0 (automático para vídeo/áudio) ou entre 1000ms e 300000ms'),
 ];
 
 /**

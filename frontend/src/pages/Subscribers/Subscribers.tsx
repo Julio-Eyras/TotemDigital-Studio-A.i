@@ -292,6 +292,8 @@ const Subscribers: React.FC = () => {
   const [editingItemDuration, setEditingItemDuration] = useState<number | null>(null);
   const [tempItemDuration, setTempItemDuration] = useState<{ [itemId: number]: number }>({});
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+  /** Totens derivados da exposição da playlist (campanhas → publishers/locais/totens) */
+  const [editPlaylistTotemLabels, setEditPlaylistTotemLabels] = useState<string[]>([]);
   
   // Estados para campanha (mídias e playlists associadas)
   const [campaignMedias, setCampaignMedias] = useState<any[]>([]);
@@ -514,6 +516,11 @@ const Subscribers: React.FC = () => {
     }
   };
 
+  const refreshSubscriberContracts = async (subscriberId: number) => {
+    const list = await subscriberApi.getContracts(subscriberId, { activeOnly: false });
+    setActiveContracts(Array.isArray(list) ? filterEditableContracts(list) : []);
+  };
+
   // Carregar dados para edição
   const loadSubscriberDataForEdit = async (subscriberId: number) => {
     try {
@@ -575,6 +582,28 @@ const Subscribers: React.FC = () => {
       loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     }
   }, [editDialogOpen, selectedSubscriber?.subscriber_id]);
+
+  // Recarregar contratos ao entrar nas abas Contratos/Campanhas no modal de edição.
+  // Isso mantém o combo "Contrato" da campanha sempre atualizado após qualquer manipulação.
+  useEffect(() => {
+    if (!editDialogOpen || !selectedSubscriber) return;
+    if (editTab !== 1 && editTab !== 4) return;
+    refreshSubscriberContracts(selectedSubscriber.subscriber_id).catch((error) => {
+      console.error('Erro ao atualizar contratos do anunciante:', error);
+    });
+  }, [editDialogOpen, editTab, selectedSubscriber?.subscriber_id]);
+
+  // Se o contrato selecionado na campanha deixar de existir/ficar inativo, limpar a seleção.
+  useEffect(() => {
+    const selectedContractId = editCampaignForm.contractId;
+    if (selectedContractId == null) return;
+    const exists = contractsActiveForCampaign.some(
+      (c: any) => Number(c.contract_id) === Number(selectedContractId)
+    );
+    if (!exists) {
+      setEditCampaignForm((prev) => ({ ...prev, contractId: undefined }));
+    }
+  }, [contractsActiveForCampaign, editCampaignForm.contractId]);
 
   // Pré-preencher número do contrato na aba "Contratos do Anunciante" (edição)
   useEffect(() => {
@@ -1165,13 +1194,24 @@ const Subscribers: React.FC = () => {
     setEditingEditPlaylistIndex(index);
     setSelectedMediasForPlaylist([]);
     
-    // Carregar itens da playlist
+    // Carregar itens da playlist e exposição em totens (via campanhas)
     try {
-      const items = await playlistApi.getMedia(playlist.playlist_id);
+      const [items, exposure] = await Promise.all([
+        playlistApi.getMedia(playlist.playlist_id),
+        playlistApi.getExposure(playlist.playlist_id).catch(() => null),
+      ]);
       setPlaylistItems(items || []);
+      const totemList = exposure?.totems?.length
+        ? exposure.totems.map((t) => {
+            const n = t.name && String(t.name).trim();
+            return n || t.identifier || '';
+          }).filter(Boolean)
+        : [];
+      setEditPlaylistTotemLabels([...new Set(totemList)].sort(compareByDisplayName));
     } catch (error) {
       console.error('Erro ao carregar itens da playlist:', error);
       setPlaylistItems([]);
+      setEditPlaylistTotemLabels([]);
     }
   };
 
@@ -3240,13 +3280,7 @@ const Subscribers: React.FC = () => {
                             });
                           }
                           // Recarregar contratos
-                          const list = await subscriberApi.getContracts(
-                            selectedSubscriber.subscriber_id,
-                            { activeOnly: false }
-                          );
-                          setActiveContracts(
-                            Array.isArray(list) ? filterEditableContracts(list) : []
-                          );
+                          await refreshSubscriberContracts(selectedSubscriber.subscriber_id);
                           // Limpar formulário
                           setSubscriberContractFormEdit({
                             contract_number: '',
@@ -3356,13 +3390,7 @@ const Subscribers: React.FC = () => {
                               if (window.confirm(`Tem certeza que deseja excluir o contrato "${contract.contract_number}"?`)) {
                                 try {
                                   await contractApi.delete(contract.contract_id);
-                                  const list = await subscriberApi.getContracts(
-                                    selectedSubscriber!.subscriber_id,
-                                    { activeOnly: false }
-                                  );
-                                  setActiveContracts(
-                                    Array.isArray(list) ? filterEditableContracts(list) : []
-                                  );
+                                  await refreshSubscriberContracts(selectedSubscriber!.subscriber_id);
                                   if (editingSubscriberContractIndexEdit === index) {
                                     setEditingSubscriberContractIndexEdit(null);
                                     setSubscriberContractFormEdit({
@@ -3647,6 +3675,7 @@ const Subscribers: React.FC = () => {
                           setSelectedMediasForPlaylist([]);
                           setEditingItemDuration(null);
                           setTempItemDuration({});
+                          setEditPlaylistTotemLabels([]);
                         }}
                         sx={{ ml: 1 }}
                       >
@@ -3714,10 +3743,20 @@ const Subscribers: React.FC = () => {
                         label="Duração por Item (segundos)"
                         type="number"
                         value={defaultPlaylistItemDuration}
-                        onChange={(e) => setDefaultPlaylistItemDuration(parseInt(e.target.value) || 10)}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === '') {
+                            setDefaultPlaylistItemDuration(0);
+                            return;
+                          }
+                          const v = parseInt(raw, 10);
+                          setDefaultPlaylistItemDuration(
+                            Number.isFinite(v) ? Math.max(0, Math.min(300, v)) : 0
+                          );
+                        }}
                         size="small"
-                        inputProps={{ min: 1, max: 300 }}
-                        helperText="Duração padrão para as mídias adicionadas (1-300 segundos)"
+                        inputProps={{ min: 0, max: 300 }}
+                        helperText="0 = vídeo/áudio usam a duração do arquivo; para imagens, 0 vira 10 s ao adicionar. De 1 a 300 = segundos fixos (principalmente imagens)."
                       />
                     </Grid>
                     <Grid item xs={12} md={6}>
@@ -3750,11 +3789,40 @@ const Subscribers: React.FC = () => {
                   </Alert>
                   <List>
                     {playlistItems.map((item, index) => {
-                      const durationMs = (item as any).display_seconds || (item as any).display_duration || 10000;
-                      const durationSec = Math.round(durationMs / 1000);
+                      const durationMs = item.duration ?? 10000;
+                      const durationSecEffective = Math.max(1, Math.round(durationMs / 1000));
+                      const storedSec =
+                        item.display_seconds !== undefined && item.display_seconds !== null
+                          ? item.display_seconds
+                          : durationSecEffective;
                       const isEditing = editingItemDuration === item.item_id;
-                      const tempDuration = tempItemDuration[item.item_id] ?? durationSec;
+                      const tempDuration = tempItemDuration[item.item_id] ?? storedSec;
                       const isDragging = draggedItemIndex === index;
+                      const m = item.media as any;
+                      const mediaType: string | undefined = m?.media_type || m?.mediaType;
+                      const mediaName =
+                        m?.name || (item as any).mediaName || (item as any).media_name || `Mídia ${item.media_id}`;
+                      const thumbFromApi = m?.thumbnail_url || m?.thumbnailUrl;
+                      const previewFromApi = m?.preview_url || m?.previewUrl;
+                      const apiThumbnail = item.media_id
+                        ? `${process.env.REACT_APP_API_URL || '/api'}/media/${item.media_id}/thumbnail`
+                        : null;
+                      let thumbUrl: string | null =
+                        thumbFromApi || previewFromApi || apiThumbnail || null;
+                      if (thumbUrl && thumbUrl.startsWith('/opt/smart-signage/public/assets/')) {
+                        thumbUrl = thumbUrl.replace('/opt/smart-signage/public/assets/', '/assets/');
+                      }
+                      if (
+                        thumbUrl &&
+                        (thumbUrl.startsWith('/assets/uploads/') || thumbUrl.includes('assets/uploads/'))
+                      ) {
+                        thumbUrl = apiThumbnail;
+                      }
+                      const isThumbUrl = thumbUrl?.includes('/thumbnail');
+                      const showThumb =
+                        !!thumbUrl &&
+                        !mediaPreviewFailed.has(item.media_id) &&
+                        (mediaType === 'image' || mediaType === 'video' || isThumbUrl);
 
                       return (
                         <ListItem
@@ -3826,10 +3894,43 @@ const Subscribers: React.FC = () => {
                           >
                             <DragIndicator />
                           </ListItemIcon>
+                          <Avatar
+                            variant="rounded"
+                            src={showThumb && thumbUrl ? thumbUrl : undefined}
+                            imgProps={{
+                              onError: () =>
+                                setMediaPreviewFailed((prev) => new Set(prev).add(item.media_id)),
+                            }}
+                            sx={{
+                              width: 48,
+                              height: 48,
+                              mr: 1.5,
+                              flexShrink: 0,
+                              bgcolor: alpha(getMediaTypeColor(mediaType), 0.12),
+                              color: getMediaTypeColor(mediaType),
+                            }}
+                          >
+                            {getMediaIcon(mediaType)}
+                          </Avatar>
                           <ListItemText
-                            primary={(item as any).mediaName || (item as any).media_name || `Item ${index + 1}`}
-                            secondary={`Ordem: ${item.order_index !== undefined ? item.order_index : index + 1}`}
-                            sx={{ flex: 1 }}
+                            primaryTypographyProps={{ component: 'div' }}
+                            primary={
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="body2" fontWeight={600} noWrap title={mediaName}>
+                                  {mediaName}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{ display: 'block', mt: 0.25 }}
+                                >
+                                  {editPlaylistTotemLabels.length > 0
+                                    ? `Totens: ${editPlaylistTotemLabels.join(', ')}`
+                                    : 'Totens: nenhuma campanha expõe esta playlist em totens ainda'}
+                                </Typography>
+                              </Box>
+                            }
+                            sx={{ flex: 1, mr: 1 }}
                           />
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1 }}>
                             {isEditing ? (
@@ -3838,8 +3939,21 @@ const Subscribers: React.FC = () => {
                                   type="number"
                                   size="small"
                                   value={tempDuration}
-                                  onChange={(e) => setTempItemDuration({ ...tempItemDuration, [item.item_id]: parseInt(e.target.value) || 10 })}
-                                  inputProps={{ min: 1, max: 300 }}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    if (raw === '') {
+                                      setTempItemDuration({ ...tempItemDuration, [item.item_id]: 0 });
+                                      return;
+                                    }
+                                    const v = parseInt(raw, 10);
+                                    setTempItemDuration({
+                                      ...tempItemDuration,
+                                      [item.item_id]: Number.isFinite(v)
+                                        ? Math.max(0, Math.min(300, v))
+                                        : 0,
+                                    });
+                                  }}
+                                  inputProps={{ min: 0, max: 300 }}
                                   sx={{ width: '80px' }}
                                 />
                                 <Typography variant="caption">s</Typography>
@@ -3852,7 +3966,7 @@ const Subscribers: React.FC = () => {
                                       await playlistApi.updateItemDuration(
                                         playlist.playlist_id,
                                         item.item_id,
-                                        tempDuration * 1000 // Converter para milissegundos
+                                        tempDuration === 0 ? 0 : tempDuration * 1000
                                       );
                                       await handleStartEditPlaylist(editingEditPlaylistIndex!);
                                       setEditingItemDuration(null);
@@ -3879,14 +3993,16 @@ const Subscribers: React.FC = () => {
                               </>
                             ) : (
                               <>
-                                <Typography variant="body2" color="text.secondary">
-                                  {durationSec}s
+                                <Typography variant="body2" color="text.secondary" title="Duração efetiva de exibição">
+                                  {storedSec === 0 && (mediaType === 'video' || mediaType === 'audio')
+                                    ? `auto (${durationSecEffective}s)`
+                                    : `${durationSecEffective}s`}
                                 </Typography>
                                 <IconButton
                                   size="small"
                                   onClick={() => {
                                     setEditingItemDuration(item.item_id);
-                                    setTempItemDuration({ ...tempItemDuration, [item.item_id]: durationSec });
+                                    setTempItemDuration({ ...tempItemDuration, [item.item_id]: storedSec });
                                   }}
                                   title="Editar duração"
                                 >

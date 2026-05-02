@@ -584,7 +584,14 @@ router.get('/validate',
             pi.playlist_id,
             pi.media_id,
             pi.order_index,
-            pi.display_seconds as duration,
+            COALESCE(
+              NULLIF(pi.display_seconds, 0),
+              CASE
+                WHEN LOWER(COALESCE(m.media_type, '')) IN ('video', 'audio')
+                  THEN COALESCE(NULLIF(m.duration_seconds, 0), 10)
+                ELSE 10
+              END
+            ) as duration,
             m.name as media_name,
             m.file_path,
             m.media_type,

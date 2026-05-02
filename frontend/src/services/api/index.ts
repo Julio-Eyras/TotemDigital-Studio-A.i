@@ -609,8 +609,23 @@ export interface PlaylistMediaItem {
   playlist_id: number;
   media_id: number;
   order_index: number;
+  /**
+   * Segundos configurados no item (0 = vídeo/áudio: usar duração do arquivo; imagens tratam 0 como 10s ao gravar).
+   */
+  display_seconds?: number;
+  /** Duração efetiva de exibição (milissegundos), para totais e player */
   duration: number;
-  media: any;
+  media?: {
+    media_id: number;
+    name?: string;
+    media_type?: string;
+    file_path?: string;
+    mime_type?: string;
+    duration_seconds?: number;
+    size_bytes?: number;
+    thumbnail_url?: string | null;
+    preview_url?: string | null;
+  };
 }
 
 export interface PlaylistCampaignInfo {
@@ -1413,6 +1428,9 @@ export const campaignApi = {
     if (dataToSend.contractId === null || dataToSend.contract_id === null) {
       delete dataToSend.contractId;
       delete dataToSend.contract_id;
+    }
+    if (Array.isArray(dataToSend.totemIds)) {
+      dataToSend.totem_ids = dataToSend.totemIds;
     }
     
     const response = await api.put(`/campaigns/${finalId}`, dataToSend);

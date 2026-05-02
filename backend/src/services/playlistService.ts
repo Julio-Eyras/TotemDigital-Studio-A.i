@@ -47,6 +47,9 @@ export interface PlaylistMediaItem {
   playlist_id: number;
   media_id: number;
   order_index: number;
+  /** Segundos configurados no item (0 = vídeo/áudio usam duração do arquivo) */
+  display_seconds: number;
+  /** Duração efetiva em milissegundos */
   duration: number;
   media: any;
 }
@@ -179,7 +182,15 @@ export class PlaylistService {
           p.created_at,
           p.updated_at as updated_at,
           COUNT(pi.item_id) as media_count,
-          COALESCE(SUM(COALESCE(pi.display_seconds, m.duration_seconds, 0)), 0) as total_duration
+          COALESCE(SUM(
+            CASE
+              WHEN pi.item_id IS NULL THEN 0
+              WHEN COALESCE(pi.display_seconds, 0) > 0 THEN pi.display_seconds
+              WHEN LOWER(COALESCE(m.media_type, '')) IN ('video', 'audio')
+                THEN COALESCE(NULLIF(m.duration_seconds, 0), 10)
+              ELSE 10
+            END
+          ), 0) as total_duration
         FROM playlists p
         LEFT JOIN subscribers s ON p.subscriber_id = s.subscriber_id
         LEFT JOIN playlist_items pi ON p.playlist_id = pi.playlist_id
@@ -244,7 +255,15 @@ export class PlaylistService {
           p.created_at,
           p.updated_at as updated_at,
           COUNT(pi.item_id) as media_count,
-          COALESCE(SUM(COALESCE(pi.display_seconds, m.duration_seconds, 0)), 0) as total_duration
+          COALESCE(SUM(
+            CASE
+              WHEN pi.item_id IS NULL THEN 0
+              WHEN COALESCE(pi.display_seconds, 0) > 0 THEN pi.display_seconds
+              WHEN LOWER(COALESCE(m.media_type, '')) IN ('video', 'audio')
+                THEN COALESCE(NULLIF(m.duration_seconds, 0), 10)
+              ELSE 10
+            END
+          ), 0) as total_duration
         FROM playlists p
         LEFT JOIN subscribers s ON p.subscriber_id = s.subscriber_id
         LEFT JOIN playlist_items pi ON p.playlist_id = pi.playlist_id
@@ -502,36 +521,55 @@ export class PlaylistService {
           pi.playlist_id,
           pi.media_id,
           pi.order_index,
-          pi.display_seconds as duration,
+          pi.display_seconds,
           m.media_id,
           m.name,
           m.media_type,
           m.file_path,
           m.mime_type,
           m.duration_seconds,
-          m.file_size_bytes as size_bytes
+          m.file_size_bytes as size_bytes,
+          m.thumbnail_url,
+          m.preview_url
         FROM playlist_items pi
         JOIN medias m ON pi.media_id = m.media_id
         WHERE pi.playlist_id = $1
         ORDER BY pi.order_index ASC
       `, [playlistId]);
 
-      return media.map(item => ({
-        item_id: item.item_id,
-        playlist_id: item.playlist_id,
-        media_id: item.media_id,
-        order_index: item.order_index,
-        duration: item.duration || item.display_seconds || 0,
-        media: {
-          media_id: item.media_id,
-          name: item.name,
-          media_type: item.media_type,
-          file_path: item.file_path,
-          mime_type: item.mime_type,
-          duration_seconds: item.duration_seconds,
-          size_bytes: item.size_bytes,
+      return media.map(item => {
+        const storedSec = Math.max(0, Number(item.display_seconds) || 0);
+        const mediaType = String(item.media_type || '').toLowerCase();
+        let effectiveSec: number;
+        if (storedSec > 0) {
+          effectiveSec = storedSec;
+        } else if (mediaType === 'video' || mediaType === 'audio') {
+          effectiveSec = Math.max(1, Number(item.duration_seconds) || 10);
+        } else {
+          effectiveSec = 10;
         }
-      }));
+        return {
+          item_id: item.item_id,
+          playlist_id: item.playlist_id,
+          media_id: item.media_id,
+          order_index: item.order_index,
+          /** Segundos gravados no item (0 = automático para vídeo/áudio: usa duração do arquivo) */
+          display_seconds: storedSec,
+          // Duração efetiva em ms (totais, player, UI)
+          duration: effectiveSec * 1000,
+          media: {
+            media_id: item.media_id,
+            name: item.name,
+            media_type: item.media_type,
+            file_path: item.file_path,
+            mime_type: item.mime_type,
+            duration_seconds: item.duration_seconds,
+            size_bytes: item.size_bytes,
+            thumbnail_url: item.thumbnail_url,
+            preview_url: item.preview_url,
+          },
+        };
+      });
     } catch (error: any) {
       await logError('Erro ao obter mídia da playlist', error, { playlistId });
       throw new Error('Erro interno do servidor');
@@ -569,7 +607,7 @@ export class PlaylistService {
 
       // Verificar se mídia existe e validar ownership (permite draft/pending_approval para mesmo subscriber)
       const media = await this.db.findFirst(`
-        SELECT media_id, subscriber_id, status 
+        SELECT media_id, subscriber_id, status, media_type, duration_seconds
         FROM medias 
         WHERE media_id = $1
           AND COALESCE(is_active, true) = true
@@ -593,10 +631,21 @@ export class PlaylistService {
         orderIndex = (maxOrder?.max_order || 0) + 1;
       }
 
-      // Duração: API envia em ms; a coluna display_seconds está em segundos
-      const durationSeconds = duration
-        ? Math.max(1, Math.min(300, Math.floor(Number(duration) / 1000)))
-        : 10;
+      // Duração: API em ms; display_seconds no banco em segundos. 0 = não forçar (só vídeo/áudio); imagem com 0 grava 10s.
+      let durationSeconds: number;
+      if (duration === undefined || duration === null) {
+        durationSeconds = 10;
+      } else {
+        const ms = Number(duration);
+        if (!Number.isFinite(ms)) {
+          durationSeconds = 10;
+        } else if (ms === 0) {
+          const t = String(media.media_type || '').toLowerCase();
+          durationSeconds = t === 'image' ? 10 : 0;
+        } else {
+          durationSeconds = Math.max(1, Math.min(300, Math.floor(ms / 1000)));
+        }
+      }
 
       // Adicionar mídia à playlist
       await this.db.executeRaw(`
@@ -686,26 +735,35 @@ export class PlaylistService {
         throw new Error('Acesso negado: Você só pode atualizar suas próprias playlists');
       }
 
-      // Validar duração (mínimo 1 segundo = 1000ms, máximo 5 minutos = 300000ms)
-      if (duration < 1000 || duration > 300000) {
-        throw new Error('Duração deve estar entre 1 e 300 segundos');
+      if (duration !== 0 && (duration < 1000 || duration > 300000)) {
+        throw new Error('Duração inválida: use 0 (automático para vídeo/áudio) ou entre 1 e 300 segundos');
       }
 
-      // Verificar se item existe
-      const item = await this.db.findFirst(`
-        SELECT item_id FROM playlist_items WHERE item_id = $1 AND playlist_id = $2
+      const itemRow = await this.db.findFirst(`
+        SELECT pi.item_id, m.media_type
+        FROM playlist_items pi
+        JOIN medias m ON m.media_id = pi.media_id
+        WHERE pi.item_id = $1 AND pi.playlist_id = $2
       `, [itemId, playlistId]);
 
-      if (!item) {
+      if (!itemRow) {
         throw new Error('Item não encontrado na playlist');
       }
 
-      // Atualizar duração
+      const t = String(itemRow.media_type || '').toLowerCase();
+      const durationSeconds =
+        duration === 0
+          ? t === 'image'
+            ? 10
+            : 0
+          : Math.max(1, Math.min(300, Math.floor(Number(duration) / 1000)));
+
+      // Atualizar duração (display_seconds no banco = segundos; body da API em ms)
       await this.db.executeRaw(`
         UPDATE playlist_items 
         SET display_seconds = $1, updated_at = CURRENT_TIMESTAMP
         WHERE item_id = $2 AND playlist_id = $3
-      `, [duration, itemId, playlistId]);
+      `, [durationSeconds, itemId, playlistId]);
 
       // Invalidar cache
       await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
