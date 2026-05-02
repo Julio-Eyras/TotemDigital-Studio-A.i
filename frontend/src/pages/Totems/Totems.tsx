@@ -56,10 +56,19 @@ function TabPanel(props: TabPanelProps) {
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
 
+/** Alinhado ao backend (`totemService.isStockLocalRecord`): nome contém "estoque" ou segmento "estoque". */
 const isStockLocal = (local: any): boolean => {
-  const name = String(local?.name || '').trim().toLowerCase();
-  const category = String(local?.category_segment || '').trim().toLowerCase();
-  return name === 'estoque' || category === 'estoque';
+  const name = String(local?.name || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const category = String(local?.category_segment || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  return name.includes('estoque') || category === 'estoque';
 };
 
 /** ID numérico do totem independente de snake_case/camelCase na API. */
@@ -159,6 +168,15 @@ const Totems: React.FC = () => {
     loadLocals();
   }, []);
 
+  /** No local Estoque os totens ficam offline/inativos; o filtro "Status" de ligação não deve esconder o inventário. */
+  useEffect(() => {
+    if (localFilter === 'all' || typeof localFilter !== 'number') return;
+    const loc = locals.find((l) => l.local_id === localFilter);
+    if (loc && isStockLocal(loc) && statusFilter !== 'all') {
+      setStatusFilter('all');
+    }
+  }, [localFilter, locals, statusFilter]);
+
   useEffect(() => {
     if (TOTEMDIGITAL_COMPACT && tabValue !== 0) {
       setTabValue(0);
@@ -197,7 +215,7 @@ const Totems: React.FC = () => {
     try {
       setLoading(true);
       const [resp, pendingResp] = await Promise.all([
-        totemApi.getAll(),
+        totemApi.getAll({ limit: 5000 }),
         TOTEMDIGITAL_COMPACT ? Promise.resolve({ data: [] as Player[] } as any) : totemApi.getPending()
       ]);
       const totemsData = Array.isArray(resp.data) ? [...resp.data] : [];
@@ -388,10 +406,22 @@ const Totems: React.FC = () => {
     setRemoteControlOpen(true);
   };
 
+  const stockLocalFilterActive = useMemo(() => {
+    if (localFilter === 'all' || typeof localFilter !== 'number') return false;
+    const loc = locals.find((l) => l.local_id === localFilter);
+    return Boolean(loc && isStockLocal(loc));
+  }, [localFilter, locals]);
+
   const filteredTotems = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
+    const selectedLocal =
+      localFilter !== 'all' && typeof localFilter === 'number'
+        ? locals.find((l) => l.local_id === localFilter)
+        : null;
+    const stockLocalSelected = Boolean(selectedLocal && isStockLocal(selectedLocal));
+
     return (totems || []).filter((t: any) => {
-      if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+      if (!stockLocalSelected && statusFilter !== 'all' && t.status !== statusFilter) return false;
 
       if (localFilter !== 'all') {
         const totemLocalId = Number(t.localId ?? t.local_id);
@@ -417,9 +447,14 @@ const Totems: React.FC = () => {
 
   const filteredPendingTotems = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
+    const selectedLocal =
+      localFilter !== 'all' && typeof localFilter === 'number'
+        ? locals.find((l) => l.local_id === localFilter)
+        : null;
+    const stockLocalSelected = Boolean(selectedLocal && isStockLocal(selectedLocal));
+
     return (pendingTotems || []).filter((t: any) => {
-      // Pendentes já têm status próprio, mas respeitamos filtro se usuário quiser
-      if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+      if (!stockLocalSelected && statusFilter !== 'all' && t.status !== statusFilter) return false;
 
       if (localFilter !== 'all') {
         const totemLocalId = Number(t.localId ?? t.local_id);
@@ -541,6 +576,11 @@ const Totems: React.FC = () => {
                   <MenuItem value="error">Erro</MenuItem>
                   {!TOTEMDIGITAL_COMPACT && <MenuItem value="pending_approval">Pendente</MenuItem>}
                 </Select>
+                {stockLocalFilterActive && (
+                  <FormHelperText>
+                    No Estoque a lista ignora este filtro e mostra todos os totens (ficam inativos e em geral offline).
+                  </FormHelperText>
+                )}
               </FormControl>
             </Grid>
           </Grid>
@@ -874,7 +914,17 @@ const Totems: React.FC = () => {
             <Select
               value={editTotem.localId || ''}
               label="Local *"
-              onChange={(e) => setEditTotem({ ...editTotem, localId: Number(e.target.value) })}
+              onChange={(e) => {
+                const newLocalId = Number(e.target.value);
+                const loc = locals.find((l) => l.local_id === newLocalId);
+                const prevLoc = locals.find((l) => l.local_id === Number(editTotem.localId));
+                const wasStock = prevLoc ? isStockLocal(prevLoc) : false;
+                const nowStock = loc ? isStockLocal(loc) : false;
+                let nextActive = editTotem.isActive;
+                if (nowStock) nextActive = false;
+                else if (wasStock && !nowStock) nextActive = true;
+                setEditTotem({ ...editTotem, localId: newLocalId, isActive: nextActive });
+              }}
             >
               {locals.map((local) => {
                 const isSelected = Number(editTotem.localId || 0) === Number(local.local_id);
