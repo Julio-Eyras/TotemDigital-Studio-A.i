@@ -334,6 +334,16 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   /** Compacto: remove totens da campanha que deixaram de ser elegíveis (contrato/plano/locais ou inativos na lista). */
   useEffect(() => {
     if (!open || !compactMode || !selectedCampaign || derivedDevicesLoading) return;
+    const contractRaw =
+      (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
+    if (
+      contractRaw === undefined ||
+      contractRaw === null ||
+      String(contractRaw).trim() === '' ||
+      Number.isNaN(Number(contractRaw))
+    ) {
+      return;
+    }
     const raw = ((selectedCampaign as any).totemIds || []) as number[];
     const ids = raw.map(Number).filter((n) => !Number.isNaN(n) && n > 0);
     if (ids.length === 0) return;
@@ -341,7 +351,15 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     const pruned = ids.filter((id) => allowed.has(id));
     if (pruned.length === ids.length) return;
     setSelectedCampaign((prev) => (prev ? ({ ...prev, totemIds: pruned } as any) : prev));
-  }, [open, compactMode, selectedCampaign?.campaign_id, derivedTotems, derivedDevicesLoading]);
+  }, [
+    open,
+    compactMode,
+    selectedCampaign?.campaign_id,
+    (selectedCampaign as any)?.contract_id,
+    (selectedCampaign as any)?.contractId,
+    derivedTotems,
+    derivedDevicesLoading,
+  ]);
 
   const handleReorderMedias = async (newOrder: number[]) => {
     if (!selectedCampaign) return;
@@ -382,7 +400,6 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   const handleEditCampaign = async () => {
     if (!selectedCampaign) return;
     try {
-      const publisherIds = compactMode ? [] : (((selectedCampaign as any).publisherIds || []) as number[]);
       const totemIds = getSelectedTotemIds();
       const updateData: UpdateCampaignRequest = {
         title: selectedCampaign.title,
@@ -403,12 +420,14 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
               : true,
         playlistIds: orderedPlaylistIds.length > 0 ? orderedPlaylistIds : selectedCampaign.playlistIds || [],
         mediaIds: orderedMediaIds.length > 0 ? orderedMediaIds : selectedCampaign.mediaIds || [],
-        publisherIds,
         totemIds,
         commercial_tier: (selectedCampaign as any).commercial_tier || 'standard',
         default_time_share_percent: (selectedCampaign as any).default_time_share_percent ?? 0,
         max_consecutive_slots: (selectedCampaign as any).max_consecutive_slots ?? 2,
       } as any;
+      if (!compactMode) {
+        (updateData as any).publisherIds = (((selectedCampaign as any).publisherIds || []) as number[]);
+      }
       const contractRaw =
         (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
       if (contractRaw !== undefined && contractRaw !== null && String(contractRaw).trim() !== '') {

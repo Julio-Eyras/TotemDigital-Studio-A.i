@@ -115,7 +115,7 @@ export function normalizeCampaignData(data: any): {
     timezone: data.timezone,
     status: data.status || 'draft',
     isActive: data.isActive !== undefined ? data.isActive : (data.is_active !== undefined ? data.is_active : true),
-    publisherIds: data.publisherIds || [],
+    publisherIds: data.publisherIds !== undefined ? data.publisherIds : undefined,
     totemIds: data.totemIds !== undefined ? data.totemIds : undefined,
     // Manter undefined quando não enviados, para não sobrescrever associações no update
     playlistIds: data.playlistIds !== undefined ? data.playlistIds : undefined,
