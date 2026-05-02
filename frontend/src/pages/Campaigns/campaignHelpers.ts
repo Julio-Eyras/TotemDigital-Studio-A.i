@@ -35,10 +35,20 @@ export function normalizeCampaignType(raw: any): string {
 
 export function normalizeCampaign(campaign: any): Campaign {
   if (!campaign) return campaign as Campaign;
+  const rawContract = campaign.contract_id ?? campaign.contractId;
+  const cid =
+    rawContract !== undefined &&
+    rawContract !== null &&
+    String(rawContract).trim() !== '' &&
+    !Number.isNaN(Number(rawContract))
+      ? Number(rawContract)
+      : undefined;
   return {
     ...campaign,
     campaign_id: campaign.campaign_id ?? campaign.campaignId ?? campaign.id,
     subscriber_id: campaign.subscriber_id ?? campaign.subscriberId ?? campaign.clientId,
+    contract_id: cid,
+    contractId: cid,
     start_date: campaign.start_date ?? campaign.startDate,
     end_date: campaign.end_date ?? campaign.endDate,
     totemIds: campaign.totemIds ?? campaign.totem_ids ?? [],

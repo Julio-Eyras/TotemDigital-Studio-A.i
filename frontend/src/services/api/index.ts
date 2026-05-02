@@ -1112,6 +1112,7 @@ export interface Campaign {
   status: string;
   subscriber_id?: number; // client_id deprecated
   contract_id?: number; // ⭐ NOVO: Contrato vinculado
+  contractId?: number; // espelho camelCase (API getById)
   priority?: number;
   commercial_tier?: string;
   start_date?: string;
