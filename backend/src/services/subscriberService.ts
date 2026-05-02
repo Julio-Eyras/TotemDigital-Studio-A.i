@@ -693,8 +693,9 @@ export class SubscriberService {
   /**
    * Totens elegíveis no modo compacto para uma campanha vinculada a um contrato:
    * contrato **ativo** (status, is_active, vigência), com **plan_id**;
-   * `plan_publisher_access` (plano → publisher do local) e, se existir
-   * `plan_local_access` ativo para o plano, apenas locais explicitamente permitidos.
+   * `plan_publisher_access` (plano → publisher do local do totem);
+   * **`plan_local_access` obrigatório**: só entram totens cujo `local_id` está explicitamente
+   * permitido para o plano do contrato (sem fallback “todos os locais do publisher”).
    * Apenas totens e locais **ativos** (`t.is_active`, `l.is_active`).
    */
   async getTotemsBySubscriberContract(subscriberId: number, contractId: number): Promise<any[]> {
@@ -757,6 +758,10 @@ export class SubscriberService {
           AND ppa.publisher_id = l.publisher_id
           AND ppa.is_allowed = true
           AND COALESCE(ppa.is_active, true) = true
+        INNER JOIN plan_local_access pla ON pla.plan_id = sc.plan_id
+          AND pla.local_id = l.local_id
+          AND pla.is_allowed = true
+          AND COALESCE(pla.is_active, true) = true
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
         WHERE sc.plan_id IS NOT NULL
           AND sc.status = 'active'
@@ -765,22 +770,6 @@ export class SubscriberService {
           AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
           AND t.is_active = true
           AND l.is_active = true
-          AND (
-            NOT EXISTS (
-              SELECT 1
-              FROM plan_local_access pla0
-              WHERE pla0.plan_id = sc.plan_id
-                AND COALESCE(pla0.is_active, true) = true
-            )
-            OR EXISTS (
-              SELECT 1
-              FROM plan_local_access pla
-              WHERE pla.plan_id = sc.plan_id
-                AND pla.local_id = l.local_id
-                AND pla.is_allowed = true
-                AND COALESCE(pla.is_active, true) = true
-            )
-          )
         ORDER BY l.name, t.name
       `,
         [contractId, subscriberId]

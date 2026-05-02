@@ -895,11 +895,11 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                               return 'Nenhum totem nos publishers selecionados. Selecione publishers na aba Publicadores.';
                             }
                             return compactContractId
-                              ? 'Nenhum totem elegível para este contrato/plano (publishers e locais permitidos).'
+                              ? 'Nenhum totem elegível: o plano do contrato precisa ter locais explicitamente permitidos (e publishers permitidos pelo mesmo plano).'
                               : 'Nenhum totem listado. Associe um contrato com plano na aba Principal ou verifique o acesso do anunciante.';
                           }
                           return compactMode
-                            ? 'Lista limitada ao contrato da campanha: publishers permitidos pelo plano e, quando configurado, apenas locais permitidos pelo plano.'
+                            ? 'Só aparecem totens dos locais explicitamente ligados ao plano do contrato (e cujo publisher o plano também permite).'
                             : 'Selecione os totens onde a campanha será exibida. Se nenhum for selecionado, a campanha vale para todos os totens dos publishers.';
                         })()}
                       />
