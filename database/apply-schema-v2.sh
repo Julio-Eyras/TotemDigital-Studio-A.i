@@ -133,6 +133,7 @@ main() {
         "smartchannel-db-v2-refactored-part1-schema-setup.sql|Parte 1: Setup do Schema"
         "smartchannel-db-v2-refactored-part2-tables-base.sql|Parte 2: Tabelas Base"
         "smartchannel-db-v2-refactored-part3-tables-dependent.sql|Parte 3: Tabelas Dependentes"
+        "smartchannel-db-v2-compat-campaign-status-cancelled.sql|Compat: chk_campaign_status com cancelled"
         "smartchannel-db-v2-refactored-part4-billing-contracts.sql|Parte 4: Billing e Contratos"
         "smartchannel-db-v2-refactored-part5-tables-relationships.sql|Parte 5: Relacionamentos N:N"
         "smartchannel-db-v2-refactored-part6-tables-other.sql|Parte 6: Outras Tabelas"

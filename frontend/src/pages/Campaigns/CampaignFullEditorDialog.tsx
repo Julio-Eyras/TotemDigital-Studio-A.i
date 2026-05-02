@@ -608,7 +608,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                   >
                     <MenuItem value="draft">Rascunho</MenuItem>
                     <MenuItem value="active">Ativa</MenuItem>
-                    <MenuItem value="completed">Concluída</MenuItem>
+                    <MenuItem value="finished">Concluída</MenuItem>
                     <MenuItem value="cancelled">Cancelada</MenuItem>
                   </Select>
                 </FormControl>

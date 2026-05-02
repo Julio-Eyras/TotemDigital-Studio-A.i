@@ -213,7 +213,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
                 >
                   <MenuItem value="draft">Rascunho</MenuItem>
                   <MenuItem value="active">Ativa</MenuItem>
-                  <MenuItem value="completed">Concluída</MenuItem>
+                  <MenuItem value="finished">Concluída</MenuItem>
                   {mode === 'edit' && <MenuItem value="cancelled">Cancelada</MenuItem>}
                 </Select>
               </FormControl>

@@ -18,6 +18,7 @@ describe('registerCompactRoutes', () => {
         '/api/subscriber-access',
         '/api/subscribers',
         '/api/locals',
+        '/api/smart-tvs',
         '/api/totems',
         '/api/dispatcher-totem',
         '/api/dispatcher-debug',
@@ -37,7 +38,6 @@ describe('registerCompactRoutes', () => {
     const excluded = [
       '/api/billing',
       '/api/users',
-      '/api/smart-tvs',
       '/api/qrcodes',
       '/api/notifications',
     ];

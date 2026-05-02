@@ -187,7 +187,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     -- - Se date_range não estiver definido, usar start_date/end_date das colunas legadas.
     schedule_config JSONB,
     
-    status TEXT DEFAULT 'draft', -- draft, pending_approval, approved, active, paused, finished, deleted
+    status TEXT DEFAULT 'draft', -- draft, pending_approval, approved, active, paused, finished, cancelled, deleted
     is_active BOOLEAN DEFAULT true,
     
     target_audience JSONB, -- Critérios de público-alvo
@@ -199,7 +199,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     CONSTRAINT chk_campaign_type 
         CHECK (campaign_type IN ('general', 'scheduled', 'interactive', 'recurring')),
     CONSTRAINT chk_campaign_status 
-        CHECK (status IN ('draft', 'pending_approval', 'approved', 'active', 'paused', 'finished', 'deleted')),
+        CHECK (status IN ('draft', 'pending_approval', 'approved', 'active', 'paused', 'finished', 'cancelled', 'deleted')),
     CONSTRAINT chk_campaign_dates 
         CHECK (start_date IS NULL OR end_date IS NULL OR start_date <= end_date),
     CONSTRAINT chk_campaign_priority 
@@ -215,7 +215,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
 COMMENT ON TABLE campaigns IS 'Campanhas publicitárias criadas por subscribers (anunciantes). Apenas campanhas vinculadas a contratos ativos podem ser executadas nos totens.';
 COMMENT ON COLUMN campaigns.subscriber_id IS 'Subscriber (anunciante) dono da campanha';
 COMMENT ON COLUMN campaigns.contract_id IS 'Contrato do subscriber vinculado à campanha. Opcional, mas necessário para execução nos totens.';
-COMMENT ON COLUMN campaigns.status IS 'Status: draft, pending_approval, approved, active, paused, finished';
+COMMENT ON COLUMN campaigns.status IS 'Status: draft, pending_approval, approved, active, paused, finished, cancelled, deleted';
 COMMENT ON COLUMN campaigns.category_segment IS 'Categoria/segmento da campanha (taxonomia livre ou controlada)';
 COMMENT ON COLUMN campaigns.schedule_config IS 'Configuração detalhada de agendamento (JSON). Ver comentários na definição da coluna para formato e regras de fallback.';
 

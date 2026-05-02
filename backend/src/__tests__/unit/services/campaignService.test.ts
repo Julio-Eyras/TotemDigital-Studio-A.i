@@ -9,9 +9,9 @@
 describe('CampaignService - validações e estruturas', () => {
   describe('Status de campanha', () => {
     it('deve aceitar status válidos', () => {
-      const validStatuses = ['draft', 'pending_approval', 'approved', 'active', 'paused', 'finished', 'deleted'];
+      const validStatuses = ['draft', 'pending_approval', 'approved', 'active', 'paused', 'finished', 'cancelled', 'deleted'];
       validStatuses.forEach(status => {
-        expect(status).toMatch(/^(draft|pending_approval|approved|active|paused|finished|deleted)$/);
+        expect(status).toMatch(/^(draft|pending_approval|approved|active|paused|finished|cancelled|deleted)$/);
       });
     });
   });

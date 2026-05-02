@@ -19,6 +19,7 @@ import plansRoutes from '../routes/plans';
 import contractRoutes from '../routes/contracts';
 import publisherRoutes from '../routes/publishers';
 import subscriberAccessRoutes from '../routes/subscriber-access';
+import smartTvRoutes from '../routes/smart-tvs';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 
@@ -35,6 +36,7 @@ export function registerCompactRoutes(app: Express): void {
   app.use('/api/subscriber-access', subscriberAccessRoutes);
   app.use('/api/subscribers', authMiddleware as any, blockClientDataAccess as any, subscriberRoutes);
   app.use('/api/locals', authMiddleware as any, localRoutes);
+  app.use('/api/smart-tvs', smartTvRoutes);
   app.use('/api/totems', totemRoutes);
   app.use('/api/dispatcher-totem', dispatcherTotemRoutes);
   app.use('/api/dispatcher-debug', dispatcherDebugRoutes);

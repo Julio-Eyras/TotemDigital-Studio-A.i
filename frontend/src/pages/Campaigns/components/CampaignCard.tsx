@@ -59,12 +59,18 @@ const formatDate = (dateString: string | null | undefined): string => {
 const getStatusColor = (status: string): 'success' | 'default' | 'warning' | 'error' => {
   switch (status?.toLowerCase()) {
     case 'active':
+    case 'approved':
       return 'success';
     case 'draft':
+    case 'pending_approval':
       return 'default';
-    case 'completed':
+    case 'paused':
+      return 'warning';
+    case 'finished':
+    case 'completed': // legado UI
       return 'warning';
     case 'cancelled':
+    case 'deleted':
       return 'error';
     default:
       return 'default';
@@ -77,9 +83,11 @@ const getStatusIcon = (status: string) => {
       return <PlayArrow />;
     case 'draft':
       return <CampaignIcon />;
-    case 'completed':
+    case 'finished':
+    case 'completed': // legado UI
       return <Stop />;
     case 'cancelled':
+    case 'deleted':
       return <Stop />;
     default:
       return <CampaignIcon />;

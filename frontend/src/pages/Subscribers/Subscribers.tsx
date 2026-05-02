@@ -1826,6 +1826,10 @@ const Subscribers: React.FC = () => {
     if (!selectedSubscriber) return;
     
     try {
+      const subEdit = selectedSubscriber as Subscriber & { isActive?: boolean };
+      const isActivePayload =
+        typeof subEdit.isActive === 'boolean' ? subEdit.isActive : subEdit.is_active;
+
       const updateData: UpdateSubscriberRequest = {
         name: selectedSubscriber.name,
         contact_name: selectedSubscriber.contact_name,
@@ -1834,7 +1838,7 @@ const Subscribers: React.FC = () => {
         whatsapp: selectedSubscriber.whatsapp,
         category_segment: selectedSubscriber.category_segment,
         description: selectedSubscriber.description,
-        isActive: selectedSubscriber.is_active,
+        isActive: isActivePayload,
       };
       await subscriberApi.update(selectedSubscriber.subscriber_id, updateData);
       setEditDialogOpen(false);

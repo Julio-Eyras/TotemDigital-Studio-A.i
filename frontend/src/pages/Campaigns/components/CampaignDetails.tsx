@@ -80,12 +80,18 @@ const formatDateTime = (date: string | Date): string => {
 const getStatusColor = (status: string): 'success' | 'warning' | 'error' | 'default' => {
   switch (status?.toLowerCase()) {
     case 'active':
+    case 'approved':
       return 'success';
-    case 'completed':
+    case 'finished':
+    case 'completed': // legado UI
       return 'default';
     case 'cancelled':
+    case 'deleted':
       return 'error';
     case 'draft':
+    case 'pending_approval':
+      return 'warning';
+    case 'paused':
       return 'warning';
     default:
       return 'default';
@@ -95,9 +101,14 @@ const getStatusColor = (status: string): 'success' | 'warning' | 'error' | 'defa
 const getStatusLabel = (status: string): string => {
   const statusMap: { [key: string]: string } = {
     active: 'Ativa',
-    completed: 'Concluída',
+    approved: 'Aprovada',
+    finished: 'Concluída',
+    completed: 'Concluída', // legado UI
     cancelled: 'Cancelada',
+    deleted: 'Removida',
     draft: 'Rascunho',
+    pending_approval: 'Pendente de aprovação',
+    paused: 'Pausada',
   };
   return statusMap[status?.toLowerCase()] || status || 'N/A';
 };

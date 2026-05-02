@@ -112,6 +112,14 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
     return defaultText || '';
   };
 
+  const formSubscriber = data as Subscriber & { isActive?: boolean };
+  const editStatusActive =
+    mode === 'edit' && subscriber
+      ? typeof formSubscriber.isActive === 'boolean'
+        ? formSubscriber.isActive
+        : Boolean(formSubscriber.is_active)
+      : true;
+
   return (
     <Box>
       <Typography variant="h6" sx={{ mb: 2 }}>
@@ -255,18 +263,20 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
               <Select
                 sx={{
                   '& .MuiSelect-select': {
-                    color: theme.palette.success.main,
+                    color: editStatusActive ? theme.palette.success.main : theme.palette.text.secondary,
                     fontWeight: 500,
                   },
                 }}
-                value={subscriber.is_active ? 'active' : 'inactive'}
+                value={editStatusActive ? 'active' : 'inactive'}
                 label="Status"
-                onChange={(e) =>
+                onChange={(e) => {
+                  const next = e.target.value === 'active';
                   onChange({
                     ...data,
-                    isActive: e.target.value === 'active',
-                  } as UpdateSubscriberRequest)
-                }
+                    isActive: next,
+                    is_active: next,
+                  } as UpdateSubscriberRequest & Pick<Subscriber, 'is_active'>);
+                }}
                 error={hasError('is_active')}
               >
                 <MenuItem value="active">Ativo</MenuItem>
