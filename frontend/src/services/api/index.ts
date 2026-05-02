@@ -3216,8 +3216,12 @@ export const subscriberApi = {
     return response.data.data || [];
   },
 
-  getTotems: async (subscriberId: number): Promise<any[]> => {
-    const response = await api.get(`/subscribers/${subscriberId}/totems`);
+  getTotems: async (subscriberId: number, opts?: { contractId?: number }): Promise<any[]> => {
+    const params =
+      opts?.contractId !== undefined && opts.contractId !== null
+        ? { contractId: opts.contractId }
+        : undefined;
+    const response = await api.get(`/subscribers/${subscriberId}/totems`, { params });
     return response.data.data || [];
   },
 

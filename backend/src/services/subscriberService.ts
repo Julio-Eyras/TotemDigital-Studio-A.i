@@ -691,6 +691,96 @@ export class SubscriberService {
   }
 
   /**
+   * Totens elegíveis no modo compacto para uma campanha vinculada a um contrato:
+   * `plan_publisher_access` (plano do contrato → publisher do local) e, se existir
+   * configuração em `plan_local_access` para esse plano, apenas locais explicitamente permitidos.
+   * Sem `plan_id` no contrato, faz fallback para {@link getTotemsBySubscriber}.
+   */
+  async getTotemsBySubscriberContract(subscriberId: number, contractId: number): Promise<any[]> {
+    try {
+      const contract = await this.db.findFirst(
+        `
+        SELECT contract_id, subscriber_id, plan_id
+        FROM subscriber_contracts
+        WHERE contract_id = $1 AND subscriber_id = $2
+      `,
+        [contractId, subscriberId]
+      );
+
+      if (!contract) {
+        return [];
+      }
+
+      if (!contract.plan_id) {
+        return this.getTotemsBySubscriber(subscriberId);
+      }
+
+      const totems = await this.db.findMany(
+        `
+        SELECT DISTINCT
+          t.totem_id,
+          t.identifier,
+          t.uin,
+          t.device_id,
+          t.name,
+          t.description,
+          t.model,
+          t.manufacturer,
+          t.firmware_version,
+          t.hardware_version,
+          t.os_version,
+          t.status,
+          t.last_heartbeat,
+          t.heartbeat_interval,
+          t.network_info,
+          t.capabilities,
+          t.is_active,
+          t.created_at,
+          t.updated_at,
+          l.name as local_name,
+          l.local_id,
+          p.name as publisher_name
+        FROM totems t
+        INNER JOIN locals l ON t.local_id = l.local_id
+        INNER JOIN subscriber_contracts sc ON sc.contract_id = $1
+          AND sc.subscriber_id = $2
+        INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+          AND ppa.publisher_id = l.publisher_id
+          AND ppa.is_allowed = true
+          AND COALESCE(ppa.is_active, true) = true
+        LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
+        WHERE sc.plan_id IS NOT NULL
+          AND t.is_active = true
+          AND l.is_active = true
+          AND (
+            NOT EXISTS (
+              SELECT 1
+              FROM plan_local_access pla0
+              WHERE pla0.plan_id = sc.plan_id
+                AND COALESCE(pla0.is_active, true) = true
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM plan_local_access pla
+              WHERE pla.plan_id = sc.plan_id
+                AND pla.local_id = l.local_id
+                AND pla.is_allowed = true
+                AND COALESCE(pla.is_active, true) = true
+            )
+          )
+        ORDER BY l.name, t.name
+      `,
+        [contractId, subscriberId]
+      );
+
+      return totems;
+    } catch (error: any) {
+      await logError('Erro ao buscar totems do subscriber por contrato', error, { subscriberId, contractId });
+      throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
    * Listar smart TVs acessíveis por um subscriber (via locais dos publishers acessíveis)
    */
   async getSmartTvsBySubscriber(subscriberId: number): Promise<any[]> {

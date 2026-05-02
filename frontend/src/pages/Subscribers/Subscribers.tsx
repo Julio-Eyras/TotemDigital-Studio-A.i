@@ -119,6 +119,17 @@ const Subscribers: React.FC = () => {
   /** Comercial consulta campanhas no anunciante; não edita nem abre o editor completo. */
   const isOperadorComercial = authUser?.role === 'operador_comercial';
 
+  /** Valor fechado do Select em verde (igual à cor dos chips de escolha noutras áreas). */
+  const sxSelectChosenGreen = (hasSelection: boolean) =>
+    hasSelection
+      ? ({
+          '& .MuiSelect-select': {
+            color: theme.palette.success.main,
+            fontWeight: 500,
+          },
+        } as const)
+      : undefined;
+
   // Datas padrão para contratos: início = hoje, vencimento = 31/12 do ano corrente
   const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
   const getDefaultContractEndDate = (): string => {
@@ -2018,6 +2029,7 @@ const Subscribers: React.FC = () => {
               <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
                 <Select
+                  sx={sxSelectChosenGreen(true)}
                   value={activeOnlyFilter ? 'active' : 'all'}
                   label="Status"
                   onChange={(e) => setActiveOnlyFilter(e.target.value === 'active')}
@@ -2188,6 +2200,7 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small">
                       <InputLabel>Plano</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(!!subscriberContractForm.plan_id)}
                         value={subscriberContractForm.plan_id || ''}
                         label="Plano"
                         onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, plan_id: e.target.value ? Number(e.target.value) : undefined })}
@@ -2213,6 +2226,7 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small" required>
                       <InputLabel>Tipo de Contrato *</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(true)}
                         value={subscriberContractForm.contract_type || 'advertising'}
                         label="Tipo de Contrato *"
                         onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, contract_type: e.target.value as any })}
@@ -2280,6 +2294,7 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small">
                       <InputLabel>Status</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(true)}
                         value={subscriberContractForm.status || 'draft'}
                         label="Status"
                         onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, status: e.target.value as any })}
@@ -2580,6 +2595,9 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small" required>
                       <InputLabel>Local *</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(
+                          tempLocals.length > 0 && totemForm.localId >= 0 && totemForm.localId < tempLocals.length
+                        )}
                         value={totemForm.localId}
                         label="Local *"
                         onChange={(e) => setTotemForm({ ...totemForm, localId: Number(e.target.value) })}
@@ -2740,6 +2758,9 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small" required>
                       <InputLabel>Totem *</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(
+                          tempTotems.length > 0 && smartTvForm.totem_id >= 0 && smartTvForm.totem_id < tempTotems.length
+                        )}
                         value={smartTvForm.totem_id}
                         label="Totem *"
                         onChange={(e) => setSmartTvForm({ ...smartTvForm, totem_id: Number(e.target.value) })}
@@ -2841,6 +2862,7 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small">
                       <InputLabel>Orientação</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(true)}
                         value={smartTvForm.orientation || 'landscape'}
                         label="Orientações"
                         onChange={(e) => setSmartTvForm({ ...smartTvForm, orientation: e.target.value as 'landscape' | 'portrait' })}
@@ -3051,6 +3073,7 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small">
                       <InputLabel>Plano</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(!!subscriberContractFormEdit.plan_id)}
                         value={subscriberContractFormEdit.plan_id || ''}
                         label="Plano"
                         onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, plan_id: e.target.value ? Number(e.target.value) : undefined })}
@@ -3076,6 +3099,7 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small" required>
                       <InputLabel>Tipo de Contrato *</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(true)}
                         value={subscriberContractFormEdit.contract_type || 'advertising'}
                         label="Tipo de Contrato *"
                         onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, contract_type: e.target.value as any })}
@@ -3143,6 +3167,7 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small">
                       <InputLabel>Status</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(true)}
                         value={subscriberContractFormEdit.status || 'draft'}
                         label="Status"
                         onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, status: e.target.value as any })}
@@ -3556,6 +3581,7 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small">
                       <InputLabel>Status</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(true)}
                         value={editPlaylistForm.isActive ? 'active' : 'inactive'}
                         label="Status"
                         onChange={(e) => setEditPlaylistForm({ ...editPlaylistForm, isActive: e.target.value === 'active' })}
@@ -3940,6 +3966,7 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small">
                       <InputLabel>Contrato</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(editCampaignForm.contractId != null)}
                         value={editCampaignForm.contractId != null ? String(editCampaignForm.contractId) : ''}
                         label="Contrato"
                         onChange={(e) => {
@@ -3975,6 +4002,7 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small">
                       <InputLabel>Tipo</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(true)}
                         value={editCampaignForm.campaign_type || 'general'}
                         label="Tipo"
                         onChange={(e) => setEditCampaignForm({ ...editCampaignForm, campaign_type: e.target.value as any })}
@@ -4001,6 +4029,7 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small">
                       <InputLabel>Status</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(true)}
                         value={editCampaignForm.status || 'draft'}
                         label="Status"
                         onChange={(e) => setEditCampaignForm({ ...editCampaignForm, status: e.target.value as any })}
@@ -4018,6 +4047,7 @@ const Subscribers: React.FC = () => {
                     <FormControl fullWidth size="small">
                       <InputLabel>Status Ativo</InputLabel>
                       <Select
+                        sx={sxSelectChosenGreen(true)}
                         value={editCampaignForm.isActive ? 'active' : 'inactive'}
                         label="Status Ativo"
                         onChange={(e) => setEditCampaignForm({ ...editCampaignForm, isActive: e.target.value === 'active' })}
@@ -4067,7 +4097,7 @@ const Subscribers: React.FC = () => {
                                   {(selected as number[]).map((id) => {
                                     const media = editMedias.find(m => m.media_id === id);
                                     return media ? (
-                                      <Chip key={id} label={media.name} size="small" />
+                                      <Chip key={id} label={media.name} size="small" color="success" variant="outlined" />
                                     ) : null;
                                   })}
                                 </Box>
@@ -4126,7 +4156,7 @@ const Subscribers: React.FC = () => {
                                   {(selected as number[]).map((id) => {
                                     const playlist = editPlaylists.find(p => p.playlist_id === id);
                                     return playlist ? (
-                                      <Chip key={id} label={playlist.name} size="small" />
+                                      <Chip key={id} label={playlist.name} size="small" color="success" variant="outlined" />
                                     ) : null;
                                   })}
                                 </Box>

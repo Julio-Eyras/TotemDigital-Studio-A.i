@@ -474,7 +474,7 @@ sanitize_owner_profile_defaults() {
     SYSTEM_OWNER_CONTACT_NAME="$(echo "${SYSTEM_OWNER_CONTACT_NAME:-Sr. Contato Agente}" | xargs)"
     SYSTEM_OWNER_EMAIL="$(echo "${SYSTEM_OWNER_EMAIL:-contato@${owner_compact}.local}" | xargs)"
     SYSTEM_OWNER_CITY="$(echo "${SYSTEM_OWNER_CITY:-Encruzilhada}" | xargs)"
-    SYSTEM_OWNER_ADMIN_USERNAME="$(echo "${SYSTEM_OWNER_ADMIN_USERNAME:-${owner_compact}.admin}" | xargs)"
+    SYSTEM_OWNER_ADMIN_USERNAME="$(echo "${SYSTEM_OWNER_ADMIN_USERNAME:-Owner}" | xargs)"
     SYSTEM_OWNER_PUBLISHER_USERNAME="$(echo "${SYSTEM_OWNER_PUBLISHER_USERNAME:-${owner_compact}.publisher}" | xargs)"
     SYSTEM_OWNER_PLAN_NAME="$(echo "${SYSTEM_OWNER_PLAN_NAME:-Plano $owner_name}" | xargs)"
     SYSTEM_OWNER_PLAN_SLUG="$(echo "${SYSTEM_OWNER_PLAN_SLUG:-$(to_kebab_case "${SYSTEM_OWNER_PLAN_NAME:-Plano $owner_name}")}" | xargs)"
@@ -493,7 +493,7 @@ ask_owner_profile() {
     echo -e "${YELLOW}Esses dados serão usados para gerar seed dinâmico (publisher/plano/admin) no modo compacto.${NC}"
 
     local input=""
-    read -p "Usuário admin publisher [${SYSTEM_OWNER_ADMIN_USERNAME}]: " input
+    read -p "Usuário Dono, Admin, publisher [${SYSTEM_OWNER_ADMIN_USERNAME}]: " input
     [[ -n "${input// }" ]] && SYSTEM_OWNER_ADMIN_USERNAME="$input"
 
     read -p "Nome do proprietário/empresa [${SYSTEM_OWNER_NAME}]: " input
@@ -1228,7 +1228,7 @@ SYSTEM_OWNER_NAME=Totem Digital
 SYSTEM_OWNER_CONTACT_NAME=Contato Totem Digital
 SYSTEM_OWNER_EMAIL=contato@totemdigital.local
 SYSTEM_OWNER_CITY=Encruzilhada
-SYSTEM_OWNER_ADMIN_USERNAME=totemdigital.admin
+SYSTEM_OWNER_ADMIN_USERNAME=Owner
 SYSTEM_OWNER_PLAN_NAME=Plano Totem Digital
 SYSTEM_OWNER_PLAN_SLUG=plano-totem-digital
 EOF

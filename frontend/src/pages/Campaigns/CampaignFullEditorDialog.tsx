@@ -40,7 +40,7 @@ import {
   Publisher,
   subscriberAccessApi,
   AccessiblePublisher,
-  totemApi,
+  subscriberApi,
 } from '../../services/api';
 import { useAppSelector } from '../../store/hooks';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
@@ -153,8 +153,23 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   const loadCompactTotemOptions = async () => {
     try {
       setDerivedDevicesLoading(true);
-      const res = await totemApi.getAll({ limit: 500 });
-      setDerivedTotems(res.data || []);
+      const subId = selectedCampaign?.subscriber_id ?? (selectedCampaign as any)?.subscriberId;
+      const contractRaw =
+        (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
+      const contractId =
+        contractRaw !== undefined && contractRaw !== null && String(contractRaw).trim() !== ''
+          ? Number(contractRaw)
+          : undefined;
+      if (!subId) {
+        setDerivedTotems([]);
+        setDerivedSmartTvs([]);
+        return;
+      }
+      const totems = await subscriberApi.getTotems(
+        Number(subId),
+        contractId !== undefined && !Number.isNaN(contractId) ? { contractId } : undefined
+      );
+      setDerivedTotems(Array.isArray(totems) ? totems : []);
       setDerivedSmartTvs([]);
     } catch (e) {
       console.error('Erro ao carregar totens (modo compacto):', e);
@@ -277,7 +292,15 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     }
     if (editTab === 2 || editTab === 3) loadDerivedDevices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editTab, open, compactMode, selectedCampaign]);
+  }, [
+    editTab,
+    open,
+    compactMode,
+    selectedCampaign?.campaign_id,
+    selectedCampaign?.subscriber_id,
+    (selectedCampaign as any)?.contract_id,
+    (selectedCampaign as any)?.contractId,
+  ]);
 
   const handleReorderMedias = async (newOrder: number[]) => {
     if (!selectedCampaign) return;
@@ -789,32 +812,82 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                 ) : (
                   <Autocomplete
                     multiple
+                    disableCloseOnSelect
                     options={compactMode ? derivedTotems : derivedTotems}
                     getOptionLabel={(option) => campaignTotemOptionLabel(option)}
                     isOptionEqualToValue={(option, value) => option.totem_id === value.totem_id}
                     value={derivedTotems.filter((t) => getSelectedTotemIds().includes(t.totem_id))}
-                    onChange={(_, newValue) => {
+                    onChange={(_, newValue, reason, details) => {
                       if (!selectedCampaign) return;
-                      const nextIds = newValue.length === 0 ? [] : newValue.map((t: any) => t.totem_id);
+                      let nextIds: number[];
+                      if (reason === 'selectOption' && details?.option) {
+                        const clickedId = (details.option as { totem_id: number }).totem_id;
+                        const cur = getSelectedTotemIds();
+                        nextIds = cur.includes(clickedId)
+                          ? cur.filter((id) => id !== clickedId)
+                          : [...cur, clickedId];
+                      } else {
+                        nextIds = (newValue as { totem_id: number }[]).map((t) => t.totem_id);
+                      }
                       setSelectedCampaign({
                         ...selectedCampaign,
                         totemIds: nextIds,
                       } as any);
+                    }}
+                    renderTags={(tagValue, getTagProps) =>
+                      tagValue.map((option, index) => (
+                        <Chip
+                          {...getTagProps({ index })}
+                          label={campaignTotemOptionLabel(option)}
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                        />
+                      ))
+                    }
+                    renderOption={(props, option, { selected }) => {
+                      const { key, ...liProps } = props as React.HTMLAttributes<HTMLLIElement> & { key?: string };
+                      return (
+                        <Box
+                          component="li"
+                          key={key ?? option.totem_id}
+                          {...liProps}
+                          sx={{
+                            ...(selected && {
+                              bgcolor: alpha(theme.palette.success.main, 0.14),
+                              color: 'success.dark',
+                              fontWeight: 600,
+                              '&.Mui-focused, &.Mui-focusVisible': {
+                                bgcolor: alpha(theme.palette.success.main, 0.22),
+                              },
+                            }),
+                          }}
+                        >
+                          {campaignTotemOptionLabel(option)}
+                        </Box>
+                      );
                     }}
                     renderInput={(params) => (
                       <TextField
                         {...params}
                         label="Totens"
                         margin="normal"
-                        helperText={
-                          derivedTotems.length === 0
-                            ? compactMode
-                              ? 'Nenhum totem encontrado. Verifique a lista de totens no sistema.'
-                              : 'Nenhum totem nos publishers selecionados. Selecione publishers na aba Publicadores.'
-                            : compactMode
-                              ? 'Selecione os totens onde a campanha será exibida.'
-                              : 'Selecione os totens onde a campanha será exibida. Se nenhum for selecionado, a campanha vale para todos os totens dos publishers.'
-                        }
+                        helperText={(() => {
+                          const compactContractId =
+                            (selectedCampaign as any)?.contract_id ??
+                            (selectedCampaign as any)?.contractId;
+                          if (derivedTotems.length === 0) {
+                            if (!compactMode) {
+                              return 'Nenhum totem nos publishers selecionados. Selecione publishers na aba Publicadores.';
+                            }
+                            return compactContractId
+                              ? 'Nenhum totem elegível para este contrato/plano (publishers e locais permitidos).'
+                              : 'Nenhum totem listado. Associe um contrato com plano na aba Principal ou verifique o acesso do anunciante.';
+                          }
+                          return compactMode
+                            ? 'Lista limitada ao contrato da campanha: publishers permitidos pelo plano e, quando configurado, apenas locais permitidos pelo plano.'
+                            : 'Selecione os totens onde a campanha será exibida. Se nenhum for selecionado, a campanha vale para todos os totens dos publishers.';
+                        })()}
                       />
                     )}
                     disabled={derivedTotems.length === 0}

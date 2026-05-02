@@ -14,6 +14,7 @@ import {
   Alert,
   Typography,
   Grid,
+  useTheme,
 } from '@mui/material';
 import {
   CreateSubscriberRequest,
@@ -52,6 +53,7 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
   errors = {},
   activeParentTab,
 }) => {
+  const theme = useTheme();
   const [availableContracts, setAvailableContracts] = useState<Contract[]>([]);
   const [loadingContracts, setLoadingContracts] = useState(false);
 
@@ -251,6 +253,12 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
             <FormControl fullWidth margin="normal">
               <InputLabel>Status</InputLabel>
               <Select
+                sx={{
+                  '& .MuiSelect-select': {
+                    color: theme.palette.success.main,
+                    fontWeight: 500,
+                  },
+                }}
                 value={subscriber.is_active ? 'active' : 'inactive'}
                 label="Status"
                 onChange={(e) =>

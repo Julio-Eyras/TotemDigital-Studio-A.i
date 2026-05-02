@@ -261,11 +261,21 @@ router.get('/:id/locals',
  */
 router.get('/:id/totems',
   param('id').isInt({ min: 1 }),
+  query('contractId').optional().isInt({ min: 1 }).withMessage('contractId inválido'),
   validateRequest,
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const totems = await getSubscriberService().getTotemsBySubscriber(parseInt(id));
+      const contractIdRaw = req.query?.contractId;
+      const contractId =
+        contractIdRaw !== undefined && contractIdRaw !== null && String(contractIdRaw).trim() !== ''
+          ? parseInt(String(contractIdRaw), 10)
+          : undefined;
+      const subscriberId = parseInt(id, 10);
+      const totems =
+        contractId !== undefined && !Number.isNaN(contractId)
+          ? await getSubscriberService().getTotemsBySubscriberContract(subscriberId, contractId)
+          : await getSubscriberService().getTotemsBySubscriber(subscriberId);
       return res.json({ success: true, data: totems });
     } catch (error: any) {
       await logError('Erro ao listar totems do subscriber', error);
