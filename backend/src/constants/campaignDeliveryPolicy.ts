@@ -1,6 +1,9 @@
 /**
  * Política de entrega de campanhas ao totem (indoor / DOOH).
  * Centraliza fragmentos SQL e textos para alinhar dispatcher, mix e UI.
+ *
+ * Elegibilidade “campanha + totem” em runtime: ver também `campaignEligibilityService` e o CTE em
+ * `dispatcherTotemService.getCandidateSchedules` (manter regras equivalentes ao evoluir contrato/plano).
  */
 
 /** Condição SQL: cadastro do totem ativo no painel (`totems.is_active`). */

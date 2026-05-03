@@ -288,12 +288,26 @@ router.get('/:id',
       });
     }
 
-    // Verificar permissão
-    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
-      return res.status(403).json({
+    const sid = Number((campaign as any).subscriberId ?? (campaign as any).subscriber_id);
+    if (!Number.isFinite(sid) || sid < 1) {
+      return res.status(500).json({
         success: false,
-        message: 'Acesso negado: Você só pode ver suas próprias campanhas'
+        message: 'Campanha sem assinante associado',
       });
+    }
+
+    if (!isAdminRole(req.user?.role)) {
+      try {
+        await assertTenantClientParamAccess(req, sid);
+      } catch (e: any) {
+        if (e?.statusCode === 403) {
+          return res.status(403).json({
+            success: false,
+            message: e.message || 'Acesso negado',
+          });
+        }
+        throw e;
+      }
     }
 
     return res.json({
