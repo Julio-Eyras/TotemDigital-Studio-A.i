@@ -11,7 +11,7 @@
  */
 
 import { getDatabase } from '../config/database';
-import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../config/featureFlags';
+import { DISABLE_DIRECT_CAMPAIGN_TOTEM, TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { normalizeDownloadUrl } from '../utils/pathHelper';
 import { getCacheService } from './cacheService';
@@ -1510,7 +1510,10 @@ export class DispatcherTotemService {
 
   /**
    * FASE 1.3: Validar regras comerciais
-   * Valida acesso subscriber → publisher, contrato ativo e limites de impressão
+   * - **Pro (padrão):** acesso explícito `subscriber_publisher_access` entre subscriber e publisher do local do totem.
+   * - **Compact:** com `contract_id` na campanha, o vínculo comercial segue o contrato escolhido + `plan_publisher_access`
+   *   e `plan_local_access` (mesma regra que `getTotemsBySubscriberContract`), sem exigir linha em `subscriber_publisher_access`.
+   *   Sem contrato na campanha, mantém-se a verificação via `subscriber_publisher_access` como fallback.
    */
   private async validateCommercialRules(
     candidate: CandidateSchedule,
@@ -1520,9 +1523,48 @@ export class DispatcherTotemService {
     const errors: string[] = [];
     
     try {
-      // 1. Verificar se subscriber tem acesso ao publisher do totem
+      // 1. Acesso comercial subscriber ↔ totem (publisher/local)
       if (candidate.subscriberId) {
-        const access = await this.db.findFirst(`
+        const usePlanInsteadOfSpa =
+          TOTEMDIGITAL_COMPACT &&
+          candidate.contractId != null &&
+          !Number.isNaN(Number(candidate.contractId));
+
+        if (usePlanInsteadOfSpa) {
+          const planAccess = await this.db.findFirst(
+            `
+            SELECT 1 AS ok
+            FROM totems t
+            INNER JOIN locals l ON l.local_id = t.local_id AND COALESCE(l.is_active, true) = true
+            INNER JOIN subscriber_contracts sc ON sc.contract_id = $2
+              AND sc.subscriber_id = $3
+              AND LOWER(COALESCE(sc.status, '')) IN ('active', 'approved')
+              AND COALESCE(sc.is_active, true) = true
+              AND sc.plan_id IS NOT NULL
+              AND (sc.start_date IS NULL OR sc.start_date::date <= ($4::timestamptz)::date)
+              AND (sc.end_date IS NULL OR sc.end_date::date >= ($4::timestamptz)::date)
+            INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+              AND ppa.publisher_id = l.publisher_id
+              AND ppa.is_allowed = true
+              AND COALESCE(ppa.is_active, true) = true
+            INNER JOIN plan_local_access pla ON pla.plan_id = sc.plan_id
+              AND pla.local_id = l.local_id
+              AND pla.is_allowed = true
+              AND COALESCE(pla.is_active, true) = true
+            WHERE t.totem_id = $1
+              AND COALESCE(t.is_active, true) = true
+            LIMIT 1
+          `,
+            [totemId, candidate.contractId, candidate.subscriberId, timestamp]
+          );
+
+          if (!planAccess) {
+            errors.push(
+              'Modo compacto: o plano do contrato desta campanha não autoriza este totem (publisher/local). Verifique plan_publisher_access e plan_local_access.'
+            );
+          }
+        } else {
+          const access = await this.db.findFirst(`
           SELECT 
             spa.access_id,
             spa.expires_at,
@@ -1542,6 +1584,7 @@ export class DispatcherTotemService {
         
         if (!access) {
           errors.push('Subscriber não tem acesso a este publisher');
+        }
         }
       }
       
