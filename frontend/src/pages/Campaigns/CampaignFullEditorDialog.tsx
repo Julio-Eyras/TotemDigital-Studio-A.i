@@ -464,7 +464,14 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         const n = Number(contractRaw);
         if (!Number.isNaN(n)) (updateData as any).contractId = n;
       }
-      await campaignApi.update(selectedCampaign.campaign_id, updateData);
+      const cid =
+        selectedCampaign.campaign_id ??
+        (selectedCampaign as any).id ??
+        (selectedCampaign as any).campaignId;
+      if (!cid || Number.isNaN(Number(cid))) {
+        throw new Error('ID da campanha inválido ao salvar.');
+      }
+      await campaignApi.update(Number(cid), updateData);
       onSaved?.();
       onClose();
     } catch (error: any) {
