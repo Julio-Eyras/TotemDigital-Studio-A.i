@@ -1161,3 +1161,11 @@ export class SmartPlaylistService {
   }
 }
 
+let smartPlaylistServiceInstance: SmartPlaylistService | null = null;
+
+export function getSmartPlaylistService(): SmartPlaylistService {
+  if (!smartPlaylistServiceInstance) {
+    smartPlaylistServiceInstance = new SmartPlaylistService();
+  }
+  return smartPlaylistServiceInstance;
+}

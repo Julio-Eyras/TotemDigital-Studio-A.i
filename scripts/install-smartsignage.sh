@@ -5685,7 +5685,7 @@ AI_MODEL=llama3.2:3b
 OLLAMA_BASE_URL=http://localhost:11434
 
 # Upload - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
-UPLOAD_MAX_SIZE=100MB
+UPLOAD_MAX_SIZE=2GB
 UPLOAD_PATH=/opt/smart-signage/public/assets/uploads
 MEDIA_QUOTA_PER_CLIENT=5GB
 
@@ -5768,7 +5768,7 @@ AI_MODEL=llama3.2:3b
 OLLAMA_BASE_URL=http://localhost:11434
 
 # Upload - SEMPRE usar /opt/smart-signage independente do INSTALL_DIR
-UPLOAD_MAX_SIZE=100MB
+UPLOAD_MAX_SIZE=2GB
 UPLOAD_PATH=/opt/smart-signage/public/assets/uploads
 MEDIA_QUOTA_PER_CLIENT=5GB
 

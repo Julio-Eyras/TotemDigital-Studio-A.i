@@ -7,6 +7,9 @@
  * Valida tamanho de arquivo
  */
 export function validateFileSize(file: File, maxSizeBytes: number): { valid: boolean; error?: string } {
+  if (maxSizeBytes <= 0) {
+    return { valid: true };
+  }
   if (file.size > maxSizeBytes) {
     const maxSizeMB = (maxSizeBytes / (1024 * 1024)).toFixed(2);
     const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
@@ -35,6 +38,9 @@ export function validateFileType(file: File, allowedTypes: string[]): { valid: b
  * Valida tamanho de payload JSON
  */
 export function validatePayloadSize(data: any, maxSizeBytes: number): { valid: boolean; error?: string } {
+  if (maxSizeBytes <= 0) {
+    return { valid: true };
+  }
   const jsonString = JSON.stringify(data);
   const sizeBytes = new Blob([jsonString]).size;
 
@@ -147,9 +153,13 @@ export function validateStringLength(value: string, min?: number, max?: number):
 /**
  * Constantes de validação
  */
+const TWO_GB = 2 * 1024 * 1024 * 1024;
+
 export const VALIDATION_CONSTANTS = {
-  MAX_UPLOAD_SIZE: 100 * 1024 * 1024, // 100MB
-  MAX_PAYLOAD_SIZE: 10 * 1024 * 1024, // 10MB
+  /** Alinhado ao teto padrão de mídia no backend (media.upload.max_size / UPLOAD_MAX_SIZE). */
+  MAX_UPLOAD_SIZE: TWO_GB,
+  /** 0 = não validar tamanho de payload JSON no cliente (o servidor usa MAX_PAYLOAD_SIZE; 0 = sem limite por Content-Length). */
+  MAX_PAYLOAD_SIZE: 0,
   ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
   ALLOWED_VIDEO_TYPES: ['video/mp4', 'video/webm', 'video/ogg'],
   ALLOWED_AUDIO_TYPES: ['audio/mp3', 'audio/wav', 'audio/ogg'],

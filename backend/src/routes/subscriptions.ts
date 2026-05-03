@@ -10,6 +10,7 @@ import { SubscriptionService } from '../services/subscriptionService';
 import { StripeService } from '../services/stripeService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { logError } from '../utils/loggerHelper';
+import { isAdminRole } from '../utils/tenantScope';
 
 const router = Router();
 
@@ -185,8 +186,7 @@ router.get('/:id', async (req: any, res) => {
       // DEPRECADO: Compatibilidade
       hasAccess = clientId === subscription.subscriberId || clientId === subscription.publisherId;
     } else {
-      // Admins têm acesso
-      hasAccess = ['admin', 'admin_sql', 'owner_system'].includes(req.user.role);
+      hasAccess = isAdminRole(req.user?.role);
     }
 
     if (!hasAccess) {

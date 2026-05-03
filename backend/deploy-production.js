@@ -42,7 +42,9 @@ JWT_REFRESH_EXPIRES_IN=7d
 
 # Upload
 UPLOAD_PATH=/var/smartsignage/uploads
-MAX_FILE_SIZE=50MB
+MAX_FILE_SIZE=2GB
+UPLOAD_MAX_SIZE=2GB
+MAX_PAYLOAD_SIZE=0
 ALLOWED_FILE_TYPES=image/jpeg,image/png,video/mp4
 
 # Logs

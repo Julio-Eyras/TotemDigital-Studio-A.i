@@ -540,6 +540,7 @@ export class StorageService {
    * Valida tamanho do arquivo
    */
   validateFileSize(size: number, maxSize: number): boolean {
+    if (maxSize <= 0) return true;
     return size <= maxSize;
   }
 

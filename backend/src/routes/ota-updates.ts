@@ -34,7 +34,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 500 * 1024 * 1024 // 500MB máximo
+    fileSize: 2 * 1024 * 1024 * 1024 // 2GB máximo (alinhar a media.upload)
   },
   fileFilter: (_req, file, cb) => {
     // Aceitar apenas arquivos de atualização (zip, tar.gz, etc)

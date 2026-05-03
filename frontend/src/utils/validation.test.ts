@@ -126,6 +126,17 @@ describe('validation', () => {
       expect(r.valid).toBe(false);
       expect(r.error).toBeDefined();
     });
+    it('com limite 0 não restringe tamanho', () => {
+      const big = 'x'.repeat(50000);
+      expect(validatePayloadSize({ data: big }, 0).valid).toBe(true);
+    });
+  });
+
+  describe('validateFileSize', () => {
+    it('com limite 0 aceita qualquer tamanho', () => {
+      const f = new File([new Uint8Array(1_000_000)], 'x.bin');
+      expect(validateFileSize(f, 0).valid).toBe(true);
+    });
   });
 
   describe('VALIDATION_CONSTANTS', () => {

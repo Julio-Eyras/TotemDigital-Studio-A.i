@@ -4,23 +4,16 @@
  */
 
 import { Router } from 'express';
-import { SmartPlaylistService } from '../services/smartPlaylistService';
+import { getSmartPlaylistService } from '../services/smartPlaylistService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
 import { assertCampaignReadAccess } from '../utils/campaignReadAccess';
 import { assertTotemReadAccess } from '../utils/totemReadAccess';
+import { isAdminRole } from '../utils/tenantScope';
 
 const router = Router();
-
-// Lazy initialization - só criar quando necessário
-function getSmartPlaylistService(): SmartPlaylistService {
-  if (!(global as any).smartPlaylistServiceInstance) {
-    (global as any).smartPlaylistServiceInstance = new SmartPlaylistService();
-  }
-  return (global as any).smartPlaylistServiceInstance;
-}
 
 // Middleware de autenticação para todas as rotas
 router.use(authenticateToken);
@@ -110,7 +103,7 @@ router.get('/:id', async (req: any, res) => {
   try {
     const { id } = req.params;
 
-    const playlist = await getSmartPlaylistService().getSmartPlaylistById(parseInt(id));
+    const playlist = await getSmartPlaylistService().getSmartPlaylistById(parseInt(id, 10));
 
     if (!playlist) {
       return res.status(404).json({
@@ -119,12 +112,26 @@ router.get('/:id', async (req: any, res) => {
       });
     }
 
-    // Verificar permissão
-    if (req.user.role === 'client' && req.user.subscriberId !== playlist.subscriberId) {
-      return res.status(403).json({
+    const sid = playlist.subscriberId != null ? Number(playlist.subscriberId) : NaN;
+    if (!Number.isFinite(sid) || sid < 1) {
+      return res.status(400).json({
         success: false,
-        message: 'Acesso negado: Você só pode ver suas próprias smart playlists'
+        message: 'Smart playlist sem assinante associado'
       });
+    }
+
+    if (!isAdminRole(req.user?.role)) {
+      try {
+        await assertTenantClientParamAccess(req, sid);
+      } catch (e: any) {
+        if (e?.statusCode === 403) {
+          return res.status(403).json({
+            success: false,
+            message: e.message || 'Acesso negado'
+          });
+        }
+        throw e;
+      }
     }
 
     return res.json({

@@ -58,6 +58,27 @@ const validateRequest = (req: any, res: any, next: any) => {
   next();
 };
 
+/** Escopo de leitura pela subscriber_id da playlist; responde 404/403 e retorna false se não puder continuar. */
+async function assertPlaylistReadScope(req: any, res: any, playlistId: number): Promise<boolean> {
+  const sid = await getPlaylistService().getSubscriberIdForPlaylist(playlistId);
+  if (sid == null) {
+    res.status(404).json({ error: 'Playlist não encontrada' });
+    return false;
+  }
+  if (!isAdminRole(req.user?.role)) {
+    try {
+      await assertTenantClientParamAccess(req, sid);
+    } catch (e: any) {
+      if (e?.statusCode === 403) {
+        res.status(403).json({ error: e.message || 'Acesso negado' });
+        return false;
+      }
+      throw e;
+    }
+  }
+  return true;
+}
+
 /**
  * @route GET /api/playlists
  * @desc Listar todas as playlists
@@ -114,20 +135,8 @@ router.get('/:id',
       const { id } = req.params;
       const pid = parseInt(id, 10);
 
-      const sid = await getPlaylistService().getSubscriberIdForPlaylist(pid);
-      if (sid == null) {
-        return res.status(404).json({ error: 'Playlist não encontrada' });
-      }
-
-      if (!isAdminRole(req.user?.role)) {
-        try {
-          await assertTenantClientParamAccess(req, sid);
-        } catch (e: any) {
-          if (e?.statusCode === 403) {
-            return res.status(403).json({ error: e.message || 'Acesso negado' });
-          }
-          throw e;
-        }
+      if (!(await assertPlaylistReadScope(req, res, pid))) {
+        return;
       }
 
       const playlist = await getPlaylistService().getPlaylistById(pid, undefined, true);
@@ -159,20 +168,8 @@ router.get('/:id/preview',
       const { id } = req.params;
       const pid = parseInt(id, 10);
 
-      const sid = await getPlaylistService().getSubscriberIdForPlaylist(pid);
-      if (sid == null) {
-        return res.status(404).json({ error: 'Playlist não encontrada' });
-      }
-
-      if (!isAdminRole(req.user?.role)) {
-        try {
-          await assertTenantClientParamAccess(req, sid);
-        } catch (e: any) {
-          if (e?.statusCode === 403) {
-            return res.status(403).json({ error: e.message || 'Acesso negado' });
-          }
-          throw e;
-        }
+      if (!(await assertPlaylistReadScope(req, res, pid))) {
+        return;
       }
 
       const playlist = await getPlaylistService().getPlaylistById(pid, undefined, true);
@@ -182,7 +179,7 @@ router.get('/:id/preview',
       }
 
       // Obter mídia da playlist
-      const items = await getPlaylistService().getPlaylistMedia(parseInt(id));
+      const items = await getPlaylistService().getPlaylistMedia(pid);
       
       // Formatar resposta com URLs de download
       const preview = {
@@ -225,10 +222,13 @@ router.get('/:id/campaigns',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
-      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
+      const pid = parseInt(id, 10);
 
-      const campaigns = await getPlaylistService().getCampaignsByPlaylist(parseInt(id, 10), userSubscriberId, isAdmin);
+      if (!(await assertPlaylistReadScope(req, res, pid))) {
+        return;
+      }
+
+      const campaigns = await getPlaylistService().getCampaignsByPlaylist(pid, undefined, true);
       return res.json({ data: campaigns });
     } catch (error: any) {
       await logError('Erro ao listar campanhas da playlist', error);
@@ -250,10 +250,13 @@ router.get('/:id/exposure',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
-      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
+      const pid = parseInt(id, 10);
 
-      const exposure = await getPlaylistService().getExposureByPlaylist(parseInt(id, 10), userSubscriberId, isAdmin);
+      if (!(await assertPlaylistReadScope(req, res, pid))) {
+        return;
+      }
+
+      const exposure = await getPlaylistService().getExposureByPlaylist(pid, undefined, true);
       return res.json(exposure);
     } catch (error: any) {
       await logError('Erro ao obter exposição da playlist', error);
@@ -387,8 +390,13 @@ router.get('/:id/media',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
-      const playlistMedia = await getPlaylistService().getPlaylistMedia(parseInt(id));
+      const pid = parseInt(id, 10);
+
+      if (!(await assertPlaylistReadScope(req, res, pid))) {
+        return;
+      }
+
+      const playlistMedia = await getPlaylistService().getPlaylistMedia(pid);
 
       res.json(playlistMedia);
     } catch (error) {

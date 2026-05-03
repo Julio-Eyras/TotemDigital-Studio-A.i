@@ -14,6 +14,11 @@ export type TenantClientParamAccessOptions = {
    * Quando false (ex.: campanhas por `subscriber_id`), o id deve ser de assinante com vínculo ao plano.
    */
   allowPublisherViewOwnPublisherId?: boolean;
+  /**
+   * Quando true, `requestedId` é sempre um `publisher_id` (ex.: contrato de publisher).
+   * Apenas o publisher dono (token) ou admin passa; não interpreta o id como `subscriber_id` na query de plano.
+   */
+  requestedIdIsPublisherScope?: boolean;
 };
 
 function isSubscriberLikeRole(req: any): boolean {
@@ -79,6 +84,16 @@ export async function assertTenantClientParamAccess(
 
   if (isSubscriberLikeRole(req)) {
     if (!tokenSubscriberId || Number(tokenSubscriberId) !== Number(requestedId)) {
+      const err: any = new Error('Acesso negado');
+      err.statusCode = 403;
+      throw err;
+    }
+    return;
+  }
+
+  if (options?.requestedIdIsPublisherScope === true) {
+    const pubId = await resolvePublisherIdForAccess(req);
+    if (pubId == null || Number(requestedId) !== Number(pubId)) {
       const err: any = new Error('Acesso negado');
       err.statusCode = 403;
       throw err;

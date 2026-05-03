@@ -100,9 +100,9 @@ function validateAllConfig(): ValidationResult {
     warnings.push('⚠️  AUTH_RATE_LIMIT_MAX_REQUESTS muito alto (> 10) pode permitir brute force');
   }
 
-  // 10. Validar tamanho de upload
-  if (config.upload.maxSize > 500 * 1024 * 1024) { // 500MB
-    warnings.push('⚠️  UPLOAD_MAX_SIZE muito alto (> 500MB) pode causar problemas de memória');
+  // 10. Validar tamanho de upload (avisar apenas acima de 10GB)
+  if (config.upload.maxSize > 10 * 1024 * 1024 * 1024) {
+    warnings.push('⚠️  UPLOAD_MAX_SIZE muito alto (> 10GB) pode causar problemas de memória e timeouts');
   }
 
   return {

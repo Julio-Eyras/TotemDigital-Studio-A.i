@@ -1053,3 +1053,11 @@ export class QRCodeService {
   }
 }
 
+let qrCodeServiceInstance: QRCodeService | null = null;
+
+export function getQRCodeService(): QRCodeService {
+  if (!qrCodeServiceInstance) {
+    qrCodeServiceInstance = new QRCodeService();
+  }
+  return qrCodeServiceInstance;
+}

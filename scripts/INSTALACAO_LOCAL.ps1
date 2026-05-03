@@ -121,12 +121,12 @@ UPLOAD_RATE_LIMIT_WINDOW_MS=3600000
 UPLOAD_RATE_LIMIT_MAX_REQUESTS=20
 SENSITIVE_RATE_LIMIT_WINDOW_MS=600000
 SENSITIVE_RATE_LIMIT_MAX_REQUESTS=10
-MAX_PAYLOAD_SIZE=10MB
+MAX_PAYLOAD_SIZE=0
 
 # =============================================
 # UPLOAD DE ARQUIVOS
 # =============================================
-UPLOAD_MAX_SIZE=100MB
+UPLOAD_MAX_SIZE=2GB
 UPLOAD_PATH=./public/assets/uploads
 MEDIA_QUOTA_PER_CLIENT=5GB
 ALLOWED_FILE_TYPES=image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,audio/mp3,audio/wav,audio/ogg

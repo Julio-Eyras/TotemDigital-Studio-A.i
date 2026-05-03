@@ -46,25 +46,38 @@ function getEnvBoolean(key: string, defaultValue: boolean = false): boolean {
   return value.toLowerCase() === 'true' || value === '1';
 }
 
+const TWO_GB_BYTES = 2 * 1024 * 1024 * 1024;
+
 /**
- * Converte tamanho de string (ex: "100MB") para bytes
+ * Converte tamanho de string (ex: "100MB", "2GB") para bytes.
+ * `0`, `unlimited`, `none` ou string vazia → 0 (sem limite onde o código trata explicitamente).
  */
 function parseSize(size: string): number {
-  const match = size.match(/^(\d+)([KMGT]?B)$/i);
-  if (!match) return 0;
-  
-  const value = parseInt(match[1], 10);
-  const unit = match[2].toUpperCase();
-  
+  const trimmed = String(size ?? '').trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === '' || lower === '0' || lower === 'unlimited' || lower === 'none') {
+    return 0;
+  }
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*([KMGTP]?B)$/i);
+  if (!match) {
+    logWarnSync(`parseSize: formato inválido "${size}", assumindo 0`, {});
+    return 0;
+  }
+  const value = parseFloat(match[1]);
+  const unit = (match[2] || 'B').toUpperCase();
   const multipliers: { [key: string]: number } = {
-    'B': 1,
-    'KB': 1024,
-    'MB': 1024 * 1024,
-    'GB': 1024 * 1024 * 1024,
-    'TB': 1024 * 1024 * 1024 * 1024
+    B: 1,
+    KB: 1024,
+    MB: 1024 * 1024,
+    GB: 1024 * 1024 * 1024,
+    TB: 1024 * 1024 * 1024 * 1024,
   };
-  
-  return value * (multipliers[unit] || 1);
+  const mult = multipliers[unit];
+  if (mult == null) {
+    logWarnSync(`parseSize: unidade desconhecida em "${size}", assumindo 0`, {});
+    return 0;
+  }
+  return Math.floor(value * mult);
 }
 
 /**
@@ -121,7 +134,8 @@ export const securityConfig = {
   playerAbandonPin: getEnv('PLAYER_ABANDON_PIN', '1234'),
   bcryptRounds: getEnvNumber('BCRYPT_ROUNDS', 12),
   corsOrigins: getEnv('CORS_ORIGIN', 'http://localhost:3000,http://localhost:3001').split(','),
-  maxPayloadSize: parseSize(getEnv('MAX_PAYLOAD_SIZE', '10MB')),
+  /** 0 = não aplicar limite por Content-Length (validatePayloadSize ignora). */
+  maxPayloadSize: parseSize(getEnv('MAX_PAYLOAD_SIZE', '0')),
   rateLimit: {
     windowMs: getEnvNumber('RATE_LIMIT_WINDOW_MS', 900000), // 15 minutos
     maxRequests: getEnvNumber('RATE_LIMIT_MAX_REQUESTS', 500), // painel faz muitas chamadas (alerts, subscribers, stats); 500*2=1000/15min
@@ -138,7 +152,11 @@ export const securityConfig = {
  * Configuração de upload de arquivos
  */
 export const uploadConfig = {
-  maxSize: parseSize(getEnv('UPLOAD_MAX_SIZE', '100MB')),
+  /** Padrão 2GB; 0 = sem teto no env (o limite efetivo de mídia vem de media.upload.* / getMediaConfig). */
+  maxSize: (() => {
+    const b = parseSize(getEnv('UPLOAD_MAX_SIZE', '2GB'));
+    return b === 0 ? TWO_GB_BYTES : b;
+  })(),
   path: getEnv('UPLOAD_PATH', './uploads'),
   mediaQuotaPerClient: parseSize(getEnv('MEDIA_QUOTA_PER_CLIENT', '5GB')),
   allowedMimeTypes: getEnv('ALLOWED_FILE_TYPES', 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,audio/mp3,audio/wav,audio/ogg').split(',')

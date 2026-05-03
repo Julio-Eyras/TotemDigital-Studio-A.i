@@ -4,7 +4,7 @@
  */
 
 import { Router } from 'express';
-import { QRCodeService } from '../services/qrcodeService';
+import { getQRCodeService } from '../services/qrcodeService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { logError } from '../utils/loggerHelper';
 import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
@@ -12,12 +12,31 @@ import { assertTotemReadAccess } from '../utils/totemReadAccess';
 
 const router = Router();
 
-// Lazy initialization - só criar quando necessário
-function getQRCodeService(): QRCodeService {
-  if (!(global as any).qrCodeServiceInstance) {
-    (global as any).qrCodeServiceInstance = new QRCodeService();
+/** `clientId` no modelo de QR é o subscriber_id da campanha (compat.). */
+async function assertQRCodeSubscriberAccess(
+  req: any,
+  res: any,
+  qrCode: { clientId?: number | null } | null
+): Promise<boolean> {
+  if (!qrCode) {
+    res.status(404).json({ success: false, message: 'QR Code não encontrado' });
+    return false;
   }
-  return (global as any).qrCodeServiceInstance;
+  const sid = qrCode.clientId != null ? Number(qrCode.clientId) : NaN;
+  if (!Number.isFinite(sid) || sid < 1) {
+    res.status(400).json({ success: false, message: 'QR Code sem assinante associado' });
+    return false;
+  }
+  try {
+    await assertTenantClientParamAccess(req, sid);
+  } catch (e: any) {
+    if (e?.statusCode === 403) {
+      res.status(403).json({ success: false, message: e.message || 'Acesso negado' });
+      return false;
+    }
+    throw e;
+  }
+  return true;
 }
 
 // Middleware de autenticação para todas as rotas
@@ -203,21 +222,13 @@ router.get('/:id', async (req: any, res) => {
   try {
     const { id } = req.params;
 
-    const qrCode = await getQRCodeService().getQRCodeById(parseInt(id));
+    const qrCode = await getQRCodeService().getQRCodeById(parseInt(id, 10));
 
-    if (!qrCode) {
-      return res.status(404).json({
-        success: false,
-        message: 'QR Code não encontrado'
-      });
+    if (!(await assertQRCodeSubscriberAccess(req, res, qrCode))) {
+      return;
     }
-
-    // Verificar permissão
-    if (req.user.role === 'client' && req.user.clientId !== qrCode.clientId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Acesso negado: Você só pode ver seus próprios QR Codes'
-      });
+    if (!qrCode) {
+      return;
     }
 
     return res.json({
@@ -289,11 +300,8 @@ router.put('/:id', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== existingQRCode.clientId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Acesso negado: Você só pode editar seus próprios QR Codes'
-      });
+    if (!(await assertQRCodeSubscriberAccess(req, res, existingQRCode))) {
+      return;
     }
 
     const qrCode = await getQRCodeService().updateQRCode(
@@ -355,19 +363,12 @@ router.get('/:id/scans', async (req: any, res) => {
     const { page = 1, limit = 50 } = req.query;
 
     // Verificar se QR Code existe e permissão
-    const qrCode = await getQRCodeService().getQRCodeById(parseInt(id));
-    if (!qrCode) {
-      return res.status(404).json({
-        success: false,
-        message: 'QR Code não encontrado'
-      });
+    const qrCode = await getQRCodeService().getQRCodeById(parseInt(id, 10));
+    if (!(await assertQRCodeSubscriberAccess(req, res, qrCode))) {
+      return;
     }
-
-    if (req.user.role === 'client' && req.user.clientId !== qrCode.clientId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Acesso negado: Você só pode ver scans de seus próprios QR Codes'
-      });
+    if (!qrCode) {
+      return;
     }
 
     const result = await getQRCodeService().getQRCodeScans(
@@ -454,19 +455,12 @@ router.get('/:id/image', async (req: any, res) => {
     const { id } = req.params;
 
     // Verificar se QR Code existe e permissão
-    const qrCode = await getQRCodeService().getQRCodeById(parseInt(id));
-    if (!qrCode) {
-      return res.status(404).json({
-        success: false,
-        message: 'QR Code não encontrado'
-      });
+    const qrCode = await getQRCodeService().getQRCodeById(parseInt(id, 10));
+    if (!(await assertQRCodeSubscriberAccess(req, res, qrCode))) {
+      return;
     }
-
-    if (req.user.role === 'client' && req.user.clientId !== qrCode.clientId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Acesso negado: Você só pode ver imagens de seus próprios QR Codes'
-      });
+    if (!qrCode) {
+      return;
     }
 
     // Retornar imagem base64

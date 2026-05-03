@@ -107,11 +107,12 @@ function createMulterConfig() {
 
   const allowedTypesRegex = new RegExp(allowedExtensions, 'i');
 
+  const multerLimits =
+    config.maxSize > 0 ? { fileSize: config.maxSize } : undefined;
+
   return multer({
     storage: storage,
-    limits: {
-      fileSize: config.maxSize
-    },
+    ...(multerLimits ? { limits: multerLimits } : {}),
     fileFilter: (_req, file, cb) => {
       const extname = allowedTypesRegex.test(path.extname(file.originalname).toLowerCase());
       const mimetype = allowedMimeTypes.includes(file.mimetype);

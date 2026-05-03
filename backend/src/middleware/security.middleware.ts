@@ -89,14 +89,22 @@ export const sensitiveOperationLimiter = rateLimit({
  * Middleware para validar tamanho do payload
  */
 export const validatePayloadSize = (maxSizeBytes?: number) => {
-  const defaultSize = maxSizeBytes || securityConfig.maxPayloadSize;
   return (req: Request, res: Response, next: NextFunction): void => {
+    const resolved =
+      maxSizeBytes !== undefined && maxSizeBytes !== null
+        ? maxSizeBytes
+        : securityConfig.maxPayloadSize;
+    if (resolved <= 0) {
+      next();
+      return;
+    }
+
     const contentLength = req.get('content-length');
-    
-    if (contentLength && parseInt(contentLength) > defaultSize) {
+
+    if (contentLength && parseInt(contentLength, 10) > resolved) {
       logWarn('Payload muito grande rejeitado', {
         size: contentLength,
-        maxSize: defaultSize,
+        maxSize: resolved,
         url: req.url,
         method: req.method,
         ip: req.ip
@@ -104,8 +112,8 @@ export const validatePayloadSize = (maxSizeBytes?: number) => {
       
       res.status(413).json({
         error: 'Payload muito grande',
-        message: `O tamanho máximo permitido é ${Math.round(defaultSize / 1024 / 1024)}MB`,
-        maxSize: defaultSize
+        message: `O tamanho máximo permitido é ${Math.round(resolved / 1024 / 1024)}MB`,
+        maxSize: resolved
       });
       return;
     }

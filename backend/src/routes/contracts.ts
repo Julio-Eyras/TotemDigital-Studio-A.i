@@ -6,6 +6,8 @@ import { protectContractValues } from '../middleware/contractValuesProtection.mi
 import { getContractService } from '../services/contractService';
 import { getPublisherContractService } from '../services/publisherContractService';
 import { logError } from '../utils/loggerHelper';
+import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
+import { isAdminRole } from '../utils/tenantScope';
 import { 
   createSubscriberContractValidators, 
   updateSubscriberContractValidators,
@@ -80,10 +82,21 @@ router.get('/:id(\\d+)',
     try {
       const { id } = req.params;
       
-      const contract = await getContractService().getContractById(parseInt(id));
-      
+      const contract = await getContractService().getContractById(parseInt(id, 10));
+
       if (!contract) {
         return res.status(404).json({ error: 'Contrato não encontrado' });
+      }
+
+      if (!isAdminRole(req.user?.role)) {
+        try {
+          await assertTenantClientParamAccess(req, contract.subscriber_id);
+        } catch (e: any) {
+          if (e?.statusCode === 403) {
+            return res.status(403).json({ error: e.message || 'Acesso negado' });
+          }
+          throw e;
+        }
       }
 
       return res.json({ success: true, data: contract });
@@ -104,8 +117,25 @@ router.get('/:id(\\d+)/publishers',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
-      const publishers = await getContractService().getContractPublishers(parseInt(id));
+      const cid = parseInt(id, 10);
+
+      const sid = await getContractService().getSubscriberIdForContract(cid);
+      if (sid == null) {
+        return res.status(404).json({ error: 'Contrato não encontrado' });
+      }
+
+      if (!isAdminRole(req.user?.role)) {
+        try {
+          await assertTenantClientParamAccess(req, sid);
+        } catch (e: any) {
+          if (e?.statusCode === 403) {
+            return res.status(403).json({ error: e.message || 'Acesso negado' });
+          }
+          throw e;
+        }
+      }
+
+      const publishers = await getContractService().getContractPublishers(cid);
 
       return res.json({ success: true, data: publishers });
     } catch (error: any) {
@@ -228,10 +258,23 @@ router.get('/publisher-contracts/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const contract = await getPublisherContractService().getContractById(parseInt(id));
-      
+      const contract = await getPublisherContractService().getContractById(parseInt(id, 10));
+
       if (!contract) {
         return res.status(404).json({ error: 'Contrato não encontrado' });
+      }
+
+      if (!isAdminRole(req.user?.role)) {
+        try {
+          await assertTenantClientParamAccess(req, contract.publisher_id, {
+            requestedIdIsPublisherScope: true,
+          });
+        } catch (e: any) {
+          if (e?.statusCode === 403) {
+            return res.status(403).json({ error: e.message || 'Acesso negado' });
+          }
+          throw e;
+        }
       }
 
       return res.json({ success: true, data: contract });

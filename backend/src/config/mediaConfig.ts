@@ -33,8 +33,11 @@ let configCache: {
 
 const CACHE_TTL = 60000; // 1 minuto
 
+/** Padrão de teto de upload de mídia (bytes) quando o banco ainda não carregou ou valor inválido. */
+const DEFAULT_MEDIA_MAX_BYTES = 2 * 1024 * 1024 * 1024;
+
 /**
- * Converte tamanho de string (ex: "500MB") para bytes
+ * Converte tamanho de string (ex: "2GB") para bytes. 0 / 0MB / … = sem limite no Multer (tratado na rota).
  */
 function parseSize(sizeStr: string): number {
   const trimmed = String(sizeStr ?? '').trim();
@@ -43,7 +46,7 @@ function parseSize(sizeStr: string): number {
   }
   const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)$/i);
   if (!match) {
-    return 500 * 1024 * 1024; // Default 500MB
+    return DEFAULT_MEDIA_MAX_BYTES;
   }
 
   const value = parseFloat(match[1]);
@@ -64,9 +67,13 @@ function parseSize(sizeStr: string): number {
  * Converte tamanho para formato Nginx (ex: "500M")
  */
 function convertToNginxFormat(sizeStr: string): string {
+  const s = String(sizeStr ?? '').trim();
+  if (s === '0' || /^0\s*(B|KB|MB|GB|TB)?$/i.test(s)) {
+    return '2G';
+  }
   const match = sizeStr.match(/^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)$/i);
   if (!match) {
-    return '500M'; // Default
+    return '2G';
   }
 
   const value = parseFloat(match[1]);
@@ -87,9 +94,13 @@ function convertToNginxFormat(sizeStr: string): string {
  * Converte tamanho para formato Express (ex: "500mb")
  */
 function convertToExpressFormat(sizeStr: string): string {
+  const s = String(sizeStr ?? '').trim();
+  if (s === '0' || /^0\s*(B|KB|MB|GB|TB)?$/i.test(s)) {
+    return '2gb';
+  }
   const match = sizeStr.match(/^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)$/i);
   if (!match) {
-    return '500mb'; // Default
+    return '2gb';
   }
 
   const value = parseFloat(match[1]);
@@ -121,9 +132,9 @@ export async function loadMediaConfig(): Promise<void> {
       logWarnSync('Database não inicializado ainda - usando valores padrão para configurações de mídia', {});
       // Usar valores padrão sem tentar acessar o banco
       configCache = {
-        maxSize: 500 * 1024 * 1024,
-        nginxMaxSize: '500M',
-        expressLimit: '500mb',
+        maxSize: DEFAULT_MEDIA_MAX_BYTES,
+        nginxMaxSize: '2G',
+        expressLimit: '2gb',
         proxyTimeout: 300,
         allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'audio/mp3', 'audio/wav', 'audio/ogg'],
         storagePath: '/opt/smart-signage/public/assets/uploads',
@@ -157,9 +168,9 @@ export async function loadMediaConfig(): Promise<void> {
       settingsService.getSetting('media.storage.cleanup_days')
     ]);
 
-    const maxSize = maxSizeSetting ? parseSize(String(maxSizeSetting.value)) : 500 * 1024 * 1024;
-    const nginxMaxSize = nginxMaxSizeSetting ? String(nginxMaxSizeSetting.value) : '500M';
-    const expressLimit = expressLimitSetting ? String(expressLimitSetting.value) : '500mb';
+    const maxSize = maxSizeSetting ? parseSize(String(maxSizeSetting.value)) : DEFAULT_MEDIA_MAX_BYTES;
+    const nginxMaxSize = nginxMaxSizeSetting ? String(nginxMaxSizeSetting.value) : '2G';
+    const expressLimit = expressLimitSetting ? String(expressLimitSetting.value) : '2gb';
     const proxyTimeout = proxyTimeoutSetting ? parseInt(String(proxyTimeoutSetting.value)) : 300;
 
     let effectiveAllowedTypes = allowedTypesSetting;
@@ -206,9 +217,9 @@ export async function loadMediaConfig(): Promise<void> {
     logErrorSync('Erro ao carregar configurações de mídia', error, {});
     // Usar valores padrão em caso de erro
     configCache = {
-      maxSize: 500 * 1024 * 1024,
-      nginxMaxSize: '500M',
-      expressLimit: '500mb',
+      maxSize: DEFAULT_MEDIA_MAX_BYTES,
+      nginxMaxSize: '2G',
+      expressLimit: '2gb',
       proxyTimeout: 300,
       allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'audio/mp3', 'audio/wav', 'audio/ogg'],
       storagePath: '/opt/smart-signage/public/assets/uploads',
@@ -235,9 +246,9 @@ export function getMediaConfig() {
 
   // Retornar cache atual ou valores padrão
   return configCache || {
-    maxSize: 500 * 1024 * 1024,
-    nginxMaxSize: '500M',
-    expressLimit: '500mb',
+    maxSize: DEFAULT_MEDIA_MAX_BYTES,
+    nginxMaxSize: '2G',
+    expressLimit: '2gb',
     proxyTimeout: 300,
     allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'audio/mp3', 'audio/wav', 'audio/ogg'],
     storagePath: '/opt/smart-signage/public/assets/uploads',
