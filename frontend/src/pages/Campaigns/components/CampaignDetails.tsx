@@ -272,7 +272,14 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
       <DialogContent>
         {loading && <LinearProgress sx={{ mb: 2 }} />}
         
-        <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)} sx={{ mb: 2 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => setActiveTab(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{ mb: 2 }}
+        >
           <Tab label="Informações" />
           <Tab 
             label="Playlists"

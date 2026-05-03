@@ -655,6 +655,7 @@ const CronSQL: React.FC = () => {
           onChange={handleTabChange}
           variant="scrollable"
           scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
           <Tab label="Queries SQL" />

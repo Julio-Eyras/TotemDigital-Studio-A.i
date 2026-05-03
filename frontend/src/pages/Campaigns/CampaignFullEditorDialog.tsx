@@ -522,6 +522,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
               onChange={(_, v) => setEditTab(v)}
               variant="scrollable"
               scrollButtons="auto"
+              allowScrollButtonsMobile
               sx={{ mb: 2 }}
             >
               <Tab label="Principal" />

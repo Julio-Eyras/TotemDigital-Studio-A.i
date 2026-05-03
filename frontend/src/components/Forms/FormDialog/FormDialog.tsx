@@ -144,6 +144,9 @@ const FormDialog = <T extends Record<string, any>>({
           <Tabs
             value={activeTab}
             onChange={(_, newValue) => setActiveTab(newValue)}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
             sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
           >
             {tabs.map((tab, index) => (

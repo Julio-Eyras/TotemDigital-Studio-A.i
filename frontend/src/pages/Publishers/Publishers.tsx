@@ -1466,7 +1466,14 @@ const Publishers: React.FC = () => {
       >
         <DialogTitle>Adicionar Publicador</DialogTitle>
         <DialogContent>
-          <Tabs value={createTab} onChange={(_, newValue) => setCreateTab(newValue)} sx={{ mb: 3 }}>
+          <Tabs
+            value={createTab}
+            onChange={(_, newValue) => setCreateTab(newValue)}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            sx={{ mb: 3 }}
+          >
             <Tab 
               label={
                 <span>
@@ -2319,7 +2326,14 @@ const Publishers: React.FC = () => {
       >
         <DialogTitle>Editar Publicador</DialogTitle>
         <DialogContent>
-          <Tabs value={editTab} onChange={(_, newValue) => setEditTab(newValue)} sx={{ mb: 3 }}>
+          <Tabs
+            value={editTab}
+            onChange={(_, newValue) => setEditTab(newValue)}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            sx={{ mb: 3 }}
+          >
             <Tab 
               label={
                 <span>

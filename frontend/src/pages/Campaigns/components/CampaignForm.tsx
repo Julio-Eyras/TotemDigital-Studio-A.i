@@ -130,6 +130,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
           onChange={(_, v) => setActiveTab(v)}
           variant="scrollable"
           scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{ mb: 2 }}
         >
           <Tab label="Principal" />

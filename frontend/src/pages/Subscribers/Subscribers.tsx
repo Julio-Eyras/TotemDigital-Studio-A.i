@@ -2228,6 +2228,9 @@ const Subscribers: React.FC = () => {
                 }));
               }
             }}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
             sx={{ mb: 3 }}
           >
             <Tab label="Informações" />
@@ -3078,7 +3081,14 @@ const Subscribers: React.FC = () => {
           Editar Anunciante - {selectedSubscriber?.name || ''}
         </DialogTitle>
         <DialogContent>
-          <Tabs value={editTab} onChange={(_, newValue) => setEditTab(newValue)} sx={{ mb: 3 }}>
+          <Tabs
+            value={editTab}
+            onChange={(_, newValue) => setEditTab(newValue)}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            sx={{ mb: 3 }}
+          >
             <Tab label="Informações" />
             {(() => {
               const contractsCount = (activeContracts || []).length;

@@ -750,7 +750,14 @@ const Locals: React.FC = () => {
             </Box>
           ) : (
             <>
-              <Tabs value={detailsTab} onChange={(_, newValue) => setDetailsTab(newValue)} sx={{ mb: 2 }}>
+              <Tabs
+                value={detailsTab}
+                onChange={(_, newValue) => setDetailsTab(newValue)}
+                variant="scrollable"
+                scrollButtons="auto"
+                allowScrollButtonsMobile
+                sx={{ mb: 2 }}
+              >
                 {!TOTEMDIGITAL_COMPACT && <Tab label="Publisher" icon={<Business />} iconPosition="start" />}
                 <Tab label="Local" icon={<Store />} iconPosition="start" />
                 <Tab label="Totens" icon={selectedTotems.length > 0 ? <Chip label={selectedTotems.length} size="small" color="primary" /> : <Computer />} iconPosition="end" />

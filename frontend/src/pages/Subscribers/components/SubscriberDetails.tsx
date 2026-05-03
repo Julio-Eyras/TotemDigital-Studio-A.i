@@ -122,7 +122,14 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
       <DialogTitle>Detalhes do Assinante - {subscriber.name}</DialogTitle>
       <DialogContent>
-        <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)} sx={{ mb: 2 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => setActiveTab(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{ mb: 2 }}
+        >
           <Tab label="Informações" />
           <Tab label="Locais" />
           <Tab label="Totens" />

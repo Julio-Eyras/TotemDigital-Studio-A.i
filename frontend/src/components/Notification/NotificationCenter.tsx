@@ -211,6 +211,7 @@ const NotificationCenter: React.FC = () => {
             onChange={(_, newValue) => setActiveTab(newValue)}
             variant="scrollable"
             scrollButtons="auto"
+            allowScrollButtonsMobile
             sx={{ borderBottom: 1, borderColor: 'divider' }}
           >
             <Tab label="Todas" />

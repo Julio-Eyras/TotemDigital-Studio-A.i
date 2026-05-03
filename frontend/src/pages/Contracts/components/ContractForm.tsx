@@ -121,7 +121,14 @@ const ContractForm: React.FC<ContractFormProps> = ({
   return (
     <Box>
       {isCreateMode && onTabChange && (
-        <Tabs value={activeTab} onChange={(_, newValue) => onTabChange(newValue)} sx={{ mb: 3 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => onTabChange(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{ mb: 3 }}
+        >
           <Tab label="Informações" />
           <Tab
             label="Publicadores"

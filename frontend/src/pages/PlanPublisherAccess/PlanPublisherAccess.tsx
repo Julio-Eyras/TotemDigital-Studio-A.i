@@ -1146,7 +1146,14 @@ const PlanPublisherAccessPage: React.FC = () => {
           {planEditMode ? 'Editar Plano' : 'Criar Plano'}
         </DialogTitle>
         <DialogContent>
-          <Tabs value={planDialogTab} onChange={(_, newValue) => setPlanDialogTab(newValue)} sx={{ mb: 3 }}>
+          <Tabs
+            value={planDialogTab}
+            onChange={(_, newValue) => setPlanDialogTab(newValue)}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            sx={{ mb: 3 }}
+          >
             <Tab label="Dados do Plano" />
             <Tab 
               label={publishersOfPlanLabel}

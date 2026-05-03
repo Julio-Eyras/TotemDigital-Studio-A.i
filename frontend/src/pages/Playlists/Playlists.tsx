@@ -593,7 +593,14 @@ const Playlists: React.FC = () => {
       <Dialog open={editorOpen} onClose={() => setEditorOpen(false)} maxWidth="lg" fullWidth>
         <DialogTitle>{editorMode === 'create' ? 'Criar Playlist' : `Editar Playlist - ${selectedPlaylist?.name || ''}`}</DialogTitle>
         <DialogContent>
-          <Tabs value={editorTab} onChange={(_, v) => setEditorTab(v)} sx={{ mb: 2 }}>
+          <Tabs
+            value={editorTab}
+            onChange={(_, v) => setEditorTab(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            sx={{ mb: 2 }}
+          >
             <Tab label="Dados da Playlist" />
             <Tab label="Mídias" />
             <Tab label="Campanhas" disabled={!selectedPlaylist?.playlist_id} />
@@ -816,7 +823,14 @@ const Playlists: React.FC = () => {
                   <Alert severity="info" sx={{ mb: 2 }}>
                     Exposição derivada via campanhas → publishers → locals → totems → smart TVs (para entendimento/diagnóstico).
                   </Alert>
-                  <Tabs value={exposureTab} onChange={(_, v) => setExposureTab(v)} sx={{ mb: 2 }}>
+                  <Tabs
+                    value={exposureTab}
+                    onChange={(_, v) => setExposureTab(v)}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                    allowScrollButtonsMobile
+                    sx={{ mb: 2 }}
+                  >
                     <Tab label="Datas" />
                     <Tab label="Horas" />
                     <Tab label="Publishers" />

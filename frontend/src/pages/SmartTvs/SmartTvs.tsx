@@ -488,7 +488,14 @@ const SmartTvs: React.FC = () => {
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Criar Nova Smart TV</DialogTitle>
         <DialogContent>
-          <Tabs value={createTab} onChange={(_, v) => setCreateTab(v)} sx={{ mb: 2 }}>
+          <Tabs
+            value={createTab}
+            onChange={(_, v) => setCreateTab(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            sx={{ mb: 2 }}
+          >
             <Tab label="Dados" />
             <Tab label="Config (JSON)" />
           </Tabs>
@@ -653,7 +660,14 @@ const SmartTvs: React.FC = () => {
         <DialogContent>
           {selectedSmartTv && (
             <>
-              <Tabs value={editTab} onChange={(_, v) => setEditTab(v)} sx={{ mb: 2 }}>
+              <Tabs
+                value={editTab}
+                onChange={(_, v) => setEditTab(v)}
+                variant="scrollable"
+                scrollButtons="auto"
+                allowScrollButtonsMobile
+                sx={{ mb: 2 }}
+              >
                 <Tab label="Dados" />
                 <Tab label="Config (JSON)" />
               </Tabs>

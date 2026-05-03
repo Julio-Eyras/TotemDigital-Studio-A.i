@@ -249,7 +249,14 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
         </Grid>
 
         {/* Tabs */}
-        <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 2 }}>
+        <Tabs
+          value={tabValue}
+          onChange={(e, newValue) => setTabValue(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{ mb: 2 }}
+        >
           <Tab label="Histórico" icon={<History />} iconPosition="start" />
           <Tab label="Screenshots" icon={<PhotoLibrary />} iconPosition="start" />
           <Tab label="Logs" icon={<Terminal />} iconPosition="start" />
