@@ -277,6 +277,7 @@ export class PublisherCampaignMixService {
                     INNER JOIN totems t ON t.totem_id = $2
                     INNER JOIN locals l ON l.local_id = t.local_id AND l.publisher_id = cp.publisher_id
                     WHERE c.campaign_id = $1
+                      AND COALESCE(t.is_active, true) = true
                       AND cp.is_active = true
                       AND c.status = 'active'
                       AND c.is_active = true
@@ -295,8 +296,10 @@ export class PublisherCampaignMixService {
                   ON spa.subscriber_id = c.subscriber_id
                  AND spa.publisher_id = cp.publisher_id
                 INNER JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
+                INNER JOIN totems t_ct ON t_ct.totem_id = ct.totem_id
                 WHERE c.campaign_id = $1
                   AND ct.totem_id = $2
+                  AND COALESCE(t_ct.is_active, true) = true
                   AND cp.is_active = true
                   AND ct.is_active = true
                   AND c.status = 'active'

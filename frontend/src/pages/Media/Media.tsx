@@ -452,6 +452,18 @@ const Media: React.FC = () => {
         loading={loading}
       />
 
+      <Alert severity="info" variant="outlined" sx={{ mb: 3 }}>
+        <Typography variant="subtitle2" gutterBottom>
+          Boas práticas para mídia indoor (DOOH)
+        </Typography>
+        <Typography variant="body2" component="div">
+          Prefira <strong>16:9</strong> em TVs horizontais; teste <strong>legibilidade</strong> à distância de visualização
+          do local. Vídeos muito longos pesam na rede e no player — use durações compatíveis com o <strong>slot</strong> da
+          playlist. Formatos comuns: MP4 (H.264), JPG/PNG. Respeite os limites de upload definidos em{' '}
+          <strong>Configurações → Mídias</strong> (tamanho e tipos permitidos).
+        </Typography>
+      </Alert>
+
       {/* Filters */}
       <Card sx={{ mb: 3 }}>
         <CardContent>

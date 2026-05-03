@@ -7,6 +7,8 @@ import { logError } from '../utils/loggerHelper';
 import { errorResponse } from '../utils/apiResponse';
 import { assertTenantClientParamAccess, resolvePublisherIdFromRequest } from '../utils/tenantClientAccess';
 import { isAdminRole, resolveTenantScope } from '../utils/tenantScope';
+import { DISABLE_DIRECT_CAMPAIGN_TOTEM, TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT } from '../constants/campaignDeliveryPolicy';
 
 const router = express.Router();
 
@@ -97,6 +99,18 @@ router.get('/charts', async (req: any, res: any) => {
     await logError('Erro ao obter dados dos gráficos do dashboard', error);
     res.status(500).json(errorResponse('Erro interno do servidor'));
   }
+});
+
+/**
+ * @route GET /api/dashboard/ui-context
+ * @desc Sinalizadores de produto alinhados ao servidor (campanhas, modo compacto). Usado pela UI de campanhas.
+ */
+router.get('/ui-context', (_req: any, res: any) => {
+  res.json({
+    disableDirectCampaignTotem: DISABLE_DIRECT_CAMPAIGN_TOTEM,
+    totemDigitalCompact: TOTEMDIGITAL_COMPACT,
+    directCampaignTotemHint: DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT,
+  });
 });
 
 /**

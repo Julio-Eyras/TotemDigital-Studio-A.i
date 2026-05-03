@@ -393,6 +393,23 @@ const Settings: React.FC = () => {
       </Paper>
 
       <TabPanel value={tabValue} index={0}>
+        <Card variant="outlined" sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+              Glossário: limites, plano e contrato
+            </Typography>
+            <Typography variant="body2" color="text.secondary" component="div">
+              Os <strong>tetos</strong> (quantidade de mídias, playlists, campanhas, armazenamento, etc.) vêm do{' '}
+              <strong>plano</strong> ligado ao <strong>contrato ativo</strong> do anunciante (campo JSON{' '}
+              <code>limits</code> no plano). O que o plano não define usa os defaults do sistema (
+              <code>limits.defaults.*</code> nas configurações). Valor numérico <strong>0</strong> nesses tetos significa{' '}
+              <strong>sem teto</strong> nessa métrica — não confundir com &quot;custo zero&quot; ou ausência de regra
+              operacional. Totais agregados no Dashboard são informativos; o detalhe por anunciante está em{' '}
+              <strong>Anunciantes</strong>.
+            </Typography>
+          </CardContent>
+        </Card>
+
         <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
           <Button startIcon={<Refresh />} variant="outlined" onClick={loadSettings}>Recarregar</Button>
           <Button startIcon={<Save />} variant="contained" onClick={handleSave}>Salvar Alterações</Button>

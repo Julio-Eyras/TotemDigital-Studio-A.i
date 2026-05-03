@@ -210,7 +210,18 @@ export interface RecentActivity {
   status: 'success' | 'warning' | 'error';
 }
 
+export interface DashboardUiContext {
+  disableDirectCampaignTotem: boolean;
+  totemDigitalCompact: boolean;
+  directCampaignTotemHint?: string;
+}
+
 export const dashboardApi = {
+  getUiContext: async (): Promise<DashboardUiContext> => {
+    const response = await api.get('/dashboard/ui-context');
+    return response.data;
+  },
+
   getStats: async (): Promise<DashboardStats> => {
     const response = await api.get('/dashboard/stats');
     return response.data;

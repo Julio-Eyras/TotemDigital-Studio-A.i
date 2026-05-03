@@ -383,6 +383,7 @@ export class DispatcherTotemService {
       // Buscar campanhas ativas que apontam para este totem
       // Via campaign_totems (direto) ou via campaign_publishers (grupo)
       // Forma 2 (direct) pode ser desabilitada por DISABLE_DIRECT_CAMPAIGN_TOTEM; código preservado.
+      // Totens com cadastro desativado: ver `campaignDeliveryPolicy.sqlTotemRegistryActive` (filtros COALESCE(is_active) abaixo).
       const enableDirectLeg = !DISABLE_DIRECT_CAMPAIGN_TOTEM;
       const campaigns = await this.db.findMany(`
         WITH totem_campaigns AS (
@@ -428,6 +429,7 @@ export class DispatcherTotemService {
             AND ppa_direct.is_allowed = true
             AND COALESCE(ppa_direct.is_active, true) = true
           WHERE ct.totem_id = $1
+            AND COALESCE(t_direct.is_active, true) = true
             AND ct.is_active = true
             AND c.is_active = true
             AND c.status = 'active'
@@ -477,6 +479,7 @@ export class DispatcherTotemService {
           INNER JOIN locals l ON cp.publisher_id = l.publisher_id
           INNER JOIN totems t ON l.local_id = t.local_id
           WHERE t.totem_id = $1
+            AND COALESCE(t.is_active, true) = true
             AND cp.is_active = true
             AND c.is_active = true
             AND c.status = 'active'
@@ -526,6 +529,7 @@ export class DispatcherTotemService {
             AND ppa.is_allowed = true
             AND COALESCE(ppa.is_active, true) = true
           WHERE t.totem_id = $1
+            AND COALESCE(t.is_active, true) = true
             AND cp.is_active = true
             AND c.is_active = true
             AND c.status = 'active'
@@ -575,6 +579,7 @@ export class DispatcherTotemService {
           INNER JOIN locals l_plan ON l_plan.local_id = t_plan.local_id
             AND l_plan.publisher_id = ppa_plan.publisher_id
           WHERE c.contract_id IS NOT NULL
+            AND COALESCE(t_plan.is_active, true) = true
             AND c.is_active = true
             AND c.status = 'active'
         )

@@ -8,7 +8,7 @@
  * - Modal com detalhes completos ao clicar
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -34,6 +34,8 @@ import {
   Tooltip,
   CircularProgress,
   Grid,
+  Tabs,
+  Tab,
   List,
   ListItem,
   ListItemIcon,
@@ -257,9 +259,36 @@ const DispatcherMonitor: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [paused, setPaused] = useState(false);
+  const [monitorTab, setMonitorTab] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const wsReconnectAttempts = useRef(0);
+
+  const errorSummary = useMemo(() => {
+    const map = new Map<
+      string,
+      { uin: string; count: number; sample: string; lastTs: number }
+    >();
+    for (const m of messages) {
+      if (m.direction !== 'outgoing' || !m.error) continue;
+      const uin = (m.uin || '(sem UIN)').trim();
+      const err = String(m.error).slice(0, 240);
+      const tsRaw = m.timestamp as string | number | Date | undefined;
+      const ts = tsRaw ? new Date(tsRaw).getTime() : 0;
+      const prev = map.get(uin);
+      if (!prev) {
+        map.set(uin, { uin, count: 1, sample: err, lastTs: ts });
+      } else {
+        map.set(uin, {
+          uin,
+          count: prev.count + 1,
+          sample: prev.sample || err,
+          lastTs: Math.max(prev.lastTs, ts),
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.lastTs - a.lastTs);
+  }, [messages]);
 
   const fetchMessages = async () => {
     if (paused) return;
@@ -421,6 +450,19 @@ const DispatcherMonitor: React.FC = () => {
           )}
 
           {messages.length > 0 && (
+            <>
+              <Tabs
+                value={monitorTab}
+                onChange={(_, v) => setMonitorTab(v)}
+                sx={{ mb: 2 }}
+                variant="scrollable"
+                scrollButtons="auto"
+              >
+                <Tab label="Registo completo" />
+                <Tab label="Resumo de erros" />
+              </Tabs>
+
+              {monitorTab === 0 && (
             <TableContainer component={Paper} sx={{ maxHeight: '70vh' }}>
               <Table stickyHeader>
                 <TableHead>
@@ -487,6 +529,46 @@ const DispatcherMonitor: React.FC = () => {
                 </TableBody>
               </Table>
             </TableContainer>
+              )}
+
+              {monitorTab === 1 && (
+                <TableContainer component={Paper} sx={{ maxHeight: '70vh' }}>
+                  <Table stickyHeader size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>UIN</TableCell>
+                        <TableCell align="right">Respostas com erro</TableCell>
+                        <TableCell>Exemplo de mensagem</TableCell>
+                        <TableCell>Último registo</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {errorSummary.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4}>
+                            <Typography variant="body2" color="text.secondary">
+                              Sem erros nas mensagens carregadas (últimas {messages.length}). Ajuste o filtro de tempo
+                              ou aguarde tráfego.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        errorSummary.map((row) => (
+                          <TableRow key={row.uin}>
+                            <TableCell>{row.uin}</TableCell>
+                            <TableCell align="right">{row.count}</TableCell>
+                            <TableCell sx={{ maxWidth: 360, wordBreak: 'break-word' }}>{row.sample}</TableCell>
+                            <TableCell>
+                              {row.lastTs ? new Date(row.lastTs).toLocaleString('pt-BR') : '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </>
           )}
 
           {messages.length > 0 && (

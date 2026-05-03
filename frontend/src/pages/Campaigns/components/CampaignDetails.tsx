@@ -43,8 +43,21 @@ import {
   PlayArrow,
   Stop,
 } from '@mui/icons-material';
-import { Campaign, campaignApi, PlaylistItem, MediaItem, Publisher, playlistApi, mediaApi, publisherApi, totemApi } from '../../../services/api';
-import { TOTEMDIGITAL_COMPACT } from '../../../config/featureFlags';
+import {
+  Campaign,
+  campaignApi,
+  PlaylistItem,
+  MediaItem,
+  Publisher,
+  playlistApi,
+  mediaApi,
+  publisherApi,
+  totemApi,
+  dashboardApi,
+  DashboardUiContext,
+} from '../../../services/api';
+import { TOTEMDIGITAL_COMPACT, DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../../../config/featureFlags';
+import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT } from '../../../constants/campaignUiMessages';
 
 export interface CampaignDetailsProps {
   open: boolean;
@@ -136,12 +149,26 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
   const [publishers, setPublishers] = useState<Publisher[]>([]);
   const [totems, setTotems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [serverUi, setServerUi] = useState<DashboardUiContext | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setServerUi(null);
+      return;
+    }
+    void dashboardApi.getUiContext().then(setServerUi).catch(() => setServerUi(null));
+  }, [open]);
 
   useEffect(() => {
     if (open && campaign) {
       loadDetails();
     }
   }, [open, campaign]);
+
+  const directTotemDisabled =
+    serverUi?.disableDirectCampaignTotem ?? DISABLE_DIRECT_CAMPAIGN_TOTEM;
+  const directTotemHint =
+    serverUi?.directCampaignTotemHint || DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT;
 
   const loadDetails = async () => {
     if (!campaign) return;
@@ -271,7 +298,12 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
       </DialogTitle>
       <DialogContent>
         {loading && <LinearProgress sx={{ mb: 2 }} />}
-        
+        {directTotemDisabled && (
+          <Alert severity="warning" sx={{ mb: 2 }} variant="outlined">
+            <Typography variant="body2">{directTotemHint}</Typography>
+          </Alert>
+        )}
+
         <Tabs
           value={activeTab}
           onChange={(_, newValue) => setActiveTab(newValue)}

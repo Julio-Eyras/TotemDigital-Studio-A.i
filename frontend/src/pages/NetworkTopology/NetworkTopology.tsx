@@ -48,6 +48,13 @@ import HoloGraphNetwork from '../../components/HoloGraphNetwork/HoloGraphNetwork
 import { NODE_TYPE_LABELS } from '@shared/holograph-adapter';
 import type { GraphNode } from '@shared/holograph-adapter';
 
+function totemRegistryActive(tot: any): boolean {
+  if (tot?.is_active === false) return false;
+  if (tot?.active === false) return false;
+  if (tot?.isActive === false) return false;
+  return true;
+}
+
 const formatLastHeartbeat = (ts: string | undefined) => {
   if (!ts) return '-';
   const d = new Date(ts);
@@ -380,9 +387,12 @@ const NetworkTopology: React.FC = () => {
                           <Typography variant="body2" fontWeight="500">
                             {tot.name || tot.identifier}
                           </Typography>
+                          {!totemRegistryActive(tot) && (
+                            <Chip size="small" label="Cadastro off" color="warning" variant="filled" />
+                          )}
                           <Chip
                             size="small"
-                            label={tot.status || 'unknown'}
+                            label={`Rede: ${tot.status || 'unknown'}`}
                             color={
                               tot.status === 'online'
                                 ? 'success'
@@ -390,6 +400,7 @@ const NetworkTopology: React.FC = () => {
                                 ? 'error'
                                 : 'default'
                             }
+                            variant={totemRegistryActive(tot) ? 'filled' : 'outlined'}
                             icon={
                               tot.status === 'online' ? (
                                 <Wifi sx={{ fontSize: 14 }} />

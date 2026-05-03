@@ -1,6 +1,8 @@
 /**
  * Subscriptions Routes - Smart Signage v2.1
  * Rotas para gerenciamento de assinaturas
+ *
+ * Nota: ramos com `client` / `clientId` são legado; novas integrações devem usar publisher/subscriber e userType.
  */
 
 import { Router } from 'express';

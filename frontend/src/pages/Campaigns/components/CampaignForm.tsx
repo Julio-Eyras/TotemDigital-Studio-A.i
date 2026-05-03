@@ -32,7 +32,11 @@ import {
   Player,
   Publisher,
   AccessiblePublisher,
+  dashboardApi,
+  DashboardUiContext,
 } from '../../../services/api';
+import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../../../config/featureFlags';
+import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT } from '../../../constants/campaignUiMessages';
 
 export interface CampaignFormProps {
   mode: 'create' | 'edit';
@@ -74,6 +78,16 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
 }) => {
   const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
+  const [serverUi, setServerUi] = useState<DashboardUiContext | null>(null);
+
+  useEffect(() => {
+    void dashboardApi.getUiContext().then(setServerUi).catch(() => setServerUi(null));
+  }, []);
+
+  const directTotemDisabled =
+    serverUi?.disableDirectCampaignTotem ?? DISABLE_DIRECT_CAMPAIGN_TOTEM;
+  const directTotemHint =
+    serverUi?.directCampaignTotemHint || DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT;
 
   const getPublisherOptions = (): PublisherOption[] => {
     if (isAdmin) {
@@ -124,6 +138,11 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
 
   return (
     <Box>
+      {directTotemDisabled && (
+        <Alert severity="warning" sx={{ mb: 2 }} variant="outlined">
+          <Typography variant="body2">{directTotemHint}</Typography>
+        </Alert>
+      )}
       {mode === 'edit' && (
         <Tabs
           value={activeTab}

@@ -18,6 +18,9 @@ import {
   Grid,
   Tabs,
   Tab,
+  Stepper,
+  Step,
+  StepLabel,
   Autocomplete,
   FormControlLabel,
   Switch,
@@ -42,9 +45,12 @@ import {
   subscriberAccessApi,
   AccessiblePublisher,
   subscriberApi,
+  dashboardApi,
+  DashboardUiContext,
 } from '../../services/api';
 import { useAppSelector } from '../../store/hooks';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import { TOTEMDIGITAL_COMPACT, DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../../config/featureFlags';
+import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT } from '../../constants/campaignUiMessages';
 import { SortableList } from '../../components/SortableList/SortableList';
 import {
   campaignTotemOptionLabel,
@@ -97,6 +103,20 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   const [derivedSmartTvs, setDerivedSmartTvs] = useState<any[]>([]);
   const [derivedDevicesLoading, setDerivedDevicesLoading] = useState(false);
   const [subscriberContracts, setSubscriberContracts] = useState<Contract[]>([]);
+  const [serverUi, setServerUi] = useState<DashboardUiContext | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setServerUi(null);
+      return;
+    }
+    void dashboardApi.getUiContext().then(setServerUi).catch(() => setServerUi(null));
+  }, [open]);
+
+  const directTotemDisabled =
+    serverUi?.disableDirectCampaignTotem ?? DISABLE_DIRECT_CAMPAIGN_TOTEM;
+  const directTotemHint =
+    serverUi?.directCampaignTotemHint || DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT;
 
   const getSelectedPublisherIds = (): number[] => {
     if (!selectedCampaign) return [];
@@ -515,8 +535,34 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
             {error}
           </Alert>
         )}
+        {directTotemDisabled && (
+          <Alert severity="warning" sx={{ mb: 2 }} variant="outlined">
+            <Typography variant="body2">{directTotemHint}</Typography>
+          </Alert>
+        )}
         {!loadingCampaign && selectedCampaign && (
           <>
+            <Stepper activeStep={editTab} alternativeLabel sx={{ mb: 2, display: { xs: 'none', md: 'flex' } }}>
+              {compactMode ? (
+                <>
+                  <Step key="p"><StepLabel>Principal</StepLabel></Step>
+                  <Step key="t"><StepLabel>Totens</StepLabel></Step>
+                  <Step key="m"><StepLabel>Mídias</StepLabel></Step>
+                  <Step key="pl"><StepLabel>Playlists</StepLabel></Step>
+                  <Step key="s"><StepLabel>Agendamento</StepLabel></Step>
+                </>
+              ) : (
+                <>
+                  <Step key="p"><StepLabel>Principal</StepLabel></Step>
+                  <Step key="pub"><StepLabel>Publicadores</StepLabel></Step>
+                  <Step key="t"><StepLabel>Totens</StepLabel></Step>
+                  <Step key="tv"><StepLabel>Smart TVs</StepLabel></Step>
+                  <Step key="m"><StepLabel>Mídias</StepLabel></Step>
+                  <Step key="pl"><StepLabel>Playlists</StepLabel></Step>
+                  <Step key="s"><StepLabel>Agendamento</StepLabel></Step>
+                </>
+              )}
+            </Stepper>
             <Tabs
               value={editTab}
               onChange={(_, v) => setEditTab(v)}
