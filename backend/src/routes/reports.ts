@@ -4,22 +4,58 @@
  */
 
 import { Router } from 'express';
-import { ReportsService } from '../services/reportsService';
+import { getReportsService, type ReportResponse } from '../services/reportsService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import * as fs from 'fs';
 import * as path from 'path';
 import { logError, logWarn } from '../utils/loggerHelper';
 import { isMissingTableError } from '../utils/dbErrors';
+import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
+import { isAdminRole } from '../utils/tenantScope';
 
 const router = Router();
 
-// Lazy initialization - só criar quando necessário
-function getReportsService(): ReportsService {
-  if (!(global as any).reportsServiceInstance) {
-    (global as any).reportsServiceInstance = new ReportsService();
+const REPORTS_STAFF_ROLES = new Set(['gerente_marketing', 'visualizador']);
+
+/**
+ * Leitura/alteração de relatório: staff global, ou assinante/publisher com vínculo aos filtros, ou criador do relatório.
+ */
+async function assertReportAccess(req: any, res: any, report: ReportResponse): Promise<boolean> {
+  if (isAdminRole(req.user?.role) || REPORTS_STAFF_ROLES.has(String(req.user?.role || ''))) {
+    return true;
   }
-  return (global as any).reportsServiceInstance;
+
+  const userId = Number(req.user?.userId ?? req.user?.id ?? 0);
+  const filters = (report.metadata && report.metadata.filters) || {};
+  const filterSidRaw = filters.subscriberId ?? filters.clientId;
+  const filterSid = filterSidRaw != null ? Number(filterSidRaw) : undefined;
+
+  if (filterSid != null && Number.isFinite(filterSid) && filterSid > 0) {
+    try {
+      await assertTenantClientParamAccess(req, filterSid);
+      return true;
+    } catch (e: any) {
+      if (e?.statusCode === 403) {
+        res.status(403).json({
+          success: false,
+          message: e.message || 'Acesso negado',
+        });
+        return false;
+      }
+      throw e;
+    }
+  }
+
+  if (userId > 0 && Number(report.createdBy) === userId) {
+    return true;
+  }
+
+  res.status(403).json({
+    success: false,
+    message: 'Acesso negado: só pode aceder aos relatórios do seu assinante ou aos que criou.',
+  });
+  return false;
 }
 
 // Middleware de autenticação para todas as rotas
@@ -179,7 +215,7 @@ router.get('/:id', async (req: any, res) => {
   try {
     const { id } = req.params;
 
-    const report = await getReportsService().getReportById(parseInt(id));
+    const report = await getReportsService().getReportById(parseInt(id, 10));
 
     if (!report) {
       return res.status(404).json({
@@ -188,12 +224,8 @@ router.get('/:id', async (req: any, res) => {
       });
     }
 
-    // Verificar permissão para clientes
-    if (req.user.role === 'client' && req.user.userId !== report.createdBy) {
-      return res.status(403).json({
-        success: false,
-        message: 'Acesso negado: Você só pode ver seus próprios relatórios'
-      });
+    if (!(await assertReportAccess(req, res, report))) {
+      return;
     }
 
     return res.json({
@@ -300,7 +332,7 @@ router.get('/download/:id', async (req: any, res) => {
   try {
     const { id } = req.params;
 
-    const report = await getReportsService().getReportById(parseInt(id));
+    const report = await getReportsService().getReportById(parseInt(id, 10));
 
     if (!report) {
       return res.status(404).json({
@@ -309,12 +341,8 @@ router.get('/download/:id', async (req: any, res) => {
       });
     }
 
-    // Verificar permissão para clientes
-    if (req.user.role === 'client' && req.user.userId !== report.createdBy) {
-      return res.status(403).json({
-        success: false,
-        message: 'Acesso negado: Você só pode baixar seus próprios relatórios'
-      });
+    if (!(await assertReportAccess(req, res, report))) {
+      return;
     }
 
     if (report.status !== 'completed') {
@@ -380,7 +408,7 @@ router.post('/:id/regenerate', async (req: any, res) => {
   try {
     const { id } = req.params;
 
-    const existingReport = await getReportsService().getReportById(parseInt(id));
+    const existingReport = await getReportsService().getReportById(parseInt(id, 10));
 
     if (!existingReport) {
       return res.status(404).json({
@@ -389,12 +417,8 @@ router.post('/:id/regenerate', async (req: any, res) => {
       });
     }
 
-    // Verificar permissão para clientes
-    if (req.user.role === 'client' && req.user.userId !== existingReport.createdBy) {
-      return res.status(403).json({
-        success: false,
-        message: 'Acesso negado: Você só pode regenerar seus próprios relatórios'
-      });
+    if (!(await assertReportAccess(req, res, existingReport))) {
+      return;
     }
 
     // Criar novo relatório baseado no existente

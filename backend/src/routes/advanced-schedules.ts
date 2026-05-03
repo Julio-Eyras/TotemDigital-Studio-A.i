@@ -8,8 +8,36 @@ import { body, param, query, validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { advancedScheduleService } from '../services/advancedScheduleService';
 import { logError, sanitizeForLogging } from '../utils/loggerHelper';
+import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
+import { isAdminRole } from '../utils/tenantScope';
 
 const router = Router();
+
+async function assertAdvancedScheduleScope(req: any, res: any, scheduleId: number): Promise<boolean> {
+  const sid = await advancedScheduleService.getSubscriberIdForSchedule(scheduleId);
+  if (sid == null) {
+    res.status(404).json({
+      success: false,
+      error: 'Agendamento não encontrado ou alvo inválido',
+    });
+    return false;
+  }
+  if (!isAdminRole(req.user?.role)) {
+    try {
+      await assertTenantClientParamAccess(req, sid);
+    } catch (e: any) {
+      if (e?.statusCode === 403) {
+        res.status(403).json({
+          success: false,
+          message: e.message || 'Acesso negado',
+        });
+        return false;
+      }
+      throw e;
+    }
+  }
+  return true;
+}
 
 // Middleware de validação
 const validateRequest = (req: Request, res: Response, next: any) => {
@@ -80,7 +108,7 @@ router.get('/:id',
   validateRequest,
   async (req: Request, res: Response) => {
     try {
-      const scheduleId = parseInt(req.params.id);
+      const scheduleId = parseInt(req.params.id, 10);
       const schedule = await advancedScheduleService.getScheduleById(scheduleId);
 
       if (!schedule) {
@@ -88,6 +116,10 @@ router.get('/:id',
           success: false,
           error: 'Agendamento não encontrado'
         });
+      }
+
+      if (!(await assertAdvancedScheduleScope(req, res, scheduleId))) {
+        return;
       }
 
       return res.json({
@@ -161,8 +193,11 @@ router.put('/:id',
   body('enabled').optional().isBoolean(),
   validateRequest,
   async (req: Request, res: Response) => {
-    const scheduleId = parseInt(req.params.id);
+    const scheduleId = parseInt(req.params.id, 10);
     try {
+      if (!(await assertAdvancedScheduleScope(req, res, scheduleId))) {
+        return;
+      }
       const schedule = await advancedScheduleService.updateSchedule(scheduleId, {
         name: req.body.name,
         description: req.body.description,
@@ -196,8 +231,11 @@ router.delete('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
   async (req: Request, res: Response) => {
-    const scheduleId = parseInt(req.params.id);
+    const scheduleId = parseInt(req.params.id, 10);
     try {
+      if (!(await assertAdvancedScheduleScope(req, res, scheduleId))) {
+        return;
+      }
       await advancedScheduleService.deleteSchedule(scheduleId, req.user!.id);
 
       res.json({

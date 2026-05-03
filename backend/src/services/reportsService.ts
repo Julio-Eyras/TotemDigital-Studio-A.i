@@ -1508,3 +1508,11 @@ export class ReportsService {
   }
 }
 
+let reportsServiceInstance: ReportsService | null = null;
+
+export function getReportsService(): ReportsService {
+  if (!reportsServiceInstance) {
+    reportsServiceInstance = new ReportsService();
+  }
+  return reportsServiceInstance;
+}

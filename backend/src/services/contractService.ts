@@ -244,10 +244,10 @@ export class ContractService {
   /** subscriber_id do contrato (para checagem de escopo sem carregar o registro completo). */
   async getSubscriberIdForContract(contractId: number): Promise<number | null> {
     try {
-      const row = await this.db.findFirst<{ subscriber_id: number }>(
+      const row = (await this.db.findFirst(
         `SELECT subscriber_id FROM subscriber_contracts WHERE contract_id = $1`,
         [contractId]
-      );
+      )) as { subscriber_id: number } | null;
       return row?.subscriber_id != null ? Number(row.subscriber_id) : null;
     } catch (error: any) {
       await logError('Erro ao resolver subscriber do contrato', error, { contractId });

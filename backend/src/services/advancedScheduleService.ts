@@ -292,6 +292,35 @@ export class AdvancedScheduleService {
   }
 
   /**
+   * subscriber_id do dono do alvo (campanha ou playlist) deste agendamento.
+   */
+  async getSubscriberIdForSchedule(scheduleId: number): Promise<number | null> {
+    try {
+      const row = (await this.db.findFirst(
+        `
+        SELECT (
+          CASE sch.schedule_type
+            WHEN 'campaign' THEN (SELECT c.subscriber_id FROM campaigns c WHERE c.campaign_id = sch.target_id LIMIT 1)
+            WHEN 'campaign_activation' THEN (SELECT c.subscriber_id FROM campaigns c WHERE c.campaign_id = sch.target_id LIMIT 1)
+            WHEN 'playlist' THEN (SELECT p.subscriber_id FROM playlists p WHERE p.playlist_id = sch.target_id LIMIT 1)
+            WHEN 'playlist_generation' THEN (SELECT p.subscriber_id FROM playlists p WHERE p.playlist_id = sch.target_id LIMIT 1)
+            ELSE NULL
+          END
+        ) AS subscriber_id
+        FROM advanced_schedules sch
+        WHERE sch.schedule_id = ?
+        `,
+        [scheduleId]
+      )) as { subscriber_id: number | null } | null;
+      const sid = row?.subscriber_id;
+      return sid != null && Number.isFinite(Number(sid)) ? Number(sid) : null;
+    } catch (error: any) {
+      await logError('Erro ao resolver subscriber do agendamento', error, { scheduleId });
+      throw error;
+    }
+  }
+
+  /**
    * Atualiza agendamento
    */
   async updateSchedule(scheduleId: number, data: UpdateAdvancedScheduleRequest, userId: number): Promise<AdvancedSchedule> {
