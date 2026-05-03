@@ -28,8 +28,8 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  Tooltip,
   useTheme,
+  useMediaQuery,
   LinearProgress,
   Alert,
   Table,
@@ -43,19 +43,14 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Autocomplete,
   Tabs,
   Tab,
-  Divider,
+  Drawer,
   List,
   ListItem,
+  ListItemButton,
   ListItemText,
   ListItemIcon,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Switch,
-  FormControlLabel,
 } from '@mui/material';
 import {
   Timeline,
@@ -69,26 +64,25 @@ import {
 import {
   Refresh,
   Visibility,
-  ExpandMore,
   CheckCircle,
-  Error,
-  Warning,
-  Schedule,
-  PlaylistPlay,
   Campaign,
-  Computer,
-  Cached,
-  Timer,
-  FilterList,
   VideoLibrary,
   QueueMusic,
   Timeline as TimelineIcon,
-  Settings,
   BarChart,
-  Info,
+  Menu as MenuIcon,
 } from '@mui/icons-material';
 import { dispatcherTotemApi, totemApi, DispatchPlan } from '../../services/api';
 import { format } from 'date-fns';
+
+/** Índices alinhados a `tabValue` (0..4). Uma única fonte para abas desktop e drawer mobile. */
+const DISPATCHER_SECTIONS = [
+  { label: 'Campanhas Elegíveis', icon: Campaign },
+  { label: 'Playlists Elegíveis', icon: QueueMusic },
+  { label: 'Mídia Elegível', icon: VideoLibrary },
+  { label: 'Timeline', icon: TimelineIcon },
+  { label: 'Estatísticas', icon: BarChart },
+] as const;
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -98,9 +92,20 @@ interface TabPanelProps {
 
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
+  const panelLabel = DISPATCHER_SECTIONS[index]?.label ?? `Seção ${index + 1}`;
   return (
-    <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`dispatcher-tabpanel-${index}`}
+      aria-label={panelLabel}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ pt: { xs: 1.5, sm: 2, md: 3 }, px: { xs: 0.5, sm: 1, md: 2 }, pb: { xs: 1, md: 2 } }}>
+          {children}
+        </Box>
+      )}
     </div>
   );
 }
@@ -158,6 +163,10 @@ interface TimelineSlot {
 
 const DispatcherManager: React.FC = () => {
   const theme = useTheme();
+  /** Abaixo do breakpoint `md`: drawer + conteúdo em largura total (Pro e Compact). */
+  const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
+  const dialogFullScreen = useMediaQuery(theme.breakpoints.down('sm'), { noSsr: true });
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -188,6 +197,12 @@ const DispatcherManager: React.FC = () => {
   useEffect(() => {
     loadTotems();
   }, []);
+
+  useEffect(() => {
+    if (!isMobileNav) {
+      setMobileDrawerOpen(false);
+    }
+  }, [isMobileNav]);
 
   // Carregar dados quando totem ou timestamp mudar
   useEffect(() => {
@@ -346,6 +361,11 @@ const DispatcherManager: React.FC = () => {
     setTabValue(newValue);
   };
 
+  const selectSection = (index: number) => {
+    setTabValue(index);
+    setMobileDrawerOpen(false);
+  };
+
   const handleRefresh = () => {
     loadEligibleData();
     loadTimeline();
@@ -370,9 +390,18 @@ const DispatcherManager: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h4" component="h1">
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+      <Box
+        sx={{
+          mb: { xs: 2, md: 3 },
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'center' },
+          justifyContent: 'space-between',
+          gap: { xs: 1.5, sm: 2 },
+        }}
+      >
+        <Typography variant="h4" component="h1" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem', md: undefined } }}>
           Gerenciador Dispatcher-Totem
         </Typography>
         <Button
@@ -380,6 +409,7 @@ const DispatcherManager: React.FC = () => {
           startIcon={<Refresh />}
           onClick={handleRefresh}
           disabled={loading}
+          sx={{ alignSelf: { xs: 'stretch', sm: 'auto' } }}
         >
           Atualizar
         </Button>
@@ -392,8 +422,8 @@ const DispatcherManager: React.FC = () => {
       )}
 
       {/* Filtros */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
+      <Card sx={{ mb: { xs: 2, md: 3 } }}>
+        <CardContent sx={{ p: { xs: 2, sm: 2, md: 3 }, '&:last-child': { pb: { xs: 2, md: 3 } } }}>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={4}>
               <FormControl fullWidth>
@@ -430,11 +460,17 @@ const DispatcherManager: React.FC = () => {
                     label={`Plano: ${dispatchPlan.playlistName || 'N/A'} (${dispatchPlan.mediaItems.length} mídias)`}
                     color="success"
                     variant="outlined"
+                    sx={{
+                      height: 'auto',
+                      minHeight: 32,
+                      maxWidth: '100%',
+                      '& .MuiChip-label': { whiteSpace: 'normal', py: 0.5 },
+                    }}
                   />
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: undefined } }}>
                     Origem: {dispatchPlan.source} #{dispatchPlan.sourceId} · Campanha: {dispatchPlan.metadata?.campaignTitle || dispatchPlan.metadata?.campaignId || '-'}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: undefined } }}>
                     Cache: {dispatchFromCache ? 'SIM (cache ativo)' : 'NÃO (recalculado)'} · Execução: {dispatchExecutionMs ?? 0} ms
                   </Typography>
                 </Box>
@@ -446,22 +482,107 @@ const DispatcherManager: React.FC = () => {
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
 
-      {/* Tabs */}
-      <Card>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange}>
-            <Tab icon={<Campaign />} label="Campanhas Elegíveis" iconPosition="start" />
-            <Tab icon={<QueueMusic />} label="Playlists Elegíveis" iconPosition="start" />
-            <Tab icon={<VideoLibrary />} label="Mídia Elegível" iconPosition="start" />
-            <Tab icon={<TimelineIcon />} label="Timeline" iconPosition="start" />
-            <Tab icon={<BarChart />} label="Estatísticas" iconPosition="start" />
-          </Tabs>
+      <Drawer
+        anchor="left"
+        open={mobileDrawerOpen}
+        onClose={() => setMobileDrawerOpen(false)}
+        ModalProps={{ keepMounted: true }}
+        PaperProps={{
+          id: 'dispatcher-mobile-drawer',
+          sx: { width: 280, maxWidth: '88vw', boxSizing: 'border-box' },
+        }}
+      >
+        <Box sx={{ pt: 2, pb: 1 }}>
+          <Typography variant="subtitle2" sx={{ px: 2, pb: 1, color: 'text.secondary' }}>
+            Seções
+          </Typography>
+          <List disablePadding aria-label="Lista de seções do dispatcher">
+            {DISPATCHER_SECTIONS.map((section, index) => {
+              const Icon = section.icon;
+              return (
+                <ListItem key={section.label} disablePadding>
+                  <ListItemButton
+                    selected={tabValue === index}
+                    onClick={() => selectSection(index)}
+                    sx={{ py: 1.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 40 }}>
+                      <Icon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={section.label}
+                      primaryTypographyProps={{ variant: 'body2' }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              );
+            })}
+          </List>
         </Box>
+      </Drawer>
+
+      {/* Tabs desktop / barra híbrida mobile — mesmo `tabValue` e TabPanels abaixo */}
+      <Card sx={{ overflow: 'hidden' }}>
+        {isMobileNav ? (
+          <Box
+            role="navigation"
+            aria-label="Seção atual do dispatcher"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              px: 1.5,
+              py: 1.25,
+              borderBottom: 1,
+              borderColor: 'divider',
+              bgcolor: 'action.hover',
+            }}
+          >
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<MenuIcon />}
+              onClick={() => setMobileDrawerOpen(true)}
+              aria-expanded={mobileDrawerOpen}
+              aria-controls="dispatcher-mobile-drawer"
+            >
+              Seções
+            </Button>
+            <Typography variant="subtitle2" color="text.secondary" noWrap sx={{ flex: 1, textAlign: 'right', minWidth: 0 }}>
+              {DISPATCHER_SECTIONS[tabValue]?.label ?? ''}
+            </Typography>
+          </Box>
+        ) : (
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs
+              value={tabValue}
+              onChange={handleTabChange}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
+              aria-label="Seções do gerenciador dispatcher"
+            >
+              {DISPATCHER_SECTIONS.map((section, index) => {
+                const Icon = section.icon;
+                return (
+                  <Tab
+                    key={section.label}
+                    icon={<Icon />}
+                    label={section.label}
+                    iconPosition="start"
+                    id={`dispatcher-tab-${index}`}
+                    aria-controls={`dispatcher-tabpanel-${index}`}
+                  />
+                );
+              })}
+            </Tabs>
+          </Box>
+        )}
 
         {/* Tab 1: Campanhas Elegíveis */}
         <TabPanel value={tabValue} index={0}>
-          <TableContainer component={Paper}>
-            <Table>
+          <TableContainer component={Paper} sx={{ maxWidth: '100%' }}>
+            <Table size={isMobileNav ? 'small' : 'medium'}>
               <TableHead>
                 <TableRow>
                   <TableCell>ID</TableCell>
@@ -536,8 +657,8 @@ const DispatcherManager: React.FC = () => {
 
         {/* Tab 2: Playlists Elegíveis */}
         <TabPanel value={tabValue} index={1}>
-          <TableContainer component={Paper}>
-            <Table>
+          <TableContainer component={Paper} sx={{ maxWidth: '100%' }}>
+            <Table size={isMobileNav ? 'small' : 'medium'}>
               <TableHead>
                 <TableRow>
                   <TableCell>ID</TableCell>
@@ -592,8 +713,8 @@ const DispatcherManager: React.FC = () => {
 
         {/* Tab 3: Mídia Elegível */}
         <TabPanel value={tabValue} index={2}>
-          <TableContainer component={Paper}>
-            <Table>
+          <TableContainer component={Paper} sx={{ maxWidth: '100%' }}>
+            <Table size={isMobileNav ? 'small' : 'medium'}>
               <TableHead>
                 <TableRow>
                   <TableCell>ID</TableCell>
@@ -644,7 +765,7 @@ const DispatcherManager: React.FC = () => {
 
         {/* Tab 4: Timeline */}
         <TabPanel value={tabValue} index={3}>
-          <Box sx={{ maxHeight: '600px', overflow: 'auto' }}>
+          <Box sx={{ maxHeight: { xs: 'min(55vh, 480px)', md: '600px' }, overflow: 'auto' }}>
             <Timeline>
               {timeline.slice(0, 48).map((slot, index) => (
                 <TimelineItem key={index}>
@@ -684,14 +805,14 @@ const DispatcherManager: React.FC = () => {
           <Grid container spacing={3}>
             <Grid item xs={12} md={4}>
               <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
+                <CardContent sx={{ py: { xs: 1.5, md: 2 } }}>
+                  <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '0.95rem', md: undefined } }}>
                     Campanhas Elegíveis
                   </Typography>
-                  <Typography variant="h3" color="primary">
+                  <Typography variant="h3" color="primary" sx={{ fontSize: { xs: '1.75rem', md: undefined } }}>
                     {eligibleCampaigns.length}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', md: undefined } }}>
                     Total de campanhas elegíveis para o totem selecionado
                   </Typography>
                 </CardContent>
@@ -699,14 +820,14 @@ const DispatcherManager: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={4}>
               <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
+                <CardContent sx={{ py: { xs: 1.5, md: 2 } }}>
+                  <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '0.95rem', md: undefined } }}>
                     Playlists Elegíveis
                   </Typography>
-                  <Typography variant="h3" color="primary">
+                  <Typography variant="h3" color="primary" sx={{ fontSize: { xs: '1.75rem', md: undefined } }}>
                     {eligiblePlaylists.length}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', md: undefined } }}>
                     Total de playlists elegíveis
                   </Typography>
                 </CardContent>
@@ -714,14 +835,14 @@ const DispatcherManager: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={4}>
               <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
+                <CardContent sx={{ py: { xs: 1.5, md: 2 } }}>
+                  <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '0.95rem', md: undefined } }}>
                     Mídia Elegível
                   </Typography>
-                  <Typography variant="h3" color="primary">
+                  <Typography variant="h3" color="primary" sx={{ fontSize: { xs: '1.75rem', md: undefined } }}>
                     {eligibleMedia.length}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', md: undefined } }}>
                     Total de mídias elegíveis
                   </Typography>
                 </CardContent>
@@ -730,23 +851,23 @@ const DispatcherManager: React.FC = () => {
             {dispatchPlan && (
               <Grid item xs={12}>
                 <Card>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
+                  <CardContent sx={{ py: { xs: 1.5, md: 2 } }}>
+                    <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '0.95rem', md: undefined } }}>
                       Plano Atual
                     </Typography>
-                    <Typography variant="body1">
+                    <Typography variant="body1" sx={{ fontSize: { xs: '0.875rem', md: undefined }, wordBreak: 'break-word' }}>
                       <strong>Playlist:</strong> {dispatchPlan.playlistName}
                     </Typography>
-                    <Typography variant="body1">
+                    <Typography variant="body1" sx={{ fontSize: { xs: '0.875rem', md: undefined } }}>
                       <strong>Prioridade:</strong> {dispatchPlan.priority}
                     </Typography>
-                    <Typography variant="body1">
+                    <Typography variant="body1" sx={{ fontSize: { xs: '0.875rem', md: undefined } }}>
                       <strong>Fonte:</strong> {dispatchPlan.source}
                     </Typography>
-                    <Typography variant="body1">
+                    <Typography variant="body1" sx={{ fontSize: { xs: '0.875rem', md: undefined } }}>
                       <strong>Duração Total:</strong> {dispatchPlan.totalDuration}s
                     </Typography>
-                    <Typography variant="body1">
+                    <Typography variant="body1" sx={{ fontSize: { xs: '0.875rem', md: undefined } }}>
                       <strong>Itens:</strong> {dispatchPlan.mediaItems?.length || 0}
                     </Typography>
                   </CardContent>
@@ -763,6 +884,8 @@ const DispatcherManager: React.FC = () => {
         onClose={() => setCampaignDetailOpen(false)}
         maxWidth="md"
         fullWidth
+        fullScreen={dialogFullScreen}
+        scroll="paper"
       >
         <DialogTitle>Detalhes da Campanha</DialogTitle>
         <DialogContent>
@@ -786,6 +909,8 @@ const DispatcherManager: React.FC = () => {
         onClose={() => setPlaylistDetailOpen(false)}
         maxWidth="md"
         fullWidth
+        fullScreen={dialogFullScreen}
+        scroll="paper"
       >
         <DialogTitle>Detalhes da Playlist</DialogTitle>
         <DialogContent>
@@ -809,6 +934,8 @@ const DispatcherManager: React.FC = () => {
         onClose={() => setMediaDetailOpen(false)}
         maxWidth="md"
         fullWidth
+        fullScreen={dialogFullScreen}
+        scroll="paper"
       >
         <DialogTitle>Detalhes da Mídia</DialogTitle>
         <DialogContent>
