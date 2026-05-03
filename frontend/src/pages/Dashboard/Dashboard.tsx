@@ -5,8 +5,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
+  Button,
   Card,
   CardContent,
   Typography,
@@ -43,6 +45,15 @@ import { dashboardApi } from '../../services/api';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 
+interface AdvertiserOverviewStats {
+  totalSubscribers: number;
+  activeSubscribers: number;
+  inactiveSubscribers: number;
+  totalMedias: number;
+  totalPlaylists: number;
+  totalCampaigns: number;
+}
+
 interface DashboardStats {
   totalMedia: number;
   totalPlaylists: number;
@@ -50,6 +61,7 @@ interface DashboardStats {
   totalUsers: number;
   activePlayers: number;
   offlinePlayers: number;
+  advertiserOverview?: AdvertiserOverviewStats;
 }
 
 interface RecentActivity {
@@ -62,6 +74,7 @@ interface RecentActivity {
 
 const Dashboard: React.FC = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const breadcrumbs = useBreadcrumbs();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<RecentActivity[]>([]);
@@ -113,7 +126,7 @@ const Dashboard: React.FC = () => {
     <Box sx={{ p: 3 }}>
       <PageHeader
         title="Dashboard"
-        subtitle="Visão geral do sistema"
+        subtitle="Visão geral do sistema — inclui resumo de anunciantes e totais globais; tetos por anunciante vêm de plano (contrato) e defaults no sistema"
         breadcrumbs={breadcrumbs}
         onRefresh={loadDashboardData}
         loading={loading}
@@ -234,6 +247,115 @@ const Dashboard: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {stats?.advertiserOverview && (
+        <Box sx={{ mb: 3 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 1,
+              mb: 2,
+            }}
+          >
+            <Tooltip
+              title="Resumo operacional de anunciantes. Para contratos, planos e conteúdos por conta, use o botão Gerir anunciantes. Os tetos (limites) por anunciante aplicam-se no backend: primeiro o plano ligado ao contrato ativo (JSON limits); onde o plano não define, entram os defaults do sistema (limits.defaults.*). Valor 0 = sem teto nessa métrica."
+              arrow
+              enterTouchDelay={0}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 600, cursor: 'help', borderBottom: '1px dotted', borderColor: 'divider' }}>
+                Anunciantes
+              </Typography>
+            </Tooltip>
+            <Button variant="outlined" size="small" onClick={() => navigate('/subscribers')}>
+              Gerir anunciantes
+            </Button>
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Totais globais na base (não são tetos). Os tetos por anunciante vêm do <strong>contrato ativo</strong> e do <strong>plano</strong> (campo limits); se o plano omitir um limite, usa-se o default em <strong>limits.defaults.*</strong> no sistema — <strong>0</strong> nesses valores significa <strong>sem teto</strong> nessa métrica.
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={6} sm={4} md={2}>
+              <Tooltip title="Total de anunciantes cadastrados (todos)." arrow enterTouchDelay={0}>
+                <Card variant="outlined" sx={{ cursor: 'help' }}>
+                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Anunciantes
+                    </Typography>
+                    <Typography variant="h6">{stats.advertiserOverview.totalSubscribers}</Typography>
+                  </CardContent>
+                </Card>
+              </Tooltip>
+            </Grid>
+            <Grid item xs={6} sm={4} md={2}>
+              <Tooltip title="Anunciantes com conta ativa (is_active)." arrow enterTouchDelay={0}>
+                <Card variant="outlined" sx={{ cursor: 'help' }}>
+                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Ativos
+                    </Typography>
+                    <Typography variant="h6" color="success.main">
+                      {stats.advertiserOverview.activeSubscribers}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Tooltip>
+            </Grid>
+            <Grid item xs={6} sm={4} md={2}>
+              <Tooltip title="Anunciantes inativos (is_active falso)." arrow enterTouchDelay={0}>
+                <Card variant="outlined" sx={{ cursor: 'help' }}>
+                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Inativos
+                    </Typography>
+                    <Typography variant="h6" color="text.secondary">
+                      {stats.advertiserOverview.inactiveSubscribers}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Tooltip>
+            </Grid>
+            <Grid item xs={6} sm={4} md={2}>
+              <Tooltip title="Total de mídias ativas em todo o sistema (soma de todas as contas). Não confundir com o teto de armazenamento por anunciante." arrow enterTouchDelay={0}>
+                <Card variant="outlined" sx={{ cursor: 'help' }}>
+                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Mídias (globais)
+                    </Typography>
+                    <Typography variant="h6">{stats.advertiserOverview.totalMedias}</Typography>
+                  </CardContent>
+                </Card>
+              </Tooltip>
+            </Grid>
+            <Grid item xs={6} sm={4} md={2}>
+              <Tooltip title="Total de playlists ativas em todo o sistema." arrow enterTouchDelay={0}>
+                <Card variant="outlined" sx={{ cursor: 'help' }}>
+                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Playlists (globais)
+                    </Typography>
+                    <Typography variant="h6">{stats.advertiserOverview.totalPlaylists}</Typography>
+                  </CardContent>
+                </Card>
+              </Tooltip>
+            </Grid>
+            <Grid item xs={6} sm={4} md={2}>
+              <Tooltip title="Total de campanhas em todo o sistema (todas as contas)." arrow enterTouchDelay={0}>
+                <Card variant="outlined" sx={{ cursor: 'help' }}>
+                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Campanhas (globais)
+                    </Typography>
+                    <Typography variant="h6">{stats.advertiserOverview.totalCampaigns}</Typography>
+                  </CardContent>
+                </Card>
+              </Tooltip>
+            </Grid>
+          </Grid>
+        </Box>
+      )}
 
       {/* Recent Activities */}
       <Grid container spacing={3}>

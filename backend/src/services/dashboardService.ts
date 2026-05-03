@@ -2,6 +2,16 @@ import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import type { TenantScope } from '../utils/tenantScope';
 
+/** Visão global de anunciantes (subscribers) para o dashboard principal. */
+export interface AdvertiserOverviewStats {
+  totalSubscribers: number;
+  activeSubscribers: number;
+  inactiveSubscribers: number;
+  totalMedias: number;
+  totalPlaylists: number;
+  totalCampaigns: number;
+}
+
 export interface DashboardStats {
   totalMedia: number;
   totalPlaylists: number;
@@ -9,6 +19,8 @@ export interface DashboardStats {
   totalUsers: number;
   activePlayers: number;
   offlinePlayers: number;
+  /** Preenchido apenas no escopo global (admin); métricas agregadas para a área Anunciantes. */
+  advertiserOverview?: AdvertiserOverviewStats;
 }
 
 export interface RecentActivity {
@@ -69,7 +81,15 @@ export class DashboardService {
       totalPlayers: 0,
       totalUsers: 0,
       activePlayers: 0,
-      offlinePlayers: 0
+      offlinePlayers: 0,
+      advertiserOverview: {
+        totalSubscribers: 0,
+        activeSubscribers: 0,
+        inactiveSubscribers: 0,
+        totalMedias: 0,
+        totalPlaylists: 0,
+        totalCampaigns: 0,
+      },
     };
   }
 
@@ -136,13 +156,31 @@ export class DashboardService {
       )
     `);
 
+    const advertiserOverviewRow = await this.db.findFirst(`
+      SELECT
+        (SELECT COUNT(*)::int FROM subscribers) AS total_subscribers,
+        (SELECT COUNT(*)::int FROM subscribers WHERE COALESCE(is_active, true) = true) AS active_subscribers,
+        (SELECT COUNT(*)::int FROM subscribers WHERE COALESCE(is_active, true) = false) AS inactive_subscribers,
+        (SELECT COUNT(*)::int FROM medias WHERE COALESCE(is_active, true) = true) AS total_medias,
+        (SELECT COUNT(*)::int FROM playlists WHERE COALESCE(is_active, true) = true) AS total_playlists,
+        (SELECT COUNT(*)::int FROM campaigns) AS total_campaigns
+    `);
+
     return {
       totalMedia: parseInt(String(mediaCount?.total || '0'), 10),
       totalPlaylists: parseInt(String(playlistCount?.total || '0'), 10),
       totalPlayers: parseInt(String(playerCount?.total || '0'), 10),
       totalUsers: parseInt(String(userCount?.total || '0'), 10),
       activePlayers: parseInt(String(activePlayerCount?.total || '0'), 10),
-      offlinePlayers: parseInt(String(offlinePlayerCount?.total || '0'), 10)
+      offlinePlayers: parseInt(String(offlinePlayerCount?.total || '0'), 10),
+      advertiserOverview: {
+        totalSubscribers: parseInt(String(advertiserOverviewRow?.total_subscribers ?? '0'), 10),
+        activeSubscribers: parseInt(String(advertiserOverviewRow?.active_subscribers ?? '0'), 10),
+        inactiveSubscribers: parseInt(String(advertiserOverviewRow?.inactive_subscribers ?? '0'), 10),
+        totalMedias: parseInt(String(advertiserOverviewRow?.total_medias ?? '0'), 10),
+        totalPlaylists: parseInt(String(advertiserOverviewRow?.total_playlists ?? '0'), 10),
+        totalCampaigns: parseInt(String(advertiserOverviewRow?.total_campaigns ?? '0'), 10),
+      },
     };
   }
 

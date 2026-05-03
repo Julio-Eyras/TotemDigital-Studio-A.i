@@ -380,7 +380,8 @@ router.get('/:id/validate/plan-limits',
                       'campaigns';
       const maxLimit = limits[limitKey];
       
-      const canCreate = maxLimit === undefined || currentCount < maxLimit;
+      const canCreate =
+        maxLimit === undefined || maxLimit === 0 || currentCount < maxLimit;
       
       return res.json({
         valid: canCreate,
@@ -414,9 +415,10 @@ router.get('/:id/validate/storage',
       const limits = await getSubscriberService().getMaxLimits(parseInt(id));
       const currentStorage = await getSubscriberService().getCurrentStorage(parseInt(id));
       
-      const maxStorageBytes = limits.storage_gb !== undefined
-        ? limits.storage_gb * 1024 * 1024 * 1024
-        : null;
+      const maxStorageBytes =
+        limits.storage_gb !== undefined && limits.storage_gb !== 0
+          ? limits.storage_gb * 1024 * 1024 * 1024
+          : null;
       
       const newFileSizeBytes = parseInt(fileSizeBytes as string);
       const totalAfterUpload = currentStorage + newFileSizeBytes;

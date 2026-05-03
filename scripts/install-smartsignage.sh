@@ -184,6 +184,20 @@ DEMO_TOTEMS_ACTIVE="${DEMO_TOTEMS_ACTIVE:-12}"
 DEMO_TOTEMS_STOCK="${DEMO_TOTEMS_STOCK:-1}"
 DEMO_SUBSCRIBERS_COUNT="${DEMO_SUBSCRIBERS_COUNT:-5}"
 
+# Limites padrão (system_settings limits.defaults.* e JSON dos planos demo). Inteiros >= 0; 0 = ilimitado no backend.
+# Sobrescreva antes do install, ex.: export LIMITS_DEFAULT_STORAGE_GB=200
+LIMITS_DEFAULT_STORAGE_GB="${LIMITS_DEFAULT_STORAGE_GB:-0}"
+LIMITS_DEFAULT_CAMPAIGNS="${LIMITS_DEFAULT_CAMPAIGNS:-0}"
+LIMITS_DEFAULT_TOTEMS="${LIMITS_DEFAULT_TOTEMS:-0}"
+LIMITS_DEFAULT_MEDIAS="${LIMITS_DEFAULT_MEDIAS:-0}"
+LIMITS_DEFAULT_PLAYLISTS="${LIMITS_DEFAULT_PLAYLISTS:-0}"
+LIMITS_DEMO_BRONZE_TOTEMS="${LIMITS_DEMO_BRONZE_TOTEMS:-4}"
+LIMITS_DEMO_BRONZE_CAMPAIGNS="${LIMITS_DEMO_BRONZE_CAMPAIGNS:-20}"
+LIMITS_DEMO_SILVER_TOTEMS="${LIMITS_DEMO_SILVER_TOTEMS:-8}"
+LIMITS_DEMO_SILVER_CAMPAIGNS="${LIMITS_DEMO_SILVER_CAMPAIGNS:-50}"
+LIMITS_DEMO_GOLD_TOTEMS="${LIMITS_DEMO_GOLD_TOTEMS:-20}"
+LIMITS_DEMO_GOLD_CAMPAIGNS="${LIMITS_DEMO_GOLD_CAMPAIGNS:-120}"
+
 # Modos especiais (operações focadas)
 DB_ONLY_MODE=false                # Reinstala apenas o banco (drop + schema + seeds), sem rebuild de backend/frontend
 BACKEND_BUILD_ONLY=false          # Faz apenas build do backend (sem mexer em banco/Nginx/etc.)
@@ -278,8 +292,36 @@ sanitize_owner_profile_defaults() {
     SYSTEM_OWNER_PLAN_SLUG="$(echo "${SYSTEM_OWNER_PLAN_SLUG:-$(to_kebab_case "${SYSTEM_OWNER_PLAN_NAME:-Plano $owner_name}")}" | xargs)"
 }
 
+# Limites padrão (system_settings limits.defaults.* e JSON dos planos demo). Inteiros >= 0; 0 = ilimitado no backend.
+# Podem ser definidos antes do install: export LIMITS_DEFAULT_STORAGE_GB=100
+sanitize_limits_defaults() {
+    LIMITS_DEFAULT_STORAGE_GB="${LIMITS_DEFAULT_STORAGE_GB:-0}"
+    LIMITS_DEFAULT_CAMPAIGNS="${LIMITS_DEFAULT_CAMPAIGNS:-0}"
+    LIMITS_DEFAULT_TOTEMS="${LIMITS_DEFAULT_TOTEMS:-0}"
+    LIMITS_DEFAULT_MEDIAS="${LIMITS_DEFAULT_MEDIAS:-0}"
+    LIMITS_DEFAULT_PLAYLISTS="${LIMITS_DEFAULT_PLAYLISTS:-0}"
+    LIMITS_DEMO_BRONZE_TOTEMS="${LIMITS_DEMO_BRONZE_TOTEMS:-4}"
+    LIMITS_DEMO_BRONZE_CAMPAIGNS="${LIMITS_DEMO_BRONZE_CAMPAIGNS:-20}"
+    LIMITS_DEMO_SILVER_TOTEMS="${LIMITS_DEMO_SILVER_TOTEMS:-8}"
+    LIMITS_DEMO_SILVER_CAMPAIGNS="${LIMITS_DEMO_SILVER_CAMPAIGNS:-50}"
+    LIMITS_DEMO_GOLD_TOTEMS="${LIMITS_DEMO_GOLD_TOTEMS:-20}"
+    LIMITS_DEMO_GOLD_CAMPAIGNS="${LIMITS_DEMO_GOLD_CAMPAIGNS:-120}"
+    [[ "$LIMITS_DEFAULT_STORAGE_GB" =~ ^[0-9]+$ ]] || LIMITS_DEFAULT_STORAGE_GB=0
+    [[ "$LIMITS_DEFAULT_CAMPAIGNS" =~ ^[0-9]+$ ]] || LIMITS_DEFAULT_CAMPAIGNS=0
+    [[ "$LIMITS_DEFAULT_TOTEMS" =~ ^[0-9]+$ ]] || LIMITS_DEFAULT_TOTEMS=0
+    [[ "$LIMITS_DEFAULT_MEDIAS" =~ ^[0-9]+$ ]] || LIMITS_DEFAULT_MEDIAS=0
+    [[ "$LIMITS_DEFAULT_PLAYLISTS" =~ ^[0-9]+$ ]] || LIMITS_DEFAULT_PLAYLISTS=0
+    [[ "$LIMITS_DEMO_BRONZE_TOTEMS" =~ ^[0-9]+$ ]] || LIMITS_DEMO_BRONZE_TOTEMS=4
+    [[ "$LIMITS_DEMO_BRONZE_CAMPAIGNS" =~ ^[0-9]+$ ]] || LIMITS_DEMO_BRONZE_CAMPAIGNS=20
+    [[ "$LIMITS_DEMO_SILVER_TOTEMS" =~ ^[0-9]+$ ]] || LIMITS_DEMO_SILVER_TOTEMS=8
+    [[ "$LIMITS_DEMO_SILVER_CAMPAIGNS" =~ ^[0-9]+$ ]] || LIMITS_DEMO_SILVER_CAMPAIGNS=50
+    [[ "$LIMITS_DEMO_GOLD_TOTEMS" =~ ^[0-9]+$ ]] || LIMITS_DEMO_GOLD_TOTEMS=20
+    [[ "$LIMITS_DEMO_GOLD_CAMPAIGNS" =~ ^[0-9]+$ ]] || LIMITS_DEMO_GOLD_CAMPAIGNS=120
+}
+
 ask_owner_profile() {
     sanitize_owner_profile_defaults
+    sanitize_limits_defaults
 
     if [[ "$SKIP_MENU" == "true" ]]; then
         log "Dados do owner (skip-menu): ${SYSTEM_OWNER_NAME} <${SYSTEM_OWNER_EMAIL}> | admin=${SYSTEM_OWNER_ADMIN_USERNAME}"
@@ -304,6 +346,21 @@ ask_owner_profile() {
     read -p "E-mail principal [${SYSTEM_OWNER_EMAIL}]: " input
     [[ -n "${input// }" ]] && SYSTEM_OWNER_EMAIL="$input"
 
+    echo
+    echo -e "${CYAN}Limites padrão (Pro e Compact)${NC}"
+    echo -e "${YELLOW}Use números inteiros. 0 = ilimitado. Enter mantém o valor entre colchetes.${NC}"
+    read -p "  Armazenamento padrão — storage_gb (GB) [${LIMITS_DEFAULT_STORAGE_GB}]: " input
+    [[ -n "${input// }" ]] && LIMITS_DEFAULT_STORAGE_GB="$input"
+    read -p "  Campanhas padrão (campaigns) [${LIMITS_DEFAULT_CAMPAIGNS}]: " input
+    [[ -n "${input// }" ]] && LIMITS_DEFAULT_CAMPAIGNS="$input"
+    read -p "  Totens padrão (totems) [${LIMITS_DEFAULT_TOTEMS}]: " input
+    [[ -n "${input// }" ]] && LIMITS_DEFAULT_TOTEMS="$input"
+    read -p "  Mídias padrão (0=ilimitado) [${LIMITS_DEFAULT_MEDIAS}]: " input
+    [[ -n "${input// }" ]] && LIMITS_DEFAULT_MEDIAS="$input"
+    read -p "  Playlists padrão (0=ilimitado) [${LIMITS_DEFAULT_PLAYLISTS}]: " input
+    [[ -n "${input// }" ]] && LIMITS_DEFAULT_PLAYLISTS="$input"
+    sanitize_limits_defaults
+
     if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" != "true" ]]; then
         read -p "Publisher alvo da carga demo (ID) [${SYSTEM_DEMO_TARGET_PUBLISHER_ID}]: " input
         [[ -n "${input// }" ]] && SYSTEM_DEMO_TARGET_PUBLISHER_ID="$input"
@@ -317,6 +374,7 @@ prepare_seed_with_owner_profile() {
     local output_seed_file="$2"
 
     sanitize_owner_profile_defaults
+    sanitize_limits_defaults
     cp "$input_seed_file" "$output_seed_file"
 
     local owner_name="$SYSTEM_OWNER_NAME"
@@ -354,6 +412,18 @@ prepare_seed_with_owner_profile() {
     city_sql="$(escape_sql_literal "$SYSTEM_OWNER_CITY")"
     email_sql="$(escape_sql_literal "$SYSTEM_OWNER_EMAIL")"
     admin_sql="$(escape_sql_literal "$SYSTEM_OWNER_ADMIN_USERNAME")"
+
+    sanitize_limits_defaults
+    local demo_json_bronze demo_json_silver demo_json_gold
+    demo_json_bronze="$(printf '{"totems":%s,"campaigns":%s,"storage_gb":%s}' "${LIMITS_DEMO_BRONZE_TOTEMS}" "${LIMITS_DEMO_BRONZE_CAMPAIGNS}" "${LIMITS_DEFAULT_STORAGE_GB}")"
+    demo_json_silver="$(printf '{"totems":%s,"campaigns":%s,"storage_gb":%s}' "${LIMITS_DEMO_SILVER_TOTEMS}" "${LIMITS_DEMO_SILVER_CAMPAIGNS}" "${LIMITS_DEFAULT_STORAGE_GB}")"
+    demo_json_gold="$(printf '{"totems":%s,"campaigns":%s,"storage_gb":%s}' "${LIMITS_DEMO_GOLD_TOTEMS}" "${LIMITS_DEMO_GOLD_CAMPAIGNS}" "${LIMITS_DEFAULT_STORAGE_GB}")"
+    local lim_d_storage lim_d_campaigns lim_d_totems lim_d_medias lim_d_playlists
+    lim_d_storage="$(escape_sql_literal "${LIMITS_DEFAULT_STORAGE_GB}")"
+    lim_d_campaigns="$(escape_sql_literal "${LIMITS_DEFAULT_CAMPAIGNS}")"
+    lim_d_totems="$(escape_sql_literal "${LIMITS_DEFAULT_TOTEMS}")"
+    lim_d_medias="$(escape_sql_literal "${LIMITS_DEFAULT_MEDIAS}")"
+    lim_d_playlists="$(escape_sql_literal "${LIMITS_DEFAULT_PLAYLISTS}")"
 
     local target_publisher_id="${SYSTEM_DEMO_TARGET_PUBLISHER_ID:-1}"
     [[ "$target_publisher_id" =~ ^[0-9]+$ ]] || target_publisher_id=1
@@ -446,9 +516,9 @@ BEGIN
     -- Planos base
     INSERT INTO plans (name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order)
     VALUES
-      ('Plano Bronze', 'bronze', 'Plano Bronze demo dinâmico', 129.00, 1290.00, 'BRL', 'month', '{"tier":"bronze"}'::jsonb, '{"totems":4,"campaigns":20}'::jsonb, true, false, true, 1),
-      ('Plano Silver', 'silver', 'Plano Silver demo dinâmico', 199.00, 1990.00, 'BRL', 'month', '{"tier":"silver"}'::jsonb, '{"totems":8,"campaigns":50}'::jsonb, true, true, false, 2),
-      ('Plano Gold', 'gold', 'Plano Gold demo dinâmico', 299.00, 2990.00, 'BRL', 'month', '{"tier":"gold"}'::jsonb, '{"totems":20,"campaigns":120}'::jsonb, true, false, false, 3)
+      ('Plano Bronze', 'bronze', 'Plano Bronze demo dinâmico', 129.00, 1290.00, 'BRL', 'month', '{"tier":"bronze"}'::jsonb, '${demo_json_bronze}'::jsonb, true, false, true, 1),
+      ('Plano Silver', 'silver', 'Plano Silver demo dinâmico', 199.00, 1990.00, 'BRL', 'month', '{"tier":"silver"}'::jsonb, '${demo_json_silver}'::jsonb, true, true, false, 2),
+      ('Plano Gold', 'gold', 'Plano Gold demo dinâmico', 299.00, 2990.00, 'BRL', 'month', '{"tier":"gold"}'::jsonb, '${demo_json_gold}'::jsonb, true, false, false, 3)
     ON CONFLICT (slug) DO UPDATE
       SET name = EXCLUDED.name,
           description = EXCLUDED.description,
@@ -654,6 +724,13 @@ BEGIN
     END LOOP;
 END
 \$\$;
+
+-- Limites padrão no banco (variáveis LIMITS_DEFAULT_* do instalador). 0 = ilimitado no backend.
+UPDATE system_settings SET setting_value = '${lim_d_storage}', default_value = '${lim_d_storage}', updated_at = CURRENT_TIMESTAMP WHERE setting_key = 'limits.defaults.storage_gb';
+UPDATE system_settings SET setting_value = '${lim_d_campaigns}', default_value = '${lim_d_campaigns}', updated_at = CURRENT_TIMESTAMP WHERE setting_key = 'limits.defaults.campaigns';
+UPDATE system_settings SET setting_value = '${lim_d_totems}', default_value = '${lim_d_totems}', updated_at = CURRENT_TIMESTAMP WHERE setting_key = 'limits.defaults.totems';
+UPDATE system_settings SET setting_value = '${lim_d_medias}', default_value = '${lim_d_medias}', updated_at = CURRENT_TIMESTAMP WHERE setting_key = 'limits.defaults.medias';
+UPDATE system_settings SET setting_value = '${lim_d_playlists}', default_value = '${lim_d_playlists}', updated_at = CURRENT_TIMESTAMP WHERE setting_key = 'limits.defaults.playlists';
 EOF
 }
 

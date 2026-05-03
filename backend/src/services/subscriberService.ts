@@ -2,6 +2,13 @@ import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 import { StorageService } from './storageService';
+import { SettingsService } from './settingsService';
+import { LIMITS_DEFAULT_SETTING_KEYS } from '../constants/limitsSettingsKeys';
+import {
+  mergeNumericPlanLimit,
+  normalizeLimitInt,
+  resolveLimitWithDefault,
+} from '../utils/subscriberLimitsPolicy';
 
 export interface Subscriber {
   subscriber_id: number;
@@ -878,6 +885,7 @@ export class SubscriberService {
     playlists?: number;
     campaigns?: number;
     storage_gb?: number;
+    totems?: number;
   }> {
     try {
       // Tentar obter do cache primeiro
@@ -887,6 +895,7 @@ export class SubscriberService {
         playlists?: number;
         campaigns?: number;
         storage_gb?: number;
+        totems?: number;
       }>(cacheKey);
       
       if (cached) {
@@ -894,56 +903,43 @@ export class SubscriberService {
       }
 
       const plans = await this.getActivePlans(subscriberId);
+      const settings = new SettingsService();
+      const readDefault = async (key: string): Promise<number | undefined> => {
+        const row = await settings.getSetting(key);
+        if (!row || row.value === undefined || row.value === null || String(row.value).trim() === '') {
+          return undefined;
+        }
+        return normalizeLimitInt(row.value);
+      };
+
+      const defaults = {
+        medias: await readDefault(LIMITS_DEFAULT_SETTING_KEYS.medias),
+        playlists: await readDefault(LIMITS_DEFAULT_SETTING_KEYS.playlists),
+        campaigns: await readDefault(LIMITS_DEFAULT_SETTING_KEYS.campaigns),
+        storage_gb: await readDefault(LIMITS_DEFAULT_SETTING_KEYS.storage_gb),
+        totems: await readDefault(LIMITS_DEFAULT_SETTING_KEYS.totems),
+      };
 
       if (plans.length === 0) {
-        // Se não tem planos, retornar limites infinitos (undefined = sem limite)
-        return {
-          medias: undefined,
-          playlists: undefined,
-          campaigns: undefined,
-          storage_gb: undefined,
+        // Sem contrato/plano ativo: aplica os mesmos defaults de sistema (limits.defaults.*).
+        // Valor 0 em defaults = ilimitado para aquela métrica.
+        const limits = {
+          medias: resolveLimitWithDefault('unset', defaults.medias),
+          playlists: resolveLimitWithDefault('unset', defaults.playlists),
+          campaigns: resolveLimitWithDefault('unset', defaults.campaigns),
+          storage_gb: resolveLimitWithDefault('unset', defaults.storage_gb),
+          totems: resolveLimitWithDefault('unset', defaults.totems),
         };
-      }
-
-      // Pegar o maior limite entre todos os planos
-      let maxMedias: number | undefined = undefined;
-      let maxPlaylists: number | undefined = undefined;
-      let maxCampaigns: number | undefined = undefined;
-      let maxStorageGb: number | undefined = undefined;
-
-      for (const plan of plans) {
-        const limits = plan.limits || {};
-        
-        if (limits.medias !== undefined && limits.medias !== null) {
-          if (maxMedias === undefined || limits.medias > maxMedias) {
-            maxMedias = limits.medias;
-          }
-        }
-
-        if (limits.playlists !== undefined && limits.playlists !== null) {
-          if (maxPlaylists === undefined || limits.playlists > maxPlaylists) {
-            maxPlaylists = limits.playlists;
-          }
-        }
-
-        if (limits.campaigns !== undefined && limits.campaigns !== null) {
-          if (maxCampaigns === undefined || limits.campaigns > maxCampaigns) {
-            maxCampaigns = limits.campaigns;
-          }
-        }
-
-        if (limits.storage_gb !== undefined && limits.storage_gb !== null) {
-          if (maxStorageGb === undefined || limits.storage_gb > maxStorageGb) {
-            maxStorageGb = limits.storage_gb;
-          }
-        }
+        await this.cache.set(cacheKey, limits, 300);
+        return limits;
       }
 
       const limits = {
-        medias: maxMedias,
-        playlists: maxPlaylists,
-        campaigns: maxCampaigns,
-        storage_gb: maxStorageGb,
+        medias: resolveLimitWithDefault(mergeNumericPlanLimit(plans, 'medias'), defaults.medias),
+        playlists: resolveLimitWithDefault(mergeNumericPlanLimit(plans, 'playlists'), defaults.playlists),
+        campaigns: resolveLimitWithDefault(mergeNumericPlanLimit(plans, 'campaigns'), defaults.campaigns),
+        storage_gb: resolveLimitWithDefault(mergeNumericPlanLimit(plans, 'storage_gb'), defaults.storage_gb),
+        totems: resolveLimitWithDefault(mergeNumericPlanLimit(plans, 'totems'), defaults.totems),
       };
 
       // Armazenar no cache por 5 minutos (300 segundos)
@@ -970,8 +966,8 @@ export class SubscriberService {
                       'campaigns';
       const maxLimit = limits[limitKey];
 
-      // Se não tem limite definido, permitir
-      if (maxLimit === undefined) {
+      // Sem limite ou 0 = ilimitado
+      if (maxLimit === undefined || maxLimit === 0) {
         return;
       }
 
@@ -1025,8 +1021,8 @@ export class SubscriberService {
       const limits = await this.getMaxLimits(subscriberId);
       const maxStorageGB = limits.storage_gb;
 
-      // Se não tem limite definido, permitir
-      if (maxStorageGB === undefined) {
+      // Sem limite ou 0 = ilimitado
+      if (maxStorageGB === undefined || maxStorageGB === 0) {
         return;
       }
 
@@ -1221,6 +1217,7 @@ export class SubscriberService {
       playlists?: number;
       campaigns?: number;
       storage_gb?: number;
+      totems?: number;
     };
   }> {
     try {
@@ -1351,6 +1348,7 @@ export class SubscriberService {
           playlists: maxLimits.playlists,
           campaigns: maxLimits.campaigns,
           storage_gb: maxLimits.storage_gb,
+          totems: maxLimits.totems,
         },
       };
     } catch (error: any) {

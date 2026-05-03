@@ -69,6 +69,11 @@ function sortMediaSettings(list: SystemSetting[]): SystemSetting[] {
   });
 }
 
+/** Alinhado ao backend: só bloqueia edição quando `is_editable` é explicitamente false. */
+function isSettingReadOnly(s: SystemSetting): boolean {
+  return s.isEditable === false;
+}
+
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
   return (
@@ -242,13 +247,23 @@ const Settings: React.FC = () => {
       setError(null);
       let settingsToSave: SystemSetting[] = [];
       if (tabValue === 0) {
-        settingsToSave = Array.isArray(settings) 
-          ? settings.filter(s => s?.key && !s.key.startsWith('log.') && !s.key.startsWith('media.')) 
+        settingsToSave = Array.isArray(settings)
+          ? settings.filter(
+              (s) =>
+                s?.key &&
+                !s.key.startsWith('log.') &&
+                !s.key.startsWith('media.') &&
+                !isSettingReadOnly(s)
+            )
           : [];
       } else if (tabValue === 1) {
-        settingsToSave = Array.isArray(logSettings) ? logSettings : [];
+        settingsToSave = Array.isArray(logSettings)
+          ? logSettings.filter((s) => s?.key && !isSettingReadOnly(s))
+          : [];
       } else if (tabValue === 2) {
-        settingsToSave = Array.isArray(mediaSettings) ? mediaSettings : [];
+        settingsToSave = Array.isArray(mediaSettings)
+          ? mediaSettings.filter((s) => s?.key && !isSettingReadOnly(s))
+          : [];
       }
       
       // Converter para formato esperado pelo backend
@@ -285,12 +300,19 @@ const Settings: React.FC = () => {
   };
 
   const handleChange = (key: string, value: string) => {
-    setSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
+    const touch = (list: SystemSetting[]) =>
+      list.find((x) => x.key === key);
+    const cur =
+      touch(settings) || touch(logSettings) || touch(mediaSettings);
+    if (cur && isSettingReadOnly(cur)) {
+      return;
+    }
+    setSettings((prev) => prev.map((s) => (s.key === key ? { ...s, value } : s)));
     if (key.startsWith('log.')) {
-      setLogSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
+      setLogSettings((prev) => prev.map((s) => (s.key === key ? { ...s, value } : s)));
     }
     if (key.startsWith('media.')) {
-      setMediaSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
+      setMediaSettings((prev) => prev.map((s) => (s.key === key ? { ...s, value } : s)));
     }
   };
 
@@ -377,34 +399,55 @@ const Settings: React.FC = () => {
         </Box>
 
         <Grid container spacing={3}>
-          {Array.isArray(settings) && settings.filter(s => s?.key && !s.key.startsWith('log.')).map((s) => (
-            <Grid item xs={12} md={6} key={s.key}>
-              <Card>
-                <CardContent>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>{s.key}</Typography>
-                  {s.type === 'boolean' ? (
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={s.value === 'true' || s.value === true}
-                          onChange={(e) => handleChange(s.key, e.target.checked.toString())}
-                        />
-                      }
-                      label={s.description || s.key}
-                    />
-                  ) : (
-                    <TextField
-                      fullWidth
-                      label={s.description || s.key}
-                      value={String(s.value ?? '')}
-                      onChange={(e) => handleChange(s.key, e.target.value)}
-                      type={s.type === 'number' ? 'number' : 'text'}
-                    />
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
+          {Array.isArray(settings) &&
+            settings
+              .filter(
+                (s) => s?.key && !s.key.startsWith('log.') && !s.key.startsWith('media.')
+              )
+              .map((s) => {
+                const readOnly = isSettingReadOnly(s);
+                return (
+                  <Grid item xs={12} md={6} key={s.key}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                          {s.key}
+                          {readOnly && (
+                            <Chip
+                              label="Somente leitura"
+                              size="small"
+                              sx={{ ml: 1, verticalAlign: 'middle' }}
+                              variant="outlined"
+                            />
+                          )}
+                        </Typography>
+                        {s.type === 'boolean' ? (
+                          <FormControlLabel
+                            disabled={readOnly}
+                            control={
+                              <Switch
+                                checked={s.value === 'true' || s.value === true}
+                                onChange={(e) => handleChange(s.key, e.target.checked.toString())}
+                                disabled={readOnly}
+                              />
+                            }
+                            label={s.description || s.key}
+                          />
+                        ) : (
+                          <TextField
+                            fullWidth
+                            label={s.description || s.key}
+                            value={String(s.value ?? '')}
+                            onChange={(e) => handleChange(s.key, e.target.value)}
+                            type={s.type === 'number' ? 'number' : 'text'}
+                            disabled={readOnly}
+                          />
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );
+              })}
         </Grid>
       </TabPanel>
 
@@ -499,33 +542,51 @@ const Settings: React.FC = () => {
               Configurações de Rotação
             </Typography>
             <Grid container spacing={3} sx={{ mt: 1 }}>
-              {logSettings.map((s) => (
-                <Grid item xs={12} md={6} key={s.key}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>{s.key}</Typography>
-                  {s.type === 'boolean' ? (
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={s.value === 'true' || s.value === true}
-                          onChange={(e) => handleChange(s.key, e.target.checked.toString())}
+              {logSettings.map((s) => {
+                const readOnly = isSettingReadOnly(s);
+                return (
+                  <Grid item xs={12} md={6} key={s.key}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                      {s.key}
+                      {readOnly && (
+                        <Chip
+                          label="Somente leitura"
+                          size="small"
+                          sx={{ ml: 1, verticalAlign: 'middle' }}
+                          variant="outlined"
                         />
-                      }
-                      label={s.description || s.key}
-                    />
-                  ) : (
-                    <TextField
-                      fullWidth
-                      label={s.description || s.key}
-                      value={String(s.value ?? '')}
-                      onChange={(e) => handleChange(s.key, e.target.value)}
-                      type={s.type === 'number' ? 'number' : 'text'}
-                      helperText={s.key === 'log.rotation.max_size' || s.key === 'log.rotation.min_free_space' 
-                        ? 'Formato: 100MB, 1GB, etc.' 
-                        : undefined}
-                    />
-                  )}
-                </Grid>
-              ))}
+                      )}
+                    </Typography>
+                    {s.type === 'boolean' ? (
+                      <FormControlLabel
+                        disabled={readOnly}
+                        control={
+                          <Switch
+                            checked={s.value === 'true' || s.value === true}
+                            onChange={(e) => handleChange(s.key, e.target.checked.toString())}
+                            disabled={readOnly}
+                          />
+                        }
+                        label={s.description || s.key}
+                      />
+                    ) : (
+                      <TextField
+                        fullWidth
+                        label={s.description || s.key}
+                        value={String(s.value ?? '')}
+                        onChange={(e) => handleChange(s.key, e.target.value)}
+                        type={s.type === 'number' ? 'number' : 'text'}
+                        disabled={readOnly}
+                        helperText={
+                          s.key === 'log.rotation.max_size' || s.key === 'log.rotation.min_free_space'
+                            ? 'Formato: 100MB, 1GB, etc.'
+                            : undefined
+                        }
+                      />
+                    )}
+                  </Grid>
+                );
+              })}
             </Grid>
           </CardContent>
         </Card>
@@ -607,54 +668,71 @@ const Settings: React.FC = () => {
         </Alert>
 
         <Grid container spacing={3}>
-          {sortedMediaSettings.map((s) => (
-            <Grid item xs={12} md={6} key={s.key}>
-              <Card>
-                <CardContent>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                    {s.description || s.key}
-                  </Typography>
-                  {s.type === 'boolean' ? (
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={s.value === 'true' || s.value === true}
-                          onChange={(e) => handleChange(s.key, e.target.checked.toString())}
+          {sortedMediaSettings.map((s) => {
+            const readOnly = isSettingReadOnly(s);
+            return (
+              <Grid item xs={12} md={6} key={s.key}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                      {s.description || s.key}
+                      {readOnly && (
+                        <Chip
+                          label="Somente leitura"
+                          size="small"
+                          sx={{ ml: 1, verticalAlign: 'middle' }}
+                          variant="outlined"
                         />
-                      }
-                      label={s.description || s.key}
-                    />
-                  ) : s.type === 'number' ? (
-                    <TextField
-                      fullWidth
-                      label={s.description || s.key}
-                      value={String(s.value ?? '')}
-                      onChange={(e) => handleChange(s.key, e.target.value)}
-                      type="number"
-                      helperText={s.validation ? `Validação: ${s.validation}` : undefined}
-                    />
-                  ) : (
-                    <TextField
-                      fullWidth
-                      label={s.description || s.key}
-                      value={String(s.value ?? '')}
-                      onChange={(e) => handleChange(s.key, e.target.value)}
-                      helperText={
-                        s.key.includes('size') || s.key.includes('quota')
-                          ? 'Formato: número seguido de unidade (ex: 500MB, 1GB)'
-                          : s.validation ? `Validação: ${s.validation}` : undefined
-                      }
-                    />
-                  )}
-                  {s.defaultValue && (
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                      Valor padrão: {s.defaultValue}
+                      )}
                     </Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
+                    {s.type === 'boolean' ? (
+                      <FormControlLabel
+                        disabled={readOnly}
+                        control={
+                          <Switch
+                            checked={s.value === 'true' || s.value === true}
+                            onChange={(e) => handleChange(s.key, e.target.checked.toString())}
+                            disabled={readOnly}
+                          />
+                        }
+                        label={s.description || s.key}
+                      />
+                    ) : s.type === 'number' ? (
+                      <TextField
+                        fullWidth
+                        label={s.description || s.key}
+                        value={String(s.value ?? '')}
+                        onChange={(e) => handleChange(s.key, e.target.value)}
+                        type="number"
+                        disabled={readOnly}
+                        helperText={s.validation ? `Validação: ${s.validation}` : undefined}
+                      />
+                    ) : (
+                      <TextField
+                        fullWidth
+                        label={s.description || s.key}
+                        value={String(s.value ?? '')}
+                        onChange={(e) => handleChange(s.key, e.target.value)}
+                        disabled={readOnly}
+                        helperText={
+                          s.key.includes('size') || s.key.includes('quota')
+                            ? 'Formato: número seguido de unidade (ex: 500MB, 1GB)'
+                            : s.validation
+                              ? `Validação: ${s.validation}`
+                              : undefined
+                        }
+                      />
+                    )}
+                    {s.defaultValue && (
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                        Valor padrão: {s.defaultValue}
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            );
+          })}
         </Grid>
 
         {sortedMediaSettings.length === 0 && (

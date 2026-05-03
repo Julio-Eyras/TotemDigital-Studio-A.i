@@ -299,7 +299,7 @@ VALUES
     '5GB',
     'string',
     'media',
-    'Cota de armazenamento padrão por cliente (referência operacional)',
+    'Cota global de referência por cliente (string ex.: 5GB). Use 0 ou 0GB para ilimitado. O enforcement de upload segue limits.defaults.storage_gb + planos (getMaxLimits).',
     false,
     true,
     '5GB',
@@ -335,6 +335,82 @@ ON CONFLICT (setting_key) DO UPDATE SET
   is_editable = EXCLUDED.is_editable,
   validation = EXCLUDED.validation,
   options = EXCLUDED.options,
+  updated_at = CURRENT_TIMESTAMP;
+
+-- =============================================
+-- LIMITES PADRÃO (Pro e Compact): inteiro >= 0; 0 = ilimitado quando aplicável.
+-- Usados quando o JSON limits do plano não define a chave (merge em getMaxLimits).
+-- Valores podem ser sobrescritos pelo install (variáveis LIMITS_DEFAULT_*).
+-- =============================================
+
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options)
+VALUES
+  (
+    'limits.defaults.storage_gb',
+    '0',
+    'number',
+    'limits',
+    'Armazenamento (GB) padrão quando o plano não define storage_gb ou sem contrato ativo. 0 = ilimitado.',
+    false,
+    true,
+    '0',
+    '^[0-9]+$',
+    NULL
+  ),
+  (
+    'limits.defaults.campaigns',
+    '0',
+    'number',
+    'limits',
+    'Campanhas padrão quando o plano omite campaigns ou sem contrato ativo. 0 = ilimitado.',
+    false,
+    true,
+    '0',
+    '^[0-9]+$',
+    NULL
+  ),
+  (
+    'limits.defaults.totems',
+    '0',
+    'number',
+    'limits',
+    'Totens padrão quando o plano omite totems ou sem contrato ativo. 0 = ilimitado.',
+    false,
+    true,
+    '0',
+    '^[0-9]+$',
+    NULL
+  ),
+  (
+    'limits.defaults.medias',
+    '0',
+    'number',
+    'limits',
+    'Mídias padrão quando o plano omite medias em limits. 0 = ilimitado (recomendado).',
+    false,
+    true,
+    '0',
+    '^[0-9]+$',
+    NULL
+  ),
+  (
+    'limits.defaults.playlists',
+    '0',
+    'number',
+    'limits',
+    'Playlists padrão quando o plano omite playlists em limits. 0 = ilimitado (recomendado).',
+    false,
+    true,
+    '0',
+    '^[0-9]+$',
+    NULL
+  )
+ON CONFLICT (setting_key) DO UPDATE SET
+  description = EXCLUDED.description,
+  is_editable = EXCLUDED.is_editable,
+  validation = EXCLUDED.validation,
+  options = EXCLUDED.options,
+  default_value = EXCLUDED.default_value,
   updated_at = CURRENT_TIMESTAMP;
 
 -- Chave legada (JSON); o runtime usa media.upload.allowed_types (string)

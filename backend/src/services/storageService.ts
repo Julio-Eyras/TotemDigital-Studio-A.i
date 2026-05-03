@@ -108,9 +108,21 @@ export class StorageService {
    */
   async checkSubscriberQuota(subscriberId: number, fileSize: number): Promise<{ allowed: boolean; currentUsage: number; quota: number; available: number }> {
     try {
-      const envConfig = require('../config/env');
-      const quota = envConfig.uploadConfig?.mediaQuotaPerClient || envConfig.config?.upload?.mediaQuotaPerClient || (5 * 1024 * 1024 * 1024); // Default 5GB se não configurado
       const currentUsage = await this.getSubscriberStorageUsage(subscriberId);
+      const { getSubscriberService } = require('./subscriberService');
+      const limits = await getSubscriberService().getMaxLimits(subscriberId);
+      const capGb = limits.storage_gb;
+
+      if (capGb === undefined || capGb === 0) {
+        return {
+          allowed: true,
+          currentUsage,
+          quota: 0,
+          available: Number.MAX_SAFE_INTEGER,
+        };
+      }
+
+      const quota = capGb * 1024 * 1024 * 1024;
       const available = quota - currentUsage;
       const allowed = fileSize <= available;
 
@@ -120,7 +132,7 @@ export class StorageService {
           fileSize,
           currentUsage,
           quota,
-          available
+          available,
         });
       }
 
@@ -128,7 +140,7 @@ export class StorageService {
         allowed,
         currentUsage,
         quota,
-        available
+        available,
       };
     } catch (error: any) {
       logErrorSync('Erro ao verificar quota do subscriber', error, { subscriberId, fileSize });
@@ -137,7 +149,7 @@ export class StorageService {
         allowed: true,
         currentUsage: 0,
         quota: 0,
-        available: 0
+        available: 0,
       };
     }
   }

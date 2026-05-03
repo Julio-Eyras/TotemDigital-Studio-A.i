@@ -55,7 +55,6 @@ import {
   CheckCircle,
   Warning,
   Error as ErrorIcon,
-  People,
   Computer,
   Tv,
   Store,
@@ -105,6 +104,7 @@ import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDia
 import { SortableList } from '../../components/SortableList/SortableList';
 import { SubscriberCard, SubscriberDetails, SubscriberForm } from './components';
 import { PageHeader } from '../../components/DataDisplay';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import CampaignFullEditorDialog from '../Campaigns/CampaignFullEditorDialog';
 import { normalizeCampaign } from '../Campaigns/campaignHelpers';
 import { useAppSelector } from '../../store/hooks';
@@ -116,6 +116,7 @@ const Subscribers: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const breadcrumbs = useBreadcrumbs();
   const authUser = useAppSelector((state) => state.auth.user);
   /** Comercial consulta campanhas no anunciante; não edita nem abre o editor completo. */
   const isOperadorComercial = authUser?.role === 'operador_comercial';
@@ -184,15 +185,6 @@ const Subscribers: React.FC = () => {
   const [page, setPage] = useState<number>(1);
   const [limit, setLimit] = useState<number>(12);
   const [total, setTotal] = useState<number>(0);
-  // Estados para dashboard
-  const [overallStats, setOverallStats] = useState<{
-    total: number;
-    active: number;
-    inactive: number;
-    totalMedias: number;
-    totalPlaylists: number;
-    totalCampaigns: number;
-  } | null>(null);
   const [createTab, setCreateTab] = useState(0); // NOVO: Aba do dialog de criação
   const [editTab, setEditTab] = useState(0); // NOVO: Aba do dialog de edição
   /** Editor completo de campanha (mesmas abas que o menu global). */
@@ -397,7 +389,6 @@ const Subscribers: React.FC = () => {
 
   useEffect(() => {
     loadSubscribers();
-    loadOverallStats(); // Carregar estatísticas gerais
   }, [activeOnlyFilter, page, limit]);
 
   // Carregar planos quando a aba Contratos for aberta (criação ou edição)
@@ -456,43 +447,6 @@ const Subscribers: React.FC = () => {
       setError('Erro ao carregar lista de Subscribers');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadOverallStats = async () => {
-    try {
-      // Backend limita paginação; manter compatível para evitar 400/429
-      const allSubscribers = await subscriberApi.getAll({ limit: 100 });
-      const subscribers = allSubscribers.data || [];
-      
-      let totalMedias = 0;
-      let totalPlaylists = 0;
-      let totalCampaigns = 0;
-
-      // Carregar estatísticas de cada subscriber
-      for (const subscriber of subscribers.slice(0, 50)) { // Limitar a 50 para não sobrecarregar
-        try {
-          const stats = await subscriberApi.getStats(subscriber.subscriber_id);
-          if (stats) {
-            totalMedias += stats.media_count || 0;
-            totalPlaylists += stats.playlist_count || 0;
-            totalCampaigns += stats.campaign_count || 0;
-          }
-        } catch (err) {
-          // Ignorar erros individuais
-        }
-      }
-
-      setOverallStats({
-        total: subscribers.length,
-        active: subscribers.filter(s => s.is_active).length,
-        inactive: subscribers.filter(s => !s.is_active).length,
-        totalMedias,
-        totalPlaylists,
-        totalCampaigns,
-      });
-    } catch (error) {
-      console.error('Erro ao carregar estatísticas gerais:', error);
     }
   };
 
@@ -1963,20 +1917,31 @@ const Subscribers: React.FC = () => {
   // Evitar mostrar a tela vazia enquanto carrega a primeira página
   if (loading && Subscribers.length === 0) {
     return (
-      <Box sx={{ p: 3 }}>
-        <LinearProgress />
-        <Typography variant="h6" sx={{ mt: 2, textAlign: 'center' }}>
-          Carregando Anunciantes...
+      <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+        <PageHeader
+          title="Anunciantes"
+          subtitle="Contratos, planos e conteúdos por conta. Tetos: plano (limits) + defaults limits.defaults.* (0 = sem teto). Totais globais no Dashboard."
+          breadcrumbs={breadcrumbs}
+          loading
+        />
+        <LinearProgress sx={{ mt: 2 }} />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+          Carregando…
         </Typography>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
       <PageHeader
         title="Anunciantes"
-        subtitle="Gerencie anunciantes e suas informações, mídias, playlists, campanhas e contratos"
+        subtitle="Lista, filtros e ações por conta. Resumo agregado (totais globais) está no Dashboard."
+        breadcrumbs={breadcrumbs}
+        onRefresh={() => {
+          void loadSubscribers();
+        }}
+        loading={loading}
         actions={[
           {
             label: 'Criar Anunciante',
@@ -1987,89 +1952,14 @@ const Subscribers: React.FC = () => {
         ]}
       />
 
-      {/* Resumo */}
-      {overallStats && (
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={2}>
-            <Card sx={{ textAlign: 'center', py: 2 }}>
-              <CardContent>
-                <People sx={{ fontSize: 40, color: theme.palette.primary.main, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {overallStats.total}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Total
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <Card sx={{ textAlign: 'center', py: 2 }}>
-              <CardContent>
-                <CheckCircle sx={{ fontSize: 40, color: theme.palette.success.main, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {overallStats.active}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Ativos
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <Card sx={{ textAlign: 'center', py: 2 }}>
-              <CardContent>
-                <ErrorIcon sx={{ fontSize: 40, color: theme.palette.error.main, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {overallStats.inactive}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Inativos
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <Card sx={{ textAlign: 'center', py: 2 }}>
-              <CardContent>
-                <VideoLibrary sx={{ fontSize: 40, color: theme.palette.info.main, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {overallStats.totalMedias}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Mídias
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <Card sx={{ textAlign: 'center', py: 2 }}>
-              <CardContent>
-                <QueueMusic sx={{ fontSize: 40, color: theme.palette.warning.main, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {overallStats.totalPlaylists}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Playlists
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <Card sx={{ textAlign: 'center', py: 2 }}>
-              <CardContent>
-                <CampaignIcon sx={{ fontSize: 40, color: theme.palette.secondary.main, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {overallStats.totalCampaigns}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Campanhas
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      )}
+      <Alert severity="info" variant="outlined" sx={{ mb: 2 }}>
+        <Typography variant="body2" component="div">
+          <strong>Tetos (limites)</strong> aplicam-se no servidor assim: primeiro o <strong>plano</strong> ligado ao{' '}
+          <strong>contrato ativo</strong> (campo <code>limits</code> em JSON — ex.: <code>storage_gb</code>, campanhas).
+          Se o plano não definir uma métrica, usa-se o default do sistema (<strong>limits.defaults.*</strong> em
+          configurações). Valor <strong>0</strong> nesses números significa <strong>sem teto</strong> nessa métrica.
+        </Typography>
+      </Alert>
 
       {/* Filters */}
       <Card sx={{ mb: 3 }}>

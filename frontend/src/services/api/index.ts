@@ -183,6 +183,15 @@ api.interceptors.response.use(
 // DASHBOARD API
 // =============================================
 
+export interface AdvertiserOverviewStats {
+  totalSubscribers: number;
+  activeSubscribers: number;
+  inactiveSubscribers: number;
+  totalMedias: number;
+  totalPlaylists: number;
+  totalCampaigns: number;
+}
+
 export interface DashboardStats {
   totalMedia: number;
   totalPlaylists: number;
@@ -190,6 +199,7 @@ export interface DashboardStats {
   totalUsers: number;
   activePlayers: number;
   offlinePlayers: number;
+  advertiserOverview?: AdvertiserOverviewStats;
 }
 
 export interface RecentActivity {

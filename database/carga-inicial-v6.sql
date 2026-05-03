@@ -80,9 +80,14 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, category,
 ('media.upload.proxy_timeout', '300', 'number', 'media', 'Timeout do proxy para upload (segundos)'),
 ('media.upload.allowed_types', 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,audio/mp3,audio/wav,audio/ogg', 'string', 'media', 'Tipos MIME permitidos (separados por vírgula)'),
 ('media.storage.path', '/opt/smart-signage/public/assets/uploads', 'string', 'media', 'Caminho base para armazenamento de mídias (uploads)'),
-('media.storage.quota_per_client', '5GB', 'string', 'media', 'Cota de armazenamento padrão por cliente (referência)'),
+('media.storage.quota_per_client', '5GB', 'string', 'media', 'Cota global de referência (0 ou 0GB = ilimitado). Enforcement de armazenamento: limits.defaults.storage_gb + planos.'),
 ('media.storage.auto_cleanup', 'false', 'boolean', 'media', 'Limpeza automática de arquivos antigos'),
-('media.storage.cleanup_days', '90', 'number', 'media', 'Dias de retenção para limpeza automática')
+('media.storage.cleanup_days', '90', 'number', 'media', 'Dias de retenção para limpeza automática'),
+('limits.defaults.storage_gb', '0', 'number', 'limits', 'GB padrão quando o plano não define storage_gb ou sem contrato; 0 = ilimitado'),
+('limits.defaults.campaigns', '0', 'number', 'limits', 'Campanhas padrão; 0 = ilimitado'),
+('limits.defaults.totems', '0', 'number', 'limits', 'Totens padrão; 0 = ilimitado'),
+('limits.defaults.medias', '0', 'number', 'limits', 'Mídias padrão; 0 = ilimitado'),
+('limits.defaults.playlists', '0', 'number', 'limits', 'Playlists padrão; 0 = ilimitado')
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- Chave legada (JSON) substituída por media.upload.allowed_types (string) consumida pelo backend

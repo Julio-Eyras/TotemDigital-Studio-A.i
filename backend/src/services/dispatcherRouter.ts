@@ -347,10 +347,18 @@ class DispatcherRouter {
       // Buscar totem
       const totemService = new TotemService();
       const totem = await totemService.getTotemByUin(request.uin);
-      if (!totem || !totem.active) {
+      if (!totem) {
         return {
           success: false,
-          error: 'Totem não encontrado ou inativo',
+          error: 'Totem não cadastrado no painel (UIN ou identificador desconhecido)',
+          statusCode: 404,
+          duration: Date.now() - startTime,
+        };
+      }
+      if (!totem.active) {
+        return {
+          success: false,
+          error: 'Totem desativado no painel; reative em Totens para obter plano',
           statusCode: 404,
           duration: Date.now() - startTime,
         };
@@ -515,10 +523,18 @@ class DispatcherRouter {
       // Buscar totem
       const totemService = new TotemService();
       const totem = await totemService.getTotemByUin(request.uin);
-      if (!totem || !totem.active) {
+      if (!totem) {
         return {
           success: false,
-          error: 'Totem não encontrado ou inativo',
+          error: 'Totem não cadastrado no painel (UIN ou identificador desconhecido)',
+          statusCode: 404,
+          duration: Date.now() - startTime,
+        };
+      }
+      if (!totem.active) {
+        return {
+          success: false,
+          error: 'Totem desativado no painel; reative em Totens para enviar heartbeat',
           statusCode: 404,
           duration: Date.now() - startTime,
         };
@@ -657,22 +673,27 @@ class DispatcherRouter {
         }
       }
 
-      // Buscar totem
-      const db = (await import('../config/database')).getDatabase();
-      const totem = await db.findFirst(`
-        SELECT totem_id FROM totems WHERE uin = $1 LIMIT 1
-      `, [request.uin]);
-
+      // Buscar totem (alinhar com heartbeat/dispatch: uin OU identifier; inativo ≠ inexistente)
+      const totemService = new TotemService();
+      const totem = await totemService.getTotemByUin(request.uin);
       if (!totem) {
         return {
           success: false,
-          error: 'Totem não encontrado',
+          error: 'Totem não cadastrado no painel (UIN ou identificador desconhecido)',
+          statusCode: 404,
+          duration: Date.now() - startTime,
+        };
+      }
+      if (!totem.active) {
+        return {
+          success: false,
+          error: 'Totem desativado no painel; reative em Totens para registar eventos',
           statusCode: 404,
           duration: Date.now() - startTime,
         };
       }
 
-      const totemId = totem.totem_id;
+      const totemId = totem.id;
       request.totemId = totemId;
 
       // Registrar evento no event_logs (totem_id, entityType, entityId, etc.)

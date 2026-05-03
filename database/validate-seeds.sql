@@ -77,6 +77,20 @@ LEFT JOIN publishers p ON p.publisher_id = pc.publisher_id
 WHERE pc.publisher_id IS NOT NULL AND p.publisher_id IS NULL;
 \echo ''
 
+-- 9. Chaves limits.defaults.* (Pro/Compact; 0 = ilimitado no backend)
+\echo '[9] system_settings limits.defaults ausentes (esperado: 0 linhas)'
+SELECT expected.setting_key AS missing_setting_key
+FROM (VALUES
+  ('limits.defaults.storage_gb'),
+  ('limits.defaults.campaigns'),
+  ('limits.defaults.totems'),
+  ('limits.defaults.medias'),
+  ('limits.defaults.playlists')
+) AS expected(setting_key)
+LEFT JOIN system_settings s ON s.setting_key = expected.setting_key
+WHERE s.setting_key IS NULL;
+\echo ''
+
 \echo '========================================='
 \echo ' Validação concluída. Verifique saída acima.'
 \echo ' Cada bloco deve retornar 0 linhas.'

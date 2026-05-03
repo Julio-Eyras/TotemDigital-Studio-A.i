@@ -37,7 +37,11 @@ const CACHE_TTL = 60000; // 1 minuto
  * Converte tamanho de string (ex: "500MB") para bytes
  */
 function parseSize(sizeStr: string): number {
-  const match = sizeStr.match(/^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)$/i);
+  const trimmed = String(sizeStr ?? '').trim();
+  if (trimmed === '0' || /^0\s*(B|KB|MB|GB|TB)?$/i.test(trimmed)) {
+    return 0;
+  }
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)$/i);
   if (!match) {
     return 500 * 1024 * 1024; // Default 500MB
   }
@@ -177,7 +181,8 @@ export async function loadMediaConfig(): Promise<void> {
       ? String(effectiveAllowedTypes.value).split(',').map((t) => t.trim()).filter(Boolean)
       : ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'audio/mp3', 'audio/wav', 'audio/ogg'];
     const storagePath = storagePathSetting ? String(storagePathSetting.value) : '/opt/smart-signage/public/assets/uploads';
-    const quotaPerClient = quotaPerClientSetting ? parseSize(String(quotaPerClientSetting.value)) : 5 * 1024 * 1024 * 1024;
+    const quotaParsed = quotaPerClientSetting ? parseSize(String(quotaPerClientSetting.value)) : 5 * 1024 * 1024 * 1024;
+    const quotaPerClient = quotaParsed === 0 ? 0 : quotaParsed;
     const autoCleanup = autoCleanupSetting ? String(autoCleanupSetting.value) === 'true' : false;
     const cleanupDays = cleanupDaysSetting ? parseInt(String(cleanupDaysSetting.value)) : 90;
 

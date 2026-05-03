@@ -78,6 +78,28 @@ function resolveTotemRecordId(t: any): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** Cadastro ativo no painel (`is_active`); distinto do estado de rede/último heartbeat (`status`). */
+function isTotemRegistryActive(t: Partial<Player> & { active?: boolean; isActive?: boolean }): boolean {
+  if (t.is_active === false) return false;
+  if (t.active === false) return false;
+  if (t.isActive === false) return false;
+  return true;
+}
+
+/** Filtro "Status": cadastro desativado só entra em "Todos" ou "Desativado (cadastro)" — não em Online/Offline de rede. */
+function matchesStatusFilter(t: any, statusFilter: string): boolean {
+  if (statusFilter === 'all') return true;
+  const reg = isTotemRegistryActive(t);
+  const st = t?.status;
+  if (statusFilter === 'deactivated') return !reg;
+  if (!reg) return false;
+  if (statusFilter === 'online') return st === 'online';
+  if (statusFilter === 'offline') return st === 'offline';
+  if (statusFilter === 'error') return st === 'error';
+  if (statusFilter === 'pending_approval') return st === 'pending_approval';
+  return true;
+}
+
 const Totems: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
   const theme = useTheme();
@@ -422,7 +444,7 @@ const Totems: React.FC = () => {
     const stockLocalSelected = Boolean(selectedLocal && isStockLocal(selectedLocal));
 
     return (totems || []).filter((t: any) => {
-      if (!stockLocalSelected && statusFilter !== 'all' && t.status !== statusFilter) return false;
+      if (!stockLocalSelected && statusFilter !== 'all' && !matchesStatusFilter(t, statusFilter)) return false;
 
       if (localFilter !== 'all') {
         const totemLocalId = Number(t.localId ?? t.local_id);
@@ -455,7 +477,7 @@ const Totems: React.FC = () => {
     const stockLocalSelected = Boolean(selectedLocal && isStockLocal(selectedLocal));
 
     return (pendingTotems || []).filter((t: any) => {
-      if (!stockLocalSelected && statusFilter !== 'all' && t.status !== statusFilter) return false;
+      if (!stockLocalSelected && statusFilter !== 'all' && !matchesStatusFilter(t, statusFilter)) return false;
 
       if (localFilter !== 'all') {
         const totemLocalId = Number(t.localId ?? t.local_id);
@@ -572,9 +594,10 @@ const Totems: React.FC = () => {
                 <InputLabel>Status</InputLabel>
                 <Select value={statusFilter} label="Status" onChange={(e) => setStatusFilter(e.target.value)}>
                   <MenuItem value="all">Todos</MenuItem>
-                  <MenuItem value="online">Online</MenuItem>
+                  <MenuItem value="online">Online (cadastro ativo)</MenuItem>
                   <MenuItem value="offline">Offline</MenuItem>
                   <MenuItem value="error">Erro</MenuItem>
+                  <MenuItem value="deactivated">Desativado (cadastro)</MenuItem>
                   {!TOTEMDIGITAL_COMPACT && <MenuItem value="pending_approval">Pendente</MenuItem>}
                 </Select>
                 {stockLocalFilterActive && (
@@ -621,18 +644,27 @@ const Totems: React.FC = () => {
             filteredTotems.map((t, idx) => {
               const totemKey = String((t as any).totem_id ?? (t as any).id ?? (t as any).identifier ?? idx);
               const totemId = resolveTotemRecordId(t);
+              const registryActive = isTotemRegistryActive(t);
               const titleLine = t.name || t.identifier || (totemId ? `Totem ${totemId}` : 'Totem');
               const identStr = String(t.identifier || '').trim();
               const showIdentifierLine = Boolean(identStr && identStr !== String(titleLine).trim());
+              const avatarBg = !registryActive
+                ? 'warning.main'
+                : getStatusColor(t.status) === 'success'
+                  ? 'success.main'
+                  : getStatusColor(t.status) === 'warning'
+                    ? 'warning.main'
+                    : getStatusColor(t.status) === 'error'
+                      ? 'error.main'
+                      : 'default';
+              const avatarIcon = !registryActive ? <Warning fontSize="small" /> : getStatusIcon(t.status);
               return (
               <Grid item xs={12} sm={6} md={4} key={totemKey}>
                 <Card>
                   <CardContent>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar sx={{ bgcolor: getStatusColor(t.status) === 'success' ? 'success.main' : 
-                                          getStatusColor(t.status) === 'warning' ? 'warning.main' : 
-                                          getStatusColor(t.status) === 'error' ? 'error.main' : 'default' }}>
-                        {getStatusIcon(t.status)}
+                      <Avatar sx={{ bgcolor: avatarBg }}>
+                        {avatarIcon}
                       </Avatar>
                       <Box sx={{ flex: 1 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
@@ -660,12 +692,35 @@ const Totems: React.FC = () => {
                             Forçado online até: {new Date((t.forced_online_until || (t as any).forcedOnlineUntil)).toLocaleString()}
                           </Typography>
                         )}
+                        {!registryActive && (
+                          <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 0.5 }}>
+                            Cadastro desativado no painel — o último sinal na rede pode aparecer como{' '}
+                            <strong>{String(t.status || '').toUpperCase()}</strong>, mas o servidor recusa heartbeat e
+                            eventos até reativar.
+                          </Typography>
+                        )}
                       </Box>
-                      <Chip 
-                        size="small" 
-                        label={t.status?.toUpperCase() || 'N/A'} 
-                        color={getStatusColor(t.status) as any}
-                      />
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+                        {!registryActive && (
+                          <Tooltip title="Totem ativo (cadastro) desligado em Editar — não confundir com estado de rede">
+                            <Chip size="small" label="DESATIVADO" color="warning" variant="filled" />
+                          </Tooltip>
+                        )}
+                        <Tooltip
+                          title={
+                            registryActive
+                              ? 'Estado de rede / último heartbeat'
+                              : 'Estado de rede (último sinal); operação na API exige cadastro ativo'
+                          }
+                        >
+                          <Chip
+                            size="small"
+                            label={registryActive ? t.status?.toUpperCase() || 'N/A' : `Rede: ${t.status?.toUpperCase() || 'N/A'}`}
+                            color={(registryActive ? getStatusColor(t.status) : 'default') as any}
+                            variant={registryActive ? 'filled' : 'outlined'}
+                          />
+                        </Tooltip>
+                      </Box>
                     </Box>
                     <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
@@ -693,25 +748,42 @@ const Totems: React.FC = () => {
                       </Box>
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         {canAdministerTotems && totemId && (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<Refresh />}
-                            onClick={async () => {
-                              try {
-                                await totemApi.heartbeat(totemId, 'online', { note: 'manual_refresh_from_ui' });
-                                setSuccess('Heartbeat forçado com sucesso');
-                                await loadAll();
-                              } catch (err: any) {
-                                console.error('Erro ao forçar heartbeat:', err);
-                                setError('Erro ao forçar heartbeat: ' + (err?.response?.data?.error || err?.message || 'Erro desconhecido'));
-                              }
-                            }}
+                          <Tooltip
+                            title={
+                              registryActive
+                                ? 'Regista heartbeat manual no servidor'
+                                : 'Reative o totem no cadastro (Editar) antes de forçar heartbeat'
+                            }
                           >
-                            Forçar heartbeat
-                          </Button>
+                            <span>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<Refresh />}
+                                disabled={!registryActive}
+                                onClick={async () => {
+                                  try {
+                                    await totemApi.heartbeat(totemId, 'online', { note: 'manual_refresh_from_ui' });
+                                    setSuccess('Heartbeat forçado com sucesso');
+                                    await loadAll();
+                                  } catch (err: any) {
+                                    console.error('Erro ao forçar heartbeat:', err);
+                                    setError(
+                                      'Erro ao forçar heartbeat: ' +
+                                        (err?.response?.data?.error || err?.message || 'Erro desconhecido')
+                                    );
+                                  }
+                                }}
+                              >
+                                Forçar heartbeat
+                              </Button>
+                            </span>
+                          </Tooltip>
                         )}
-                      {canAdministerTotems && totemId && (t.status === 'offline' || t.status === 'error') && (
+                      {canAdministerTotems &&
+                        totemId &&
+                        registryActive &&
+                        (t.status === 'offline' || t.status === 'error') && (
                         <Button
                           size="small"
                           variant="contained"
