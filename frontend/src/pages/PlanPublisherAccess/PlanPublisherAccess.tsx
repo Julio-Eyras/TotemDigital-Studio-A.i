@@ -35,6 +35,7 @@ import {
   Paper,
   Tooltip,
   useTheme,
+  useMediaQuery,
   Tabs,
   Tab,
   LinearProgress,
@@ -60,6 +61,7 @@ import { subscriberAccessApi, PlanPublisherAccess } from '../../services/api';
 import { totemApi, Player, localApi, Local } from '../../services/api';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { PageHeader } from '../../components/DataDisplay';
+import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -70,8 +72,8 @@ interface TabPanelProps {
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
   return (
-    <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    <div role="tabpanel" hidden={value !== index} id={`plan-publisher-access-tabpanel-${index}`} {...other}>
+      {value === index && <Box sx={{ pt: { xs: 1.5, sm: 2, md: 3 }, px: { xs: 0.5, sm: 1, md: 2 } }}>{children}</Box>}
     </div>
   );
 }
@@ -138,6 +140,7 @@ const normalizePositiveIntArray = (value: unknown): number[] => {
 
 const PlanPublisherAccessPage: React.FC = () => {
   const theme = useTheme();
+  const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const publisherEntityLabel = TOTEMDIGITAL_COMPACT ? 'Local' : 'Publisher';
   const accessEntityLabel = TOTEMDIGITAL_COMPACT ? 'Local' : publisherEntityLabel;
   const publishersOfPlanLabel = TOTEMDIGITAL_COMPACT ? 'Locais do Plano' : 'Publishers do Plano';
@@ -778,6 +781,10 @@ const PlanPublisherAccessPage: React.FC = () => {
     return { local, totems: localTotems };
   });
   const compactBadgeCount = TOTEMDIGITAL_COMPACT ? compactSelectedLocalIds.length : planPublishers.length;
+  const planSections = [
+    { label: 'Planos (CRUD)', icon: Star },
+    { label: maintenanceTabLabel, icon: Business },
+  ] as const;
 
   const handleRemoveLocalFromPlan = (localId: number) => {
     const nextLocalIds = compactSelectedLocalIds.filter((id) => id !== localId);
@@ -869,7 +876,7 @@ const PlanPublisherAccessPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
       <PageHeader
         title={TOTEMDIGITAL_COMPACT ? 'Planos' : 'Planos e Publicadores'}
         subtitle={
@@ -898,10 +905,13 @@ const PlanPublisherAccessPage: React.FC = () => {
 
       {/* Tabs */}
       <Card>
-        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
-          <Tab label="Planos (CRUD)" />
-          <Tab label={maintenanceTabLabel} />
-        </Tabs>
+        <ResponsiveSectionNav
+          sections={planSections}
+          value={tabValue}
+          onChange={setTabValue}
+          isMobileNav={isMobileNav}
+          idPrefix="plan-publisher-access"
+        />
 
         {/* Loading */}
         {loading && <LinearProgress />}

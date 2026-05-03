@@ -32,18 +32,14 @@ import {
   TableRow,
   Paper,
   TextField,
-  Tooltip,
   useTheme,
+  useMediaQuery,
   LinearProgress,
-  Tabs,
-  Tab,
-  Divider,
   Accordion,
   AccordionSummary,
   AccordionDetails,
   Switch,
   FormControlLabel,
-  CircularProgress,
   List,
   ListItem,
   ListItemIcon,
@@ -51,20 +47,17 @@ import {
 } from '@mui/material';
 import {
   Refresh,
-  ExpandMore,
   CheckCircle,
   Error,
-  Warning,
   PlayArrow,
   Stop,
   Delete,
   Code,
   Message,
-  Storage,
   QueryBuilder,
-  Timeline,
 } from '@mui/icons-material';
 import { dispatcherDebugApi, RedisStatus, QueryLog, DispatcherMessage, DebugStats } from '../../services/api';
+import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { format } from 'date-fns';
 
 interface TabPanelProps {
@@ -73,11 +66,16 @@ interface TabPanelProps {
   value: number;
 }
 
+const DEBUG_SECTIONS = [
+  { label: 'Queries SQL', icon: QueryBuilder },
+  { label: 'Mensagens', icon: Message },
+] as const;
+
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
   return (
-    <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    <div role="tabpanel" hidden={value !== index} id={`dispatcher-debug-tabpanel-${index}`} {...other}>
+      {value === index && <Box sx={{ pt: { xs: 1.5, sm: 2, md: 3 }, px: { xs: 0.5, sm: 1, md: 2 }, pb: { xs: 1, md: 2 } }}>{children}</Box>}
     </div>
   );
 }
@@ -105,6 +103,7 @@ function extractDispatchEmptyExplanation(response: unknown): {
 
 const DispatcherDebug: React.FC = () => {
   const theme = useTheme();
+  const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -199,12 +198,12 @@ const DispatcherDebug: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: { xs: 2, md: 3 } }}>
         <Typography variant="h4" component="h1">
           Debug Online - Dispatcher
         </Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
           <FormControlLabel
             control={
               <Switch
@@ -325,17 +324,18 @@ const DispatcherDebug: React.FC = () => {
       </Card>
 
       {/* Tabs */}
-      <Card>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
-            <Tab label="Queries SQL" icon={<QueryBuilder />} iconPosition="start" />
-            <Tab label="Mensagens" icon={<Message />} iconPosition="start" />
-          </Tabs>
-        </Box>
+      <Card sx={{ overflow: 'hidden' }}>
+        <ResponsiveSectionNav
+          sections={DEBUG_SECTIONS}
+          value={tabValue}
+          onChange={(nextValue) => setTabValue(nextValue)}
+          isMobileNav={isMobileNav}
+          idPrefix="dispatcher-debug"
+        />
 
         <TabPanel value={tabValue} index={0}>
-          <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
-            <Table stickyHeader size="small">
+          <TableContainer component={Paper} sx={{ maxHeight: { xs: 'min(56vh, 500px)', md: 600 }, maxWidth: '100%' }}>
+            <Table stickyHeader size={isMobileNav ? 'small' : 'medium'}>
               <TableHead>
                 <TableRow>
                   <TableCell>Timestamp</TableCell>
@@ -453,8 +453,8 @@ const DispatcherDebug: React.FC = () => {
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
-            <Table stickyHeader size="small">
+          <TableContainer component={Paper} sx={{ maxHeight: { xs: 'min(56vh, 500px)', md: 600 }, maxWidth: '100%' }}>
+            <Table stickyHeader size={isMobileNav ? 'small' : 'medium'}>
               <TableHead>
                 <TableRow>
                   <TableCell>Timestamp</TableCell>

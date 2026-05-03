@@ -23,8 +23,6 @@ import {
   InputLabel,
   Alert,
   Chip,
-  Tabs,
-  Tab,
   Table,
   TableBody,
   TableCell,
@@ -34,6 +32,8 @@ import {
   Paper,
   IconButton,
   Tooltip,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Payment,
@@ -52,6 +52,7 @@ import { planApi, Plan, subscriptionApi, Subscription } from '../../services/api
 import { useNotification } from '../../hooks/useNotification';
 import { useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '../../store';
+import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -62,13 +63,15 @@ interface TabPanelProps {
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
   return (
-    <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+    <div role="tabpanel" hidden={value !== index} id={`billing-tabpanel-${index}`} {...other}>
+      {value === index && <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>{children}</Box>}
     </div>
   );
 }
 
 const Billing: React.FC = () => {
+  const theme = useTheme();
+  const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const { showSuccess, showError } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
   const billingType = searchParams.get('type') || 'all'; // 'all', 'subscriber', 'publisher'
@@ -311,9 +314,21 @@ const Billing: React.FC = () => {
     }).format(amount);
   };
 
+  const billingTabLabel =
+    billingType === 'subscriber'
+      ? 'Faturas Anunciantes'
+      : billingType === 'publisher'
+      ? 'Faturas Publicadores'
+      : 'Faturas';
+  const BILLING_SECTIONS = [
+    { label: 'Planos', icon: CreditCard },
+    { label: 'Assinaturas', icon: Receipt },
+    { label: billingTabLabel, icon: Payment },
+  ] as const;
+
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: 4 }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+      <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: { xs: 2.5, md: 4 }, fontSize: { xs: '1.4rem', md: undefined } }}>
         Faturamento e Assinaturas
       </Typography>
 
@@ -342,20 +357,14 @@ const Billing: React.FC = () => {
         </FormControl>
       </Box>
 
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
-          <Tab label="Planos" icon={<CreditCard />} iconPosition="start" />
-          <Tab label="Assinaturas" icon={<Receipt />} iconPosition="start" />
-          {billingType === 'all' && (
-            <Tab label="Faturas" icon={<Payment />} iconPosition="start" />
-          )}
-          {billingType === 'subscriber' && (
-            <Tab label="Faturas Anunciantes" icon={<Payment />} iconPosition="start" />
-          )}
-          {billingType === 'publisher' && (
-            <Tab label="Faturas Publicadores" icon={<Payment />} iconPosition="start" />
-          )}
-        </Tabs>
+      <Box sx={{ mb: 3 }}>
+        <ResponsiveSectionNav
+          sections={BILLING_SECTIONS}
+          value={tabValue}
+          onChange={setTabValue}
+          isMobileNav={isMobileNav}
+          idPrefix="billing"
+        />
       </Box>
 
       {/* TAB: PLANOS */}

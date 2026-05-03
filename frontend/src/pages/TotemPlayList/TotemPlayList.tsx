@@ -15,8 +15,7 @@ import {
   Chip,
   Alert,
   useTheme,
-  Tabs,
-  Tab,
+  useMediaQuery,
   LinearProgress,
   Table,
   TableBody,
@@ -52,6 +51,7 @@ import { totemPlaylistApi, TotemPlaylist, TotemPlaylistListItem, TotemPlaylistIt
 import { totemApi, Player } from '../../services/api';
 import { Publisher } from '../../services/api';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -62,14 +62,15 @@ interface TabPanelProps {
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
   return (
-    <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    <div role="tabpanel" hidden={value !== index} id={`totem-playlist-tabpanel-${index}`} {...other}>
+      {value === index && <Box sx={{ pt: { xs: 1.5, sm: 2, md: 3 }, px: { xs: 0.5, sm: 1, md: 2 } }}>{children}</Box>}
     </div>
   );
 }
 
 const TotemPlayListPage: React.FC = () => {
   const theme = useTheme();
+  const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const [tabValue, setTabValue] = useState(0);
   
   // Estados comuns
@@ -210,8 +211,21 @@ const TotemPlayListPage: React.FC = () => {
     return d.toLocaleString('pt-BR');
   };
 
+  const totemPlaylistSections = [
+    { label: 'Lista de Totens', icon: Tv },
+    { label: 'Timeline/Grade', icon: Schedule, disabled: !selectedPlaylist },
+    {
+      label: TOTEMDIGITAL_COMPACT ? 'Detalhes' : 'Detalhes de Anunciantes',
+      icon: Business,
+      disabled: !selectedPlaylist,
+    },
+    ...(!TOTEMDIGITAL_COMPACT
+      ? [{ label: 'Validações', icon: CheckCircle, disabled: !selectedPlaylist }]
+      : []),
+  ] as const;
+
   return (
-    <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
       {/* Header */}
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         <Box>
@@ -295,26 +309,13 @@ const TotemPlayListPage: React.FC = () => {
       </Card>
 
       <Card>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
-            <Tab label="Lista de Totens" icon={<Tv />} iconPosition="start" />
-            <Tab label="Timeline/Grade" icon={<Schedule />} iconPosition="start" disabled={!selectedPlaylist} />
-            <Tab
-              label={TOTEMDIGITAL_COMPACT ? 'Detalhes' : 'Detalhes de Anunciantes'}
-              icon={<Business />}
-              iconPosition="start"
-              disabled={!selectedPlaylist}
-            />
-            {!TOTEMDIGITAL_COMPACT && (
-              <Tab
-                label="Validações"
-                icon={<CheckCircle />}
-                iconPosition="start"
-                disabled={!selectedPlaylist}
-              />
-            )}
-          </Tabs>
-        </Box>
+        <ResponsiveSectionNav
+          sections={totemPlaylistSections}
+          value={tabValue}
+          onChange={setTabValue}
+          isMobileNav={isMobileNav}
+          idPrefix="totem-playlist"
+        />
 
         <TabPanel value={tabValue} index={0}>
           {loading ? (

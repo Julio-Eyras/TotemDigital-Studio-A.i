@@ -27,8 +27,7 @@ import {
   Paper,
   Tooltip,
   useTheme,
-  Tabs,
-  Tab,
+  useMediaQuery,
   FormControlLabel,
   Switch,
 } from '@mui/material';
@@ -46,6 +45,7 @@ import { clientApi, Client } from '../../services/api';
 import { publisherApi, Publisher } from '../../services/api';
 import { subscriberAccessApi, SubscriberPublisherAccessDetail } from '../../services/api';
 import { planApi, Plan } from '../../services/api';
+import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -56,14 +56,15 @@ interface TabPanelProps {
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
   return (
-    <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    <div role="tabpanel" hidden={value !== index} id={`subscriber-publisher-access-tabpanel-${index}`} {...other}>
+      {value === index && <Box sx={{ pt: { xs: 1.5, sm: 2, md: 3 }, px: { xs: 0.5, sm: 1, md: 2 } }}>{children}</Box>}
     </div>
   );
 }
 
 const SubscriberPublisherAccessPage: React.FC = () => {
   const theme = useTheme();
+  const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const [tabValue, setTabValue] = useState(0);
   const [subscribers, setSubscribers] = useState<Client[]>([]);
   const [publishers, setPublishers] = useState<Publisher[]>([]);
@@ -195,9 +196,13 @@ const SubscriberPublisherAccessPage: React.FC = () => {
 
   const activeAccess = accessList.filter(a => a.isActive && !isExpired(a.expiresAt));
   const inactiveAccess = accessList.filter(a => !a.isActive || isExpired(a.expiresAt));
+  const accessSections = [
+    { icon: CheckCircle, label: `Acessos Ativos (${activeAccess.length})` },
+    { icon: History, label: `Histórico (${inactiveAccess.length})` },
+  ] as const;
 
   return (
-    <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
       {/* Header */}
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
@@ -317,12 +322,13 @@ const SubscriberPublisherAccessPage: React.FC = () => {
 
       {/* Tabs */}
       <Card>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
-            <Tab icon={<CheckCircle />} iconPosition="start" label={`Acessos Ativos (${activeAccess.length})`} />
-            <Tab icon={<History />} iconPosition="start" label={`Histórico (${inactiveAccess.length})`} />
-          </Tabs>
-        </Box>
+        <ResponsiveSectionNav
+          sections={accessSections}
+          value={tabValue}
+          onChange={setTabValue}
+          isMobileNav={isMobileNav}
+          idPrefix="subscriber-publisher-access"
+        />
 
         <CardContent>
           <TabPanel value={tabValue} index={0}>

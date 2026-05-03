@@ -24,8 +24,8 @@ import {
   IconButton,
   Tooltip,
   Stack,
-  Tabs,
-  Tab,
+  useTheme,
+  useMediaQuery,
   CircularProgress,
   Divider,
 } from '@mui/material';
@@ -58,6 +58,7 @@ import {
 } from 'recharts';
 import { smartDisplayFxApi, SmartDisplayFxLog, FxAnalyticsOverview, FxPerformanceMetrics } from '../../services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -68,13 +69,15 @@ interface TabPanelProps {
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
   return (
-    <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    <div role="tabpanel" hidden={value !== index} id={`smartdisplayfx-tabpanel-${index}`} {...other}>
+      {value === index && <Box sx={{ pt: { xs: 1.5, sm: 2, md: 3 }, px: { xs: 0.5, sm: 1, md: 2 } }}>{children}</Box>}
     </div>
   );
 }
 
 const SmartDisplayFx: React.FC = () => {
+  const theme = useTheme();
+  const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const [tabValue, setTabValue] = useState(0);
   const [filters, setFilters] = useState<{
     siteId?: string;
@@ -224,9 +227,16 @@ const SmartDisplayFx: React.FC = () => {
   const fpsDistributionData = performanceMetrics?.fpsDistribution || [];
   const durationDistributionData = performanceMetrics?.durationDistribution || [];
   const performanceByHourData = performanceMetrics?.performanceByHour || [];
+  const fxSections = [
+    { icon: AccountTree, label: 'Rede Estrela' },
+    { icon: Analytics, label: 'Analytics' },
+    { icon: Speed, label: 'Performance' },
+    { icon: ViewTimeline, label: 'Logs' },
+    { icon: Assessment, label: 'Telemetria' },
+  ] as const;
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 600 }}>
           SmartDisplayFX
@@ -305,15 +315,13 @@ const SmartDisplayFx: React.FC = () => {
 
       {/* Tabs */}
       <Card>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
-            <Tab icon={<AccountTree />} iconPosition="start" label="Rede Estrela" />
-            <Tab icon={<Analytics />} iconPosition="start" label="Analytics" />
-            <Tab icon={<Speed />} iconPosition="start" label="Performance" />
-            <Tab icon={<ViewTimeline />} iconPosition="start" label="Logs" />
-            <Tab icon={<Assessment />} iconPosition="start" label="Telemetria" />
-          </Tabs>
-        </Box>
+        <ResponsiveSectionNav
+          sections={fxSections}
+          value={tabValue}
+          onChange={setTabValue}
+          isMobileNav={isMobileNav}
+          idPrefix="smartdisplayfx"
+        />
 
         {/* Tab Rede Estrela */}
         <TabPanel value={tabValue} index={0}>

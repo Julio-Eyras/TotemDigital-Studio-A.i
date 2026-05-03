@@ -17,13 +17,12 @@ import {
   LinearProgress,
   Tooltip,
   useTheme,
+  useMediaQuery,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
   Button,
-  Tabs,
-  Tab,
 } from '@mui/material';
 import {
   Warning,
@@ -34,6 +33,7 @@ import {
   Business,
 } from '@mui/icons-material';
 import { subscriberAccessApi } from '../../services/api';
+import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -44,14 +44,15 @@ interface TabPanelProps {
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
   return (
-    <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    <div role="tabpanel" hidden={value !== index} id={`subscriber-access-expiring-tabpanel-${index}`} {...other}>
+      {value === index && <Box sx={{ pt: { xs: 1.5, sm: 2, md: 3 }, px: { xs: 0.5, sm: 1, md: 2 } }}>{children}</Box>}
     </div>
   );
 }
 
 const SubscriberAccessExpiringPage: React.FC = () => {
   const theme = useTheme();
+  const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const [tabValue, setTabValue] = useState(0);
   const [expiringAccess, setExpiringAccess] = useState<any[]>([]);
   const [summary, setSummary] = useState({
@@ -128,9 +129,16 @@ const SubscriberAccessExpiringPage: React.FC = () => {
   });
 
   const expired = expiringAccess.filter(a => isExpired(a.expires_at));
+  const accessSections = [
+    { icon: Error, label: `Expirando em 7 dias (${expiringIn7Days.length})` },
+    { icon: Warning, label: `Expirando em 15 dias (${expiringIn15Days.length})` },
+    { icon: Schedule, label: `Expirando em 30 dias (${expiringIn30Days.length})` },
+    { icon: Error, label: `Expirados (${expired.length})` },
+    { icon: Business, label: `Todos (${expiringAccess.length})` },
+  ] as const;
 
   return (
-    <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
       {/* Header */}
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
@@ -247,35 +255,13 @@ const SubscriberAccessExpiringPage: React.FC = () => {
 
       {/* Tabs */}
       <Card>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
-            <Tab
-              icon={<Error />}
-              iconPosition="start"
-              label={`Expirando em 7 dias (${expiringIn7Days.length})`}
-            />
-            <Tab
-              icon={<Warning />}
-              iconPosition="start"
-              label={`Expirando em 15 dias (${expiringIn15Days.length})`}
-            />
-            <Tab
-              icon={<Schedule />}
-              iconPosition="start"
-              label={`Expirando em 30 dias (${expiringIn30Days.length})`}
-            />
-            <Tab
-              icon={<Error />}
-              iconPosition="start"
-              label={`Expirados (${expired.length})`}
-            />
-            <Tab
-              icon={<Business />}
-              iconPosition="start"
-              label={`Todos (${expiringAccess.length})`}
-            />
-          </Tabs>
-        </Box>
+        <ResponsiveSectionNav
+          sections={accessSections}
+          value={tabValue}
+          onChange={setTabValue}
+          isMobileNav={isMobileNav}
+          idPrefix="subscriber-access-expiring"
+        />
 
         <CardContent>
           {loading ? (

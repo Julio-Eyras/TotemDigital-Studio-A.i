@@ -17,6 +17,7 @@ import {
   TextField,
   Tooltip,
   useTheme,
+  useMediaQuery,
   alpha,
   LinearProgress,
   Alert,
@@ -25,8 +26,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Tabs,
-  Tab,
   List,
   ListItem,
   ListItemText,
@@ -67,6 +66,7 @@ import {
   UpdatePublisherContractRequest,
 } from '../../services/api';
 import { ContractCard, ContractForm, ContractDetails } from './components';
+import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 
 type ContractsInitialType = 'subscriber' | 'publisher';
 
@@ -82,6 +82,7 @@ interface ContractsProps {
 
 const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId, initialPublisherId }) => {
   const theme = useTheme();
+  const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -394,6 +395,10 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
     if (mainTab === 1) return 'Adicionar Contrato do Publicador';
     return 'Adicionar Contrato do Anunciante';
   }, [mainTab]);
+  const contractSections = [
+    { label: 'Contratos do Anunciante', icon: Assignment },
+    { label: 'Contratos do Publicador', icon: Business },
+  ] as const;
 
   const handleOpenCreate = () => {
     if (mainTab === 1) {
@@ -775,18 +780,18 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
 
       {!isMaintenance && (
         <Box sx={{ mb: 3 }}>
-          <Tabs
+          <ResponsiveSectionNav
+            sections={contractSections}
             value={mainTab}
-            onChange={(_, newValue) => {
+            onChange={(newValue) => {
               setMainTab(newValue);
               const next = new URLSearchParams(searchParams);
               next.set('type', newValue === 1 ? 'publisher' : 'subscriber');
               navigate({ pathname: location.pathname, search: `?${next.toString()}` }, { replace: true });
             }}
-          >
-            <Tab label="Contratos do Anunciante" />
-            <Tab label="Contratos do Publicador" />
-          </Tabs>
+            isMobileNav={isMobileNav}
+            idPrefix="contracts-main"
+          />
         </Box>
       )}
 

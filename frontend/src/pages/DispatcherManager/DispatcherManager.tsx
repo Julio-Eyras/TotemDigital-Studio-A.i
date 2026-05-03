@@ -43,14 +43,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Tabs,
-  Tab,
-  Drawer,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
-  ListItemIcon,
 } from '@mui/material';
 import {
   Timeline,
@@ -70,9 +62,9 @@ import {
   QueueMusic,
   Timeline as TimelineIcon,
   BarChart,
-  Menu as MenuIcon,
 } from '@mui/icons-material';
 import { dispatcherTotemApi, totemApi, DispatchPlan } from '../../services/api';
+import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { format } from 'date-fns';
 
 /** Índices alinhados a `tabValue` (0..4). Uma única fonte para abas desktop e drawer mobile. */
@@ -97,7 +89,7 @@ function TabPanel(props: TabPanelProps) {
     <div
       role="tabpanel"
       hidden={value !== index}
-      id={`dispatcher-tabpanel-${index}`}
+      id={`dispatcher-manager-tabpanel-${index}`}
       aria-label={panelLabel}
       {...other}
     >
@@ -166,7 +158,6 @@ const DispatcherManager: React.FC = () => {
   /** Abaixo do breakpoint `md`: drawer + conteúdo em largura total (Pro e Compact). */
   const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const dialogFullScreen = useMediaQuery(theme.breakpoints.down('sm'), { noSsr: true });
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -197,12 +188,6 @@ const DispatcherManager: React.FC = () => {
   useEffect(() => {
     loadTotems();
   }, []);
-
-  useEffect(() => {
-    if (!isMobileNav) {
-      setMobileDrawerOpen(false);
-    }
-  }, [isMobileNav]);
 
   // Carregar dados quando totem ou timestamp mudar
   useEffect(() => {
@@ -357,15 +342,6 @@ const DispatcherManager: React.FC = () => {
     }
   };
 
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-  };
-
-  const selectSection = (index: number) => {
-    setTabValue(index);
-    setMobileDrawerOpen(false);
-  };
-
   const handleRefresh = () => {
     loadEligibleData();
     loadTimeline();
@@ -482,102 +458,15 @@ const DispatcherManager: React.FC = () => {
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
 
-      <Drawer
-        anchor="left"
-        open={mobileDrawerOpen}
-        onClose={() => setMobileDrawerOpen(false)}
-        ModalProps={{ keepMounted: true }}
-        PaperProps={{
-          id: 'dispatcher-mobile-drawer',
-          sx: { width: 280, maxWidth: '88vw', boxSizing: 'border-box' },
-        }}
-      >
-        <Box sx={{ pt: 2, pb: 1 }}>
-          <Typography variant="subtitle2" sx={{ px: 2, pb: 1, color: 'text.secondary' }}>
-            Seções
-          </Typography>
-          <List disablePadding aria-label="Lista de seções do dispatcher">
-            {DISPATCHER_SECTIONS.map((section, index) => {
-              const Icon = section.icon;
-              return (
-                <ListItem key={section.label} disablePadding>
-                  <ListItemButton
-                    selected={tabValue === index}
-                    onClick={() => selectSection(index)}
-                    sx={{ py: 1.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 40 }}>
-                      <Icon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={section.label}
-                      primaryTypographyProps={{ variant: 'body2' }}
-                    />
-                  </ListItemButton>
-                </ListItem>
-              );
-            })}
-          </List>
-        </Box>
-      </Drawer>
-
       {/* Tabs desktop / barra híbrida mobile — mesmo `tabValue` e TabPanels abaixo */}
       <Card sx={{ overflow: 'hidden' }}>
-        {isMobileNav ? (
-          <Box
-            role="navigation"
-            aria-label="Seção atual do dispatcher"
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              px: 1.5,
-              py: 1.25,
-              borderBottom: 1,
-              borderColor: 'divider',
-              bgcolor: 'action.hover',
-            }}
-          >
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<MenuIcon />}
-              onClick={() => setMobileDrawerOpen(true)}
-              aria-expanded={mobileDrawerOpen}
-              aria-controls="dispatcher-mobile-drawer"
-            >
-              Seções
-            </Button>
-            <Typography variant="subtitle2" color="text.secondary" noWrap sx={{ flex: 1, textAlign: 'right', minWidth: 0 }}>
-              {DISPATCHER_SECTIONS[tabValue]?.label ?? ''}
-            </Typography>
-          </Box>
-        ) : (
-          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs
-              value={tabValue}
-              onChange={handleTabChange}
-              variant="scrollable"
-              scrollButtons="auto"
-              allowScrollButtonsMobile
-              aria-label="Seções do gerenciador dispatcher"
-            >
-              {DISPATCHER_SECTIONS.map((section, index) => {
-                const Icon = section.icon;
-                return (
-                  <Tab
-                    key={section.label}
-                    icon={<Icon />}
-                    label={section.label}
-                    iconPosition="start"
-                    id={`dispatcher-tab-${index}`}
-                    aria-controls={`dispatcher-tabpanel-${index}`}
-                  />
-                );
-              })}
-            </Tabs>
-          </Box>
-        )}
+        <ResponsiveSectionNav
+          sections={DISPATCHER_SECTIONS}
+          value={tabValue}
+          onChange={(nextValue) => setTabValue(nextValue)}
+          isMobileNav={isMobileNav}
+          idPrefix="dispatcher-manager"
+        />
 
         {/* Tab 1: Campanhas Elegíveis */}
         <TabPanel value={tabValue} index={0}>

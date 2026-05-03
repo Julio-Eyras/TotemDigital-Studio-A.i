@@ -8,8 +8,6 @@ import {
   TextField,
   Button,
   Alert,
-  Tabs,
-  Tab,
   Paper,
   Table,
   TableBody,
@@ -21,7 +19,9 @@ import {
   FormControlLabel,
   CircularProgress,
   Chip,
-  LinearProgress
+  LinearProgress,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Settings as SettingsIcon,
@@ -37,6 +37,7 @@ import {
 } from '@mui/icons-material';
 import { settingsApi, SystemSetting, logsApi, LogRotationConfig, LogFileInfo, DiskSpaceInfo, RotationStatus, authApi } from '../../services/api';
 import TwoFactor from './TwoFactor';
+import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -83,7 +84,17 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
+const SETTINGS_SECTIONS = [
+  { label: 'Geral', icon: SettingsIcon },
+  { label: 'Logs', icon: Storage },
+  { label: 'Mídias', icon: VideoLibrary },
+  { label: '2FA', icon: Security },
+  { label: 'Senha', icon: Security },
+] as const;
+
 const Settings: React.FC = () => {
+  const theme = useTheme();
+  const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const [tabValue, setTabValue] = useState(0);
   const [settings, setSettings] = useState<SystemSetting[]>([]);
   const [logSettings, setLogSettings] = useState<SystemSetting[]>([]);
@@ -338,8 +349,8 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: 4 }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+      <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: { xs: 2.5, md: 4 }, fontSize: { xs: '1.4rem', md: undefined } }}>
         Configurações do Sistema
       </Typography>
 
@@ -349,19 +360,14 @@ const Settings: React.FC = () => {
         </Alert>
       )}
 
-      <Paper sx={{ mb: 3 }}>
-        <Tabs
+      <Paper sx={{ mb: 3, overflow: 'hidden' }}>
+        <ResponsiveSectionNav
+          sections={SETTINGS_SECTIONS}
           value={tabValue}
-          onChange={(e, newValue) => setTabValue(newValue)}
-          variant="scrollable"
-          scrollButtons="auto"
-        >
-          <Tab label="Geral" icon={<SettingsIcon />} iconPosition="start" />
-          <Tab label="Logs" icon={<Storage />} iconPosition="start" />
-          <Tab label="Mídias" icon={<VideoLibrary />} iconPosition="start" />
-          <Tab label="2FA" icon={<Security />} iconPosition="start" />
-          <Tab label="Senha" icon={<Security />} iconPosition="start" />
-        </Tabs>
+          onChange={setTabValue}
+          isMobileNav={isMobileNav}
+          idPrefix="settings"
+        />
       </Paper>
 
       <TabPanel value={tabValue} index={0}>

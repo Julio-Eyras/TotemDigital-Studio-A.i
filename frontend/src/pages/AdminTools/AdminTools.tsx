@@ -2,16 +2,24 @@ import React, { useState } from 'react';
 import {
   Box,
   Typography,
-  Tab,
-  Tabs,
   Paper,
   Container,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
+import {
+  Description as DescriptionIcon,
+  Insights as InsightsIcon,
+  Dns as DnsIcon,
+  Storage as StorageIcon,
+  Terminal as TerminalIcon,
+} from '@mui/icons-material';
 import RegistrationLogs from './components/RegistrationLogs';
 import RequestTracking from './components/RequestTracking';
 import TotemDetails from './components/TotemDetails';
 import SystemInfo from './components/SystemInfo';
 import CronSQL from './components/CronSQL';
+import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -22,39 +30,39 @@ interface TabPanelProps {
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
   return (
-    <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    <div role="tabpanel" hidden={value !== index} id={`admin-tools-tabpanel-${index}`} {...other}>
+      {value === index && <Box sx={{ pt: { xs: 1.5, sm: 2, md: 3 }, px: { xs: 0.5, sm: 1, md: 2 } }}>{children}</Box>}
     </div>
   );
 }
 
+const ADMIN_TOOLS_SECTIONS = [
+  { label: 'Logs de Registro', icon: DescriptionIcon },
+  { label: 'Rastreamento de Requisições', icon: InsightsIcon },
+  { label: 'Detalhes de Totem', icon: DnsIcon },
+  { label: 'Informações do Sistema', icon: StorageIcon },
+  { label: 'CronSQL', icon: TerminalIcon },
+] as const;
+
 const AdminTools: React.FC = () => {
+  const theme = useTheme();
+  const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const [tabValue, setTabValue] = useState(0);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-  };
-
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: 4 }}>
+    <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 } }}>
+      <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: { xs: 2.5, md: 4 }, fontSize: { xs: '1.4rem', md: undefined } }}>
         Admin Tools
       </Typography>
 
-      <Paper sx={{ mb: 3 }}>
-        <Tabs
+      <Paper sx={{ mb: 3, overflow: 'hidden' }}>
+        <ResponsiveSectionNav
+          sections={ADMIN_TOOLS_SECTIONS}
           value={tabValue}
-          onChange={handleTabChange}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{ borderBottom: 1, borderColor: 'divider' }}
-        >
-          <Tab label="Logs de Registro" />
-          <Tab label="Rastreamento de Requisições" />
-          <Tab label="Detalhes de Totem" />
-          <Tab label="Informações do Sistema" />
-          <Tab label="CronSQL" />
-        </Tabs>
+          onChange={setTabValue}
+          isMobileNav={isMobileNav}
+          idPrefix="admin-tools"
+        />
       </Paper>
 
       <TabPanel value={tabValue} index={0}>
