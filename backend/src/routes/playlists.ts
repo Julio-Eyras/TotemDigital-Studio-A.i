@@ -6,6 +6,8 @@ import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation
 import { getPlaylistService } from '../services/playlistService';
 import { getSubscriberService } from '../services/subscriberService';
 import { logError } from '../utils/loggerHelper';
+import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
+import { isAdminRole } from '../utils/tenantScope';
 import { 
   paginationValidators, 
   searchValidators, 
@@ -110,11 +112,26 @@ router.get('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
-      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
-      
-      const playlist = await getPlaylistService().getPlaylistById(parseInt(id), userSubscriberId, isAdmin);
-      
+      const pid = parseInt(id, 10);
+
+      const sid = await getPlaylistService().getSubscriberIdForPlaylist(pid);
+      if (sid == null) {
+        return res.status(404).json({ error: 'Playlist não encontrada' });
+      }
+
+      if (!isAdminRole(req.user?.role)) {
+        try {
+          await assertTenantClientParamAccess(req, sid);
+        } catch (e: any) {
+          if (e?.statusCode === 403) {
+            return res.status(403).json({ error: e.message || 'Acesso negado' });
+          }
+          throw e;
+        }
+      }
+
+      const playlist = await getPlaylistService().getPlaylistById(pid, undefined, true);
+
       if (!playlist) {
         return res.status(404).json({ error: 'Playlist não encontrada' });
       }
@@ -140,11 +157,26 @@ router.get('/:id/preview',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
-      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'admin_sql';
-      
-      const playlist = await getPlaylistService().getPlaylistById(parseInt(id), userSubscriberId, isAdmin);
-      
+      const pid = parseInt(id, 10);
+
+      const sid = await getPlaylistService().getSubscriberIdForPlaylist(pid);
+      if (sid == null) {
+        return res.status(404).json({ error: 'Playlist não encontrada' });
+      }
+
+      if (!isAdminRole(req.user?.role)) {
+        try {
+          await assertTenantClientParamAccess(req, sid);
+        } catch (e: any) {
+          if (e?.statusCode === 403) {
+            return res.status(403).json({ error: e.message || 'Acesso negado' });
+          }
+          throw e;
+        }
+      }
+
+      const playlist = await getPlaylistService().getPlaylistById(pid, undefined, true);
+
       if (!playlist) {
         return res.status(404).json({ error: 'Playlist não encontrada' });
       }

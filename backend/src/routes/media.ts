@@ -10,6 +10,8 @@ import { logError, logDebug, logWarnSync, sanitizeForLogging } from '../utils/lo
 import { uploadLimiter } from '../middleware/security.middleware';
 import { getSubscriberService } from '../services/subscriberService';
 import { determineSubscriberId } from '../utils/subscriberHelper';
+import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
+import { isAdminRole } from '../utils/tenantScope';
 import { 
   paginationValidators, 
   searchValidators, 
@@ -212,14 +214,24 @@ router.get('/:id',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
-      
-      // Determinar se é admin
-      const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
-      
-      // Obter subscriberId do request
-      const requestSubscriberId = req.subscriberId || req.user?.subscriberId;
-      
-      const media = await getMediaService().getMediaById(mediaId, requestSubscriberId, isAdmin);
+
+      const sid = await getMediaService().getSubscriberIdForMedia(mediaId);
+      if (sid == null) {
+        return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
+      }
+
+      if (!isAdminRole(req.user?.role)) {
+        try {
+          await assertTenantClientParamAccess(req, sid);
+        } catch (e: any) {
+          if (e?.statusCode === 403) {
+            return res.status(403).json({ error: e.message || 'Acesso negado' });
+          }
+          throw e;
+        }
+      }
+
+      const media = await getMediaService().getMediaById(mediaId, undefined, true);
       if (!media) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }

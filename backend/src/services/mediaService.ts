@@ -399,6 +399,22 @@ export class MediaService {
     }
   }
 
+  /** Apenas `subscriber_id` da mídia (para checagem de escopo na rota, sem expor o payload completo). */
+  async getSubscriberIdForMedia(mediaId: number): Promise<number | null> {
+    try {
+      const row = await this.db.findFirst(
+        `SELECT subscriber_id FROM medias WHERE media_id = $1`,
+        [mediaId]
+      );
+      if (row == null || (row as any).subscriber_id == null) return null;
+      const n = Number((row as any).subscriber_id);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    } catch (error: any) {
+      await logError('Erro ao resolver subscriber da mídia', error, { mediaId });
+      return null;
+    }
+  }
+
   /**
    * Busca mídia por ID
    * @param mediaId ID da mídia

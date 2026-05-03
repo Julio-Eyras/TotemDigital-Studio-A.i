@@ -235,6 +235,22 @@ export class PlaylistService {
     }
   }
 
+  /** Apenas `subscriber_id` da playlist (escopo na rota). */
+  async getSubscriberIdForPlaylist(playlistId: number): Promise<number | null> {
+    try {
+      const row = await this.db.findFirst(
+        `SELECT subscriber_id FROM playlists WHERE playlist_id = $1`,
+        [playlistId]
+      );
+      if (row == null || (row as any).subscriber_id == null) return null;
+      const n = Number((row as any).subscriber_id);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    } catch (error: any) {
+      await logError('Erro ao resolver subscriber da playlist', error, { playlistId });
+      return null;
+    }
+  }
+
   /**
    * Obter playlist por ID
    * @param id ID da playlist
