@@ -4,6 +4,7 @@ import { validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { getClientService } from '../services/clientService';
 import { logError } from '../utils/loggerHelper';
+import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
 
 const router = express.Router();
 
@@ -66,8 +67,17 @@ router.get('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
-      const client = await getClientService().getClientById(parseInt(id));
+      const sid = parseInt(id, 10);
+      try {
+        await assertTenantClientParamAccess(req, sid);
+      } catch (e: any) {
+        if (e?.statusCode === 403) {
+          return res.status(403).json({ error: e.message || 'Acesso negado' });
+        }
+        throw e;
+      }
+
+      const client = await getClientService().getClientById(sid);
       
       if (!client) {
         return res.status(404).json({ error: 'Cliente não encontrado' });
@@ -121,9 +131,18 @@ router.put('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      const sid = parseInt(id, 10);
+      try {
+        await assertTenantClientParamAccess(req, sid);
+      } catch (e: any) {
+        if (e?.statusCode === 403) {
+          return res.status(403).json({ error: e.message || 'Acesso negado' });
+        }
+        throw e;
+      }
       const { name, email, phone, address } = req.body;
-      
-      const updatedClient = await getClientService().updateClient(parseInt(id), {
+
+      const updatedClient = await getClientService().updateClient(sid, {
         name,
         email,
         phone,
@@ -148,8 +167,17 @@ router.delete('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
-      await getClientService().deleteClient(parseInt(id));
+      const sid = parseInt(id, 10);
+      try {
+        await assertTenantClientParamAccess(req, sid);
+      } catch (e: any) {
+        if (e?.statusCode === 403) {
+          return res.status(403).json({ error: e.message || 'Acesso negado' });
+        }
+        throw e;
+      }
+
+      await getClientService().deleteClient(sid);
       
       return res.status(204).send();
     } catch (error: any) {

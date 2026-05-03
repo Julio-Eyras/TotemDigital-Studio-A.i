@@ -4,6 +4,7 @@ import { validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { getPlayerService } from '../services/playerService';
 import { logError } from '../utils/loggerHelper';
+import { assertTotemReadAccess } from '../utils/totemReadAccess';
 
 const router = express.Router();
 
@@ -27,6 +28,18 @@ const validateRequest = (req: any, res: any, next: any) => {
   }
   return next();
 };
+
+function respondTotemAccessError(res: any, e: any): boolean {
+  if (e?.statusCode === 403) {
+    res.status(403).json({ error: e.message || 'Acesso negado' });
+    return true;
+  }
+  if (e?.statusCode === 404) {
+    res.status(404).json({ error: e.message || 'Player não encontrado' });
+    return true;
+  }
+  return false;
+}
 
 /**
  * @route GET /api/players
@@ -69,8 +82,15 @@ router.get('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
-      const player = await getPlayerService().getPlayerById(parseInt(id));
+      const totemId = parseInt(id, 10);
+      try {
+        await assertTotemReadAccess(req, totemId);
+      } catch (e: any) {
+        if (respondTotemAccessError(res, e)) return;
+        throw e;
+      }
+
+      const player = await getPlayerService().getPlayerById(totemId);
       
       if (!player) {
         return res.status(404).json({ error: 'Player não encontrado' });
@@ -122,9 +142,16 @@ router.put('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      const totemId = parseInt(id, 10);
+      try {
+        await assertTotemReadAccess(req, totemId);
+      } catch (e: any) {
+        if (respondTotemAccessError(res, e)) return;
+        throw e;
+      }
       const { name, location, clientId, isActive } = req.body;
-      
-      const updatedPlayer = await getPlayerService().updatePlayer(parseInt(id), {
+
+      const updatedPlayer = await getPlayerService().updatePlayer(totemId, {
         name,
         location,
         clientId,
@@ -149,8 +176,15 @@ router.delete('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
-      await getPlayerService().deletePlayer(parseInt(id));
+      const totemId = parseInt(id, 10);
+      try {
+        await assertTotemReadAccess(req, totemId);
+      } catch (e: any) {
+        if (respondTotemAccessError(res, e)) return;
+        throw e;
+      }
+
+      await getPlayerService().deletePlayer(totemId);
       
       return res.status(204).send();
     } catch (error: any) {
@@ -171,9 +205,16 @@ router.post('/:id/playlist',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      const totemId = parseInt(id, 10);
+      try {
+        await assertTotemReadAccess(req, totemId);
+      } catch (e: any) {
+        if (respondTotemAccessError(res, e)) return;
+        throw e;
+      }
       const { playlistId } = req.body;
-      
-      await getPlayerService().assignPlaylist(parseInt(id), playlistId);
+
+      await getPlayerService().assignPlaylist(totemId, playlistId);
       
       return res.json({ message: 'Playlist atribuída com sucesso' });
     } catch (error: any) {
@@ -193,8 +234,15 @@ router.get('/:id/status',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
-      const status = await getPlayerService().getPlayerStatus(parseInt(id));
+      const totemId = parseInt(id, 10);
+      try {
+        await assertTotemReadAccess(req, totemId);
+      } catch (e: any) {
+        if (respondTotemAccessError(res, e)) return;
+        throw e;
+      }
+
+      const status = await getPlayerService().getPlayerStatus(totemId);
       
       return res.json(status);
     } catch (error: any) {

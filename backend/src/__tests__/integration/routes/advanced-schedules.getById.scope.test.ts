@@ -87,3 +87,93 @@ describe('GET /api/advanced-schedules/:id — escopo', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('POST /api/advanced-schedules — escopo do target', () => {
+  let spyTarget: jest.SpyInstance;
+  let spyCreate: jest.SpyInstance;
+
+  const makeApp = async () => {
+    const router = (await import('../../../routes/advanced-schedules')).default;
+    const app = express();
+    app.use(express.json());
+    app.use('/api/advanced-schedules', router);
+    return app;
+  };
+
+  const minimalSchedule = {
+    schedule_id: 1,
+    name: 'Novo',
+    description: null,
+    schedule_type: 'campaign',
+    target_id: 5,
+    cron_expression: '0 0 * * *',
+    schedule_config: {},
+    enabled: true,
+    last_execution: null,
+    next_execution: null,
+    execution_count: 0,
+    success_count: 0,
+    failure_count: 0,
+    created_at: new Date(),
+    updated_at: new Date(),
+    created_by: 1,
+  };
+
+  const validBody = {
+    name: 'Novo',
+    scheduleType: 'campaign',
+    targetId: 5,
+    cronExpression: '0 0 * * *',
+  };
+
+  beforeEach(() => {
+    spyTarget = jest.spyOn(advancedScheduleService, 'getSubscriberIdForScheduleTarget').mockResolvedValue(10);
+    spyCreate = jest.spyOn(advancedScheduleService, 'createSchedule').mockResolvedValue(minimalSchedule as any);
+  });
+
+  afterEach(() => {
+    spyTarget.mockRestore();
+    spyCreate.mockRestore();
+  });
+
+  it('permite subscriber_user quando o alvo pertence ao seu assinante', async () => {
+    const app = await makeApp();
+    const res = await request(app)
+      .post('/api/advanced-schedules')
+      .set('Authorization', 'Bearer sub10')
+      .send(validBody);
+    expect(res.status).toBe(201);
+    expect(spyCreate).toHaveBeenCalled();
+  });
+
+  it('bloqueia outro assinante antes de criar', async () => {
+    const app = await makeApp();
+    const res = await request(app)
+      .post('/api/advanced-schedules')
+      .set('Authorization', 'Bearer sub99')
+      .send(validBody);
+    expect(res.status).toBe(403);
+    expect(spyCreate).not.toHaveBeenCalled();
+  });
+
+  it('admin_sql pode criar sem checagem de tenant', async () => {
+    const app = await makeApp();
+    const res = await request(app)
+      .post('/api/advanced-schedules')
+      .set('Authorization', 'Bearer admin')
+      .send(validBody);
+    expect(res.status).toBe(201);
+    expect(spyCreate).toHaveBeenCalled();
+  });
+
+  it('retorna 400 quando alvo não resolve subscriber', async () => {
+    spyTarget.mockResolvedValue(null);
+    const app = await makeApp();
+    const res = await request(app)
+      .post('/api/advanced-schedules')
+      .set('Authorization', 'Bearer sub10')
+      .send(validBody);
+    expect(res.status).toBe(400);
+    expect(spyCreate).not.toHaveBeenCalled();
+  });
+});

@@ -152,6 +152,30 @@ router.post('/',
   validateRequest,
   async (req: Request, res: Response) => {
     try {
+      const sid = await advancedScheduleService.getSubscriberIdForScheduleTarget(
+        req.body.scheduleType,
+        Number(req.body.targetId)
+      );
+      if (sid == null) {
+        return res.status(400).json({
+          success: false,
+          error: 'Campanha ou playlist inválida para o tipo de agendamento',
+        });
+      }
+      if (!isAdminRole(req.user?.role)) {
+        try {
+          await assertTenantClientParamAccess(req, sid);
+        } catch (e: any) {
+          if (e?.statusCode === 403) {
+            return res.status(403).json({
+              success: false,
+              message: e.message || 'Acesso negado',
+            });
+          }
+          throw e;
+        }
+      }
+
       const schedule = await advancedScheduleService.createSchedule({
         name: req.body.name,
         description: req.body.description,
@@ -162,7 +186,7 @@ router.post('/',
         enabled: req.body.enabled !== false
       }, req.user!.id);
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         message: 'Agendamento criado com sucesso',
         data: schedule
@@ -171,7 +195,7 @@ router.post('/',
       // Sanitizar dados antes de logar
       const sanitizedBody = req.body ? sanitizeForLogging(req.body) : null;
       await logError('Erro ao criar agendamento', error, { route: '/api/advanced-schedules', scheduleType: sanitizedBody?.scheduleType });
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         error: 'Erro ao criar agendamento',
         message: error.message
