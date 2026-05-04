@@ -256,7 +256,9 @@ class PlayerController(
                 completed = null,
                 metadata = emptyMap()
             )
-            delay((item.duration ?: config.imageDurationSeconds.toLong()) * 1000L)
+            val exposureSec = item.duration?.takeIf { it > 0L }
+            val imageHoldSeconds = exposureSec ?: config.imageDurationSeconds.toLong()
+            delay(imageHoldSeconds * 1000L)
             imageView.visibility = View.GONE
             return tkn
         }

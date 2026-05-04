@@ -17,6 +17,7 @@ import { normalizeDownloadUrl } from '../utils/pathHelper';
 import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService, TotemPlaylistMix } from './totemPlaylistMixService';
 import { resolveDispatchCacheBucket } from './dispatchMediaBucket';
+import { resolveDispatchItemDurationSeconds } from '../utils/dispatchItemDuration';
 import {
   DispatchRequest,
   DispatchPlan,
@@ -753,12 +754,16 @@ export class DispatcherTotemService {
         .filter((item: any) => mediaMap.has(item.media_id))
         .map((item: any, index: number) => {
           const m = mediaMap.get(item.media_id);
-          const duration = item.display_seconds ?? m?.duration_seconds ?? 10;
+          const duration = resolveDispatchItemDurationSeconds({
+            displaySeconds: item.display_seconds,
+            mediaType: m?.media_type,
+            mediaDurationSeconds: m?.duration_seconds,
+          });
           const url = normalizeDownloadUrl(m?.file_path) || '';
           return {
             mediaId: item.media_id,
             order: item.order_index ?? index + 1,
-            duration: Number(duration) || 10,
+            duration,
             url: url || `/api/media/${item.media_id}/stream`,
             mediaType: m?.media_type || 'image',
             cacheBucket: resolveDispatchCacheBucket(m || {}),
@@ -1949,7 +1954,11 @@ export class DispatcherTotemService {
         mediaItems.push({
           mediaId: media.media_id,
           order: mixItem.order_index,
-          duration: mixItem.duration || media.duration_seconds || 10,
+          duration: resolveDispatchItemDurationSeconds({
+            displaySeconds: mixItem.duration,
+            mediaType: media.media_type,
+            mediaDurationSeconds: media.duration_seconds,
+          }),
           url: normalizeDownloadUrl(media.file_path) || '',
           mediaType: media.media_type,
           cacheBucket: resolveDispatchCacheBucket(media),
@@ -2006,7 +2015,11 @@ export class DispatcherTotemService {
     const mediaItems: DispatchMediaItem[] = items.map((item, index) => ({
       mediaId: item.media_id,
       order: index + 1,
-      duration: item.duration || item.duration_seconds || 10,
+      duration: resolveDispatchItemDurationSeconds({
+        displaySeconds: item.duration,
+        mediaType: item.media_type,
+        mediaDurationSeconds: item.duration_seconds,
+      }),
       url: normalizeDownloadUrl(item.file_path) || '',
       mediaType: item.media_type || 'image',
       cacheBucket: resolveDispatchCacheBucket({

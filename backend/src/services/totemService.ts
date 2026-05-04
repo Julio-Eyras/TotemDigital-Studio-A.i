@@ -1465,7 +1465,12 @@ export class TotemService {
           tpi.subscriber_id,
           tpi.publisher_id,
           tpi.order_index,
-          COALESCE(tpi.display_seconds, m.duration_seconds, 10) AS duration,
+          CASE
+            WHEN LOWER(COALESCE(m.media_type, '')) IN ('video', 'audio')
+              THEN COALESCE(NULLIF(m.duration_seconds, 0), 10)
+            WHEN COALESCE(tpi.display_seconds, 0) > 0 THEN tpi.display_seconds
+            ELSE 10
+          END AS duration,
           m.name AS media_name,
           m.media_type,
           m.file_path,

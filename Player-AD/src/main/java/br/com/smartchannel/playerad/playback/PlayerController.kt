@@ -421,7 +421,9 @@ class PlayerController(
             }
             imageView.visibility = android.view.View.VISIBLE
             exoPlayer.stop()
-            val durationSeconds = item.duration ?: DEFAULT_IMAGE_DURATION_SECONDS
+            // Exposição só conta se > 0; vídeo não passa por este ramo (duração real no ExoPlayer).
+            val exposureSec = item.duration?.takeIf { it > 0L }
+            val durationSeconds = exposureSec ?: DEFAULT_IMAGE_DURATION_SECONDS
             val durationMs = durationSeconds * 1000L
 
             PlayerAdLogger.logPlaybackStart(

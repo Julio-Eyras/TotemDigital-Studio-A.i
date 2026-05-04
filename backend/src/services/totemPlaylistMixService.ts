@@ -10,6 +10,7 @@ import { PublisherCampaignMixService } from './publisherCampaignMixService';
 import { AIService } from './aiService';
 import { getCacheService } from './cacheService';
 import { getWebhookService } from './webhookService';
+import { resolveDispatchItemDurationSeconds } from '../utils/dispatchItemDuration';
 
 export interface MixRule {
   rule_id: number;
@@ -570,6 +571,7 @@ export class TotemPlaylistMixService {
               pi.playlist_id,
               pi.order_index,
               pi.display_seconds as duration,
+              m.media_type,
               m.tags,
               m.duration_seconds as media_duration
             FROM playlist_items pi
@@ -598,7 +600,11 @@ export class TotemPlaylistMixService {
               source: 'campaign',
               priority: campaign.priority * playlist.priority,
               tags: item.tags ? (typeof item.tags === 'string' ? JSON.parse(item.tags) : item.tags) : [],
-              duration: item.duration || item.media_duration || 10,
+              duration: resolveDispatchItemDurationSeconds({
+                displaySeconds: item.duration,
+                mediaType: item.media_type,
+                mediaDurationSeconds: item.media_duration,
+              }),
             });
           }
         }
@@ -609,6 +615,7 @@ export class TotemPlaylistMixService {
             cm.media_id,
             cm.order_index,
             cm.display_seconds as duration,
+            m.media_type,
             m.tags,
             m.duration_seconds as media_duration
           FROM campaign_medias cm
@@ -639,7 +646,11 @@ export class TotemPlaylistMixService {
             source: 'campaign',
             priority: campaign.priority,
             tags: item.tags ? (typeof item.tags === 'string' ? JSON.parse(item.tags) : item.tags) : [],
-            duration: item.duration || item.media_duration || 10,
+            duration: resolveDispatchItemDurationSeconds({
+              displaySeconds: item.duration,
+              mediaType: item.media_type,
+              mediaDurationSeconds: item.media_duration,
+            }),
           });
         }
       }
