@@ -165,6 +165,25 @@ export class TotemService {
     if (!t) return t;
     if (t.id && !t.totem_id) t.totem_id = t.id;
     if (t.totem_id && !t.id) t.id = t.totem_id;
+    // PostgreSQL sem aspas nos aliases → node-pg devolve chaves minúsculas (publisherid, localid).
+    const firstNum = (...vals: unknown[]): number | undefined => {
+      for (const v of vals) {
+        if (v === undefined || v === null || v === '') continue;
+        const n = Number(v);
+        if (!Number.isNaN(n)) return n;
+      }
+      return undefined;
+    };
+    const pid = firstNum(t.publisherId, t.publisher_id, t.publisherid);
+    if (pid !== undefined) {
+      t.publisherId = pid;
+      t.publisher_id = pid;
+    }
+    const lid = firstNum(t.localId, t.local_id, t.localid);
+    if (lid !== undefined) {
+      t.localId = lid;
+      t.local_id = lid;
+    }
     return t;
   }
 
