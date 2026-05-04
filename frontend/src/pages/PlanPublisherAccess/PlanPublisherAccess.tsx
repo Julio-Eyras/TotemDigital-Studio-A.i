@@ -62,7 +62,7 @@ import { totemApi, Player, localApi, Local } from '../../services/api';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { PageHeader } from '../../components/DataDisplay';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
-import { getTotemLocalIdFromRow, getTotemPublisherIdFromRow } from '../../utils/totemRowIds';
+import { getTotemIdFromRow, getTotemLocalIdFromRow, getTotemPublisherIdFromRow } from '../../utils/totemRowIds';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -79,9 +79,10 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-function formatTotemLabel(t: { totem_id: number; name?: string; identifier?: string; uin?: string }): string {
+function formatTotemLabel(t: { totem_id?: number; name?: string; identifier?: string; uin?: string; id?: number }): string {
   const parts = [t.name, t.identifier, t.uin].filter(Boolean);
-  return parts.length > 0 ? parts.join(' · ') : `Totem #${t.totem_id}`;
+  const id = getTotemIdFromRow(t as Record<string, unknown>);
+  return parts.length > 0 ? parts.join(' · ') : `Totem #${id ?? '?'}`;
 }
 
 function compareByName(a: string, b: string): number {
@@ -452,7 +453,8 @@ const PlanPublisherAccessPage: React.FC = () => {
       const nextLabel = `${selectedLocal.name}${selectedLocal.totem_count != null ? ` · ${selectedLocal.totem_count} totem(ns)` : ''}`;
       const totemsFromLocal = compactActiveTotemsWithPublisher
         .filter(({ totem }) => getTotemLocalIdFromRow(totem as Record<string, unknown>) === selectedLocal.local_id)
-        .map(({ totem }) => totem.totem_id);
+        .map(({ totem }) => getTotemIdFromRow(totem as Record<string, unknown>))
+        .filter((id): id is number => id !== undefined);
       setCompactSelectedLocalIds((prev) => (prev.includes(selectedLocal.local_id) ? prev : [...prev, selectedLocal.local_id]));
       setCompactEnabledTotemsByLocal((prev) => ({
         ...prev,
@@ -823,7 +825,8 @@ const PlanPublisherAccessPage: React.FC = () => {
     const nextLabel = `${selectedLocal.name}${selectedLocal.totem_count != null ? ` · ${selectedLocal.totem_count} totem(ns)` : ''}`;
     const totemsFromLocal = compactActiveTotemsWithPublisher
       .filter(({ totem }) => getTotemLocalIdFromRow(totem as Record<string, unknown>) === selectedLocal.local_id)
-      .map(({ totem }) => totem.totem_id);
+      .map(({ totem }) => getTotemIdFromRow(totem as Record<string, unknown>))
+      .filter((id): id is number => id !== undefined);
 
     setCompactSelectedLocalIds((prev) => (prev.includes(selectedLocal.local_id) ? prev : [...prev, selectedLocal.local_id]));
     setCompactEnabledTotemsByLocal((prev) => ({
@@ -1471,16 +1474,19 @@ const PlanPublisherAccessPage: React.FC = () => {
                         </Typography>
                       ) : (
                         <List dense sx={{ pt: 0 }}>
-                          {totems.map((totem) => {
+                          {totems
+                            .map((totem) => {
+                            const tid = getTotemIdFromRow(totem as Record<string, unknown>);
+                            if (tid === undefined) return null;
                             const enabledTotems = compactEnabledTotemsByLocal[local.local_id] || [];
-                            const checked = enabledTotems.includes(totem.totem_id);
+                            const checked = enabledTotems.includes(tid);
                             return (
-                              <ListItem key={totem.totem_id} disableGutters sx={{ py: 0 }}>
+                              <ListItem key={tid} disableGutters sx={{ py: 0 }}>
                                 <FormControlLabel
                                   control={
                                     <Checkbox
                                       checked={checked}
-                                      onChange={() => toggleTotemForLocal(local.local_id, totem.totem_id)}
+                                      onChange={() => toggleTotemForLocal(local.local_id, tid)}
                                       size="small"
                                     />
                                   }
@@ -1492,7 +1498,8 @@ const PlanPublisherAccessPage: React.FC = () => {
                                 />
                               </ListItem>
                             );
-                          })}
+                          })
+                            .filter(Boolean)}
                         </List>
                       )}
                     </Box>

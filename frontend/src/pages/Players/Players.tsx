@@ -47,6 +47,7 @@ import {
   WifiOff,
 } from '@mui/icons-material';
 import { playerApi, Player, CreatePlayerRequest, playlistApi, PlaylistItem } from '../../services/api';
+import { getTotemIdFromRow } from '../../utils/totemRowIds';
 
 const Players: React.FC = () => {
   const theme = useTheme();
@@ -115,7 +116,8 @@ const Players: React.FC = () => {
     if (!selectedPlayer) return;
     
     try {
-      await playerApi.update(selectedPlayer.totem_id, {
+      const pid = getTotemIdFromRow(selectedPlayer as Record<string, unknown>) ?? selectedPlayer.totem_id;
+      await playerApi.update(pid, {
         name: selectedPlayer.name,
         location: selectedPlayer.location,
         subscriberId: selectedPlayer.subscriber_id || (selectedPlayer as any).subscriberId,
@@ -146,7 +148,8 @@ const Players: React.FC = () => {
     if (!selectedPlayer) return;
     
     try {
-      await playerApi.assignPlaylist(selectedPlayer.totem_id, playlistId);
+      const pid = getTotemIdFromRow(selectedPlayer as Record<string, unknown>) ?? selectedPlayer.totem_id;
+      await playerApi.assignPlaylist(pid, playlistId);
       setAssignDialogOpen(false);
       setSelectedPlayer(null);
       loadPlayers();
@@ -288,7 +291,14 @@ const Players: React.FC = () => {
       {/* Players Grid */}
       <Grid container spacing={3}>
         {players.map((player) => (
-          <Grid item xs={12} sm={6} md={4} lg={3} key={player.totem_id}>
+          <Grid
+            item
+            xs={12}
+            sm={6}
+            md={4}
+            lg={3}
+            key={getTotemIdFromRow(player as Record<string, unknown>) ?? player.identifier ?? 'player'}
+          >
             <Card sx={{ 
               height: '100%',
               display: 'flex',
@@ -383,7 +393,13 @@ const Players: React.FC = () => {
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Excluir">
-                      <IconButton size="small" onClick={() => handleDeletePlayer(player.totem_id)}>
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          const id = getTotemIdFromRow(player as Record<string, unknown>) ?? player.totem_id;
+                          handleDeletePlayer(id);
+                        }}
+                      >
                         <Delete />
                       </IconButton>
                     </Tooltip>

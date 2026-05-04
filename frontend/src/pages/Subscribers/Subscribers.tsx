@@ -108,6 +108,7 @@ import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import CampaignFullEditorDialog from '../Campaigns/CampaignFullEditorDialog';
 import { normalizeCampaign } from '../Campaigns/campaignHelpers';
 import { useAppSelector } from '../../store/hooks';
+import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -793,14 +794,19 @@ const Subscribers: React.FC = () => {
     try {
       const local = editLocals[index];
       // Remover totens e smart TVs associados a este local primeiro
-      const totemsToRemove = editTotems.filter(t => t.local_id === local.local_id);
+      const totemsToRemove = editTotems.filter(
+        (t) => getTotemLocalIdFromRow(t as Record<string, unknown>) === local.local_id
+      );
       for (const totem of totemsToRemove) {
         try {
-          const smartTvsToRemove = editSmartTvs.filter(tv => tv.totem_id === totem.totem_id);
+          const totemPk = getTotemIdFromRow(totem as Record<string, unknown>);
+          const smartTvsToRemove = editSmartTvs.filter(
+            (tv) => getForeignTotemIdFromRow(tv as Record<string, unknown>) === totemPk
+          );
           for (const tv of smartTvsToRemove) {
             await smartTvApi.delete(tv.smart_tv_id);
           }
-          await totemApi.delete(totem.totem_id);
+          if (totemPk !== undefined) await totemApi.delete(totemPk);
         } catch (err) {
           console.error('Erro ao excluir totem/smart TVs:', err);
         }
@@ -844,7 +850,9 @@ const Subscribers: React.FC = () => {
       if (editingEditTotemIndex !== null) {
         // Atualizar totem existente
         const totemToUpdate = editTotems[editingEditTotemIndex];
-        await totemApi.update(totemToUpdate.totem_id, totemData);
+        const totemPk =
+          getTotemIdFromRow(totemToUpdate as Record<string, unknown>) ?? (totemToUpdate as any).totem_id;
+        await totemApi.update(totemPk, totemData);
         // Recarregar dados
         await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
         setEditingEditTotemIndex(null);
@@ -872,7 +880,9 @@ const Subscribers: React.FC = () => {
   const handleEditEditTotem = (index: number) => {
     const totem = editTotems[index];
     // Encontrar índice do local no array editLocals
-    const localIndex = editLocals.findIndex(l => l.local_id === totem.local_id);
+    const localIndex = editLocals.findIndex(
+      (l) => l.local_id === getTotemLocalIdFromRow(totem as Record<string, unknown>)
+    );
     setEditTotemForm({
       localId: localIndex >= 0 ? localIndex : 0,
       identifier: totem.identifier || '',
@@ -890,8 +900,11 @@ const Subscribers: React.FC = () => {
     
     try {
       const totem = editTotems[index];
+      const totemPk = getTotemIdFromRow(totem as Record<string, unknown>);
       // Remover smart TVs associadas a este totem primeiro
-      const smartTvsToRemove = editSmartTvs.filter(tv => tv.totem_id === totem.totem_id);
+      const smartTvsToRemove = editSmartTvs.filter(
+        (tv) => getForeignTotemIdFromRow(tv as Record<string, unknown>) === totemPk
+      );
       for (const tv of smartTvsToRemove) {
         try {
           await smartTvApi.delete(tv.smart_tv_id);
@@ -899,7 +912,7 @@ const Subscribers: React.FC = () => {
           console.error('Erro ao excluir Smart TV:', err);
         }
       }
-      await totemApi.delete(totem.totem_id);
+      if (totemPk !== undefined) await totemApi.delete(totemPk);
       // Recarregar dados
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     } catch (error: any) {
@@ -926,7 +939,8 @@ const Subscribers: React.FC = () => {
     try {
       const selectedTotem = editTotems[editSmartTvForm.totem_id];
       const smartTvData = {
-        totem_id: selectedTotem.totem_id,
+        totem_id:
+          getTotemIdFromRow(selectedTotem as Record<string, unknown>) ?? (selectedTotem as any).totem_id,
         identifier: editSmartTvForm.identifier,
         name: editSmartTvForm.name || undefined,
         device_id: editSmartTvForm.device_id || undefined,
@@ -974,7 +988,11 @@ const Subscribers: React.FC = () => {
   const handleEditEditSmartTv = (index: number) => {
     const smartTv = editSmartTvs[index];
     // Encontrar índice do totem no array editTotems
-    const totemIndex = editTotems.findIndex(t => t.totem_id === smartTv.totem_id);
+    const totemIndex = editTotems.findIndex(
+      (t) =>
+        getTotemIdFromRow(t as Record<string, unknown>) ===
+        getForeignTotemIdFromRow(smartTv as Record<string, unknown>)
+    );
     setEditSmartTvForm({
       totem_id: totemIndex >= 0 ? totemIndex : 0,
       identifier: smartTv.identifier || '',

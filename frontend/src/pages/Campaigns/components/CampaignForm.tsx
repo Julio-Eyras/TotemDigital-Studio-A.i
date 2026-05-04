@@ -37,6 +37,7 @@ import {
 } from '../../../services/api';
 import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../../../config/featureFlags';
 import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT } from '../../../constants/campaignUiMessages';
+import { getTotemIdFromRow } from '../../../utils/totemRowIds';
 
 export interface CampaignFormProps {
   mode: 'create' | 'edit';
@@ -532,10 +533,19 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
           <Autocomplete
             multiple
             options={players}
-            getOptionLabel={(option) => option.name || option.identifier || option.uin || `Totem ${option.totem_id}`}
-            value={players.filter(p => ((data as any).totemIds || []).includes(p.totem_id))}
+            getOptionLabel={(option) => {
+              const id = getTotemIdFromRow(option as Record<string, unknown>);
+              return option.name || option.identifier || option.uin || `Totem ${id ?? '?'}`;
+            }}
+            value={players.filter((p) => {
+              const id = getTotemIdFromRow(p as Record<string, unknown>);
+              return id !== undefined && ((data as any).totemIds || []).includes(id);
+            })}
             onChange={(_, newValue) => {
-              handleFieldChange('totemIds', newValue.map(p => p.totem_id));
+              const ids = newValue
+                .map((p) => getTotemIdFromRow(p as Record<string, unknown>))
+                .filter((n): n is number => n !== undefined);
+              handleFieldChange('totemIds', ids);
             }}
             renderInput={(params) => (
               <TextField {...params} label="SmartvPlayers → Totem" margin="normal" />
@@ -550,10 +560,19 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
           <Autocomplete
             multiple
             options={players}
-            getOptionLabel={(option) => option.name || option.identifier || option.uin || `Totem ${option.totem_id}`}
-            value={players.filter(p => ((data as any).totemIds || []).includes(p.totem_id))}
+            getOptionLabel={(option) => {
+              const id = getTotemIdFromRow(option as Record<string, unknown>);
+              return option.name || option.identifier || option.uin || `Totem ${id ?? '?'}`;
+            }}
+            value={players.filter((p) => {
+              const id = getTotemIdFromRow(p as Record<string, unknown>);
+              return id !== undefined && ((data as any).totemIds || []).includes(id);
+            })}
             onChange={(_, newValue) => {
-              handleFieldChange('totemIds', newValue.map(p => p.totem_id));
+              const ids = newValue
+                .map((p) => getTotemIdFromRow(p as Record<string, unknown>))
+                .filter((n): n is number => n !== undefined);
+              handleFieldChange('totemIds', ids);
             }}
             renderInput={(params) => (
               <TextField {...params} label="SmartvPlayers → Totem" margin="normal" />

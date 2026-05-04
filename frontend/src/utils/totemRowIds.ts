@@ -3,6 +3,7 @@
  *
  * - Funções `getTotem*`: linhas de totem/player.
  * - `getTotemIdFromRow`: `totem_id` / `id` / `player_id` (API normalizada); só valores finitos > 0.
+ * - `getForeignTotemIdFromRow`: FK `totem_id` noutro registo (ex. Smart TV), sem `id` genérico.
  * - `getPublisherIdFromRow`: objeto publisher (lista/create); `id` = publisher quando não há snake_case.
  * - `getLocalIdFromRow`: objeto Local; `id` = local_id quando a resposta só traz `id`.
  */
@@ -20,6 +21,17 @@ function firstDefinedNumber(...vals: unknown[]): number | undefined {
 export function getTotemIdFromRow(row: Record<string, unknown> | null | undefined): number | undefined {
   if (!row) return undefined;
   const n = firstDefinedNumber(row.totem_id, row.totemId, row.id, row.player_id, row.playerId);
+  if (n === undefined || !Number.isFinite(n) || n <= 0) return undefined;
+  return n;
+}
+
+/**
+ * FK para totem noutro registo (ex.: Smart TV). Só `totem_id` / variantes — não usa `id` genérico
+ * (em Smart TV `id` costuma ser o próprio smart_tv_id).
+ */
+export function getForeignTotemIdFromRow(row: Record<string, unknown> | null | undefined): number | undefined {
+  if (!row) return undefined;
+  const n = firstDefinedNumber(row.totem_id, row.totemId, row.totemid);
   if (n === undefined || !Number.isFinite(n) || n <= 0) return undefined;
   return n;
 }

@@ -69,7 +69,7 @@ import {
 } from '../../services/api';
 import { useAppSelector } from '../../store';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
-import { getTotemIdFromRow } from '../../utils/totemRowIds';
+import { getForeignTotemIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
 import { PageHeader } from '../../components/DataDisplay';
 
 const Locals: React.FC = () => {
@@ -361,10 +361,13 @@ const Locals: React.FC = () => {
         // Backend de Smart TVs limita limit em 100 (validação). Manter compatível para evitar 400.
         const smartTvsResponse = await smartTvApi.getAll({ limit: 100 });
         const smartTvs = Array.isArray(smartTvsResponse.data) ? smartTvsResponse.data : [];
-        const totemIds = localTotems.map((t: any) => t.totem_id);
-        const localSmartTvs = smartTvs.filter((tv: any) => 
-          totemIds.includes(tv.totem_id) || tv.local_id === local.local_id
-        );
+        const totemIds = localTotems
+          .map((t: any) => getTotemIdFromRow(t as Record<string, unknown>))
+          .filter((id): id is number => id !== undefined);
+        const localSmartTvs = smartTvs.filter((tv: any) => {
+          const tvTotemFk = getForeignTotemIdFromRow(tv as Record<string, unknown>);
+          return (tvTotemFk !== undefined && totemIds.includes(tvTotemFk)) || tv.local_id === local.local_id;
+        });
         setSelectedSmartTvs(localSmartTvs);
         setSmartTvDetailsAvailable(true);
       } catch (err) {
@@ -920,11 +923,19 @@ const Locals: React.FC = () => {
                               startIcon={<Refresh />}
                               onClick={async () => {
                                 try {
+                                  const tid = getTotemIdFromRow(totem as Record<string, unknown>) ?? totem.totem_id;
                                   // Forçar heartbeat 'online' para fins de debug/admin
-                                  await totemApi.heartbeat(totem.totem_id, 'online', { note: 'manual_refresh_from_ui' });
+                                  await totemApi.heartbeat(tid, 'online', { note: 'manual_refresh_from_ui' });
                                   // Atualizar o totem específico localmente
-                                  const updated = await totemApi.getById(totem.totem_id);
-                                  setSelectedTotems((prev) => prev.map((p) => (p.totem_id === updated.totem_id ? updated : p)));
+                                  const updated = await totemApi.getById(tid);
+                                  setSelectedTotems((prev) =>
+                                    prev.map((p) =>
+                                      (getTotemIdFromRow(p as Record<string, unknown>) ?? p.totem_id) ===
+                                      (getTotemIdFromRow(updated as Record<string, unknown>) ?? updated.totem_id)
+                                        ? updated
+                                        : p
+                                    )
+                                  );
                                   setSuccess('Heartbeat forçado com sucesso');
                                 } catch (err: any) {
                                   console.error('Erro ao forçar heartbeat:', err);
