@@ -37,6 +37,7 @@ import { useAppSelector } from '../../store';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import { getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -305,14 +306,8 @@ const Totems: React.FC = () => {
   };
 
   const resolveLocalIdFromTotem = (totem: any): number => {
-    const directLocalId = Number(
-      (totem as any).localId ??
-      (totem as any).local_id ??
-      (totem as any).local?.local_id ??
-      (totem as any).local?.id ??
-      0
-    );
-    if (directLocalId > 0) return directLocalId;
+    const fromRow = getTotemLocalIdFromRow(totem as Record<string, unknown>);
+    if (fromRow !== undefined && fromRow > 0) return fromRow;
 
     // Fallback por nome exibido do local no card/lista.
     const locationName = String((totem as any).location ?? (totem as any).localName ?? '').trim().toLowerCase();
@@ -447,14 +442,14 @@ const Totems: React.FC = () => {
       if (!stockLocalSelected && statusFilter !== 'all' && !matchesStatusFilter(t, statusFilter)) return false;
 
       if (localFilter !== 'all') {
-        const totemLocalId = Number(t.localId ?? t.local_id);
-        if (!Number.isNaN(totemLocalId) && totemLocalId !== localFilter) return false;
+        const totemLocalId = getTotemLocalIdFromRow(t as Record<string, unknown>);
+        if (totemLocalId !== undefined && totemLocalId !== localFilter) return false;
 
         // Fallback: comparar por nome do local no campo location
         const localName = locals.find((l) => l.local_id === localFilter)?.name;
         if (localName && typeof t.location === 'string') {
           if (!t.location.toLowerCase().includes(localName.toLowerCase())) return false;
-        } else if (Number.isNaN(totemLocalId)) {
+        } else if (totemLocalId === undefined) {
           // Sem como inferir o local
           return false;
         }
@@ -480,12 +475,12 @@ const Totems: React.FC = () => {
       if (!stockLocalSelected && statusFilter !== 'all' && !matchesStatusFilter(t, statusFilter)) return false;
 
       if (localFilter !== 'all') {
-        const totemLocalId = Number(t.localId ?? t.local_id);
-        if (!Number.isNaN(totemLocalId) && totemLocalId !== localFilter) return false;
+        const totemLocalId = getTotemLocalIdFromRow(t as Record<string, unknown>);
+        if (totemLocalId !== undefined && totemLocalId !== localFilter) return false;
         const localName = locals.find((l) => l.local_id === localFilter)?.name;
         if (localName && typeof t.location === 'string') {
           if (!t.location.toLowerCase().includes(localName.toLowerCase())) return false;
-        } else if (Number.isNaN(totemLocalId)) {
+        } else if (totemLocalId === undefined) {
           return false;
         }
       }
