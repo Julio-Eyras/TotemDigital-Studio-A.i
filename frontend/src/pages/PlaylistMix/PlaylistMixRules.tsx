@@ -55,6 +55,7 @@ const PlaylistMixRules: React.FC = () => {
 
   const [scopeTotems, setScopeTotems] = useState<Player[]>([]);
   const [loadingScopeTotems, setLoadingScopeTotems] = useState(false);
+  const [scopeTotemsError, setScopeTotemsError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -88,11 +89,17 @@ const PlaylistMixRules: React.FC = () => {
     let cancelled = false;
     (async () => {
       setLoadingScopeTotems(true);
+      setScopeTotemsError(null);
       try {
         const res = await totemApi.getAll({ page: 1, limit: 500 });
         if (!cancelled) setScopeTotems(Array.isArray(res?.data) ? res.data : []);
-      } catch {
-        if (!cancelled) setScopeTotems([]);
+      } catch (e: any) {
+        if (!cancelled) {
+          setScopeTotems([]);
+          setScopeTotemsError(
+            e?.response?.data?.error || e?.message || 'Não foi possível carregar a lista de totems.'
+          );
+        }
       } finally {
         if (!cancelled) setLoadingScopeTotems(false);
       }
@@ -122,6 +129,7 @@ const PlaylistMixRules: React.FC = () => {
   };
 
   const handleCreate = () => {
+    setScopeTotemsError(null);
     setEditingRule(null);
     setFormData({
       name: '',
@@ -149,6 +157,7 @@ const PlaylistMixRules: React.FC = () => {
   };
 
   const handleEdit = (rule: MixRule) => {
+    setScopeTotemsError(null);
     setEditingRule(rule);
     setFormData({
       name: rule.name,
@@ -175,13 +184,23 @@ const PlaylistMixRules: React.FC = () => {
     setDialogOpen(true);
   };
 
+  const normalizedTotemIdForApi = (): number | undefined => {
+    const v = formData.totem_id;
+    if (v == null) return undefined;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) return undefined;
+    return n;
+  };
+
   const handleSave = async () => {
     setError(null);
     try {
+      const totem_id = normalizedTotemIdForApi();
+      const payload = { ...formData, totem_id };
       if (editingRule) {
-        await updateMixRule(editingRule.rule_id, { ...formData, totem_id: formData.totem_id || undefined });
+        await updateMixRule(editingRule.rule_id, payload);
       } else {
-        await createMixRule({ ...formData, totem_id: formData.totem_id || undefined });
+        await createMixRule(payload);
       }
       setDialogOpen(false);
       loadRules();
@@ -385,7 +404,9 @@ const PlaylistMixRules: React.FC = () => {
             </Select>
           </FormControl>
 
-          <FormControl fullWidth margin="normal" disabled={loadingScopeTotems}>
+          {loadingScopeTotems && <LinearProgress sx={{ my: 1 }} />}
+
+          <FormControl fullWidth margin="normal" disabled={loadingScopeTotems} error={Boolean(scopeTotemsError)}>
             <InputLabel id="mix-rule-totem-scope-label">Escopo (totem)</InputLabel>
             <Select
               labelId="mix-rule-totem-scope-label"
@@ -420,9 +441,13 @@ const PlaylistMixRules: React.FC = () => {
                 ];
               })}
             </Select>
-            <FormHelperText>
-              Regra <strong>global</strong> aplica-se sem vínculo a um totem específico. Escolha um totem para
-              restringir a regra a esse equipamento.
+            <FormHelperText error={Boolean(scopeTotemsError)}>
+              {scopeTotemsError || (
+                <>
+                  Regra <strong>global</strong> aplica-se sem vínculo a um totem específico. Escolha um totem para
+                  restringir a regra a esse equipamento.
+                </>
+              )}
             </FormHelperText>
           </FormControl>
 
