@@ -38,6 +38,7 @@ import {
 import { smartTvApi, SmartTv, CreateSmartTvRequest, UpdateSmartTvRequest, totemApi, Totem } from '../../services/api';
 import { useAppSelector } from '../../store';
 import { getForeignTotemIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const SmartTvs: React.FC = () => {
   const theme = useTheme();
@@ -121,9 +122,9 @@ const SmartTvs: React.FC = () => {
         active_only: activeOnlyFilter,
       });
       setSmartTvs(Array.isArray(response.data) ? response.data : []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao carregar Smart TVs:', error);
-      setError(error.response?.data?.error || 'Erro ao carregar lista de Smart TVs');
+      setError(pickApiErrorMessage(error, 'Erro ao carregar lista de Smart TVs'));
     } finally {
       setLoading(false);
     }
@@ -178,9 +179,9 @@ const SmartTvs: React.FC = () => {
         settings: undefined,
       });
       loadSmartTvs();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao criar Smart TV:', error);
-      setError(error.response?.data?.error || error.message || 'Erro ao criar Smart TV');
+      setError(pickApiErrorMessage(error, 'Erro ao criar Smart TV'));
     }
   };
 
@@ -209,9 +210,9 @@ const SmartTvs: React.FC = () => {
       setSelectedSmartTv(null);
       setEditTab(0);
       loadSmartTvs();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao atualizar Smart TV:', error);
-      setError(error.response?.data?.error || error.message || 'Erro ao atualizar Smart TV');
+      setError(pickApiErrorMessage(error, 'Erro ao atualizar Smart TV'));
     }
   };
 
@@ -223,9 +224,9 @@ const SmartTvs: React.FC = () => {
     try {
       await smartTvApi.delete(tvId);
       loadSmartTvs();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao deletar Smart TV:', error);
-      setError(error.response?.data?.error || 'Erro ao deletar Smart TV');
+      setError(pickApiErrorMessage(error, 'Erro ao deletar Smart TV'));
     }
   };
 
