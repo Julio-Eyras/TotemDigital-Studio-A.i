@@ -63,7 +63,7 @@ import {
   Timeline as TimelineIcon,
   BarChart,
 } from '@mui/icons-material';
-import { dispatcherTotemApi, totemApi, DispatchPlan } from '../../services/api';
+import { dispatcherTotemApi, totemApi, DispatchPlan, playlistApi } from '../../services/api';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { format } from 'date-fns';
@@ -221,6 +221,9 @@ const DispatcherManager: React.FC = () => {
       const timestamp = new Date(selectedTimestamp);
       if (isNaN(timestamp.getTime())) {
         setError('Data/hora inválida. Ajuste o campo "Timestamp" e tente novamente.');
+        setEligibleCampaigns([]);
+        setEligiblePlaylists([]);
+        setEligibleMedia([]);
         return;
       }
       
@@ -262,10 +265,10 @@ const DispatcherManager: React.FC = () => {
 
         const campaigns = Array.from(uniqueCampaignsMap.values());
         setEligibleCampaigns(campaigns);
-        
-        // Processar playlists elegíveis
+
+        // Playlists elegíveis (uma linha por playlist; contagens preenchidas via API de itens)
         const playlistsMap = new Map<number, EligiblePlaylist>();
-        campaigns.forEach(campaign => {
+        campaigns.forEach((campaign) => {
           if (!playlistsMap.has(campaign.playlistId)) {
             playlistsMap.set(campaign.playlistId, {
               playlistId: campaign.playlistId,
@@ -278,9 +281,75 @@ const DispatcherManager: React.FC = () => {
             });
           }
         });
-        setEligiblePlaylists(Array.from(playlistsMap.values()));
+
+        const resolveItemDurationSeconds = (item: {
+          display_seconds?: number;
+          duration?: number;
+          media?: { duration_seconds?: number };
+        }): number => {
+          if (item.display_seconds != null && item.display_seconds > 0) {
+            return Number(item.display_seconds) || 0;
+          }
+          const ds = item.media?.duration_seconds;
+          if (ds != null && Number(ds) > 0) return Number(ds);
+          const d = item.duration;
+          if (d != null && Number(d) > 0) {
+            const n = Number(d);
+            return n >= 1000 ? Math.round(n / 1000) : Math.round(n);
+          }
+          return 10;
+        };
+
+        const playlistRows = Array.from(playlistsMap.values()).sort((a, b) => a.playlistId - b.playlistId);
+
+        const perPlaylist = await Promise.all(
+          playlistRows.map(async (pl) => {
+            try {
+              const items = await playlistApi.getMedia(pl.playlistId);
+              const totalSec = items.reduce((sum, it) => sum + resolveItemDurationSeconds(it), 0);
+              return { pl, items, totalSec };
+            } catch (e) {
+              console.error('[DispatcherManager] Erro ao carregar mídias da playlist', pl.playlistId, e);
+              return { pl, items: [] as Awaited<ReturnType<typeof playlistApi.getMedia>>, totalSec: 0 };
+            }
+          })
+        );
+
+        const enrichedPlaylists: EligiblePlaylist[] = [];
+        const mediaRows: EligibleMedia[] = [];
+        for (const { pl, items, totalSec } of perPlaylist) {
+          enrichedPlaylists.push({
+            ...pl,
+            mediaCount: items.length,
+            totalDuration: totalSec,
+          });
+          for (const it of items) {
+            const durationSec = resolveItemDurationSeconds(it);
+            mediaRows.push({
+              mediaId: it.media_id,
+              name: it.media?.name || `Mídia #${it.media_id}`,
+              playlistId: pl.playlistId,
+              playlistName: pl.name,
+              campaignId: pl.campaignId,
+              campaignTitle: pl.campaignTitle,
+              mediaType: it.media?.media_type || 'unknown',
+              duration: durationSec,
+              status: pl.status,
+            });
+          }
+        }
+
+        setEligiblePlaylists(enrichedPlaylists);
+        setEligibleMedia(mediaRows);
+      } else {
+        setEligibleCampaigns([]);
+        setEligiblePlaylists([]);
+        setEligibleMedia([]);
       }
     } catch (err: any) {
+      setEligibleCampaigns([]);
+      setEligiblePlaylists([]);
+      setEligibleMedia([]);
       setError(err.message || 'Erro ao carregar dados elegíveis');
     } finally {
       setLoading(false);
@@ -630,8 +699,8 @@ const DispatcherManager: React.FC = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  eligibleMedia.map((media) => (
-                    <TableRow key={media.mediaId}>
+                  eligibleMedia.map((media, idx) => (
+                    <TableRow key={`${media.playlistId}-${media.mediaId}-${idx}`}>
                       <TableCell>{media.mediaId}</TableCell>
                       <TableCell>{media.name}</TableCell>
                       <TableCell>
