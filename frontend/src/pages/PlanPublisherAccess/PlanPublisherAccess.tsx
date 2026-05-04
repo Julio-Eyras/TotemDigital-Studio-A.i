@@ -93,9 +93,12 @@ function compareByName(a: string, b: string): number {
   return a.localeCompare(b, 'pt-BR', { sensitivity: 'base', numeric: true });
 }
 
+/** Alinhado a `Totems.tsx` / cadastro: só `false` explícito é inativo; `null`/`undefined` tratam como ativo. */
 function getTotemIsActive(t: Record<string, unknown>): boolean {
-  const v = t.isActive ?? t.is_active;
-  return v === undefined ? true : Boolean(v);
+  if (t.is_active === false) return false;
+  if (t.active === false) return false;
+  if (t.isActive === false) return false;
+  return true;
 }
 
 function getTotemLocalId(t: Record<string, unknown>): number | undefined {
