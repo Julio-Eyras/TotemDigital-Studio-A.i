@@ -83,6 +83,7 @@ import {
   CreatePublisherContractRequest,
   UpdatePublisherContractRequest,
 } from '../../services/api';
+import { getLocalIdFromRow, getPublisherIdFromRow } from '../../utils/totemRowIds';
 import { PublisherCard, PublisherForm, PublisherDetails } from './components';
 
 const getDefaultContractEndDate = (): string => `${new Date().getFullYear()}-12-31`;
@@ -1089,9 +1090,7 @@ const Publishers: React.FC = () => {
       };
 
       const createdPublisher = await publisherApi.create(payload);
-      // Alguns endpoints retornam `publisher_id` (snake_case). Em casos antigos pode vir `publisherId` (camelCase).
-      // Forçamos um acesso seguro ao campo camelCase via `any` para agradar o compilador TS.
-      publisherId = createdPublisher?.publisher_id ?? (createdPublisher as any)?.publisherId ?? null;
+      publisherId = getPublisherIdFromRow(createdPublisher as Record<string, unknown>) ?? null;
 
       if (!publisherId) {
         const errorMessage = 'Erro: Publicador criado mas não retornou ID válido';
@@ -1219,9 +1218,8 @@ const Publishers: React.FC = () => {
           // Remover Locais criados
           for (const l of createdLocals) {
             try {
-              const localAny = l as any;
-              if (l && (l.local_id || localAny.localId || localAny.id)) {
-                const id = l.local_id ?? localAny.localId ?? localAny.id;
+              const id = getLocalIdFromRow(l as Record<string, unknown>);
+              if (l && id !== undefined) {
                 await localApi.delete(id);
               }
             } catch (e) {

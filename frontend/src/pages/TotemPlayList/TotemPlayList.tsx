@@ -52,6 +52,7 @@ import { totemApi, Player } from '../../services/api';
 import { Publisher } from '../../services/api';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import { getPublisherIdFromRow } from '../../utils/totemRowIds';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -265,8 +266,8 @@ const TotemPlayListPage: React.FC = () => {
                   <MenuItem value="">Todos</MenuItem>
                   {publishers
                     .map((pub: any) => {
-                      const publisherId = Number(pub?.publisher_id ?? pub?.publisherId ?? pub?.id);
-                      if (!publisherId || Number.isNaN(publisherId)) return null;
+                      const publisherId = getPublisherIdFromRow(pub as Record<string, unknown>);
+                      if (publisherId === undefined || publisherId <= 0) return null;
                       return (
                         <MenuItem key={`publisher-${publisherId}`} value={String(publisherId)}>
                           {pub?.name || `Publisher #${publisherId}`}
