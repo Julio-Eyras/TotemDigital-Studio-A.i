@@ -186,7 +186,8 @@ const DispatcherManager: React.FC = () => {
   const [dispatchPlan, setDispatchPlan] = useState<DispatchPlan | null>(null);
   const [dispatchFromCache, setDispatchFromCache] = useState<boolean | undefined>(undefined);
   const [dispatchExecutionMs, setDispatchExecutionMs] = useState<number | undefined>(undefined);
-  
+  const [timelineLoading, setTimelineLoading] = useState(false);
+
   // Dialogs
   const [campaignDetailOpen, setCampaignDetailOpen] = useState(false);
   const [playlistDetailOpen, setPlaylistDetailOpen] = useState(false);
@@ -198,14 +199,27 @@ const DispatcherManager: React.FC = () => {
     loadTotems();
   }, []);
 
-  // Carregar dados quando totem, timestamp ou janela da timeline mudar
+  // Candidatos / playlists / plano principal (evita refetch pesado ao mudar só a janela da timeline)
   useEffect(() => {
     if (selectedTotemId) {
       loadEligibleData();
-      loadTimeline();
       loadDispatchPlan();
     }
+  }, [selectedTotemId, selectedTimestamp]);
+
+  // Timeline: recarrega com totem, data/hora ou janela (±3/±6/24 h)
+  useEffect(() => {
+    if (selectedTotemId) {
+      loadTimeline();
+    }
   }, [selectedTotemId, selectedTimestamp, timelineSpan]);
+
+  useEffect(() => {
+    if (!selectedTotemId) {
+      setTimeline([]);
+      setTimelineLoading(false);
+    }
+  }, [selectedTotemId]);
 
   const loadTotems = async () => {
     try {
@@ -396,6 +410,7 @@ const DispatcherManager: React.FC = () => {
     const minute = base.getMinutes();
 
     try {
+      setTimelineLoading(true);
       const hours = getTimelineHours(base, timelineSpan);
       const results = await Promise.all(
         hours.map(async (hour) => {
@@ -439,6 +454,8 @@ const DispatcherManager: React.FC = () => {
     } catch (err: unknown) {
       console.error('Erro ao gerar timeline:', err);
       setTimeline([]);
+    } finally {
+      setTimelineLoading(false);
     }
   };
 
@@ -815,6 +832,7 @@ const DispatcherManager: React.FC = () => {
                   labelId="dispatcher-timeline-span-label"
                   label="Janela da timeline"
                   value={timelineSpan}
+                  disabled={timelineLoading}
                   onChange={(e) => setTimelineSpan(e.target.value as 'full' | 'around3' | 'around6')}
                 >
                   <MenuItem value="around3">±3 h à volta da hora (até 7 h, menos carga)</MenuItem>
@@ -824,6 +842,7 @@ const DispatcherManager: React.FC = () => {
               </FormControl>
             </Grid>
           </Grid>
+          {timelineLoading && <LinearProgress sx={{ mb: 1 }} />}
           <Box sx={{ maxHeight: { xs: 'min(55vh, 480px)', md: '600px' }, overflow: 'auto' }}>
             <Timeline>
               {timeline.map((slot, index) => (
