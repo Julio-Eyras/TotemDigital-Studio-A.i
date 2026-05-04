@@ -180,8 +180,15 @@ router.get('/:id', async (req: any, res) => {
 
     let hasAccess = false;
 
-    if (userType === 'publisher_user') {
-      hasAccess = userPublisherId === subscription.publisherId;
+    const isPublisherPrincipal =
+      userType === 'publisher_user' ||
+      req.user?.role === 'publisher_user' ||
+      req.user?.role === 'publisher';
+
+    if (isPublisherPrincipal) {
+      hasAccess =
+        userPublisherId != null &&
+        Number(userPublisherId) === Number(subscription.publisherId);
     } else if (req.user.role === 'client' && clientId) {
       // DEPRECADO: Compatibilidade
       hasAccess = clientId === subscription.subscriberId || clientId === subscription.publisherId;

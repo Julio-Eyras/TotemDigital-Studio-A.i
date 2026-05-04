@@ -6,6 +6,7 @@ import { protectContractValues } from '../middleware/contractValuesProtection.mi
 import { getSubscriberService } from '../services/subscriberService';
 import { logError } from '../utils/loggerHelper';
 import { isDatabaseError } from '../utils/dbErrors';
+import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
 import { 
   paginationValidators, 
   searchValidators, 
@@ -46,6 +47,23 @@ const validateRequest = (req: any, res: any, next: any) => {
   }
   return next();
 };
+
+async function ensureSubscriberResourceAccess(req: any, res: any, subscriberId: number): Promise<boolean> {
+  try {
+    await assertTenantClientParamAccess(req, subscriberId);
+    return true;
+  } catch (e: any) {
+    if (e?.statusCode === 403) {
+      res.status(403).json({
+        success: false,
+        error: 'Acesso negado',
+        message: e.message || 'Acesso negado',
+      });
+      return false;
+    }
+    throw e;
+  }
+}
 
 /** Normaliza body para validação: quando enviar subscriber + contracts, expõe subscriber.name como name para o nameValidator. */
 const normalizeSubscriberCreateBody = (req: any, _res: any, next: any) => {
@@ -110,8 +128,12 @@ router.get('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
-      const subscriber = await getSubscriberService().getSubscriberById(parseInt(id));
+      const sid = parseInt(id, 10);
+      if (!(await ensureSubscriberResourceAccess(req, res, sid))) {
+        return;
+      }
+
+      const subscriber = await getSubscriberService().getSubscriberById(sid);
       
       if (!subscriber) {
         return res.status(404).json({ error: 'Subscriber não encontrado' });
@@ -194,9 +216,13 @@ router.put('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      const sid = parseInt(id, 10);
+      if (!(await ensureSubscriberResourceAccess(req, res, sid))) {
+        return;
+      }
       const { name, contact_name, email, phone, whatsapp, address, category_segment, description } = req.body;
-      
-      const updatedSubscriber = await getSubscriberService().updateSubscriber(parseInt(id), {
+
+      const updatedSubscriber = await getSubscriberService().updateSubscriber(sid, {
         name,
         contact_name,
         email,
@@ -225,8 +251,12 @@ router.delete('/:id',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
-      await getSubscriberService().deleteSubscriber(parseInt(id));
+      const sid = parseInt(id, 10);
+      if (!(await ensureSubscriberResourceAccess(req, res, sid))) {
+        return;
+      }
+
+      await getSubscriberService().deleteSubscriber(sid);
       
       return res.status(204).send();
     } catch (error: any) {
@@ -246,7 +276,11 @@ router.get('/:id/locals',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const locals = await getSubscriberService().getLocalsBySubscriber(parseInt(id));
+      const sid = parseInt(id, 10);
+      if (!(await ensureSubscriberResourceAccess(req, res, sid))) {
+        return;
+      }
+      const locals = await getSubscriberService().getLocalsBySubscriber(sid);
       return res.json({ success: true, data: locals });
     } catch (error: any) {
       await logError('Erro ao listar locals do subscriber', error);
@@ -266,12 +300,15 @@ router.get('/:id/totems',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      const subscriberId = parseInt(id, 10);
+      if (!(await ensureSubscriberResourceAccess(req, res, subscriberId))) {
+        return;
+      }
       const contractIdRaw = req.query?.contractId;
       const contractId =
         contractIdRaw !== undefined && contractIdRaw !== null && String(contractIdRaw).trim() !== ''
           ? parseInt(String(contractIdRaw), 10)
           : undefined;
-      const subscriberId = parseInt(id, 10);
       const totems =
         contractId !== undefined && !Number.isNaN(contractId)
           ? await getSubscriberService().getTotemsBySubscriberContract(subscriberId, contractId)
@@ -294,7 +331,11 @@ router.get('/:id/smart-tvs',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const smartTvs = await getSubscriberService().getSmartTvsBySubscriber(parseInt(id));
+      const sid = parseInt(id, 10);
+      if (!(await ensureSubscriberResourceAccess(req, res, sid))) {
+        return;
+      }
+      const smartTvs = await getSubscriberService().getSmartTvsBySubscriber(sid);
       return res.json({ success: true, data: smartTvs });
     } catch (error: any) {
       await logError('Erro ao listar smart TVs do subscriber', error);
@@ -313,7 +354,11 @@ router.get('/:id/stats',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const stats = await getSubscriberService().getSubscriberStats(parseInt(id));
+      const sid = parseInt(id, 10);
+      if (!(await ensureSubscriberResourceAccess(req, res, sid))) {
+        return;
+      }
+      const stats = await getSubscriberService().getSubscriberStats(sid);
       return res.json({ success: true, data: stats });
     } catch (error: any) {
       await logError('Erro ao obter estatísticas do subscriber', error);
@@ -333,21 +378,13 @@ router.get('/:id/contracts',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      const sid = parseInt(id, 10);
+      if (!(await ensureSubscriberResourceAccess(req, res, sid))) {
+        return;
+      }
       const activeOnly = req.query.activeOnly !== 'false';
 
-      // Verificar permissão: subscriber só pode ver seus próprios contratos
-      if (req.user.role === 'client' || req.user.role === 'subscriber') {
-        const userSubscriberId = req.subscriberId || req.user.clientId || req.user.subscriberId;
-        if (userSubscriberId !== parseInt(id)) {
-          return res.status(403).json({
-            success: false,
-            error: 'Acesso negado',
-            message: 'Você só pode ver seus próprios contratos'
-          });
-        }
-      }
-
-      const contracts = await getSubscriberService().getSubscriberContracts(parseInt(id), activeOnly);
+      const contracts = await getSubscriberService().getSubscriberContracts(sid, activeOnly);
       return res.json({ success: true, data: contracts });
     } catch (error: any) {
       await logError('Erro ao listar contratos do subscriber', error);
@@ -367,11 +404,15 @@ router.get('/:id/validate/plan-limits',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      const sid = parseInt(id, 10);
+      if (!(await ensureSubscriberResourceAccess(req, res, sid))) {
+        return;
+      }
       const { resourceType } = req.query;
-      
-      const limits = await getSubscriberService().getMaxLimits(parseInt(id));
+
+      const limits = await getSubscriberService().getMaxLimits(sid);
       const currentCount = await getSubscriberService().getCurrentResourceCount(
-        parseInt(id),
+        sid,
         resourceType as 'media' | 'playlist' | 'campaign'
       );
       
@@ -410,10 +451,14 @@ router.get('/:id/validate/storage',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      const sid = parseInt(id, 10);
+      if (!(await ensureSubscriberResourceAccess(req, res, sid))) {
+        return;
+      }
       const { fileSizeBytes } = req.query;
-      
-      const limits = await getSubscriberService().getMaxLimits(parseInt(id));
-      const currentStorage = await getSubscriberService().getCurrentStorage(parseInt(id));
+
+      const limits = await getSubscriberService().getMaxLimits(sid);
+      const currentStorage = await getSubscriberService().getCurrentStorage(sid);
       
       const maxStorageBytes =
         limits.storage_gb !== undefined && limits.storage_gb !== 0
@@ -459,10 +504,14 @@ router.get('/:id/validate/totem-access',
   async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      const sid = parseInt(id, 10);
+      if (!(await ensureSubscriberResourceAccess(req, res, sid))) {
+        return;
+      }
       const { totemId } = req.query;
-      
+
       const hasAccess = await getSubscriberService().validateTotemAccess(
-        parseInt(id),
+        sid,
         parseInt(totemId as string)
       );
       

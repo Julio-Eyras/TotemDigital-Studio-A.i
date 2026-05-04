@@ -11,6 +11,7 @@ import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middlewa
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
+import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
 
 const router = Router();
 
@@ -171,16 +172,22 @@ router.get('/:id',
       if (!req.user) {
         return res.status(401).json({ success: false, error: 'Não autenticado' });
       }
-      
-      // Validar acesso: publisher só pode ver suas próprias faturas
-      if (req.user.role === 'publisher' && billing.publisherId !== req.user.publisherId) {
-        return res.status(403).json({
-          success: false,
-          error: 'Acesso negado',
-          message: 'Você só pode visualizar suas próprias faturas'
+
+      try {
+        await assertTenantClientParamAccess(req, Number(billing.publisherId), {
+          requestedIdIsPublisherScope: true,
         });
+      } catch (e: any) {
+        if (e?.statusCode === 403) {
+          return res.status(403).json({
+            success: false,
+            error: 'Acesso negado',
+            message: e.message || 'Você só pode visualizar faturas do seu escopo',
+          });
+        }
+        throw e;
       }
-      
+
       return res.json({
         success: true,
         data: billing
