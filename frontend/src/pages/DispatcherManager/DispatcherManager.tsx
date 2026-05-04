@@ -13,7 +13,7 @@
  * - Debug Online: Diagnóstico técnico (por que não funciona)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -174,7 +174,9 @@ const DispatcherManager: React.FC = () => {
   const [selectedTimestamp, setSelectedTimestamp] = useState<string>(
     format(new Date(), "yyyy-MM-dd'T'HH:mm")
   );
-  
+  /** Janela da timeline: menos horas = menos pedidos a `/dispatch`. */
+  const [timelineSpan, setTimelineSpan] = useState<'full' | 'around3' | 'around6'>('around3');
+
   // Dados
   const [totems, setTotems] = useState<any[]>([]);
   const [eligibleCampaigns, setEligibleCampaigns] = useState<EligibleCampaign[]>([]);
@@ -196,14 +198,14 @@ const DispatcherManager: React.FC = () => {
     loadTotems();
   }, []);
 
-  // Carregar dados quando totem ou timestamp mudar
+  // Carregar dados quando totem, timestamp ou janela da timeline mudar
   useEffect(() => {
     if (selectedTotemId) {
       loadEligibleData();
       loadTimeline();
       loadDispatchPlan();
     }
-  }, [selectedTotemId, selectedTimestamp]);
+  }, [selectedTotemId, selectedTimestamp, timelineSpan]);
 
   const loadTotems = async () => {
     try {
@@ -362,11 +364,22 @@ const DispatcherManager: React.FC = () => {
     }
   };
 
+  /** Horas do dia a simular (clamp nos limites 0–23). */
+  const getTimelineHours = (base: Date, span: typeof timelineSpan): number[] => {
+    const center = base.getHours();
+    if (span === 'full') {
+      return Array.from({ length: 24 }, (_, hour) => hour);
+    }
+    const radius = span === 'around3' ? 3 : 6;
+    const start = Math.max(0, center - radius);
+    const end = Math.min(23, center + radius);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  };
+
   /**
-   * Timeline por hora: uma chamada real a `GET /dispatcher-totem/:id/dispatch` por hora (0–23)
+   * Timeline por hora: uma chamada real a `GET /dispatcher-totem/:id/dispatch` por hora simulada
    * no mesmo dia civil do timestamp selecionado, reutilizando o minuto do selecionado.
-   * Isto reflete o que o motor devolveria (campanha/mix/fallback) em cada hora — não é uma “grada”
-   * pré-calculada no servidor; é simulação no cliente com a mesma API do plano único.
+   * A janela pode ser o dia completo (24) ou só horas à volta da hora escolhida (menos carga na API).
    */
   const loadTimeline = async () => {
     if (!selectedTotemId) return;
@@ -383,7 +396,7 @@ const DispatcherManager: React.FC = () => {
     const minute = base.getMinutes();
 
     try {
-      const hours = Array.from({ length: 24 }, (_, hour) => hour);
+      const hours = getTimelineHours(base, timelineSpan);
       const results = await Promise.all(
         hours.map(async (hour) => {
           const ts = new Date(y, mo, d, hour, minute, 0, 0);
@@ -484,6 +497,12 @@ const DispatcherManager: React.FC = () => {
     if (isNaN(t.getTime())) return '00';
     return String(t.getMinutes()).padStart(2, '0');
   })();
+
+  const timelineApiCallCount = useMemo(() => {
+    const base = new Date(selectedTimestamp);
+    if (isNaN(base.getTime())) return 0;
+    return getTimelineHours(base, timelineSpan).length;
+  }, [selectedTimestamp, timelineSpan]);
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
@@ -780,12 +799,31 @@ const DispatcherManager: React.FC = () => {
 
         {/* Tab 4: Timeline */}
         <TabPanel value={tabValue} index={3}>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Cada linha é o resultado real do <strong>dispatch</strong> neste totem às{' '}
-            <strong>HH:{timelineMinuteLabel}</strong> do dia selecionado (24 pedidos à
-            API). Mostra o plano que o motor escolheria (campanha direta, grupo, mix ou fallback) — não é uma grelha
-            pré-gravada no servidor.
-          </Alert>
+          <Grid container spacing={2} sx={{ mb: 2 }} alignItems="stretch">
+            <Grid item xs={12} md={7}>
+              <Alert severity="info" sx={{ height: '100%', alignItems: 'flex-start' }}>
+                Cada linha é o resultado real do <strong>dispatch</strong> neste totem às{' '}
+                <strong>HH:{timelineMinuteLabel}</strong> do dia selecionado (
+                <strong>{timelineApiCallCount}</strong> pedido(s) à API com a janela atual). Mostra o plano que o motor
+                escolheria (campanha direta, grupo, mix ou fallback) — não é uma grelha pré-gravada no servidor.
+              </Alert>
+            </Grid>
+            <Grid item xs={12} md={5}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="dispatcher-timeline-span-label">Janela da timeline</InputLabel>
+                <Select
+                  labelId="dispatcher-timeline-span-label"
+                  label="Janela da timeline"
+                  value={timelineSpan}
+                  onChange={(e) => setTimelineSpan(e.target.value as 'full' | 'around3' | 'around6')}
+                >
+                  <MenuItem value="around3">±3 h à volta da hora (até 7 h, menos carga)</MenuItem>
+                  <MenuItem value="around6">±6 h à volta da hora (até 13 h)</MenuItem>
+                  <MenuItem value="full">Dia completo (24 h)</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
           <Box sx={{ maxHeight: { xs: 'min(55vh, 480px)', md: '600px' }, overflow: 'auto' }}>
             <Timeline>
               {timeline.map((slot, index) => (
