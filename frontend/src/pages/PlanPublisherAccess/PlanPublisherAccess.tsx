@@ -78,21 +78,10 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-/** API /totems retorna publisherId (camelCase) a partir do local. */
+/** API /totems: publisher via join no local; node-pg pode expor alias como `publisherid`. */
 function getTotemPublisherId(t: Record<string, unknown>): number | undefined {
-  const v = (t.publisherId ?? t.publisher_id) as number | undefined;
+  const v = (t.publisherId ?? t.publisher_id ?? t.publisherid) as number | undefined;
   return typeof v === 'number' && !Number.isNaN(v) ? v : undefined;
-}
-
-/** Se a listagem de totems não trouxer publisher, usa o catálogo de locais (mesmo local_id). */
-function resolveTotemPublisherId(totem: Record<string, unknown>, locals: Local[]): number | undefined {
-  const direct = getTotemPublisherId(totem);
-  if (direct != null) return direct;
-  const lid = getTotemLocalId(totem);
-  if (lid == null) return undefined;
-  const local = locals.find((l) => l.local_id === lid);
-  const pid = local?.publisher_id;
-  return typeof pid === 'number' && !Number.isNaN(pid) ? pid : undefined;
 }
 
 function formatTotemLabel(t: { totem_id: number; name?: string; identifier?: string; uin?: string }): string {
@@ -113,7 +102,7 @@ function getTotemIsActive(t: Record<string, unknown>): boolean {
 }
 
 function getTotemLocalId(t: Record<string, unknown>): number | undefined {
-  const v = (t.localId ?? t.local_id) as number | undefined;
+  const v = (t.localId ?? t.local_id ?? t.localid) as number | undefined;
   return typeof v === 'number' && !Number.isNaN(v) ? v : undefined;
 }
 
@@ -752,7 +741,7 @@ const PlanPublisherAccessPage: React.FC = () => {
   const compactTotemOptions: CompactTotemOption[] = TOTEMDIGITAL_COMPACT
     ? totemsCatalog.map((totem) => ({
         totem,
-        publisherId: resolveTotemPublisherId(totem as Record<string, unknown>, localsCatalog),
+        publisherId: getTotemPublisherId(totem as Record<string, unknown>),
       }))
     : [];
 
