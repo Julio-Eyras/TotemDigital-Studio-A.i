@@ -83,7 +83,7 @@ import {
   CreatePublisherContractRequest,
   UpdatePublisherContractRequest,
 } from '../../services/api';
-import { getLocalIdFromRow, getPublisherIdFromRow } from '../../utils/totemRowIds';
+import { getLocalIdFromRow, getPublisherIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
 import { PublisherCard, PublisherForm, PublisherDetails } from './components';
 
 const getDefaultContractEndDate = (): string => `${new Date().getFullYear()}-12-31`;
@@ -1206,9 +1206,9 @@ const Publishers: React.FC = () => {
           // Remover Totens criados
           for (const t of createdTotems) {
             try {
-              if (t && (t.totem_id || t.totemId || t.id)) {
-                const id = t.totem_id || t.totemId || t.id;
-                await totemApi.delete(id);
+              const tid = getTotemIdFromRow(t as Record<string, unknown>);
+              if (t && tid !== undefined) {
+                await totemApi.delete(tid);
               }
             } catch (e) {
               console.warn('Falha ao remover Totem durante rollback', e);

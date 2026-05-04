@@ -39,6 +39,7 @@ import {
   InfoOutlined,
 } from '@mui/icons-material';
 import { totemApi, Player } from '../../services/api';
+import { getTotemIdFromRow } from '../../utils/totemRowIds';
 import {
   getCurrentMix,
   generateMix,
@@ -337,8 +338,8 @@ const PlaylistMix: React.FC = () => {
                 >
                   <MenuItem value="">Selecione...</MenuItem>
                   {totems.map((t, idx) => {
-                    const totemId = Number((t as any).totem_id);
-                    if (!totemId) return null;
+                    const totemId = getTotemIdFromRow(t as Record<string, unknown>);
+                    if (totemId === undefined) return null;
                     return (
                       <MenuItem key={`totem-${totemId}-${idx}`} value={totemId}>
                         {t.name || t.identifier || `Totem ${totemId}`}

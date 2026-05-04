@@ -64,6 +64,7 @@ import {
   BarChart,
 } from '@mui/icons-material';
 import { dispatcherTotemApi, totemApi, DispatchPlan } from '../../services/api';
+import { getTotemIdFromRow } from '../../utils/totemRowIds';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { format } from 'date-fns';
 
@@ -410,11 +411,17 @@ const DispatcherManager: React.FC = () => {
                   label="Totem"
                 >
                   <MenuItem value="">Selecione um totem</MenuItem>
-                  {totems.map((totem) => (
-                    <MenuItem key={totem.totem_id} value={totem.totem_id}>
-                      {totem.name || totem.identifier} ({totem.totem_id})
-                    </MenuItem>
-                  ))}
+                  {totems
+                    .map((totem) => {
+                      const tid = getTotemIdFromRow(totem as Record<string, unknown>);
+                      if (tid === undefined) return null;
+                      return (
+                        <MenuItem key={tid} value={tid}>
+                          {totem.name || totem.identifier} ({tid})
+                        </MenuItem>
+                      );
+                    })
+                    .filter(Boolean)}
                 </Select>
               </FormControl>
             </Grid>

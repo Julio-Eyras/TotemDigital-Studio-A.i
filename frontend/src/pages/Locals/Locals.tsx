@@ -69,6 +69,7 @@ import {
 } from '../../services/api';
 import { useAppSelector } from '../../store';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import { getTotemIdFromRow } from '../../utils/totemRowIds';
 import { PageHeader } from '../../components/DataDisplay';
 
 const Locals: React.FC = () => {
@@ -1140,17 +1141,20 @@ const Locals: React.FC = () => {
                 </Typography>
               ) : (
                 <List dense>
-                  {editLocalTotems.map((totem) => (
-                    <ListItem key={totem.totem_id || totem.id} disableGutters sx={{ py: 0.5 }}>
-                      <ListItemIcon>
-                        <Computer fontSize="small" />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={totem.name || totem.identifier || `Totem #${totem.totem_id || totem.id}`}
-                        secondary={`UIN: ${totem.uin || '-'} · Status: ${totem.status || 'N/A'}`}
-                      />
-                    </ListItem>
-                  ))}
+                  {editLocalTotems.map((totem) => {
+                    const tid = getTotemIdFromRow(totem as Record<string, unknown>);
+                    return (
+                      <ListItem key={tid ?? `totem-${totem.identifier || 'x'}`} disableGutters sx={{ py: 0.5 }}>
+                        <ListItemIcon>
+                          <Computer fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={totem.name || totem.identifier || `Totem #${tid ?? '?'}`}
+                          secondary={`UIN: ${totem.uin || '-'} · Status: ${totem.status || 'N/A'}`}
+                        />
+                      </ListItem>
+                    );
+                  })}
                 </List>
               )}
             </Box>

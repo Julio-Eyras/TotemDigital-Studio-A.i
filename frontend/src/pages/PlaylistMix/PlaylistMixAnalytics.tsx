@@ -42,6 +42,7 @@ import {
 } from 'recharts';
 import { getMixAnalytics, MixAnalytics } from '../../services/api/playlistMixApi';
 import { totemApi, Player } from '../../services/api';
+import { getTotemIdFromRow } from '../../utils/totemRowIds';
 
 const PlaylistMixAnalytics: React.FC = () => {
   const theme = useTheme();
@@ -129,8 +130,8 @@ const PlaylistMixAnalytics: React.FC = () => {
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {totems.map((totem, idx) => {
-                    const totemId = Number((totem as any).totem_id);
-                    if (!totemId) return null;
+                    const totemId = getTotemIdFromRow(totem as Record<string, unknown>);
+                    if (totemId === undefined) return null;
                     return (
                       <MenuItem key={`totem-${totemId}-${idx}`} value={totemId}>
                         {totem.name || totem.identifier || `Totem ${totemId}`}

@@ -58,6 +58,7 @@ import {
   normalizeCampaign,
   normalizeCampaignType,
 } from './campaignHelpers';
+import { getTotemIdFromRow } from '../../utils/totemRowIds';
 
 export interface CampaignFullEditorDialogProps {
   open: boolean;
@@ -360,8 +361,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     const out: any[] = [];
     const seen = new Set<number>();
     for (const t of derivedTotems) {
-      const id = Number((t as any)?.totem_id);
-      if (Number.isNaN(id) || id <= 0 || seen.has(id)) continue;
+      const id = getTotemIdFromRow(t as Record<string, unknown>);
+      if (id === undefined || seen.has(id)) continue;
       seen.add(id);
       out.push(t);
     }
@@ -397,7 +398,11 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     const raw = ((selectedCampaign as any).totemIds || []) as number[];
     const ids = raw.map(Number).filter((n) => !Number.isNaN(n) && n > 0);
     if (ids.length === 0) return;
-    const allowed = new Set(derivedTotems.map((t) => Number((t as any).totem_id)));
+    const allowed = new Set(
+      derivedTotems
+        .map((t) => getTotemIdFromRow(t as Record<string, unknown>))
+        .filter((id): id is number => id !== undefined)
+    );
     const pruned = ids.filter((id) => allowed.has(id));
     if (pruned.length === ids.length) return;
     setSelectedCampaign((prev) => (prev ? ({ ...prev, totemIds: pruned } as any) : prev));
@@ -1005,24 +1010,27 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     options={totemAutocompleteOptions}
                     getOptionLabel={(option) => campaignTotemOptionLabel(option)}
                     isOptionEqualToValue={(option, value) =>
-                      Number((option as any).totem_id) === Number((value as any).totem_id)
+                      getTotemIdFromRow(option as Record<string, unknown>) ===
+                      getTotemIdFromRow(value as Record<string, unknown>)
                     }
-                    value={totemAutocompleteOptions.filter((t) =>
-                      getSelectedTotemIds().includes(Number((t as any).totem_id))
-                    )}
+                    value={totemAutocompleteOptions.filter((t) => {
+                      const id = getTotemIdFromRow(t as Record<string, unknown>);
+                      return id !== undefined && getSelectedTotemIds().includes(id);
+                    })}
                     onChange={(_, newValue, reason, details) => {
                       if (!selectedCampaign) return;
                       let nextIds: number[];
                       if (reason === 'selectOption' && details?.option) {
-                        const clickedId = Number((details.option as { totem_id: number }).totem_id);
+                        const clickedId = getTotemIdFromRow(details.option as Record<string, unknown>);
+                        if (clickedId === undefined) return;
                         const cur = getSelectedTotemIds();
                         nextIds = cur.includes(clickedId)
                           ? cur.filter((id) => id !== clickedId)
                           : [...cur, clickedId];
                       } else {
-                        nextIds = (newValue as { totem_id: number }[])
-                          .map((t) => Number((t as any).totem_id))
-                          .filter((n) => !Number.isNaN(n) && n > 0);
+                        nextIds = (newValue as Record<string, unknown>[])
+                          .map((t) => getTotemIdFromRow(t))
+                          .filter((n): n is number => n !== undefined);
                       }
                       setSelectedCampaign({
                         ...selectedCampaign,

@@ -1,7 +1,8 @@
 /**
  * Leitura estável de IDs vindos da API (PostgreSQL + node-pg podem expor aliases em minúsculas).
  *
- * - Funções `getTotem*`: linhas de totem/player (não usar `id` genérico — seria totem_id).
+ * - Funções `getTotem*`: linhas de totem/player.
+ * - `getTotemIdFromRow`: `totem_id` / `id` / `player_id` (API normalizada); só valores finitos > 0.
  * - `getPublisherIdFromRow`: objeto publisher (lista/create); `id` = publisher quando não há snake_case.
  * - `getLocalIdFromRow`: objeto Local; `id` = local_id quando a resposta só traz `id`.
  */
@@ -13,6 +14,14 @@ function firstDefinedNumber(...vals: unknown[]): number | undefined {
     if (!Number.isNaN(n)) return n;
   }
   return undefined;
+}
+
+/** ID do totem na listagem/detalhe (inclui `id` quando a API só normaliza para `id`). */
+export function getTotemIdFromRow(row: Record<string, unknown> | null | undefined): number | undefined {
+  if (!row) return undefined;
+  const n = firstDefinedNumber(row.totem_id, row.totemId, row.id, row.player_id, row.playerId);
+  if (n === undefined || !Number.isFinite(n) || n <= 0) return undefined;
+  return n;
 }
 
 /** publisher_id do join local → publisher (camelCase, snake ou chave minúscula do PG). */

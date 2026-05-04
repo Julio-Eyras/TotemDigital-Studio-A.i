@@ -58,6 +58,7 @@ import {
 } from '../../../services/api';
 import { TOTEMDIGITAL_COMPACT, DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../../../config/featureFlags';
 import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT } from '../../../constants/campaignUiMessages';
+import { getTotemIdFromRow } from '../../../utils/totemRowIds';
 
 export interface CampaignDetailsProps {
   open: boolean;
@@ -262,8 +263,8 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
             const flat = ([] as any[]).concat(...resultsArrays);
             const seen = new Set<number>();
             return flat.filter((t: any) => {
-              const id = t.totem_id || t.id;
-              if (!id || seen.has(id)) return false;
+              const id = getTotemIdFromRow(t as Record<string, unknown>);
+              if (id === undefined || seen.has(id)) return false;
               seen.add(id);
               return true;
             });
@@ -563,8 +564,10 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
               </Alert>
             ) : totems.length > 0 ? (
               <List>
-                {totems.map((totem: any) => {
-                  const id = totem.totem_id || totem.id;
+                {totems
+                  .map((totem: any) => {
+                  const id = getTotemIdFromRow(totem as Record<string, unknown>);
+                  if (id === undefined) return null;
                   const name = totem.name || totem.identifier || `Totem ${id}`;
                   return (
                     <ListItem key={id}>
@@ -577,7 +580,8 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
                       />
                     </ListItem>
                   );
-                })}
+                })
+                  .filter(Boolean)}
               </List>
             ) : (
               <Alert severity="warning">

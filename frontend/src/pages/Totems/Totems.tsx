@@ -37,7 +37,7 @@ import { useAppSelector } from '../../store';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
-import { getTotemLocalIdFromRow } from '../../utils/totemRowIds';
+import { getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -74,9 +74,7 @@ const isStockLocal = (local: any): boolean => {
 
 /** ID numérico do totem independente de snake_case/camelCase na API. */
 function resolveTotemRecordId(t: any): number | null {
-  const raw = t?.totem_id ?? t?.totemId ?? t?.id ?? t?.player_id ?? t?.playerId;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  return getTotemIdFromRow(t as Record<string, unknown>) ?? null;
 }
 
 /** Cadastro ativo no painel (`is_active`); distinto do estado de rede/último heartbeat (`status`). */

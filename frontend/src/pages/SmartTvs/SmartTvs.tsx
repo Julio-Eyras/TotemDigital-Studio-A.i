@@ -37,6 +37,7 @@ import {
 } from '@mui/icons-material';
 import { smartTvApi, SmartTv, CreateSmartTvRequest, UpdateSmartTvRequest, totemApi, Totem } from '../../services/api';
 import { useAppSelector } from '../../store';
+import { getTotemIdFromRow } from '../../utils/totemRowIds';
 
 const SmartTvs: React.FC = () => {
   const theme = useTheme();
@@ -335,8 +336,8 @@ const SmartTvs: React.FC = () => {
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {totems.map((totem, idx) => {
-                    const totemId = Number((totem as any).totem_id);
-                    if (!totemId) return null;
+                    const totemId = getTotemIdFromRow(totem as Record<string, unknown>);
+                    if (totemId === undefined) return null;
                     return (
                       <MenuItem key={`totem-${totemId}-${idx}`} value={totemId}>
                         {totem.name || totem.identifier || `Totem ${totemId}`} ({smartTvsByTotem.get(totemId) || 0})
@@ -513,8 +514,8 @@ const SmartTvs: React.FC = () => {
                 inputProps={{ name: 'totem_id' }}
               >
                 {totems.map((totem, idx) => {
-                  const totemId = Number((totem as any).totem_id);
-                  if (!totemId) return null;
+                  const totemId = getTotemIdFromRow(totem as Record<string, unknown>);
+                  if (totemId === undefined) return null;
                   return (
                     <MenuItem key={`totem-create-${totemId}-${idx}`} value={totemId}>
                       {totem.name || totem.identifier || `Totem ${totemId}`}
