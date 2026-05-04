@@ -228,7 +228,7 @@ const Publishers: React.FC = () => {
       const num = parseInt(last, 10);
       return Number.isNaN(num) ? 0 : num;
     };
-    const maxSeq = list.length === 0 ? 0 : Math.max(0, ...list.map((c) => parseSeq(c.contract_number)));
+    const maxSeq = list.length === 0 ? 0 : Math.max(0, ...list.map((c) => parseSeq(c.contract_number ?? '')));
     const seq = String(maxSeq + 1).padStart(6, '0');
     return `PUB-${publisherId}.${seq}`;
   };
@@ -723,13 +723,13 @@ const Publishers: React.FC = () => {
       const local = editLocals[index];
       // Remover totens e smart TVs associados a este local primeiro
       const totemsToRemove = editTotems.filter(
-        (t) => getTotemLocalIdFromRow(t as Record<string, unknown>) === local.local_id
+        (t) => getTotemLocalIdFromRow(t) === local.local_id
       );
       for (const totem of totemsToRemove) {
         try {
-          const totemPk = getTotemIdFromRow(totem as Record<string, unknown>);
+          const totemPk = getTotemIdFromRow(totem);
           const smartTvsToRemove = editSmartTvs.filter(
-            (tv) => getForeignTotemIdFromRow(tv as Record<string, unknown>) === totemPk
+            (tv) => getForeignTotemIdFromRow(tv) === totemPk
           );
           for (const tv of smartTvsToRemove) {
             await smartTvApi.delete(tv.smart_tv_id);
@@ -779,7 +779,7 @@ const Publishers: React.FC = () => {
         // Atualizar totem existente
         const totemToUpdate = editTotems[editingEditTotemIndex];
         const totemPk =
-          getTotemIdFromRow(totemToUpdate as Record<string, unknown>) ?? (totemToUpdate as any).totem_id;
+          getTotemIdFromRow(totemToUpdate) ?? (totemToUpdate as any).totem_id;
         await totemApi.update(totemPk, totemData);
         // Recarregar dados
         await loadPublisherDataForEdit(selectedPublisher.publisher_id);
@@ -809,7 +809,7 @@ const Publishers: React.FC = () => {
     const totem = editTotems[index];
     // Encontrar índice do local no array editLocals
     const localIndex = editLocals.findIndex(
-      (l) => l.local_id === getTotemLocalIdFromRow(totem as Record<string, unknown>)
+      (l) => l.local_id === getTotemLocalIdFromRow(totem)
     );
     setEditTotemForm({
       localId: localIndex >= 0 ? localIndex : 0,
@@ -828,9 +828,9 @@ const Publishers: React.FC = () => {
     
     try {
       const totem = editTotems[index];
-      const totemPk = getTotemIdFromRow(totem as Record<string, unknown>);
+      const totemPk = getTotemIdFromRow(totem);
       const smartTvsToRemove = editSmartTvs.filter(
-        (tv) => getForeignTotemIdFromRow(tv as Record<string, unknown>) === totemPk
+        (tv) => getForeignTotemIdFromRow(tv) === totemPk
       );
       for (const tv of smartTvsToRemove) {
         try {
@@ -867,7 +867,7 @@ const Publishers: React.FC = () => {
       const selectedTotem = editTotems[editSmartTvForm.totem_id];
       const smartTvData = {
         totem_id:
-          getTotemIdFromRow(selectedTotem as Record<string, unknown>) ?? (selectedTotem as any).totem_id,
+          getTotemIdFromRow(selectedTotem) ?? (selectedTotem as any).totem_id,
         identifier: editSmartTvForm.identifier,
         name: editSmartTvForm.name || undefined,
         device_id: editSmartTvForm.device_id || undefined,
@@ -917,8 +917,8 @@ const Publishers: React.FC = () => {
     // Encontrar índice do totem no array editTotems
     const totemIndex = editTotems.findIndex(
       (t) =>
-        getTotemIdFromRow(t as Record<string, unknown>) ===
-        getForeignTotemIdFromRow(smartTv as Record<string, unknown>)
+        getTotemIdFromRow(t) ===
+        getForeignTotemIdFromRow(smartTv)
     );
     setEditSmartTvForm({
       totem_id: totemIndex >= 0 ? totemIndex : 0,
@@ -1113,7 +1113,7 @@ const Publishers: React.FC = () => {
       };
 
       const createdPublisher = await publisherApi.create(payload);
-      publisherId = getPublisherIdFromRow(createdPublisher as Record<string, unknown>) ?? null;
+      publisherId = getPublisherIdFromRow(createdPublisher) ?? null;
 
       if (!publisherId) {
         const errorMessage = 'Erro: Publicador criado mas não retornou ID válido';
@@ -1229,7 +1229,7 @@ const Publishers: React.FC = () => {
           // Remover Totens criados
           for (const t of createdTotems) {
             try {
-              const tid = getTotemIdFromRow(t as Record<string, unknown>);
+              const tid = getTotemIdFromRow(t);
               if (t && tid !== undefined) {
                 await totemApi.delete(tid);
               }
@@ -1241,7 +1241,7 @@ const Publishers: React.FC = () => {
           // Remover Locais criados
           for (const l of createdLocals) {
             try {
-              const id = getLocalIdFromRow(l as Record<string, unknown>);
+              const id = getLocalIdFromRow(l);
               if (l && id !== undefined) {
                 await localApi.delete(id);
               }
@@ -2891,8 +2891,8 @@ const Publishers: React.FC = () => {
                   {editSmartTvs.map((smartTv, index) => {
                     const totem = editTotems.find(
                       (t) =>
-                        getTotemIdFromRow(t as Record<string, unknown>) ===
-                        getForeignTotemIdFromRow(smartTv as Record<string, unknown>)
+                        getTotemIdFromRow(t) ===
+                        getForeignTotemIdFromRow(smartTv)
                     );
                     const totemName = totem?.name || totem?.identifier || 'Totem não encontrado';
                     return (

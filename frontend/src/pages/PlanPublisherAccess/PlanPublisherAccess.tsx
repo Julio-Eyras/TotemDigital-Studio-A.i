@@ -82,7 +82,7 @@ function TabPanel(props: TabPanelProps) {
 
 function formatTotemLabel(t: { totem_id?: number; name?: string; identifier?: string; uin?: string; id?: number }): string {
   const parts = [t.name, t.identifier, t.uin].filter(Boolean);
-  const id = getTotemIdFromRow(t as Record<string, unknown>);
+  const id = getTotemIdFromRow(t);
   return parts.length > 0 ? parts.join(' · ') : `Totem #${id ?? '?'}`;
 }
 
@@ -91,10 +91,11 @@ function compareByName(a: string, b: string): number {
 }
 
 /** Alinhado a `Totems.tsx` / cadastro: só `false` explícito é inativo; `null`/`undefined` tratam como ativo. */
-function getTotemIsActive(t: Record<string, unknown>): boolean {
-  if (t.is_active === false) return false;
-  if (t.active === false) return false;
-  if (t.isActive === false) return false;
+function getTotemIsActive(t: object): boolean {
+  const row = t as Record<string, unknown>;
+  if (row.is_active === false) return false;
+  if (row.active === false) return false;
+  if (row.isActive === false) return false;
   return true;
 }
 
@@ -453,8 +454,8 @@ const PlanPublisherAccessPage: React.FC = () => {
       const existingIndex = planPublishers.findIndex((p) => p.publisherId === publisherId);
       const nextLabel = `${selectedLocal.name}${selectedLocal.totem_count != null ? ` · ${selectedLocal.totem_count} totem(ns)` : ''}`;
       const totemsFromLocal = compactActiveTotemsWithPublisher
-        .filter(({ totem }) => getTotemLocalIdFromRow(totem as Record<string, unknown>) === selectedLocal.local_id)
-        .map(({ totem }) => getTotemIdFromRow(totem as Record<string, unknown>))
+        .filter(({ totem }) => getTotemLocalIdFromRow(totem) === selectedLocal.local_id)
+        .map(({ totem }) => getTotemIdFromRow(totem))
         .filter((id): id is number => id !== undefined);
       setCompactSelectedLocalIds((prev) => (prev.includes(selectedLocal.local_id) ? prev : [...prev, selectedLocal.local_id]));
       setCompactEnabledTotemsByLocal((prev) => ({
@@ -734,7 +735,7 @@ const PlanPublisherAccessPage: React.FC = () => {
   const compactTotemOptions: CompactTotemOption[] = TOTEMDIGITAL_COMPACT
     ? totemsCatalog.map((totem) => ({
         totem,
-        publisherId: getTotemPublisherIdFromRow(totem as Record<string, unknown>),
+        publisherId: getTotemPublisherIdFromRow(totem),
       }))
     : [];
 
@@ -745,7 +746,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       isAlreadyLinked: planPublishers.some((pp) => pp.publisherId === entry.publisherId),
     }));
   const compactActiveTotemsWithPublisher = compactTotemsWithPublisher.filter((entry) =>
-    getTotemIsActive(entry.totem as Record<string, unknown>)
+    getTotemIsActive(entry.totem)
   );
   const compactTotemsBlockedByPublisher = compactTotemsWithPublisher.filter((entry) => entry.isAlreadyLinked);
   const compactLocalOptions: CompactLocalOption[] = TOTEMDIGITAL_COMPACT
@@ -766,7 +767,7 @@ const PlanPublisherAccessPage: React.FC = () => {
     .sort((a, b) => compareByName(String(a.name || ''), String(b.name || '')));
   const compactTotemsBySelectedLocal = compactPlanLocals.map((local) => {
     const localTotems = compactActiveTotemsWithPublisher
-      .filter(({ totem }) => getTotemLocalIdFromRow(totem as Record<string, unknown>) === local.local_id)
+      .filter(({ totem }) => getTotemLocalIdFromRow(totem) === local.local_id)
       .map(({ totem }) => totem)
       .sort((a, b) =>
         compareByName(
@@ -825,8 +826,8 @@ const PlanPublisherAccessPage: React.FC = () => {
     const existingIndex = planPublishers.findIndex((p) => p.publisherId === publisherId);
     const nextLabel = `${selectedLocal.name}${selectedLocal.totem_count != null ? ` · ${selectedLocal.totem_count} totem(ns)` : ''}`;
     const totemsFromLocal = compactActiveTotemsWithPublisher
-      .filter(({ totem }) => getTotemLocalIdFromRow(totem as Record<string, unknown>) === selectedLocal.local_id)
-      .map(({ totem }) => getTotemIdFromRow(totem as Record<string, unknown>))
+      .filter(({ totem }) => getTotemLocalIdFromRow(totem) === selectedLocal.local_id)
+      .map(({ totem }) => getTotemIdFromRow(totem))
       .filter((id): id is number => id !== undefined);
 
     setCompactSelectedLocalIds((prev) => (prev.includes(selectedLocal.local_id) ? prev : [...prev, selectedLocal.local_id]));
@@ -1477,7 +1478,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                         <List dense sx={{ pt: 0 }}>
                           {totems
                             .map((totem) => {
-                            const tid = getTotemIdFromRow(totem as Record<string, unknown>);
+                            const tid = getTotemIdFromRow(totem);
                             if (tid === undefined) return null;
                             const enabledTotems = compactEnabledTotemsByLocal[local.local_id] || [];
                             const checked = enabledTotems.includes(tid);
@@ -1514,7 +1515,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                     ? compactPlanLocals.map((local) => {
                         const publisher = publishers.find((p) => p.publisher_id === local.publisher_id);
                         const activeTotems = compactActiveTotemsWithPublisher.filter(
-                          ({ totem }) => getTotemLocalIdFromRow(totem as Record<string, unknown>) === local.local_id
+                          ({ totem }) => getTotemLocalIdFromRow(totem) === local.local_id
                         );
                         const enabledTotems = compactEnabledTotemsByLocal[local.local_id] || [];
                         const sharedNotes = planPublishers[0]?.notes;

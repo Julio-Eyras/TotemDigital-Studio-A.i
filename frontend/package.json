@@ -43,12 +43,17 @@
     "ajv-keywords": "^5.1.0",
     "ajv-formats": "^2.1.1",
     "fork-ts-checker-webpack-plugin/schema-utils/ajv-keywords": "^5.1.0",
-    "schema-utils/ajv-keywords": "^5.1.0"
+    "schema-utils/ajv-keywords": "^5.1.0",
+    "@types/d3-dispatch": "3.0.5"
+  },
+  "overrides": {
+    "@types/d3-dispatch": "3.0.5"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^14.3.1",
     "@types/d3": "^7.4.3",
+    "@types/d3-dispatch": "3.0.5",
     "@types/jest": "^30.0.0",
     "@types/node": "^16.18.68",
     "@types/react": "^18.2.42",

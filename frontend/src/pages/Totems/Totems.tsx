@@ -75,7 +75,7 @@ const isStockLocal = (local: any): boolean => {
 
 /** ID numérico do totem independente de snake_case/camelCase na API. */
 function resolveTotemRecordId(t: any): number | null {
-  return getTotemIdFromRow(t as Record<string, unknown>) ?? null;
+  return getTotemIdFromRow(t) ?? null;
 }
 
 /** Cadastro ativo no painel (`is_active`); distinto do estado de rede/último heartbeat (`status`). */
@@ -305,7 +305,7 @@ const Totems: React.FC = () => {
   };
 
   const resolveLocalIdFromTotem = (totem: any): number => {
-    const fromRow = getTotemLocalIdFromRow(totem as Record<string, unknown>);
+    const fromRow = getTotemLocalIdFromRow(totem);
     if (fromRow !== undefined && fromRow > 0) return fromRow;
 
     // Fallback por nome exibido do local no card/lista.
@@ -441,7 +441,7 @@ const Totems: React.FC = () => {
       if (!stockLocalSelected && statusFilter !== 'all' && !matchesStatusFilter(t, statusFilter)) return false;
 
       if (localFilter !== 'all') {
-        const totemLocalId = getTotemLocalIdFromRow(t as Record<string, unknown>);
+        const totemLocalId = getTotemLocalIdFromRow(t);
         if (totemLocalId !== undefined && totemLocalId !== localFilter) return false;
 
         // Fallback: comparar por nome do local no campo location
@@ -474,7 +474,7 @@ const Totems: React.FC = () => {
       if (!stockLocalSelected && statusFilter !== 'all' && !matchesStatusFilter(t, statusFilter)) return false;
 
       if (localFilter !== 'all') {
-        const totemLocalId = getTotemLocalIdFromRow(t as Record<string, unknown>);
+        const totemLocalId = getTotemLocalIdFromRow(t);
         if (totemLocalId !== undefined && totemLocalId !== localFilter) return false;
         const localName = locals.find((l) => l.local_id === localFilter)?.name;
         if (localName && typeof t.location === 'string') {

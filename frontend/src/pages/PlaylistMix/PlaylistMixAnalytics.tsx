@@ -130,7 +130,7 @@ const PlaylistMixAnalytics: React.FC = () => {
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {totems.map((totem, idx) => {
-                    const totemId = getTotemIdFromRow(totem as Record<string, unknown>);
+                    const totemId = getTotemIdFromRow(totem);
                     if (totemId === undefined) return null;
                     return (
                       <MenuItem key={`totem-${totemId}-${idx}`} value={totemId}>

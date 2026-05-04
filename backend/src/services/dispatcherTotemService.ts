@@ -2259,6 +2259,67 @@ export class DispatcherTotemService {
       throw error;
     }
   }
+
+  /**
+   * Vários instantes num único pedido HTTP (timeline do Dispatcher Manager).
+   * Reutiliza `dispatch`; a ordem de retorno alinha-se à de `timestamps` (máx. 48).
+   */
+  async dispatchBatch(
+    totemId: number,
+    timestamps: Date[],
+    options: DispatchOptions = {},
+    timezone?: string
+  ): Promise<
+    Array<{
+      timestamp: string;
+      success: boolean;
+      plan?: DispatchPlan;
+      fromCache?: boolean;
+      executionTimeMs?: number;
+      error?: string;
+    }>
+  > {
+    const max = 48;
+    const slice = timestamps.slice(0, max);
+    const mergedOptions: DispatchOptions = {
+      ...options,
+      includeCandidates: options.includeCandidates ?? false,
+    };
+    const out: Array<{
+      timestamp: string;
+      success: boolean;
+      plan?: DispatchPlan;
+      fromCache?: boolean;
+      executionTimeMs?: number;
+      error?: string;
+    }> = [];
+
+    for (const ts of slice) {
+      const iso = ts.toISOString();
+      try {
+        const r = await this.dispatch(
+          { totemId, timestamp: ts, timezone },
+          mergedOptions
+        );
+        out.push({
+          timestamp: iso,
+          success: r.success,
+          plan: r.plan,
+          fromCache: r.fromCache,
+          executionTimeMs: r.executionTimeMs,
+          error: r.error,
+        });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Erro ao calcular plano';
+        out.push({
+          timestamp: iso,
+          success: false,
+          error: msg,
+        });
+      }
+    }
+    return out;
+  }
 }
 
 // Singleton instance

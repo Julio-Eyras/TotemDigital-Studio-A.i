@@ -534,16 +534,16 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
             multiple
             options={players}
             getOptionLabel={(option) => {
-              const id = getTotemIdFromRow(option as Record<string, unknown>);
+              const id = getTotemIdFromRow(option);
               return option.name || option.identifier || option.uin || `Totem ${id ?? '?'}`;
             }}
             value={players.filter((p) => {
-              const id = getTotemIdFromRow(p as Record<string, unknown>);
+              const id = getTotemIdFromRow(p);
               return id !== undefined && ((data as any).totemIds || []).includes(id);
             })}
             onChange={(_, newValue) => {
               const ids = newValue
-                .map((p) => getTotemIdFromRow(p as Record<string, unknown>))
+                .map((p) => getTotemIdFromRow(p))
                 .filter((n): n is number => n !== undefined);
               handleFieldChange('totemIds', ids);
             }}
@@ -561,16 +561,16 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
             multiple
             options={players}
             getOptionLabel={(option) => {
-              const id = getTotemIdFromRow(option as Record<string, unknown>);
+              const id = getTotemIdFromRow(option);
               return option.name || option.identifier || option.uin || `Totem ${id ?? '?'}`;
             }}
             value={players.filter((p) => {
-              const id = getTotemIdFromRow(p as Record<string, unknown>);
+              const id = getTotemIdFromRow(p);
               return id !== undefined && ((data as any).totemIds || []).includes(id);
             })}
             onChange={(_, newValue) => {
               const ids = newValue
-                .map((p) => getTotemIdFromRow(p as Record<string, unknown>))
+                .map((p) => getTotemIdFromRow(p))
                 .filter((n): n is number => n !== undefined);
               handleFieldChange('totemIds', ids);
             }}

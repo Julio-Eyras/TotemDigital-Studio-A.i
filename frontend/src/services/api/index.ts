@@ -1147,6 +1147,8 @@ export const authApi = {
 export interface Campaign {
   campaign_id: number;
   title: string;
+  /** Respostas legadas / alias; preferir `title`. */
+  name?: string;
   category_segment?: string;
   categorySegment?: string;
   description?: string;
@@ -4176,6 +4178,15 @@ export interface DispatchResponse {
   error?: string;
 }
 
+export interface DispatchBatchResultRow {
+  timestamp: string;
+  success: boolean;
+  data?: DispatchPlan;
+  fromCache?: boolean;
+  executionTimeMs?: number;
+  error?: string;
+}
+
 export const dispatcherTotemApi = {
   dispatch: async (totemId: number, params?: {
     timestamp?: string;
@@ -4184,6 +4195,17 @@ export const dispatcherTotemApi = {
     includeCandidates?: boolean;
   }): Promise<DispatchResponse> => {
     const response = await api.get(`/dispatcher-totem/${totemId}/dispatch`, { params });
+    return response.data;
+  },
+
+  dispatchBatch: async (
+    totemId: number,
+    body: { timestamps: string[]; timezone?: string; skipCache?: boolean; includeCandidates?: boolean }
+  ): Promise<{
+    success: boolean;
+    results: DispatchBatchResultRow[];
+  }> => {
+    const response = await api.post(`/dispatcher-totem/${totemId}/dispatch-batch`, body);
     return response.data;
   },
 

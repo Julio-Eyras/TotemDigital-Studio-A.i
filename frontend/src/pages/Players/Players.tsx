@@ -116,7 +116,7 @@ const Players: React.FC = () => {
     if (!selectedPlayer) return;
     
     try {
-      const pid = getTotemIdFromRow(selectedPlayer as Record<string, unknown>) ?? selectedPlayer.totem_id;
+      const pid = getTotemIdFromRow(selectedPlayer) ?? selectedPlayer.totem_id;
       await playerApi.update(pid, {
         name: selectedPlayer.name,
         location: selectedPlayer.location,
@@ -148,7 +148,7 @@ const Players: React.FC = () => {
     if (!selectedPlayer) return;
     
     try {
-      const pid = getTotemIdFromRow(selectedPlayer as Record<string, unknown>) ?? selectedPlayer.totem_id;
+      const pid = getTotemIdFromRow(selectedPlayer) ?? selectedPlayer.totem_id;
       await playerApi.assignPlaylist(pid, playlistId);
       setAssignDialogOpen(false);
       setSelectedPlayer(null);
@@ -297,7 +297,7 @@ const Players: React.FC = () => {
             sm={6}
             md={4}
             lg={3}
-            key={getTotemIdFromRow(player as Record<string, unknown>) ?? player.identifier ?? 'player'}
+            key={getTotemIdFromRow(player) ?? player.identifier ?? 'player'}
           >
             <Card sx={{ 
               height: '100%',
@@ -396,7 +396,7 @@ const Players: React.FC = () => {
                       <IconButton
                         size="small"
                         onClick={() => {
-                          const id = getTotemIdFromRow(player as Record<string, unknown>) ?? player.totem_id;
+                          const id = getTotemIdFromRow(player) ?? player.totem_id;
                           handleDeletePlayer(id);
                         }}
                       >

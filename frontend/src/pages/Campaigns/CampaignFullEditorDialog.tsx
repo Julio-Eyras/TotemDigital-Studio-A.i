@@ -375,7 +375,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     const out: any[] = [];
     const seen = new Set<number>();
     for (const t of derivedTotems) {
-      const id = getTotemIdFromRow(t as Record<string, unknown>);
+      const id = getTotemIdFromRow(t);
       if (id === undefined || seen.has(id)) continue;
       seen.add(id);
       out.push(t);
@@ -414,7 +414,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     if (ids.length === 0) return;
     const allowed = new Set(
       derivedTotems
-        .map((t) => getTotemIdFromRow(t as Record<string, unknown>))
+        .map((t) => getTotemIdFromRow(t))
         .filter((id): id is number => id !== undefined)
     );
     const pruned = ids.filter((id) => allowed.has(id));
@@ -1009,25 +1009,25 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     options={totemAutocompleteOptions}
                     getOptionLabel={(option) => campaignTotemOptionLabel(option)}
                     isOptionEqualToValue={(option, value) =>
-                      getTotemIdFromRow(option as Record<string, unknown>) ===
-                      getTotemIdFromRow(value as Record<string, unknown>)
+                      getTotemIdFromRow(option) ===
+                      getTotemIdFromRow(value)
                     }
                     value={totemAutocompleteOptions.filter((t) => {
-                      const id = getTotemIdFromRow(t as Record<string, unknown>);
+                      const id = getTotemIdFromRow(t);
                       return id !== undefined && getSelectedTotemIds().includes(id);
                     })}
                     onChange={(_, newValue, reason, details) => {
                       if (!selectedCampaign) return;
                       let nextIds: number[];
                       if (reason === 'selectOption' && details?.option) {
-                        const clickedId = getTotemIdFromRow(details.option as Record<string, unknown>);
+                        const clickedId = getTotemIdFromRow(details.option);
                         if (clickedId === undefined) return;
                         const cur = getSelectedTotemIds();
                         nextIds = cur.includes(clickedId)
                           ? cur.filter((id) => id !== clickedId)
                           : [...cur, clickedId];
                       } else {
-                        nextIds = (newValue as Record<string, unknown>[])
+                        nextIds = newValue
                           .map((t) => getTotemIdFromRow(t))
                           .filter((n): n is number => n !== undefined);
                       }

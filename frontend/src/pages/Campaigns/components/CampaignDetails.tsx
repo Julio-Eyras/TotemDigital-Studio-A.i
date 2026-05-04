@@ -263,7 +263,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
             const flat = ([] as any[]).concat(...resultsArrays);
             const seen = new Set<number>();
             return flat.filter((t: any) => {
-              const id = getTotemIdFromRow(t as Record<string, unknown>);
+              const id = getTotemIdFromRow(t);
               if (id === undefined || seen.has(id)) return false;
               seen.add(id);
               return true;
@@ -566,7 +566,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
               <List>
                 {totems
                   .map((totem: any) => {
-                  const id = getTotemIdFromRow(totem as Record<string, unknown>);
+                  const id = getTotemIdFromRow(totem);
                   if (id === undefined) return null;
                   const name = totem.name || totem.identifier || `Totem ${id}`;
                   return (

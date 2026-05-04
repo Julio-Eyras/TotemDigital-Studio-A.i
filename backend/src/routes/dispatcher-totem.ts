@@ -4,7 +4,7 @@
  */
 
 import { Router, Response } from 'express';
-import { query, validationResult } from 'express-validator';
+import { query, body, validationResult } from 'express-validator';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { getDispatcherTotemService } from '../services/dispatcherTotemService';
 import { logError } from '../utils/loggerHelper';
@@ -66,6 +66,65 @@ router.get('/:totemId/dispatch',
       return res.status(500).json({
         success: false,
         error: error.message || 'Erro interno do servidor'
+      });
+    }
+  }
+);
+
+/**
+ * @route POST /api/dispatcher-totem/:totemId/dispatch-batch
+ * @desc Vários planos de exibição (mesma lógica de GET /dispatch) num único pedido
+ * @access Private
+ */
+router.post('/:totemId/dispatch-batch',
+  ...idParamValidator('totemId'),
+  body('timestamps')
+    .isArray({ min: 1, max: 48 })
+    .withMessage('timestamps deve ser um array com 1 a 48 datas ISO8601'),
+  body('timestamps.*')
+    .isISO8601()
+    .withMessage('Cada entrada de timestamps deve ser ISO8601'),
+  body('timezone').optional().isString().withMessage('timezone deve ser uma string'),
+  body('skipCache').optional().isBoolean().withMessage('skipCache deve ser um booleano'),
+  body('includeCandidates').optional().isBoolean().withMessage('includeCandidates deve ser um booleano'),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.totemId, 10);
+      const { timestamps, timezone, skipCache, includeCandidates } = req.body as {
+        timestamps: string[];
+        timezone?: string;
+        skipCache?: boolean;
+        includeCandidates?: boolean;
+      };
+      const dates = timestamps.map((s) => new Date(s));
+      const dispatcher = getDispatcherTotemService();
+      const rows = await dispatcher.dispatchBatch(
+        totemId,
+        dates,
+        {
+          skipCache: skipCache === true,
+          includeCandidates: includeCandidates === true,
+        },
+        timezone
+      );
+
+      return res.json({
+        success: true,
+        results: rows.map((row) => ({
+          timestamp: row.timestamp,
+          success: row.success,
+          data: row.plan,
+          fromCache: row.fromCache,
+          executionTimeMs: row.executionTimeMs,
+          error: row.error,
+        })),
+      });
+    } catch (error: any) {
+      await logError('Erro ao gerar planos de dispatch em lote', error, { totemId: req.params.totemId });
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Erro interno do servidor',
       });
     }
   }

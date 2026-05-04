@@ -256,7 +256,7 @@ const SmartTvs: React.FC = () => {
   const smartTvsByTotem = useMemo(() => {
     const map = new Map<number, number>();
     for (const tv of smartTvs) {
-      const tid = getForeignTotemIdFromRow(tv as Record<string, unknown>);
+      const tid = getForeignTotemIdFromRow(tv);
       if (tid !== undefined) {
         map.set(tid, (map.get(tid) || 0) + 1);
       }
@@ -337,7 +337,7 @@ const SmartTvs: React.FC = () => {
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {totems.map((totem, idx) => {
-                    const totemId = getTotemIdFromRow(totem as Record<string, unknown>);
+                    const totemId = getTotemIdFromRow(totem);
                     if (totemId === undefined) return null;
                     return (
                       <MenuItem key={`totem-${totemId}-${idx}`} value={totemId}>
@@ -515,7 +515,7 @@ const SmartTvs: React.FC = () => {
                 inputProps={{ name: 'totem_id' }}
               >
                 {totems.map((totem, idx) => {
-                  const totemId = getTotemIdFromRow(totem as Record<string, unknown>);
+                  const totemId = getTotemIdFromRow(totem);
                   if (totemId === undefined) return null;
                   return (
                     <MenuItem key={`totem-create-${totemId}-${idx}`} value={totemId}>

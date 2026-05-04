@@ -121,13 +121,13 @@ const PlaylistMixRules: React.FC = () => {
     if (isAdminLikeRole(user?.role)) return scopeTotems;
     const pid = user?.publisherId != null ? Number(user.publisherId) : undefined;
     if (pid == null || Number.isNaN(pid)) return scopeTotems;
-    return scopeTotems.filter((t) => getTotemPublisherIdFromRow(t as Record<string, unknown>) === pid);
+    return scopeTotems.filter((t) => getTotemPublisherIdFromRow(t) === pid);
   }, [scopeTotems, user?.publisherId, user?.role]);
 
   const totemIdNotInCatalog = useMemo(() => {
     const wanted = formData.totem_id;
     if (wanted == null) return false;
-    return !scopeTotemsFiltered.some((t) => getTotemIdFromRow(t as Record<string, unknown>) === wanted);
+    return !scopeTotemsFiltered.some((t) => getTotemIdFromRow(t) === wanted);
   }, [formData.totem_id, scopeTotemsFiltered]);
 
   const loadRules = async () => {
@@ -177,7 +177,7 @@ const PlaylistMixRules: React.FC = () => {
     setFormData({
       name: rule.name,
       description: rule.description || '',
-      totem_id: getForeignTotemIdFromRow(rule as Record<string, unknown>) ?? rule.totem_id ?? null,
+      totem_id: getForeignTotemIdFromRow(rule) ?? rule.totem_id ?? null,
       rule_type: rule.rule_type,
       priority_weight: rule.priority_weight,
       time_weight: rule.time_weight,
@@ -323,7 +323,7 @@ const PlaylistMixRules: React.FC = () => {
                 </TableCell>
                 <TableCell>
                   {(() => {
-                    const tid = getForeignTotemIdFromRow(rule as Record<string, unknown>) ?? rule.totem_id;
+                    const tid = getForeignTotemIdFromRow(rule) ?? rule.totem_id;
                     return tid ? `Totem #${tid}` : 'Global';
                   })()}
                 </TableCell>
@@ -444,7 +444,7 @@ const PlaylistMixRules: React.FC = () => {
                 </MenuItem>
               )}
               {scopeTotemsFiltered.flatMap((t) => {
-                const id = getTotemIdFromRow(t as Record<string, unknown>);
+                const id = getTotemIdFromRow(t);
                 if (id === undefined) return [];
                 const label = t.name || t.identifier || t.uin || `Totem #${id}`;
                 const loc = (t as any).location || (t as any).localName || '';

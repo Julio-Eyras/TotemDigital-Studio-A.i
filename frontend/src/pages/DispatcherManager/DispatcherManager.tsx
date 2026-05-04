@@ -171,10 +171,16 @@ const DispatcherManager: React.FC = () => {
   
   // Filtros
   const [selectedTotemId, setSelectedTotemId] = useState<number | undefined>(undefined);
-  const [selectedTimestamp, setSelectedTimestamp] = useState<string>(
-    format(new Date(), "yyyy-MM-dd'T'HH:mm")
-  );
-  /** Janela da timeline: menos horas = menos pedidos a `/dispatch`. */
+  const initialTimestamp = format(new Date(), "yyyy-MM-dd'T'HH:mm");
+  const [selectedTimestamp, setSelectedTimestamp] = useState<string>(initialTimestamp);
+  /** Data/hora usada nas chamadas à API (debounce ao digitar no campo). */
+  const [debouncedTimestamp, setDebouncedTimestamp] = useState<string>(initialTimestamp);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedTimestamp(selectedTimestamp), 400);
+    return () => window.clearTimeout(id);
+  }, [selectedTimestamp]);
+  /** Janela da timeline: menos horas = lote menor no `dispatch-batch`. */
   const [timelineSpan, setTimelineSpan] = useState<'full' | 'around3' | 'around6'>('around3');
 
   // Dados
@@ -205,14 +211,14 @@ const DispatcherManager: React.FC = () => {
       loadEligibleData();
       loadDispatchPlan();
     }
-  }, [selectedTotemId, selectedTimestamp]);
+  }, [selectedTotemId, debouncedTimestamp]);
 
   // Timeline: recarrega com totem, data/hora ou janela (±3/±6/24 h)
   useEffect(() => {
     if (selectedTotemId) {
       loadTimeline();
     }
-  }, [selectedTotemId, selectedTimestamp, timelineSpan]);
+  }, [selectedTotemId, debouncedTimestamp, timelineSpan]);
 
   useEffect(() => {
     if (!selectedTotemId) {
@@ -235,12 +241,13 @@ const DispatcherManager: React.FC = () => {
     }
   };
 
-  const loadEligibleData = async () => {
+  const loadEligibleData = async (timestampOverride?: string) => {
     if (!selectedTotemId) return;
     
     try {
       setLoading(true);
-      const timestamp = new Date(selectedTimestamp);
+      const tsStr = timestampOverride ?? debouncedTimestamp;
+      const timestamp = new Date(tsStr);
       if (isNaN(timestamp.getTime())) {
         setError('Data/hora inválida. Ajuste o campo "Timestamp" e tente novamente.');
         setEligibleCampaigns([]);
@@ -391,14 +398,14 @@ const DispatcherManager: React.FC = () => {
   };
 
   /**
-   * Timeline por hora: uma chamada real a `GET /dispatcher-totem/:id/dispatch` por hora simulada
-   * no mesmo dia civil do timestamp selecionado, reutilizando o minuto do selecionado.
-   * A janela pode ser o dia completo (24) ou só horas à volta da hora escolhida (menos carga na API).
+   * Timeline por hora: um `POST /dispatcher-totem/:id/dispatch-batch` com todas as horas simuladas
+   * no mesmo dia civil do timestamp (debounced), reutilizando o minuto.
+   * A janela pode ser o dia completo (24) ou só horas à volta da hora escolhida.
    */
-  const loadTimeline = async () => {
+  const loadTimeline = async (timestampOverride?: string) => {
     if (!selectedTotemId) return;
 
-    const base = new Date(selectedTimestamp);
+    const base = new Date(timestampOverride ?? debouncedTimestamp);
     if (isNaN(base.getTime())) {
       setTimeline([]);
       return;
@@ -412,43 +419,51 @@ const DispatcherManager: React.FC = () => {
     try {
       setTimelineLoading(true);
       const hours = getTimelineHours(base, timelineSpan);
-      const results = await Promise.all(
-        hours.map(async (hour) => {
-          const ts = new Date(y, mo, d, hour, minute, 0, 0);
-          try {
-            const r = await dispatcherTotemApi.dispatch(selectedTotemId, {
-              timestamp: ts.toISOString(),
-            });
-            return { hour, r, err: undefined as string | undefined };
-          } catch (e: unknown) {
-            return {
-              hour,
-              r: null as Awaited<ReturnType<typeof dispatcherTotemApi.dispatch>> | null,
-              err: pickApiErrorMessage(e, 'Erro ao calcular plano'),
-            };
-          }
-        })
+      const timestamps = hours.map((hour) =>
+        new Date(y, mo, d, hour, minute, 0, 0).toISOString()
       );
 
-      const slots: TimelineSlot[] = results.map(({ hour, r, err }) => {
-        const plan = r?.success ? r.data : undefined;
-        const items = plan?.mediaItems?.filter(Boolean) ?? [];
-        const has = items.length > 0;
-        const first = items[0];
-        return {
+      let slots: TimelineSlot[];
+      try {
+        const batchRes = await dispatcherTotemApi.dispatchBatch(selectedTotemId, { timestamps });
+        const rows = batchRes.results ?? [];
+        slots = hours.map((hour, idx) => {
+          const r = rows[idx];
+          const err = r?.error;
+          const plan = r?.success && r.data ? r.data : undefined;
+          const items = plan?.mediaItems?.filter(Boolean) ?? [];
+          const has = items.length > 0;
+          const first = items[0];
+          return {
+            hour,
+            minute,
+            campaignId: has ? 1 : 0,
+            campaignTitle: err || plan?.sourceName || (has ? 'Plano' : ''),
+            playlistId: plan?.playlistId ?? 0,
+            playlistName: plan?.playlistName ?? '',
+            mediaId: first?.mediaId ?? 0,
+            mediaName: err || (has ? `${items.length} mídia(s)` : 'Sem plano neste horário'),
+            duration: plan?.totalDuration ?? 0,
+            source: plan?.source,
+            planError: err,
+          };
+        });
+      } catch (e: unknown) {
+        const msg = pickApiErrorMessage(e, 'Erro ao calcular plano');
+        slots = hours.map((hour) => ({
           hour,
           minute,
-          campaignId: has ? 1 : 0,
-          campaignTitle: err || plan?.sourceName || (has ? 'Plano' : ''),
-          playlistId: plan?.playlistId ?? 0,
-          playlistName: plan?.playlistName ?? '',
-          mediaId: first?.mediaId ?? 0,
-          mediaName: err || (has ? `${items.length} mídia(s)` : 'Sem plano neste horário'),
-          duration: plan?.totalDuration ?? 0,
-          source: plan?.source,
-          planError: err,
-        };
-      });
+          campaignId: 0,
+          campaignTitle: msg,
+          playlistId: 0,
+          playlistName: '',
+          mediaId: 0,
+          mediaName: msg,
+          duration: 0,
+          source: undefined,
+          planError: msg,
+        }));
+      }
 
       setTimeline(slots);
     } catch (err: unknown) {
@@ -459,11 +474,12 @@ const DispatcherManager: React.FC = () => {
     }
   };
 
-  const loadDispatchPlan = async () => {
+  const loadDispatchPlan = async (timestampOverride?: string) => {
     if (!selectedTotemId) return;
     
     try {
-      const timestamp = new Date(selectedTimestamp);
+      const tsStr = timestampOverride ?? debouncedTimestamp;
+      const timestamp = new Date(tsStr);
       if (isNaN(timestamp.getTime())) {
         setError('Data/hora inválida. Ajuste o campo "Timestamp" e tente novamente.');
         return;
@@ -487,9 +503,9 @@ const DispatcherManager: React.FC = () => {
   };
 
   const handleRefresh = () => {
-    loadEligibleData();
-    loadTimeline();
-    loadDispatchPlan();
+    loadEligibleData(selectedTimestamp);
+    loadTimeline(selectedTimestamp);
+    loadDispatchPlan(selectedTimestamp);
   };
 
   const getTierColor = (tier: string) => {
@@ -510,16 +526,16 @@ const DispatcherManager: React.FC = () => {
   };
 
   const timelineMinuteLabel = (() => {
-    const t = new Date(selectedTimestamp);
+    const t = new Date(debouncedTimestamp);
     if (isNaN(t.getTime())) return '00';
     return String(t.getMinutes()).padStart(2, '0');
   })();
 
   const timelineApiCallCount = useMemo(() => {
-    const base = new Date(selectedTimestamp);
+    const base = new Date(debouncedTimestamp);
     if (isNaN(base.getTime())) return 0;
     return getTimelineHours(base, timelineSpan).length;
-  }, [selectedTimestamp, timelineSpan]);
+  }, [debouncedTimestamp, timelineSpan]);
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
@@ -568,7 +584,7 @@ const DispatcherManager: React.FC = () => {
                   <MenuItem value="">Selecione um totem</MenuItem>
                   {totems
                     .map((totem) => {
-                      const tid = getTotemIdFromRow(totem as Record<string, unknown>);
+                      const tid = getTotemIdFromRow(totem);
                       if (tid === undefined) return null;
                       return (
                         <MenuItem key={tid} value={tid}>
@@ -820,8 +836,9 @@ const DispatcherManager: React.FC = () => {
             <Grid item xs={12} md={7}>
               <Alert severity="info" sx={{ height: '100%', alignItems: 'flex-start' }}>
                 Cada linha é o resultado real do <strong>dispatch</strong> neste totem às{' '}
-                <strong>HH:{timelineMinuteLabel}</strong> do dia selecionado (
-                <strong>{timelineApiCallCount}</strong> pedido(s) à API com a janela atual). Mostra o plano que o motor
+                <strong>HH:{timelineMinuteLabel}</strong> do dia (valor debounced após editar o campo;{' '}
+                <strong>{timelineApiCallCount}</strong> instante(s) num único pedido{' '}
+                <strong>dispatch-batch</strong>). Mostra o plano que o motor
                 escolheria (campanha direta, grupo, mix ou fallback) — não é uma grelha pré-gravada no servidor.
               </Alert>
             </Grid>

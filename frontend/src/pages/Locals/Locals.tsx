@@ -363,10 +363,10 @@ const Locals: React.FC = () => {
         const smartTvsResponse = await smartTvApi.getAll({ limit: 100 });
         const smartTvs = Array.isArray(smartTvsResponse.data) ? smartTvsResponse.data : [];
         const totemIds = localTotems
-          .map((t: any) => getTotemIdFromRow(t as Record<string, unknown>))
+          .map((t: any) => getTotemIdFromRow(t))
           .filter((id): id is number => id !== undefined);
         const localSmartTvs = smartTvs.filter((tv: any) => {
-          const tvTotemFk = getForeignTotemIdFromRow(tv as Record<string, unknown>);
+          const tvTotemFk = getForeignTotemIdFromRow(tv);
           return (tvTotemFk !== undefined && totemIds.includes(tvTotemFk)) || tv.local_id === local.local_id;
         });
         setSelectedSmartTvs(localSmartTvs);
@@ -924,15 +924,15 @@ const Locals: React.FC = () => {
                               startIcon={<Refresh />}
                               onClick={async () => {
                                 try {
-                                  const tid = getTotemIdFromRow(totem as Record<string, unknown>) ?? totem.totem_id;
+                                  const tid = getTotemIdFromRow(totem) ?? totem.totem_id;
                                   // Forçar heartbeat 'online' para fins de debug/admin
                                   await totemApi.heartbeat(tid, 'online', { note: 'manual_refresh_from_ui' });
                                   // Atualizar o totem específico localmente
                                   const updated = await totemApi.getById(tid);
                                   setSelectedTotems((prev) =>
                                     prev.map((p) =>
-                                      (getTotemIdFromRow(p as Record<string, unknown>) ?? p.totem_id) ===
-                                      (getTotemIdFromRow(updated as Record<string, unknown>) ?? updated.totem_id)
+                                      (getTotemIdFromRow(p) ?? p.totem_id) ===
+                                      (getTotemIdFromRow(updated) ?? updated.totem_id)
                                         ? updated
                                         : p
                                     )
@@ -1154,7 +1154,7 @@ const Locals: React.FC = () => {
               ) : (
                 <List dense>
                   {editLocalTotems.map((totem) => {
-                    const tid = getTotemIdFromRow(totem as Record<string, unknown>);
+                    const tid = getTotemIdFromRow(totem);
                     return (
                       <ListItem key={tid ?? `totem-${totem.identifier || 'x'}`} disableGutters sx={{ py: 0.5 }}>
                         <ListItemIcon>

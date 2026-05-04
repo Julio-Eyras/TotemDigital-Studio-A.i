@@ -266,7 +266,7 @@ const TotemPlayListPage: React.FC = () => {
                   <MenuItem value="">Todos</MenuItem>
                   {publishers
                     .map((pub: any) => {
-                      const publisherId = getPublisherIdFromRow(pub as Record<string, unknown>);
+                      const publisherId = getPublisherIdFromRow(pub);
                       if (publisherId === undefined || publisherId <= 0) return null;
                       return (
                         <MenuItem key={`publisher-${publisherId}`} value={String(publisherId)}>
@@ -293,7 +293,7 @@ const TotemPlayListPage: React.FC = () => {
                   <MenuItem value="">Todos</MenuItem>
                   {totems
                     .map((totem: any) => {
-                      const totemId = getTotemIdFromRow(totem as Record<string, unknown>);
+                      const totemId = getTotemIdFromRow(totem);
                       if (totemId === undefined) return null;
                       return (
                         <MenuItem key={`totem-${totemId}`} value={String(totemId)}>
@@ -387,7 +387,7 @@ const TotemPlayListPage: React.FC = () => {
                             size="small"
                             onClick={() => {
                               const tid =
-                                getForeignTotemIdFromRow(playlist as Record<string, unknown>) ??
+                                getForeignTotemIdFromRow(playlist) ??
                                 (playlist as any).totem_id;
                               handleOpenPlaylist(tid);
                             }}
@@ -401,7 +401,7 @@ const TotemPlayListPage: React.FC = () => {
                             size="small"
                             onClick={() => {
                               const tid =
-                                getForeignTotemIdFromRow(playlist as Record<string, unknown>) ??
+                                getForeignTotemIdFromRow(playlist) ??
                                 (playlist as any).totem_id;
                               handleRegenerate(tid);
                             }}
