@@ -84,6 +84,17 @@ function getTotemPublisherId(t: Record<string, unknown>): number | undefined {
   return typeof v === 'number' && !Number.isNaN(v) ? v : undefined;
 }
 
+/** Se a listagem de totems não trouxer publisher, usa o catálogo de locais (mesmo local_id). */
+function resolveTotemPublisherId(totem: Record<string, unknown>, locals: Local[]): number | undefined {
+  const direct = getTotemPublisherId(totem);
+  if (direct != null) return direct;
+  const lid = getTotemLocalId(totem);
+  if (lid == null) return undefined;
+  const local = locals.find((l) => l.local_id === lid);
+  const pid = local?.publisher_id;
+  return typeof pid === 'number' && !Number.isNaN(pid) ? pid : undefined;
+}
+
 function formatTotemLabel(t: { totem_id: number; name?: string; identifier?: string; uin?: string }): string {
   const parts = [t.name, t.identifier, t.uin].filter(Boolean);
   return parts.length > 0 ? parts.join(' · ') : `Totem #${t.totem_id}`;
@@ -741,7 +752,7 @@ const PlanPublisherAccessPage: React.FC = () => {
   const compactTotemOptions: CompactTotemOption[] = TOTEMDIGITAL_COMPACT
     ? totemsCatalog.map((totem) => ({
         totem,
-        publisherId: getTotemPublisherId(totem as Record<string, unknown>),
+        publisherId: resolveTotemPublisherId(totem as Record<string, unknown>, localsCatalog),
       }))
     : [];
 
