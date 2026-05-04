@@ -43,10 +43,31 @@ import {
 } from '@mui/icons-material';
 import { getMixRules, createMixRule, updateMixRule, deleteMixRule, MixRule } from '../../services/api/playlistMixApi';
 import { totemApi, Player } from '../../services/api';
-import { getForeignTotemIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import { useAppSelector } from '../../store/hooks';
+import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemPublisherIdFromRow } from '../../utils/totemRowIds';
+
+function pickApiErrorMessage(err: unknown, fallback: string): string {
+  const e = err as { response?: { data?: unknown }; message?: string };
+  const d = e?.response?.data;
+  if (typeof d === 'string' && d.trim()) return d.trim();
+  if (d && typeof d === 'object' && d !== null) {
+    const o = d as { error?: string; message?: string };
+    if (typeof o.error === 'string' && o.error.trim()) return o.error.trim();
+    if (typeof o.message === 'string' && o.message.trim()) return o.message.trim();
+  }
+  if (typeof e?.message === 'string' && e.message.trim()) return e.message.trim();
+  return fallback;
+}
+
+const isAdminLikeRole = (role?: string) =>
+  ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(
+    String(role || '')
+  );
 
 const PlaylistMixRules: React.FC = () => {
   const theme = useTheme();
+  const user = useAppSelector((state) => state.auth.user);
   const [rules, setRules] = useState<MixRule[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,12 +114,10 @@ const PlaylistMixRules: React.FC = () => {
       try {
         const res = await totemApi.getAll({ page: 1, limit: 500 });
         if (!cancelled) setScopeTotems(Array.isArray(res?.data) ? res.data : []);
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!cancelled) {
           setScopeTotems([]);
-          setScopeTotemsError(
-            e?.response?.data?.error || e?.message || 'Não foi possível carregar a lista de totems.'
-          );
+          setScopeTotemsError(pickApiErrorMessage(e, 'Não foi possível carregar a lista de totems.'));
         }
       } finally {
         if (!cancelled) setLoadingScopeTotems(false);
@@ -109,11 +128,19 @@ const PlaylistMixRules: React.FC = () => {
     };
   }, [dialogOpen]);
 
+  const scopeTotemsFiltered = useMemo(() => {
+    if (!TOTEMDIGITAL_COMPACT) return scopeTotems;
+    if (isAdminLikeRole(user?.role)) return scopeTotems;
+    const pid = user?.publisherId != null ? Number(user.publisherId) : undefined;
+    if (pid == null || Number.isNaN(pid)) return scopeTotems;
+    return scopeTotems.filter((t) => getTotemPublisherIdFromRow(t as Record<string, unknown>) === pid);
+  }, [scopeTotems, user?.publisherId, user?.role]);
+
   const totemIdNotInCatalog = useMemo(() => {
     const wanted = formData.totem_id;
     if (wanted == null) return false;
-    return !scopeTotems.some((t) => getTotemIdFromRow(t as Record<string, unknown>) === wanted);
-  }, [formData.totem_id, scopeTotems]);
+    return !scopeTotemsFiltered.some((t) => getTotemIdFromRow(t as Record<string, unknown>) === wanted);
+  }, [formData.totem_id, scopeTotemsFiltered]);
 
   const loadRules = async () => {
     setLoading(true);
@@ -121,8 +148,8 @@ const PlaylistMixRules: React.FC = () => {
     try {
       const response = await getMixRules();
       setRules(Array.isArray(response) ? response : []);
-    } catch (err: any) {
-      setError(err?.message || 'Erro ao carregar regras');
+    } catch (err: unknown) {
+      setError(pickApiErrorMessage(err, 'Erro ao carregar regras'));
     } finally {
       setLoading(false);
     }
@@ -204,8 +231,8 @@ const PlaylistMixRules: React.FC = () => {
       }
       setDialogOpen(false);
       loadRules();
-    } catch (err: any) {
-      setError(err?.message || 'Erro ao salvar regra');
+    } catch (err: unknown) {
+      setError(pickApiErrorMessage(err, 'Erro ao salvar regra'));
     }
   };
 
@@ -216,8 +243,8 @@ const PlaylistMixRules: React.FC = () => {
     try {
       await deleteMixRule(id);
       loadRules();
-    } catch (err: any) {
-      setError(err?.message || 'Erro ao excluir regra');
+    } catch (err: unknown) {
+      setError(pickApiErrorMessage(err, 'Erro ao excluir regra'));
     }
   };
 
@@ -428,7 +455,7 @@ const PlaylistMixRules: React.FC = () => {
                   Totem #{formData.totem_id} (fora da lista atual)
                 </MenuItem>
               )}
-              {scopeTotems.flatMap((t) => {
+              {scopeTotemsFiltered.flatMap((t) => {
                 const id = getTotemIdFromRow(t as Record<string, unknown>);
                 if (id === undefined) return [];
                 const label = t.name || t.identifier || t.uin || `Totem #${id}`;
