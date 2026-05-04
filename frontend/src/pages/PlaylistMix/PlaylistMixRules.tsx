@@ -41,6 +41,7 @@ import {
   Settings,
 } from '@mui/icons-material';
 import { getMixRules, getMixRule, createMixRule, updateMixRule, deleteMixRule, MixRule } from '../../services/api/playlistMixApi';
+import { getForeignTotemIdFromRow } from '../../utils/totemRowIds';
 
 const PlaylistMixRules: React.FC = () => {
   const theme = useTheme();
@@ -122,7 +123,7 @@ const PlaylistMixRules: React.FC = () => {
     setFormData({
       name: rule.name,
       description: rule.description || '',
-      totem_id: rule.totem_id || null,
+      totem_id: getForeignTotemIdFromRow(rule as Record<string, unknown>) ?? rule.totem_id ?? null,
       rule_type: rule.rule_type,
       priority_weight: rule.priority_weight,
       time_weight: rule.time_weight,
@@ -257,7 +258,10 @@ const PlaylistMixRules: React.FC = () => {
                   />
                 </TableCell>
                 <TableCell>
-                  {rule.totem_id ? `Totem #${rule.totem_id}` : 'Global'}
+                  {(() => {
+                    const tid = getForeignTotemIdFromRow(rule as Record<string, unknown>) ?? rule.totem_id;
+                    return tid ? `Totem #${tid}` : 'Global';
+                  })()}
                 </TableCell>
                 <TableCell>
                   {rule.ai_enabled ? (
