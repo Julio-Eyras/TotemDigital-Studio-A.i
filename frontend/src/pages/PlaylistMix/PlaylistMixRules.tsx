@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -12,6 +12,7 @@ import {
   DialogActions,
   TextField,
   FormControl,
+  FormHelperText,
   InputLabel,
   Select,
   MenuItem,
@@ -40,8 +41,9 @@ import {
   SmartToy,
   Settings,
 } from '@mui/icons-material';
-import { getMixRules, getMixRule, createMixRule, updateMixRule, deleteMixRule, MixRule } from '../../services/api/playlistMixApi';
-import { getForeignTotemIdFromRow } from '../../utils/totemRowIds';
+import { getMixRules, createMixRule, updateMixRule, deleteMixRule, MixRule } from '../../services/api/playlistMixApi';
+import { totemApi, Player } from '../../services/api';
+import { getForeignTotemIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
 
 const PlaylistMixRules: React.FC = () => {
   const theme = useTheme();
@@ -50,6 +52,9 @@ const PlaylistMixRules: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<MixRule | null>(null);
+
+  const [scopeTotems, setScopeTotems] = useState<Player[]>([]);
+  const [loadingScopeTotems, setLoadingScopeTotems] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -77,6 +82,31 @@ const PlaylistMixRules: React.FC = () => {
   useEffect(() => {
     loadRules();
   }, []);
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingScopeTotems(true);
+      try {
+        const res = await totemApi.getAll({ page: 1, limit: 500 });
+        if (!cancelled) setScopeTotems(Array.isArray(res?.data) ? res.data : []);
+      } catch {
+        if (!cancelled) setScopeTotems([]);
+      } finally {
+        if (!cancelled) setLoadingScopeTotems(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogOpen]);
+
+  const totemIdNotInCatalog = useMemo(() => {
+    const wanted = formData.totem_id;
+    if (wanted == null) return false;
+    return !scopeTotems.some((t) => getTotemIdFromRow(t as Record<string, unknown>) === wanted);
+  }, [formData.totem_id, scopeTotems]);
 
   const loadRules = async () => {
     setLoading(true);
@@ -353,6 +383,47 @@ const PlaylistMixRules: React.FC = () => {
               <MenuItem value="ai">AI (Apenas IA)</MenuItem>
               <MenuItem value="hybrid">Hybrid (Regras + IA)</MenuItem>
             </Select>
+          </FormControl>
+
+          <FormControl fullWidth margin="normal" disabled={loadingScopeTotems}>
+            <InputLabel id="mix-rule-totem-scope-label">Escopo (totem)</InputLabel>
+            <Select
+              labelId="mix-rule-totem-scope-label"
+              label="Escopo (totem)"
+              value={formData.totem_id == null ? '' : String(formData.totem_id)}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setFormData({
+                  ...formData,
+                  totem_id: raw === '' ? null : Number(raw),
+                });
+              }}
+            >
+              <MenuItem value="">
+                <em>Global (todos os totems)</em>
+              </MenuItem>
+              {totemIdNotInCatalog && formData.totem_id != null && (
+                <MenuItem value={String(formData.totem_id)}>
+                  Totem #{formData.totem_id} (fora da lista atual)
+                </MenuItem>
+              )}
+              {scopeTotems.flatMap((t) => {
+                const id = getTotemIdFromRow(t as Record<string, unknown>);
+                if (id === undefined) return [];
+                const label = t.name || t.identifier || t.uin || `Totem #${id}`;
+                const loc = (t as any).location || (t as any).localName || '';
+                return [
+                  <MenuItem key={id} value={String(id)}>
+                    {label}
+                    {loc ? ` · ${loc}` : ''}
+                  </MenuItem>,
+                ];
+              })}
+            </Select>
+            <FormHelperText>
+              Regra <strong>global</strong> aplica-se sem vínculo a um totem específico. Escolha um totem para
+              restringir a regra a esse equipamento.
+            </FormHelperText>
           </FormControl>
 
           <Box sx={{ mt: 2, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2 }}>
