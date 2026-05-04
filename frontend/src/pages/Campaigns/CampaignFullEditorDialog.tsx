@@ -218,9 +218,13 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     }
   };
 
-  const loadPlaylists = async () => {
+  const loadPlaylists = async (subscriberIdOverride?: number) => {
     try {
-      const subscriberId = !isAdmin && userSubscriberId ? userSubscriberId : undefined;
+      const subscriberId =
+        subscriberIdOverride ??
+        selectedCampaign?.subscriber_id ??
+        (selectedCampaign as any)?.subscriberId ??
+        (!isAdmin && userSubscriberId ? userSubscriberId : undefined);
       const response = await playlistApi.getAll({ subscriberId });
       const playlistsData = Array.isArray(response.data) ? [...response.data] : [];
       playlistsData.sort((a: any, b: any) =>
@@ -232,10 +236,16 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     }
   };
 
-  const loadMediaItems = async () => {
+  const loadMediaItems = async (subscriberIdOverride?: number) => {
     try {
-      const subscriberId = !isAdmin && userSubscriberId ? userSubscriberId : undefined;
-      const response = await mediaApi.getAll({ subscriberId });
+      const subscriberId =
+        subscriberIdOverride ??
+        selectedCampaign?.subscriber_id ??
+        (selectedCampaign as any)?.subscriberId ??
+        (!isAdmin && userSubscriberId ? userSubscriberId : undefined);
+      const response = await mediaApi.getAll(
+        subscriberId != null ? { subscriberId } : { subscriberId: undefined }
+      );
       const mediaData = Array.isArray(response?.data) ? [...response.data] : [];
       mediaData.sort((a: any, b: any) =>
         compareByDisplayName(a?.name || a?.title || a?.file_name, b?.name || b?.title || b?.file_name)
@@ -279,6 +289,9 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         const normalized = normalizeCampaign(full);
         setSelectedCampaign(normalized);
         const subscriberId = normalized.subscriber_id || (normalized as any).subscriberId;
+        if (subscriberId != null && Number.isFinite(Number(subscriberId))) {
+          await Promise.all([loadMediaItems(Number(subscriberId)), loadPlaylists(Number(subscriberId))]);
+        }
         if (!compactMode && subscriberId && !isAdmin) {
           await loadAccessiblePublishers(subscriberId);
         }

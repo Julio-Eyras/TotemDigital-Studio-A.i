@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { Store, Place, Tv } from '@mui/icons-material';
 import { getMixOverview, MixGroupOverview } from '../../services/api/playlistMixApi';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const PlaylistMixGroup: React.FC = () => {
   const theme = useTheme();
@@ -32,7 +33,7 @@ const PlaylistMixGroup: React.FC = () => {
       setData(result);
     } catch (err: any) {
       console.error('Erro ao carregar overview de mixagem:', err);
-      setError(err?.response?.data?.message || err?.message || 'Erro ao carregar overview de mixagem');
+      setError(pickApiErrorMessage(err, 'Erro ao carregar overview de mixagem'));
     } finally {
       setLoading(false);
     }

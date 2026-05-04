@@ -64,6 +64,7 @@ import {
   BarChart,
 } from '@mui/icons-material';
 import { dispatcherTotemApi, totemApi, DispatchPlan, playlistApi } from '../../services/api';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { format } from 'date-fns';
@@ -146,12 +147,17 @@ interface EligibleMedia {
 interface TimelineSlot {
   hour: number;
   minute: number;
+  /** >0 quando há plano de dispatch com mídias neste instante */
   campaignId: number;
+  /** Campanha / rótulo comercial (ex.: `sourceName` do plano) */
   campaignTitle: string;
   playlistId: number;
+  playlistName: string;
   mediaId: number;
   mediaName: string;
   duration: number;
+  source?: string;
+  planError?: string;
 }
 
 const DispatcherManager: React.FC = () => {
@@ -207,7 +213,7 @@ const DispatcherManager: React.FC = () => {
       const response = await totemApi.getAll({ page: 1, limit: 100 });
       setTotems(response.data || []);
     } catch (err: any) {
-      setError(err.message || 'Erro ao carregar totens');
+      setError(pickApiErrorMessage(err, 'Erro ao carregar totens'));
     } finally {
       setLoading(false);
     }
@@ -350,38 +356,76 @@ const DispatcherManager: React.FC = () => {
       setEligibleCampaigns([]);
       setEligiblePlaylists([]);
       setEligibleMedia([]);
-      setError(err.message || 'Erro ao carregar dados elegíveis');
+      setError(pickApiErrorMessage(err, 'Erro ao carregar dados elegíveis'));
     } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Timeline por hora: uma chamada real a `GET /dispatcher-totem/:id/dispatch` por hora (0–23)
+   * no mesmo dia civil do timestamp selecionado, reutilizando o minuto do selecionado.
+   * Isto reflete o que o motor devolveria (campanha/mix/fallback) em cada hora — não é uma “grada”
+   * pré-calculada no servidor; é simulação no cliente com a mesma API do plano único.
+   */
   const loadTimeline = async () => {
     if (!selectedTotemId) return;
-    
+
+    const base = new Date(selectedTimestamp);
+    if (isNaN(base.getTime())) {
+      setTimeline([]);
+      return;
+    }
+
+    const y = base.getFullYear();
+    const mo = base.getMonth();
+    const d = base.getDate();
+    const minute = base.getMinutes();
+
     try {
-      // Gerar timeline de 24 horas
-      const slots: TimelineSlot[] = [];
-      const hours = Array.from({ length: 24 }, (_, i) => i);
-      
-      hours.forEach(hour => {
-        [0, 10, 20, 30, 40, 50].forEach(minute => {
-          slots.push({
-            hour,
-            minute,
-            campaignId: 0,
-            campaignTitle: '',
-            playlistId: 0,
-            mediaId: 0,
-            mediaName: '',
-            duration: 10,
-          });
-        });
+      const hours = Array.from({ length: 24 }, (_, hour) => hour);
+      const results = await Promise.all(
+        hours.map(async (hour) => {
+          const ts = new Date(y, mo, d, hour, minute, 0, 0);
+          try {
+            const r = await dispatcherTotemApi.dispatch(selectedTotemId, {
+              timestamp: ts.toISOString(),
+            });
+            return { hour, r, err: undefined as string | undefined };
+          } catch (e: unknown) {
+            return {
+              hour,
+              r: null as Awaited<ReturnType<typeof dispatcherTotemApi.dispatch>> | null,
+              err: pickApiErrorMessage(e, 'Erro ao calcular plano'),
+            };
+          }
+        })
+      );
+
+      const slots: TimelineSlot[] = results.map(({ hour, r, err }) => {
+        const plan = r?.success ? r.data : undefined;
+        const items = plan?.mediaItems?.filter(Boolean) ?? [];
+        const has = items.length > 0;
+        const first = items[0];
+        return {
+          hour,
+          minute,
+          campaignId: has ? 1 : 0,
+          campaignTitle: err || plan?.sourceName || (has ? 'Plano' : ''),
+          playlistId: plan?.playlistId ?? 0,
+          playlistName: plan?.playlistName ?? '',
+          mediaId: first?.mediaId ?? 0,
+          mediaName: err || (has ? `${items.length} mídia(s)` : 'Sem plano neste horário'),
+          duration: plan?.totalDuration ?? 0,
+          source: plan?.source,
+          planError: err,
+        };
       });
-      
+
       setTimeline(slots);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erro ao gerar timeline:', err);
+      setTimeline([]);
     }
   };
 
@@ -434,6 +478,12 @@ const DispatcherManager: React.FC = () => {
       default: return 'default';
     }
   };
+
+  const timelineMinuteLabel = (() => {
+    const t = new Date(selectedTimestamp);
+    if (isNaN(t.getTime())) return '00';
+    return String(t.getMinutes()).padStart(2, '0');
+  })();
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
@@ -730,32 +780,48 @@ const DispatcherManager: React.FC = () => {
 
         {/* Tab 4: Timeline */}
         <TabPanel value={tabValue} index={3}>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Cada linha é o resultado real do <strong>dispatch</strong> neste totem às{' '}
+            <strong>HH:{timelineMinuteLabel}</strong> do dia selecionado (24 pedidos à
+            API). Mostra o plano que o motor escolheria (campanha direta, grupo, mix ou fallback) — não é uma grelha
+            pré-gravada no servidor.
+          </Alert>
           <Box sx={{ maxHeight: { xs: 'min(55vh, 480px)', md: '600px' }, overflow: 'auto' }}>
             <Timeline>
-              {timeline.slice(0, 48).map((slot, index) => (
-                <TimelineItem key={index}>
+              {timeline.map((slot, index) => (
+                <TimelineItem key={`${slot.hour}-${slot.minute}`}>
                   <TimelineOppositeContent sx={{ flex: 0.2 }}>
                     <Typography variant="caption" color="text.secondary">
                       {String(slot.hour).padStart(2, '0')}:{String(slot.minute).padStart(2, '0')}
                     </Typography>
                   </TimelineOppositeContent>
                   <TimelineSeparator>
-                    <TimelineDot color={slot.campaignId > 0 ? 'primary' : 'grey'} />
+                    <TimelineDot color={slot.planError ? 'warning' : slot.campaignId > 0 ? 'primary' : 'grey'} />
                     {index < timeline.length - 1 && <TimelineConnector />}
                   </TimelineSeparator>
                   <TimelineContent>
-                    {slot.campaignId > 0 ? (
+                    {slot.planError ? (
+                      <Card variant="outlined" sx={{ p: 1, borderColor: 'warning.main' }}>
+                        <Typography variant="body2" color="warning.main">
+                          {slot.planError}
+                        </Typography>
+                      </Card>
+                    ) : slot.campaignId > 0 ? (
                       <Card variant="outlined" sx={{ p: 1 }}>
                         <Typography variant="body2" fontWeight="bold">
-                          {slot.campaignTitle}
+                          {slot.campaignTitle || 'Plano'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {slot.playlistName}
+                          {slot.source ? ` · origem: ${slot.source}` : ''}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {slot.mediaName} ({slot.duration}s)
+                          {slot.mediaName} · {slot.duration}s total
                         </Typography>
                       </Card>
                     ) : (
                       <Typography variant="body2" color="text.secondary">
-                        Sem conteúdo agendado
+                        Sem plano / sem mídias neste horário
                       </Typography>
                     )}
                   </TimelineContent>

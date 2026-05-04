@@ -21,6 +21,7 @@ import {
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 interface ExportButtonProps {
   type: 'analytics' | 'campaign' | 'totem' | 'client' | 'media' | 'billing' | 'custom';
@@ -123,8 +124,8 @@ const ExportButton: React.FC<ExportButtonProps> = ({
     } catch (error: any) {
       console.error(`Erro ao exportar para ${format}:`, error);
       showError(
-        'Erro ao exportar',
-        error.response?.data?.message || `Não foi possível exportar para ${format.toUpperCase()}.`
+        pickApiErrorMessage(error, `Não foi possível exportar para ${format.toUpperCase()}.`),
+        'Erro ao exportar'
       );
     } finally {
       setExporting(null);

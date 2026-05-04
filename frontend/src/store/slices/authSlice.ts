@@ -109,7 +109,7 @@ export const refreshToken = createAsyncThunk(
       const response = await authApi.refreshToken(state.auth.refreshToken);
       return response;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Erro ao renovar token');
+      return rejectWithValue(pickApiErrorMessage(error, 'Erro ao renovar token'));
     }
   }
 );
@@ -126,7 +126,7 @@ export const checkAuthStatus = createAsyncThunk(
       const response = await authApi.getProfile();
       return response;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Token inválido');
+      return rejectWithValue(pickApiErrorMessage(error, 'Token inválido'));
     }
   }
 );
@@ -143,7 +143,7 @@ export const updateProfile = createAsyncThunk(
       const response = await authApi.updateProfile(state.auth.token, profileData);
       return response.data;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Erro ao atualizar perfil');
+      return rejectWithValue(pickApiErrorMessage(error, 'Erro ao atualizar perfil'));
     }
   }
 );
@@ -160,7 +160,7 @@ export const changePassword = createAsyncThunk(
       const response = await authApi.changePassword(state.auth.token, passwordData);
       return response.data;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Erro ao alterar senha');
+      return rejectWithValue(pickApiErrorMessage(error, 'Erro ao alterar senha'));
     }
   }
 );

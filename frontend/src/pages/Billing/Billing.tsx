@@ -53,6 +53,7 @@ import { useNotification } from '../../hooks/useNotification';
 import { useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '../../store';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -237,8 +238,9 @@ const Billing: React.FC = () => {
       loadBillings();
       showSuccess('Cobrança criada com sucesso');
     } catch (e: any) {
-      setError(e.response?.data?.message || 'Erro ao criar cobrança');
-      showError('Erro ao criar cobrança');
+      const msg = pickApiErrorMessage(e, 'Erro ao criar cobrança');
+      setError(msg);
+      showError(msg);
     }
   };
 
@@ -263,8 +265,9 @@ const Billing: React.FC = () => {
         showError('Erro ao criar sessão de checkout');
       }
     } catch (e: any) {
-      setError(e.response?.data?.message || 'Erro ao criar assinatura');
-      showError('Erro ao criar assinatura');
+      const msg = pickApiErrorMessage(e, 'Erro ao criar assinatura');
+      setError(msg);
+      showError(msg);
     }
   };
 
@@ -276,7 +279,7 @@ const Billing: React.FC = () => {
       loadSubscriptions();
       showSuccess('Assinatura cancelada com sucesso');
     } catch (e: any) {
-      showError(e.response?.data?.message || 'Erro ao cancelar assinatura');
+      showError(pickApiErrorMessage(e, 'Erro ao cancelar assinatura'));
     }
   };
 

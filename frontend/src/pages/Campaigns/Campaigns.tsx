@@ -26,6 +26,7 @@ import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { CampaignCard, CampaignDetails } from './components';
 import { compareByDisplayName, normalizeCampaign } from './campaignHelpers';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const Campaigns: React.FC = () => {
   const theme = useTheme();
@@ -83,9 +84,7 @@ const Campaigns: React.FC = () => {
       setCampaigns(normalizedCampaigns);
     } catch (error: any) {
       console.error('Erro ao carregar campanhas:', error);
-      const errorMessage =
-        error?.response?.data?.message || error?.message || 'Erro ao carregar lista de campanhas';
-      setError(errorMessage);
+      setError(pickApiErrorMessage(error, 'Erro ao carregar lista de campanhas'));
     } finally {
       setLoading(false);
     }

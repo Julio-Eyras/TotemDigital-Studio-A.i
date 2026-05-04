@@ -26,6 +26,7 @@ import { MediaItem, mediaApi, subscriberApi, Subscriber } from '../../services/a
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const VINHETA_TAG = 'vinheta';
 
@@ -75,7 +76,7 @@ const Vinhetas: React.FC = () => {
       const response = await mediaApi.getAll({ limit: 1000, subscriberId: typeof subscriberId === 'number' ? subscriberId : undefined });
       setAllMedia(response.data || []);
     } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Erro ao carregar vinhetas');
+      setError(pickApiErrorMessage(e, 'Erro ao carregar vinhetas'));
       setAllMedia([]);
     } finally {
       setLoading(false);
@@ -108,7 +109,7 @@ const Vinhetas: React.FC = () => {
       await mediaApi.delete(id);
       loadVinhetas();
     } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Erro ao remover vinheta');
+      setError(pickApiErrorMessage(e, 'Erro ao remover vinheta'));
     }
   };
 
@@ -136,7 +137,7 @@ const Vinhetas: React.FC = () => {
       setEditForm(null);
       loadVinhetas();
     } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Erro ao atualizar vinheta');
+      setError(pickApiErrorMessage(e, 'Erro ao atualizar vinheta'));
     }
   };
 

@@ -51,6 +51,7 @@ import {
   ExportQueryRecord,
   ExportScheduleRecord,
 } from '../../../services/api';
+import { pickApiErrorMessage } from '../../../utils/apiErrorMessage';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -255,7 +256,7 @@ const CronSQL: React.FC = () => {
           total: response.pagination.total,
         });
       } catch (err: any) {
-        setError(err.response?.data?.message || 'Erro ao carregar queries');
+        setError(pickApiErrorMessage(err, 'Erro ao carregar queries'));
       } finally {
         setQueriesLoading(false);
       }
@@ -281,7 +282,7 @@ const CronSQL: React.FC = () => {
           total: response.pagination.total,
         });
       } catch (err: any) {
-        setError(err.response?.data?.message || 'Erro ao carregar agendamentos');
+        setError(pickApiErrorMessage(err, 'Erro ao carregar agendamentos'));
       } finally {
         setSchedulesLoading(false);
       }
@@ -308,7 +309,7 @@ const CronSQL: React.FC = () => {
           total: response.pagination.total,
         });
       } catch (err: any) {
-        setError(err.response?.data?.message || 'Erro ao carregar execuções');
+        setError(pickApiErrorMessage(err, 'Erro ao carregar execuções'));
       } finally {
         setExecutionsLoading(false);
       }
@@ -400,7 +401,7 @@ const CronSQL: React.FC = () => {
       setQueryDialogOpen(false);
       loadQueries({ page: queryPagination.page, limit: queryPagination.limit });
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Erro ao salvar query');
+      setError(pickApiErrorMessage(err, 'Erro ao salvar query'));
     } finally {
       setSavingQuery(false);
     }
@@ -417,7 +418,7 @@ const CronSQL: React.FC = () => {
       setSnackbar({ open: true, message: 'Query excluída com sucesso.', severity: 'success' });
       loadQueries({ page: 1, limit: queryPagination.limit });
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Erro ao excluir query');
+      setError(pickApiErrorMessage(err, 'Erro ao excluir query'));
     } finally {
       setQueriesLoading(false);
     }
@@ -449,7 +450,7 @@ const CronSQL: React.FC = () => {
     } catch (err: any) {
       setSnackbar({
         open: true,
-        message: err.response?.data?.message || 'Erro ao validar SQL',
+        message: pickApiErrorMessage(err, 'Erro ao validar SQL'),
         severity: 'error',
       });
     } finally {
@@ -478,7 +479,7 @@ const CronSQL: React.FC = () => {
     } catch (err: any) {
       setSnackbar({
         open: true,
-        message: err.response?.data?.message || 'Erro ao testar conexão',
+        message: pickApiErrorMessage(err, 'Erro ao testar conexão'),
         severity: 'error',
       });
     } finally {
@@ -538,7 +539,7 @@ const CronSQL: React.FC = () => {
       setScheduleDialogOpen(false);
       loadSchedules({ page: schedulePagination.page, limit: schedulePagination.limit });
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Erro ao salvar agendamento');
+      setError(pickApiErrorMessage(err, 'Erro ao salvar agendamento'));
     } finally {
       setSavingSchedule(false);
     }
@@ -555,7 +556,7 @@ const CronSQL: React.FC = () => {
       setSnackbar({ open: true, message: 'Agendamento excluído com sucesso.', severity: 'success' });
       loadSchedules({ page: 1, limit: schedulePagination.limit });
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Erro ao excluir agendamento');
+      setError(pickApiErrorMessage(err, 'Erro ao excluir agendamento'));
     } finally {
       setSchedulesLoading(false);
     }
@@ -567,7 +568,7 @@ const CronSQL: React.FC = () => {
       setSnackbar({ open: true, message: 'Execução manual iniciada.', severity: 'success' });
       loadSchedules({ page: schedulePagination.page, limit: schedulePagination.limit });
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Erro ao executar agendamento');
+      setError(pickApiErrorMessage(err, 'Erro ao executar agendamento'));
     }
   };
 
@@ -586,11 +587,11 @@ const CronSQL: React.FC = () => {
       });
     } catch (err: any) {
       setCronValidation({
-        error: err.response?.data?.message || 'Erro ao validar cron',
+        error: pickApiErrorMessage(err, 'Erro ao validar cron'),
       });
       setSnackbar({
         open: true,
-        message: err.response?.data?.message || 'Erro ao validar cron',
+        message: pickApiErrorMessage(err, 'Erro ao validar cron'),
         severity: 'error',
       });
     }
@@ -615,7 +616,7 @@ const CronSQL: React.FC = () => {
     } catch (err: any) {
       setSnackbar({
         open: true,
-        message: err.response?.data?.message || 'Erro ao baixar arquivo',
+        message: pickApiErrorMessage(err, 'Erro ao baixar arquivo'),
         severity: 'error',
       });
     }
