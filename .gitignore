@@ -5,9 +5,10 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-# Mantém lockfile versionado no backend (necessário para npm ci no CI)
+# Mantém lockfile versionado no backend e no frontend (npm ci reprodutível)
 package-lock.json
 !backend/package-lock.json
+!frontend/package-lock.json
 yarn.lock
 
 # Production builds
@@ -293,4 +294,9 @@ vinhetas/*.mp4
 
 # Extração local do pacote ER (manter só o .zip versionado em docs/)
 /docs/ModeloERparaGerenciarMídiasEmTvsSmart/
+
+# Chaves SSH, pastas de credenciais e scripts one-off (evitar commit acidental)
+docs/chaves\ ssh\ oracle\ vms/
+/instalar_duckdns.sh
+/ssh-key-*.pub
 
