@@ -52,7 +52,7 @@ import { totemApi, Player } from '../../services/api';
 import { Publisher } from '../../services/api';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
-import { getPublisherIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
+import { getForeignTotemIdFromRow, getPublisherIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -383,12 +383,30 @@ const TotemPlayListPage: React.FC = () => {
 
                       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 2 }}>
                         <Tooltip title="Visualizar Playlist">
-                          <IconButton size="small" onClick={() => handleOpenPlaylist(playlist.totem_id)} disabled={loadingPlaylist}>
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              const tid =
+                                getForeignTotemIdFromRow(playlist as Record<string, unknown>) ??
+                                (playlist as any).totem_id;
+                              handleOpenPlaylist(tid);
+                            }}
+                            disabled={loadingPlaylist}
+                          >
                             <PlayArrow />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Regenerar Playlist">
-                          <IconButton size="small" onClick={() => handleRegenerate(playlist.totem_id)} disabled={loading}>
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              const tid =
+                                getForeignTotemIdFromRow(playlist as Record<string, unknown>) ??
+                                (playlist as any).totem_id;
+                              handleRegenerate(tid);
+                            }}
+                            disabled={loading}
+                          >
                             <Refresh />
                           </IconButton>
                         </Tooltip>

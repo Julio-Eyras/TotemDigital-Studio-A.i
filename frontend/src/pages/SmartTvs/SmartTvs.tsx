@@ -37,7 +37,7 @@ import {
 } from '@mui/icons-material';
 import { smartTvApi, SmartTv, CreateSmartTvRequest, UpdateSmartTvRequest, totemApi, Totem } from '../../services/api';
 import { useAppSelector } from '../../store';
-import { getTotemIdFromRow } from '../../utils/totemRowIds';
+import { getForeignTotemIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
 
 const SmartTvs: React.FC = () => {
   const theme = useTheme();
@@ -255,8 +255,8 @@ const SmartTvs: React.FC = () => {
   const smartTvsByTotem = useMemo(() => {
     const map = new Map<number, number>();
     for (const tv of smartTvs) {
-      const tid = Number((tv as any).totem_id ?? (tv as any).totemId);
-      if (!Number.isNaN(tid) && tid > 0) {
+      const tid = getForeignTotemIdFromRow(tv as Record<string, unknown>);
+      if (tid !== undefined) {
         map.set(tid, (map.get(tid) || 0) + 1);
       }
     }
