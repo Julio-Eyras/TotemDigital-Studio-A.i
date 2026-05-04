@@ -63,6 +63,7 @@ import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { PageHeader } from '../../components/DataDisplay';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { getTotemIdFromRow, getTotemLocalIdFromRow, getTotemPublisherIdFromRow } from '../../utils/totemRowIds';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -243,7 +244,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Erro ao carregar dados:', error);
-      setError(error?.response?.data?.error || 'Erro ao carregar dados');
+      setError(pickApiErrorMessage(error, 'Erro ao carregar dados'));
     } finally {
       setLoading(false);
     }
@@ -258,7 +259,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       setAccessList(accessRes);
     } catch (error: any) {
       console.error('Erro ao carregar acessos:', error);
-      setError(error?.response?.data?.error || 'Erro ao carregar acessos');
+      setError(pickApiErrorMessage(error, 'Erro ao carregar acessos'));
     }
   };
 
@@ -625,7 +626,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       await loadAllData();
     } catch (error: any) {
       console.error('Erro ao salvar plano:', error);
-      setError(error?.response?.data?.error || error?.message || 'Erro ao salvar plano');
+      setError(pickApiErrorMessage(error, 'Erro ao salvar plano'));
     }
   };
 
@@ -641,7 +642,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       await loadAllData();
     } catch (error: any) {
       console.error('Erro ao remover plano:', error);
-      setError(error?.response?.data?.error || error?.message || 'Erro ao remover plano');
+      setError(pickApiErrorMessage(error, 'Erro ao remover plano'));
     }
   };
 
@@ -711,7 +712,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       await loadPublisherAccess();
     } catch (error: any) {
       console.error('Erro ao salvar configuração:', error);
-      setError(error?.response?.data?.error || 'Erro ao salvar configuração');
+      setError(pickApiErrorMessage(error, 'Erro ao salvar configuração'));
     }
   };
 
@@ -726,7 +727,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       await loadPublisherAccess();
     } catch (error: any) {
       console.error('Erro ao remover acesso:', error);
-      setError(error?.response?.data?.error || 'Erro ao remover acesso');
+      setError(pickApiErrorMessage(error, 'Erro ao remover acesso'));
     }
   };
 

@@ -17,6 +17,7 @@ import {
   Send,
 } from '@mui/icons-material';
 import { authApi } from '../../services/api';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { useNavigate } from 'react-router-dom';
 
 const ForgotPassword: React.FC = () => {
@@ -60,7 +61,7 @@ const ForgotPassword: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Erro ao solicitar recuperação:', error);
-      setError(error.response?.data?.error || 'Erro ao solicitar recuperação de senha');
+      setError(pickApiErrorMessage(error, 'Erro ao solicitar recuperação de senha'));
     } finally {
       setLoading(false);
     }

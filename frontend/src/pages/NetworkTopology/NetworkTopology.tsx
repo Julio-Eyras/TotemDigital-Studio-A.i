@@ -45,6 +45,7 @@ import {
 import { networkTopologyApi, NetworkTopologyPublisher } from '../../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import HoloGraphNetwork from '../../components/HoloGraphNetwork/HoloGraphNetwork';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { NODE_TYPE_LABELS } from '@shared/holograph-adapter';
 import type { GraphNode } from '@shared/holograph-adapter';
 
@@ -105,7 +106,7 @@ const NetworkTopology: React.FC = () => {
       const res = await networkTopologyApi.getTopology();
       setTopology(res.data || []);
     } catch (e: any) {
-      setError(e.response?.data?.error || e.message || 'Erro ao carregar topologia');
+      setError(pickApiErrorMessage(e, 'Erro ao carregar topologia'));
       setTopology([]);
     } finally {
       setLoading(false);

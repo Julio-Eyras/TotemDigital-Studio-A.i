@@ -38,6 +38,7 @@ import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -277,7 +278,7 @@ const Totems: React.FC = () => {
       setSuccess('Totem criado com sucesso');
       loadAll();
     } catch (e: any) {
-      setError('Erro ao criar totem: ' + (e.response?.data?.error || e.message || 'Erro desconhecido'));
+      setError(`Erro ao criar totem: ${pickApiErrorMessage(e, 'Erro desconhecido')}`);
     }
   };
 
@@ -408,7 +409,7 @@ const Totems: React.FC = () => {
       setEditingTotem(null);
       await loadAll();
     } catch (e: any) {
-      setError('Erro ao editar totem: ' + (e?.response?.data?.error || e?.message || 'Erro desconhecido'));
+      setError(`Erro ao editar totem: ${pickApiErrorMessage(e, 'Erro desconhecido')}`);
     }
   };
 
@@ -761,10 +762,7 @@ const Totems: React.FC = () => {
                                     await loadAll();
                                   } catch (err: any) {
                                     console.error('Erro ao forçar heartbeat:', err);
-                                    setError(
-                                      'Erro ao forçar heartbeat: ' +
-                                        (err?.response?.data?.error || err?.message || 'Erro desconhecido')
-                                    );
+                                    setError(`Erro ao forçar heartbeat: ${pickApiErrorMessage(err, 'Erro desconhecido')}`);
                                   }
                                 }}
                               >
@@ -788,7 +786,7 @@ const Totems: React.FC = () => {
                               await loadAll();
                             } catch (err: any) {
                               console.error('Erro ao forçar online:', err);
-                              setError('Erro ao forçar online: ' + (err?.response?.data?.error || err?.message || 'Erro desconhecido'));
+                              setError(`Erro ao forçar online: ${pickApiErrorMessage(err, 'Erro desconhecido')}`);
                             }
                           }}
                         >

@@ -43,6 +43,7 @@ import {
 } from '@mui/icons-material';
 import { totemApi } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import TotemLogsViewer from '../TotemLogsViewer/TotemLogsViewer';
 
 interface TotemRemoteControlProps {
@@ -97,7 +98,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
       const response = await totemApi.getCommands(totemId, 50);
       setCommands(response.data || []);
     } catch (error: any) {
-      showError('Erro ao carregar histórico de comandos', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao carregar histórico de comandos'));
     } finally {
       setLoading(false);
     }
@@ -109,7 +110,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
       const response = await totemApi.getScreenshots(totemId, 20);
       setScreenshots(response.data || []);
     } catch (error: any) {
-      showError('Erro ao carregar screenshots', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao carregar screenshots'));
     } finally {
       setLoading(false);
     }
@@ -128,7 +129,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
         setTimeout(loadCommands, 2000); // Recarregar após 2 segundos
       }
     } catch (error: any) {
-      showError('Erro ao enviar comando de reinício', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao enviar comando de reinício'));
     } finally {
       setRestarting(false);
     }
@@ -143,7 +144,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
         setTimeout(loadScreenshots, 3000); // Recarregar após 3 segundos
       }
     } catch (error: any) {
-      showError('Erro ao solicitar screenshot', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao solicitar screenshot'));
     } finally {
       setCapturing(false);
     }
@@ -162,7 +163,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
       window.URL.revokeObjectURL(url);
       showSuccess('Screenshot baixado com sucesso');
     } catch (error: any) {
-      showError('Erro ao baixar screenshot', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao baixar screenshot'));
     }
   };
 

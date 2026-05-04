@@ -21,6 +21,7 @@ import {
 } from '@mui/icons-material';
 import { debugApi, SystemInfo as SystemInfoType } from '../../../services/api';
 import { adminApi } from '../../../services/api';
+import { pickApiErrorMessage } from '../../../utils/apiErrorMessage';
 
 const SystemInfo: React.FC = () => {
   const [systemInfo, setSystemInfo] = useState<SystemInfoType | null>(null);
@@ -137,7 +138,7 @@ const SystemInfo: React.FC = () => {
               setReconciling(false);
             } catch (err: any) {
               setReconciling(false);
-              setError('Erro ao executar reconciliação: ' + (err?.response?.data?.error || err?.message || 'Erro desconhecido'));
+              setError(`Erro ao executar reconciliação: ${pickApiErrorMessage(err, 'Erro desconhecido')}`);
               console.error('Erro ao executar reconciliação:', err);
             }
           }}

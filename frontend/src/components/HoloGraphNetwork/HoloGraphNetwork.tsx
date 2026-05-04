@@ -5,6 +5,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
 import { Box, CircularProgress, Alert, Typography, Button } from '@mui/material';
 import { networkTopologyApi } from '../../services/api';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { smartSignageToGraph, NODE_TYPE_COLORS, NODE_TYPE_LABELS } from '@shared/holograph-adapter';
 import type { GraphData, GraphNode, GraphEdge, SmartSignageNetwork } from '@shared/holograph-adapter';
 
@@ -117,7 +118,7 @@ export const HoloGraphNetwork: React.FC<HoloGraphNetworkProps> = ({
       })
       .catch((e: any) => {
         if (!cancelled) {
-          setError(e.response?.data?.error || e.message || 'Erro ao carregar grafo');
+          setError(pickApiErrorMessage(e, 'Erro ao carregar grafo'));
           setNetwork(null);
         }
       })

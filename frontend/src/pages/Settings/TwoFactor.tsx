@@ -38,6 +38,7 @@ import {
 } from '@mui/icons-material';
 import { twoFactorApi, TwoFactorSetup, TwoFactorStatus } from '../../services/api/twoFactorApi';
 import { useNotification } from '../../hooks/useNotification';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const TwoFactor: React.FC = () => {
   const { showSuccess, showError, showWarning } = useNotification();
@@ -60,7 +61,7 @@ const TwoFactor: React.FC = () => {
       const statusData = await twoFactorApi.getStatus();
       setStatus(statusData);
     } catch (error: any) {
-      showError('Erro ao carregar status de 2FA');
+      showError(pickApiErrorMessage(error, 'Erro ao carregar status de 2FA'));
       console.error('Erro ao carregar status:', error);
     } finally {
       setLoading(false);
@@ -74,7 +75,7 @@ const TwoFactor: React.FC = () => {
       setSetup(setupData);
       setBackupCodesDialogOpen(true);
     } catch (error: any) {
-      showError(error.response?.data?.error || 'Erro ao iniciar setup de 2FA');
+      showError(pickApiErrorMessage(error, 'Erro ao iniciar setup de 2FA'));
     } finally {
       setSetupLoading(false);
     }
@@ -94,7 +95,7 @@ const TwoFactor: React.FC = () => {
       setVerificationCode('');
       await loadStatus();
     } catch (error: any) {
-      showError(error.response?.data?.error || 'Código inválido');
+      showError(pickApiErrorMessage(error, 'Código inválido'));
     } finally {
       setSetupLoading(false);
     }

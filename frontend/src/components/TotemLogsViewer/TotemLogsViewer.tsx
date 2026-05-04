@@ -38,6 +38,7 @@ import {
 } from '@mui/icons-material';
 import { totemApi, getWebSocketUrl } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 interface TotemLogsViewerProps {
   totemId: number;
@@ -101,7 +102,7 @@ const TotemLogsViewer: React.FC<TotemLogsViewerProps> = ({
       });
       setLogs(response.data || []);
     } catch (error: any) {
-      showError('Erro ao carregar logs', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao carregar logs'));
     } finally {
       setLoading(false);
     }
@@ -190,7 +191,7 @@ const TotemLogsViewer: React.FC<TotemLogsViewerProps> = ({
 
       showSuccess('Logs baixados com sucesso');
     } catch (error: any) {
-      showError('Erro ao baixar logs', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao baixar logs'));
     }
   };
 

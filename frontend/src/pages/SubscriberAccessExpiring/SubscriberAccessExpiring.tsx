@@ -34,6 +34,7 @@ import {
 } from '@mui/icons-material';
 import { subscriberAccessApi } from '../../services/api';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -78,7 +79,7 @@ const SubscriberAccessExpiringPage: React.FC = () => {
       setSummary(response.summary || summary);
     } catch (error: any) {
       console.error('Erro ao carregar acessos expirando:', error);
-      setError(error?.response?.data?.error || 'Erro ao carregar acessos expirando');
+      setError(pickApiErrorMessage(error, 'Erro ao carregar acessos expirando'));
     } finally {
       setLoading(false);
     }

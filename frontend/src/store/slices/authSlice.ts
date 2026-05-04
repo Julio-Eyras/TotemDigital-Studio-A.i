@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { authApi, LoginResponse } from '../../services/api';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 export interface UserFlags {
   flag_smart_0: boolean;
@@ -76,7 +77,7 @@ export const login = createAsyncThunk<LoginResponse, { username: string; passwor
       const response = await authApi.login(credentials);
       return response;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.error || error.response?.data?.message || 'Erro ao fazer login');
+      return rejectWithValue(pickApiErrorMessage(error, 'Erro ao fazer login'));
     }
   }
 );
@@ -91,7 +92,7 @@ export const logout = createAsyncThunk(
       }
       return null;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Erro ao fazer logout');
+      return rejectWithValue(pickApiErrorMessage(error, 'Erro ao fazer logout'));
     }
   }
 );

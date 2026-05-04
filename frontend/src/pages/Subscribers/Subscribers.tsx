@@ -109,6 +109,7 @@ import CampaignFullEditorDialog from '../Campaigns/CampaignFullEditorDialog';
 import { normalizeCampaign } from '../Campaigns/campaignHelpers';
 import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -445,7 +446,7 @@ const Subscribers: React.FC = () => {
       setTotal(response.total || response.data?.length || 0);
     } catch (error) {
       console.error('Erro ao carregar Subscribers:', error);
-      setError('Erro ao carregar lista de Subscribers');
+      setError(pickApiErrorMessage(error, 'Erro ao carregar lista de Subscribers'));
     } finally {
       setLoading(false);
     }
@@ -527,7 +528,7 @@ const Subscribers: React.FC = () => {
       );
     } catch (error) {
       console.error('Erro ao carregar dados do Subscriber para edição:', error);
-      setError('Erro ao carregar dados do Anunciante');
+      setError(pickApiErrorMessage(error, 'Erro ao carregar dados do Anunciante'));
     }
   };
 
@@ -768,7 +769,7 @@ const Subscribers: React.FC = () => {
       });
     } catch (error: any) {
       console.error('Erro ao salvar local:', error);
-      setError(error?.response?.data?.error || 'Erro ao salvar local');
+      setError(pickApiErrorMessage(error, 'Erro ao salvar local'));
     }
   };
 
@@ -816,7 +817,7 @@ const Subscribers: React.FC = () => {
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     } catch (error: any) {
       console.error('Erro ao excluir local:', error);
-      setError(error?.response?.data?.error || 'Erro ao excluir local');
+      setError(pickApiErrorMessage(error, 'Erro ao excluir local'));
     }
   };
 
@@ -873,7 +874,7 @@ const Subscribers: React.FC = () => {
       });
     } catch (error: any) {
       console.error('Erro ao salvar totem:', error);
-      setError(error?.response?.data?.error || 'Erro ao salvar totem');
+      setError(pickApiErrorMessage(error, 'Erro ao salvar totem'));
     }
   };
 
@@ -917,7 +918,7 @@ const Subscribers: React.FC = () => {
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     } catch (error: any) {
       console.error('Erro ao excluir totem:', error);
-      setError(error?.response?.data?.error || 'Erro ao excluir totem');
+      setError(pickApiErrorMessage(error, 'Erro ao excluir totem'));
     }
   };
 
@@ -981,7 +982,7 @@ const Subscribers: React.FC = () => {
       });
     } catch (error: any) {
       console.error('Erro ao salvar Smart TV:', error);
-      setError(error?.response?.data?.error || 'Erro ao salvar Smart TV');
+      setError(pickApiErrorMessage(error, 'Erro ao salvar Smart TV'));
     }
   };
 
@@ -1019,7 +1020,7 @@ const Subscribers: React.FC = () => {
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     } catch (error: any) {
       console.error('Erro ao excluir Smart TV:', error);
-      setError(error?.response?.data?.error || 'Erro ao excluir Smart TV');
+      setError(pickApiErrorMessage(error, 'Erro ao excluir Smart TV'));
     }
   };
   */
@@ -1084,7 +1085,7 @@ const Subscribers: React.FC = () => {
       setEditMediaForm({ name: '', description: '', tags: [] });
     } catch (error: any) {
       console.error('Erro ao atualizar mídia:', error);
-      setError(error?.response?.data?.error || 'Erro ao atualizar mídia');
+      setError(pickApiErrorMessage(error, 'Erro ao atualizar mídia'));
     }
   };
 
@@ -1107,7 +1108,7 @@ const Subscribers: React.FC = () => {
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     } catch (error: any) {
       console.error('Erro ao excluir mídia:', error);
-      setError(error?.response?.data?.error || 'Erro ao excluir mídia');
+      setError(pickApiErrorMessage(error, 'Erro ao excluir mídia'));
     }
   };
 
@@ -1152,7 +1153,7 @@ const Subscribers: React.FC = () => {
       setEditPlaylistForm({ name: '', description: '', isActive: true });
     } catch (error: any) {
       console.error('Erro ao salvar playlist:', error);
-      setError(error?.response?.data?.error || 'Erro ao salvar playlist');
+      setError(pickApiErrorMessage(error, 'Erro ao salvar playlist'));
     }
   };
 
@@ -1213,7 +1214,7 @@ const Subscribers: React.FC = () => {
       setSelectedMediasForPlaylist([]);
     } catch (error: any) {
       console.error('Erro ao adicionar mídias à playlist:', error);
-      setError('Erro ao adicionar mídias à playlist: ' + (error.response?.data?.error || error.message));
+      setError(`Erro ao adicionar mídias à playlist: ${pickApiErrorMessage(error, 'Erro desconhecido')}`);
     }
   };
 
@@ -1226,7 +1227,7 @@ const Subscribers: React.FC = () => {
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     } catch (error: any) {
       console.error('Erro ao excluir playlist:', error);
-      setError(error?.response?.data?.error || 'Erro ao excluir playlist');
+      setError(pickApiErrorMessage(error, 'Erro ao excluir playlist'));
     }
   };
 
@@ -1402,12 +1403,9 @@ const Subscribers: React.FC = () => {
       setEditCampaignForm({ title: '', description: '', campaign_type: 'general', priority: 1, contractId: undefined, status: 'draft', isActive: true });
     } catch (error: any) {
       console.error('Erro ao salvar campanha:', error);
-      const msg =
-        error?.response?.data?.message ??
-        error?.response?.data?.error ??
-        (typeof error?.message === 'string' ? error.message : null) ??
-        'Erro ao salvar campanha. Verifique a consola (F12) ou tente novamente.';
-      setError(msg);
+      setError(
+        pickApiErrorMessage(error, 'Erro ao salvar campanha. Verifique a consola (F12) ou tente novamente.')
+      );
     } finally {
       setCampaignSaveLoading(false);
     }
@@ -1544,7 +1542,7 @@ const Subscribers: React.FC = () => {
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     } catch (error: any) {
       console.error('Erro ao excluir campanha:', error);
-      setError(error?.response?.data?.error || 'Erro ao excluir campanha');
+      setError(pickApiErrorMessage(error, 'Erro ao excluir campanha'));
     }
   };
 
@@ -1889,7 +1887,7 @@ const Subscribers: React.FC = () => {
       loadSubscribers();
     } catch (error: any) {
       console.error('Erro ao atualizar Subscriber:', error);
-      setError(error?.response?.data?.error || error?.message || 'Erro ao atualizar Anunciante');
+      setError(pickApiErrorMessage(error, 'Erro ao atualizar Anunciante'));
     }
   };
 
@@ -1900,7 +1898,7 @@ const Subscribers: React.FC = () => {
         loadSubscribers();
       } catch (error: any) {
         console.error('Erro ao excluir Subscriber:', error);
-        setError(error?.response?.data?.error || error?.message || 'Erro ao excluir Subscriber');
+        setError(pickApiErrorMessage(error, 'Erro ao excluir Subscriber'));
       }
     }
   };
@@ -3212,7 +3210,7 @@ const Subscribers: React.FC = () => {
                             plan_id: undefined,
                           });
                         } catch (error: any) {
-                          setError(error?.response?.data?.error || error?.message || 'Erro ao salvar contrato');
+                          setError(pickApiErrorMessage(error, 'Erro ao salvar contrato'));
                         }
                       }}
                       disabled={!subscriberContractFormEdit.contract_number || !subscriberContractFormEdit.title}
@@ -3324,7 +3322,7 @@ const Subscribers: React.FC = () => {
                                     });
                                   }
                                 } catch (error: any) {
-                                  setError(error?.response?.data?.error || error?.message || 'Erro ao excluir contrato');
+                                  setError(pickApiErrorMessage(error, 'Erro ao excluir contrato'));
                                 }
                               }
                             }}
@@ -3793,7 +3791,7 @@ const Subscribers: React.FC = () => {
                               await handleStartEditPlaylist(editingEditPlaylistIndex!);
                             } catch (error: any) {
                               console.error('Erro ao reordenar itens:', error);
-                              setError('Erro ao reordenar itens: ' + (error.response?.data?.error || error.message));
+                              setError(`Erro ao reordenar itens: ${pickApiErrorMessage(error, 'Erro desconhecido')}`);
                             } finally {
                               setDraggedItemIndex(null);
                             }
@@ -3891,7 +3889,7 @@ const Subscribers: React.FC = () => {
                                       setTempItemDuration({});
                                     } catch (error: any) {
                                       console.error('Erro ao atualizar duração:', error);
-                                      setError('Erro ao atualizar duração: ' + (error.response?.data?.error || error.message));
+                                      setError(`Erro ao atualizar duração: ${pickApiErrorMessage(error, 'Erro desconhecido')}`);
                                     }
                                   }}
                                 >
@@ -3937,7 +3935,7 @@ const Subscribers: React.FC = () => {
                               await handleStartEditPlaylist(editingEditPlaylistIndex!);
                             } catch (error: any) {
                               console.error('Erro ao remover item:', error);
-                              setError('Erro ao remover item: ' + (error.response?.data?.error || error.message));
+                              setError(`Erro ao remover item: ${pickApiErrorMessage(error, 'Erro desconhecido')}`);
                             }
                           }}>
                             <Delete />

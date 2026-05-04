@@ -50,6 +50,7 @@ import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -321,7 +322,7 @@ const Media: React.FC = () => {
       loadMediaItems();
     } catch (e: any) {
       console.error('Erro ao atualizar mídia:', e);
-      setError(e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Erro ao atualizar mídia');
+      setError(pickApiErrorMessage(e, 'Erro ao atualizar mídia'));
     }
   };
 
@@ -332,7 +333,7 @@ const Media: React.FC = () => {
         loadMediaItems();
       } catch (error) {
         console.error('Erro ao excluir mídia:', error);
-        setError('Erro ao excluir mídia');
+        setError(pickApiErrorMessage(error, 'Erro ao excluir mídia'));
       }
     }
   };

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Box, Typography, Paper, Grid, Card, CardContent, Button, TextField, Chip, Dialog, DialogTitle, DialogContent, DialogActions, Alert } from '@mui/material';
 import { SmartToy, Add, Refresh } from '@mui/icons-material';
 import { smartPlaylistApi, SmartPlaylist as SmartPlaylistType, SmartPlaylistRequest } from '../../services/api';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const SmartPlaylist: React.FC = () => {
   const [items, setItems] = useState<SmartPlaylistType[]>([]);
@@ -22,7 +23,7 @@ const SmartPlaylist: React.FC = () => {
       setItems(Array.isArray(resp) ? resp : []);
     } catch (e) {
       console.error('Erro ao carregar Smart Playlists:', e);
-      setError('Erro ao carregar Smart Playlists');
+      setError(pickApiErrorMessage(e, 'Erro ao carregar Smart Playlists'));
       setItems([]);
     } finally {
       setLoading(false);
@@ -57,8 +58,7 @@ const SmartPlaylist: React.FC = () => {
     } catch (e: any) {
       console.error('Erro ao criar Smart Playlist:', e);
       console.error('Resposta completa:', e?.response);
-      const errorMessage = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Erro ao criar Smart Playlist';
-      setError(errorMessage);
+      setError(pickApiErrorMessage(e, 'Erro ao criar Smart Playlist'));
     }
   };
 

@@ -21,6 +21,7 @@ import {
   CheckCircle,
 } from '@mui/icons-material';
 import { authApi } from '../../services/api';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const ResetPassword: React.FC = () => {
@@ -79,7 +80,7 @@ const ResetPassword: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Erro ao redefinir senha:', error);
-      setError(error.response?.data?.error || 'Erro ao redefinir senha. Token inválido ou expirado.');
+      setError(pickApiErrorMessage(error, 'Erro ao redefinir senha. Token inválido ou expirado.'));
     } finally {
       setLoading(false);
     }

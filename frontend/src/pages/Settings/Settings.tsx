@@ -38,6 +38,7 @@ import {
 import { settingsApi, SystemSetting, logsApi, LogRotationConfig, LogFileInfo, DiskSpaceInfo, RotationStatus, authApi } from '../../services/api';
 import TwoFactor from './TwoFactor';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -364,7 +365,7 @@ const Settings: React.FC = () => {
         confirmPassword: '',
       });
     } catch (e: any) {
-      setError(e?.response?.data?.error || e?.response?.data?.message || 'Erro ao alterar senha.');
+      setError(pickApiErrorMessage(e, 'Erro ao alterar senha.'));
     } finally {
       setChangingPassword(false);
     }

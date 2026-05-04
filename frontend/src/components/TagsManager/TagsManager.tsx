@@ -44,6 +44,7 @@ import {
 } from '@mui/icons-material';
 import { tagApi, Tag } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const TagsManager: React.FC = () => {
   const { showSuccess, showError } = useNotification();
@@ -70,7 +71,7 @@ const TagsManager: React.FC = () => {
       const response = await tagApi.getAll();
       setTags(response.data || []);
     } catch (error: any) {
-      showError('Erro ao carregar tags', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao carregar tags'));
     } finally {
       setLoading(false);
     }
@@ -96,7 +97,7 @@ const TagsManager: React.FC = () => {
       resetForm();
       loadTags();
     } catch (error: any) {
-      showError('Erro ao criar tag', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao criar tag'));
     }
   };
 
@@ -110,7 +111,7 @@ const TagsManager: React.FC = () => {
       showSuccess('Tag desativada com sucesso');
       loadTags();
     } catch (error: any) {
-      showError('Erro ao desativar tag', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao desativar tag'));
     }
   };
 

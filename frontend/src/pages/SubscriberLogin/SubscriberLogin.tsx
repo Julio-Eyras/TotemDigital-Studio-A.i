@@ -16,6 +16,7 @@ import {
 import { Visibility, VisibilityOff, Login as LoginIcon, Business } from '@mui/icons-material';
 import { AppDispatch } from '../../store/store';
 import { authApi } from '../../services/api/authApi';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const SubscriberLogin: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -104,11 +105,7 @@ const SubscriberLogin: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Erro no login:', error);
-      setError(
-        error.response?.data?.error || 
-        error.message || 
-        'Erro ao fazer login. Verifique suas credenciais.'
-      );
+      setError(pickApiErrorMessage(error, 'Erro ao fazer login. Verifique suas credenciais.'));
     } finally {
       setIsLoading(false);
     }

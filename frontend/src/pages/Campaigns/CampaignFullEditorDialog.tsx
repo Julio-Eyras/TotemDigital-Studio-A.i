@@ -59,6 +59,7 @@ import {
   normalizeCampaignType,
 } from './campaignHelpers';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 export interface CampaignFullEditorDialogProps {
   open: boolean;
@@ -425,12 +426,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       setSelectedCampaign(normalizeCampaign(updated));
     } catch (error: any) {
       console.error('Erro ao reordenar mídias:', error);
-      setError(
-        error?.response?.data?.message ||
-          error?.response?.data?.error ||
-          error?.message ||
-          'Erro ao reordenar mídias'
-      );
+      setError(pickApiErrorMessage(error, 'Erro ao reordenar mídias'));
     }
   };
 
@@ -443,12 +439,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       setSelectedCampaign(normalizeCampaign(updated));
     } catch (error: any) {
       console.error('Erro ao reordenar playlists:', error);
-      setError(
-        error?.response?.data?.message ||
-          error?.response?.data?.error ||
-          error?.message ||
-          'Erro ao reordenar playlists'
-      );
+      setError(pickApiErrorMessage(error, 'Erro ao reordenar playlists'));
     }
   };
 
@@ -501,12 +492,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       onClose();
     } catch (error: any) {
       console.error('Erro ao atualizar campanha:', error);
-      setError(
-        error?.response?.data?.message ||
-          error?.response?.data?.error ||
-          error?.message ||
-          'Erro ao atualizar campanha'
-      );
+      setError(pickApiErrorMessage(error, 'Erro ao atualizar campanha'));
     }
   };
 

@@ -25,6 +25,7 @@ import {
 import { authApi } from '../../services/api';
 import { twoFactorApi } from '../../services/api/twoFactorApi';
 import { APP_DISPLAY_NAME } from '../../config/featureFlags';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 interface LoginFormData {
   username: string;
@@ -129,7 +130,7 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       }
       // Outros erros
       else {
-        setError(error.response?.data?.error || error.response?.data?.message || 'Erro ao fazer login. Tente novamente.');
+        setError(pickApiErrorMessage(error, 'Erro ao fazer login. Tente novamente.'));
       }
     } finally {
       setLoading(false);
@@ -161,7 +162,7 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       onLoginSuccess(result.token, result.user);
     } catch (error: any) {
       console.error('Erro ao verificar 2FA:', error);
-      setError(error.response?.data?.error || 'Código inválido. Tente novamente.');
+      setError(pickApiErrorMessage(error, 'Código inválido. Tente novamente.'));
     } finally {
       setLoading(false);
     }

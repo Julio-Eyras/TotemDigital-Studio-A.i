@@ -58,6 +58,7 @@ import {
 } from '@mui/icons-material';
 import { dispatcherDebugApi, RedisStatus, QueryLog, DispatcherMessage, DebugStats } from '../../services/api';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { format } from 'date-fns';
 
 interface TabPanelProps {
@@ -168,7 +169,7 @@ const DispatcherDebug: React.FC = () => {
       setMessages(messagesRes.data || []);
       setStats(statsRes.data);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao carregar dados de debug');
+      setError(pickApiErrorMessage(err, 'Erro ao carregar dados de debug'));
       console.error('Erro ao carregar debug:', err);
     } finally {
       setLoading(false);
@@ -182,7 +183,7 @@ const DispatcherDebug: React.FC = () => {
       await dispatcherDebugApi.clearLogs();
       await loadAll();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao limpar logs');
+      setError(pickApiErrorMessage(err, 'Erro ao limpar logs'));
     }
   };
 

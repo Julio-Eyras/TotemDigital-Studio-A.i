@@ -51,6 +51,7 @@ import {
 } from '@mui/icons-material';
 import { otaApi, OTAUpdate } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const OTAUpdates: React.FC = () => {
   const { showSuccess, showError } = useNotification();
@@ -86,7 +87,7 @@ const OTAUpdates: React.FC = () => {
       const response = await otaApi.getAll();
       setUpdates(response.data || []);
     } catch (error: any) {
-      showError('Erro ao carregar atualizações', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao carregar atualizações'));
     } finally {
       setLoading(false);
     }
@@ -138,7 +139,7 @@ const OTAUpdates: React.FC = () => {
       loadUpdates();
       loadStats();
     } catch (error: any) {
-      showError('Erro ao criar atualização', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao criar atualização'));
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -152,7 +153,7 @@ const OTAUpdates: React.FC = () => {
       loadUpdates();
       loadStats();
     } catch (error: any) {
-      showError('Erro ao ativar atualização', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao ativar atualização'));
     }
   };
 
@@ -163,7 +164,7 @@ const OTAUpdates: React.FC = () => {
       loadUpdates();
       loadStats();
     } catch (error: any) {
-      showError('Erro ao pausar atualização', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao pausar atualização'));
     }
   };
 
@@ -180,7 +181,7 @@ const OTAUpdates: React.FC = () => {
       window.URL.revokeObjectURL(url);
       showSuccess('Download iniciado');
     } catch (error: any) {
-      showError('Erro ao fazer download', error.response?.data?.error || error.message);
+      showError(pickApiErrorMessage(error, 'Erro ao fazer download'));
     }
   };
 
