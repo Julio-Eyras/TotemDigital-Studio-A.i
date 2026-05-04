@@ -70,6 +70,7 @@ import {
 import { useAppSelector } from '../../store';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { getForeignTotemIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { PageHeader } from '../../components/DataDisplay';
 
 const Locals: React.FC = () => {
@@ -216,7 +217,7 @@ const Locals: React.FC = () => {
       await loadLocalStats(sortedLocals);
     } catch (error: any) {
       console.error('Erro ao carregar locals:', error);
-      setError(error.response?.data?.error || 'Erro ao carregar lista de locais');
+      setError(pickApiErrorMessage(error, 'Erro ao carregar lista de locais'));
     } finally {
       setLoading(false);
     }
@@ -267,7 +268,7 @@ const Locals: React.FC = () => {
       loadLocals();
     } catch (error: any) {
       console.error('Erro ao criar local:', error);
-      setError(error.response?.data?.error || 'Erro ao criar local');
+      setError(pickApiErrorMessage(error, 'Erro ao criar local'));
     }
   };
 
@@ -295,7 +296,7 @@ const Locals: React.FC = () => {
       loadLocals();
     } catch (error: any) {
       console.error('Erro ao atualizar local:', error);
-      setError(error.response?.data?.error || 'Erro ao atualizar local');
+      setError(pickApiErrorMessage(error, 'Erro ao atualizar local'));
     }
   };
 
@@ -309,7 +310,7 @@ const Locals: React.FC = () => {
       loadLocals();
     } catch (error: any) {
       console.error('Erro ao deletar local:', error);
-      setError(error.response?.data?.error || 'Erro ao deletar local');
+      setError(pickApiErrorMessage(error, 'Erro ao deletar local'));
     }
   };
 
@@ -939,7 +940,7 @@ const Locals: React.FC = () => {
                                   setSuccess('Heartbeat forçado com sucesso');
                                 } catch (err: any) {
                                   console.error('Erro ao forçar heartbeat:', err);
-                                  setError('Erro ao forçar heartbeat: ' + (err?.response?.data?.error || err?.message || 'Erro desconhecido'));
+                                  setError(`Erro ao forçar heartbeat: ${pickApiErrorMessage(err, 'Erro desconhecido')}`);
                                 }
                               }}
                             >

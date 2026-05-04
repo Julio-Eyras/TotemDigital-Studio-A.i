@@ -65,6 +65,7 @@ import {
   CreatePublisherContractRequest,
   UpdatePublisherContractRequest,
 } from '../../services/api';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { ContractCard, ContractForm, ContractDetails } from './components';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 
@@ -325,7 +326,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       setContracts(response.data || []);
     } catch (error: any) {
       console.error('Erro ao carregar contratos:', error);
-      setError('Erro ao carregar lista de contratos');
+      setError(pickApiErrorMessage(error, 'Erro ao carregar lista de contratos'));
     } finally {
       setLoading(false);
     }
@@ -373,7 +374,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       setPublisherContracts(response.data || []);
     } catch (error: any) {
       console.error('Erro ao carregar contratos de publishers:', error);
-      setError('Erro ao carregar lista de contratos de publishers');
+      setError(pickApiErrorMessage(error, 'Erro ao carregar lista de contratos de publishers'));
     } finally {
       setLoading(false);
     }
@@ -459,7 +460,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       loadContracts();
     } catch (error: any) {
       console.error('Erro ao criar contrato:', error);
-      setError(error?.response?.data?.error || error?.message || 'Erro ao criar contrato');
+      setError(pickApiErrorMessage(error, 'Erro ao criar contrato'));
     }
   };
 
@@ -488,7 +489,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       loadContracts();
     } catch (error: any) {
       console.error('Erro ao atualizar contrato:', error);
-      setError(error?.response?.data?.error || error?.message || 'Erro ao atualizar contrato');
+      setError(pickApiErrorMessage(error, 'Erro ao atualizar contrato'));
     }
   };
 
@@ -500,7 +501,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       loadContracts();
     } catch (error: any) {
       console.error('Erro ao excluir contrato:', error);
-      setError(error?.response?.data?.error || error?.message || 'Erro ao excluir contrato');
+      setError(pickApiErrorMessage(error, 'Erro ao excluir contrato'));
     }
   };
 
@@ -693,7 +694,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       loadPublisherContracts();
     } catch (error: any) {
       console.error('Erro ao criar contrato de publisher:', error);
-      setError(error?.response?.data?.error || error?.message || 'Erro ao criar contrato de publisher');
+      setError(pickApiErrorMessage(error, 'Erro ao criar contrato de publisher'));
     }
   };
 
@@ -724,7 +725,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       loadPublisherContracts();
     } catch (error: any) {
       console.error('Erro ao atualizar contrato de publisher:', error);
-      setError(error?.response?.data?.error || error?.message || 'Erro ao atualizar contrato de publisher');
+      setError(pickApiErrorMessage(error, 'Erro ao atualizar contrato de publisher'));
     }
   };
 
@@ -738,7 +739,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       loadPublisherContracts();
     } catch (error: any) {
       console.error('Erro ao excluir contrato de publisher:', error);
-      setError(error?.response?.data?.error || error?.message || 'Erro ao excluir contrato de publisher');
+      setError(pickApiErrorMessage(error, 'Erro ao excluir contrato de publisher'));
     }
   };
 

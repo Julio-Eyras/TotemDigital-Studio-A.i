@@ -51,6 +51,7 @@ import {
   playlistApi,
   subscriberApi,
 } from '../../services/api';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { useAppSelector } from '../../store/hooks';
 import { useLocation } from 'react-router-dom';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
@@ -329,7 +330,7 @@ const Playlists: React.FC = () => {
       await loadPlaylistExposure(created.playlist_id);
     } catch (e: any) {
       console.error('Erro ao criar playlist:', e);
-      setError(e?.response?.data?.error || e?.message || 'Erro ao criar playlist');
+      setError(pickApiErrorMessage(e, 'Erro ao criar playlist'));
     }
   };
 
@@ -357,7 +358,7 @@ const Playlists: React.FC = () => {
       await loadPlaylists();
     } catch (e: any) {
       console.error('Erro ao atualizar playlist:', e);
-      setError(e?.response?.data?.error || e?.message || 'Erro ao atualizar playlist');
+      setError(pickApiErrorMessage(e, 'Erro ao atualizar playlist'));
     }
   };
 
@@ -368,7 +369,7 @@ const Playlists: React.FC = () => {
       await loadPlaylists();
     } catch (e) {
       console.error('Erro ao excluir playlist:', e);
-      setError('Erro ao excluir playlist');
+      setError(pickApiErrorMessage(e, 'Erro ao excluir playlist'));
     }
   };
 
@@ -381,7 +382,7 @@ const Playlists: React.FC = () => {
       await loadPlaylists();
     } catch (e: any) {
       console.error('Erro ao adicionar mídia:', e);
-      setError(e?.response?.data?.error || e?.message || 'Erro ao adicionar mídia à playlist');
+      setError(pickApiErrorMessage(e, 'Erro ao adicionar mídia à playlist'));
     }
   };
 
@@ -393,7 +394,7 @@ const Playlists: React.FC = () => {
       await loadPlaylists();
     } catch (e) {
       console.error('Erro ao remover mídia:', e);
-      setError('Erro ao remover mídia da playlist');
+      setError(pickApiErrorMessage(e, 'Erro ao remover mídia da playlist'));
     }
   };
 

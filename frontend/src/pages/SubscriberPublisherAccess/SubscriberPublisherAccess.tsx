@@ -46,6 +46,7 @@ import { publisherApi, Publisher } from '../../services/api';
 import { subscriberAccessApi, SubscriberPublisherAccessDetail } from '../../services/api';
 import { planApi, Plan } from '../../services/api';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -117,7 +118,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
       setAccessList(accessRes);
     } catch (error: any) {
       console.error('Erro ao carregar dados:', error);
-      setError(error?.response?.data?.error || 'Erro ao carregar dados');
+      setError(pickApiErrorMessage(error, 'Erro ao carregar dados'));
     } finally {
       setLoading(false);
     }
@@ -166,7 +167,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
       await loadData();
     } catch (error: any) {
       console.error('Erro ao conceder acesso:', error);
-      setError(error?.response?.data?.error || 'Erro ao conceder acesso');
+      setError(pickApiErrorMessage(error, 'Erro ao conceder acesso'));
     }
   };
 
@@ -180,7 +181,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
       await loadData();
     } catch (error: any) {
       console.error('Erro ao revogar acesso:', error);
-      setError(error?.response?.data?.error || 'Erro ao revogar acesso');
+      setError(pickApiErrorMessage(error, 'Erro ao revogar acesso'));
     }
   };
 
