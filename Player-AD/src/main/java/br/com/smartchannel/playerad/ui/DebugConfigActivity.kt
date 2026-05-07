@@ -37,6 +37,7 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var editUin: EditText
     private lateinit var editDeviceId: EditText
     private lateinit var switchAcceptImages: SwitchCompat
+    private lateinit var switchAllowPlaybackAudio: SwitchCompat
     private lateinit var editMaxSecondsWithoutServerCheck: EditText
     private lateinit var spinnerStorage: Spinner
     private lateinit var editStoragePath: EditText
@@ -72,6 +73,7 @@ class DebugConfigActivity : AppCompatActivity() {
         editUin = findViewById(R.id.editUin)
         editDeviceId = findViewById(R.id.editDeviceId)
         switchAcceptImages = findViewById(R.id.switchAcceptImages)
+        switchAllowPlaybackAudio = findViewById(R.id.switchAllowPlaybackAudio)
         editMaxSecondsWithoutServerCheck = findViewById(R.id.editMaxSecondsWithoutServerCheck)
         spinnerStorage = findViewById(R.id.spinnerStorage)
         editStoragePath = findViewById(R.id.editStoragePath)
@@ -104,6 +106,7 @@ class DebugConfigActivity : AppCompatActivity() {
         editUin.setText(current.uin)
         editDeviceId.setText(current.deviceId)
         switchAcceptImages.isChecked = current.acceptImagesInPlaylist
+        switchAllowPlaybackAudio.isChecked = current.allowPlaybackAudio
         editMaxSecondsWithoutServerCheck.setText(current.maxSecondsWithoutServerCheck.toString())
 
         val storageModes = resources.getStringArray(R.array.player_storage_modes)
@@ -283,6 +286,7 @@ class DebugConfigActivity : AppCompatActivity() {
             uin = uin,
             deviceId = deviceId,
             acceptImagesInPlaylist = switchAcceptImages.isChecked,
+            allowPlaybackAudio = switchAllowPlaybackAudio.isChecked,
             fallbackPropagandasPerVinheta = loaded.fallbackPropagandasPerVinheta,
             maxSecondsWithoutServerCheck = maxSeconds,
             storageMode = storageMode,
@@ -452,6 +456,7 @@ class DebugConfigActivity : AppCompatActivity() {
             put("uin", cfg.uin)
             put("deviceId", cfg.deviceId)
             put("acceptImagesInPlaylist", cfg.acceptImagesInPlaylist)
+            put("allowPlaybackAudio", cfg.allowPlaybackAudio)
             put("fallbackPropagandasPerVinheta", cfg.fallbackPropagandasPerVinheta)
             put("maxSecondsWithoutServerCheck", cfg.maxSecondsWithoutServerCheck)
             put("storage", PlayerConfigLoader.storageModeToJsonValue(cfg.storageMode))

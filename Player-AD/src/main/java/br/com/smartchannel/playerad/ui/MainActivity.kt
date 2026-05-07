@@ -98,6 +98,7 @@ class MainActivity : AppCompatActivity() {
             exoPlayer,
             imageView,
             config.acceptImagesInPlaylist,
+            config.allowPlaybackAudio,
             config.fallbackPropagandasPerVinheta,
             config.maxSecondsWithoutServerCheck
         )

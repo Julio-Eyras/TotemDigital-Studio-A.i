@@ -71,6 +71,8 @@ export class PublisherCampaignMixService {
         try {
             const { publisherId, totemId, date, dayOfWeek } = filters;
             const useDirectTotem = totemId != null && !DISABLE_DIRECT_CAMPAIGN_TOTEM;
+            const publisherContext = await this.getPublisherContextForLogs(publisherId);
+            const totemContext = totemId != null ? await this.getTotemContextForLogs(totemId) : undefined;
 
             let whereClause = `
                 WHERE cp.publisher_id = $1
@@ -219,6 +221,43 @@ export class PublisherCampaignMixService {
                           AND p.is_active = true
                         ORDER BY cpl.priority DESC, p.created_at ASC
                     `, [campaign.campaign_id]);
+
+                    const medias = await this.db.findMany(`
+                        WITH playlist_medias AS (
+                            SELECT
+                                m.media_id,
+                                m.name AS media_name,
+                                'playlist'::text AS source
+                            FROM campaign_playlists cpl
+                            INNER JOIN playlist_items pi
+                                ON pi.playlist_id = cpl.playlist_id
+                                AND COALESCE(pi.is_active, true) = true
+                            INNER JOIN medias m
+                                ON m.media_id = pi.media_id
+                                AND m.is_active = true
+                            WHERE cpl.campaign_id = $1
+                              AND COALESCE(cpl.is_active, true) = true
+                        ),
+                        direct_medias AS (
+                            SELECT
+                                m.media_id,
+                                m.name AS media_name,
+                                'campaign_media'::text AS source
+                            FROM campaign_medias cm
+                            INNER JOIN medias m
+                                ON m.media_id = cm.media_id
+                                AND m.is_active = true
+                            WHERE cm.campaign_id = $1
+                              AND COALESCE(cm.is_active, true) = true
+                        )
+                        SELECT DISTINCT media_id, media_name, source
+                        FROM (
+                            SELECT * FROM playlist_medias
+                            UNION ALL
+                            SELECT * FROM direct_medias
+                        ) x
+                        ORDER BY media_name ASC NULLS LAST, media_id ASC
+                    `, [campaign.campaign_id]);
                     
                     return {
                         ...campaignPublic,
@@ -226,21 +265,49 @@ export class PublisherCampaignMixService {
                             playlist_id: pl.playlist_id,
                             name: pl.name,
                             priority: pl.priority
-                        }))
+                        })),
+                        medias: medias.map((m: any) => ({
+                            media_id: m.media_id,
+                            name: m.media_name,
+                            source: m.source,
+                        })),
                     };
                 })
             );
             
             await logDebug('Campanhas mixadas obtidas', {
-                publisherId,
-                totemId,
-                count: campaignsWithPlaylists.length
+                publisher: publisherContext,
+                totem: totemContext,
+                count: campaignsWithPlaylists.length,
+                campaigns: campaignsWithPlaylists.map((campaign: any) => ({
+                    id: campaign.campaign_id,
+                    title: campaign.title,
+                    subscriber: {
+                        id: campaign.subscriber_id,
+                        name: campaign.subscriber_name,
+                    },
+                    playlists: (campaign.playlists || []).map((pl: any) => ({
+                        id: pl.playlist_id,
+                        name: pl.name,
+                    })),
+                    medias: (campaign.medias || []).map((m: any) => ({
+                        id: m.media_id,
+                        name: m.name,
+                        source: m.source,
+                    })),
+                })),
             });
             
             return campaignsWithPlaylists;
             
         } catch (error: any) {
-            await logError('Erro ao obter campanhas mixadas', error, { filters });
+            const publisherContext = await this.getPublisherContextForLogs(filters.publisherId);
+            const totemContext = filters.totemId != null ? await this.getTotemContextForLogs(filters.totemId) : undefined;
+            await logError('Erro ao obter campanhas mixadas', error, {
+                publisher: publisherContext,
+                totem: totemContext,
+                filters,
+            });
             throw new Error('Erro interno do servidor');
         }
     }
@@ -267,6 +334,30 @@ export class PublisherCampaignMixService {
      */
     async validateCampaignActive(campaignId: number, totemId: number): Promise<boolean> {
         return getCampaignEligibilityService().isCampaignActiveForTotem(campaignId, totemId);
+    }
+
+    private async getPublisherContextForLogs(publisherId: number): Promise<Record<string, unknown>> {
+        const row = await this.db.findFirst(
+            `
+            SELECT publisher_id, name
+            FROM publishers
+            WHERE publisher_id = $1
+            `,
+            [publisherId]
+        );
+        return row ? { id: row.publisher_id, name: row.name } : { id: publisherId };
+    }
+
+    private async getTotemContextForLogs(totemId: number): Promise<Record<string, unknown>> {
+        const row = await this.db.findFirst(
+            `
+            SELECT totem_id, name, uin
+            FROM totems
+            WHERE totem_id = $1
+            `,
+            [totemId]
+        );
+        return row ? { id: row.totem_id, name: row.name, uin: row.uin } : { id: totemId };
     }
 }
 

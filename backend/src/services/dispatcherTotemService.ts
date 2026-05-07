@@ -67,6 +67,7 @@ export class DispatcherTotemService {
     const { skipCache = false, includeCandidates = false, validateOnly = false } = options;
 
     try {
+      const totemContext = await this.getTotemLogContext(totemId);
       // Normalizar timestamp
       const targetTimestamp = timestamp 
         ? new Date(timestamp) 
@@ -85,7 +86,7 @@ export class DispatcherTotemService {
         const hasCandidatesData = !includeCandidates || (cached?.candidates && cached.candidates.length > 0);
         const hasMediaItems = !!cached?.plan?.mediaItems && cached.plan.mediaItems.length > 0;
         if (cached && hasCandidatesData && hasMediaItems) {
-          await logDebug('[DispatcherTotem] Cache hit', { totemId, cacheKey });
+          await logDebug('[DispatcherTotem] Cache hit', { totem: totemContext, cacheKey });
           
           // Registrar log de auditoria (cache hit)
           await this.logDispatch({
@@ -112,10 +113,16 @@ export class DispatcherTotemService {
       const candidates = await this.getCandidateSchedules(totemId, targetTimestamp, timezone);
       
       if (candidates.length === 0) {
-        await logDebug('[DispatcherTotem] Nenhum candidato encontrado, tentando playlist consolidada do totem', { totemId });
+        await logDebug('[DispatcherTotem] Nenhum candidato encontrado, tentando playlist consolidada do totem', {
+          totem: totemContext,
+        });
         const fallbackPlan = await this.getFallbackPlanFromTotemPlaylist(totemId, targetTimestamp);
         if (fallbackPlan) {
-          await logDebug('[DispatcherTotem] Usando playlist consolidada (totem_playlists) como fallback', { totemId, items: fallbackPlan.mediaItems.length });
+          await logDebug('[DispatcherTotem] Usando playlist consolidada (totem_playlists) como fallback', {
+            totem: totemContext,
+            items: fallbackPlan.mediaItems.length,
+            fallbackPlaylist: { id: fallbackPlan.playlistId, name: fallbackPlan.playlistName },
+          });
           return {
             success: true,
             plan: fallbackPlan,
@@ -124,7 +131,9 @@ export class DispatcherTotemService {
             executionTimeMs: Date.now() - startTime,
           };
         }
-        await logDebug('[DispatcherTotem] Sem candidatos e sem playlist consolidada ativa para o totem', { totemId });
+        await logDebug('[DispatcherTotem] Sem candidatos e sem playlist consolidada ativa para o totem', {
+          totem: totemContext,
+        });
         return {
           success: true,
           plan: undefined,
@@ -147,7 +156,8 @@ export class DispatcherTotemService {
           validatedCandidates.push(candidate);
         } else {
           await logDebug('[DispatcherTotem] Candidato rejeitado por regras comerciais', {
-            campaignId: candidate.campaignId,
+            totem: totemContext,
+            candidate: await this.getCandidateLogContext(candidate),
             errors: commercialValidation.errors,
           });
           // Adicionar erros ao candidato para referência
@@ -159,7 +169,9 @@ export class DispatcherTotemService {
       }
 
       if (validatedCandidates.length === 0) {
-        await logDebug('[DispatcherTotem] Nenhum candidato válido após validação comercial, tentando fallbacks', { totemId });
+        await logDebug('[DispatcherTotem] Nenhum candidato válido após validação comercial, tentando fallbacks', {
+          totem: totemContext,
+        });
         const fallbackPlan = await this.getFallbackPlanFromTotemPlaylist(totemId, targetTimestamp);
         if (fallbackPlan) {
           return {
@@ -181,7 +193,11 @@ export class DispatcherTotemService {
 
       // 2. Decidir estratégia (Fase 1.4)
       const strategy = this.decideStrategy(validatedCandidates);
-      await logDebug('[DispatcherTotem] Estratégia decidida', { totemId, strategy, candidatesCount: validatedCandidates.length });
+      await logDebug('[DispatcherTotem] Estratégia decidida', {
+        totem: totemContext,
+        strategy,
+        candidatesCount: validatedCandidates.length,
+      });
 
       // 3. Processar conforme estratégia
       let plan: DispatchPlan | undefined;
@@ -198,33 +214,56 @@ export class DispatcherTotemService {
           
           // Converter TotemPlaylistMix → DispatchPlan
           plan = await this.convertMixToDispatchPlan(mix, totemId, targetTimestamp);
+          if (!plan.mediaItems || plan.mediaItems.length === 0) {
+            await logDebug('[DispatcherTotem] Mix convertido sem itens; fallback para PRIORITY', {
+              totem: totemContext,
+              mix: {
+                id: mix.mix_id,
+                version: mix.mix_version,
+                strategy: mix.mix_strategy,
+                totalItems: mix.total_items,
+              },
+            });
+            const fallback = await this.tryPriorityPlanFallback(
+              validatedCandidates,
+              totemId,
+              targetTimestamp
+            );
+            plan = fallback.plan;
+            winner = fallback.winner;
+          }
           
           await logDebug('[DispatcherTotem] Mix gerado com sucesso', {
-            totemId,
-            mixId: mix.mix_id,
-            totalItems: mix.total_items,
+            totem: totemContext,
+            mix: {
+              id: mix.mix_id,
+              version: mix.mix_version,
+              strategy: mix.mix_strategy,
+              totalItems: mix.total_items,
+            },
           });
         } catch (mixError: any) {
-          await logError('[DispatcherTotem] Erro ao gerar mix', mixError, { totemId });
+          await logError('[DispatcherTotem] Erro ao gerar mix', mixError, { totem: totemContext });
           // Fallback: tentar estratégia PRIORITY
-          await logDebug('[DispatcherTotem] Fallback para estratégia PRIORITY após erro no mix', { totemId });
-          winner = await this.resolveConflicts(validatedCandidates, totemId, targetTimestamp);
-          if (winner) {
-            const technicalValid = await this.validateTechnicalCompatibility(winner, totemId);
-            if (technicalValid.valid) {
-              const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId, winner.campaignId);
-              if (integrityValid.valid) {
-                plan = await this.generateDispatchPlan(winner, totemId, targetTimestamp);
-              }
-            }
-          }
+          await logDebug('[DispatcherTotem] Fallback para estratégia PRIORITY após erro no mix', {
+            totem: totemContext,
+          });
+          const fallback = await this.tryPriorityPlanFallback(
+            validatedCandidates,
+            totemId,
+            targetTimestamp
+          );
+          plan = fallback.plan;
+          winner = fallback.winner;
         }
       } else {
         // Estratégia SINGLE ou PRIORITY: usar resolução de conflitos tradicional
         winner = await this.resolveConflicts(validatedCandidates, totemId, targetTimestamp);
         
         if (!winner) {
-          await logDebug('[DispatcherTotem] Nenhum candidato válido após resolução, tentando fallbacks', { totemId });
+          await logDebug('[DispatcherTotem] Nenhum candidato válido após resolução, tentando fallbacks', {
+            totem: totemContext,
+          });
           const fallbackPlan = await this.getFallbackPlanFromTotemPlaylist(totemId, targetTimestamp);
           if (fallbackPlan) {
             return {
@@ -247,9 +286,10 @@ export class DispatcherTotemService {
         // Validar compatibilidade técnica
         const technicalValid = await this.validateTechnicalCompatibility(winner, totemId);
         if (!technicalValid.valid) {
-          await logDebug('[DispatcherTotem] Falha na validação técnica', { 
-            totemId, 
-            errors: technicalValid.errors 
+          await logDebug('[DispatcherTotem] Falha na validação técnica', {
+            totem: totemContext,
+            winner: await this.getCandidateLogContext(winner),
+            errors: technicalValid.errors,
           });
           
           // Tentar próximo candidato
@@ -274,9 +314,10 @@ export class DispatcherTotemService {
         // Validar integridade da playlist
         const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId, winner.campaignId);
         if (!integrityValid.valid) {
-          await logDebug('[DispatcherTotem] Falha na validação de integridade', { 
-            totemId, 
-            errors: integrityValid.errors 
+          await logDebug('[DispatcherTotem] Falha na validação de integridade', {
+            totem: totemContext,
+            winner: await this.getCandidateLogContext(winner),
+            errors: integrityValid.errors,
           });
           
           return {
@@ -316,16 +357,16 @@ export class DispatcherTotemService {
         timestamp: targetTimestamp,
         selectedCampaignId: strategy === 'mix' ? undefined : winner?.campaignId,
         selectedPlaylistId: plan.playlistId,
-        selectedSource: strategy === 'mix' ? 'mix' : (winner?.source || 'campaign'),
-        selectedSourceId: strategy === 'mix' ? (mixId || 0) : (winner?.sourceId || 0),
-        priority: strategy === 'mix' ? 0 : (winner?.priority || 0),
+        selectedSource: strategy === 'mix' && !winner ? 'mix' : (winner?.source || 'campaign'),
+        selectedSourceId: strategy === 'mix' && !winner ? (mixId || 0) : (winner?.sourceId || 0),
+        priority: strategy === 'mix' && !winner ? 0 : (winner?.priority || 0),
         candidatesCount: validatedCandidates.length,
         candidates: includeCandidates ? validatedCandidates : undefined,
-        temporalValidation: strategy === 'mix' ? true : (winner?.temporalValid || false),
+        temporalValidation: strategy === 'mix' && !winner ? true : (winner?.temporalValid || false),
         technicalValidation: true, // Já validado antes
         integrityValidation: true, // Já validado antes
         validationDetails: {
-          strategy,
+          strategy: strategy === 'mix' && winner ? 'priority_fallback' : strategy,
           commercialValidation: true,
         },
         fromCache: false,
@@ -703,7 +744,8 @@ export class DispatcherTotemService {
       return deduped;
 
     } catch (error: any) {
-      await logError('[DispatcherTotem] Erro ao buscar candidatos', error, { totemId });
+      const totemContext = await this.getTotemLogContext(totemId);
+      await logError('[DispatcherTotem] Erro ao buscar candidatos', error, { totem: totemContext });
       throw error;
     }
   }
@@ -793,7 +835,8 @@ export class DispatcherTotemService {
         },
       };
     } catch (error: any) {
-      await logError('[DispatcherTotem] Erro ao obter fallback totem_playlists', error, { totemId });
+      const totemContext = await this.getTotemLogContext(totemId);
+      await logError('[DispatcherTotem] Erro ao obter fallback totem_playlists', error, { totem: totemContext });
       return null;
     }
   }
@@ -1448,7 +1491,9 @@ export class DispatcherTotemService {
       }
     } catch (error) {
       // Se não conseguir obter regra, usar valores padrão
-      await logDebug('[DispatcherTotem] Usando pesos padrão (regra não disponível)', { totemId });
+      await logDebug('[DispatcherTotem] Usando pesos padrão (regra não disponível)', {
+        totem: await this.getTotemLogContext(totemId),
+      });
     }
     
     const priorityWeight = rule?.priority_weight || defaultPriorityWeight;
@@ -1653,7 +1698,10 @@ export class DispatcherTotemService {
       return { valid: errors.length === 0, errors };
       
     } catch (error: any) {
-      await logError('[DispatcherTotem] Erro na validação comercial', error, { candidate, totemId });
+      await logError('[DispatcherTotem] Erro na validação comercial', error, {
+        totem: await this.getTotemLogContext(totemId),
+        candidate: await this.getCandidateLogContext(candidate),
+      });
       return { valid: false, errors: [`Erro na validação comercial: ${error.message}`] };
     }
   }
@@ -1931,7 +1979,14 @@ export class DispatcherTotemService {
   ): Promise<DispatchPlan> {
     // Buscar informações das mídias do mix
     const mediaItems: DispatchMediaItem[] = [];
+    const attemptedItems = mix.mix_items.length;
+    let discardedItems = 0;
     
+    const totemContext = await this.getTotemLogContext(totemId);
+    const discardCounts: Record<string, number> = {};
+    const DISCARD_LOG_LIMIT = 8;
+    let discardLogs = 0;
+
     for (const mixItem of mix.mix_items) {
       const media = await this.db.findFirst(`
         SELECT 
@@ -1939,6 +1994,8 @@ export class DispatcherTotemService {
           m.name,
           m.file_path,
           m.media_type,
+          m.is_active,
+          m.status,
           m.tags,
           m.width,
           m.height,
@@ -1946,11 +2003,12 @@ export class DispatcherTotemService {
           m.duration_seconds
         FROM medias m
         WHERE m.media_id = $1
-          AND m.is_active = true
-          AND m.status IN ('approved', 'published')
       `, [mixItem.media_id]);
       
-      if (media) {
+      const mediaIsPlayable =
+        !!media && media.is_active === true && ['approved', 'published'].includes(String(media.status));
+
+      if (media && mediaIsPlayable) {
         mediaItems.push({
           mediaId: media.media_id,
           order: mixItem.order_index,
@@ -1968,7 +2026,39 @@ export class DispatcherTotemService {
             mimeType: media.mime_type,
           },
         });
+      } else {
+        discardedItems++;
+        const reason = !media
+          ? 'media_not_found'
+          : media.is_active !== true
+            ? 'media_inactive'
+            : 'media_status_not_allowed';
+        discardCounts[reason] = (discardCounts[reason] || 0) + 1;
+        if (discardLogs < DISCARD_LOG_LIMIT) {
+          await logDebug('[DispatcherTotem] Item de mix descartado na conversão', {
+            totem: totemContext,
+            mix: { id: mix.mix_id, version: mix.mix_version },
+            media: media
+              ? {
+                  id: media.media_id,
+                  name: media.name,
+                  status: media.status,
+                  isActive: media.is_active,
+                }
+              : { id: mixItem.media_id },
+            reason,
+          });
+          discardLogs++;
+        }
       }
+    }
+    if (discardedItems > 0) {
+      await logDebug('[DispatcherTotem] Resumo de descarte de itens do mix', {
+        totem: totemContext,
+        mix: { id: mix.mix_id, version: mix.mix_version },
+        discardedItems,
+        discardCounts,
+      });
     }
     
     // Buscar informações da primeira playlist do mix (para metadados)
@@ -1994,7 +2084,88 @@ export class DispatcherTotemService {
         mixId: mix.mix_id,
         mixVersion: mix.mix_version,
         mixStrategy: mix.mix_strategy,
+        mixItemsCount: attemptedItems,
+        mixItemsResolvedCount: mediaItems.length,
+        mixItemsDiscardedCount: discardedItems,
       },
+    };
+  }
+
+  /**
+   * Tenta fallback para fluxo tradicional de prioridade quando mix falha
+   */
+  private async tryPriorityPlanFallback(
+    validatedCandidates: CandidateSchedule[],
+    totemId: number,
+    targetTimestamp: Date
+  ): Promise<{ plan?: DispatchPlan; winner: CandidateSchedule | null }> {
+    const winner = await this.resolveConflicts(validatedCandidates, totemId, targetTimestamp);
+    if (!winner) {
+      return { plan: undefined, winner: null };
+    }
+    const totemContext = await this.getTotemLogContext(totemId);
+    const winnerContext = await this.getCandidateLogContext(winner);
+    await logDebug('[DispatcherTotem] Candidato escolhido no fallback PRIORITY', {
+      totem: totemContext,
+      winner: winnerContext,
+    });
+    const technicalValid = await this.validateTechnicalCompatibility(winner, totemId);
+    if (!technicalValid.valid) {
+      return { plan: undefined, winner: null };
+    }
+    const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId, winner.campaignId);
+    if (!integrityValid.valid) {
+      return { plan: undefined, winner: null };
+    }
+    const plan = await this.generateDispatchPlan(winner, totemId, targetTimestamp);
+    return { plan, winner };
+  }
+
+  private async getTotemLogContext(totemId: number): Promise<Record<string, unknown>> {
+    const row = await this.db.findFirst(
+      `
+      SELECT
+        t.totem_id,
+        t.name AS totem_name,
+        t.uin,
+        l.local_id,
+        l.name AS local_name,
+        p.publisher_id,
+        p.name AS publisher_name
+      FROM totems t
+      LEFT JOIN locals l ON l.local_id = t.local_id
+      LEFT JOIN publishers p ON p.publisher_id = l.publisher_id
+      WHERE t.totem_id = $1
+    `,
+      [totemId]
+    );
+    if (!row) {
+      return { id: totemId };
+    }
+    return {
+      id: row.totem_id,
+      name: row.totem_name,
+      uin: row.uin,
+      local: row.local_id ? { id: row.local_id, name: row.local_name } : undefined,
+      publisher: row.publisher_id ? { id: row.publisher_id, name: row.publisher_name } : undefined,
+    };
+  }
+
+  private async getCandidateLogContext(candidate: CandidateSchedule): Promise<Record<string, unknown>> {
+    const subscriber = candidate.subscriberId
+      ? await this.db.findFirst(`SELECT subscriber_id, name FROM subscribers WHERE subscriber_id = $1`, [
+          candidate.subscriberId,
+        ])
+      : null;
+    return {
+      campaign: { id: candidate.campaignId, title: candidate.campaignTitle },
+      playlist: { id: candidate.playlistId, name: candidate.playlistName },
+      subscriber: subscriber
+        ? { id: subscriber.subscriber_id, name: subscriber.name }
+        : candidate.subscriberId
+          ? { id: candidate.subscriberId }
+          : undefined,
+      source: { type: candidate.source, id: candidate.sourceId },
     };
   }
 
@@ -2189,7 +2360,9 @@ export class DispatcherTotemService {
         data.executionTimeMs,
       ]);
     } catch (error) {
-      await logError('[DispatcherTotem] Erro ao registrar log', error, { totemId: data.totemId });
+      await logError('[DispatcherTotem] Erro ao registrar log', error, {
+        totem: await this.getTotemLogContext(data.totemId),
+      });
       // Não falhar se log falhar
     }
   }
@@ -2268,7 +2441,9 @@ export class DispatcherTotemService {
       }));
 
     } catch (error: any) {
-      await logError('[DispatcherTotem] Erro ao buscar histórico', error, { totemId });
+      await logError('[DispatcherTotem] Erro ao buscar histórico', error, {
+        totem: await this.getTotemLogContext(totemId),
+      });
       throw error;
     }
   }

@@ -530,7 +530,12 @@ export class TotemPlaylistMixService {
         if (cachedMix && typeof cachedMix === 'string') {
           const parsed = JSON.parse(cachedMix);
           // Verificar se a mixagem ainda é válida (ex: não expirou, mesma regra)
-          if (parsed.rule_id === (rule.rule_id > 0 ? rule.rule_id : null)) {
+          if (
+            parsed.rule_id === (rule.rule_id > 0 ? rule.rule_id : null) &&
+            Array.isArray(parsed.mix_items) &&
+            parsed.mix_items.length > 0 &&
+            Number(parsed.total_items || 0) > 0
+          ) {
             await logDebug('Retornando mix do cache', { totemId, mixId: parsed.mix_id });
             return parsed;
           }
@@ -550,6 +555,7 @@ export class TotemPlaylistMixService {
       if (!totem || !totem.publisher_id) {
         throw new Error('Totem ou publisher não encontrado');
       }
+      const totemContext = await this.getTotemContextForLogs(totemId);
 
       // 4. Obter campanhas mixadas para o totem
       const mixedCampaigns = await this.campaignMixService.getMixedCampaignsForTotem(
@@ -577,6 +583,9 @@ export class TotemPlaylistMixService {
             FROM playlist_items pi
             INNER JOIN medias m ON pi.media_id = m.media_id
             WHERE pi.playlist_id = $1
+              AND COALESCE(pi.is_active, true) = true
+              AND m.is_active = true
+              AND m.status IN ('approved', 'published')
             ORDER BY pi.order_index ASC
           `, [playlist.playlist_id]);
 
@@ -623,6 +632,7 @@ export class TotemPlaylistMixService {
           WHERE cm.campaign_id = $1
             AND COALESCE(cm.is_active, true) = true
             AND m.is_active = true
+            AND m.status IN ('approved', 'published')
           ORDER BY cm.order_index ASC, m.media_id ASC
         `, [campaign.campaign_id]);
 
@@ -664,6 +674,22 @@ export class TotemPlaylistMixService {
         mixedCampaigns,
         rule
       );
+      if (finalItems.length === 0) {
+        await logDebug('Mix vazio após distribuição', {
+          totem: totemContext,
+          rule: { id: rule.rule_id, name: rule.name, strategy: rule.rule_type },
+          campaigns: mixedCampaigns.map((c) => ({
+            id: c.campaign_id,
+            title: c.title,
+            subscriberId: c.subscriber_id,
+            playlistIds: c.playlists.map((p) => p.playlist_id),
+            playlistNames: c.playlists.map((p) => p.name),
+          })),
+        });
+        throw new Error(
+          'Mix gerado sem itens reproduzíveis após filtros de mídia e distribuição de slots'
+        );
+      }
 
       // 8. Calcular duração total
       const totalDuration = finalItems.reduce((sum, item) => sum + (item.duration || 10), 0);
@@ -730,7 +756,7 @@ export class TotemPlaylistMixService {
         applied_at: new Date().toISOString(),
       };
       
-      // 12. Cachear mixagem por 30 minutos
+      // 12. Cachear mixagem por 30 minutos (somente quando contém itens)
       await this.cacheService.set(mixCacheKey, JSON.stringify(mixResult_obj), 1800);
 
       // 13. Disparar webhooks para mixagem gerada
@@ -1237,6 +1263,20 @@ Retorne apenas um JSON com:
       await logError('Erro ao definir mix atual', error, { totemId, mixId });
       return false;
     }
+  }
+
+  private async getTotemContextForLogs(totemId: number): Promise<Record<string, unknown>> {
+    const row = await this.db.findFirst(
+      `
+      SELECT t.totem_id, t.name AS totem_name, t.uin
+      FROM totems t
+      WHERE t.totem_id = $1
+    `,
+      [totemId]
+    );
+    return row
+      ? { id: row.totem_id, name: row.totem_name, uin: row.uin }
+      : { id: totemId };
   }
 
   /**

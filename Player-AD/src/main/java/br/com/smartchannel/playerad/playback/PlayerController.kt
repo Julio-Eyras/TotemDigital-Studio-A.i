@@ -44,6 +44,8 @@ class PlayerController(
     private val exoPlayer: ExoPlayer,
     private val imageView: ImageView,
     private val acceptImagesInPlaylist: Boolean = true,
+    /** Se false, [exoPlayer] permanece em volume 0 durante vídeo/áudio. */
+    private val allowPlaybackAudio: Boolean = true,
     private val fallbackPropagandasPerVinheta: Int = 3,
     private val maxSecondsWithoutServerCheck: Int = 60
 ) {
@@ -257,6 +259,11 @@ class PlayerController(
         }
     }
 
+    /** Volume do ExoPlayer: 0 se áudio desabilitado na config (totem sempre mudo para vídeo). */
+    private fun applyPlaybackVolumePolicy() {
+        exoPlayer.volume = if (allowPlaybackAudio) 1f else 0f
+    }
+
     /**
      * Loop simples: toca todos os itens em ordem, repetindo em ciclo.
      * Preferindo cache local, caindo para streaming via URL.
@@ -273,6 +280,7 @@ class PlayerController(
         var lastServerCheckAtMs = System.currentTimeMillis()
         var index = 0
         var completedFullCycle = false
+        applyPlaybackVolumePolicy()
         while (true) {
             val nowMs = System.currentTimeMillis()
             if (nowMs - lastServerCheckAtMs >= maxGapMs) {
@@ -486,6 +494,7 @@ class PlayerController(
 
         // Vídeos: garantir que ImageView está escondido e usar ExoPlayer com duração natural.
         imageView.visibility = android.view.View.GONE
+        applyPlaybackVolumePolicy()
 
         PlayerAdLogger.logPlaybackStart(
             "vídeo",

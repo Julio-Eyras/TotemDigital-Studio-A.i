@@ -6,7 +6,7 @@ import java.io.File
 
 /**
  * Carrega configuração do Player-AD (serverUrl, uin, deviceId, acceptImagesInPlaylist,
- * fallbackPropagandasPerVinheta, maxSecondsWithoutServerCheck, storage, storagePathOverride).
+ * allowPlaybackAudio, fallbackPropagandasPerVinheta, maxSecondsWithoutServerCheck, storage, storagePathOverride).
  *
  * Ordem de busca:
  * 1. Arquivo interno em filesDir/player-config.json (se existir)
@@ -34,6 +34,7 @@ class PlayerConfigLoader(private val context: Context) {
             uin = "tot001",
             deviceId = "android-tv-tot001",
             acceptImagesInPlaylist = true,
+            allowPlaybackAudio = true,
             fallbackPropagandasPerVinheta = 3,
             maxSecondsWithoutServerCheck = 60,
             storageMode = PlayerStorageMode.AUTO,
@@ -52,6 +53,7 @@ class PlayerConfigLoader(private val context: Context) {
                 null
             } else {
                 val acceptImages = json.optBoolean("acceptImagesInPlaylist", true)
+                val allowAudio = json.optBoolean("allowPlaybackAudio", true)
                 val fallbackRatioRaw = json.optInt("fallbackPropagandasPerVinheta", 3)
                 val fallbackRatio = fallbackRatioRaw.coerceAtLeast(1)
                 val maxSecondsRaw = json.optInt("maxSecondsWithoutServerCheck", 60)
@@ -63,6 +65,7 @@ class PlayerConfigLoader(private val context: Context) {
                     uin = uin,
                     deviceId = deviceId,
                     acceptImagesInPlaylist = acceptImages,
+                    allowPlaybackAudio = allowAudio,
                     fallbackPropagandasPerVinheta = fallbackRatio,
                     maxSecondsWithoutServerCheck = maxSeconds,
                     storageMode = storageMode,

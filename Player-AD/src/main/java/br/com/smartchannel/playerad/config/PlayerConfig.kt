@@ -6,6 +6,11 @@ data class PlayerConfig(
     val deviceId: String,
     /** Se false, itens tratados como imagem na playlist são ignorados (não exibidos). */
     val acceptImagesInPlaylist: Boolean = true,
+    /**
+     * Se false, o ExoPlayer fica sempre em volume 0 (mute) para vídeo/áudio.
+     * Imagens já não têm som; o interruptor só afeta mídia tocada pelo player.
+     */
+    val allowPlaybackAudio: Boolean = true,
     /** Quantas propagandas tocar antes de inserir 1 vinheta no fallback local. */
     val fallbackPropagandasPerVinheta: Int = 3,
     /**
