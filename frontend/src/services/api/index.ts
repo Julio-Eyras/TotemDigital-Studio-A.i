@@ -2216,7 +2216,8 @@ export interface CreatePlanRequest {
   name: string;
   slug: string;
   description?: string;
-  priceMonthly: number;
+  /** Obrigatório no envio à API; no formulário pode ficar indefinido até o usuário informar. */
+  priceMonthly?: number;
   priceYearly?: number;
   currency?: string;
   billingInterval?: string;

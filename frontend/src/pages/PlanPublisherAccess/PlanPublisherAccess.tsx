@@ -166,11 +166,14 @@ const PlanPublisherAccessPage: React.FC = () => {
   const [compactEnabledTotemsByLocal, setCompactEnabledTotemsByLocal] = useState<Record<number, number[]>>({});
   const [localsCatalog, setLocalsCatalog] = useState<Local[]>([]);
   const [totemsCatalog, setTotemsCatalog] = useState<Player[]>([]);
+  const [planMonthlyPriceText, setPlanMonthlyPriceText] = useState('');
+  const [planYearlyPriceText, setPlanYearlyPriceText] = useState('');
+
   const [planFormData, setPlanFormData] = useState<CreatePlanRequest>({
     name: '',
     slug: '',
     description: '',
-    priceMonthly: 0,
+    priceMonthly: undefined,
     priceYearly: undefined,
     currency: 'BRL',
     billingInterval: 'month',
@@ -365,12 +368,16 @@ const PlanPublisherAccessPage: React.FC = () => {
     if (plan) {
       setPlanEditMode(true);
       setSelectedPlan(plan);
+      const pm = getPlanPriceMonthly(plan);
+      const py = getPlanPriceYearly(plan);
+      setPlanMonthlyPriceText(formatPlanCurrencyDisplay(pm));
+      setPlanYearlyPriceText(py != null ? formatPlanCurrencyDisplay(py) : '');
       setPlanFormData({
         name: plan.name,
         slug: plan.slug,
         description: plan.description || '',
-        priceMonthly: getPlanPriceMonthly(plan),
-        priceYearly: getPlanPriceYearly(plan),
+        priceMonthly: pm,
+        priceYearly: py,
         currency: plan.currency || 'BRL',
         billingInterval: plan.billingInterval || plan.billing_interval || 'month',
         stripePriceIdMonthly: plan.stripePriceIdMonthly || plan.stripe_price_id_monthly || '',
@@ -387,11 +394,13 @@ const PlanPublisherAccessPage: React.FC = () => {
     } else {
       setPlanEditMode(false);
       setSelectedPlan(null);
+      setPlanMonthlyPriceText('');
+      setPlanYearlyPriceText('');
       setPlanFormData({
         name: '',
         slug: '',
         description: '',
-        priceMonthly: 0,
+        priceMonthly: undefined,
         priceYearly: undefined,
         currency: 'BRL',
         billingInterval: 'month',
@@ -419,6 +428,8 @@ const PlanPublisherAccessPage: React.FC = () => {
     setSelectedLocalIdForPlan('');
     setCompactSelectedLocalIds([]);
     setCompactEnabledTotemsByLocal({});
+    setPlanMonthlyPriceText('');
+    setPlanYearlyPriceText('');
   };
 
   const generateSlug = (name: string): string => {
@@ -434,9 +445,25 @@ const PlanPublisherAccessPage: React.FC = () => {
     setPlanFormData({ ...planFormData, name, slug: generateSlug(name) });
   };
 
-  const parseCurrencyInputValue = (raw: string): number | undefined => {
-    const normalized = raw.replace(',', '.').trim();
-    if (!normalized) return undefined;
+  const formatPlanCurrencyDisplay = (value: number): string =>
+    value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  /** Permite apenas dígitos e uma vírgula decimal (até 2 casas), sem setas de number input. */
+  const normalizeCurrencyDraft = (input: string): string => {
+    let s = input.replace(/[^\d,]/g, '');
+    const ci = s.indexOf(',');
+    if (ci === -1) return s;
+    const intPart = s.slice(0, ci);
+    const fracPart = s.slice(ci + 1).replace(/,/g, '').slice(0, 2);
+    return intPart + ',' + fracPart;
+  };
+
+  const draftToAmount = (draft: string): number | undefined => {
+    let s = draft.trim().replace(/\s/g, '');
+    if (!s || s === ',') return undefined;
+    if (s.endsWith(',')) s = s.slice(0, -1);
+    if (!s) return undefined;
+    const normalized = s.replace(',', '.');
     const parsed = Number.parseFloat(normalized);
     if (Number.isNaN(parsed)) return undefined;
     return Math.max(0, parsed);
@@ -519,8 +546,13 @@ const PlanPublisherAccessPage: React.FC = () => {
       setError(null);
 
       // Validar campos obrigatórios
-      if (!planFormData.name || !planFormData.slug || !planFormData.priceMonthly) {
-        setError('Nome, slug e preço mensal são obrigatórios');
+      if (
+        !planFormData.name ||
+        !planFormData.slug ||
+        planFormData.priceMonthly == null ||
+        planFormData.priceMonthly <= 0
+      ) {
+        setError('Nome, slug e preço mensal maior que zero são obrigatórios');
         return;
       }
 
@@ -567,6 +599,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       } else {
         const createData: CreatePlanRequest = {
           ...planFormData,
+          priceMonthly: planFormData.priceMonthly,
           features,
           limits,
         };
@@ -1211,39 +1244,59 @@ const PlanPublisherAccessPage: React.FC = () => {
                 <TextField
                   fullWidth
                   label="Preço Mensal *"
-                  type="number"
-                  value={planFormData.priceMonthly}
-                  onChange={(e) =>
-                    setPlanFormData({
-                      ...planFormData,
-                      priceMonthly: parseCurrencyInputValue(e.target.value) ?? 0,
-                    })
-                  }
+                  type="text"
+                  value={planMonthlyPriceText}
+                  onChange={(e) => {
+                    const draft = normalizeCurrencyDraft(e.target.value);
+                    setPlanMonthlyPriceText(draft);
+                    const n = draftToAmount(draft);
+                    setPlanFormData((prev) => ({ ...prev, priceMonthly: n }));
+                  }}
+                  onBlur={() => {
+                    const n = draftToAmount(planMonthlyPriceText);
+                    if (n != null) {
+                      setPlanMonthlyPriceText(formatPlanCurrencyDisplay(n));
+                      setPlanFormData((prev) => ({ ...prev, priceMonthly: n }));
+                    }
+                  }}
                   margin="normal"
                   required
+                  placeholder="0,00"
                   InputProps={{
                     startAdornment: <InputAdornment position="start">R$</InputAdornment>,
                   }}
-                  inputProps={{ min: 0, step: '0.01', inputMode: 'decimal' }}
+                  inputProps={{ inputMode: 'decimal', autoComplete: 'off' }}
+                  helperText="Use vírgula para centavos (ex.: 99,90)"
                 />
               </Grid>
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Preço Anual"
-                  type="number"
-                  value={planFormData.priceYearly || ''}
-                  onChange={(e) =>
-                    setPlanFormData({
-                      ...planFormData,
-                      priceYearly: parseCurrencyInputValue(e.target.value),
-                    })
-                  }
+                  type="text"
+                  value={planYearlyPriceText}
+                  onChange={(e) => {
+                    const draft = normalizeCurrencyDraft(e.target.value);
+                    setPlanYearlyPriceText(draft);
+                    const n = draftToAmount(draft);
+                    setPlanFormData((prev) => ({ ...prev, priceYearly: n }));
+                  }}
+                  onBlur={() => {
+                    const n = draftToAmount(planYearlyPriceText);
+                    if (n != null) {
+                      setPlanYearlyPriceText(formatPlanCurrencyDisplay(n));
+                      setPlanFormData((prev) => ({ ...prev, priceYearly: n }));
+                    } else {
+                      setPlanYearlyPriceText('');
+                      setPlanFormData((prev) => ({ ...prev, priceYearly: undefined }));
+                    }
+                  }}
                   margin="normal"
+                  placeholder="0,00"
                   InputProps={{
                     startAdornment: <InputAdornment position="start">R$</InputAdornment>,
                   }}
-                  inputProps={{ min: 0, step: '0.01', inputMode: 'decimal' }}
+                  inputProps={{ inputMode: 'decimal', autoComplete: 'off' }}
                 />
               </Grid>
             </Grid>
@@ -1655,7 +1708,12 @@ const PlanPublisherAccessPage: React.FC = () => {
           <Button
             variant="contained"
             onClick={handlePlanSubmit}
-            disabled={!planFormData.name || !planFormData.slug || !planFormData.priceMonthly}
+            disabled={
+              !planFormData.name ||
+              !planFormData.slug ||
+              planFormData.priceMonthly == null ||
+              planFormData.priceMonthly <= 0
+            }
           >
             {planEditMode ? 'Salvar' : 'Criar'}
           </Button>
