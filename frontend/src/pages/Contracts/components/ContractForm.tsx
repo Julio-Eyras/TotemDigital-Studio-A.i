@@ -9,6 +9,7 @@ import {
   TextField,
   FormControl,
   InputLabel,
+  InputAdornment,
   Select,
   MenuItem,
   Alert,
@@ -67,6 +68,14 @@ const formatDateForInput = (dateString: string | null | undefined): string => {
 };
 
 const getDefaultContractEndDate = (): string => `${new Date().getFullYear()}-12-31`;
+
+const parseCurrencyInputValue = (raw: string): number | undefined => {
+  const normalized = raw.replace(',', '.').trim();
+  if (!normalized) return undefined;
+  const parsed = Number.parseFloat(normalized);
+  if (Number.isNaN(parsed)) return undefined;
+  return Math.max(0, parsed);
+};
 
 const ContractForm: React.FC<ContractFormProps> = ({
   mode,
@@ -324,11 +333,14 @@ const ContractForm: React.FC<ContractFormProps> = ({
                   label="Valor Total"
                   type="number"
                   value={getFieldValue('total_amount') || ''}
-                  onChange={(e) => handleFieldChange('total_amount', e.target.value ? Number(e.target.value) : undefined)}
+                  onChange={(e) => handleFieldChange('total_amount', parseCurrencyInputValue(e.target.value))}
                   margin="normal"
                   InputProps={{
-                    startAdornment: <Typography sx={{ mr: 1 }}>{getFieldValue('currency') || 'BRL'}</Typography>,
+                    startAdornment: (
+                      <InputAdornment position="start">{getFieldValue('currency') || 'BRL'}</InputAdornment>
+                    ),
                   }}
+                  inputProps={{ min: 0, step: '0.01', inputMode: 'decimal' }}
                   error={hasError('total_amount')}
                   helperText={getHelperText('total_amount')}
                 />

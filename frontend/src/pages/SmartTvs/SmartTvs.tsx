@@ -147,7 +147,7 @@ const SmartTvs: React.FC = () => {
         return;
       }
       if (!newSmartTv.identifier) {
-        setError('Identifier é obrigatório');
+        setError('Identificador é obrigatório');
         return;
       }
 
@@ -499,7 +499,7 @@ const SmartTvs: React.FC = () => {
             sx={{ mb: 2 }}
           >
             <Tab label="Dados" />
-            <Tab label="Config (JSON)" />
+            <Tab label="Configuração (JSON)" />
           </Tabs>
 
           {createTab === 0 && (
@@ -528,7 +528,7 @@ const SmartTvs: React.FC = () => {
             <TextField
               id="smart-tv-create-identifier"
               name="identifier"
-              label="Identifier *"
+              label="Identificador *"
               value={newSmartTv.identifier}
               onChange={(e) => setNewSmartTv({ ...newSmartTv, identifier: e.target.value })}
               fullWidth
@@ -537,7 +537,7 @@ const SmartTvs: React.FC = () => {
             <TextField
               id="smart-tv-create-device-id"
               name="device_id"
-              label="Device ID"
+              label="ID do Dispositivo"
               value={newSmartTv.device_id}
               onChange={(e) => setNewSmartTv({ ...newSmartTv, device_id: e.target.value })}
               fullWidth
@@ -626,7 +626,7 @@ const SmartTvs: React.FC = () => {
               <TextField
                 id="smart-tv-create-capabilities"
                 name="capabilities"
-                label="Capabilities (JSON)"
+                label="Capacidades (JSON)"
                 value={capabilitiesText}
                 onChange={(e) => setCapabilitiesText(e.target.value)}
                 fullWidth
@@ -637,7 +637,7 @@ const SmartTvs: React.FC = () => {
               <TextField
                 id="smart-tv-create-settings"
                 name="settings"
-                label="Settings (JSON)"
+                label="Configurações (JSON)"
                 value={settingsText}
                 onChange={(e) => setSettingsText(e.target.value)}
                 fullWidth
@@ -671,7 +671,7 @@ const SmartTvs: React.FC = () => {
                 sx={{ mb: 2 }}
               >
                 <Tab label="Dados" />
-                <Tab label="Config (JSON)" />
+                <Tab label="Configuração (JSON)" />
               </Tabs>
 
               {editTab === 0 && (
@@ -679,7 +679,7 @@ const SmartTvs: React.FC = () => {
               <TextField
                 id="smart-tv-edit-identifier"
                 name="identifier"
-                label="Identifier *"
+                label="Identificador *"
                 value={selectedSmartTv.identifier}
                 onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, identifier: e.target.value })}
                 fullWidth
@@ -688,7 +688,7 @@ const SmartTvs: React.FC = () => {
               <TextField
                 id="smart-tv-edit-device-id"
                 name="device_id"
-                label="Device ID"
+                label="ID do Dispositivo"
                 value={selectedSmartTv.device_id || ''}
                 onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, device_id: e.target.value })}
                 fullWidth
@@ -781,8 +781,8 @@ const SmartTvs: React.FC = () => {
                 >
                   <MenuItem value="offline">Offline</MenuItem>
                   <MenuItem value="online">Online</MenuItem>
-                  <MenuItem value="playing">Playing</MenuItem>
-                  <MenuItem value="error">Error</MenuItem>
+                  <MenuItem value="playing">Reproduzindo</MenuItem>
+                  <MenuItem value="error">Erro</MenuItem>
                 </Select>
               </FormControl>
                 </Box>
@@ -793,7 +793,7 @@ const SmartTvs: React.FC = () => {
                   <TextField
                     id="smart-tv-edit-capabilities"
                     name="capabilities"
-                    label="Capabilities (JSON)"
+                    label="Capacidades (JSON)"
                     value={editCapabilitiesText}
                     onChange={(e) => setEditCapabilitiesText(e.target.value)}
                     fullWidth
@@ -804,7 +804,7 @@ const SmartTvs: React.FC = () => {
                   <TextField
                     id="smart-tv-edit-settings"
                     name="settings"
-                    label="Settings (JSON)"
+                    label="Configurações (JSON)"
                     value={editSettingsText}
                     onChange={(e) => setEditSettingsText(e.target.value)}
                     fullWidth

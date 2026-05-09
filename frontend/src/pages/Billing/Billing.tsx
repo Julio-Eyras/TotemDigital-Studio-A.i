@@ -21,6 +21,7 @@ import {
   Select,
   FormControl,
   InputLabel,
+  InputAdornment,
   Alert,
   Chip,
   Table,
@@ -92,6 +93,13 @@ const Billing: React.FC = () => {
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [newBill, setNewBill] = useState<CreateBillingRequest>({ billing_type: 'subscription', amount: 0 });
+  const parseCurrencyInputValue = (raw: string): number => {
+    const normalized = raw.replace(',', '.').trim();
+    if (!normalized) return 0;
+    const parsed = Number.parseFloat(normalized);
+    if (Number.isNaN(parsed)) return 0;
+    return Math.max(0, parsed);
+  };
 
   // Helper functions para compatibilidade com interface Plan atualizada
   const getPlanId = (plan: Plan): number => {
@@ -258,7 +266,7 @@ const Billing: React.FC = () => {
         planId: planId,
       });
 
-      // Redirecionar para Stripe Checkout
+      // Redirecionar para finalização de pagamento no Stripe
       if (checkout.url) {
         window.location.href = checkout.url;
       } else {
@@ -760,8 +768,8 @@ const Billing: React.FC = () => {
                 onClose={() => loadPublisherBillings()}
               >
                 <MenuItem value="">Todos</MenuItem>
-                <MenuItem value="revenue_share">Revenue Share</MenuItem>
-                <MenuItem value="payout">Payout</MenuItem>
+                <MenuItem value="revenue_share">Participação na Receita</MenuItem>
+                <MenuItem value="payout">Repasse</MenuItem>
                 <MenuItem value="subscription">Assinatura</MenuItem>
                 <MenuItem value="platform_fee">Taxa de Plataforma</MenuItem>
               </Select>
@@ -867,9 +875,12 @@ const Billing: React.FC = () => {
             margin="normal"
             value={newBill.amount}
             onChange={(e) => {
-              const value = e.target.value;
-              setNewBill({ ...newBill, amount: value ? parseFloat(String(value)) : 0 });
+              setNewBill({ ...newBill, amount: parseCurrencyInputValue(e.target.value) });
             }}
+            InputProps={{
+              startAdornment: <InputAdornment position="start">R$</InputAdornment>,
+            }}
+            inputProps={{ min: 0, step: '0.01', inputMode: 'decimal' }}
           />
           <TextField
             fullWidth
@@ -904,7 +915,7 @@ const Billing: React.FC = () => {
                 </Typography>
               </Typography>
               <Alert severity="info" sx={{ mt: 2 }}>
-                Você será redirecionado para o Stripe Checkout para completar o pagamento.
+                Você será redirecionado para o Stripe para completar o pagamento.
               </Alert>
             </Box>
           )}

@@ -161,7 +161,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      showSuccess('Screenshot baixado com sucesso');
+      showSuccess('Captura de tela baixada com sucesso');
     } catch (error: any) {
       showError(pickApiErrorMessage(error, 'Erro ao baixar screenshot'));
     }
@@ -199,7 +199,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
   const formatCommandType = (type: string) => {
     const types: { [key: string]: string } = {
       restart: 'Reinício',
-      screenshot: 'Screenshot',
+      screenshot: 'Captura de tela',
       update: 'Atualização',
       config: 'Configuração',
       custom: 'Personalizado',
@@ -244,7 +244,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
               onClick={handleScreenshot}
               disabled={capturing}
             >
-              {capturing ? 'Capturando...' : 'Capturar Screenshot'}
+              {capturing ? 'Capturando...' : 'Capturar Tela'}
             </Button>
           </Grid>
         </Grid>
@@ -259,7 +259,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
           sx={{ mb: 2 }}
         >
           <Tab label="Histórico" icon={<History />} iconPosition="start" />
-          <Tab label="Screenshots" icon={<PhotoLibrary />} iconPosition="start" />
+          <Tab label="Capturas de Tela" icon={<PhotoLibrary />} iconPosition="start" />
           <Tab label="Logs" icon={<Terminal />} iconPosition="start" />
         </Tabs>
 
@@ -327,11 +327,11 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
           </Box>
         )}
 
-        {/* Screenshots */}
+        {/* Capturas de tela */}
         {tabValue === 1 && (
           <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="subtitle2">Screenshots Capturados</Typography>
+              <Typography variant="subtitle2">Capturas de Tela</Typography>
               <IconButton size="small" onClick={loadScreenshots} disabled={loading}>
                 <Refresh />
               </IconButton>
@@ -342,7 +342,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
                 <CircularProgress />
               </Box>
             ) : screenshots.length === 0 ? (
-              <Alert severity="info">Nenhum screenshot capturado ainda</Alert>
+              <Alert severity="info">Nenhuma captura de tela realizada ainda</Alert>
             ) : (
               <ImageList cols={3} gap={8}>
                 {screenshots.map((screenshot) => (
@@ -391,7 +391,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
                       </Box>
                     </Box>
                     <Box sx={{ mt: 1, display: 'flex', justifyContent: 'center' }}>
-                      <Tooltip title="Download">
+                      <Tooltip title="Baixar">
                         <IconButton
                           size="small"
                           onClick={(e) => {
@@ -420,7 +420,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
         )}
       </CardContent>
 
-      {/* Dialog: Visualizar Screenshot */}
+      {/* Dialog: Visualizar captura de tela */}
       <Dialog
         open={!!selectedScreenshot}
         onClose={() => setSelectedScreenshot(null)}
@@ -430,14 +430,14 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
         {selectedScreenshot && (
           <>
             <DialogTitle>
-              Screenshot - {new Date(selectedScreenshot.created_at).toLocaleString('pt-BR')}
+              Captura de Tela - {new Date(selectedScreenshot.created_at).toLocaleString('pt-BR')}
             </DialogTitle>
             <DialogContent>
               <Box sx={{ textAlign: 'center' }}>
                 <Box
                   component="img"
                   src={`${process.env.REACT_APP_API_URL || '/api'}/totems/${totemId}/screenshots/${selectedScreenshot.id}/download`}
-                  alt="Screenshot"
+                  alt="Captura de tela"
                   sx={{ maxWidth: '100%', height: 'auto', display: 'block' }}
                 />
               </Box>

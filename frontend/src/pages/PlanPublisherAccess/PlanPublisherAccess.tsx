@@ -524,7 +524,7 @@ const PlanPublisherAccessPage: React.FC = () => {
         return;
       }
 
-      // Validar JSON de features e limits
+      // Validar JSON de recursos e limites
       let features = planFormData.features;
       let limits = planFormData.limits;
       
@@ -532,7 +532,7 @@ const PlanPublisherAccessPage: React.FC = () => {
         try {
           features = JSON.parse(planFormData.features);
         } catch (e) {
-          setError('Features deve ser um JSON válido');
+          setError('Recursos deve ser um JSON válido');
           return;
         }
       }
@@ -541,7 +541,7 @@ const PlanPublisherAccessPage: React.FC = () => {
         try {
           limits = JSON.parse(planFormData.limits);
         } catch (e) {
-          setError('Limits deve ser um JSON válido');
+          setError('Limites deve ser um JSON válido');
           return;
         }
       }
@@ -1272,7 +1272,7 @@ const PlanPublisherAccessPage: React.FC = () => {
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Stripe Product ID"
+                  label="ID do Produto Stripe"
                   value={planFormData.stripeProductId}
                   onChange={(e) => setPlanFormData({ ...planFormData, stripeProductId: e.target.value })}
                   margin="normal"
@@ -1281,7 +1281,7 @@ const PlanPublisherAccessPage: React.FC = () => {
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Stripe Price ID (Mensal)"
+                  label="ID do Preço Stripe (Mensal)"
                   value={planFormData.stripePriceIdMonthly}
                   onChange={(e) => setPlanFormData({ ...planFormData, stripePriceIdMonthly: e.target.value })}
                   margin="normal"
@@ -1290,7 +1290,7 @@ const PlanPublisherAccessPage: React.FC = () => {
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Stripe Price ID (Anual)"
+                  label="ID do Preço Stripe (Anual)"
                   value={planFormData.stripePriceIdYearly}
                   onChange={(e) => setPlanFormData({ ...planFormData, stripePriceIdYearly: e.target.value })}
                   margin="normal"
@@ -1299,23 +1299,23 @@ const PlanPublisherAccessPage: React.FC = () => {
             </Grid>
             <TextField
               fullWidth
-              label="Features (JSON)"
+              label="Recursos (JSON)"
               multiline
               rows={4}
               value={typeof planFormData.features === 'string' ? planFormData.features : JSON.stringify(planFormData.features, null, 2)}
               onChange={(e) => setPlanFormData({ ...planFormData, features: e.target.value })}
               margin="normal"
-              helperText="Objeto JSON com features do plano. Ex: { 'feature1': true, 'feature2': 'advanced' }"
+              helperText="Objeto JSON com recursos do plano. Ex.: { 'recurso1': true, 'nivel': 'avancado' }"
             />
             <TextField
               fullWidth
-              label="Limits (JSON)"
+              label="Limites (JSON)"
               multiline
               rows={4}
               value={typeof planFormData.limits === 'string' ? planFormData.limits : JSON.stringify(planFormData.limits, null, 2)}
               onChange={(e) => setPlanFormData({ ...planFormData, limits: e.target.value })}
               margin="normal"
-              helperText="Objeto JSON com limites. Ex: { 'totems': 10, 'campaigns': 50, 'storage_gb': 100 }"
+              helperText="Objeto JSON com limites. Ex.: { 'totens': 10, 'campanhas': 50, 'armazenamento_gb': 100 }"
             />
             <Grid container spacing={2}>
               <Grid item xs={12} md={4}>
