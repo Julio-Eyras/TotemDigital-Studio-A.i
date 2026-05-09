@@ -861,6 +861,83 @@ router.post('/:id/screenshot',
 );
 
 /**
+ * @route POST /api/totems/:id/commands
+ * @desc Enfileira comando remoto genérico para o totem
+ * @access Private (Admin)
+ */
+router.post('/:id/commands',
+  param('id').isInt({ min: 1 }).withMessage('ID do totem inválido'),
+  body('type')
+    .isString()
+    .isIn([
+      'invalidate_media',
+      'invalidate_playlist',
+      'invalidate_campaign',
+      'purge_cache',
+      'restart_app',
+      'reset_board',
+      'capture_screen',
+      // Compatibilidade com comandos legados já usados no painel
+      'restart',
+      'reboot',
+      'screenshot'
+    ])
+    .withMessage('Tipo de comando inválido'),
+  body('data').optional().isObject().withMessage('data deve ser objeto JSON'),
+  validateRequest,
+  authorizeRole(['admin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id, 10);
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+
+      const type = String(req.body.type || '').trim();
+      const data = req.body.data || {};
+
+      const remoteCommandService = getRemoteCommandService();
+      const command = await remoteCommandService.createCommand(
+        {
+          totemId,
+          commandType: type as any,
+          commandData: data,
+        },
+        userId
+      );
+
+      await logInfo('Comando remoto genérico enfileirado', {
+        totemId,
+        commandId: command.id,
+        commandType: type,
+        userId,
+      });
+
+      return res.json({
+        success: true,
+        message: 'Comando remoto enfileirado com sucesso',
+        command: {
+          id: command.id,
+          type,
+          status: command.status,
+          createdAt: command.createdAt,
+        },
+      });
+    } catch (error: any) {
+      await logError('Erro ao enfileirar comando remoto genérico', error, {
+        totemId: req.params.id,
+        commandType: req.body?.type,
+      });
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Erro ao enfileirar comando remoto',
+      });
+    }
+  }
+);
+
+/**
  * @route GET /api/totems/:id/commands
  * @desc Obtém histórico de comandos remotos do totem
  * @access Private (Admin, Manager)

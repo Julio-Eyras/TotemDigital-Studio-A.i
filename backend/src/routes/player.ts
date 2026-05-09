@@ -1549,8 +1549,8 @@ router.post('/command-result',
       if (status === 'completed') {
         await remoteCommandService.markCommandAsCompleted(command.id, result);
         
-        // Se for screenshot, salvar arquivo se fornecido
-        if (command.command_type === 'screenshot' && result?.filePath) {
+        // Se for screenshot/capture_screen, salvar arquivo se fornecido
+        if ((command.command_type === 'screenshot' || command.command_type === 'capture_screen') && result?.filePath) {
           await remoteCommandService.saveScreenshot(
             totem.totem_id,
             result.filePath,

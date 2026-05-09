@@ -7,7 +7,20 @@ import { getDatabase } from '../config/database';
 import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from './eventLogService';
 
-export type CommandType = 'restart' | 'screenshot' | 'update' | 'config' | 'custom';
+export type CommandType =
+  | 'restart'
+  | 'restart_app'
+  | 'reboot'
+  | 'reset_board'
+  | 'screenshot'
+  | 'capture_screen'
+  | 'invalidate_media'
+  | 'invalidate_playlist'
+  | 'invalidate_campaign'
+  | 'purge_cache'
+  | 'update'
+  | 'config'
+  | 'custom';
 
 export interface RemoteCommand {
   id: number;

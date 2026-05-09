@@ -22,6 +22,17 @@ class DispatcherApiClient(
     val uin: String,
     val deviceId: String
  ) {
+    data class PendingCommand(
+        val id: String,
+        val type: String,
+        val data: JSONObject?
+    )
+
+    data class HeartbeatResult(
+        val token: String,
+        val pendingCommands: List<PendingCommand>
+    )
+
     private var currentToken: String? = null
 
     /** Último token conhecido (atualizado por heartbeat, getToken ou retry em dispatch). */
@@ -105,7 +116,7 @@ class DispatcherApiClient(
         return responseCode to responseBody
     }
 
-    suspend fun heartbeat(): String = withContext(Dispatchers.IO) {
+    suspend fun heartbeatWithCommands(): HeartbeatResult = withContext(Dispatchers.IO) {
         var tkn = currentToken ?: getToken()
         var (responseCode, responseBody) = performHeartbeatRequest(tkn)
         if (responseCode == 401) {
@@ -122,9 +133,35 @@ class DispatcherApiClient(
         }
 
         val json = JSONObject(responseBody)
-        val newToken = json.optString("token", tkn)
+        val data = json.optJSONObject("data")
+        val payload = data ?: json
+        val newToken = payload.optString("token", tkn)
         currentToken = newToken
-        newToken
+        val commandsArray =
+            payload.optJSONArray("pendingCommands")
+                ?: payload.optJSONArray("pending_commands")
+        val pendingCommands = mutableListOf<PendingCommand>()
+        if (commandsArray != null) {
+            for (i in 0 until commandsArray.length()) {
+                val obj = commandsArray.optJSONObject(i) ?: continue
+                val id = obj.opt("id")?.toString() ?: continue
+                val type = obj.optString("type", "").trim()
+                if (type.isBlank()) continue
+                val dataObj = obj.optJSONObject("data")
+                    ?: obj.optJSONObject("command_data")
+                pendingCommands += PendingCommand(
+                    id = id,
+                    type = type,
+                    data = dataObj
+                )
+            }
+        }
+
+        HeartbeatResult(newToken, pendingCommands)
+    }
+
+    suspend fun heartbeat(): String = withContext(Dispatchers.IO) {
+        heartbeatWithCommands().token
     }
 
     suspend fun getDispatchPlan(token: String): JSONObject = withContext(Dispatchers.IO) {
@@ -165,6 +202,55 @@ class DispatcherApiClient(
         }
 
         JSONObject(responseBody)
+    }
+
+    suspend fun reportCommandResult(
+        token: String,
+        requestId: String,
+        status: String,
+        result: JSONObject? = null,
+        error: String? = null
+    ): String = withContext(Dispatchers.IO) {
+        fun postOnce(tkn: String): Int {
+            val url = URL("$baseUrl/api/player/command-result")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                doOutput = true
+                connectTimeout = 8000
+                readTimeout = 8000
+                setRequestProperty("Content-Type", "application/json")
+            }
+            val body = JSONObject().apply {
+                put("uin", uin)
+                put("token", tkn)
+                put("requestId", requestId)
+                put("status", status)
+                if (result != null) put("result", result)
+                if (!error.isNullOrBlank()) put("error", error)
+            }.toString()
+            return try {
+                conn.outputStream.use { it.write(body.toByteArray()) }
+                val code = conn.responseCode
+                (if (code in 200..299) conn.inputStream else conn.errorStream)?.use { it.readBytes() }
+                code
+            } catch (_: Exception) {
+                -1
+            } finally {
+                conn.disconnect()
+            }
+        }
+
+        var tkn = token
+        var code = postOnce(tkn)
+        if (code == 401) {
+            tkn = heartbeat()
+            code = postOnce(tkn)
+        }
+        if (code == 401) {
+            tkn = getToken()
+            postOnce(tkn)
+        }
+        tkn
     }
 
     /**

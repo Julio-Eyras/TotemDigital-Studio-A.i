@@ -9,6 +9,7 @@ import br.com.smartchannel.playerad.api.PlayerEventsClient
 import br.com.smartchannel.playerad.cache.MediaCacheManager
 import br.com.smartchannel.playerad.util.AppDirs
 import br.com.smartchannel.playerad.util.PlayerAdLogger
+import android.content.Intent
 import android.widget.ImageView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -27,6 +28,7 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.system.exitProcess
 import kotlin.coroutines.resume
 
 /**
@@ -49,6 +51,8 @@ class PlayerController(
     private val fallbackPropagandasPerVinheta: Int = 3,
     private val maxSecondsWithoutServerCheck: Int = 60
 ) {
+    private var restartRequested = false
+
     private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL }
 
     private val DEFAULT_IMAGE_DURATION_SECONDS = 20L
@@ -360,6 +364,13 @@ class PlayerController(
                     currentPlanSource = PlanSource.ONLINE
                     updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                     lastServerCheckAtMs = System.currentTimeMillis()
+                    if (currentPlan.mediaItems.isEmpty()) {
+                        // Reentra no início do loop para cair no fluxo de fallback (persistido/local)
+                        // e evitar indexação em lista vazia.
+                        index = 0
+                        completedFullCycle = false
+                        continue
+                    }
                 } catch (e: Exception) {
                     PlayerAdLogger.e(
                         "DISPATCH",
@@ -367,6 +378,16 @@ class PlayerController(
                         e
                     )
                 }
+            }
+
+            if (currentPlan.mediaItems.isEmpty()) {
+                // Guarda final de segurança contra planos vazios em qualquer caminho de atualização.
+                PlayerAdLogger.w(
+                    "PLAYBACK",
+                    "Proteção acionada: plano ainda vazio antes da indexação; novo ciclo para fallback/retry"
+                )
+                delay(250L)
+                continue
             }
 
             val item = currentPlan.mediaItems[index]
@@ -384,8 +405,12 @@ class PlayerController(
 
     private suspend fun fetchOnlinePlan(previousToken: String): OnlinePlanResult {
         PlayerAdLogger.i("LIFECYCLE", "(2) DispatchPlan + pré-cache (GET /api/player/dispatch)")
-        val token = apiClient.heartbeat()
-        PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados")
+        val hb = apiClient.heartbeatWithCommands()
+        var token = hb.token
+        PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados; comandos=${hb.pendingCommands.size}")
+        if (hb.pendingCommands.isNotEmpty()) {
+            token = processPendingCommands(hb.pendingCommands, token)
+        }
         val dispatchJson = apiClient.getDispatchPlan(token)
         saveDispatchPlanToDisk(dispatchJson)
         val effectiveToken = apiClient.cachedToken() ?: token.ifBlank { previousToken }
@@ -395,6 +420,199 @@ class PlayerController(
             token = effectiveToken,
             plan = plan
         )
+    }
+
+    private suspend fun processPendingCommands(
+        commands: List<DispatcherApiClient.PendingCommand>,
+        initialToken: String
+    ): String {
+        var token = initialToken
+        for (cmd in commands) {
+            val type = cmd.type.trim().lowercase(Locale.US)
+            try {
+                val result = executeRemoteCommand(type, cmd.data)
+                token = apiClient.reportCommandResult(
+                    token = token,
+                    requestId = cmd.id,
+                    status = "completed",
+                    result = result
+                )
+                PlayerAdLogger.i("REMOTE_CMD", "Comando executado com sucesso: type=$type id=${cmd.id}")
+            } catch (e: Exception) {
+                token = apiClient.reportCommandResult(
+                    token = token,
+                    requestId = cmd.id,
+                    status = "failed",
+                    error = e.message ?: "Falha ao executar comando"
+                )
+                PlayerAdLogger.e("REMOTE_CMD", "Comando falhou: type=$type id=${cmd.id}", e)
+            }
+        }
+        if (restartRequested) {
+            PlayerAdLogger.w("REMOTE_CMD", "Restart de app solicitado por comando remoto")
+            restartRequested = false
+            scheduleAppRestart()
+        }
+        return token
+    }
+
+    private suspend fun executeRemoteCommand(type: String, data: JSONObject?): JSONObject {
+        return when (type) {
+            "invalidate_media" -> executeInvalidateMedia(data)
+            "invalidate_playlist" -> executeInvalidatePlaylist(data)
+            "invalidate_campaign" -> executeInvalidateCampaign(data)
+            "purge_cache" -> executePurgeCache()
+            "restart_app", "restart" -> executeRestartApp()
+            "reset_board", "reboot" -> executeResetBoard()
+            "capture_screen", "screenshot" -> executeCaptureScreen()
+            else -> throw IllegalArgumentException("Comando não suportado no Player-AD: $type")
+        }
+    }
+
+    private fun executeInvalidateMedia(data: JSONObject?): JSONObject {
+        val ids = extractMediaIds(data)
+        if (ids.isEmpty()) throw IllegalArgumentException("invalidate_media sem mediaId/mediaIds")
+        ids.forEach { cacheManager.markAsRemoved(it) }
+        return JSONObject().apply {
+            put("removedMediaIds", JSONArray(ids))
+            put("removedCount", ids.size)
+        }
+    }
+
+    private suspend fun executeInvalidatePlaylist(data: JSONObject?): JSONObject {
+        val explicitIds = extractMediaIds(data)
+        val playlistId = data?.optLong("playlistId", 0L) ?: 0L
+        val ids = if (explicitIds.isNotEmpty()) {
+            explicitIds
+        } else {
+            val persisted = loadDispatchPlanFromDisk()?.let { parseDispatchPlan(it) }
+            if (persisted != null && playlistId > 0L && persisted.playlistId == playlistId) {
+                persisted.mediaItems.map { it.mediaId }.filter { it > 0L }.distinct()
+            } else emptyList()
+        }
+        if (ids.isEmpty()) throw IllegalArgumentException("invalidate_playlist sem mediaIds aplicáveis")
+        ids.forEach { cacheManager.markAsRemoved(it) }
+        return JSONObject().apply {
+            put("playlistId", playlistId)
+            put("removedMediaIds", JSONArray(ids))
+            put("removedCount", ids.size)
+        }
+    }
+
+    private suspend fun executeInvalidateCampaign(data: JSONObject?): JSONObject {
+        val explicitIds = extractMediaIds(data)
+        val campaignId = data?.optLong("campaignId", 0L) ?: 0L
+        val ids = if (explicitIds.isNotEmpty()) {
+            explicitIds
+        } else {
+            val persisted = loadDispatchPlanFromDisk()?.let { parseDispatchPlan(it) }
+            if (persisted != null && campaignId > 0L && persisted.campaignId == campaignId) {
+                persisted.mediaItems.map { it.mediaId }.filter { it > 0L }.distinct()
+            } else emptyList()
+        }
+        if (ids.isEmpty()) throw IllegalArgumentException("invalidate_campaign sem mediaIds aplicáveis")
+        ids.forEach { cacheManager.markAsRemoved(it) }
+        return JSONObject().apply {
+            put("campaignId", campaignId)
+            put("removedMediaIds", JSONArray(ids))
+            put("removedCount", ids.size)
+        }
+    }
+
+    private fun executePurgeCache(): JSONObject {
+        val dir = propagandasDir
+        var removed = 0
+        if (dir.exists() && dir.isDirectory) {
+            dir.listFiles()?.forEach { f ->
+                if (f.isFile && !f.name.equals("metadata.json", ignoreCase = true)) {
+                    if (f.delete()) removed++
+                }
+            }
+        }
+        // Reinicializa metadados para refletir estado atual do storage.
+        cacheManager.init()
+        return JSONObject().apply {
+            put("removedFiles", removed)
+            put("cachePath", dir.absolutePath)
+        }
+    }
+
+    private fun executeRestartApp(): JSONObject {
+        restartRequested = true
+        return JSONObject().apply {
+            put("scheduled", true)
+            put("action", "restart_app")
+        }
+    }
+
+    private fun executeResetBoard(): JSONObject {
+        val commands = listOf("reboot", "svc power reboot", "setprop sys.powerctl reboot")
+        val errors = mutableListOf<String>()
+        for (cmd in commands) {
+            try {
+                val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
+                val code = process.waitFor()
+                if (code == 0) {
+                    return JSONObject().apply {
+                        put("scheduled", true)
+                        put("action", "reset_board")
+                        put("command", cmd)
+                    }
+                }
+                errors += "$cmd exit=$code"
+            } catch (e: Exception) {
+                errors += "$cmd error=${e.message}"
+            }
+        }
+        throw IllegalStateException("Não foi possível reiniciar o sistema: ${errors.joinToString(" | ")}")
+    }
+
+    private fun executeCaptureScreen(): JSONObject {
+        val screenshotsDir = File(AppDirs.root(context), "screenshots").apply { mkdirs() }
+        val ts = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        val out = File(screenshotsDir, "screen-$ts.png")
+        val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", "screencap -p \"${out.absolutePath}\""))
+        val code = process.waitFor()
+        if (code != 0 || !out.exists()) {
+            throw IllegalStateException("Falha no screencap (exit=$code)")
+        }
+        return JSONObject().apply {
+            put("filePath", out.absolutePath)
+            put("fileSize", out.length())
+            put("format", "png")
+        }
+    }
+
+    private fun extractMediaIds(data: JSONObject?): List<Long> {
+        if (data == null) return emptyList()
+        val out = linkedSetOf<Long>()
+        val single = data.optLong("mediaId", 0L)
+        if (single > 0L) out += single
+        val arr = data.optJSONArray("mediaIds") ?: data.optJSONArray("ids")
+        if (arr != null) {
+            for (i in 0 until arr.length()) {
+                val v = arr.optLong(i, 0L)
+                if (v > 0L) out += v
+            }
+        }
+        return out.toList()
+    }
+
+    private fun scheduleAppRestart() {
+        try {
+            val intent = context.packageManager
+                .getLaunchIntentForPackage(context.packageName)
+                ?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
+            if (intent != null) {
+                context.startActivity(intent)
+            }
+        } catch (_: Exception) {
+            // ignora; ainda assim encerra para o watchdog/launcher recuperar o app
+        }
+        exoPlayer.stop()
+        exitProcess(0)
     }
 
     /** @return token a usar no próximo item (pode ter sido renovado ao enviar eventos). */
