@@ -99,6 +99,8 @@ import {
   smartTvApi,
   contractApi,
   planApi,
+  publisherApi,
+  subscriberAccessApi,
 } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import { SortableList } from '../../components/SortableList/SortableList';
@@ -243,7 +245,41 @@ const Subscribers: React.FC = () => {
   const [editingLocalIndex, setEditingLocalIndex] = useState<number | null>(null);
   const [editingTotemIndex, setEditingTotemIndex] = useState<number | null>(null);
   const [editingSmartTvIndex, setEditingSmartTvIndex] = useState<number | null>(null);
-  
+
+  /** Locais/totens/TVs derivados dos planos nos contratos (somente leitura no assistente de criação). */
+  const [createContractPlanPreview, setCreateContractPlanPreview] = useState<{
+    loading: boolean;
+    error: string | null;
+    rows: Array<{
+      tempId?: string;
+      title: string;
+      contractNumber?: string;
+      planId: number | null;
+      planName: string | null;
+      publishers: Array<{
+        publisher_id: number;
+        publisher_name: string;
+        locals: Local[];
+        totems: any[];
+        smartTvs: any[];
+      }>;
+    }>;
+  }>({ loading: false, error: null, rows: [] });
+
+  const createPreviewCounts = useMemo(() => {
+    let lc = 0;
+    let tt = 0;
+    let st = 0;
+    for (const r of createContractPlanPreview.rows) {
+      for (const p of r.publishers) {
+        lc += p.locals?.length ?? 0;
+        tt += p.totems?.length ?? 0;
+        st += p.smartTvs?.length ?? 0;
+      }
+    }
+    return { lc, tt, st };
+  }, [createContractPlanPreview.rows]);
+
   // Estados para edição de Anunciante (carregar dados existentes)
   const [editMedias, setEditMedias] = useState<MediaItem[]>([]);
   const [mediaPreviewFailed, setMediaPreviewFailed] = useState<Set<number>>(new Set());
@@ -408,6 +444,89 @@ const Subscribers: React.FC = () => {
       loadPlans();
     }
   }, [createTab, createDialogOpen, editTab, editDialogOpen]);
+
+  /** Carrega rede (publishers → locais/totens/TVs) conforme planos nos contratos em rascunho. */
+  useEffect(() => {
+    if (!createDialogOpen) {
+      setCreateContractPlanPreview({ loading: false, error: null, rows: [] });
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      if (tempSubscriberContracts.length === 0) {
+        setCreateContractPlanPreview({ loading: false, error: null, rows: [] });
+        return;
+      }
+      setCreateContractPlanPreview((prev) => ({ ...prev, loading: true, error: null }));
+      try {
+        const rows = await Promise.all(
+          tempSubscriberContracts.map(async (c) => {
+            const title = c.title || c.contract_number || 'Contrato';
+            if (!c.plan_id) {
+              return {
+                tempId: c.tempId,
+                title,
+                contractNumber: c.contract_number,
+                planId: null,
+                planName: null,
+                publishers: [],
+              };
+            }
+            const planId = Number(c.plan_id);
+            let planName: string | null = null;
+            try {
+              const plan = await planApi.getById(planId);
+              planName = plan?.name ?? null;
+            } catch {
+              planName = null;
+            }
+            const accessList = await subscriberAccessApi.getPlanPublisherAccess({ planId });
+            const allowed = (accessList || []).filter((a: any) => a.is_allowed !== false);
+            const publishers = await Promise.all(
+              allowed.map(async (a: any) => {
+                const pid = a.publisher_id;
+                const [locals, totems, smartTvs] = await Promise.all([
+                  publisherApi.getLocals(pid),
+                  publisherApi.getTotems(pid),
+                  publisherApi.getSmartTvs(pid),
+                ]);
+                return {
+                  publisher_id: pid,
+                  publisher_name: a.publisher_name || `Publisher ${pid}`,
+                  locals: Array.isArray(locals) ? locals : [],
+                  totems: Array.isArray(totems) ? totems : [],
+                  smartTvs: Array.isArray(smartTvs) ? smartTvs : [],
+                };
+              })
+            );
+            return {
+              tempId: c.tempId,
+              title,
+              contractNumber: c.contract_number,
+              planId,
+              planName: planName || `Plano #${planId}`,
+              publishers,
+            };
+          })
+        );
+        if (!cancelled) {
+          setCreateContractPlanPreview({ loading: false, error: null, rows });
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setCreateContractPlanPreview({
+            loading: false,
+            error: pickApiErrorMessage(e, 'Erro ao carregar rede do plano'),
+            rows: [],
+          });
+        }
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [createDialogOpen, tempSubscriberContracts]);
 
   useEffect(() => {
     // Debounce para busca
@@ -1948,6 +2067,137 @@ const Subscribers: React.FC = () => {
     );
   }
 
+  const resolveTotemLocalCaption = (totem: any, locals: Local[]) => {
+    const lid = getTotemLocalIdFromRow(totem);
+    if (lid == null) return '—';
+    const loc = locals.find((l) => Number(l.local_id) === Number(lid));
+    return loc?.name || `Local #${lid}`;
+  };
+
+  const resolveSmartTvTotemCaption = (tv: any, totems: any[]) => {
+    const tid = tv.totem_id ?? tv.totemId;
+    if (tid == null) return '—';
+    const t = totems.find((x) => Number(getTotemIdFromRow(x)) === Number(tid));
+    return t?.name || t?.identifier || `Totem #${tid}`;
+  };
+
+  const renderCreatePlanTopologyTab = (mode: 'locals' | 'totens' | 'smartTvs') => (
+    <Box>
+      <Typography variant="h6" sx={{ mb: 2 }}>
+        {mode === 'locals' && 'Locais da rede do plano'}
+        {mode === 'totens' && 'Totens da rede do plano'}
+        {mode === 'smartTvs' && 'Smart TVs na rede do plano'}
+      </Typography>
+      <Alert severity="info" sx={{ mb: 2 }}>
+        <strong>Somente visualização.</strong> O contrato associa um <strong>plano</strong>; os locais e totens em que o anunciante pode veicular campanhas são os definidos por esse plano (publicadores autorizados e respectivos locais/totens). Não é permitido alterar essa rede neste assistente.
+      </Alert>
+      {createContractPlanPreview.loading && <LinearProgress sx={{ mb: 2 }} />}
+      {createContractPlanPreview.error && (
+        <Alert severity="error" sx={{ mb: 2 }}>{createContractPlanPreview.error}</Alert>
+      )}
+      {!createContractPlanPreview.loading && tempSubscriberContracts.length === 0 && (
+        <Alert severity="warning">Adicione pelo menos um contrato na aba <strong>Contratos</strong>.</Alert>
+      )}
+      {!createContractPlanPreview.loading &&
+        tempSubscriberContracts.length > 0 &&
+        createContractPlanPreview.rows.length > 0 &&
+        createContractPlanPreview.rows.every((r) => !r.planId) && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Associe um <strong>plano</strong> a cada contrato na aba Contratos para visualizar locais, totens e TVs correspondentes.
+          </Alert>
+      )}
+      {!createContractPlanPreview.loading &&
+        createContractPlanPreview.rows.map((row) => (
+          <Paper key={row.tempId || row.title} variant="outlined" sx={{ p: 2, mb: 2 }}>
+            <Typography variant="subtitle1" fontWeight="bold">{row.title}</Typography>
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
+              {row.planId ? (
+                <>Plano: {row.planName} (ID {row.planId})</>
+              ) : (
+                <>Sem plano neste contrato — defina um plano na aba Contratos para ver a rede.</>
+              )}
+            </Typography>
+            {row.planId && row.publishers.length === 0 && (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                Nenhum publicador permitido para este plano em <strong>Planos → acesso por publicador</strong>, ou todos estão bloqueados.
+              </Alert>
+            )}
+            {row.planId &&
+              row.publishers.map((pub) => (
+                <Box key={pub.publisher_id} sx={{ mb: 2, pl: 1, borderLeft: `3px solid ${theme.palette.divider}` }}>
+                  <Typography variant="subtitle2" color="primary">{pub.publisher_name}</Typography>
+                  {mode === 'locals' &&
+                    (pub.locals.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">Nenhum local neste publicador.</Typography>
+                    ) : (
+                      <TableContainer component={Paper} variant="outlined" sx={{ mt: 1 }}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Local</TableCell>
+                              <TableCell>Endereço</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {pub.locals.map((loc) => (
+                              <TableRow key={loc.local_id}>
+                                <TableCell>{loc.name}</TableCell>
+                                <TableCell>{[loc.address, loc.city, loc.state].filter(Boolean).join(', ') || '—'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ))}
+                  {mode === 'totens' &&
+                    (pub.totems.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">Nenhum totem neste publicador.</Typography>
+                    ) : (
+                      <List dense sx={{ mt: 1 }}>
+                        {pub.totems.map((totem: any, idx: number) => (
+                          <ListItem key={String(getTotemIdFromRow(totem) ?? idx)} sx={{ py: 0.5 }}>
+                            <ListItemIcon><Computer fontSize="small" /></ListItemIcon>
+                            <ListItemText
+                              primary={totem.name || totem.identifier || 'Totem'}
+                              secondary={`Local: ${resolveTotemLocalCaption(totem, pub.locals)} · ${totem.identifier || '—'}`}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    ))}
+                  {mode === 'smartTvs' &&
+                    (pub.smartTvs.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">Nenhuma Smart TV adicional registada neste publicador.</Typography>
+                    ) : (
+                      <List dense sx={{ mt: 1 }}>
+                        {pub.smartTvs.map((tv: any, idx: number) => (
+                          <ListItem key={String(tv.smart_tv_id ?? tv.smartTvId ?? tv.id ?? idx)} sx={{ py: 0.5 }}>
+                            <ListItemIcon><Tv fontSize="small" /></ListItemIcon>
+                            <ListItemText
+                              primary={tv.name || tv.identifier || 'Smart TV'}
+                              secondary={`Totem: ${resolveSmartTvTotemCaption(tv, pub.totems)}`}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    ))}
+                </Box>
+              ))}
+          </Paper>
+        ))}
+      {!createContractPlanPreview.loading &&
+        tempSubscriberContracts.length > 0 &&
+        createContractPlanPreview.rows.some((r) => r.planId) &&
+        createPreviewCounts.lc === 0 &&
+        createPreviewCounts.tt === 0 &&
+        createPreviewCounts.st === 0 && (
+          <Alert severity="info">
+            O plano não devolveu locais ou totens para os publicadores permitidos. Confira cadastros de locais/totens e o mapeamento plano ↔ publicador.
+          </Alert>
+      )}
+    </Box>
+  );
+
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
       <PageHeader
@@ -2141,9 +2391,9 @@ const Subscribers: React.FC = () => {
           >
             <Tab label="Informações" />
             <Tab label="Contratos" icon={tempSubscriberContracts && tempSubscriberContracts.length > 0 ? <Chip label={tempSubscriberContracts.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Locais" icon={tempLocals.length > 0 ? <Chip label={tempLocals.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Totens" icon={tempTotems.length > 0 ? <Chip label={tempTotems.length} size="small" color="primary" /> : undefined} iconPosition="end" />
-            <Tab label="Smart TVs" icon={tempSmartTvs.length > 0 ? <Chip label={tempSmartTvs.length} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab label="Locais" icon={createPreviewCounts.lc > 0 ? <Chip label={createPreviewCounts.lc} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab label="Totens" icon={createPreviewCounts.tt > 0 ? <Chip label={createPreviewCounts.tt} size="small" color="primary" /> : undefined} iconPosition="end" />
+            <Tab label="Smart TVs" icon={createPreviewCounts.st > 0 ? <Chip label={createPreviewCounts.st} size="small" color="primary" /> : undefined} iconPosition="end" />
           </Tabs>
 
           {/* Aba Informações */}
@@ -2416,505 +2666,13 @@ const Subscribers: React.FC = () => {
             </Box>
           )}
 
-          {/* Aba Locais - REMOVIDA: Subscribers não criam locais próprios */}
-          {createTab === 2 && (
-            <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Locais
-              </Typography>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <strong>Nota:</strong> Anunciantes não criam locais próprios. 
-                Locais pertencem apenas a Publishers. 
-                Anunciantes acessam locais através de planos e contratos.
-              </Alert>
-              
-              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Local</Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Nome do Local *"
-                      value={localForm.name}
-                      onChange={(e) => setLocalForm({ ...localForm, name: e.target.value })}
-                      size="small"
-                      required
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Endereço"
-                      value={localForm.address || ''}
-                      onChange={(e) => setLocalForm({ ...localForm, address: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Cidade"
-                      value={localForm.city || ''}
-                      onChange={(e) => setLocalForm({ ...localForm, city: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Estado"
-                      value={localForm.state || ''}
-                      onChange={(e) => setLocalForm({ ...localForm, state: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="CEP"
-                      value={localForm.zip_code || ''}
-                      onChange={(e) => setLocalForm({ ...localForm, zip_code: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Descrição"
-                      value={localForm.description || ''}
-                      onChange={(e) => setLocalForm({ ...localForm, description: e.target.value })}
-                      size="small"
-                      multiline
-                      rows={2}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Button
-                      variant="contained"
-                      startIcon={<Add />}
-                      onClick={handleAddLocal}
-                      disabled={!localForm.name}
-                    >
-                      {editingLocalIndex !== null ? 'Atualizar Local' : 'Adicionar Local'}
-                    </Button>
-                    {editingLocalIndex !== null && (
-                      <Button
-                        variant="outlined"
-                        onClick={() => {
-                          setEditingLocalIndex(null);
-                          setLocalForm({
-                            publisher_id: 0,
-                            name: '',
-                            address: '',
-                            city: '',
-                            state: '',
-                            zip_code: '',
-                            country: '',
-                            description: '',
-                          });
-                        }}
-                        sx={{ ml: 1 }}
-                      >
-                        Cancelar Edição
-                      </Button>
-                    )}
-                  </Grid>
-                </Grid>
-              </Box>
+          {createTab === 2 && renderCreatePlanTopologyTab('locals')}
 
-              {tempLocals.length > 0 ? (
-                <List>
-                  {tempLocals.map((local, index) => (
-                    <ListItem key={index} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
-                      <ListItemIcon><Store /></ListItemIcon>
-                      <ListItemText
-                        primary={local.name}
-                        secondary={`${local.address || ''} ${local.city || ''} ${local.state || ''}`.trim() || 'Sem endereço'}
-                      />
-                      <IconButton size="small" onClick={() => handleEditLocal(index)}>
-                        <Edit />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteLocal(index)}>
-                        <Delete />
-                      </IconButton>
-                    </ListItem>
-                  ))}
-                </List>
-              ) : (
-                <Alert severity="info">Nenhum local cadastrado ainda. Adicione ao menos 1 local.</Alert>
-              )}
-            </Box>
-          )}
+          {/* Aba Totens — somente leitura (rede do plano); ver também aba Locais */}
+          {createTab === 3 && renderCreatePlanTopologyTab('totens')}
 
-          {/* Aba Totens */}
-          {createTab === 3 && (
-            <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Totens {tempTotems.length > 0 && `(${tempTotems.length})`}
-              </Typography>
-              {tempLocals.length === 0 ? (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  Você precisa cadastrar ao menos 1 local na aba "Locais" antes de adicionar totens.
-                </Alert>
-              ) : (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  Os totens (players) devem estar atrelados a um local. Selecione um local no campo abaixo.
-                  <strong> Nota:</strong> Os totens são players com player embutido.
-                </Alert>
-              )}
-
-              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Totem</Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small" required>
-                      <InputLabel>Local *</InputLabel>
-                      <Select
-                        sx={sxSelectChosenGreen(
-                          tempLocals.length > 0 && totemForm.localId >= 0 && totemForm.localId < tempLocals.length
-                        )}
-                        value={totemForm.localId}
-                        label="Local *"
-                        onChange={(e) => setTotemForm({ ...totemForm, localId: Number(e.target.value) })}
-                      >
-                        {tempLocals.map((local, index) => (
-                          <MenuItem key={index} value={index}>
-                            {local.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Identifier *"
-                      value={totemForm.identifier}
-                      onChange={(e) => setTotemForm({ ...totemForm, identifier: e.target.value })}
-                      size="small"
-                      required
-                      helperText="Identificador único do totem"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Nome"
-                      value={totemForm.name || ''}
-                      onChange={(e) => setTotemForm({ ...totemForm, name: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Device ID"
-                      value={totemForm.deviceId || ''}
-                      onChange={(e) => setTotemForm({ ...totemForm, deviceId: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="UIN"
-                      value={totemForm.uin || ''}
-                      onChange={(e) => setTotemForm({ ...totemForm, uin: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Firmware Version"
-                      value={totemForm.firmwareVersion || ''}
-                      onChange={(e) => setTotemForm({ ...totemForm, firmwareVersion: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Descrição"
-                      value={totemForm.description || ''}
-                      onChange={(e) => setTotemForm({ ...totemForm, description: e.target.value })}
-                      size="small"
-                      multiline
-                      rows={2}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Button
-                      variant="contained"
-                      startIcon={<Add />}
-                      onClick={handleAddTotem}
-                      disabled={!totemForm.identifier || tempLocals.length === 0 || totemForm.localId < 0 || totemForm.localId >= tempLocals.length}
-                    >
-                      {editingTotemIndex !== null ? 'Atualizar Totem' : 'Adicionar Totem'}
-                    </Button>
-                    {editingTotemIndex !== null && (
-                      <Button
-                        variant="outlined"
-                        onClick={() => {
-                          setEditingTotemIndex(null);
-                          setTotemForm({
-                            tempId: '',
-                            identifier: '',
-                            localId: 0,
-                            uin: '',
-                            deviceId: '',
-                            name: '',
-                            description: '',
-                            firmwareVersion: '',
-                          });
-                        }}
-                        sx={{ ml: 1 }}
-                      >
-                        Cancelar Edição
-                      </Button>
-                    )}
-                  </Grid>
-                </Grid>
-              </Box>
-
-              {tempTotems.length > 0 ? (
-                <List>
-                  {tempTotems.map((totem, index) => {
-                    const localName = tempLocals[totem.localId]?.name || 'Local não encontrado';
-                    return (
-                      <ListItem key={totem.tempId || index} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
-                        <ListItemIcon><Computer /></ListItemIcon>
-                        <ListItemText
-                          primary={totem.name || totem.identifier}
-                          secondary={`Local: ${localName} | Identifier: ${totem.identifier}`}
-                        />
-                        <IconButton size="small" onClick={() => handleEditTotem(index)}>
-                          <Edit />
-                        </IconButton>
-                        <IconButton size="small" onClick={() => handleDeleteTotem(index)}>
-                          <Delete />
-                        </IconButton>
-                      </ListItem>
-                    );
-                  })}
-                </List>
-              ) : (
-                <Alert severity="info">
-                  {tempLocals.length === 0 
-                    ? 'Cadastre locais na aba "Locais" para poder adicionar totens (players).'
-                    : 'Nenhum totem cadastrado ainda. Os totens são players com player embutido.'}
-                </Alert>
-              )}
-            </Box>
-          )}
-
-          {/* Aba Smart TVs */}
-          {createTab === 4 && (
-            <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Smart TVs {tempSmartTvs.length > 0 && `(${tempSmartTvs.length})`}
-              </Typography>
-              {tempTotems.length === 0 ? (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  Para adicionar Smart TVs, você precisa cadastrar ao menos 1 totem na aba "Totens". 
-                  <strong> Nota:</strong> As Smart TVs são opcionais - o próprio totem já possui um player embutido.
-                </Alert>
-              ) : (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  As Smart TVs são opcionais e devem estar atreladas a um totem. 
-                  <strong> Nota:</strong> O totem já possui um player embutido, então as Smart TVs são apenas para conectividade adicional.
-                </Alert>
-              )}
-
-              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 2 }}>Adicionar Smart TV</Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small" required>
-                      <InputLabel>Totem *</InputLabel>
-                      <Select
-                        sx={sxSelectChosenGreen(
-                          tempTotems.length > 0 && smartTvForm.totem_id >= 0 && smartTvForm.totem_id < tempTotems.length
-                        )}
-                        value={smartTvForm.totem_id}
-                        label="Totem *"
-                        onChange={(e) => setSmartTvForm({ ...smartTvForm, totem_id: Number(e.target.value) })}
-                      >
-                        {tempTotems.map((totem, index) => (
-                          <MenuItem key={totem.tempId || index} value={index}>
-                            {totem.name || totem.identifier} {tempLocals[totem.localId] && `(${tempLocals[totem.localId].name})`}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Identifier *"
-                      value={smartTvForm.identifier}
-                      onChange={(e) => setSmartTvForm({ ...smartTvForm, identifier: e.target.value })}
-                      size="small"
-                      required
-                      helperText="Identificador único da Smart TV"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Nome"
-                      value={smartTvForm.name || ''}
-                      onChange={(e) => setSmartTvForm({ ...smartTvForm, name: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Device ID"
-                      value={smartTvForm.device_id || ''}
-                      onChange={(e) => setSmartTvForm({ ...smartTvForm, device_id: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Marca"
-                      value={smartTvForm.brand || ''}
-                      onChange={(e) => setSmartTvForm({ ...smartTvForm, brand: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Modelo"
-                      value={smartTvForm.model || ''}
-                      onChange={(e) => setSmartTvForm({ ...smartTvForm, model: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Plataforma"
-                      value={smartTvForm.platform || ''}
-                      onChange={(e) => setSmartTvForm({ ...smartTvForm, platform: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Versão do Firmware"
-                      value={smartTvForm.firmware_version || ''}
-                      onChange={(e) => setSmartTvForm({ ...smartTvForm, firmware_version: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      fullWidth
-                      label="Largura (px)"
-                      type="number"
-                      value={smartTvForm.resolution_width || ''}
-                      onChange={(e) => setSmartTvForm({ ...smartTvForm, resolution_width: e.target.value ? Number(e.target.value) : undefined })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      fullWidth
-                      label="Altura (px)"
-                      type="number"
-                      value={smartTvForm.resolution_height || ''}
-                      onChange={(e) => setSmartTvForm({ ...smartTvForm, resolution_height: e.target.value ? Number(e.target.value) : undefined })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Orientação</InputLabel>
-                      <Select
-                        sx={sxSelectChosenGreen(true)}
-                        value={smartTvForm.orientation || 'landscape'}
-                        label="Orientações"
-                        onChange={(e) => setSmartTvForm({ ...smartTvForm, orientation: e.target.value as 'landscape' | 'portrait' })}
-                      >
-                        <MenuItem value="landscape">Paisagem</MenuItem>
-                        <MenuItem value="portrait">Retrato</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Button
-                      variant="contained"
-                      startIcon={<Add />}
-                      onClick={handleAddSmartTv}
-                      disabled={!smartTvForm.identifier || tempTotems.length === 0 || smartTvForm.totem_id < 0 || smartTvForm.totem_id >= tempTotems.length}
-                    >
-                      {editingSmartTvIndex !== null ? 'Atualizar Smart TV' : 'Adicionar Smart TV'}
-                    </Button>
-                    {editingSmartTvIndex !== null && (
-                      <Button
-                        variant="outlined"
-                        onClick={() => {
-                          setEditingSmartTvIndex(null);
-                          setSmartTvForm({
-                            tempId: '',
-                            totem_id: 0,
-                            identifier: '',
-                            device_id: '',
-                            name: '',
-                            brand: '',
-                            model: '',
-                            platform: '',
-                            firmware_version: '',
-                            resolution_width: undefined,
-                            resolution_height: undefined,
-                            orientation: 'landscape',
-                          });
-                        }}
-                        sx={{ ml: 1 }}
-                      >
-                        Cancelar Edição
-                      </Button>
-                    )}
-                  </Grid>
-                </Grid>
-              </Box>
-
-              {tempSmartTvs.length > 0 ? (
-                <List>
-                  {tempSmartTvs.map((smartTv, index) => {
-                    const totemName = tempTotems[smartTv.totem_id]?.name || tempTotems[smartTv.totem_id]?.identifier || 'Totem não encontrado';
-                    return (
-                      <ListItem key={smartTv.tempId || index} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
-                        <ListItemIcon><Tv /></ListItemIcon>
-                        <ListItemText
-                          primary={smartTv.name || smartTv.identifier}
-                          secondary={`Totem: ${totemName} | Identifier: ${smartTv.identifier}${smartTv.brand ? ` | ${smartTv.brand} ${smartTv.model || ''}` : ''}`}
-                        />
-                        <IconButton size="small" onClick={() => handleEditSmartTv(index)}>
-                          <Edit />
-                        </IconButton>
-                        <IconButton size="small" onClick={() => handleDeleteSmartTv(index)}>
-                          <Delete />
-                        </IconButton>
-                      </ListItem>
-                    );
-                  })}
-                </List>
-              ) : (
-                <Alert severity="info">
-                  {tempTotems.length === 0 
-                    ? 'Cadastre totens na aba "Totens" para poder adicionar Smart TVs. Lembre-se: o totem já possui um player embutido, então as Smart TVs são opcionais.'
-                    : 'Nenhuma Smart TV cadastrada ainda. As Smart TVs são opcionais - o totem já possui um player embutido.'}
-                </Alert>
-              )}
-            </Box>
-          )}
+          {/* Aba Smart TVs — somente leitura */}
+          {createTab === 4 && renderCreatePlanTopologyTab('smartTvs')}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => {
