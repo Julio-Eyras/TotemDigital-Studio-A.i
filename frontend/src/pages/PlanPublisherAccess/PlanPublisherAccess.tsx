@@ -1424,9 +1424,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                         >
                           <MenuItem value="">{`Selecione um ${publisherEntityLabel.toLowerCase()}`}</MenuItem>
                           {compactActiveLocalsWithPublisher
-                            .map(({ local, publisherId }) => {
-                              const publisher = publishers.find((p) => p.publisher_id === publisherId);
-                              const publisherLabel = publisher?.name || `Exibidor ${publisherId}`;
+                            .map(({ local }) => {
                               const isAlreadySelected = compactSelectedLocalIds.includes(local.local_id);
                               const linkedSuffix = isAlreadySelected ? ' · já selecionado' : '';
                               return (
@@ -1439,7 +1437,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                                   opacity: 0.8,
                                 } : undefined}
                               >
-                                {`${local.name} (${publisherLabel}) · ${local.totem_count || 0} totem(ns) cadastrados${linkedSuffix}`}
+                                {`${local.name} · ${local.totem_count || 0} totem(ns) cadastrados${linkedSuffix}`}
                               </MenuItem>
                               );
                             })}
@@ -1534,7 +1532,6 @@ const PlanPublisherAccessPage: React.FC = () => {
                 <List>
                   {TOTEMDIGITAL_COMPACT
                     ? compactPlanLocals.map((local) => {
-                        const publisher = publishers.find((p) => p.publisher_id === local.publisher_id);
                         const activeTotems = compactActiveTotemsWithPublisher.filter(
                           ({ totem }) => getTotemLocalIdFromRow(totem) === local.local_id
                         );
@@ -1550,11 +1547,6 @@ const PlanPublisherAccessPage: React.FC = () => {
                               primary={`${local.name} · ${local.totem_count || 0} totem(ns) cadastrados`}
                               secondary={
                                 <Box sx={{ mt: 0.5 }}>
-                                  {publisher?.name && (
-                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                                      Exibidor: {publisher.name}
-                                    </Typography>
-                                  )}
                                   <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
                                     Totens ativos: {activeTotems.length} · habilitados no plano: {enabledTotems.length}
                                   </Typography>
@@ -1705,12 +1697,10 @@ const PlanPublisherAccessPage: React.FC = () => {
                   disabled={accessEditMode}
                 >
                   <MenuItem value="">{`Selecione um ${accessEntityLabel.toLowerCase()}`}</MenuItem>
-                  {compactActiveLocalsWithPublisher.map(({ local, publisherId }) => {
-                    const publisher = publishers.find((p) => p.publisher_id === publisherId);
-                    const publisherLabel = publisher?.name || `Exibidor ${publisherId}`;
+                  {compactActiveLocalsWithPublisher.map(({ local }) => {
                     return (
                       <MenuItem key={local.local_id} value={String(local.local_id)}>
-                        {`${local.name} (${publisherLabel}) · ${local.totem_count || 0} totem(ns)`}
+                        {`${local.name} · ${local.totem_count || 0} totem(ns)`}
                       </MenuItem>
                     );
                   })}
@@ -1733,8 +1723,7 @@ const PlanPublisherAccessPage: React.FC = () => {
             </FormControl>
             {TOTEMDIGITAL_COMPACT && (
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                No compact, a seleção é por local e cobre todos os totems do local. A gravação continua em
-                exibidor para manter compatibilidade nesta fase.
+                Ambiente compacto com publisher único da instalação: selecione apenas o local e os totems desejados.
               </Typography>
             )}
 
