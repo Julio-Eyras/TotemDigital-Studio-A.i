@@ -258,7 +258,7 @@ const ContractForm: React.FC<ContractFormProps> = ({
               <MenuItem value="advertising">Publicidade</MenuItem>
               <MenuItem value="subscription">Assinatura</MenuItem>
               <MenuItem value="partnership">Parceria</MenuItem>
-              <MenuItem value="revenue_share">Revenue Share</MenuItem>
+              <MenuItem value="revenue_share">Participação na receita</MenuItem>
               <MenuItem value="hybrid">Híbrido</MenuItem>
             </Select>
           </FormControl>

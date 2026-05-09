@@ -50,10 +50,20 @@ import {
 import { userApi, User, CreateUserRequest, UserFlags, publisherApi, Publisher, subscriberApi, Subscriber } from '../../services/api';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+
+const USER_TYPE_LABEL_PT: Record<string, string> = {
+  publisher_user: 'Usuário do exibidor',
+  subscriber_user: 'Anunciante',
+  system_user: 'Sistema',
+};
 
 const Users: React.FC = () => {
   const theme = useTheme();
+  const formatUserTypeDisplay = (userType?: string | null) =>
+    userType ? USER_TYPE_LABEL_PT[userType] || userType.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : 'N/A';
   const breadcrumbs = useBreadcrumbs();
+
   const [users, setUsers] = useState<User[]>([]);
   const [publishers, setPublishers] = useState<Publisher[]>([]);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
@@ -300,7 +310,7 @@ const Users: React.FC = () => {
                   <MenuItem value="editoracao">Edição</MenuItem>
                   <MenuItem value="visualizador">Visualizador</MenuItem>
                   <MenuItem value="user">Usuário</MenuItem>
-                  <MenuItem value="publisher_user">Publisher</MenuItem>
+                  <MenuItem value="publisher_user">Usuário do exibidor</MenuItem>
                   <MenuItem value="subscriber_user">Anunciante</MenuItem>
                 </Select>
               </FormControl>
@@ -315,7 +325,7 @@ const Users: React.FC = () => {
                 >
                   <MenuItem value="all">Todos</MenuItem>
                   <MenuItem value="system_user">Sistema</MenuItem>
-                  <MenuItem value="publisher_user">Publisher</MenuItem>
+                  <MenuItem value="publisher_user">Usuário do exibidor</MenuItem>
                   <MenuItem value="subscriber_user">Anunciante</MenuItem>
                 </Select>
               </FormControl>
@@ -351,7 +361,7 @@ const Users: React.FC = () => {
                 <TableCell>Email</TableCell>
                 <TableCell>Função</TableCell>
                 <TableCell>Tipo</TableCell>
-                <TableCell>Publisher/Anunciante</TableCell>
+                <TableCell>{TOTEMDIGITAL_COMPACT ? 'Escopo' : 'Publicador / Anunciante'}</TableCell>
                 <TableCell>Último Login</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
@@ -396,7 +406,7 @@ const Users: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={user.user_type ? user.user_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A'}
+                      label={formatUserTypeDisplay(user.user_type)}
                       size="small"
                       sx={{
                         backgroundColor: alpha(theme.palette.info.main, 0.1),
@@ -409,7 +419,11 @@ const Users: React.FC = () => {
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                       {user.publisher_id && (
                         <Chip
-                          label={`Publisher #${user.publisher_id}`}
+                          label={
+                            TOTEMDIGITAL_COMPACT
+                              ? 'Instalação principal'
+                              : `Publicador #${user.publisher_id}`
+                          }
                           size="small"
                           color="primary"
                           variant="outlined"
@@ -562,7 +576,7 @@ const Users: React.FC = () => {
               <MenuItem value="editoracao">Edição</MenuItem>
               <MenuItem value="visualizador">Visualizador</MenuItem>
               <MenuItem value="user">Usuário</MenuItem>
-              <MenuItem value="publisher_user">Publisher</MenuItem>
+              <MenuItem value="publisher_user">Usuário do exibidor</MenuItem>
               <MenuItem value="subscriber_user">Anunciante</MenuItem>
             </Select>
           </FormControl>
@@ -583,13 +597,13 @@ const Users: React.FC = () => {
               label="Tipo de Usuário"
             >
               <MenuItem value="system_user">Sistema</MenuItem>
-              <MenuItem value="publisher_user">Publisher</MenuItem>
+              <MenuItem value="publisher_user">Usuário do exibidor</MenuItem>
               <MenuItem value="subscriber_user">Anunciante</MenuItem>
             </Select>
           </FormControl>
           {newUser.userType === 'publisher_user' && (
             <FormControl fullWidth margin="normal">
-              <InputLabel>Publisher</InputLabel>
+              <InputLabel>Publicador</InputLabel>
               <Select
                 value={newUser.publisherId || ''}
                 onChange={(e) => {
@@ -599,9 +613,9 @@ const Users: React.FC = () => {
                     publisherId: value && value !== '' ? parseInt(String(value), 10) : undefined 
                   });
                 }}
-                label="Publisher"
+                label="Publicador"
               >
-                <MenuItem value="">Selecione um Publisher</MenuItem>
+                <MenuItem value="">Selecione um publicador</MenuItem>
                 {publishers.map((publisher) => (
                   <MenuItem key={publisher.publisher_id} value={publisher.publisher_id}>
                     {publisher.name}
@@ -703,7 +717,7 @@ const Users: React.FC = () => {
               <MenuItem value="editoracao">Edição</MenuItem>
               <MenuItem value="visualizador">Visualizador</MenuItem>
               <MenuItem value="user">Usuário</MenuItem>
-              <MenuItem value="publisher_user">Publisher</MenuItem>
+              <MenuItem value="publisher_user">Usuário do exibidor</MenuItem>
               <MenuItem value="subscriber_user">Anunciante</MenuItem>
               {/* Removido: publisher_subscriber não existe no domínio */}
             </Select>
@@ -727,14 +741,14 @@ const Users: React.FC = () => {
               label="Tipo de Usuário"
             >
               <MenuItem value="system_user">Sistema</MenuItem>
-              <MenuItem value="publisher_user">Publisher</MenuItem>
+              <MenuItem value="publisher_user">Usuário do exibidor</MenuItem>
               <MenuItem value="subscriber_user">Anunciante</MenuItem>
               {/* Removido: publisher_subscriber não existe no domínio */}
             </Select>
           </FormControl>
           {selectedUser?.user_type === 'publisher_user' && (
             <FormControl fullWidth margin="normal">
-              <InputLabel>Publisher</InputLabel>
+              <InputLabel>Publicador</InputLabel>
               <Select
                 value={selectedUser?.publisher_id || ''}
                 onChange={(e) => {
@@ -744,9 +758,9 @@ const Users: React.FC = () => {
                     publisher_id: value && value !== '' ? parseInt(String(value), 10) : undefined 
                   });
                 }}
-                label="Publisher"
+                label="Publicador"
               >
-                <MenuItem value="">Selecione um Publisher</MenuItem>
+                <MenuItem value="">Selecione um publicador</MenuItem>
                 {publishers.map((publisher) => (
                   <MenuItem key={publisher.publisher_id} value={publisher.publisher_id}>
                     {publisher.name}

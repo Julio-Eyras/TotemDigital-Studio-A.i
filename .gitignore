@@ -295,6 +295,9 @@ vinhetas/*.mp4
 # Extração local do pacote ER (manter só o .zip versionado em docs/)
 /docs/ModeloERparaGerenciarMídiasEmTvsSmart/
 
+# Gravações locais ADB / desenvolvimento (não versionar)
+player_ad_record.mp4
+
 # Chaves SSH, pastas de credenciais e scripts one-off (evitar commit acidental)
 docs/chaves\ ssh\ oracle\ vms/
 /instalar_duckdns.sh

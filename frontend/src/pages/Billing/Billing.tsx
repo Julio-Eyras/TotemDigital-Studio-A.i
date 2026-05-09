@@ -55,6 +55,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '../../store';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -795,7 +796,7 @@ const Billing: React.FC = () => {
               <TableHead>
                 <TableRow>
                   <TableCell>ID</TableCell>
-                  <TableCell>Publicador</TableCell>
+                  {!TOTEMDIGITAL_COMPACT && <TableCell>Publicador</TableCell>}
                   <TableCell>Campanha</TableCell>
                   <TableCell>Tipo</TableCell>
                   <TableCell>Direção</TableCell>
@@ -809,7 +810,9 @@ const Billing: React.FC = () => {
                 {publisherBillings.map((billing) => (
                   <TableRow key={billing.billing_id}>
                     <TableCell>{billing.billing_id}</TableCell>
-                    <TableCell>{billing.publisher_name || `Publicador #${billing.publisher_id}`}</TableCell>
+                    {!TOTEMDIGITAL_COMPACT && (
+                      <TableCell>{billing.publisher_name || `Publicador #${billing.publisher_id}`}</TableCell>
+                    )}
                     <TableCell>{billing.campaign_title || '-'}</TableCell>
                     <TableCell>{billing.billing_type}</TableCell>
                     <TableCell>
@@ -839,7 +842,7 @@ const Billing: React.FC = () => {
                 ))}
                 {publisherBillings.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} align="center">
+                    <TableCell colSpan={TOTEMDIGITAL_COMPACT ? 8 : 9} align="center">
                       <Typography variant="body2" color="text.secondary">
                         Nenhuma fatura de publicador encontrada
                       </Typography>
