@@ -26,6 +26,7 @@ import {
   Checkbox,
   Switch,
   FormControlLabel,
+  InputAdornment,
   Table,
   TableBody,
   TableCell,
@@ -431,6 +432,14 @@ const PlanPublisherAccessPage: React.FC = () => {
 
   const handlePlanNameChange = (name: string) => {
     setPlanFormData({ ...planFormData, name, slug: generateSlug(name) });
+  };
+
+  const parseCurrencyInputValue = (raw: string): number | undefined => {
+    const normalized = raw.replace(',', '.').trim();
+    if (!normalized) return undefined;
+    const parsed = Number.parseFloat(normalized);
+    if (Number.isNaN(parsed)) return undefined;
+    return Math.max(0, parsed);
   };
 
   const handleAddPublisherToPlan = () => {
@@ -1196,12 +1205,18 @@ const PlanPublisherAccessPage: React.FC = () => {
                   label="Preço Mensal *"
                   type="number"
                   value={planFormData.priceMonthly}
-                  onChange={(e) => setPlanFormData({ ...planFormData, priceMonthly: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) =>
+                    setPlanFormData({
+                      ...planFormData,
+                      priceMonthly: parseCurrencyInputValue(e.target.value) ?? 0,
+                    })
+                  }
                   margin="normal"
                   required
                   InputProps={{
-                    startAdornment: <Typography sx={{ mr: 1 }}>R$</Typography>,
+                    startAdornment: <InputAdornment position="start">R$</InputAdornment>,
                   }}
+                  inputProps={{ min: 0, step: '0.01', inputMode: 'decimal' }}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
@@ -1210,11 +1225,17 @@ const PlanPublisherAccessPage: React.FC = () => {
                   label="Preço Anual"
                   type="number"
                   value={planFormData.priceYearly || ''}
-                  onChange={(e) => setPlanFormData({ ...planFormData, priceYearly: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  onChange={(e) =>
+                    setPlanFormData({
+                      ...planFormData,
+                      priceYearly: parseCurrencyInputValue(e.target.value),
+                    })
+                  }
                   margin="normal"
                   InputProps={{
-                    startAdornment: <Typography sx={{ mr: 1 }}>R$</Typography>,
+                    startAdornment: <InputAdornment position="start">R$</InputAdornment>,
                   }}
+                  inputProps={{ min: 0, step: '0.01', inputMode: 'decimal' }}
                 />
               </Grid>
             </Grid>
