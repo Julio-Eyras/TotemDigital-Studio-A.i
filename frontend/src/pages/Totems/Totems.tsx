@@ -126,11 +126,12 @@ const Totems: React.FC = () => {
     }
     return false;
   }, [normalizedRole]);
+  /** Compacto: só administradores (roles admin) e owner_system. PRO: operadores, publisher_user, gerente etc. */
   const canCreateTotem = useMemo(() => {
     if (TOTEMDIGITAL_COMPACT) {
-      return ['owner_system', 'admin', 'admin_sql', 'gerente_marketing'].includes(normalizedRole);
+      return ['admin', 'admin_sql', 'owner_system'].includes(normalizedRole);
     }
-    if (
+    return (
       [
         'admin',
         'admin_sql',
@@ -139,11 +140,10 @@ const Totems: React.FC = () => {
         'operador_faturamento',
         'operador_comercial',
         'publisher_user',
+        'gerente_marketing',
+        'subscriber_user',
       ].includes(normalizedRole)
-    ) {
-      return true;
-    }
-    return false;
+    );
   }, [normalizedRole]);
   const userPublisherId = user?.publisherId;
 
@@ -261,7 +261,7 @@ const Totems: React.FC = () => {
   const handleCreate = async () => {
     try {
       if (!newTotem.identifier) {
-        setError('Identifier é obrigatório');
+        setError('Identificador é obrigatório');
         return;
       }
       if (!newTotem.localId) {
@@ -385,7 +385,7 @@ const Totems: React.FC = () => {
       return;
     }
     if (!editTotem.identifier || !editTotem.localId) {
-      setError('Identifier e local são obrigatórios para edição');
+      setError('Identificador e local são obrigatórios para edição');
       return;
     }
 
@@ -565,7 +565,7 @@ const Totems: React.FC = () => {
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                placeholder="Buscar totems..."
+                placeholder="Buscar totens..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -670,7 +670,7 @@ const Totems: React.FC = () => {
                         </Typography>
                         {showIdentifierLine && (
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            Identifier: {identStr}
+                            Identificador: {identStr}
                           </Typography>
                         )}
                         {t.uin && (
@@ -841,7 +841,7 @@ const Totems: React.FC = () => {
                           </Typography>
                           {showIdentifierLinePending && (
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                              Identifier: {identStrPending}
+                              Identificador: {identStrPending}
                             </Typography>
                           )}
                           {t.uin && (
@@ -921,7 +921,7 @@ const Totems: React.FC = () => {
           </FormControl>
           <TextField 
             fullWidth 
-            label="Identifier *" 
+            label="Identificador *" 
             margin="normal" 
             value={newTotem.identifier} 
             onChange={(e) => setNewTotem({ ...newTotem, identifier: e.target.value })} 
@@ -1022,7 +1022,7 @@ const Totems: React.FC = () => {
           </FormControl>
           <TextField
             fullWidth
-            label="Identifier *"
+            label="Identificador *"
             margin="normal"
             value={editTotem.identifier || ''}
             onChange={(e) => setEditTotem({ ...editTotem, identifier: e.target.value })}

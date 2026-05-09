@@ -1,6 +1,7 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { userMayCreateTotem } from '../utils/totemCreateRoles';
 
 export interface Player {
   totem_id: number;
@@ -160,8 +161,12 @@ export class PlayerService {
   /**
    * Criar novo player
    */
-  async createPlayer(data: CreatePlayerRequest): Promise<Player> {
+  async createPlayer(data: CreatePlayerRequest, creatorRole?: string): Promise<Player> {
     try {
+      if (creatorRole !== undefined && !userMayCreateTotem(creatorRole)) {
+        throw new Error('Acesso negado: criação de totem não permitida para este perfil');
+      }
+
       const { name, location, clientId } = data;
 
       // Verificar se player já existe

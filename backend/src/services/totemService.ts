@@ -14,6 +14,7 @@ import type { PoolClient } from 'pg';
 import { assertCompactOwnerPublisher } from '../utils/compactOwnerPublisher';
 import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
+import { userMayCreateTotem } from '../utils/totemCreateRoles';
 
 function normalizeStockText(value: unknown): string {
   return String(value || '')
@@ -678,8 +679,13 @@ export class TotemService {
     data: CreateTotemRequest,
     createdBy: number,
     requestPublisherId?: number,
-    isAdmin: boolean = false
+    isAdmin: boolean = false,
+    creatorRole?: string
   ): Promise<TotemResponse> {
+    if (creatorRole !== undefined && !userMayCreateTotem(creatorRole)) {
+      throw new Error('Acesso negado: criação de totem não permitida para este perfil');
+    }
+
     // Validações prévias (fora da transação - são apenas leituras)
     const { 
       name,

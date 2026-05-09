@@ -93,8 +93,13 @@ const Locals: React.FC = () => {
       'gerente_marketing',
     ].includes(normalizedRole)
   );
-  /** Criar/apagar local: mesmo conjunto que isAdmin (inclui gerente e operadores no compacto). */
-  const canManageLocals = useMemo(() => isAdmin, [isAdmin]);
+  /** Criar/apagar local: no modo compacto inclui usuário do exibidor (alinha com edição). Demais modos: só administrativo. */
+  const canManageLocals = useMemo(() => {
+    if (TOTEMDIGITAL_COMPACT) {
+      return isAdmin || normalizedRole === 'publisher_user';
+    }
+    return isAdmin;
+  }, [isAdmin, normalizedRole]);
   const canEditLocals = useMemo(() => {
     if (TOTEMDIGITAL_COMPACT) {
       return isAdmin || normalizedRole === 'publisher_user';

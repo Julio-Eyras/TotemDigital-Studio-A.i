@@ -11,6 +11,7 @@ import { body, param, query } from 'express-validator';
 import { logError, logWarn, logInfo } from '../utils/loggerHelper';
 import { getDatabase } from '../config/database';
 import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { getTotemCreateRoles } from '../utils/totemCreateRoles';
 
 const router = Router();
 
@@ -20,21 +21,6 @@ router.use(blockClientDataAccess);
 
 const isAdminRole = (role?: string) =>
   ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(role || '');
-
-const getTotemCreateRoles = () =>
-  TOTEMDIGITAL_COMPACT
-    ? ['admin', 'admin_sql', 'owner_system', 'gerente_marketing']
-    : [
-        'admin',
-        'admin_sql',
-        'owner_system',
-        'operador_tecnico',
-        'operador_faturamento',
-        'operador_comercial',
-        'publisher_user',
-        'subscriber_user',
-        'gerente_marketing',
-      ];
 
 const getTotemApproveRoles = () =>
   TOTEMDIGITAL_COMPACT
@@ -371,7 +357,13 @@ router.post('/',
       ].includes(userRole || '');
       const requestPublisherId = req.user?.publisherId || undefined;
       
-      const totem = await getTotemService().createTotem(totemData, userId, requestPublisherId, isAdmin);
+      const totem = await getTotemService().createTotem(
+        totemData,
+        userId,
+        requestPublisherId,
+        isAdmin,
+        String(userRole ?? '')
+      );
       return res.status(201).json(totem);
     } catch (error: any) {
       await logError('Erro ao criar totem', error);

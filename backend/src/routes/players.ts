@@ -1,7 +1,8 @@
 import express from 'express';
 import { body, query, param } from 'express-validator';
 import { validationResult } from 'express-validator';
-import { authMiddleware } from '../middleware/auth.middleware';
+import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
+import { getTotemCreateRoles } from '../utils/totemCreateRoles';
 import { getPlayerService } from '../services/playerService';
 import { logError } from '../utils/loggerHelper';
 import { assertTotemReadAccess } from '../utils/totemReadAccess';
@@ -109,21 +110,28 @@ router.get('/:id',
  * @desc Criar novo player
  */
 router.post('/',
+  authorizeRole(getTotemCreateRoles()),
   createPlayerValidator,
   validateRequest,
   async (req: any, res: any) => {
     try {
       const { name, location, clientId } = req.body;
       
-      const newPlayer = await getPlayerService().createPlayer({
-        name,
-        location,
-        clientId,
-      });
+      const newPlayer = await getPlayerService().createPlayer(
+        {
+          name,
+          location,
+          clientId,
+        },
+        String(req.user?.role ?? '')
+      );
 
       return res.status(201).json(newPlayer);
     } catch (error: any) {
       await logError('Erro ao criar player', error);
+      if ((error?.message || '').includes('Acesso negado')) {
+        return res.status(403).json({ error: error.message });
+      }
       return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
     }
   }
