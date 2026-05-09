@@ -822,7 +822,9 @@ const Playlists: React.FC = () => {
               ) : (
                 <>
                   <Alert severity="info" sx={{ mb: 2 }}>
-                    Exposição derivada via campanhas → publishers → locals → totems → smart TVs (para entendimento/diagnóstico).
+                    {TOTEMDIGITAL_COMPACT
+                      ? 'Exposição derivada via campanhas → locais → totems → smart TVs (para entendimento/diagnóstico).'
+                      : 'Exposição derivada via campanhas → publishers → locals → totems → smart TVs (para entendimento/diagnóstico).'}
                   </Alert>
                   <Tabs
                     value={exposureTab}
@@ -834,7 +836,7 @@ const Playlists: React.FC = () => {
                   >
                     <Tab label="Datas" />
                     <Tab label="Horas" />
-                    <Tab label="Publishers" />
+                    <Tab label={TOTEMDIGITAL_COMPACT ? 'Locais' : 'Publishers'} />
                     <Tab label="Totens" />
                     <Tab label="Smart TVs" />
                   </Tabs>
@@ -936,10 +938,15 @@ const Playlists: React.FC = () => {
                     <List>
                       {(playlistExposure?.publishers || []).map((p) => (
                         <ListItem key={p.publisher_id}>
-                          <ListItemText primary={p.name} secondary={`publisher_id: ${p.publisher_id}`} />
+                          <ListItemText
+                            primary={p.name}
+                            secondary={TOTEMDIGITAL_COMPACT ? undefined : `publisher_id: ${p.publisher_id}`}
+                          />
                         </ListItem>
                       ))}
-                      {(playlistExposure?.publishers || []).length === 0 && <Alert severity="info">Sem publishers.</Alert>}
+                      {(playlistExposure?.publishers || []).length === 0 && (
+                        <Alert severity="info">{TOTEMDIGITAL_COMPACT ? 'Sem locais.' : 'Sem publishers.'}</Alert>
+                      )}
                     </List>
                   )}
 

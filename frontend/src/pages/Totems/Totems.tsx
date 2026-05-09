@@ -185,6 +185,10 @@ const Totems: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [localFilter, setLocalFilter] = useState<number | 'all'>('all');
+  const formatLocalLabel = (local: Local): string =>
+    TOTEMDIGITAL_COMPACT
+      ? `${local.name}`
+      : `${local.name}${local.publisher_name ? ` (${local.publisher_name})` : ''}`;
 
   useEffect(() => {
     loadAll();
@@ -577,7 +581,7 @@ const Totems: React.FC = () => {
                   <MenuItem value="all">Todos</MenuItem>
                   {locals.map((l) => (
                     <MenuItem key={l.local_id} value={l.local_id}>
-                      {l.name} {l.publisher_name ? `(${l.publisher_name})` : ''}
+                      {formatLocalLabel(l)}
                     </MenuItem>
                   ))}
                 </Select>
@@ -902,7 +906,7 @@ const Totems: React.FC = () => {
             >
               {locals.map((local) => {
                 const isSelected = Number(newTotem.localId || 0) === Number(local.local_id);
-                const label = `${local.name}${local.publisher_name ? ` (${local.publisher_name})` : ''}${isSelected ? ' · já selecionado' : ''}`;
+                const label = `${formatLocalLabel(local)}${isSelected ? ' · já selecionado' : ''}`;
                 return (
                   <MenuItem
                     key={local.local_id}
@@ -998,7 +1002,7 @@ const Totems: React.FC = () => {
             >
               {locals.map((local) => {
                 const isSelected = Number(editTotem.localId || 0) === Number(local.local_id);
-                const label = `${local.name}${local.publisher_name ? ` (${local.publisher_name})` : ''}${isSelected ? ' · já selecionado' : ''}`;
+                const label = `${formatLocalLabel(local)}${isSelected ? ' · já selecionado' : ''}`;
                 return (
                   <MenuItem
                     key={local.local_id}

@@ -1031,23 +1031,25 @@ const PlanPublisherAccessPage: React.FC = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} md={5}>
-                  <FormControl fullWidth>
-                    <InputLabel>{`Filtrar por ${publisherEntityLabel}`}</InputLabel>
-                    <Select
-                      value={accessFilters.publisherId}
-                      onChange={(e) => setAccessFilters({ ...accessFilters, publisherId: e.target.value })}
-                      label={`Filtrar por ${publisherEntityLabel}`}
-                    >
-                      <MenuItem value="">Todos</MenuItem>
-                      {publishers.map((publisher) => (
-                        <MenuItem key={publisher.publisher_id} value={publisher.publisher_id.toString()}>
-                          {publisher.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
+                {!TOTEMDIGITAL_COMPACT && (
+                  <Grid item xs={12} md={5}>
+                    <FormControl fullWidth>
+                      <InputLabel>{`Filtrar por ${publisherEntityLabel}`}</InputLabel>
+                      <Select
+                        value={accessFilters.publisherId}
+                        onChange={(e) => setAccessFilters({ ...accessFilters, publisherId: e.target.value })}
+                        label={`Filtrar por ${publisherEntityLabel}`}
+                      >
+                        <MenuItem value="">Todos</MenuItem>
+                        {publishers.map((publisher) => (
+                          <MenuItem key={publisher.publisher_id} value={publisher.publisher_id.toString()}>
+                            {publisher.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                )}
               </Grid>
             </Box>
             <Button
@@ -1084,7 +1086,13 @@ const PlanPublisherAccessPage: React.FC = () => {
                   accessList.map((access) => (
                     <TableRow key={`${access.plan_id}-${access.publisher_id}`}>
                       <TableCell>{access.plan_name}</TableCell>
-                      <TableCell>{access.publisher_name}</TableCell>
+                      <TableCell>
+                        {TOTEMDIGITAL_COMPACT
+                          ? (access as any).local_name ||
+                            localsCatalog.find((local) => local.publisher_id === access.publisher_id)?.name ||
+                            'Local associado'
+                          : access.publisher_name}
+                      </TableCell>
                       <TableCell>
                         <Chip
                           icon={access.is_allowed ? <CheckCircle /> : <Cancel />}
