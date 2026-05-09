@@ -125,7 +125,7 @@ const Dashboard: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       <PageHeader
-        title="Dashboard"
+        title="Painel"
         subtitle="Visão geral do sistema — inclui resumo de anunciantes e totais globais; tetos por anunciante vêm de plano (contrato) e defaults no sistema"
         breadcrumbs={breadcrumbs}
         onRefresh={loadDashboardData}

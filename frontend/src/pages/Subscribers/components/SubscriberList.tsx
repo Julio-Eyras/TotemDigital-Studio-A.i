@@ -91,7 +91,7 @@ const SubscriberList: React.FC<SubscriberListProps> = ({
         }}
       >
         <TextField
-          placeholder="Buscar subscribers..."
+          placeholder="Buscar anunciantes..."
           value={searchTerm}
           onChange={(e) => onSearchChange?.(e.target.value)}
           InputProps={{

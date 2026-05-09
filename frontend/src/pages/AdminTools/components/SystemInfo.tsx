@@ -161,7 +161,7 @@ const SystemInfo: React.FC = () => {
                 </Typography>
               </Box>
               <Divider sx={{ mb: 2 }} />
-              <InfoRow label="Node Version" value={systemInfo.system.nodeVersion} />
+              <InfoRow label="Versão do Node" value={systemInfo.system.nodeVersion} />
               <InfoRow label="Plataforma" value={systemInfo.system.platform} />
               <InfoRow label="Ambiente" value={systemInfo.system.env} />
               <InfoRow 

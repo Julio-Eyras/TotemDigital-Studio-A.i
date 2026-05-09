@@ -365,14 +365,14 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
       {activeTab === 1 && mode === 'edit' && (
         <Box sx={{ mt: 2 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
-            Publishers
+            Publicadores
           </Typography>
           <FormControl fullWidth margin="normal">
-            <InputLabel>Publishers (Onde a campanha será exibida)</InputLabel>
+            <InputLabel>Publicadores (onde a campanha será exibida)</InputLabel>
             <Autocomplete<PublisherOption, true>
               multiple
               options={getPublisherOptions()}
-              getOptionLabel={(option) => option.name || `Publisher ${option.publisher_id}`}
+              getOptionLabel={(option) => option.name || `Publicador #${option.publisher_id}`}
               value={getPublisherOptions().filter(p => (data as any).publisherIds?.includes(p.publisher_id))}
               onChange={(_, newValue) => {
                 handleFieldChange('publisherIds', newValue.map(p => p.publisher_id));
@@ -380,14 +380,14 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
               renderInput={(params) => (
                 <TextField 
                   {...params} 
-                  label="Publishers" 
+                  label="Publicadores" 
                   margin="normal"
                   helperText={
                     isAdmin 
-                      ? "Selecione os publishers onde a campanha será exibida"
+                      ? 'Selecione os publicadores onde a campanha será exibida'
                       : !Array.isArray(accessiblePublishers) || accessiblePublishers.length === 0
-                      ? "Nenhum publisher acessível encontrado. Verifique o contrato e plano do subscriber."
-                      : "Selecione os publishers acessíveis onde a campanha será exibida"
+                      ? 'Nenhum publicador acessível encontrado. Verifique o contrato e o plano do anunciante.'
+                      : 'Selecione os publicadores acessíveis onde a campanha será exibida'
                   }
                 />
               )}
@@ -397,15 +397,15 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
         </Box>
       )}
 
-      {/* Seleção de Publishers no modo create */}
+      {/* Seleção de publicadores no modo create */}
       {mode === 'create' && subscriberId && (
         <Box sx={{ mt: 2 }}>
           <FormControl fullWidth margin="normal">
-            <InputLabel>Publishers (Onde a campanha será exibida)</InputLabel>
+            <InputLabel>Publicadores (onde a campanha será exibida)</InputLabel>
             <Autocomplete<PublisherOption, true>
               multiple
               options={getPublisherOptions()}
-              getOptionLabel={(option) => option.name || `Publisher ${option.publisher_id}`}
+              getOptionLabel={(option) => option.name || `Publicador #${option.publisher_id}`}
               value={getPublisherOptions().filter(p => (data as any).publisherIds?.includes(p.publisher_id))}
               onChange={(_, newValue) => {
                 handleFieldChange('publisherIds', newValue.map(p => p.publisher_id));
@@ -413,14 +413,14 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
               renderInput={(params) => (
                 <TextField 
                   {...params} 
-                  label="Publishers" 
+                  label="Publicadores" 
                   margin="normal"
                   helperText={
                     isAdmin 
-                      ? "Selecione os publishers onde a campanha será exibida"
+                      ? 'Selecione os publicadores onde a campanha será exibida'
                       : !Array.isArray(accessiblePublishers) || accessiblePublishers.length === 0
-                      ? "Nenhum publisher acessível encontrado. Verifique o contrato e plano do subscriber."
-                      : "Selecione os publishers acessíveis onde a campanha será exibida"
+                      ? 'Nenhum publicador acessível encontrado. Verifique o contrato e o plano do anunciante.'
+                      : 'Selecione os publicadores acessíveis onde a campanha será exibida'
                   }
                 />
               )}

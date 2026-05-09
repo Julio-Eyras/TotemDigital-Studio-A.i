@@ -151,7 +151,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
       setError(null);
 
       if (!grantFormData.subscriberId || !grantFormData.publisherId || !grantFormData.contractId) {
-        setError('Anunciante, Publisher e Contrato são obrigatórios');
+        setError('Anunciante, publicador e contrato são obrigatórios');
         return;
       }
 
@@ -208,7 +208,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            Gerenciamento Anunciante → Publisher
+            Gerenciamento Anunciante → Publicador
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
             Gerencie acessos de anunciantes a publishers
@@ -250,11 +250,11 @@ const SubscriberPublisherAccessPage: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={3}>
               <FormControl fullWidth>
-                <InputLabel>Publisher</InputLabel>
+                <InputLabel>Publicador</InputLabel>
                 <Select
                   value={filters.publisherId}
                   onChange={(e) => setFilters({ ...filters, publisherId: e.target.value })}
-                  label="Publisher"
+                  label="Publicador"
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {publishers.map((publisher) => (
@@ -338,7 +338,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell><strong>Anunciante</strong></TableCell>
-                    <TableCell><strong>Publisher</strong></TableCell>
+                    <TableCell><strong>Publicador</strong></TableCell>
                     <TableCell><strong>Tipo</strong></TableCell>
                     <TableCell><strong>Contrato</strong></TableCell>
                     <TableCell><strong>Plano</strong></TableCell>
@@ -409,7 +409,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell><strong>Anunciante</strong></TableCell>
-                    <TableCell><strong>Publisher</strong></TableCell>
+                    <TableCell><strong>Publicador</strong></TableCell>
                     <TableCell><strong>Tipo</strong></TableCell>
                     <TableCell><strong>Concedido em</strong></TableCell>
                     <TableCell><strong>Revogado em</strong></TableCell>
@@ -476,11 +476,11 @@ const SubscriberPublisherAccessPage: React.FC = () => {
             </FormControl>
 
             <FormControl fullWidth margin="normal">
-              <InputLabel>Publisher *</InputLabel>
+              <InputLabel>Publicador *</InputLabel>
               <Select
                 value={grantFormData.publisherId}
                 onChange={(e) => setGrantFormData({ ...grantFormData, publisherId: e.target.value })}
-                label="Publisher *"
+                label="Publicador *"
               >
                 <MenuItem value="">Selecione um publisher</MenuItem>
                 {publishers.map((publisher) => (

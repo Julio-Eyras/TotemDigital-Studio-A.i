@@ -254,12 +254,12 @@ const TotemPlayListPage: React.FC = () => {
             {!TOTEMDIGITAL_COMPACT && (
             <Grid item xs={12} sm={6} md={4}>
               <FormControl fullWidth>
-                <InputLabel id="totem-playlists-filter-publisher-label">Publisher</InputLabel>
+                <InputLabel id="totem-playlists-filter-publisher-label">Publicador</InputLabel>
                 <Select
                   id="totem-playlists-filter-publisher"
                   labelId="totem-playlists-filter-publisher-label"
                   value={filters.publisherId}
-                  label="Publisher"
+                  label="Publicador"
                   onChange={(e) => setFilters({ ...filters, publisherId: e.target.value })}
                   inputProps={{ name: 'publisherId' }}
                 >
@@ -270,7 +270,7 @@ const TotemPlayListPage: React.FC = () => {
                       if (publisherId === undefined || publisherId <= 0) return null;
                       return (
                         <MenuItem key={`publisher-${publisherId}`} value={String(publisherId)}>
-                          {pub?.name || `Publisher #${publisherId}`}
+                          {pub?.name || `Publicador #${publisherId}`}
                         </MenuItem>
                       );
                     })

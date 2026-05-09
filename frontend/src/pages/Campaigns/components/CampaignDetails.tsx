@@ -332,7 +332,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
             }
             iconPosition="end"
           />
-          {!TOTEMDIGITAL_COMPACT && <Tab label="Publishers" />}
+          {!TOTEMDIGITAL_COMPACT && <Tab label="Publicadores" />}
           <Tab
             label="Totens"
             icon={
@@ -513,14 +513,14 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
           </Box>
         )}
 
-        {/* Aba Publishers */}
+        {/* Aba Publicadores */}
         {!TOTEMDIGITAL_COMPACT && activeTab === 3 && (
           <Box>
             <Typography variant="h6" sx={{ mb: 2 }}>
-              Publishers ({(campaign as any).publisherIds?.length || 0})
+              Publicadores ({(campaign as any).publisherIds?.length || 0})
             </Typography>
             {!(campaign as any).publisherIds || (campaign as any).publisherIds.length === 0 ? (
-              <Alert severity="info">Nenhum publisher associado a esta campanha</Alert>
+              <Alert severity="info">Nenhum publicador associado a esta campanha</Alert>
             ) : publishers.length > 0 ? (
               <List>
                 {publishers.map((publisher) => (
@@ -537,7 +537,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
               </List>
             ) : (
               <Alert severity="warning">
-                Publishers associados: {(campaign as any).publisherIds.join(', ')} (detalhes não disponíveis)
+                Publicadores associados: {(campaign as any).publisherIds.join(', ')} (detalhes não disponíveis)
               </Alert>
             )}
           </Box>
@@ -560,7 +560,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
               <Alert severity="info">
                 {TOTEMDIGITAL_COMPACT
                   ? 'Nenhum totem associado explicitamente a esta campanha.'
-                  : 'Nenhum totem associado explicitamente. Totens impactados serão derivados dos publishers selecionados na aba "Publishers".'}
+                  : 'Nenhum totem associado explicitamente. Totens impactados serão derivados dos publicadores selecionados na aba «Publicadores».'}
               </Alert>
             ) : totems.length > 0 ? (
               <List>

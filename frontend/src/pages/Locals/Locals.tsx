@@ -514,10 +514,10 @@ const Locals: React.FC = () => {
             {showPublisherFilter && (
               <Grid item xs={12} md={3}>
                 <FormControl fullWidth>
-                  <InputLabel>Publisher</InputLabel>
+                  <InputLabel>Publicador</InputLabel>
                   <Select
                     value={publisherFilter || ''}
-                    label="Publisher"
+                    label="Publicador"
                     onChange={(e) => setPublisherFilter(e.target.value ? Number(e.target.value) : undefined)}
                   >
                     <MenuItem value="">Todos</MenuItem>
@@ -676,10 +676,10 @@ const Locals: React.FC = () => {
             )}
             {isAdmin && !TOTEMDIGITAL_COMPACT && (
               <FormControl fullWidth>
-                <InputLabel>Publisher *</InputLabel>
+                <InputLabel>Publicador *</InputLabel>
                 <Select
                   value={newLocal.publisher_id || ''}
-                  label="Publisher *"
+                  label="Publicador *"
                   onChange={(e) => setNewLocal({ ...newLocal, publisher_id: Number(e.target.value) })}
                 >
                   {publishers.map((publisher) => (
@@ -798,7 +798,7 @@ const Locals: React.FC = () => {
                 allowScrollButtonsMobile
                 sx={{ mb: 2 }}
               >
-                {!TOTEMDIGITAL_COMPACT && <Tab label="Publisher" icon={<Business />} iconPosition="start" />}
+                {!TOTEMDIGITAL_COMPACT && <Tab label="Publicadores" icon={<Business />} iconPosition="start" />}
                 <Tab label="Local" icon={<Store />} iconPosition="start" />
                 <Tab label="Totens" icon={selectedTotems.length > 0 ? <Chip label={selectedTotems.length} size="small" color="primary" /> : <Computer />} iconPosition="end" />
                 <Tab label="Smart TVs" icon={selectedSmartTvs.length > 0 ? <Chip label={selectedSmartTvs.length} size="small" color="primary" /> : <Tv />} iconPosition="end" />
