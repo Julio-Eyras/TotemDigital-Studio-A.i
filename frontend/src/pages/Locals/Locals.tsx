@@ -152,6 +152,12 @@ const Locals: React.FC = () => {
     description: '',
   });
 
+  const toOptionalText = (value: unknown): string | undefined => {
+    if (value === null || value === undefined) return undefined;
+    const normalized = String(value).trim();
+    return normalized ? normalized : undefined;
+  };
+
   useEffect(() => {
     loadLocals();
     if (isAdmin && !TOTEMDIGITAL_COMPACT) {
@@ -244,12 +250,36 @@ const Locals: React.FC = () => {
         setError('Selecione um publisher');
         return;
       }
+      if (!toOptionalText(newLocal.name)) {
+        setError('Nome é obrigatório');
+        return;
+      }
       const payload: CreateLocalRequest = TOTEMDIGITAL_COMPACT
         ? {
             ...newLocal,
+            name: String(newLocal.name).trim(),
+            category_segment: toOptionalText(newLocal.category_segment),
+            address: toOptionalText(newLocal.address),
+            city: toOptionalText(newLocal.city),
+            state: toOptionalText(newLocal.state),
+            zip_code: toOptionalText(newLocal.zip_code),
+            country: toOptionalText(newLocal.country),
+            timezone: toOptionalText(newLocal.timezone),
+            description: toOptionalText(newLocal.description),
             publisher_id: undefined,
           }
-        : newLocal;
+        : {
+            ...newLocal,
+            name: String(newLocal.name).trim(),
+            category_segment: toOptionalText(newLocal.category_segment),
+            address: toOptionalText(newLocal.address),
+            city: toOptionalText(newLocal.city),
+            state: toOptionalText(newLocal.state),
+            zip_code: toOptionalText(newLocal.zip_code),
+            country: toOptionalText(newLocal.country),
+            timezone: toOptionalText(newLocal.timezone),
+            description: toOptionalText(newLocal.description),
+          };
       await localApi.create(payload);
       setCreateDialogOpen(false);
       setNewLocal({
@@ -276,17 +306,22 @@ const Locals: React.FC = () => {
     if (!selectedLocal) return;
     
     try {
+      if (!toOptionalText(selectedLocal.name)) {
+        setError('Nome é obrigatório');
+        return;
+      }
       const updateData: UpdateLocalRequest = {
-        name: selectedLocal.name,
-        address: selectedLocal.address,
-        city: selectedLocal.city,
-        state: selectedLocal.state,
-        zip_code: selectedLocal.zip_code,
-        country: selectedLocal.country,
+        name: String(selectedLocal.name).trim(),
+        category_segment: toOptionalText(selectedLocal.category_segment),
+        address: toOptionalText(selectedLocal.address),
+        city: toOptionalText(selectedLocal.city),
+        state: toOptionalText(selectedLocal.state),
+        zip_code: toOptionalText(selectedLocal.zip_code),
+        country: toOptionalText(selectedLocal.country),
         latitude: selectedLocal.latitude,
         longitude: selectedLocal.longitude,
-        timezone: selectedLocal.timezone,
-        description: selectedLocal.description,
+        timezone: toOptionalText(selectedLocal.timezone),
+        description: toOptionalText(selectedLocal.description),
         is_active: selectedLocal.is_active,
       };
       await localApi.update(selectedLocal.local_id, updateData);
