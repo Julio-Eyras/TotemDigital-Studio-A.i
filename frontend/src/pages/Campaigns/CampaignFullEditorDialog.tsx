@@ -55,7 +55,6 @@ import { SortableList } from '../../components/SortableList/SortableList';
 import {
   campaignTotemOptionLabel,
   compareByDisplayName,
-  normalizeCampaign,
   normalizeCampaignType,
 } from './campaignHelpers';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
@@ -286,9 +285,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         setError(null);
         const full = await campaignApi.getById(campaignId);
         if (cancelled) return;
-        const normalized = normalizeCampaign(full);
-        setSelectedCampaign(normalized);
-        const subscriberId = normalized.subscriber_id || (normalized as any).subscriberId;
+        setSelectedCampaign(full);
+        const subscriberId = full.subscriber_id || (full as any).subscriberId;
         if (subscriberId != null && Number.isFinite(Number(subscriberId))) {
           await Promise.all([loadMediaItems(Number(subscriberId)), loadPlaylists(Number(subscriberId))]);
         }
@@ -436,7 +434,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       await campaignApi.reorderMedias(selectedCampaign.campaign_id, newOrder);
       setOrderedMediaIds(newOrder);
       const updated = await campaignApi.getById(selectedCampaign.campaign_id);
-      setSelectedCampaign(normalizeCampaign(updated));
+      setSelectedCampaign(updated);
     } catch (error: any) {
       console.error('Erro ao reordenar mídias:', error);
       setError(pickApiErrorMessage(error, 'Erro ao reordenar mídias'));
@@ -449,7 +447,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       await campaignApi.reorderPlaylists(selectedCampaign.campaign_id, newOrder);
       setOrderedPlaylistIds(newOrder);
       const updated = await campaignApi.getById(selectedCampaign.campaign_id);
-      setSelectedCampaign(normalizeCampaign(updated));
+      setSelectedCampaign(updated);
     } catch (error: any) {
       console.error('Erro ao reordenar playlists:', error);
       setError(pickApiErrorMessage(error, 'Erro ao reordenar playlists'));

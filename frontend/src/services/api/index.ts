@@ -1362,17 +1362,11 @@ export const campaignApi = {
       allCampaignKeys: response.data?.data ? Object.keys(response.data.data) : [],
     });
     
-    // Normalizar resposta: garantir que contract_id sempre existe
-    const campaign = response.data.data;
-    const normalizedCampaign: Campaign = {
-      ...campaign,
-      campaign_id: campaign.campaign_id || campaign.id,
-      contract_id: campaign.contract_id || campaign.contractId,
-    };
-    // Garantir campos espelhados para compatibilidade (ambos sempre presentes)
-    (normalizedCampaign as any).contractId = normalizedCampaign.contract_id;
+    // Normalizar resposta (mesma regra que getById/getAll) + alias legado `id`
+    const raw = response.data.data;
+    const normalizedCampaign = normalizeCampaignRecord(raw) as Campaign;
     (normalizedCampaign as any).id = normalizedCampaign.campaign_id;
-    
+
     console.log('[CampaignAPI] create RESPOSTA NORMALIZADA:', {
       normalizedCampaign,
       contract_id: normalizedCampaign.contract_id,
@@ -1380,7 +1374,7 @@ export const campaignApi = {
       campaign_id: normalizedCampaign.campaign_id,
       id: (normalizedCampaign as any).id,
     });
-    
+
     return normalizedCampaign;
   },
 
@@ -1452,14 +1446,11 @@ export const campaignApi = {
     }
     
     const response = await api.put(`/campaigns/${finalId}`, dataToSend);
-    
-    // Normalizar resposta
-    const campaign = response.data.data;
-    return {
-      ...campaign,
-      campaign_id: campaign.campaign_id || campaign.id,
-      contract_id: campaign.contract_id || campaign.contractId,
-    };
+
+    const raw = response.data.data;
+    const normalizedCampaign = normalizeCampaignRecord(raw) as Campaign;
+    (normalizedCampaign as any).id = normalizedCampaign.campaign_id;
+    return normalizedCampaign;
   },
 
   delete: async (id: number): Promise<void> => {
