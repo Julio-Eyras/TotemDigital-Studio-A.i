@@ -102,8 +102,14 @@ export class SettingsService {
       const privateSettings: { [key: string]: any } = {};
 
       settings.forEach(setting => {
-        // Converter valor baseado no tipo
         const convertedValue = this.convertSettingValue(setting.value, setting.type);
+        const isEditableNorm =
+          setting.isEditable === false ||
+          setting.isEditable === 0 ||
+          (setting as any).is_editable === false ||
+          (setting as any).is_editable === 0
+            ? false
+            : true;
 
         // Separar configurações públicas e privadas
         if (setting.isPublic) {
@@ -125,6 +131,7 @@ export class SettingsService {
 
         categories[setting.category].settings.push({
           ...setting,
+          isEditable: isEditableNorm,
           value: convertedValue,
           options: this.tryParseJson(setting.options)
         });
@@ -170,8 +177,17 @@ export class SettingsService {
         return null;
       }
 
+      const isEditable =
+        setting.isEditable === false ||
+        setting.isEditable === 0 ||
+        (setting as any).is_editable === false ||
+        (setting as any).is_editable === 0
+          ? false
+          : true;
+
       return {
         ...setting,
+        isEditable,
         value: this.convertSettingValue(setting.value, setting.type),
         options: this.tryParseJson(setting.options)
       };
@@ -206,7 +222,6 @@ export class SettingsService {
           }
 
           if (!setting.isEditable) {
-            errors[key] = 'Configuração não é editável';
             continue;
           }
 
@@ -408,8 +423,8 @@ export class SettingsService {
           continue;
         }
 
+        // Cliente pode enviar snapshot completo; ignorar chaves só leitura (sem erro).
         if (!setting.isEditable) {
-          errors[key] = 'Configuração não é editável';
           continue;
         }
 

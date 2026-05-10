@@ -70,9 +70,10 @@ function sortMediaSettings(list: SystemSetting[]): SystemSetting[] {
   });
 }
 
-/** Alinhado ao backend: só bloqueia edição quando `is_editable` é explicitamente false. */
+/** Alinhado ao backend: só leitura quando `is_editable` é falso (boolean, 0 ou string legada). */
 function isSettingReadOnly(s: SystemSetting): boolean {
-  return s.isEditable === false;
+  const v = s.isEditable ?? (s as any).is_editable;
+  return v === false || v === 0 || v === '0' || v === 'false';
 }
 
 function TabPanel(props: TabPanelProps) {
