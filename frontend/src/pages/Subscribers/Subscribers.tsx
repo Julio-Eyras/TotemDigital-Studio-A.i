@@ -297,7 +297,9 @@ const Subscribers: React.FC = () => {
     description: '',
     isActive: true,
   });
-  const [editCampaignForm, setEditCampaignForm] = useState<Partial<UpdateCampaignRequest>>({
+  const [editCampaignForm, setEditCampaignForm] = useState<
+    Partial<UpdateCampaignRequest> & { start_date?: string; end_date?: string }
+  >({
     title: '',
     description: '',
     campaign_type: 'general',
@@ -305,6 +307,8 @@ const Subscribers: React.FC = () => {
     contractId: undefined,
     status: 'draft',
     isActive: true,
+    start_date: undefined,
+    end_date: undefined,
   });
   
   // Estados para itens de playlist
@@ -1500,6 +1504,14 @@ const Subscribers: React.FC = () => {
           subscriberId: selectedSubscriber.subscriber_id,
           mediaIds: campaignMedias.map(m => m.media_id),
           playlistIds: campaignPlaylists.map(p => p.playlist_id),
+          status: editCampaignForm.status ?? 'draft',
+          isActive: editCampaignForm.isActive ?? true,
+          start_date: editCampaignForm.start_date?.trim()
+            ? formatDateForAPI(editCampaignForm.start_date)
+            : undefined,
+          end_date: editCampaignForm.end_date?.trim()
+            ? formatDateForAPI(editCampaignForm.end_date)
+            : undefined,
         } as CreateCampaignRequest;
         console.log('[Campanha] Criando nova campanha', { 
           createData, 
@@ -1513,7 +1525,17 @@ const Subscribers: React.FC = () => {
         setCampaignPlaylists([]);
       }
       setError(null);
-      setEditCampaignForm({ title: '', description: '', campaign_type: 'general', priority: 1, contractId: undefined, status: 'draft', isActive: true });
+      setEditCampaignForm({
+        title: '',
+        description: '',
+        campaign_type: 'general',
+        priority: 1,
+        contractId: undefined,
+        status: 'draft',
+        isActive: true,
+        start_date: undefined,
+        end_date: undefined,
+      });
     } catch (error: any) {
       console.error('Erro ao salvar campanha:', error);
       setError(
@@ -1556,6 +1578,8 @@ const Subscribers: React.FC = () => {
           : (n as any).isActive !== undefined
             ? (n as any).isActive
             : prev.isActive ?? true,
+      start_date: formatDateForInput(n.start_date ?? (n as any).startDate) || undefined,
+      end_date: formatDateForInput(n.end_date ?? (n as any).endDate) || undefined,
     }));
     setCampaignFullEditorId(Number(campaignId));
     setCampaignFullEditorOpen(true);
@@ -3819,6 +3843,40 @@ const Subscribers: React.FC = () => {
                       </Select>
                     </FormControl>
                   </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Data de Início"
+                      type="date"
+                      size="small"
+                      value={editCampaignForm.start_date ?? ''}
+                      onChange={(e) =>
+                        setEditCampaignForm({
+                          ...editCampaignForm,
+                          start_date: e.target.value || undefined,
+                        })
+                      }
+                      InputLabelProps={{ shrink: true }}
+                      helperText="Período de validade da campanha (início)"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Data de Fim"
+                      type="date"
+                      size="small"
+                      value={editCampaignForm.end_date ?? ''}
+                      onChange={(e) =>
+                        setEditCampaignForm({
+                          ...editCampaignForm,
+                          end_date: e.target.value || undefined,
+                        })
+                      }
+                      InputLabelProps={{ shrink: true }}
+                      helperText="Período de validade da campanha (fim)"
+                    />
+                  </Grid>
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
@@ -3979,7 +4037,17 @@ const Subscribers: React.FC = () => {
                         variant="outlined"
                         onClick={() => {
                           setEditingEditCampaignIndex(null);
-                          setEditCampaignForm({ title: '', description: '', campaign_type: 'general', priority: 1, contractId: undefined, status: 'draft', isActive: true });
+                          setEditCampaignForm({
+                            title: '',
+                            description: '',
+                            campaign_type: 'general',
+                            priority: 1,
+                            contractId: undefined,
+                            status: 'draft',
+                            isActive: true,
+                            start_date: undefined,
+                            end_date: undefined,
+                          });
                           setCampaignMedias([]);
                           setCampaignPlaylists([]);
                         }}
@@ -4085,7 +4153,17 @@ const Subscribers: React.FC = () => {
             setEditingEditCampaignIndex(null);
             setEditMediaForm({ name: '', description: '', tags: [] });
             setEditPlaylistForm({ name: '', description: '', isActive: true });
-            setEditCampaignForm({ title: '', description: '', campaign_type: 'general', priority: 1, contractId: undefined, status: 'draft', isActive: true });
+            setEditCampaignForm({
+              title: '',
+              description: '',
+              campaign_type: 'general',
+              priority: 1,
+              contractId: undefined,
+              status: 'draft',
+              isActive: true,
+              start_date: undefined,
+              end_date: undefined,
+            });
             setPlaylistItems([]);
           }}>Cancelar</Button>
           <Button variant="contained" onClick={handleEditSubscriber}>Salvar</Button>

@@ -1198,6 +1198,7 @@ export interface CreateCampaignRequest {
   end_time?: string;
   days_of_week?: string[];
   timezone?: string;
+  isActive?: boolean;
   playlistIds?: number[];
   totemIds?: number[];
   publisherIds?: number[];
