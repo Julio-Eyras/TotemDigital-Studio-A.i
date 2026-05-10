@@ -613,11 +613,6 @@ const Subscribers: React.FC = () => {
 
       const campaignsForEdit = campaignsArray.filter((c: any) => c.campaign_id);
 
-      console.log('[Campanha] Campanhas carregadas', {
-        total: campaignsArray.length,
-        validas: campaignsForEdit.length,
-        sample: campaignsForEdit[0],
-      });
       setEditCampaigns(campaignsForEdit);
       setActiveContracts(
         Array.isArray(contractsResponse) ? filterEditableContracts(contractsResponse) : []
@@ -1338,25 +1333,10 @@ const Subscribers: React.FC = () => {
       const checkCampaign = editCampaigns[editingEditCampaignIndex];
       const checkCampaignId = checkCampaign?.campaign_id || (checkCampaign as any)?.id;
       if (!checkCampaign || !checkCampaignId || checkCampaignId === 0 || !Number.isInteger(checkCampaignId)) {
-        console.warn('[Campanha] PROTEÇÃO INICIAL: editingEditCampaignIndex inválido, resetando ANTES de processar', {
-          editingEditCampaignIndex,
-          checkCampaign,
-          checkCampaignId,
-          isInteger: Number.isInteger(checkCampaignId),
-          editCampaignsLength: editCampaigns.length,
-        });
         setEditingEditCampaignIndex(null);
       }
     }
 
-    console.log('[Campanha] handleAddCampaign chamado', {
-      hasSubscriber: !!selectedSubscriber,
-      title: editCampaignForm.title,
-      titleTrim: editCampaignForm.title?.trim(),
-      editingEditCampaignIndex,
-      editCampaignsLength: editCampaigns.length,
-      campaignAtIndex: editingEditCampaignIndex !== null ? editCampaigns[editingEditCampaignIndex] : null,
-    });
     setError(null);
     if (!selectedSubscriber || !editCampaignForm.title?.trim()) {
       setError('Título da campanha é obrigatório');
@@ -1388,22 +1368,8 @@ const Subscribers: React.FC = () => {
                      editingEditCampaignIndex >= 0 && 
                      editingEditCampaignIndex < editCampaigns.length &&
                      !!campaignIdAtEditIndex; // Garantir que campaignId existe e não é 0/null/undefined
-    
-    console.log('[Campanha] Verificação de modo de edição', {
-      editingEditCampaignIndex,
-      editCampaignsLength: editCampaigns.length,
-      campaignAtIndex,
-      campaignIdAtEditIndex,
-      isEditMode,
-    });
-    
+
     if (editingEditCampaignIndex !== null && !isEditMode) {
-      console.warn('[Campanha] editingEditCampaignIndex definido mas campanha inválida, resetando para modo criação', {
-        editingEditCampaignIndex,
-        editCampaignsLength: editCampaigns.length,
-        campaignAtIndex,
-        campaignIdAtEditIndex,
-      });
       setEditingEditCampaignIndex(null);
       // Forçar modo criação após reset
       isEditMode = false;
@@ -1411,12 +1377,6 @@ const Subscribers: React.FC = () => {
 
     // PROTEÇÃO FINAL: Se não há campaignId válido, forçar modo criação
     if (isEditMode && (!campaignIdAtEditIndex || campaignIdAtEditIndex === 0 || !Number.isInteger(campaignIdAtEditIndex))) {
-      console.warn('[Campanha] PROTEÇÃO FINAL: isEditMode=true mas campaignId inválido, forçando modo criação', {
-        editingEditCampaignIndex,
-        campaignIdAtEditIndex,
-        campaignAtIndex,
-        isInteger: Number.isInteger(campaignIdAtEditIndex),
-      });
       isEditMode = false;
       setEditingEditCampaignIndex(null);
     }
@@ -1426,13 +1386,6 @@ const Subscribers: React.FC = () => {
       ? campaignIdAtEditIndex 
       : null;
     const shouldEdit = !!finalCampaignId;
-
-    console.log('[Campanha] Decisão final', {
-      isEditMode,
-      finalCampaignId,
-      shouldEdit,
-      willCreate: !shouldEdit,
-    });
 
     setCampaignSaveLoading(true);
     try {
@@ -1444,18 +1397,12 @@ const Subscribers: React.FC = () => {
         
         // Verificação dupla antes de chamar API
         if (!campaignId || campaignId === 0 || !Number.isInteger(campaignId)) {
-          console.error('[Campanha] ERRO CRÍTICO: Tentando UPDATE com campaignId inválido!', {
-            campaignId,
-            shouldEdit,
-            finalCampaignId,
-            editingEditCampaignIndex,
-          });
           setError('Erro: campanha não encontrada para edição. Tente criar uma nova campanha.');
           setEditingEditCampaignIndex(null);
           setCampaignSaveLoading(false);
           return;
         }
-        
+
         const updateData: UpdateCampaignRequest = {
           ...editCampaignForm,
           contractId: editCampaignForm.contractId !== undefined && editCampaignForm.contractId !== null ? Number(editCampaignForm.contractId) : undefined,
@@ -1468,12 +1415,6 @@ const Subscribers: React.FC = () => {
             ? formatDateForAPI(editCampaignForm.end_date)
             : undefined,
         };
-        console.log('[Campanha] Atualizando campanha', { 
-          campaignId, 
-          updateData,
-          contractId: updateData.contractId,
-          contractIdType: typeof updateData.contractId,
-        });
         await campaignApi.update(campaignId, updateData);
         await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
         setEditingEditCampaignIndex(null);
@@ -1498,12 +1439,6 @@ const Subscribers: React.FC = () => {
             ? formatDateForAPI(editCampaignForm.end_date)
             : undefined,
         } as CreateCampaignRequest;
-        console.log('[Campanha] Criando nova campanha', { 
-          createData, 
-          isEditMode,
-          contractId: createData.contractId,
-          contractIdType: typeof createData.contractId,
-        });
         await campaignApi.create(createData);
         await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
         setCampaignMedias([]);
@@ -1535,12 +1470,10 @@ const Subscribers: React.FC = () => {
     if (isOperadorComercial) return;
     const campaign = editCampaigns[index];
     if (!campaign) {
-      console.error('[Campanha] Erro: campanha não encontrada no índice', { index, editCampaignsLength: editCampaigns.length });
       return;
     }
     const campaignId = campaign.campaign_id || (campaign as any).id;
     if (!campaignId) {
-      console.error('[Campanha] Erro: campanha sem ID válido para navegação', { campaign });
       return;
     }
     const cid = campaign.contract_id ?? (campaign as any).contractId;
@@ -1613,49 +1546,21 @@ const Subscribers: React.FC = () => {
     try {
       // Validar índice
       if (index < 0 || index >= editCampaigns.length) {
-        console.error('[Campanha] Erro: índice inválido para exclusão', { 
-          index, 
-          editCampaignsLength: editCampaigns.length,
-          editCampaigns: editCampaigns.map((c, i) => ({ 
-            index: i, 
-            campaign_id: c.campaign_id || (c as any).id,
-            title: c.title 
-          })),
-        });
         setError('Erro: campanha não encontrada para exclusão');
         return;
       }
 
       const campaign = editCampaigns[index];
       if (!campaign) {
-        console.error('[Campanha] Erro: campanha não encontrada no índice', { index, editCampaignsLength: editCampaigns.length });
         setError('Erro: campanha não encontrada para exclusão');
         return;
       }
 
       // Normalizar campaignId: tentar múltiplas formas
       const campaignId = campaign.campaign_id || (campaign as any).id || (campaign as any).campaignId;
-      
-      console.log('[Campanha] Tentando excluir', { 
-        index, 
-        campaign, 
-        campaignId,
-        campaignIdType: typeof campaignId,
-        isInteger: Number.isInteger(campaignId),
-        availableKeys: Object.keys(campaign),
-      });
 
       // Validação rigorosa
       if (!campaignId || campaignId === 0 || !Number.isInteger(campaignId) || campaignId < 1) {
-        console.error('[Campanha] Erro: campanha sem ID válido para exclusão', { 
-          campaign, 
-          index, 
-          campaignId,
-          campaignIdType: typeof campaignId,
-          isInteger: Number.isInteger(campaignId),
-          campaign_id: campaign.campaign_id,
-          id: (campaign as any).id,
-        });
         setError('Erro: campanha não encontrada para exclusão (ID inválido)');
         return;
       }
