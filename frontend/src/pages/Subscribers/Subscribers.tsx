@@ -613,26 +613,9 @@ const Subscribers: React.FC = () => {
         ? campaignsResponse 
         : (campaignsResponse as any)?.data || [];
       
-      const normalizedCampaigns = campaignsArray.map((c: any) => {
-        // Tentar múltiplas formas de obter o ID
-        const campaignId = c.campaign_id || c.id || c.campaignId || (c as any).campaignId;
-        const contractId = c.contract_id || c.contractId;
-        
-        const normalized = {
-          ...c,
-          campaign_id: campaignId,
-          contract_id: contractId,
-        };
-        
-        if (!normalized.campaign_id) {
-          console.error('[Campanha] Campanha sem ID após normalização - será ignorada', { 
-            original: c, 
-            normalized,
-            availableKeys: Object.keys(c),
-          });
-        }
-        return normalized;
-      }).filter((c: any) => c.campaign_id); // Filtrar campanhas sem ID
+      const normalizedCampaigns = campaignsArray
+        .map((c: any) => normalizeCampaign(c))
+        .filter((c: any) => c.campaign_id);
       
       console.log('[Campanha] Campanhas normalizadas', { 
         total: campaignsArray.length,
@@ -1482,6 +1465,12 @@ const Subscribers: React.FC = () => {
           contractId: editCampaignForm.contractId !== undefined && editCampaignForm.contractId !== null ? Number(editCampaignForm.contractId) : undefined,
           mediaIds: campaignMedias.map(m => m.media_id),
           playlistIds: campaignPlaylists.map(p => p.playlist_id),
+          start_date: editCampaignForm.start_date?.trim()
+            ? formatDateForAPI(editCampaignForm.start_date)
+            : undefined,
+          end_date: editCampaignForm.end_date?.trim()
+            ? formatDateForAPI(editCampaignForm.end_date)
+            : undefined,
         };
         console.log('[Campanha] Atualizando campanha', { 
           campaignId, 
