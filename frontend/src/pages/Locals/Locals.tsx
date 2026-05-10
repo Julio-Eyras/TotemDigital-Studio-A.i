@@ -163,6 +163,12 @@ const Locals: React.FC = () => {
     return normalized ? normalized : undefined;
   };
 
+  const toOptionalNumber = (value: unknown): number | undefined => {
+    if (value === null || value === undefined || value === '') return undefined;
+    const parsed = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+
   useEffect(() => {
     loadLocals();
     if (isAdmin && !TOTEMDIGITAL_COMPACT) {
@@ -269,6 +275,8 @@ const Locals: React.FC = () => {
             state: toOptionalText(newLocal.state),
             zip_code: toOptionalText(newLocal.zip_code),
             country: toOptionalText(newLocal.country),
+            latitude: toOptionalNumber(newLocal.latitude),
+            longitude: toOptionalNumber(newLocal.longitude),
             timezone: toOptionalText(newLocal.timezone),
             description: toOptionalText(newLocal.description),
             publisher_id: undefined,
@@ -282,6 +290,8 @@ const Locals: React.FC = () => {
             state: toOptionalText(newLocal.state),
             zip_code: toOptionalText(newLocal.zip_code),
             country: toOptionalText(newLocal.country),
+            latitude: toOptionalNumber(newLocal.latitude),
+            longitude: toOptionalNumber(newLocal.longitude),
             timezone: toOptionalText(newLocal.timezone),
             description: toOptionalText(newLocal.description),
           };
@@ -323,8 +333,8 @@ const Locals: React.FC = () => {
         state: toOptionalText(selectedLocal.state),
         zip_code: toOptionalText(selectedLocal.zip_code),
         country: toOptionalText(selectedLocal.country),
-        latitude: selectedLocal.latitude,
-        longitude: selectedLocal.longitude,
+        latitude: toOptionalNumber(selectedLocal.latitude),
+        longitude: toOptionalNumber(selectedLocal.longitude),
         timezone: toOptionalText(selectedLocal.timezone),
         description: toOptionalText(selectedLocal.description),
         is_active: selectedLocal.is_active,

@@ -3,7 +3,7 @@
  * Componente para exibir detalhes completos de um publisher
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Dialog,
@@ -28,6 +28,10 @@ import {
   Grid,
   Card,
   CardContent,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Store,
@@ -35,14 +39,17 @@ import {
   Tv,
   CheckCircle,
   Description,
-  Add,
-  OpenInNew,
   CalendarToday,
   Assignment,
   AttachMoney,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { Publisher, publisherApi, publisherContractApi } from '../../../services/api';
+import {
+  SUBSCRIBER_CONTRACT_STATUS_OPTIONS,
+  normalizeSubscriberContractStatus,
+} from '../../Subscribers/subscriberContractHealth';
+
+type ContractStatusFilter = 'all' | (typeof SUBSCRIBER_CONTRACT_STATUS_OPTIONS)[number]['value'];
 
 export interface PublisherDetailsProps {
   open: boolean;
@@ -93,8 +100,8 @@ const PublisherDetails: React.FC<PublisherDetailsProps> = ({
   onClose,
   onEdit,
 }) => {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
+  const [contractStatusFilter, setContractStatusFilter] = useState<ContractStatusFilter>('all');
   const [stats, setStats] = useState<{
     locals: any[];
     totems: any[];
@@ -104,11 +111,25 @@ const PublisherDetails: React.FC<PublisherDetailsProps> = ({
   } | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const allPublisherContracts = Array.isArray(stats?.contracts) ? stats.contracts : [];
+  const filteredPublisherContracts = useMemo(() => {
+    if (contractStatusFilter === 'all') return allPublisherContracts;
+    return allPublisherContracts.filter(
+      (c: any) => normalizeSubscriberContractStatus(c?.status) === contractStatusFilter
+    );
+  }, [allPublisherContracts, contractStatusFilter]);
+
   useEffect(() => {
     if (open && publisher) {
       loadDetails();
     }
   }, [open, publisher]);
+
+  useEffect(() => {
+    if (!open) {
+      setContractStatusFilter('all');
+    }
+  }, [open]);
 
   const loadDetails = async () => {
     if (!publisher) return;
@@ -362,34 +383,46 @@ const PublisherDetails: React.FC<PublisherDetailsProps> = ({
                 flexWrap: 'wrap',
               }}
             >
-              <Typography variant="h6">Contratos ({stats.contracts?.length || 0})</Typography>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<Add />}
-                  onClick={() => {
-                    navigate(`/publisher-contracts?publisherId=${publisher.publisher_id}&openCreate=1`);
-                  }}
-                >
-                  Criar Contrato
-                </Button>
-                <Button
-                  variant="text"
-                  endIcon={<OpenInNew />}
-                  onClick={() => {
-                    navigate(`/publisher-contracts?publisherId=${publisher.publisher_id}`);
-                  }}
-                >
-                  Abrir Manutenção
-                </Button>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Typography variant="h6">
+                  Contratos ({filteredPublisherContracts.length}
+                  {contractStatusFilter !== 'all' &&
+                  allPublisherContracts.length !== filteredPublisherContracts.length
+                    ? ` de ${allPublisherContracts.length}`
+                    : ''}
+                  )
+                </Typography>
+                {contractStatusFilter !== 'all' &&
+                  filteredPublisherContracts.length === 0 &&
+                  allPublisherContracts.length > 0 && (
+                    <Typography variant="caption" color="text.secondary">
+                      Nenhum contrato com este status. Ajuste o filtro ou escolha &quot;Todos&quot;.
+                    </Typography>
+                  )}
               </Box>
+              <FormControl size="small" sx={{ minWidth: 220 }}>
+                <InputLabel id="publisher-details-contract-status-filter">Status</InputLabel>
+                <Select
+                  labelId="publisher-details-contract-status-filter"
+                  label="Status"
+                  value={contractStatusFilter}
+                  onChange={(e) => setContractStatusFilter(e.target.value as ContractStatusFilter)}
+                >
+                  <MenuItem value="all">Todos</MenuItem>
+                  {SUBSCRIBER_CONTRACT_STATUS_OPTIONS.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Box>
 
             {!stats.contracts || stats.contracts.length === 0 ? (
               <Alert severity="info">Nenhum contrato encontrado para este publicador.</Alert>
             ) : (
               <List>
-                {stats.contracts.map((contract: any, idx: number) => (
+                {filteredPublisherContracts.map((contract: any, idx: number) => (
                   <ListItem
                     key={contract.contract_id || `contract-${idx}`}
                     sx={{
@@ -411,7 +444,13 @@ const PublisherDetails: React.FC<PublisherDetailsProps> = ({
                         </Typography>
                       </Box>
                       <Chip
-                        label={contract.status || 'draft'}
+                        label={
+                          SUBSCRIBER_CONTRACT_STATUS_OPTIONS.find(
+                            (o) => o.value === normalizeSubscriberContractStatus(contract.status)
+                          )?.label ||
+                          contract.status ||
+                          'Rascunho'
+                        }
                         size="small"
                         color={
                           contract.status === 'active'

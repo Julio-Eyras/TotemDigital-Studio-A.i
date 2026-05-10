@@ -104,6 +104,19 @@ const ContractForm: React.FC<ContractFormProps> = ({
   };
 
   const getFieldValue = (field: string): any => {
+    if (field === 'status') {
+      const formValue = (data as any).status;
+      if (formValue !== undefined && formValue !== null && formValue !== '') {
+        return String(formValue);
+      }
+      if (mode === 'edit' && contract) {
+        const contractStatus = (contract as any).status;
+        if (contractStatus !== undefined && contractStatus !== null && contractStatus !== '') {
+          return String(contractStatus);
+        }
+      }
+      return 'draft';
+    }
     const formValue = (data as any)[field];
     // Em modo edit, se o campo não estiver no form mas estiver no contract, usar o contract
     if (mode === 'edit' && contract && (formValue === undefined || formValue === null || formValue === '')) {
@@ -349,10 +362,10 @@ const ContractForm: React.FC<ContractFormProps> = ({
 
             <Grid item xs={12} md={6}>
               <FormControl fullWidth margin="normal">
-                <InputLabel>Status</InputLabel>
+                <InputLabel>Status (opcional)</InputLabel>
                 <Select
-                  value={getFieldValue('status') || 'draft'}
-                  label="Status"
+                  value={getFieldValue('status')}
+                  label="Status (opcional)"
                   onChange={(e) => handleFieldChange('status', e.target.value)}
                 >
                   <MenuItem value="draft">Rascunho</MenuItem>

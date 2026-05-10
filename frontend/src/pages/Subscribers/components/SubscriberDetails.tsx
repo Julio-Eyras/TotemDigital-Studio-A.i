@@ -3,7 +3,7 @@
  * Componente para exibir detalhes completos de um subscriber
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Dialog,
@@ -25,22 +25,29 @@ import {
   Paper,
   Tooltip,
   LinearProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Description,
-  Add,
-  OpenInNew,
   CheckCircle,
   Warning,
   Error as ErrorIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { Subscriber, Contract, subscriberApi } from '../../../services/api';
 import SubscriberStats from './SubscriberStats';
 import { loadPlanTopologyPreviewRows, countTopologyInRows, PlanTopologyPreviewRow } from '../planTopologyPreview';
 import { PlanTopologyTabPanel } from '../PlanTopologyTabPanel';
-import { getSubscriberContractHealth } from '../subscriberContractHealth';
+import {
+  getSubscriberContractHealth,
+  SUBSCRIBER_CONTRACT_STATUS_OPTIONS,
+  normalizeSubscriberContractStatus,
+} from '../subscriberContractHealth';
 import { pickApiErrorMessage } from '../../../utils/apiErrorMessage';
+
+type ContractStatusFilter = 'all' | (typeof SUBSCRIBER_CONTRACT_STATUS_OPTIONS)[number]['value'];
 
 export interface SubscriberDetailsProps {
   open: boolean;
@@ -71,7 +78,6 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
   onClose,
   onEdit,
 }) => {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
   const [stats, setStats] = useState<{
     locals: any[];
@@ -88,6 +94,14 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
   }>({ loading: false, error: null, rows: [] });
   /** Sub-abas Locais/Totens/TVs por contract_id */
   const [topologySubTabByContract, setTopologySubTabByContract] = useState<Record<number, number>>({});
+  const [contractStatusFilter, setContractStatusFilter] = useState<ContractStatusFilter>('all');
+
+  const filteredContracts = useMemo(() => {
+    if (contractStatusFilter === 'all') return activeContracts;
+    return activeContracts.filter(
+      (c: any) => normalizeSubscriberContractStatus(c?.status) === contractStatusFilter
+    );
+  }, [activeContracts, contractStatusFilter]);
 
   useEffect(() => {
     if (open && subscriber) {
@@ -98,6 +112,7 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
   useEffect(() => {
     if (!open) {
       setTopologySubTabByContract({});
+      setContractStatusFilter('all');
     }
   }, [open]);
 
@@ -285,39 +300,54 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
                 flexWrap: 'wrap',
               }}
             >
-              <Typography variant="h6">Contratos ({activeContracts.length})</Typography>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<Add />}
-                  onClick={() => {
-                    navigate(`/subscriber-contracts?subscriberId=${subscriber.subscriber_id}&openCreate=1`);
-                  }}
-                >
-                  Criar Contrato
-                </Button>
-                <Button
-                  variant="text"
-                  endIcon={<OpenInNew />}
-                  onClick={() => {
-                    navigate(`/subscriber-contracts?subscriberId=${subscriber.subscriber_id}`);
-                  }}
-                >
-                  Abrir Manutenção
-                </Button>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Typography variant="h6">
+                  Contratos ({filteredContracts.length}
+                  {contractStatusFilter !== 'all' && activeContracts.length !== filteredContracts.length
+                    ? ` de ${activeContracts.length}`
+                    : ''}
+                  )
+                </Typography>
+                {contractStatusFilter !== 'all' && filteredContracts.length === 0 && activeContracts.length > 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    Nenhum contrato com este status. Ajuste o filtro ou escolha &quot;Todos&quot;.
+                  </Typography>
+                )}
               </Box>
+              <FormControl size="small" sx={{ minWidth: 220 }}>
+                <InputLabel id="subscriber-details-contract-status-filter">Status</InputLabel>
+                <Select
+                  labelId="subscriber-details-contract-status-filter"
+                  label="Status"
+                  value={contractStatusFilter}
+                  onChange={(e) => setContractStatusFilter(e.target.value as ContractStatusFilter)}
+                >
+                  <MenuItem value="all">Todos</MenuItem>
+                  {SUBSCRIBER_CONTRACT_STATUS_OPTIONS.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Box>
 
             {activeContracts.length === 0 ? (
               <Alert severity="info">Nenhum contrato encontrado para este anunciante.</Alert>
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {activeContracts.map((contract: any, idx: number) => {
+                {filteredContracts.map((contract: any, idx: number) => {
                   const cid = Number(contract.contract_id ?? contract.contractId ?? idx);
                   const health = getSubscriberContractHealth(contract as Record<string, unknown>);
                   const chipColor =
                     health.health === 'success' ? 'success' : health.health === 'error' ? 'error' : 'warning';
-                  const topoRow = topologyPreview.rows[idx];
+                  const fullIdx = activeContracts.findIndex(
+                    (c: any) => Number(c.contract_id ?? c.contractId) === cid
+                  );
+                  const topoRow =
+                    fullIdx >= 0 && topologyPreview.rows[fullIdx]
+                      ? topologyPreview.rows[fullIdx]
+                      : undefined;
                   const counts = topoRow ? countTopologyInRows([topoRow]) : { lc: 0, tt: 0, st: 0 };
                   const subTab = topologySubTabByContract[cid] ?? 0;
                   const singlePreview = {

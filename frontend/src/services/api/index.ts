@@ -3659,6 +3659,18 @@ export interface LocalListResponse {
   limit: number;
 }
 
+const sanitizeOptionalLocalNumber = (value: unknown): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const sanitizeLocalPayload = <T extends CreateLocalRequest | UpdateLocalRequest>(data: T): T => ({
+  ...data,
+  latitude: sanitizeOptionalLocalNumber((data as any).latitude),
+  longitude: sanitizeOptionalLocalNumber((data as any).longitude),
+});
+
 export const localApi = {
   getAll: async (params?: {
     page?: number;
@@ -3677,12 +3689,12 @@ export const localApi = {
   },
 
   create: async (data: CreateLocalRequest): Promise<Local> => {
-    const response = await api.post('/locals', data);
+    const response = await api.post('/locals', sanitizeLocalPayload(data));
     return response.data.data || response.data;
   },
 
   update: async (id: number, data: UpdateLocalRequest): Promise<Local> => {
-    const response = await api.put(`/locals/${id}`, data);
+    const response = await api.put(`/locals/${id}`, sanitizeLocalPayload(data));
     return response.data.data || response.data;
   },
 

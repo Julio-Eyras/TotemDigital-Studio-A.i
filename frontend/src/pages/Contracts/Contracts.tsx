@@ -452,6 +452,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         end_date: formatDateForAPI(contractForm.end_date || getDefaultContractEndDate()),
         // Só permitir publisherIds quando existir subscriber_id (evita INSERT com subscriber_id NULL no backend)
         publisherIds: hasSubscriber ? selectedPublisherIds : [],
+        status: contractForm.status == null ? undefined : contractForm.status,
       };
 
       await contractApi.create(contractData);
@@ -479,7 +480,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         total_amount: contractForm.total_amount,
         currency: contractForm.currency,
         payment_terms: contractForm.payment_terms,
-        status: contractForm.status,
+        status: contractForm.status == null ? undefined : contractForm.status,
         publisherIds: selectedPublisherIds,
       };
 
@@ -687,6 +688,8 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         ...publisherContractForm,
         start_date: formatDateForAPI(publisherContractForm.start_date) || '',
         end_date: formatDateForAPI(publisherContractForm.end_date || getDefaultContractEndDate()),
+        status:
+          publisherContractForm.status == null ? undefined : publisherContractForm.status,
       };
       await publisherContractApi.create(createData);
       setCreatePublisherContractDialogOpen(false);
@@ -716,7 +719,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         subscription_interval: publisherContractForm.subscription_interval,
         currency: publisherContractForm.currency,
         payment_terms: publisherContractForm.payment_terms,
-        status: publisherContractForm.status,
+        status: publisherContractForm.status == null ? undefined : publisherContractForm.status,
       };
 
       await publisherContractApi.update(selectedPublisherContract.contract_id, updateData);

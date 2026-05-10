@@ -2,6 +2,31 @@
  * Apresentação visual do estado do contrato do anunciante (detalhes / listagens).
  */
 
+/** Valores de `status` em `subscriber_contracts` / contratos de anunciante (alinhado à API). */
+export type SubscriberContractStatusValue =
+  | 'draft'
+  | 'active'
+  | 'expired'
+  | 'terminated'
+  | 'cancelled';
+
+export const SUBSCRIBER_CONTRACT_STATUS_OPTIONS: Array<{
+  value: SubscriberContractStatusValue;
+  label: string;
+}> = [
+  { value: 'draft', label: 'Rascunho' },
+  { value: 'active', label: 'Ativo' },
+  { value: 'expired', label: 'Expirado' },
+  { value: 'terminated', label: 'Terminado' },
+  { value: 'cancelled', label: 'Cancelado' },
+];
+
+export function normalizeSubscriberContractStatus(raw: unknown): string {
+  return String(raw ?? '')
+    .trim()
+    .toLowerCase();
+}
+
 export type ContractHealthLevel = 'success' | 'warning' | 'error';
 
 export interface SubscriberContractHealth {
@@ -22,7 +47,7 @@ function dayOnly(d: Date): Date {
  * Vermelho: regras violadas (datas inconsistentes ou status "ativo" fora da vigência).
  */
 export function getSubscriberContractHealth(contract: Record<string, unknown>): SubscriberContractHealth {
-  const status = String(contract.status ?? '').toLowerCase();
+  const status = normalizeSubscriberContractStatus(contract.status);
 
   const parseDay = (raw: unknown): Date | null => {
     if (raw == null || raw === '') return null;
@@ -61,7 +86,7 @@ export function getSubscriberContractHealth(contract: Record<string, unknown>): 
         : status === 'expired'
           ? 'Expirado'
           : status === 'terminated'
-            ? 'Encerrado'
+            ? 'Terminado'
             : status === 'cancelled'
               ? 'Cancelado'
               : status
@@ -93,7 +118,7 @@ export function getSubscriberContractHealth(contract: Record<string, unknown>): 
       : status === 'expired'
         ? 'Vigência encerrada ou marcado como expirado.'
         : status === 'terminated'
-          ? 'Contrato encerrado.'
+          ? 'Contrato terminado.'
           : status === 'cancelled'
             ? 'Contrato cancelado.'
             : status === 'active'

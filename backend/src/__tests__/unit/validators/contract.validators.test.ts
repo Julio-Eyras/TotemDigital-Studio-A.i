@@ -92,6 +92,13 @@ describe('contract.validators', () => {
       const result = validationResult(req as any);
       expect(result.isEmpty()).toBe(false);
     });
+
+    it('deve aceitar status null (campo opcional no JSON)', async () => {
+      const req = { body: { status: null } };
+      await runValidators(req, updateSubscriberContractValidators);
+      const result = validationResult(req as any);
+      expect(result.isEmpty()).toBe(true);
+    });
   });
 
   describe('createPublisherContractValidators', () => {
