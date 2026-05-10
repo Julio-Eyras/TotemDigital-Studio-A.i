@@ -11,19 +11,19 @@ export const createPlaylistValidators = [
   body('name').notEmpty().withMessage('Nome é obrigatório').isLength({ min: 2, max: 100 }).withMessage('Nome deve ter entre 2 e 100 caracteres'),
   body('categorySegment').optional({ nullable: true }).isString().isLength({ max: 100 }).withMessage('Categoria/Segmento deve ter no máximo 100 caracteres'),
   body('description').optional({ nullable: true }).isString().isLength({ max: 1000 }).withMessage('Descrição deve ter no máximo 1000 caracteres'),
-  body('subscriberId').optional().isInt({ min: 1 }).withMessage('subscriberId deve ser um número inteiro maior que 0'),
-  body('clientId').optional().isInt({ min: 1 }).withMessage('clientId (deprecated) deve ser um número inteiro maior que 0'),
+  body('subscriberId').optional({ nullable: true }).isInt({ min: 1 }).withMessage('subscriberId deve ser um número inteiro maior que 0'),
+  body('clientId').optional({ nullable: true }).isInt({ min: 1 }).withMessage('clientId (deprecated) deve ser um número inteiro maior que 0'),
 ];
 
 /**
  * Validadores para atualização de playlist
  */
 export const updatePlaylistValidators = [
-  body('name').optional().notEmpty().isLength({ min: 2, max: 100 }).withMessage('Nome deve ter entre 2 e 100 caracteres'),
+  body('name').optional({ nullable: true }).notEmpty().isLength({ min: 2, max: 100 }).withMessage('Nome deve ter entre 2 e 100 caracteres'),
   body('categorySegment').optional({ nullable: true }).isString().isLength({ max: 100 }).withMessage('Categoria/Segmento deve ter no máximo 100 caracteres'),
   body('description').optional({ nullable: true }).isString().isLength({ max: 1000 }).withMessage('Descrição deve ter no máximo 1000 caracteres'),
-  body('subscriberId').optional().isInt({ min: 1 }).withMessage('subscriberId deve ser um número inteiro maior que 0'),
-  body('clientId').optional().isInt({ min: 1 }).withMessage('clientId (deprecated) deve ser um número inteiro maior que 0'),
+  body('subscriberId').optional({ nullable: true }).isInt({ min: 1 }).withMessage('subscriberId deve ser um número inteiro maior que 0'),
+  body('clientId').optional({ nullable: true }).isInt({ min: 1 }).withMessage('clientId (deprecated) deve ser um número inteiro maior que 0'),
 ];
 
 /**
@@ -31,9 +31,9 @@ export const updatePlaylistValidators = [
  */
 export const addMediaToPlaylistValidators = [
   body('mediaId').isInt({ min: 1 }).withMessage('ID da mídia é obrigatório'),
-  body('orderIndex').optional().isInt({ min: 0 }).withMessage('orderIndex deve ser um número inteiro maior ou igual a 0'),
+  body('orderIndex').optional({ nullable: true }).isInt({ min: 0 }).withMessage('orderIndex deve ser um número inteiro maior ou igual a 0'),
   body('duration')
-    .optional()
+    .optional({ nullable: true })
     .isInt()
     .withMessage('Duração deve ser um número inteiro (ms)')
     .custom((v) => {
