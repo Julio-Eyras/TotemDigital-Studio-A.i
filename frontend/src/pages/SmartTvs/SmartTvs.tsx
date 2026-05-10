@@ -107,7 +107,6 @@ const SmartTvs: React.FC = () => {
       }
       setTotems(filteredTotems);
     } catch (error) {
-      console.error('Erro ao carregar totens:', error);
     }
   };
 
@@ -123,7 +122,6 @@ const SmartTvs: React.FC = () => {
       });
       setSmartTvs(Array.isArray(response.data) ? response.data : []);
     } catch (error: unknown) {
-      console.error('Erro ao carregar Smart TVs:', error);
       setError(pickApiErrorMessage(error, 'Erro ao carregar lista de Smart TVs'));
     } finally {
       setLoading(false);
@@ -180,7 +178,6 @@ const SmartTvs: React.FC = () => {
       });
       loadSmartTvs();
     } catch (error: unknown) {
-      console.error('Erro ao criar Smart TV:', error);
       setError(pickApiErrorMessage(error, 'Erro ao criar Smart TV'));
     }
   };
@@ -211,7 +208,6 @@ const SmartTvs: React.FC = () => {
       setEditTab(0);
       loadSmartTvs();
     } catch (error: unknown) {
-      console.error('Erro ao atualizar Smart TV:', error);
       setError(pickApiErrorMessage(error, 'Erro ao atualizar Smart TV'));
     }
   };
@@ -225,7 +221,6 @@ const SmartTvs: React.FC = () => {
       await smartTvApi.delete(tvId);
       loadSmartTvs();
     } catch (error: unknown) {
-      console.error('Erro ao deletar Smart TV:', error);
       setError(pickApiErrorMessage(error, 'Erro ao deletar Smart TV'));
     }
   };

@@ -64,8 +64,6 @@ api.interceptors.response.use(
       
       if (isNetworkError) {
         // Servidor reiniciou ou está offline - fazer logout e redirecionar
-        console.warn('Erro de conexão (servidor reiniciando ou offline):', error.message);
-        
         // Evitar logout em requisições de login
         const reqUrl: string = String(originalRequest?.url || '');
         const isAuthLoginRequest =
@@ -233,8 +231,7 @@ export const dashboardApi = {
       const response = await api.get(`/dashboard/activities?limit=${limit}`);
       const data = response.data.data || response.data;
       return Array.isArray(data) ? data : [];
-    } catch (error) {
-      console.error('Erro ao buscar atividades recentes:', error);
+    } catch {
       return [];
     }
   },
@@ -1263,19 +1260,9 @@ export const campaignApi = {
     const campaignsArray = Array.isArray(response.data?.data) ? response.data.data : [];
     
     // NORMALIZAÇÃO: IDs + datas/status/totemIds (camel/snake) sem depender de ciclo com campaignHelpers
-    const normalized = campaignsArray.map((c: any, idx: number) => {
-      const normalizedCampaign = normalizeCampaignRecord(c) as Campaign;
-
-      if (!normalizedCampaign.campaign_id) {
-        console.error(`[CampaignAPI] ERRO: Campanha ${idx} sem ID após normalização!`, {
-          original: c,
-          normalized: normalizedCampaign,
-          allKeys: Object.keys(c),
-        });
-      }
-
-      return normalizedCampaign;
-    }).filter((c: Campaign) => !!c.campaign_id);
+    const normalized = campaignsArray
+      .map((c: any) => normalizeCampaignRecord(c) as Campaign)
+      .filter((c: Campaign) => !!c.campaign_id);
 
     return normalized;
   },
@@ -1315,17 +1302,6 @@ export const campaignApi = {
     // Verificar TODAS as condições possíveis
     if (id === undefined || id === null || isNaN(id) || !Number.isFinite(id) || !Number.isInteger(id) || id <= 0) {
       const errorMsg = `[CampaignAPI] ERRO CRÍTICO: Tentando UPDATE com ID inválido. ID recebido: ${id} (tipo: ${typeof id})`;
-      console.error(errorMsg, { 
-        id, 
-        idType: typeof id,
-        isUndefined: id === undefined,
-        isNull: id === null,
-        isNaN: isNaN(id),
-        isFinite: Number.isFinite(id),
-        isInteger: Number.isInteger(id),
-        value: id,
-        data,
-      });
       throw new Error(errorMsg);
     }
     
@@ -1333,7 +1309,6 @@ export const campaignApi = {
     const finalId = Math.floor(Number(id));
     if (finalId <= 0 || !Number.isInteger(finalId)) {
       const errorMsg = `[CampaignAPI] ERRO CRÍTICO: ID convertido inválido. Original: ${id}, Convertido: ${finalId}`;
-      console.error(errorMsg, { id, finalId, data });
       throw new Error(errorMsg);
     }
 
@@ -1372,16 +1347,6 @@ export const campaignApi = {
     // Verificar TODAS as condições possíveis
     if (id === undefined || id === null || isNaN(id) || !Number.isFinite(id) || !Number.isInteger(id) || id <= 0) {
       const errorMsg = `[CampaignAPI] ERRO CRÍTICO: Tentando DELETE com ID inválido. ID recebido: ${id} (tipo: ${typeof id})`;
-      console.error(errorMsg, { 
-        id, 
-        idType: typeof id,
-        isUndefined: id === undefined,
-        isNull: id === null,
-        isNaN: isNaN(id),
-        isFinite: Number.isFinite(id),
-        isInteger: Number.isInteger(id),
-        value: id,
-      });
       throw new Error(errorMsg);
     }
     
@@ -1389,7 +1354,6 @@ export const campaignApi = {
     const finalId = Math.floor(Number(id));
     if (finalId <= 0 || !Number.isInteger(finalId)) {
       const errorMsg = `[CampaignAPI] ERRO CRÍTICO: ID convertido inválido. Original: ${id}, Convertido: ${finalId}`;
-      console.error(errorMsg, { id, finalId });
       throw new Error(errorMsg);
     }
 
@@ -1639,8 +1603,7 @@ export const smartPlaylistApi = {
       }
       // Se for array direto, retornar
       return Array.isArray(result) ? result : [];
-    } catch (error) {
-      console.error('Erro ao buscar smart playlists:', error);
+    } catch {
       return [];
     }
   },
@@ -2299,8 +2262,7 @@ export const billingApi = {
       }
       // Se for array direto, retornar
       return Array.isArray(result) ? result : [];
-    } catch (error) {
-      console.error('Erro ao buscar faturas:', error);
+    } catch {
       return [];
     }
   },

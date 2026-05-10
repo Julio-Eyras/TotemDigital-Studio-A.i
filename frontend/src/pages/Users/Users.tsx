@@ -99,7 +99,6 @@ const Users: React.FC = () => {
       const response = await subscriberApi.getAll();
       setSubscribers(response.data || []);
     } catch (error) {
-      console.error('Erro ao carregar subscribers:', error);
     }
   };
 
@@ -114,7 +113,6 @@ const Users: React.FC = () => {
       });
       setUsers(response.data);
     } catch (error) {
-      console.error('Erro ao carregar usuários:', error);
       setError('Erro ao carregar lista de usuários');
     } finally {
       setLoading(false);
@@ -126,7 +124,6 @@ const Users: React.FC = () => {
       const response = await publisherApi.getAll({ active_only: true });
       setPublishers(response.data || []);
     } catch (error) {
-      console.error('Erro ao carregar publishers:', error);
     }
   };
 
@@ -146,7 +143,6 @@ const Users: React.FC = () => {
       });
       loadUsers();
     } catch (error) {
-      console.error('Erro ao criar usuário:', error);
       setError('Erro ao criar usuário');
     }
   };
@@ -170,7 +166,6 @@ const Users: React.FC = () => {
       setSelectedUser(null);
       loadUsers();
     } catch (error) {
-      console.error('Erro ao atualizar usuário:', error);
       setError('Erro ao atualizar usuário');
     }
   };
@@ -181,7 +176,6 @@ const Users: React.FC = () => {
         await userApi.delete(id);
         loadUsers();
       } catch (error) {
-        console.error('Erro ao excluir usuário:', error);
         setError('Erro ao excluir usuário');
       }
     }
@@ -194,7 +188,6 @@ const Users: React.FC = () => {
       setSelectedUserFlags(flags);
       setFlagsDialogOpen(true);
     } catch (error) {
-      console.error('Erro ao carregar flags:', error);
       setError('Erro ao carregar flags do usuário');
     }
   };
@@ -209,7 +202,6 @@ const Users: React.FC = () => {
       setSelectedUserFlags(null);
       loadUsers();
     } catch (error) {
-      console.error('Erro ao salvar flags:', error);
       setError('Erro ao salvar flags');
     }
   };

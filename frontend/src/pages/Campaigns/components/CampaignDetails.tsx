@@ -281,7 +281,6 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
       setPublishers(Array.isArray(publishersData) ? (publishersData as Publisher[]) : []);
       setTotems(Array.isArray(totemsData) ? totemsData : []);
     } catch (error) {
-      console.error('Erro ao carregar detalhes da campanha:', error);
     } finally {
       setLoading(false);
     }

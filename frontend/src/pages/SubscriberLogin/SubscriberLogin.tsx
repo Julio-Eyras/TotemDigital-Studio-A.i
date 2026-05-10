@@ -104,7 +104,6 @@ const SubscriberLogin: React.FC = () => {
         setError('Resposta inválida do servidor');
       }
     } catch (error: any) {
-      console.error('Erro no login:', error);
       setError(pickApiErrorMessage(error, 'Erro ao fazer login. Verifique suas credenciais.'));
     } finally {
       setIsLoading(false);

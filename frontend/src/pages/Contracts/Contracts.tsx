@@ -325,7 +325,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       });
       setContracts(response.data || []);
     } catch (error: any) {
-      console.error('Erro ao carregar contratos:', error);
       setError(pickApiErrorMessage(error, 'Erro ao carregar lista de contratos'));
     } finally {
       setLoading(false);
@@ -337,7 +336,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       const response = await subscriberApi.getAll({ active_only: false });
       setSubscribers(response.data || []);
     } catch (error) {
-      console.error('Erro ao carregar subscribers:', error);
     }
   };
 
@@ -347,7 +345,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       const publishersData = (response as any)?.data;
       setPublishers(Array.isArray(publishersData) ? publishersData : []);
     } catch (error) {
-      console.error('Erro ao carregar publishers:', error);
       setPublishers([]);
     }
   };
@@ -357,7 +354,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       const plansData = await planApi.getAll(true);
       setPlans(plansData || []);
     } catch (error) {
-      console.error('Erro ao carregar planos:', error);
     }
   };
 
@@ -373,7 +369,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       });
       setPublisherContracts(response.data || []);
     } catch (error: any) {
-      console.error('Erro ao carregar contratos de publishers:', error);
       setError(pickApiErrorMessage(error, 'Erro ao carregar lista de contratos de publishers'));
     } finally {
       setLoading(false);
@@ -429,7 +424,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         setSelectedPublisherIds([]);
       }
     } catch (error) {
-      console.error('Erro ao carregar publishers do contrato:', error);
       setContractPublishers([]);
       setSelectedPublisherIds([]);
     } finally {
@@ -460,7 +454,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       resetForm();
       loadContracts();
     } catch (error: any) {
-      console.error('Erro ao criar contrato:', error);
       setError(pickApiErrorMessage(error, 'Erro ao criar contrato'));
     }
   };
@@ -489,7 +482,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       resetForm();
       loadContracts();
     } catch (error: any) {
-      console.error('Erro ao atualizar contrato:', error);
       setError(pickApiErrorMessage(error, 'Erro ao atualizar contrato'));
     }
   };
@@ -501,7 +493,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       await contractApi.delete(id);
       loadContracts();
     } catch (error: any) {
-      console.error('Erro ao excluir contrato:', error);
       setError(pickApiErrorMessage(error, 'Erro ao excluir contrato'));
     }
   };
@@ -696,7 +687,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       resetPublisherContractForm();
       loadPublisherContracts();
     } catch (error: any) {
-      console.error('Erro ao criar contrato de publisher:', error);
       setError(pickApiErrorMessage(error, 'Erro ao criar contrato de publisher'));
     }
   };
@@ -727,7 +717,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       resetPublisherContractForm();
       loadPublisherContracts();
     } catch (error: any) {
-      console.error('Erro ao atualizar contrato de publisher:', error);
       setError(pickApiErrorMessage(error, 'Erro ao atualizar contrato de publisher'));
     }
   };
@@ -741,7 +730,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       await publisherContractApi.delete(contractId);
       loadPublisherContracts();
     } catch (error: any) {
-      console.error('Erro ao excluir contrato de publisher:', error);
       setError(pickApiErrorMessage(error, 'Erro ao excluir contrato de publisher'));
     }
   };

@@ -166,7 +166,6 @@ const Billing: React.FC = () => {
         billingType === 'all' ? loadBillings() : Promise.resolve(),
       ]);
     } catch (e) {
-      console.error('Erro ao carregar dados:', e);
       setError('Erro ao carregar dados');
     } finally {
       setLoading(false);
@@ -178,7 +177,6 @@ const Billing: React.FC = () => {
       const plansData = await planApi.getAll();
       setPlans(plansData);
     } catch (e) {
-      console.error('Erro ao carregar planos:', e);
       showError('Erro ao carregar planos');
     }
   };
@@ -192,7 +190,6 @@ const Billing: React.FC = () => {
       const subsData = await subscriptionApi.getAll();
       setSubscriptions(subsData);
     } catch (e) {
-      console.error('Erro ao carregar assinaturas:', e);
       showError('Erro ao carregar assinaturas');
     }
   };
@@ -207,7 +204,6 @@ const Billing: React.FC = () => {
       }));
       setItems(normalizedItems);
     } catch (e) {
-      console.error('Erro ao carregar faturas:', e);
       showError('Erro ao carregar faturas');
     }
   };
@@ -217,7 +213,6 @@ const Billing: React.FC = () => {
       const response = await subscriberBillingApi.getAll(subscriberFilters);
       setSubscriberBillings(response.billings || []);
     } catch (e) {
-      console.error('Erro ao carregar faturas de assinantes:', e);
       showError('Erro ao carregar faturas de assinantes');
     }
   };
@@ -234,7 +229,6 @@ const Billing: React.FC = () => {
       const response = await publisherBillingApi.getAll(filters);
       setPublisherBillings(response.billings || []);
     } catch (e) {
-      console.error('Erro ao carregar faturas de publicadores:', e);
       showError('Erro ao carregar faturas de publicadores');
     }
   };

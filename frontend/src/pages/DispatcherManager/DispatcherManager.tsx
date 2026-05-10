@@ -338,7 +338,6 @@ const DispatcherManager: React.FC = () => {
               const totalSec = items.reduce((sum, it) => sum + resolveItemDurationSeconds(it), 0);
               return { pl, items, totalSec };
             } catch (e) {
-              console.error('[DispatcherManager] Erro ao carregar mídias da playlist', pl.playlistId, e);
               return { pl, items: [] as Awaited<ReturnType<typeof playlistApi.getMedia>>, totalSec: 0 };
             }
           })
@@ -467,7 +466,6 @@ const DispatcherManager: React.FC = () => {
 
       setTimeline(slots);
     } catch (err: unknown) {
-      console.error('Erro ao gerar timeline:', err);
       setTimeline([]);
     } finally {
       setTimelineLoading(false);
@@ -498,7 +496,6 @@ const DispatcherManager: React.FC = () => {
         setDispatchExecutionMs(response.executionTimeMs);
       }
     } catch (err: any) {
-      console.error('Erro ao carregar plano:', err);
     }
   };
 

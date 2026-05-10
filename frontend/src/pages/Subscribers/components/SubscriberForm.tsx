@@ -86,7 +86,6 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
       );
       setAvailableContracts(contractsWithoutSubscriber);
     } catch (error) {
-      console.error('Erro ao carregar contratos:', error);
     } finally {
       setLoadingContracts(false);
     }

@@ -169,7 +169,6 @@ const Playlists: React.FC = () => {
       subscribersData.sort((a: any, b: any) => compareByDisplayName(a?.name, b?.name));
       setSubscribers(subscribersData);
     } catch (e) {
-      console.error('Erro ao carregar subscribers:', e);
     }
   };
 
@@ -193,7 +192,6 @@ const Playlists: React.FC = () => {
       playlistsData.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.title, b?.name || b?.title));
       setPlaylists(playlistsData);
     } catch (e) {
-      console.error('Erro ao carregar playlists:', e);
       setError('Erro ao carregar lista de playlists');
       setPlaylists([]);
     } finally {
@@ -217,7 +215,6 @@ const Playlists: React.FC = () => {
       mediaData.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.title || a?.file_name, b?.name || b?.title || b?.file_name));
       setMediaItems(mediaData);
     } catch (e) {
-      console.error('Erro ao carregar mídias:', e);
       setMediaItems([]);
     }
   };
@@ -229,7 +226,6 @@ const Playlists: React.FC = () => {
       playlistMediaData.sort((a: any, b: any) => compareByDisplayName(a?.media_name || a?.name, b?.media_name || b?.name));
       setPlaylistMedia(playlistMediaData);
     } catch (e) {
-      console.error('Erro ao carregar mídia da playlist:', e);
       setPlaylistMedia([]);
     }
   };
@@ -241,7 +237,6 @@ const Playlists: React.FC = () => {
       playlistCampaignsData.sort((a: any, b: any) => compareByDisplayName(a?.title || a?.campaign_title || a?.name, b?.title || b?.campaign_title || b?.name));
       setPlaylistCampaigns(playlistCampaignsData);
     } catch (e) {
-      console.error('Erro ao carregar campanhas da playlist:', e);
       setPlaylistCampaigns([]);
     }
   };
@@ -251,7 +246,6 @@ const Playlists: React.FC = () => {
       const exposure = await playlistApi.getExposure(playlistId);
       setPlaylistExposure(exposure || null);
     } catch (e) {
-      console.error('Erro ao carregar exposição da playlist:', e);
       setPlaylistExposure(null);
     }
   };
@@ -329,7 +323,6 @@ const Playlists: React.FC = () => {
       await loadPlaylistCampaigns(created.playlist_id);
       await loadPlaylistExposure(created.playlist_id);
     } catch (e: any) {
-      console.error('Erro ao criar playlist:', e);
       setError(pickApiErrorMessage(e, 'Erro ao criar playlist'));
     }
   };
@@ -357,7 +350,6 @@ const Playlists: React.FC = () => {
       });
       await loadPlaylists();
     } catch (e: any) {
-      console.error('Erro ao atualizar playlist:', e);
       setError(pickApiErrorMessage(e, 'Erro ao atualizar playlist'));
     }
   };
@@ -368,7 +360,6 @@ const Playlists: React.FC = () => {
       await playlistApi.delete(id);
       await loadPlaylists();
     } catch (e) {
-      console.error('Erro ao excluir playlist:', e);
       setError(pickApiErrorMessage(e, 'Erro ao excluir playlist'));
     }
   };
@@ -381,7 +372,6 @@ const Playlists: React.FC = () => {
       await loadPlaylistMedia(selectedPlaylist.playlist_id);
       await loadPlaylists();
     } catch (e: any) {
-      console.error('Erro ao adicionar mídia:', e);
       setError(pickApiErrorMessage(e, 'Erro ao adicionar mídia à playlist'));
     }
   };
@@ -393,7 +383,6 @@ const Playlists: React.FC = () => {
       await loadPlaylistMedia(selectedPlaylist.playlist_id);
       await loadPlaylists();
     } catch (e) {
-      console.error('Erro ao remover mídia:', e);
       setError(pickApiErrorMessage(e, 'Erro ao remover mídia da playlist'));
     }
   };

@@ -234,7 +234,6 @@ const Totems: React.FC = () => {
       visibleLocals.sort((a: any, b: any) => compareByDisplayName(a?.name, b?.name));
       setLocals(visibleLocals);
     } catch (error) {
-      console.error('Erro ao carregar locals:', error);
     }
   };
 
@@ -765,7 +764,6 @@ const Totems: React.FC = () => {
                                     setSuccess('Heartbeat forçado com sucesso');
                                     await loadAll();
                                   } catch (err: any) {
-                                    console.error('Erro ao forçar heartbeat:', err);
                                     setError(`Erro ao forçar heartbeat: ${pickApiErrorMessage(err, 'Erro desconhecido')}`);
                                   }
                                 }}
@@ -789,7 +787,6 @@ const Totems: React.FC = () => {
                               setSuccess('Totem forçado online por 30 minutos');
                               await loadAll();
                             } catch (err: any) {
-                              console.error('Erro ao forçar online:', err);
                               setError(`Erro ao forçar online: ${pickApiErrorMessage(err, 'Erro desconhecido')}`);
                             }
                           }}

@@ -84,7 +84,6 @@ const Players: React.FC = () => {
       });
       setPlayers(response.data);
     } catch (error) {
-      console.error('Erro ao carregar players:', error);
       setError('Erro ao carregar lista de players');
     } finally {
       setLoading(false);
@@ -96,7 +95,6 @@ const Players: React.FC = () => {
       const response = await playlistApi.getAll();
       setPlaylists(response.data);
     } catch (error) {
-      console.error('Erro ao carregar playlists:', error);
     }
   };
 
@@ -107,7 +105,6 @@ const Players: React.FC = () => {
       setNewPlayer({ identifier: '', localId: 0, name: '', location: '', subscriberId: undefined });
       loadPlayers();
     } catch (error) {
-      console.error('Erro ao criar player:', error);
       setError('Erro ao criar player');
     }
   };
@@ -127,7 +124,6 @@ const Players: React.FC = () => {
       setSelectedPlayer(null);
       loadPlayers();
     } catch (error) {
-      console.error('Erro ao atualizar player:', error);
       setError('Erro ao atualizar player');
     }
   };
@@ -138,7 +134,6 @@ const Players: React.FC = () => {
         await playerApi.delete(id);
         loadPlayers();
       } catch (error) {
-        console.error('Erro ao excluir player:', error);
         setError('Erro ao excluir player');
       }
     }
@@ -154,7 +149,6 @@ const Players: React.FC = () => {
       setSelectedPlayer(null);
       loadPlayers();
     } catch (error) {
-      console.error('Erro ao atribuir playlist:', error);
       setError('Erro ao atribuir playlist');
     }
   };

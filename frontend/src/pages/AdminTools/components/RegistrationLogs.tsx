@@ -56,7 +56,6 @@ const RegistrationLogs: React.FC = () => {
       setSystemLogs(response.systemLogs || []);
     } catch (e: any) {
       setError('Erro ao carregar logs: ' + (e.message || 'Erro desconhecido'));
-      console.error('Erro ao carregar logs:', e);
     } finally {
       setLoading(false);
     }

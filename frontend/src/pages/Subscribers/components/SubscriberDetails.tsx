@@ -174,7 +174,6 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
       });
       setActiveContracts(Array.isArray(contractsResponse) ? contractsResponse : []);
     } catch (error) {
-      console.error('Erro ao carregar detalhes do subscriber:', error);
     } finally {
       setLoading(false);
     }

@@ -85,7 +85,6 @@ const SubscriberDashboard: React.FC = () => {
         totalPlaylists: extractTotal(playlistsResponse),
       });
     } catch (error) {
-      console.error('Erro ao carregar estatísticas:', error);
       setError('Erro ao carregar estatísticas');
     } finally {
       setLoading(false);
@@ -98,8 +97,8 @@ const SubscriberDashboard: React.FC = () => {
     try {
       const publishers = await subscriberAccessApi.getAccessiblePublishers(subscriberId);
       setAccessiblePublishers(publishers);
-    } catch (error) {
-      console.error('Erro ao carregar publishers acessíveis:', error);
+    } catch {
+      /* lista de publishers opcional */
     }
   };
 

@@ -58,7 +58,6 @@ const Reports: React.FC = () => {
       const types = await reportApi.getTypes();
       setReportTypes(types);
     } catch (error) {
-      console.error('Erro ao carregar tipos de relatório:', error);
       setError('Erro ao carregar tipos de relatório');
     } finally {
       setLoading(false);
@@ -84,7 +83,6 @@ const Reports: React.FC = () => {
         endDate: '',
       });
     } catch (error) {
-      console.error('Erro ao gerar relatório:', error);
       setError('Erro ao gerar relatório');
     } finally {
       setGenerating(false);

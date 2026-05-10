@@ -41,7 +41,6 @@ const SystemInfo: React.FC = () => {
       setSystemInfo(response);
     } catch (e: any) {
       setError('Erro ao carregar informações do sistema: ' + (e.message || 'Erro desconhecido'));
-      console.error('Erro ao carregar informações do sistema:', e);
     } finally {
       setLoading(false);
     }
@@ -139,7 +138,6 @@ const SystemInfo: React.FC = () => {
             } catch (err: any) {
               setReconciling(false);
               setError(`Erro ao executar reconciliação: ${pickApiErrorMessage(err, 'Erro desconhecido')}`);
-              console.error('Erro ao executar reconciliação:', err);
             }
           }}
           disabled={reconciling}

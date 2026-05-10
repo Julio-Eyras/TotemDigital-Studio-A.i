@@ -117,7 +117,6 @@ const SubscriberPublisherAccessPage: React.FC = () => {
       setPlans(plansRes || []);
       setAccessList(accessRes);
     } catch (error: any) {
-      console.error('Erro ao carregar dados:', error);
       setError(pickApiErrorMessage(error, 'Erro ao carregar dados'));
     } finally {
       setLoading(false);
@@ -166,7 +165,6 @@ const SubscriberPublisherAccessPage: React.FC = () => {
       handleCloseGrantDialog();
       await loadData();
     } catch (error: any) {
-      console.error('Erro ao conceder acesso:', error);
       setError(pickApiErrorMessage(error, 'Erro ao conceder acesso'));
     }
   };
@@ -180,7 +178,6 @@ const SubscriberPublisherAccessPage: React.FC = () => {
       await subscriberAccessApi.revokeAccess(subscriberId, publisherId, reason || undefined);
       await loadData();
     } catch (error: any) {
-      console.error('Erro ao revogar acesso:', error);
       setError(pickApiErrorMessage(error, 'Erro ao revogar acesso'));
     }
   };

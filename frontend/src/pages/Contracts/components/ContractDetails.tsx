@@ -139,7 +139,6 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({
       const publishersData = await contractApi.getPublishers(contract.contract_id);
       setPublishers(Array.isArray(publishersData) ? publishersData : []);
     } catch (error) {
-      console.error('Erro ao carregar detalhes do contrato:', error);
     } finally {
       setLoading(false);
     }

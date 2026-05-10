@@ -44,7 +44,6 @@ const TotemDetails: React.FC = () => {
       }
     } catch (e: any) {
       setError('Erro ao buscar totem: ' + (e.message || 'Erro desconhecido'));
-      console.error('Erro ao buscar totem:', e);
     } finally {
       setLoading(false);
     }

@@ -68,7 +68,6 @@ const PlaylistMixAnalytics: React.FC = () => {
       const resp = await totemApi.getAll({ limit: 100 });
       setTotems(resp.data || []);
     } catch (e: any) {
-      console.error('Erro ao carregar totens:', e);
     }
   };
 

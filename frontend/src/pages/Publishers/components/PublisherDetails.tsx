@@ -153,7 +153,6 @@ const PublisherDetails: React.FC<PublisherDetailsProps> = ({
         stats: statsResponse || {},
       });
     } catch (error) {
-      console.error('Erro ao carregar detalhes do publisher:', error);
     } finally {
       setLoading(false);
     }

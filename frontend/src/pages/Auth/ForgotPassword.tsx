@@ -60,7 +60,6 @@ const ForgotPassword: React.FC = () => {
         setError(response.message || 'Erro ao solicitar recuperação de senha');
       }
     } catch (error: any) {
-      console.error('Erro ao solicitar recuperação:', error);
       setError(pickApiErrorMessage(error, 'Erro ao solicitar recuperação de senha'));
     } finally {
       setLoading(false);

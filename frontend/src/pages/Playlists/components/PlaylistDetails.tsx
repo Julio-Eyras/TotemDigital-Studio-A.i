@@ -132,11 +132,9 @@ const PlaylistDetails: React.FC<PlaylistDetailsProps> = ({
         const campaignsResponse = await playlistApi.getCampaigns(playlist.playlist_id);
         setPlaylistCampaigns(Array.isArray(campaignsResponse) ? campaignsResponse : []);
       } catch (error) {
-        console.error('Erro ao carregar campanhas:', error);
         setPlaylistCampaigns([]);
       }
     } catch (error) {
-      console.error('Erro ao carregar detalhes da playlist:', error);
     } finally {
       setLoading(false);
     }

@@ -170,7 +170,6 @@ const DispatcherDebug: React.FC = () => {
       setStats(statsRes.data);
     } catch (err: any) {
       setError(pickApiErrorMessage(err, 'Erro ao carregar dados de debug'));
-      console.error('Erro ao carregar debug:', err);
     } finally {
       setLoading(false);
     }

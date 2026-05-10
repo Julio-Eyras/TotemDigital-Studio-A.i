@@ -95,7 +95,6 @@ const Dashboard: React.FC = () => {
       setStats(statsData);
       setActivities(Array.isArray(activitiesData) ? activitiesData : []);
     } catch (error) {
-      console.error('Erro ao carregar dados do dashboard:', error);
       setActivities([]);
     } finally {
       setLoading(false);

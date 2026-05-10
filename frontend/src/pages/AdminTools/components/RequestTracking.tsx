@@ -63,7 +63,6 @@ const RequestTracking: React.FC = () => {
       }
     } catch (e: any) {
       setError('Erro ao buscar logs: ' + (e.message || 'Erro desconhecido'));
-      console.error('Erro ao buscar logs:', e);
     } finally {
       setLoading(false);
     }

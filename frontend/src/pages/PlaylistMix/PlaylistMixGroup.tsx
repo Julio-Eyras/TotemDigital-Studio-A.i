@@ -32,7 +32,6 @@ const PlaylistMixGroup: React.FC = () => {
       const result = await getMixOverview();
       setData(result);
     } catch (err: any) {
-      console.error('Erro ao carregar overview de mixagem:', err);
       setError(pickApiErrorMessage(err, 'Erro ao carregar overview de mixagem'));
     } finally {
       setLoading(false);

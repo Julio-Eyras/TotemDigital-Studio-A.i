@@ -201,7 +201,6 @@ const Locals: React.FC = () => {
       const response = await publisherApi.getAll({ active_only: true });
       setPublishers(response.data);
     } catch (error) {
-      console.error('Erro ao carregar publishers:', error);
     }
   };
 
@@ -233,7 +232,6 @@ const Locals: React.FC = () => {
       // Carregar estatísticas (totens e Smart TVs) para cada local
       await loadLocalStats(sortedLocals);
     } catch (error: any) {
-      console.error('Erro ao carregar locals:', error);
       setError(pickApiErrorMessage(error, 'Erro ao carregar lista de locais'));
     } finally {
       setLoading(false);
@@ -250,7 +248,6 @@ const Locals: React.FC = () => {
       const stats = await localApi.getStats(ids);
       setLocalStats(stats);
     } catch (error) {
-      console.error('Erro ao carregar estatísticas dos locais:', error);
       setLocalStats({});
     }
   };
@@ -312,7 +309,6 @@ const Locals: React.FC = () => {
       });
       loadLocals();
     } catch (error: any) {
-      console.error('Erro ao criar local:', error);
       setError(pickApiErrorMessage(error, 'Erro ao criar local'));
     }
   };
@@ -345,7 +341,6 @@ const Locals: React.FC = () => {
       setEditLocalTotems([]);
       loadLocals();
     } catch (error: any) {
-      console.error('Erro ao atualizar local:', error);
       setError(pickApiErrorMessage(error, 'Erro ao atualizar local'));
     }
   };
@@ -359,7 +354,6 @@ const Locals: React.FC = () => {
       await localApi.delete(localId);
       loadLocals();
     } catch (error: any) {
-      console.error('Erro ao deletar local:', error);
       setError(pickApiErrorMessage(error, 'Erro ao deletar local'));
     }
   };
@@ -373,7 +367,6 @@ const Locals: React.FC = () => {
         setEditLocalTotems(Array.isArray(totems) ? totems : []);
       })
       .catch((err) => {
-        console.error('Erro ao carregar totems do local para edição:', err);
         setEditLocalTotems([]);
       })
       .finally(() => setLoadingEditLocalTotems(false));
@@ -393,7 +386,6 @@ const Locals: React.FC = () => {
           const publisher = await publisherApi.getById(local.publisher_id);
           setSelectedPublisher(publisher);
         } catch (err) {
-          console.error('Erro ao carregar publisher:', err);
         }
       }
       
@@ -403,7 +395,6 @@ const Locals: React.FC = () => {
         localTotems = await localApi.getTotems(local.local_id);
         setSelectedTotems(localTotems);
       } catch (err) {
-        console.error('Erro ao carregar totens:', err);
         setSelectedTotems([]);
       }
       
@@ -426,7 +417,6 @@ const Locals: React.FC = () => {
         if (status === 404) {
           setSmartTvDetailsAvailable(false);
         } else {
-          console.error('Erro ao carregar Smart TVs:', err);
           setSmartTvDetailsAvailable(true);
         }
         setSelectedSmartTvs([]);
@@ -438,12 +428,10 @@ const Locals: React.FC = () => {
           const contracts = await publisherContractApi.getByPublisher(local.publisher_id);
           setSelectedContracts(Array.isArray(contracts) ? contracts : []);
         } catch (err) {
-          console.error('Erro ao carregar contratos:', err);
           setSelectedContracts([]);
         }
       }
     } catch (error) {
-      console.error('Erro ao carregar detalhes:', error);
     } finally {
       setLoadingDetails(false);
     }
@@ -989,7 +977,6 @@ const Locals: React.FC = () => {
                                   );
                                   setSuccess('Heartbeat forçado com sucesso');
                                 } catch (err: any) {
-                                  console.error('Erro ao forçar heartbeat:', err);
                                   setError(`Erro ao forçar heartbeat: ${pickApiErrorMessage(err, 'Erro desconhecido')}`);
                                 }
                               }}

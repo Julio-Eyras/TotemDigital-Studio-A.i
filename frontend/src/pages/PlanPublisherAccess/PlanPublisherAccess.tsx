@@ -239,7 +239,6 @@ const PlanPublisherAccessPage: React.FC = () => {
           setTotemsCatalog(totemRes.data || []);
           setLocalsCatalog(localsRes.data || []);
         } catch (e) {
-          console.error('Erro ao carregar locais/totens para planos:', e);
           setTotemsCatalog([]);
           setLocalsCatalog([]);
         }
@@ -248,7 +247,6 @@ const PlanPublisherAccessPage: React.FC = () => {
         setLocalsCatalog([]);
       }
     } catch (error: any) {
-      console.error('Erro ao carregar dados:', error);
       setError(pickApiErrorMessage(error, 'Erro ao carregar dados'));
     } finally {
       setLoading(false);
@@ -263,7 +261,6 @@ const PlanPublisherAccessPage: React.FC = () => {
       });
       setAccessList(accessRes);
     } catch (error: any) {
-      console.error('Erro ao carregar acessos:', error);
       setError(pickApiErrorMessage(error, 'Erro ao carregar acessos'));
     }
   };
@@ -352,7 +349,6 @@ const PlanPublisherAccessPage: React.FC = () => {
         setCompactEnabledTotemsByLocal(mergedEnabledByLocal);
       }
     } catch (error: any) {
-      console.error('Erro ao carregar publishers do plano:', error);
       setPlanPublishers([]);
       if (TOTEMDIGITAL_COMPACT) {
         setCompactSelectedLocalIds([]);
@@ -620,7 +616,6 @@ const PlanPublisherAccessPage: React.FC = () => {
             try {
               await subscriberAccessApi.removePlanPublisherAccess(savedPlanId, existingId);
             } catch (err) {
-              console.error('Erro ao remover publisher do plano:', err);
             }
           }
         }
@@ -650,7 +645,6 @@ const PlanPublisherAccessPage: React.FC = () => {
               notes: planPublisher.notes,
             });
           } catch (err) {
-            console.error('Erro ao salvar publisher do plano:', err);
           }
         }
       } else if (planEditMode) {
@@ -660,7 +654,6 @@ const PlanPublisherAccessPage: React.FC = () => {
           try {
             await subscriberAccessApi.removePlanPublisherAccess(savedPlanId, access.publisher_id);
           } catch (err) {
-            console.error('Erro ao remover publisher do plano:', err);
           }
         }
       }
@@ -668,7 +661,6 @@ const PlanPublisherAccessPage: React.FC = () => {
       handleClosePlanDialog();
       await loadAllData();
     } catch (error: any) {
-      console.error('Erro ao salvar plano:', error);
       setError(pickApiErrorMessage(error, 'Erro ao salvar plano'));
     }
   };
@@ -684,7 +676,6 @@ const PlanPublisherAccessPage: React.FC = () => {
       await planApi.delete(planId);
       await loadAllData();
     } catch (error: any) {
-      console.error('Erro ao remover plano:', error);
       setError(pickApiErrorMessage(error, 'Erro ao remover plano'));
     }
   };
@@ -754,7 +745,6 @@ const PlanPublisherAccessPage: React.FC = () => {
       handleCloseAccessDialog();
       await loadPublisherAccess();
     } catch (error: any) {
-      console.error('Erro ao salvar configuração:', error);
       setError(pickApiErrorMessage(error, 'Erro ao salvar configuração'));
     }
   };
@@ -769,7 +759,6 @@ const PlanPublisherAccessPage: React.FC = () => {
       await subscriberAccessApi.removePlanPublisherAccess(planId, publisherId);
       await loadPublisherAccess();
     } catch (error: any) {
-      console.error('Erro ao remover acesso:', error);
       setError(pickApiErrorMessage(error, 'Erro ao remover acesso'));
     }
   };

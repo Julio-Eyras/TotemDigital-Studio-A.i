@@ -83,7 +83,6 @@ const Campaigns: React.FC = () => {
       normalizedCampaigns.sort((a, b) => compareByDisplayName(a.title || a.name, b.title || b.name));
       setCampaigns(normalizedCampaigns);
     } catch (error: any) {
-      console.error('Erro ao carregar campanhas:', error);
       setError(pickApiErrorMessage(error, 'Erro ao carregar lista de campanhas'));
     } finally {
       setLoading(false);

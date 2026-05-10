@@ -309,7 +309,6 @@ const DispatcherMonitor: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        console.warn('Token não encontrado, WebSocket não conectado');
         return;
       }
 
@@ -318,7 +317,6 @@ const DispatcherMonitor: React.FC = () => {
 
       ws.onopen = () => {
         wsReconnectAttempts.current = 0;
-        console.log('WebSocket conectado para monitoramento em tempo real');
       };
 
       ws.onmessage = (event) => {
@@ -328,21 +326,18 @@ const DispatcherMonitor: React.FC = () => {
             // Adicionar nova mensagem ao início da lista
             setMessages((prev) => [data.data, ...prev].slice(0, 100));
           }
-        } catch (err) {
-          console.error('Erro ao processar mensagem WebSocket:', err);
+        } catch {
+          /* mensagem JSON inválida — ignorar */
         }
       };
 
-      ws.onerror = (err) => {
-        console.error('Erro WebSocket:', err);
+      ws.onerror = () => {
+        /* erros de socket tratados em onclose / reconexão */
       };
 
       ws.onclose = () => {
         const delay = Math.min(3000 + wsReconnectAttempts.current * 2000, 30000);
         wsReconnectAttempts.current += 1;
-        if (wsReconnectAttempts.current <= 3) {
-          console.warn(`WebSocket desconectado. Reconectando em ${delay / 1000}s (tentativa ${wsReconnectAttempts.current})...`);
-        }
         setTimeout(() => {
           if (autoRefresh && !paused && wsRef.current?.readyState === WebSocket.CLOSED) {
             connectWebSocket();
@@ -351,8 +346,8 @@ const DispatcherMonitor: React.FC = () => {
       };
 
       wsRef.current = ws;
-    } catch (err) {
-      console.error('Erro ao conectar WebSocket:', err);
+    } catch {
+      /* falha ao criar WebSocket */
     }
   };
 

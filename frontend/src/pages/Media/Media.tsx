@@ -216,7 +216,6 @@ const Media: React.FC = () => {
         setSubscriberFilter(subs[0].subscriber_id);
       }
     } catch (error) {
-      console.error('Erro ao carregar subscribers:', error);
     }
   };
 
@@ -259,7 +258,6 @@ const Media: React.FC = () => {
       mediaData.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.title || a?.file_name, b?.name || b?.title || b?.file_name));
       setMediaItems(mediaData);
     } catch (error) {
-      console.error('Erro ao carregar mídia:', error);
       setError('Erro ao carregar lista de mídia');
       setMediaItems([]);
     } finally {
@@ -321,7 +319,6 @@ const Media: React.FC = () => {
       setEditForm(null);
       loadMediaItems();
     } catch (e: any) {
-      console.error('Erro ao atualizar mídia:', e);
       setError(pickApiErrorMessage(e, 'Erro ao atualizar mídia'));
     }
   };
@@ -332,7 +329,6 @@ const Media: React.FC = () => {
         await mediaApi.delete(id);
         loadMediaItems();
       } catch (error) {
-        console.error('Erro ao excluir mídia:', error);
         setError(pickApiErrorMessage(error, 'Erro ao excluir mídia'));
       }
     }

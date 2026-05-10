@@ -165,11 +165,13 @@ const Settings: React.FC = () => {
             `- Serviços reiniciados: ${result.data?.changes?.servicesRestarted ? 'Sim' : 'Não'}`);
       
       if (result.data?.errors && result.data.errors.length > 0) {
-        console.warn('Avisos ao aplicar configurações:', result.data.errors);
+        alert(
+          'Avisos ao aplicar configurações:\n\n' +
+            result.data.errors.map((x: unknown) => String(x)).join('\n')
+        );
       }
       
     } catch (e: any) {
-      console.error('Erro ao aplicar configurações de mídia:', e);
       setError('Erro ao aplicar configurações: ' + (e.message || 'Erro desconhecido'));
     } finally {
       setApplyingMediaConfig(false);
@@ -205,7 +207,6 @@ const Settings: React.FC = () => {
       const media = allSettings.filter(s => s?.key?.startsWith('media.'));
       setMediaSettings(Array.isArray(media) ? media : []);
     } catch (e) {
-      console.error('Erro ao carregar configurações:', e);
       setError('Erro ao carregar configurações');
       setSettings([]);
       setLogSettings([]);
@@ -237,8 +238,8 @@ const Settings: React.FC = () => {
         setDiskSpace(null);
       }
       setRotationStatus(status);
-    } catch (e: any) {
-      console.error('Erro ao carregar informações de logs:', e);
+    } catch {
+      /* painel de logs opcional em caso de falha parcial */
     } finally {
       setLoadingLogs(false);
     }

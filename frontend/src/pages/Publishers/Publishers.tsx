@@ -337,7 +337,6 @@ const Publishers: React.FC = () => {
       });
       setPublishers(response.data || []);
     } catch (error) {
-      console.error('Erro ao carregar publishers:', error);
       setError(pickApiErrorMessage(error, 'Erro ao carregar lista de publishers'));
     } finally {
       setLoading(false);
@@ -372,7 +371,6 @@ const Publishers: React.FC = () => {
             : undefined,
         }));
       } catch (err) {
-        console.error('Erro ao carregar publisher contracts:', err);
       }
 
       setPublisherStats({
@@ -383,7 +381,6 @@ const Publishers: React.FC = () => {
         stats: statsResponse || {},
       });
     } catch (error) {
-      console.error('Erro ao carregar estatísticas do publisher:', error);
     }
   };
 
@@ -403,7 +400,6 @@ const Publishers: React.FC = () => {
       // Carregar contratos do publisher
       await loadPublisherContracts(publisherId);
     } catch (error) {
-      console.error('Erro ao carregar dados do publisher para edição:', error);
       setError(pickApiErrorMessage(error, 'Erro ao carregar dados do publicador'));
     }
   };
@@ -430,7 +426,6 @@ const Publishers: React.FC = () => {
       }));
       setEditPublisherContracts(normalizedContracts);
     } catch (err) {
-      console.error('Erro ao carregar publisher contracts:', err);
       setEditPublisherContracts([]);
     } finally {
       setLoadingEditContracts(false);
@@ -478,7 +473,6 @@ const Publishers: React.FC = () => {
         status: 'draft',
       });
     } catch (error: any) {
-      console.error('Erro ao criar contrato de publisher:', error);
       const msg = pickApiErrorMessage(error, 'Erro ao salvar contrato');
       setError(msg);
       if (error?.response?.status === 409 && selectedPublisher) {
@@ -518,7 +512,6 @@ const Publishers: React.FC = () => {
       await publisherContractApi.delete(contract.contract_id);
       await loadPublisherContracts(selectedPublisher.publisher_id);
     } catch (error: any) {
-      console.error('Erro ao excluir publisher contract:', error);
       setError(pickApiErrorMessage(error, 'Erro ao excluir contrato'));
     }
   };
@@ -696,7 +689,6 @@ const Publishers: React.FC = () => {
         description: '',
       });
     } catch (error: any) {
-      console.error('Erro ao salvar local:', error);
       setError(pickApiErrorMessage(error, 'Erro ao salvar local'));
     }
   };
@@ -736,14 +728,12 @@ const Publishers: React.FC = () => {
           }
           if (totemPk !== undefined) await totemApi.delete(totemPk);
         } catch (err) {
-          console.error('Erro ao excluir totem/smart TVs:', err);
         }
       }
       await localApi.delete(local.local_id);
       // Recarregar dados
       await loadPublisherDataForEdit(selectedPublisher.publisher_id);
     } catch (error: any) {
-      console.error('Erro ao excluir local:', error);
       setError(pickApiErrorMessage(error, 'Erro ao excluir local'));
     }
   };
@@ -800,7 +790,6 @@ const Publishers: React.FC = () => {
         firmwareVersion: '',
       });
     } catch (error: any) {
-      console.error('Erro ao salvar totem:', error);
       setError(pickApiErrorMessage(error, 'Erro ao salvar totem'));
     }
   };
@@ -836,14 +825,12 @@ const Publishers: React.FC = () => {
         try {
           await smartTvApi.delete(tv.smart_tv_id);
         } catch (err) {
-          console.error('Erro ao excluir Smart TV:', err);
         }
       }
       if (totemPk !== undefined) await totemApi.delete(totemPk);
       // Recarregar dados
       await loadPublisherDataForEdit(selectedPublisher.publisher_id);
     } catch (error: any) {
-      console.error('Erro ao excluir totem:', error);
       setError(pickApiErrorMessage(error, 'Erro ao excluir totem'));
     }
   };
@@ -907,7 +894,6 @@ const Publishers: React.FC = () => {
         orientation: 'landscape',
       });
     } catch (error: any) {
-      console.error('Erro ao salvar Smart TV:', error);
       setError(pickApiErrorMessage(error, 'Erro ao salvar Smart TV'));
     }
   };
@@ -945,7 +931,6 @@ const Publishers: React.FC = () => {
       // Recarregar dados
       await loadPublisherDataForEdit(selectedPublisher.publisher_id);
     } catch (error: any) {
-      console.error('Erro ao excluir Smart TV:', error);
       setError(pickApiErrorMessage(error, 'Erro ao excluir Smart TV'));
     }
   };
@@ -1117,7 +1102,6 @@ const Publishers: React.FC = () => {
 
       if (!publisherId) {
         const errorMessage = 'Erro: Publicador criado mas não retornou ID válido';
-        console.error(errorMessage);
         setError(errorMessage);
         return;
       }
@@ -1188,7 +1172,6 @@ const Publishers: React.FC = () => {
       
       loadPublishers();
     } catch (error: any) {
-      console.error('Erro ao criar publisher:', error);
       
       // Melhorar tratamento de erro para mostrar detalhes completos
       let errorMessage = 'Erro ao criar publisher';
@@ -1221,8 +1204,8 @@ const Publishers: React.FC = () => {
                 const id = st.smart_tv_id || st.smartTvId || st.id;
                 await smartTvApi.delete(id);
               }
-            } catch (e) {
-              console.warn('Falha ao remover Smart TV durante rollback', e);
+            } catch {
+              /* rollback best-effort */
             }
           }
 
@@ -1233,8 +1216,8 @@ const Publishers: React.FC = () => {
               if (t && tid !== undefined) {
                 await totemApi.delete(tid);
               }
-            } catch (e) {
-              console.warn('Falha ao remover Totem durante rollback', e);
+            } catch {
+              /* rollback best-effort */
             }
           }
 
@@ -1245,8 +1228,8 @@ const Publishers: React.FC = () => {
               if (l && id !== undefined) {
                 await localApi.delete(id);
               }
-            } catch (e) {
-              console.warn('Falha ao remover Local durante rollback', e);
+            } catch {
+              /* rollback best-effort */
             }
           }
 
@@ -1254,12 +1237,12 @@ const Publishers: React.FC = () => {
           if (publisherId) {
             try {
               await publisherApi.delete(publisherId);
-            } catch (e) {
-              console.warn('Falha ao remover Publisher durante rollback', e);
+            } catch {
+              /* rollback best-effort */
             }
           }
-        } catch (cleanupError) {
-          console.warn('Erro durante rollback automático', cleanupError);
+        } catch {
+          /* rollback best-effort agregado */
         }
       })();
 
@@ -1298,7 +1281,6 @@ const Publishers: React.FC = () => {
       setSelectedPublisher(null);
       loadPublishers();
     } catch (error: any) {
-      console.error('Erro ao atualizar publisher:', error);
       setError(pickApiErrorMessage(error, 'Erro ao atualizar publicador'));
     }
   };
@@ -1309,7 +1291,6 @@ const Publishers: React.FC = () => {
         await publisherApi.delete(id);
         loadPublishers();
       } catch (error: any) {
-        console.error('Erro ao excluir publisher:', error);
         setError(pickApiErrorMessage(error, 'Erro ao excluir publisher'));
       }
     }

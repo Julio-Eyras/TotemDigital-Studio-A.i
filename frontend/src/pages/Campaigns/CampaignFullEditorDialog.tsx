@@ -166,7 +166,6 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       setDerivedTotems(uniqBy(allTotems, 'totem_id'));
       setDerivedSmartTvs(uniqBy(allTvs, 'smart_tv_id'));
     } catch (e) {
-      console.error('Erro ao carregar totems/smart TVs derivados:', e);
       setDerivedTotems([]);
       setDerivedSmartTvs([]);
     } finally {
@@ -198,7 +197,6 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       setDerivedTotems(Array.isArray(totems) ? totems : []);
       setDerivedSmartTvs([]);
     } catch (e) {
-      console.error('Erro ao carregar totens (modo compacto):', e);
       setDerivedTotems([]);
     } finally {
       setDerivedDevicesLoading(false);
@@ -212,8 +210,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         compareByDisplayName(a?.name || a?.publisher_name, b?.name || b?.publisher_name)
       );
       setAccessiblePublishers(accessible);
-    } catch (error) {
-      console.error('Erro ao carregar publishers acessíveis:', error);
+    } catch {
+      /* publishers opcionais */
     }
   };
 
@@ -230,8 +228,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         compareByDisplayName(a?.name || a?.title, b?.name || b?.title)
       );
       setPlaylists(playlistsData);
-    } catch (error) {
-      console.error('Erro ao carregar playlists:', error);
+    } catch {
+      /* opcional na edição */
     }
   };
 
@@ -250,8 +248,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         compareByDisplayName(a?.name || a?.title || a?.file_name, b?.name || b?.title || b?.file_name)
       );
       setMediaItems(mediaData);
-    } catch (error) {
-      console.error('Erro ao carregar mídias:', error);
+    } catch {
+      /* opcional na edição */
     }
   };
 
@@ -261,8 +259,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       const publishersData = Array.isArray(response.data) ? [...response.data] : [];
       publishersData.sort((a: any, b: any) => compareByDisplayName(a?.name, b?.name));
       setPublishers(publishersData);
-    } catch (error) {
-      console.error('Erro ao carregar publishers:', error);
+    } catch {
+      /* opcional na edição */
     }
   };
 
@@ -295,7 +293,6 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         }
         setEditTab(0);
       } catch (e) {
-        console.error('Erro ao carregar campanha para edição', e);
         if (!cancelled) setError('Não foi possível carregar a campanha.');
       } finally {
         if (!cancelled) setLoadingCampaign(false);
@@ -436,7 +433,6 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       const updated = await campaignApi.getById(selectedCampaign.campaign_id);
       setSelectedCampaign(updated);
     } catch (error: any) {
-      console.error('Erro ao reordenar mídias:', error);
       setError(pickApiErrorMessage(error, 'Erro ao reordenar mídias'));
     }
   };
@@ -449,7 +445,6 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       const updated = await campaignApi.getById(selectedCampaign.campaign_id);
       setSelectedCampaign(updated);
     } catch (error: any) {
-      console.error('Erro ao reordenar playlists:', error);
       setError(pickApiErrorMessage(error, 'Erro ao reordenar playlists'));
     }
   };
@@ -502,7 +497,6 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       onSaved?.();
       onClose();
     } catch (error: any) {
-      console.error('Erro ao atualizar campanha:', error);
       setError(pickApiErrorMessage(error, 'Erro ao atualizar campanha'));
     }
   };

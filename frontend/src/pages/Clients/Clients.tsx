@@ -90,7 +90,6 @@ const Clients: React.FC = () => {
       });
       setClients(response.data);
     } catch (error) {
-      console.error('Erro ao carregar clientes:', error);
       setError('Erro ao carregar lista de assinantes');
     } finally {
       setLoading(false);
@@ -115,7 +114,6 @@ const Clients: React.FC = () => {
         media: mediaResponse.data,
       });
     } catch (error) {
-      console.error('Erro ao carregar estatísticas do cliente:', error);
     }
   };
 
@@ -126,7 +124,6 @@ const Clients: React.FC = () => {
       setNewClient({ name: '', contact_name: '', email: '', phone: '', whatsapp: '', address: '' });
       loadClients();
     } catch (error) {
-      console.error('Erro ao criar cliente:', error);
       setError('Erro ao criar assinante');
     }
   };
@@ -146,7 +143,6 @@ const Clients: React.FC = () => {
       setSelectedClient(null);
       loadClients();
     } catch (error) {
-      console.error('Erro ao atualizar cliente:', error);
       setError('Erro ao atualizar assinante');
     }
   };
@@ -157,7 +153,6 @@ const Clients: React.FC = () => {
         await clientApi.delete(id);
         loadClients();
       } catch (error) {
-        console.error('Erro ao excluir cliente:', error);
         setError('Erro ao excluir assinante');
       }
     }

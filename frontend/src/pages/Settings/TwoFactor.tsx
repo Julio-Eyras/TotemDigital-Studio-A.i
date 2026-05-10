@@ -62,7 +62,6 @@ const TwoFactor: React.FC = () => {
       setStatus(statusData);
     } catch (error: any) {
       showError(pickApiErrorMessage(error, 'Erro ao carregar status de 2FA'));
-      console.error('Erro ao carregar status:', error);
     } finally {
       setLoading(false);
     }

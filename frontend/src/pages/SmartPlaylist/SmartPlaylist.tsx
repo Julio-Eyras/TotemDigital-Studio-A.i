@@ -22,7 +22,6 @@ const SmartPlaylist: React.FC = () => {
       // Garantir que resp seja sempre um array
       setItems(Array.isArray(resp) ? resp : []);
     } catch (e) {
-      console.error('Erro ao carregar Smart Playlists:', e);
       setError(pickApiErrorMessage(e, 'Erro ao carregar Smart Playlists'));
       setItems([]);
     } finally {
@@ -56,8 +55,6 @@ const SmartPlaylist: React.FC = () => {
       setError(null);
       loadAll();
     } catch (e: any) {
-      console.error('Erro ao criar Smart Playlist:', e);
-      console.error('Resposta completa:', e?.response);
       setError(pickApiErrorMessage(e, 'Erro ao criar Smart Playlist'));
     }
   };

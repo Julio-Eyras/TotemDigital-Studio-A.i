@@ -79,7 +79,6 @@ const ResetPassword: React.FC = () => {
         setError(response.message || 'Erro ao redefinir senha');
       }
     } catch (error: any) {
-      console.error('Erro ao redefinir senha:', error);
       setError(pickApiErrorMessage(error, 'Erro ao redefinir senha. Token inválido ou expirado.'));
     } finally {
       setLoading(false);

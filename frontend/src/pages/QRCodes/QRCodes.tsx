@@ -21,7 +21,6 @@ const QRCodes: React.FC = () => {
       // Garantir que resp seja sempre um array
       setItems(Array.isArray(resp) ? resp : []);
     } catch (e) {
-      console.error('Erro ao carregar QR Codes:', e);
       setError('Erro ao carregar QR Codes');
       setItems([]);
     } finally {

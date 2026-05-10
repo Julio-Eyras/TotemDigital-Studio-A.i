@@ -97,7 +97,6 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         setError('Resposta inválida do servidor');
       }
     } catch (error: any) {
-      console.error('Erro no login:', error);
       
       // Tratar erros de validação do backend
       if (error.response?.status === 400) {
@@ -161,7 +160,6 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       
       onLoginSuccess(result.token, result.user);
     } catch (error: any) {
-      console.error('Erro ao verificar 2FA:', error);
       setError(pickApiErrorMessage(error, 'Código inválido. Tente novamente.'));
     } finally {
       setLoading(false);

@@ -79,7 +79,6 @@ const SubscriberAccessExpiringPage: React.FC = () => {
       setExpiringAccess(response.data || []);
       setSummary(response.summary || summary);
     } catch (error: any) {
-      console.error('Erro ao carregar acessos expirando:', error);
       setError(pickApiErrorMessage(error, 'Erro ao carregar acessos expirando'));
     } finally {
       setLoading(false);
