@@ -21,32 +21,26 @@ import {
   Chip,
   Typography,
   Alert,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Grid,
-  Card,
-  CardContent,
+  Divider,
+  Paper,
+  Tooltip,
   LinearProgress,
 } from '@mui/material';
 import {
-  Store,
-  Computer,
-  Tv,
-  CheckCircle,
-  Warning,
-  Error as ErrorIcon,
-  VideoLibrary,
-  QueueMusic,
-  Campaign as CampaignIcon,
   Description,
   Add,
   OpenInNew,
+  CheckCircle,
+  Warning,
+  Error as ErrorIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { Subscriber, Contract, subscriberApi, contractApi } from '../../../services/api';
+import { Subscriber, Contract, subscriberApi } from '../../../services/api';
 import SubscriberStats from './SubscriberStats';
+import { loadPlanTopologyPreviewRows, countTopologyInRows, PlanTopologyPreviewRow } from '../planTopologyPreview';
+import { PlanTopologyTabPanel } from '../PlanTopologyTabPanel';
+import { getSubscriberContractHealth } from '../subscriberContractHealth';
+import { pickApiErrorMessage } from '../../../utils/apiErrorMessage';
 
 export interface SubscriberDetailsProps {
   open: boolean;
@@ -65,6 +59,12 @@ const formatDate = (date: string | Date): string => {
   });
 };
 
+const statusChipIcon = (health: 'success' | 'warning' | 'error') => {
+  if (health === 'success') return <CheckCircle />;
+  if (health === 'error') return <ErrorIcon />;
+  return <Warning />;
+};
+
 const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
   open,
   subscriber,
@@ -81,12 +81,61 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
   } | null>(null);
   const [activeContracts, setActiveContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(false);
+  const [topologyPreview, setTopologyPreview] = useState<{
+    loading: boolean;
+    error: string | null;
+    rows: PlanTopologyPreviewRow[];
+  }>({ loading: false, error: null, rows: [] });
+  /** Sub-abas Locais/Totens/TVs por contract_id */
+  const [topologySubTabByContract, setTopologySubTabByContract] = useState<Record<number, number>>({});
 
   useEffect(() => {
     if (open && subscriber) {
       loadDetails();
     }
   }, [open, subscriber]);
+
+  useEffect(() => {
+    if (!open) {
+      setTopologySubTabByContract({});
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !subscriber || activeContracts.length === 0) {
+      setTopologyPreview({ loading: false, error: null, rows: [] });
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setTopologyPreview((prev) => ({ ...prev, loading: true, error: null }));
+      try {
+        const rows = await loadPlanTopologyPreviewRows(
+          activeContracts.map((c: any) => ({
+            contract_id: c.contract_id,
+            plan_id: c.plan_id,
+            title: c.title,
+            contract_number: c.contract_number,
+          }))
+        );
+        if (!cancelled) {
+          setTopologyPreview({ loading: false, error: null, rows });
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setTopologyPreview({
+            loading: false,
+            error: pickApiErrorMessage(e, 'Erro ao carregar rede do plano'),
+            rows: [],
+          });
+        }
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, subscriber?.subscriber_id, activeContracts]);
 
   const loadDetails = async () => {
     if (!subscriber) return;
@@ -99,7 +148,7 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
           subscriberApi.getTotems(subscriber.subscriber_id),
           subscriberApi.getSmartTvs(subscriber.subscriber_id),
           subscriberApi.getStats(subscriber.subscriber_id),
-          subscriberApi.getContracts(subscriber.subscriber_id).catch(() => []),
+          subscriberApi.getContracts(subscriber.subscriber_id, { activeOnly: false }).catch(() => []),
         ]);
 
       setStats({
@@ -131,9 +180,6 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
           sx={{ mb: 2 }}
         >
           <Tab label="Informações" />
-          <Tab label="Locais" />
-          <Tab label="Totens" />
-          <Tab label="Smart TVs" />
           <Tab
             label="Contratos"
             icon={
@@ -145,6 +191,8 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
           />
           <Tab label="Estatísticas" />
         </Tabs>
+
+        {loading && <LinearProgress sx={{ mb: 2 }} />}
 
         {/* Aba Informações */}
         {activeTab === 0 && (
@@ -224,83 +272,8 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
           </TableContainer>
         )}
 
-        {/* Aba Locais */}
-        {activeTab === 1 && stats && (
-          <Box>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              Locais ({stats.locals.length})
-            </Typography>
-            {stats.locals.length === 0 ? (
-              <Alert severity="info">Nenhum local cadastrado</Alert>
-            ) : (
-              <List>
-                {stats.locals.map((local: any) => (
-                  <ListItem key={local.local_id}>
-                    <ListItemIcon>
-                      <Store />
-                    </ListItemIcon>
-                    <ListItemText primary={local.name} secondary={local.address || 'Sem endereço'} />
-                  </ListItem>
-                ))}
-              </List>
-            )}
-          </Box>
-        )}
-
-        {/* Aba Totens */}
-        {activeTab === 2 && stats && (
-          <Box>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              Totens ({stats.totems.length})
-            </Typography>
-            {stats.totems.length === 0 ? (
-              <Alert severity="info">Nenhum totem cadastrado</Alert>
-            ) : (
-              <List>
-                {stats.totems.map((totem: any) => (
-                  <ListItem key={totem.totem_id}>
-                    <ListItemIcon>
-                      <Computer />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={totem.name || totem.identifier}
-                      secondary={`Status: ${totem.status || 'N/A'}`}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            )}
-          </Box>
-        )}
-
-        {/* Aba Smart TVs */}
-        {activeTab === 3 && stats && (
-          <Box>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              Smart TVs ({stats.smartTvs.length})
-            </Typography>
-            {stats.smartTvs.length === 0 ? (
-              <Alert severity="info">Nenhuma Smart TV cadastrada</Alert>
-            ) : (
-              <List>
-                {stats.smartTvs.map((tv: any, index: number) => (
-                  <ListItem key={tv.smart_tv_id || `tv-${index}`}>
-                    <ListItemIcon>
-                      <Tv />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={tv.name || tv.identifier}
-                      secondary={`${tv.brand || ''} ${tv.model || ''} - Status: ${tv.status || 'N/A'}`}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            )}
-          </Box>
-        )}
-
-        {/* Aba Contratos */}
-        {activeTab === 4 && (
+        {/* Aba Contratos — rede do plano aninhada por contrato */}
+        {activeTab === 1 && (
           <Box>
             <Box
               sx={{
@@ -336,55 +309,155 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
             </Box>
 
             {activeContracts.length === 0 ? (
-              <Alert severity="info">Nenhum contrato ativo encontrado para este anunciante.</Alert>
+              <Alert severity="info">Nenhum contrato encontrado para este anunciante.</Alert>
             ) : (
-              <List>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {activeContracts.map((contract: any, idx: number) => {
-                  const isExpired =
-                    contract.end_date && new Date(contract.end_date) < new Date();
-                  const isExpiringSoon =
-                    contract.end_date &&
-                    new Date(contract.end_date) > new Date() &&
-                    new Date(contract.end_date) <=
-                      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                  const cid = Number(contract.contract_id ?? contract.contractId ?? idx);
+                  const health = getSubscriberContractHealth(contract as Record<string, unknown>);
+                  const chipColor =
+                    health.health === 'success' ? 'success' : health.health === 'error' ? 'error' : 'warning';
+                  const topoRow = topologyPreview.rows[idx];
+                  const counts = topoRow ? countTopologyInRows([topoRow]) : { lc: 0, tt: 0, st: 0 };
+                  const subTab = topologySubTabByContract[cid] ?? 0;
+                  const singlePreview = {
+                    loading: topologyPreview.loading,
+                    error: topologyPreview.error,
+                    rows: topoRow ? [topoRow] : [],
+                  };
 
                   return (
-                    <ListItem
-                      key={contract.contract_id || contract.contractId || `contract-${idx}`}
-                      sx={{
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        borderRadius: 1,
-                        mb: 1,
-                      }}
-                    >
-                      <ListItemIcon>
-                        <Description />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={`${contract.contract_number || contract.contractNumber || 'N/A'} - ${
-                          contract.title || 'Sem título'
-                        }`}
-                        secondary={`Status: ${contract.status || 'N/A'} • Início: ${
-                          contract.start_date
-                            ? new Date(contract.start_date).toLocaleDateString('pt-BR')
-                            : 'N/A'
-                        }${
-                          contract.end_date
-                            ? ` • Fim: ${new Date(contract.end_date).toLocaleDateString('pt-BR')}`
-                            : ''
-                        }`}
-                      />
-                    </ListItem>
+                    <Paper key={cid} variant="outlined" sx={{ p: 2 }}>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          gap: 2,
+                          flexWrap: 'wrap',
+                          mb: 1,
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', minWidth: 0 }}>
+                          <Description color="action" sx={{ mt: 0.25 }} />
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="subtitle1" fontWeight="bold">
+                              {contract.contract_number || contract.contractNumber || 'N/A'} —{' '}
+                              {contract.title || 'Sem título'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {contract.plan_name && (
+                                <>
+                                  Plano: {contract.plan_name}
+                                  {' · '}
+                                </>
+                              )}
+                              Início:{' '}
+                              {contract.start_date
+                                ? new Date(contract.start_date).toLocaleDateString('pt-BR')
+                                : 'N/A'}
+                              {contract.end_date &&
+                                ` · Fim: ${new Date(contract.end_date).toLocaleDateString('pt-BR')}`}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        <Tooltip title={health.tooltip}>
+                          <Chip
+                            size="small"
+                            icon={statusChipIcon(health.health)}
+                            label={health.chipLabel}
+                            color={chipColor}
+                            variant={health.health === 'warning' ? 'outlined' : 'filled'}
+                            sx={{ flexShrink: 0 }}
+                          />
+                        </Tooltip>
+                      </Box>
+
+                      <Divider sx={{ my: 2 }} />
+
+                      <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                        Rede permitida pelo plano (somente leitura)
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
+                        Locais, totens e Smart TVs que este contrato outorga via plano — igual ao fluxo de cadastro.
+                      </Typography>
+
+                      <Tabs
+                        value={subTab}
+                        onChange={(_, v) =>
+                          setTopologySubTabByContract((prev) => ({ ...prev, [cid]: v }))
+                        }
+                        variant="scrollable"
+                        scrollButtons="auto"
+                        allowScrollButtonsMobile
+                        sx={{ borderBottom: 1, borderColor: 'divider', mb: 1 }}
+                      >
+                        <Tab
+                          label="Locais"
+                          icon={
+                            counts.lc > 0 ? (
+                              <Chip label={counts.lc} size="small" color="primary" />
+                            ) : undefined
+                          }
+                          iconPosition="end"
+                        />
+                        <Tab
+                          label="Totens"
+                          icon={
+                            counts.tt > 0 ? (
+                              <Chip label={counts.tt} size="small" color="primary" />
+                            ) : undefined
+                          }
+                          iconPosition="end"
+                        />
+                        <Tab
+                          label="Smart TVs"
+                          icon={
+                            counts.st > 0 ? (
+                              <Chip label={counts.st} size="small" color="primary" />
+                            ) : undefined
+                          }
+                          iconPosition="end"
+                        />
+                      </Tabs>
+
+                      {subTab === 0 && (
+                        <PlanTopologyTabPanel
+                          mode="locals"
+                          preview={singlePreview}
+                          variant="details"
+                          contractCount={1}
+                          dense
+                        />
+                      )}
+                      {subTab === 1 && (
+                        <PlanTopologyTabPanel
+                          mode="totens"
+                          preview={singlePreview}
+                          variant="details"
+                          contractCount={1}
+                          dense
+                        />
+                      )}
+                      {subTab === 2 && (
+                        <PlanTopologyTabPanel
+                          mode="smartTvs"
+                          preview={singlePreview}
+                          variant="details"
+                          contractCount={1}
+                          dense
+                        />
+                      )}
+                    </Paper>
                   );
                 })}
-              </List>
+              </Box>
             )}
           </Box>
         )}
 
         {/* Aba Estatísticas */}
-        {activeTab === 5 && stats && (
+        {activeTab === 2 && stats && (
           <SubscriberStats
             data={{
               locals: stats.locals,

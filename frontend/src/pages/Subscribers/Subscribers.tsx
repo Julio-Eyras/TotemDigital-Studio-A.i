@@ -99,8 +99,6 @@ import {
   smartTvApi,
   contractApi,
   planApi,
-  publisherApi,
-  subscriberAccessApi,
 } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import { SortableList } from '../../components/SortableList/SortableList';
@@ -112,86 +110,8 @@ import { normalizeCampaign } from '../Campaigns/campaignHelpers';
 import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-
-/** Pré-visualização da rede do plano (publicadores → locais/totens/TVs), só leitura. */
-export interface PlanTopologyPreviewRow {
-  rowKey: string;
-  title: string;
-  contractNumber?: string;
-  planId: number | null;
-  planName: string | null;
-  publishers: Array<{
-    publisher_id: number;
-    publisher_name: string;
-    locals: Local[];
-    totems: any[];
-    smartTvs: any[];
-  }>;
-}
-
-async function loadPlanTopologyPreviewRows(
-  items: Array<{
-    plan_id?: number | null;
-    title?: string;
-    contract_number?: string;
-    tempId?: string;
-    contract_id?: number;
-  }>
-): Promise<PlanTopologyPreviewRow[]> {
-  return Promise.all(
-    items.map(async (c) => {
-      const title = c.title || c.contract_number || 'Contrato';
-      const rowKey =
-        c.tempId ??
-        (c.contract_id != null ? `contract-${c.contract_id}` : `${title}-${String(c.contract_number ?? '')}`);
-      if (!c.plan_id) {
-        return {
-          rowKey,
-          title,
-          contractNumber: c.contract_number,
-          planId: null,
-          planName: null,
-          publishers: [],
-        };
-      }
-      const planId = Number(c.plan_id);
-      let planName: string | null = null;
-      try {
-        const plan = await planApi.getById(planId);
-        planName = plan?.name ?? null;
-      } catch {
-        planName = null;
-      }
-      const accessList = await subscriberAccessApi.getPlanPublisherAccess({ planId });
-      const allowed = (accessList || []).filter((a: any) => a.is_allowed !== false);
-      const publishers = await Promise.all(
-        allowed.map(async (a: any) => {
-          const pid = a.publisher_id;
-          const [locals, totems, smartTvs] = await Promise.all([
-            publisherApi.getLocals(pid),
-            publisherApi.getTotems(pid),
-            publisherApi.getSmartTvs(pid),
-          ]);
-          return {
-            publisher_id: pid,
-            publisher_name: a.publisher_name || `Publisher ${pid}`,
-            locals: Array.isArray(locals) ? locals : [],
-            totems: Array.isArray(totems) ? totems : [],
-            smartTvs: Array.isArray(smartTvs) ? smartTvs : [],
-          };
-        })
-      );
-      return {
-        rowKey,
-        title,
-        contractNumber: c.contract_number,
-        planId,
-        planName: planName || `Plano #${planId}`,
-        publishers,
-      };
-    })
-  );
-}
+import { PlanTopologyPreviewRow, loadPlanTopologyPreviewRows, countTopologyInRows } from './planTopologyPreview';
+import { PlanTopologyTabPanel } from './PlanTopologyTabPanel';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -343,33 +263,15 @@ const Subscribers: React.FC = () => {
   /** Sub-abas Locais / Totens / Smart TVs dentro da aba Contratos (modal Editar). */
   const [editContractTopologySubTab, setEditContractTopologySubTab] = useState(0);
 
-  const createPreviewCounts = useMemo(() => {
-    let lc = 0;
-    let tt = 0;
-    let st = 0;
-    for (const r of createContractPlanPreview.rows) {
-      for (const p of r.publishers) {
-        lc += p.locals?.length ?? 0;
-        tt += p.totems?.length ?? 0;
-        st += p.smartTvs?.length ?? 0;
-      }
-    }
-    return { lc, tt, st };
-  }, [createContractPlanPreview.rows]);
+  const createPreviewCounts = useMemo(
+    () => countTopologyInRows(createContractPlanPreview.rows),
+    [createContractPlanPreview.rows]
+  );
 
-  const editPreviewCounts = useMemo(() => {
-    let lc = 0;
-    let tt = 0;
-    let st = 0;
-    for (const r of editContractPlanPreview.rows) {
-      for (const p of r.publishers) {
-        lc += p.locals?.length ?? 0;
-        tt += p.totems?.length ?? 0;
-        st += p.smartTvs?.length ?? 0;
-      }
-    }
-    return { lc, tt, st };
-  }, [editContractPlanPreview.rows]);
+  const editPreviewCounts = useMemo(
+    () => countTopologyInRows(editContractPlanPreview.rows),
+    [editContractPlanPreview.rows]
+  );
 
   // Estados para edição de Anunciante (carregar dados existentes)
   const [editMedias, setEditMedias] = useState<MediaItem[]>([]);
@@ -2160,165 +2062,6 @@ const Subscribers: React.FC = () => {
     );
   }
 
-  const resolveTotemLocalCaption = (totem: any, locals: Local[]) => {
-    const lid = getTotemLocalIdFromRow(totem);
-    if (lid == null) return '—';
-    const loc = locals.find((l) => Number(l.local_id) === Number(lid));
-    return loc?.name || `Local #${lid}`;
-  };
-
-  const resolveSmartTvTotemCaption = (tv: any, totems: any[]) => {
-    const tid = tv.totem_id ?? tv.totemId;
-    if (tid == null) return '—';
-    const t = totems.find((x) => Number(getTotemIdFromRow(x)) === Number(tid));
-    return t?.name || t?.identifier || `Totem #${tid}`;
-  };
-
-  const renderPlanTopologyTabContent = (
-    mode: 'locals' | 'totens' | 'smartTvs',
-    preview: { loading: boolean; error: string | null; rows: PlanTopologyPreviewRow[] },
-    variant: 'create' | 'edit',
-    contractCount: number
-  ) => {
-    let lc = 0;
-    let tt = 0;
-    let st = 0;
-    for (const r of preview.rows) {
-      for (const p of r.publishers) {
-        lc += p.locals?.length ?? 0;
-        tt += p.totems?.length ?? 0;
-        st += p.smartTvs?.length ?? 0;
-      }
-    }
-
-    return (
-    <Box>
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        {mode === 'locals' && 'Locais da rede do plano'}
-        {mode === 'totens' && 'Totens da rede do plano'}
-        {mode === 'smartTvs' && 'Smart TVs na rede do plano'}
-      </Typography>
-      <Alert severity="info" sx={{ mb: 2 }}>
-        <strong>Somente visualização.</strong> O contrato associa um <strong>plano</strong>; os locais e totens em que o anunciante pode veicular campanhas são os definidos por esse plano (publicadores autorizados e respectivos locais/totens). Não é permitido alterar essa rede {variant === 'create' ? 'neste assistente' : 'neste painel'}.
-      </Alert>
-      {preview.loading && <LinearProgress sx={{ mb: 2 }} />}
-      {preview.error && (
-        <Alert severity="error" sx={{ mb: 2 }}>{preview.error}</Alert>
-      )}
-      {!preview.loading && contractCount === 0 && (
-        <Alert severity="warning">
-          {variant === 'create' ? (
-            <>Adicione pelo menos um contrato na aba <strong>Contratos</strong>.</>
-          ) : (
-            <>Nenhum contrato vinculado a este anunciante.</>
-          )}
-        </Alert>
-      )}
-      {!preview.loading &&
-        contractCount > 0 &&
-        preview.rows.length > 0 &&
-        preview.rows.every((r) => !r.planId) && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            Associe um <strong>plano</strong> a cada contrato para visualizar locais, totens e TVs correspondentes.
-          </Alert>
-      )}
-      {!preview.loading &&
-        preview.rows.map((row) => (
-          <Paper key={row.rowKey} variant="outlined" sx={{ p: 2, mb: 2 }}>
-            <Typography variant="subtitle1" fontWeight="bold">{row.title}</Typography>
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
-              {row.planId ? (
-                <>Plano: {row.planName} (ID {row.planId})</>
-              ) : (
-                <>
-                  {variant === 'create'
-                    ? 'Sem plano neste contrato — defina um plano na aba Contratos para ver a rede.'
-                    : 'Sem plano neste contrato — edite o contrato e associe um plano para ver a rede.'}
-                </>
-              )}
-            </Typography>
-            {row.planId && row.publishers.length === 0 && (
-              <Alert severity="info" sx={{ mt: 1 }}>
-                Nenhum publicador permitido para este plano em <strong>Planos → acesso por publicador</strong>, ou todos estão bloqueados.
-              </Alert>
-            )}
-            {row.planId &&
-              row.publishers.map((pub) => (
-                <Box key={pub.publisher_id} sx={{ mb: 2, pl: 1, borderLeft: `3px solid ${theme.palette.divider}` }}>
-                  <Typography variant="subtitle2" color="primary">{pub.publisher_name}</Typography>
-                  {mode === 'locals' &&
-                    (pub.locals.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">Nenhum local neste publicador.</Typography>
-                    ) : (
-                      <TableContainer component={Paper} variant="outlined" sx={{ mt: 1 }}>
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Local</TableCell>
-                              <TableCell>Endereço</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {pub.locals.map((loc) => (
-                              <TableRow key={loc.local_id}>
-                                <TableCell>{loc.name}</TableCell>
-                                <TableCell>{[loc.address, loc.city, loc.state].filter(Boolean).join(', ') || '—'}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    ))}
-                  {mode === 'totens' &&
-                    (pub.totems.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">Nenhum totem neste publicador.</Typography>
-                    ) : (
-                      <List dense sx={{ mt: 1 }}>
-                        {pub.totems.map((totem: any, idx: number) => (
-                          <ListItem key={String(getTotemIdFromRow(totem) ?? idx)} sx={{ py: 0.5 }}>
-                            <ListItemIcon><Computer fontSize="small" /></ListItemIcon>
-                            <ListItemText
-                              primary={totem.name || totem.identifier || 'Totem'}
-                              secondary={`Local: ${resolveTotemLocalCaption(totem, pub.locals)} · ${totem.identifier || '—'}`}
-                            />
-                          </ListItem>
-                        ))}
-                      </List>
-                    ))}
-                  {mode === 'smartTvs' &&
-                    (pub.smartTvs.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">Nenhuma Smart TV adicional registada neste publicador.</Typography>
-                    ) : (
-                      <List dense sx={{ mt: 1 }}>
-                        {pub.smartTvs.map((tv: any, idx: number) => (
-                          <ListItem key={String(tv.smart_tv_id ?? tv.smartTvId ?? tv.id ?? idx)} sx={{ py: 0.5 }}>
-                            <ListItemIcon><Tv fontSize="small" /></ListItemIcon>
-                            <ListItemText
-                              primary={tv.name || tv.identifier || 'Smart TV'}
-                              secondary={`Totem: ${resolveSmartTvTotemCaption(tv, pub.totems)}`}
-                            />
-                          </ListItem>
-                        ))}
-                      </List>
-                    ))}
-                </Box>
-              ))}
-          </Paper>
-        ))}
-      {!preview.loading &&
-        contractCount > 0 &&
-        preview.rows.some((r) => r.planId) &&
-        lc === 0 &&
-        tt === 0 &&
-        st === 0 && (
-          <Alert severity="info">
-            O plano não devolveu locais ou totens para os publicadores permitidos. Confira cadastros de locais/totens e o mapeamento plano ↔ publicador.
-          </Alert>
-      )}
-    </Box>
-    );
-  };
-
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
       <PageHeader
@@ -2787,16 +2530,34 @@ const Subscribers: React.FC = () => {
             </Box>
           )}
 
-          {createTab === 2 &&
-            renderPlanTopologyTabContent('locals', createContractPlanPreview, 'create', tempSubscriberContracts.length)}
+          {createTab === 2 && (
+            <PlanTopologyTabPanel
+              mode="locals"
+              preview={createContractPlanPreview}
+              variant="create"
+              contractCount={tempSubscriberContracts.length}
+            />
+          )}
 
           {/* Aba Totens — somente leitura (rede do plano); ver também aba Locais */}
-          {createTab === 3 &&
-            renderPlanTopologyTabContent('totens', createContractPlanPreview, 'create', tempSubscriberContracts.length)}
+          {createTab === 3 && (
+            <PlanTopologyTabPanel
+              mode="totens"
+              preview={createContractPlanPreview}
+              variant="create"
+              contractCount={tempSubscriberContracts.length}
+            />
+          )}
 
           {/* Aba Smart TVs — somente leitura */}
-          {createTab === 4 &&
-            renderPlanTopologyTabContent('smartTvs', createContractPlanPreview, 'create', tempSubscriberContracts.length)}
+          {createTab === 4 && (
+            <PlanTopologyTabPanel
+              mode="smartTvs"
+              preview={createContractPlanPreview}
+              variant="create"
+              contractCount={tempSubscriberContracts.length}
+            />
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => {
@@ -3258,12 +3019,30 @@ const Subscribers: React.FC = () => {
                   iconPosition="end"
                 />
               </Tabs>
-              {editContractTopologySubTab === 0 &&
-                renderPlanTopologyTabContent('locals', editContractPlanPreview, 'edit', activeContracts?.length ?? 0)}
-              {editContractTopologySubTab === 1 &&
-                renderPlanTopologyTabContent('totens', editContractPlanPreview, 'edit', activeContracts?.length ?? 0)}
-              {editContractTopologySubTab === 2 &&
-                renderPlanTopologyTabContent('smartTvs', editContractPlanPreview, 'edit', activeContracts?.length ?? 0)}
+              {editContractTopologySubTab === 0 && (
+                <PlanTopologyTabPanel
+                  mode="locals"
+                  preview={editContractPlanPreview}
+                  variant="edit"
+                  contractCount={activeContracts?.length ?? 0}
+                />
+              )}
+              {editContractTopologySubTab === 1 && (
+                <PlanTopologyTabPanel
+                  mode="totens"
+                  preview={editContractPlanPreview}
+                  variant="edit"
+                  contractCount={activeContracts?.length ?? 0}
+                />
+              )}
+              {editContractTopologySubTab === 2 && (
+                <PlanTopologyTabPanel
+                  mode="smartTvs"
+                  preview={editContractPlanPreview}
+                  variant="edit"
+                  contractCount={activeContracts?.length ?? 0}
+                />
+              )}
             </Box>
           )}
 
