@@ -650,7 +650,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       subscription_interval: contract.subscription_interval || 'month',
       currency: contract.currency,
       payment_terms: contract.payment_terms || '',
-      status: contract.status,
+      status: contract.status || 'draft',
     });
     setEditPublisherContractDialogOpen(true);
   };
@@ -1360,10 +1360,10 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
           )}
 
           <FormControl fullWidth margin="normal">
-            <InputLabel>Status</InputLabel>
+            <InputLabel>Status (opcional)</InputLabel>
             <Select
-              value={publisherContractForm.status}
-              label="Status"
+              value={publisherContractForm.status ?? 'draft'}
+              label="Status (opcional)"
               onChange={(e) => setPublisherContractForm({ ...publisherContractForm, status: e.target.value as any })}
             >
               <MenuItem value="draft">Rascunho</MenuItem>
@@ -1544,10 +1544,10 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
           )}
 
           <FormControl fullWidth margin="normal">
-            <InputLabel>Status</InputLabel>
+            <InputLabel>Status (opcional)</InputLabel>
             <Select
-              value={publisherContractForm.status}
-              label="Status"
+              value={publisherContractForm.status ?? 'draft'}
+              label="Status (opcional)"
               onChange={(e) => setPublisherContractForm({ ...publisherContractForm, status: e.target.value as any })}
             >
               <MenuItem value="draft">Rascunho</MenuItem>
