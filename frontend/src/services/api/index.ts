@@ -1255,15 +1255,8 @@ export const campaignApi = {
       apiParams.subscriberId = apiParams.clientId;
       delete apiParams.clientId;
     }
-    
-    console.log('[CampaignAPI] getAll chamado com params:', apiParams);
+
     const response = await api.get('/campaigns', { params: apiParams });
-    console.log('[CampaignAPI] Resposta completa da API:', {
-      status: response.status,
-      data: response.data,
-      dataData: response.data?.data,
-      isArray: Array.isArray(response.data?.data),
-    });
     
     // Backend retorna { success: true, data: Campaign[], meta: {...} }
     // response.data.data é o array Campaign[]
@@ -1272,16 +1265,6 @@ export const campaignApi = {
     // NORMALIZAÇÃO: IDs + datas/status/totemIds (camel/snake) sem depender de ciclo com campaignHelpers
     const normalized = campaignsArray.map((c: any, idx: number) => {
       const normalizedCampaign = normalizeCampaignRecord(c) as Campaign;
-
-      if (idx < 2) {
-        console.log(`[CampaignAPI] Normalizando campanha ${idx}:`, {
-          original: c,
-          normalized: normalizedCampaign,
-          campaignId: normalizedCampaign.campaign_id,
-          contractId: normalizedCampaign.contract_id,
-          originalKeys: Object.keys(c),
-        });
-      }
 
       if (!normalizedCampaign.campaign_id) {
         console.error(`[CampaignAPI] ERRO: Campanha ${idx} sem ID após normalização!`, {
@@ -1293,17 +1276,7 @@ export const campaignApi = {
 
       return normalizedCampaign;
     }).filter((c: Campaign) => !!c.campaign_id);
-    
-    console.log('[CampaignAPI] Campanhas normalizadas:', {
-      totalRecebidas: campaignsArray.length,
-      totalNormalizadas: normalized.length,
-      sample: normalized[0] ? {
-        campaign_id: normalized[0].campaign_id,
-        contract_id: normalized[0].contract_id,
-        title: normalized[0].title,
-      } : null,
-    });
-    
+
     return normalized;
   },
 
@@ -1327,70 +1300,18 @@ export const campaignApi = {
     if (cleanData.contract_id !== undefined && cleanData.contractId === undefined) {
       cleanData.contractId = cleanData.contract_id;
     }
-    
-    console.log('[CampaignAPI] create RECEBIDO (payload original):', {
-      data,
-      contractId: data.contractId,
-      contractIdType: typeof data.contractId,
-      contractIdIsUndefined: data.contractId === undefined,
-      contractIdIsNull: data.contractId === null,
-      contractIdIsZero: data.contractId === 0,
-      subscriberId: data.subscriberId,
-      allKeys: Object.keys(data),
-      undefinedFields: Object.keys(data).filter(k => (data as any)[k] === undefined),
-    });
-    
-    console.log('[CampaignAPI] create PAYLOAD LIMPO (enviando ao backend):', {
-      cleanData,
-      contractId: cleanData.contractId,
-      contractIdType: typeof cleanData.contractId,
-      contractIdIsUndefined: cleanData.contractId === undefined,
-      hasContractId: 'contractId' in cleanData,
-      subscriberId: cleanData.subscriberId,
-      allKeys: Object.keys(cleanData),
-      payloadStringified: JSON.stringify(cleanData),
-    });
-    
+
     const response = await api.post('/campaigns', cleanData);
-    
-    console.log('[CampaignAPI] create RESPOSTA RAW:', {
-      status: response.status,
-      responseData: response.data,
-      campaignData: response.data?.data,
-      contractIdCamel: response.data?.data?.contractId,
-      contractIdSnake: response.data?.data?.contract_id,
-      allCampaignKeys: response.data?.data ? Object.keys(response.data.data) : [],
-    });
-    
+
     // Normalizar resposta (mesma regra que getById/getAll) + alias legado `id`
     const raw = response.data.data;
     const normalizedCampaign = normalizeCampaignRecord(raw) as Campaign;
     (normalizedCampaign as any).id = normalizedCampaign.campaign_id;
 
-    console.log('[CampaignAPI] create RESPOSTA NORMALIZADA:', {
-      normalizedCampaign,
-      contract_id: normalizedCampaign.contract_id,
-      contractId: (normalizedCampaign as any).contractId,
-      campaign_id: normalizedCampaign.campaign_id,
-      id: (normalizedCampaign as any).id,
-    });
-
     return normalizedCampaign;
   },
 
   update: async (id: number, data: UpdateCampaignRequest): Promise<Campaign> => {
-    // VALIDAÇÃO ABSOLUTA DEFINITIVA: nunca aceitar undefined/null/0/NaN
-    console.log('[CampaignAPI] update RECEBIDO:', { 
-      id, 
-      idType: typeof id,
-      isUndefined: id === undefined,
-      isNull: id === null,
-      isNaN: isNaN(id),
-      isInteger: Number.isInteger(id),
-      value: id,
-      data,
-    });
-    
     // Verificar TODAS as condições possíveis
     if (id === undefined || id === null || isNaN(id) || !Number.isFinite(id) || !Number.isInteger(id) || id <= 0) {
       const errorMsg = `[CampaignAPI] ERRO CRÍTICO: Tentando UPDATE com ID inválido. ID recebido: ${id} (tipo: ${typeof id})`;
@@ -1415,13 +1336,7 @@ export const campaignApi = {
       console.error(errorMsg, { id, finalId, data });
       throw new Error(errorMsg);
     }
-    
-    console.log('[CampaignAPI] update APROVADO - chamando API:', { 
-      originalId: id, 
-      finalId,
-      url: `/campaigns/${finalId}`,
-      data,
-    });
+
     // Garantir compatibilidade de nomes de campo antes de enviar (enviar ambos)
     const dataToSend = { ...data } as any;
     if (dataToSend.contractId !== undefined && dataToSend.contract_id === undefined) {
@@ -1454,17 +1369,6 @@ export const campaignApi = {
   },
 
   delete: async (id: number): Promise<void> => {
-    // VALIDAÇÃO ABSOLUTA DEFINITIVA: nunca aceitar undefined/null/0/NaN
-    console.log('[CampaignAPI] delete RECEBIDO:', { 
-      id, 
-      idType: typeof id, 
-      isUndefined: id === undefined,
-      isNull: id === null,
-      isNaN: isNaN(id),
-      isInteger: Number.isInteger(id),
-      value: id,
-    });
-    
     // Verificar TODAS as condições possíveis
     if (id === undefined || id === null || isNaN(id) || !Number.isFinite(id) || !Number.isInteger(id) || id <= 0) {
       const errorMsg = `[CampaignAPI] ERRO CRÍTICO: Tentando DELETE com ID inválido. ID recebido: ${id} (tipo: ${typeof id})`;
@@ -1488,13 +1392,7 @@ export const campaignApi = {
       console.error(errorMsg, { id, finalId });
       throw new Error(errorMsg);
     }
-    
-    console.log('[CampaignAPI] delete APROVADO - chamando API:', { 
-      originalId: id, 
-      finalId,
-      url: `/campaigns/${finalId}`,
-    });
-    
+
     await api.delete(`/campaigns/${finalId}`);
   },
 
